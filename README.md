@@ -62,13 +62,16 @@ cd build && ninja
 Add `export QEMU_ESP32_XTENSA=<path-to-clone-qemu>/build/` to your `.zshrc` or `.bashrc`
 
 ## Building for ESP32
-Navigate to the root of the Mini-RDK repository, once here run  `. $HOME/esp/esp-idf/export.sh` if you haven't done so already.
+Navigate to the root of the Mini-RDK repository, once here run  `. $HOME/esp/esp-idf/export.sh` if you haven't done so already. 
 You will need to uncomment two lines from the file `sdkconfig.defaults` if they are not already uncommented
 
 ``` editorconfig
 #CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
 #CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
 ```
+### Wifi Configuration
+By default the esp32 will select `Viam-2G` as a default WiFi SSID, you can change that by `export MINI_RDK_WIFI_WIFI=<ssid>` We don't save Viam WiFi password in the repository so you will have to `export MINI_RDK_WIFI_PASSWORD=****` too.
+
 You can then run (with your esp32 connected)
 ``` shell
 make build
