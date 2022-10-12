@@ -4,7 +4,7 @@ The Mini-RDK is a lightweight version of Viam's RDK, it's goal is to be ran on r
 ## Getting Started
 
 ### Installing ESP-IDF
-ESP-IDF is the development framework for Espressif SoCs supported on Windows, Linux and macOS. 
+ESP-IDF is the development framework for Espressif SoCs supported on Windows, Linux and macOS.
 To properly support cameras we use our own fork on the ESP-IDF. Start by following these [instructions](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/linux-macos-setup.html) up to step 2.
 
 ``` shell
@@ -15,7 +15,7 @@ cd esp-idf
 git checkout v4.4.1
 git submodule update --init --recursive
 ```
-You will then need to install the tools for ESP-IDF 
+You will then need to install the tools for ESP-IDF
 
 ``` shell
 cd ~/esp/esp-idf
@@ -50,6 +50,12 @@ cd qemu
 cd build && ninja
 ```
 #### Linux
+First, make sure you have the libgcrypt library and headers installed. On Ubuntu or Debian, this is
+``` shell
+sudo apt-get install libgcrypt20 libgcrypt20-dev
+```
+
+Then, install QEMU itself:
 ``` shell
 git clone https://github.com/espressif/qemu
 cd qemu
@@ -62,8 +68,8 @@ cd build && ninja
 Add `export QEMU_ESP32_XTENSA=<path-to-clone-qemu>/build/` to your `.zshrc` or `.bashrc`
 
 ## Building for ESP32
-Navigate to the root of the Mini-RDK repository, once here run  `. $HOME/esp/esp-idf/export.sh` if you haven't done so already. 
-You will need to uncomment two lines from the file `sdkconfig.defaults` if they are not already uncommented
+Navigate to the root of the Mini-RDK repository, once here run  `. $HOME/esp/esp-idf/export.sh` if you haven't done so already.
+You will need to uncomment two lines from the file `sdkconfig.defaults` if they have been commented out for QEMU building in the past:
 
 ``` editorconfig
 #CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
@@ -80,14 +86,14 @@ make upload
 
 ## Building for QEMU
 Navigate to the root of the Mini-RDK repository, once here run  `. $HOME/esp/esp-idf/export.sh` if you haven't done so already.
-You will need to comment two lines from the file `sdkconfig.defaults`
+You will need to comment out two lines from the file `sdkconfig.defaults`
 
 ``` editorconfig
 CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
 CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
 ```
 
-You can then run 
+You can then run
 ``` shell
 make sim-local
 ```
