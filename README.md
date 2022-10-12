@@ -69,7 +69,7 @@ Add `export QEMU_ESP32_XTENSA=<path-to-clone-qemu>/build/` to your `.zshrc` or `
 
 ## Building for ESP32
 Navigate to the root of the Mini-RDK repository, once here run  `. $HOME/esp/esp-idf/export.sh` if you haven't done so already.
-You will need to uncomment two lines from the file `sdkconfig.defaults` if they are not already uncommented
+You will need to uncomment two lines from the file `sdkconfig.defaults` if they have been commented out for QEMU building in the past:
 
 ``` editorconfig
 #CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
@@ -86,7 +86,7 @@ make upload
 
 ## Building for QEMU
 Navigate to the root of the Mini-RDK repository, once here run  `. $HOME/esp/esp-idf/export.sh` if you haven't done so already.
-You will need to comment two lines from the file `sdkconfig.defaults`
+You will need to comment out two lines from the file `sdkconfig.defaults`
 
 ``` editorconfig
 CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
