@@ -50,6 +50,12 @@ cd qemu
 cd build && ninja
 ```
 #### Linux
+First, make sure you have the libgcrypt library and headers installed. On Ubuntu or Debian, this is
+``` shell
+sudo apt-get install libgcrypt20 libgcrypt20-dev
+```
+
+Then, install QEMU itself:
 ``` shell
 git clone https://github.com/espressif/qemu
 cd qemu
