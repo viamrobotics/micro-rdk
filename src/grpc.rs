@@ -96,16 +96,17 @@ impl GrpcServer {
     }
 
     fn process_request(&mut self, path: &str, msg: Bytes) {
+        let payload = Self::validate_rpc(&msg);
         let ret = match path {
-            "/viam.robot.v1.RobotService/ResourceNames" => self.resource_names(msg),
-            "/viam.component.board.v1.BoardService/Status" => self.board_status(msg),
-            "/viam.component.board.v1.BoardService/GetGPIO" => self.board_get_pin(msg),
-            "/viam.component.board.v1.BoardService/SetGPIO" => self.board_set_pin(msg),
-            "/viam.robot.v1.RobotService/GetStatus" => self.robot_status(msg),
-            "/viam.component.camera.v1.CameraService/GetImage" => self.get_frame(msg),
-            "/viam.component.base.v1.BaseService/SetPower" => self.base_set_power(msg),
-            "/viam.component.base.v1.BaseService/Stop" => self.base_stop(msg),
-            "/viam.component.motor.v1.MotorService/SetPower" => self.motor_set_power(msg),
+            "/viam.robot.v1.RobotService/ResourceNames" => self.resource_names(payload),
+            "/viam.component.board.v1.BoardService/Status" => self.board_status(payload),
+            "/viam.component.board.v1.BoardService/GetGPIO" => self.board_get_pin(payload),
+            "/viam.component.board.v1.BoardService/SetGPIO" => self.board_set_pin(payload),
+            "/viam.robot.v1.RobotService/GetStatus" => self.robot_status(payload),
+            "/viam.component.camera.v1.CameraService/GetImage" => self.get_frame(payload),
+            "/viam.component.base.v1.BaseService/SetPower" => self.base_set_power(payload),
+            "/viam.component.base.v1.BaseService/Stop" => self.base_stop(payload),
+            "/viam.component.motor.v1.MotorService/SetPower" => self.motor_set_power(payload),
             _ => Err(anyhow::anyhow!("impl")),
         };
         match ret {
@@ -125,8 +126,7 @@ impl GrpcServer {
         }
     }
 
-    fn motor_set_power(&mut self, message: Bytes) -> anyhow::Result<()> {
-        let (_, message) = message.split_at(5);
+    fn motor_set_power(&mut self, message: &[u8]) -> anyhow::Result<()> {
         let req = component::motor::v1::SetPowerRequest::decode(message)?;
         let motor = match self.robot.lock().unwrap().get_motor_by_name(req.name) {
             Some(m) => m,
@@ -137,8 +137,7 @@ impl GrpcServer {
         self.encode_message(resp)
     }
 
-    fn board_status(&mut self, message: Bytes) -> anyhow::Result<()> {
-        let (_, message) = message.split_at(5);
+    fn board_status(&mut self, message: &[u8]) -> anyhow::Result<()> {
         let req = component::board::v1::StatusRequest::decode(message)?;
         let board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
             Some(b) => b,
@@ -151,8 +150,7 @@ impl GrpcServer {
         self.encode_message(status)
     }
 
-    fn board_set_pin(&mut self, message: Bytes) -> anyhow::Result<()> {
-        let (_, message) = message.split_at(5);
+    fn board_set_pin(&mut self, message: &[u8]) -> anyhow::Result<()> {
         let req = component::board::v1::SetGpioRequest::decode(message)?;
         let board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
             Some(b) => b,
@@ -166,8 +164,7 @@ impl GrpcServer {
         self.encode_message(resp)
     }
 
-    fn board_get_pin(&mut self, message: Bytes) -> anyhow::Result<()> {
-        let (_, message) = message.split_at(5);
+    fn board_get_pin(&mut self, message: &[u8]) -> anyhow::Result<()> {
         let req = component::board::v1::GetGpioRequest::decode(message)?;
         let board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
             Some(b) => b,
@@ -180,8 +177,7 @@ impl GrpcServer {
         self.encode_message(resp)
     }
 
-    fn base_set_power(&mut self, message: Bytes) -> anyhow::Result<()> {
-        let (_, message) = message.split_at(5);
+    fn base_set_power(&mut self, message: &[u8]) -> anyhow::Result<()> {
         let req = component::base::v1::SetPowerRequest::decode(message)?;
         let base = match self.robot.lock().unwrap().get_base_by_name(req.name) {
             Some(b) => b,
@@ -195,8 +191,7 @@ impl GrpcServer {
         self.encode_message(resp)
     }
 
-    fn base_stop(&mut self, message: Bytes) -> anyhow::Result<()> {
-        let (_, message) = message.split_at(5);
+    fn base_stop(&mut self, message: &[u8]) -> anyhow::Result<()> {
         let req = component::base::v1::StopRequest::decode(message)?;
         let base = match self.robot.lock().unwrap().get_base_by_name(req.name) {
             Some(b) => b,
@@ -208,8 +203,7 @@ impl GrpcServer {
         self.encode_message(resp)
     }
 
-    fn robot_status(&mut self, message: Bytes) -> anyhow::Result<()> {
-        let (_, message) = message.split_at(5);
+    fn robot_status(&mut self, message: &[u8]) -> anyhow::Result<()> {
         let req = robot::v1::GetStatusRequest::decode(message)?;
         let status = robot::v1::GetStatusResponse {
             status: self.robot.lock().unwrap().get_status(req)?,
@@ -217,8 +211,7 @@ impl GrpcServer {
         self.encode_message(status)
     }
 
-    fn get_frame(&mut self, message: Bytes) -> anyhow::Result<()> {
-        let (_, message) = message.split_at(5);
+    fn get_frame(&mut self, message: &[u8]) -> anyhow::Result<()> {
         let req = component::camera::v1::GetImageRequest::decode(message)?;
         if let Some(camera) = self.robot.lock().unwrap().get_camera_by_name(req.name) {
             let mut buffer = RefCell::borrow_mut(&self.buffer).split_off(0);
@@ -238,7 +231,7 @@ impl GrpcServer {
         Err(anyhow::anyhow!("resource not found"))
     }
 
-    fn resource_names(&mut self, _unused_message: Bytes) -> anyhow::Result<()> {
+    fn resource_names(&mut self, _unused_message: &[u8]) -> anyhow::Result<()> {
         let rr = self.robot.lock().unwrap().get_resource_names()?;
         let rr = robot::v1::ResourceNamesResponse { resources: rr };
         self.encode_message(rr)
