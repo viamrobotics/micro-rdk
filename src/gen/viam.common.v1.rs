@@ -112,6 +112,9 @@ pub struct Geometry {
     /// Pose of a gemetries center point
     #[prost(message, optional, tag="1")]
     pub center: ::core::option::Option<Pose>,
+    /// Label of the geometry. If none supplied, will be an empty string.
+    #[prost(string, tag="4")]
+    pub label: ::prost::alloc::string::String,
     /// Deminsions of a give geometry. This can be a sphere or box
     #[prost(oneof="geometry::GeometryType", tags="2, 3")]
     pub geometry_type: ::core::option::Option<geometry::GeometryType>,

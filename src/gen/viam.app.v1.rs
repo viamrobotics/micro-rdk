@@ -9,6 +9,8 @@ pub struct Robot {
     pub location: ::prost::alloc::string::String,
     #[prost(message, optional, tag="4")]
     pub last_access: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(message, optional, tag="5")]
+    pub created_on: ::core::option::Option<::prost_types::Timestamp>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RobotPart {
@@ -39,6 +41,8 @@ pub struct RobotPart {
     pub fqdn: ::prost::alloc::string::String,
     #[prost(string, tag="11")]
     pub local_fqdn: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="13")]
+    pub created_on: ::core::option::Option<::prost_types::Timestamp>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RobotPartHistoryEntry {
@@ -60,6 +64,8 @@ pub struct Organization {
     pub id: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
     pub name: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="3")]
+    pub created_on: ::core::option::Option<::prost_types::Timestamp>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListOrganizationsResponse {
@@ -72,6 +78,8 @@ pub struct Location {
     pub id: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
     pub name: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="3")]
+    pub created_on: ::core::option::Option<::prost_types::Timestamp>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListLocationsRequest {
@@ -229,6 +237,8 @@ pub struct Fragment {
     pub organization_owner: ::prost::alloc::string::String,
     #[prost(bool, tag="5")]
     pub public: bool,
+    #[prost(message, optional, tag="6")]
+    pub created_on: ::core::option::Option<::prost_types::Timestamp>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FindRobotsRequest {

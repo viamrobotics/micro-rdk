@@ -3,10 +3,10 @@
 pub struct DataRequest {
     #[prost(message, optional, tag="1")]
     pub filter: ::core::option::Option<Filter>,
-    #[prost(int32, tag="2")]
-    pub skip: i32,
-    #[prost(int32, tag="3")]
-    pub limit: i32,
+    #[prost(int64, tag="2")]
+    pub skip: i64,
+    #[prost(int64, tag="3")]
+    pub limit: i64,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Filter {
@@ -30,8 +30,8 @@ pub struct Filter {
     pub part_id: ::prost::alloc::string::String,
     #[prost(string, tag="10")]
     pub location_id: ::prost::alloc::string::String,
-    #[prost(string, tag="11")]
-    pub org_id: ::prost::alloc::string::String,
+    #[prost(string, repeated, tag="11")]
+    pub org_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(string, repeated, tag="12")]
     pub mime_type: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(message, optional, tag="13")]
@@ -41,28 +41,30 @@ pub struct Filter {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CaptureMetadata {
     #[prost(string, tag="1")]
-    pub location_id: ::prost::alloc::string::String,
+    pub org_id: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
-    pub robot_name: ::prost::alloc::string::String,
+    pub location_id: ::prost::alloc::string::String,
     #[prost(string, tag="3")]
-    pub robot_id: ::prost::alloc::string::String,
+    pub robot_name: ::prost::alloc::string::String,
     #[prost(string, tag="4")]
-    pub part_name: ::prost::alloc::string::String,
+    pub robot_id: ::prost::alloc::string::String,
     #[prost(string, tag="5")]
-    pub part_id: ::prost::alloc::string::String,
+    pub part_name: ::prost::alloc::string::String,
     #[prost(string, tag="6")]
-    pub component_type: ::prost::alloc::string::String,
+    pub part_id: ::prost::alloc::string::String,
     #[prost(string, tag="7")]
-    pub component_model: ::prost::alloc::string::String,
+    pub component_type: ::prost::alloc::string::String,
     #[prost(string, tag="8")]
-    pub component_name: ::prost::alloc::string::String,
+    pub component_model: ::prost::alloc::string::String,
     #[prost(string, tag="9")]
+    pub component_name: ::prost::alloc::string::String,
+    #[prost(string, tag="10")]
     pub method_name: ::prost::alloc::string::String,
-    #[prost(map="string, message", tag="10")]
+    #[prost(map="string, message", tag="11")]
     pub method_parameters: ::std::collections::HashMap<::prost::alloc::string::String, ::prost_types::Any>,
-    #[prost(string, repeated, tag="11")]
+    #[prost(string, repeated, tag="12")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    #[prost(string, tag="12")]
+    #[prost(string, tag="13")]
     pub mime_type: ::prost::alloc::string::String,
 }
 /// CaptureInterval describes the start and end time of the capture in this file

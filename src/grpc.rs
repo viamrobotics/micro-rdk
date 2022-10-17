@@ -63,6 +63,7 @@ impl HttpBody for GrpcBody {
         Poll::Ready(Ok(self.get_mut().trailers.take()))
     }
 }
+
 #[derive(Clone)]
 pub struct GrpcServer {
     response: GrpcBody,
@@ -80,6 +81,7 @@ impl GrpcServer {
             robot,
         }
     }
+
     fn process_request(&mut self, path: &str, msg: Bytes) {
         let ret = match path {
             "/viam.robot.v1.RobotService/ResourceNames" => self.resource_names(),
@@ -109,6 +111,7 @@ impl GrpcServer {
             }
         }
     }
+
     fn motor_set_power(&mut self, message: Bytes) -> anyhow::Result<()> {
         let (_, message) = message.split_at(5);
         let req = component::motor::v1::SetPowerRequest::decode(message)?;
@@ -120,6 +123,7 @@ impl GrpcServer {
         let resp = component::motor::v1::SetPowerResponse {};
         self.encode_message(resp)
     }
+
     fn board_status(&mut self, message: Bytes) -> anyhow::Result<()> {
         let (_, message) = message.split_at(5);
         let req = component::board::v1::StatusRequest::decode(message)?;
@@ -133,6 +137,7 @@ impl GrpcServer {
         };
         self.encode_message(status)
     }
+
     fn board_set_pin(&mut self, message: Bytes) -> anyhow::Result<()> {
         let (_, message) = message.split_at(5);
         let req = component::board::v1::SetGpioRequest::decode(message)?;
@@ -147,6 +152,7 @@ impl GrpcServer {
         let resp = component::board::v1::SetGpioResponse {};
         self.encode_message(resp)
     }
+
     fn board_get_pin(&mut self, message: Bytes) -> anyhow::Result<()> {
         let (_, message) = message.split_at(5);
         let req = component::board::v1::GetGpioRequest::decode(message)?;
@@ -160,6 +166,7 @@ impl GrpcServer {
         let resp = component::board::v1::GetGpioResponse { high: level };
         self.encode_message(resp)
     }
+
     fn base_set_power(&mut self, message: Bytes) -> anyhow::Result<()> {
         let (_, message) = message.split_at(5);
         let req = component::base::v1::SetPowerRequest::decode(message)?;
@@ -174,6 +181,7 @@ impl GrpcServer {
         let resp = component::base::v1::SetPowerResponse {};
         self.encode_message(resp)
     }
+
     fn base_stop(&mut self, message: Bytes) -> anyhow::Result<()> {
         let (_, message) = message.split_at(5);
         let req = component::base::v1::StopRequest::decode(message)?;
@@ -186,6 +194,7 @@ impl GrpcServer {
         let resp = component::base::v1::StopResponse {};
         self.encode_message(resp)
     }
+
     fn robot_status(&mut self, message: Bytes) -> anyhow::Result<()> {
         let (_, message) = message.split_at(5);
         let req = robot::v1::GetStatusRequest::decode(message)?;
@@ -194,6 +203,7 @@ impl GrpcServer {
         };
         self.encode_message(status)
     }
+
     fn get_frame(&mut self, message: Bytes) -> anyhow::Result<()> {
         let (_, message) = message.split_at(5);
         let req = component::camera::v1::GetImageRequest::decode(message)?;
@@ -214,11 +224,13 @@ impl GrpcServer {
         }
         Err(anyhow::anyhow!("resource not found"))
     }
+
     fn resource_names(&mut self) -> anyhow::Result<()> {
         let rr = self.robot.lock().unwrap().get_resource_names()?;
         let rr = robot::v1::ResourceNamesResponse { resources: rr };
         self.encode_message(rr)
     }
+
     fn encode_message<M: Message>(&mut self, m: M) -> anyhow::Result<()> {
         let len = 5 + m.encoded_len();
         let mut buffer = RefCell::borrow_mut(&self.buffer).split_off(0);
@@ -239,6 +251,7 @@ impl Service<Request<Body>> for GrpcServer {
     type Response = Response<GrpcBody>;
     type Error = MyErr;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
+
     fn call(&mut self, req: Request<Body>) -> Self::Future {
         debug!("clone in Servive GRPC");
         {
@@ -260,6 +273,7 @@ impl Service<Request<Body>> for GrpcServer {
                 .map_err(|_| MyErr {})
         })
     }
+
     fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
@@ -298,9 +312,11 @@ impl<T> Service<T> for MakeSvcGrpcServer {
     type Response = GrpcServer;
     type Error = MyErr;
     type Future = future::Ready<Result<Self::Response, Self::Error>>;
+
     fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Ok(()).into()
     }
+
     fn call(&mut self, _: T) -> Self::Future {
         {
             info!("reserve memory");
@@ -344,6 +360,7 @@ where
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.inner.poll_ready(cx).map_err(Into::into)
     }
+
     fn call(&mut self, req: Request<Body>) -> Self::Future {
         let fut = self.inner.call(req);
         let timeout = self.timeout;

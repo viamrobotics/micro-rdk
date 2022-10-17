@@ -139,6 +139,8 @@ pub struct TabularCapture {
     pub file_size_bytes: i64,
     #[prost(string, tag="17")]
     pub session_id: ::prost::alloc::string::String,
+    #[prost(string, tag="18")]
+    pub mime_type: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BinaryCapture {
@@ -172,27 +174,10 @@ pub struct BinaryCapture {
     pub file_size_bytes: i64,
     #[prost(string, tag="15")]
     pub session_id: ::prost::alloc::string::String,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct UserFile {
-    #[prost(message, optional, tag="1")]
-    pub sync_time: ::core::option::Option<::prost_types::Timestamp>,
-    #[prost(string, tag="2")]
-    pub org_id: ::prost::alloc::string::String,
-    #[prost(string, tag="3")]
-    pub robot_id: ::prost::alloc::string::String,
-    #[prost(string, tag="4")]
-    pub part_id: ::prost::alloc::string::String,
-    #[prost(string, tag="5")]
-    pub location_id: ::prost::alloc::string::String,
-    #[prost(string, tag="6")]
-    pub blob_path: ::prost::alloc::string::String,
-    #[prost(map="string, message", tag="7")]
-    pub method_parameters: ::std::collections::HashMap<::prost::alloc::string::String, ::prost_types::Any>,
-    #[prost(string, tag="8")]
-    pub file_id: ::prost::alloc::string::String,
-    #[prost(int64, tag="9")]
-    pub file_size_bytes: i64,
+    #[prost(string, tag="16")]
+    pub mime_type: ::prost::alloc::string::String,
+    #[prost(string, tag="17")]
+    pub file_name: ::prost::alloc::string::String,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
