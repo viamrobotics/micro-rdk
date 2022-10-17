@@ -82,22 +82,22 @@ impl GrpcServer {
         }
     }
 
-    fn validate_rpc(message: &Bytes) -> &[u8] {
+    fn validate_rpc(message: &Bytes) -> anyhow::Result<&[u8]> {
         // Per https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md, we're expecting a
         // 5-byte header followed by the actual protocol buffer data. The 5 bytes in the header are
         // 1 null byte (indicating we're not using compression), and 4 bytes of a big-endian
         // integer describing the length of the rest of the data.
-        assert!(message.len() >= 5);
+        anyhow::ensure!(message.len() >= 5, "Message too short");
         let (header, rest) = message.split_at(5);
-        assert_eq!(header[0], 0);
+        anyhow::ensure!(header[0] == 0, "Compression not supported");
         let expected_len = header[1] << 24 + header[2] << 16 + header[3] << 8 + header[4];
-        assert_eq!(expected_len as usize, rest.len());
-        return rest
+        anyhow::ensure!(expected_len as usize == rest.len(), "Incorrect payload size");
+        return Ok(rest)
     }
 
-    fn process_request(&mut self, path: &str, msg: Bytes) {
-        let payload = Self::validate_rpc(&msg);
-        let ret = match path {
+    fn handle_request(&mut self, path: &str, msg: Bytes) -> anyhow::Result<()> {
+        let payload = Self::validate_rpc(&msg)?;
+        match path {
             "/viam.robot.v1.RobotService/ResourceNames" => self.resource_names(payload),
             "/viam.component.board.v1.BoardService/Status" => self.board_status(payload),
             "/viam.component.board.v1.BoardService/GetGPIO" => self.board_get_pin(payload),
@@ -108,8 +108,11 @@ impl GrpcServer {
             "/viam.component.base.v1.BaseService/Stop" => self.base_stop(payload),
             "/viam.component.motor.v1.MotorService/SetPower" => self.motor_set_power(payload),
             _ => Err(anyhow::anyhow!("impl")),
-        };
-        match ret {
+        }
+    }
+
+    fn process_request(&mut self, path: &str, msg: Bytes) {
+        match self.handle_request(path, msg) {
             Ok(_) => {}
             Err(_) => {
                 self.response
