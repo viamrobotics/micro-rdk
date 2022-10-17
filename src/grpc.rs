@@ -84,7 +84,7 @@ impl GrpcServer {
 
     fn process_request(&mut self, path: &str, msg: Bytes) {
         let ret = match path {
-            "/viam.robot.v1.RobotService/ResourceNames" => self.resource_names(),
+            "/viam.robot.v1.RobotService/ResourceNames" => self.resource_names(msg),
             "/viam.component.board.v1.BoardService/Status" => self.board_status(msg),
             "/viam.component.board.v1.BoardService/GetGPIO" => self.board_get_pin(msg),
             "/viam.component.board.v1.BoardService/SetGPIO" => self.board_set_pin(msg),
@@ -225,7 +225,7 @@ impl GrpcServer {
         Err(anyhow::anyhow!("resource not found"))
     }
 
-    fn resource_names(&mut self) -> anyhow::Result<()> {
+    fn resource_names(&mut self, _unused_message: Bytes) -> anyhow::Result<()> {
         let rr = self.robot.lock().unwrap().get_resource_names()?;
         let rr = robot::v1::ResourceNamesResponse { resources: rr };
         self.encode_message(rr)
