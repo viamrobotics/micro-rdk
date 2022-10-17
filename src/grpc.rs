@@ -99,15 +99,15 @@ impl GrpcServer {
     fn handle_request(&mut self, path: &str, msg: Bytes) -> anyhow::Result<()> {
         let payload = Self::validate_rpc(&msg)?;
         match path {
-            "/viam.robot.v1.RobotService/ResourceNames" => self.resource_names(payload),
-            "/viam.component.board.v1.BoardService/Status" => self.board_status(payload),
-            "/viam.component.board.v1.BoardService/GetGPIO" => self.board_get_pin(payload),
-            "/viam.component.board.v1.BoardService/SetGPIO" => self.board_set_pin(payload),
-            "/viam.robot.v1.RobotService/GetStatus" => self.robot_status(payload),
-            "/viam.component.camera.v1.CameraService/GetImage" => self.get_frame(payload),
             "/viam.component.base.v1.BaseService/SetPower" => self.base_set_power(payload),
             "/viam.component.base.v1.BaseService/Stop" => self.base_stop(payload),
+            "/viam.component.board.v1.BoardService/GetGPIO" => self.board_get_pin(payload),
+            "/viam.component.board.v1.BoardService/SetGPIO" => self.board_set_pin(payload),
+            "/viam.component.board.v1.BoardService/Status" => self.board_status(payload),
+            "/viam.component.camera.v1.CameraService/GetImage" => self.get_frame(payload),
             "/viam.component.motor.v1.MotorService/SetPower" => self.motor_set_power(payload),
+            "/viam.robot.v1.RobotService/ResourceNames" => self.resource_names(payload),
+            "/viam.robot.v1.RobotService/GetStatus" => self.robot_status(payload),
             _ => anyhow::bail!("impl"),
         }
     }
