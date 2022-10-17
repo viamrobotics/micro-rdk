@@ -112,20 +112,17 @@ impl GrpcServer {
     }
 
     fn process_request(&mut self, path: &str, msg: Bytes) {
-        match self.handle_request(path, msg) {
-            Ok(_) => {}
-            Err(_) => {
-                self.response
-                    .trailers
-                    .as_mut()
-                    .unwrap()
-                    .insert("grpc-message", "unimplemented".parse().unwrap());
-                self.response
-                    .trailers
-                    .as_mut()
-                    .unwrap()
-                    .insert("grpc-status", "12".parse().unwrap());
-            }
+        if let Err(_) = self.handle_request(path, msg) {
+            self.response
+                .trailers
+                .as_mut()
+                .unwrap()
+                .insert("grpc-message", "unimplemented".parse().unwrap());
+            self.response
+                .trailers
+                .as_mut()
+                .unwrap()
+                .insert("grpc-status", "12".parse().unwrap());
         }
     }
 
