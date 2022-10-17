@@ -107,7 +107,7 @@ impl GrpcServer {
             "/viam.component.base.v1.BaseService/SetPower" => self.base_set_power(payload),
             "/viam.component.base.v1.BaseService/Stop" => self.base_stop(payload),
             "/viam.component.motor.v1.MotorService/SetPower" => self.motor_set_power(payload),
-            _ => Err(anyhow::anyhow!("impl")),
+            _ => anyhow::bail!("impl"),
         }
     }
 
