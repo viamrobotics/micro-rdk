@@ -87,12 +87,12 @@ pub struct Webcam {
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Property {
-    /// Video resolution width
+    /// Video resolution width in px
     #[prost(int32, tag="1")]
-    pub width: i32,
-    /// Video resolution height
+    pub width_px: i32,
+    /// Video resolution height in px
     #[prost(int32, tag="2")]
-    pub height: i32,
+    pub height_px: i32,
     /// Video frame format
     #[prost(string, tag="3")]
     pub frame_format: ::prost::alloc::string::String,

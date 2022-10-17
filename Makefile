@@ -21,7 +21,7 @@ endif
 	$(QEMU_ESP32_XTENSA)/qemu-system-xtensa -nographic -machine esp32 -gdb tcp::3334 -nic user,model=open_eth,hostfwd=tcp::7888-:80 -drive file=target/xtensa-esp32-espidf/debug/debug.bin,if=mtd,format=raw
 
 buf-clean:
-	find src/gen -type f \( -iname "*.rs"\) -delete
+	find src/gen -type f \( -iname "*.rs" \) -delete
 
 buf:	buf-clean
 	buf generate buf.build/viamrobotics/goutils --template buf.gen.yaml

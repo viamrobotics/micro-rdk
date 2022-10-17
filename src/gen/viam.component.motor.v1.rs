@@ -106,6 +106,11 @@ pub struct IsPoweredResponse {
     /// Returns true if the motor is on
     #[prost(bool, tag="1")]
     pub is_on: bool,
+    /// Returns power percent (from 0 to 1, or from -1 to 1 for motors that support negative power),
+    /// based on the last command sent to motor. If the last command was a stop command, this value
+    /// will be 0.
+    #[prost(double, tag="2")]
+    pub power_pct: f64,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPropertiesRequest {

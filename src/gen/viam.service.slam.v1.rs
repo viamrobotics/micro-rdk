@@ -10,6 +10,9 @@ pub struct GetPositionResponse {
     /// Current position of the robot within the World frame.
     #[prost(message, optional, tag="1")]
     pub pose: ::core::option::Option<super::super::super::common::v1::PoseInFrame>,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetMapRequest {

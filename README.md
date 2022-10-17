@@ -37,6 +37,13 @@ The script will give you two variables to add to you `.zshrc` or `.bashrc` do so
 ### (Optional) Installing QEMU for esp32
 Espressif maintains a pretty good QEMU emulator supporting the ESP32, we recommend using it during development. See [here](https://github.com/espressif/qemu) for more information
 
+### (Optional) Installing buf
+
+If you need to update the protocol buffers, you'll need to have `buf` installed:
+``` shell
+brew install bufbuild/buf/buf
+```
+
 #### MacOS
 ``` shell
 git clone https://github.com/espressif/qemu
