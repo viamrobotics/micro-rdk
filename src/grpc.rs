@@ -89,9 +89,10 @@ impl GrpcServer {
         // integer describing the length of the rest of the data.
         anyhow::ensure!(message.len() >= 5, "Message too short");
         let (header, rest) = message.split_at(5);
-        anyhow::ensure!(header[0] == 0, "Compression not supported");
-        let expected_len = header[1] << 24 + header[2] << 16 + header[3] << 8 + header[4];
-        anyhow::ensure!(expected_len as usize == rest.len(), "Incorrect payload size");
+        let (use_compression, expected_len) = header.split_at(1);
+        anyhow::ensure!(use_compression[0] == 0, "Compression not supported");
+        let expected_len = usize::from_be_bytes(expected_len.try_into().unwrap());
+        anyhow::ensure!(expected_len == rest.len(), "Incorrect payload size");
         return Ok(rest)
     }
 
