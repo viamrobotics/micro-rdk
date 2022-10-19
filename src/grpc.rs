@@ -101,6 +101,9 @@ impl GrpcServer {
         match path {
             "/viam.component.base.v1.BaseService/SetPower" => self.base_set_power(payload),
             "/viam.component.base.v1.BaseService/Stop" => self.base_stop(payload),
+            "/viam.component.base.v1.BaseService/MoveStraight" => self.base_move_straight(payload),
+            "/viam.component.base.v1.BaseService/Spin" => self.base_spin(payload),
+            "/viam.component.base.v1.BaseService/SetVelocity" => self.base_set_velocity(payload),
             "/viam.component.board.v1.BoardService/GetGPIO" => self.board_get_pin(payload),
             "/viam.component.board.v1.BoardService/SetGPIO" => self.board_set_pin(payload),
             "/viam.component.board.v1.BoardService/Status" => self.board_status(payload),
@@ -178,7 +181,19 @@ impl GrpcServer {
         self.encode_message(resp)
     }
 
-    fn base_set_power(&mut self, message: &[u8]) -> anyhow::Result<()> {
+    fn base_move_straight(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: base_move_straight")
+    }
+
+    fn base_spin(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: base_spin")
+    }
+
+    fn base_set_velocity(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: base_set_velocity")
+    }
+
+    fn base_set_power(&mut self, _message: &[u8]) -> anyhow::Result<()> {
         let req = component::base::v1::SetPowerRequest::decode(message)?;
         let base = match self.robot.lock().unwrap().get_base_by_name(req.name) {
             Some(b) => b,
