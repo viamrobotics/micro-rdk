@@ -30,5 +30,5 @@ buf:	buf-clean
 
 upload:
 	cargo build && cargo espflash save-image -f 80M -s 4MB -T partitions.csv ESP32 target/xtensa-esp32-espidf/debug/mini-rdk.bin
-	#cargo espflash partition-table --to-binary partitions.csv -o part.bin
-	esptool.py  --baud 460800 write_flash --flash_mode qio --flash_freq 80m 0x10000 target/xtensa-esp32-espidf/debug/mini-rdk.bin && sleep 2 && cargo espflash serial-monitor
+	cargo espflash partition-table --to-binary partitions.csv -o target/xtensa-esp32-espidf/debug/part.bin
+	esptool.py  --baud 460800 write_flash --flash_mode qio --flash_freq 80m 0x8000 target/xtensa-esp32-espidf/debug/part.bin 0x10000 target/xtensa-esp32-espidf/debug/mini-rdk.bin && sleep 2 && cargo espflash serial-monitor
