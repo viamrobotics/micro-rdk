@@ -193,7 +193,7 @@ impl GrpcServer {
         anyhow::bail!("unimplemented: base_set_velocity")
     }
 
-    fn base_set_power(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+    fn base_set_power(&mut self, message: &[u8]) -> anyhow::Result<()> {
         let req = component::base::v1::SetPowerRequest::decode(message)?;
         let base = match self.robot.lock().unwrap().get_base_by_name(req.name) {
             Some(b) => b,
