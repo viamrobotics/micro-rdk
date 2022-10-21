@@ -120,9 +120,13 @@ impl GrpcServer {
             "/viam.component.motor.v1.MotorService/SetPower" => self.motor_set_power(payload),
             "/viam.component.motor.v1.MotorService/GoFor" => self.motor_go_for(payload),
             "/viam.component.motor.v1.MotorService/GoTo" => self.motor_go_to(payload),
-            "/viam.component.motor.v1.MotorService/ResetZeroPosition" => self.motor_reset_zero_position(payload),
+            "/viam.component.motor.v1.MotorService/ResetZeroPosition" => {
+                self.motor_reset_zero_position(payload)
+            }
             "/viam.component.motor.v1.MotorService/GetPosition" => self.motor_get_position(payload),
-            "/viam.component.motor.v1.MotorService/GetProperties" => self.motor_get_properties(payload),
+            "/viam.component.motor.v1.MotorService/GetProperties" => {
+                self.motor_get_properties(payload)
+            }
             "/viam.component.motor.v1.MotorService/Stop" => self.motor_stop(payload),
             "/viam.component.motor.v1.MotorService/IsPowered" => self.motor_is_powered(payload),
             "/viam.robot.v1.RobotService/ResourceNames" => self.resource_names(payload),
