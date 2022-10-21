@@ -93,7 +93,7 @@ impl GrpcServer {
         anyhow::ensure!(use_compression[0] == 0, "Compression not supported");
         let expected_len = usize::from_be_bytes(expected_len.try_into().unwrap());
         anyhow::ensure!(expected_len == rest.len(), "Incorrect payload size");
-        return Ok(rest);
+        Ok(rest)
     }
 
     fn handle_request(&mut self, path: &str, msg: Bytes) -> anyhow::Result<()> {
