@@ -107,7 +107,10 @@ impl GrpcServer {
             "/viam.component.board.v1.BoardService/GetGPIO" => self.board_get_pin(payload),
             "/viam.component.board.v1.BoardService/SetGPIO" => self.board_set_pin(payload),
             "/viam.component.board.v1.BoardService/Status" => self.board_status(payload),
-            "/viam.component.camera.v1.CameraService/GetImage" => self.get_frame(payload),
+	        "/viam.component.camera.v1.CameraService/GetImage" => self.camera_get_frame(payload),
+            "/viam.component.camera.v1.CameraService/GetPointCloud" => self.camera_get_point_cloud(payload),
+            "/viam.component.camera.v1.CameraService/GetProperties" => self.camera_get_properties(payload),
+            "/viam.component.camera.v1.CameraService/RenderFrame" => self.camera_render_frame(payload),
             "/viam.component.motor.v1.MotorService/SetPower" => self.motor_set_power(payload),
             "/viam.robot.v1.RobotService/ResourceNames" => self.resource_names(payload),
             "/viam.robot.v1.RobotService/GetStatus" => self.robot_status(payload),
@@ -227,7 +230,7 @@ impl GrpcServer {
         self.encode_message(status)
     }
 
-    fn get_frame(&mut self, message: &[u8]) -> anyhow::Result<()> {
+    fn camera_get_frame(&mut self, message: &[u8]) -> anyhow::Result<()> {
         let req = component::camera::v1::GetImageRequest::decode(message)?;
         if let Some(camera) = self.robot.lock().unwrap().get_camera_by_name(req.name) {
             let mut buffer = RefCell::borrow_mut(&self.buffer).split_off(0);
@@ -245,6 +248,18 @@ impl GrpcServer {
             return Ok(());
         }
         Err(anyhow::anyhow!("resource not found"))
+    }
+
+    fn camera_get_point_cloud(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: camera_get_point_cloud")
+    }
+
+    fn camera_get_properties(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: camera_get_properties")
+    }
+
+    fn camera_render_frame(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: camera_render_frame")
     }
 
     fn resource_names(&mut self, _unused_message: &[u8]) -> anyhow::Result<()> {
