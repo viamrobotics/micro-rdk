@@ -93,7 +93,7 @@ impl GrpcServer {
         anyhow::ensure!(use_compression[0] == 0, "Compression not supported");
         let expected_len = usize::from_be_bytes(expected_len.try_into().unwrap());
         anyhow::ensure!(expected_len == rest.len(), "Incorrect payload size");
-        return Ok(rest)
+        return Ok(rest);
     }
 
     fn handle_request(&mut self, path: &str, msg: Bytes) -> anyhow::Result<()> {
@@ -107,10 +107,16 @@ impl GrpcServer {
             "/viam.component.board.v1.BoardService/GetGPIO" => self.board_get_pin(payload),
             "/viam.component.board.v1.BoardService/SetGPIO" => self.board_set_pin(payload),
             "/viam.component.board.v1.BoardService/Status" => self.board_status(payload),
-	        "/viam.component.camera.v1.CameraService/GetImage" => self.camera_get_frame(payload),
-            "/viam.component.camera.v1.CameraService/GetPointCloud" => self.camera_get_point_cloud(payload),
-            "/viam.component.camera.v1.CameraService/GetProperties" => self.camera_get_properties(payload),
-            "/viam.component.camera.v1.CameraService/RenderFrame" => self.camera_render_frame(payload),
+            "/viam.component.camera.v1.CameraService/GetImage" => self.camera_get_frame(payload),
+            "/viam.component.camera.v1.CameraService/GetPointCloud" => {
+                self.camera_get_point_cloud(payload)
+            }
+            "/viam.component.camera.v1.CameraService/GetProperties" => {
+                self.camera_get_properties(payload)
+            }
+            "/viam.component.camera.v1.CameraService/RenderFrame" => {
+                self.camera_render_frame(payload)
+            }
             "/viam.component.motor.v1.MotorService/SetPower" => self.motor_set_power(payload),
             "/viam.robot.v1.RobotService/ResourceNames" => self.resource_names(payload),
             "/viam.robot.v1.RobotService/GetStatus" => self.robot_status(payload),
