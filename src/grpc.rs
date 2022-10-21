@@ -203,17 +203,33 @@ impl GrpcServer {
         anyhow::bail!("unimplemented: motor_stop")
     }
 
-    fn board_status(&mut self, message: &[u8]) -> anyhow::Result<()> {
-        let req = component::board::v1::StatusRequest::decode(message)?;
+    fn board_get_digital_interrupt_value(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: board_get_digital_interrupt_value")
+    }
+
+    fn board_get_pin(&mut self, message: &[u8]) -> anyhow::Result<()> {
+        let req = component::board::v1::GetGpioRequest::decode(message)?;
         let board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
             Some(b) => b,
             None => return Err(anyhow::anyhow!("resource not found")),
         };
-        let status = board.lock().unwrap().get_board_status()?;
-        let status = component::board::v1::StatusResponse {
-            status: Some(status),
-        };
-        self.encode_message(status)
+
+        let pin: i32 = req.pin.parse::<i32>().unwrap();
+        let level = board.lock().unwrap().get_gpio_level(pin)?;
+        let resp = component::board::v1::GetGpioResponse { high: level };
+        self.encode_message(resp)
+    }
+
+    fn board_pwm(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: board_pwm")
+    }
+
+    fn board_pwm_frequency(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: board_pwm_frequency")
+    }
+
+    fn board_read_analog_reader(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: board_read_analog_reader")
     }
 
     fn board_set_pin(&mut self, message: &[u8]) -> anyhow::Result<()> {
@@ -230,41 +246,25 @@ impl GrpcServer {
         self.encode_message(resp)
     }
 
-    fn board_get_pin(&mut self, message: &[u8]) -> anyhow::Result<()> {
-        let req = component::board::v1::GetGpioRequest::decode(message)?;
-        let board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
-            Some(b) => b,
-            None => return Err(anyhow::anyhow!("resource not found")),
-        };
-
-        let pin: i32 = req.pin.parse::<i32>().unwrap();
-        let level = board.lock().unwrap().get_gpio_level(pin)?;
-        let resp = component::board::v1::GetGpioResponse { high: level };
-        self.encode_message(resp)
-    }
-
-    fn board_get_digital_interrupt_value(&mut self, _message: &[u8]) -> anyhow::Result<()> {
-        anyhow::bail!("unimplemented: board_get_digital_interrupt_value")
-    }
-
-    fn board_pwm(&mut self, _message: &[u8]) -> anyhow::Result<()> {
-        anyhow::bail!("unimplemented: board_pwm")
-    }
-
-    fn board_pwm_frequency(&mut self, _message: &[u8]) -> anyhow::Result<()> {
-        anyhow::bail!("unimplemented: board_pwm_frequency")
-    }
-
-    fn board_read_analog_reader(&mut self, _message: &[u8]) -> anyhow::Result<()> {
-        anyhow::bail!("unimplemented: board_read_analog_reader")
-    }
-
     fn board_set_pwm(&mut self, _message: &[u8]) -> anyhow::Result<()> {
         anyhow::bail!("unimplemented: board_set_pwm")
     }
 
     fn board_set_pwm_frequency(&mut self, _message: &[u8]) -> anyhow::Result<()> {
         anyhow::bail!("unimplemented: board_set_pwm_frequency")
+    }
+
+    fn board_status(&mut self, message: &[u8]) -> anyhow::Result<()> {
+        let req = component::board::v1::StatusRequest::decode(message)?;
+        let board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
+            Some(b) => b,
+            None => return Err(anyhow::anyhow!("resource not found")),
+        };
+        let status = board.lock().unwrap().get_board_status()?;
+        let status = component::board::v1::StatusResponse {
+            status: Some(status),
+        };
+        self.encode_message(status)
     }
 
     fn base_move_straight(&mut self, _message: &[u8]) -> anyhow::Result<()> {
