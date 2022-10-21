@@ -104,8 +104,14 @@ impl GrpcServer {
             "/viam.component.base.v1.BaseService/MoveStraight" => self.base_move_straight(payload),
             "/viam.component.base.v1.BaseService/Spin" => self.base_spin(payload),
             "/viam.component.base.v1.BaseService/SetVelocity" => self.base_set_velocity(payload),
+            "/viam.component.board.v1.BoardService/GetDigitalinterruptValue" => self.board_get_digital_interrupt_value(payload),
             "/viam.component.board.v1.BoardService/GetGPIO" => self.board_get_pin(payload),
+            "/viam.component.board.v1.BoardService/PWM" => self.board_pwm(payload),
+            "/viam.component.board.v1.BoardService/PWMFrequency" => self.board_pwm_frequency(payload),
+            "/viam.component.board.v1.BoardService/ReadAnalogReader" => self.board_read_analog_reader(payload),
             "/viam.component.board.v1.BoardService/SetGPIO" => self.board_set_pin(payload),
+            "/viam.component.board.v1.BoardService/SetPWM" => self.board_set_pwm(payload),
+            "/viam.component.board.v1.BoardService/SetPWMFrequency" => self.board_set_pwm_frequency(payload),
             "/viam.component.board.v1.BoardService/Status" => self.board_status(payload),
             "/viam.component.camera.v1.CameraService/GetImage" => self.camera_get_frame(payload),
             "/viam.component.camera.v1.CameraService/GetPointCloud" => {
@@ -227,6 +233,30 @@ impl GrpcServer {
         let level = board.lock().unwrap().get_gpio_level(pin)?;
         let resp = component::board::v1::GetGpioResponse { high: level };
         self.encode_message(resp)
+    }
+
+    fn board_get_digital_interrupt_value(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: board_get_digital_interrupt_value")
+    }
+
+    fn board_pwm(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: board_pwm")
+    }
+
+    fn board_pwm_frequency(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: board_pwm_frequency")
+    }
+
+    fn board_read_analog_reader(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: board_read_analog_reader")
+    }
+
+    fn board_set_pwm(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: board_set_pwm")
+    }
+
+    fn board_set_pwm_frequency(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: board_set_pwm_frequency")
     }
 
     fn base_move_straight(&mut self, _message: &[u8]) -> anyhow::Result<()> {
