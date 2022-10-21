@@ -164,6 +164,30 @@ impl GrpcServer {
         }
     }
 
+    fn motor_get_position(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: motor_get_position")
+    }
+
+    fn motor_get_properties(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: motor_get_properties")
+    }
+
+    fn motor_go_for(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: motor_go_for")
+    }
+
+    fn motor_go_to(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: motor_go_to")
+    }
+
+    fn motor_is_powered(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: motor_is_powered")
+    }
+
+    fn motor_reset_zero_position(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: motor_reset_zero_position")
+    }
+
     fn motor_set_power(&mut self, message: &[u8]) -> anyhow::Result<()> {
         let req = component::motor::v1::SetPowerRequest::decode(message)?;
         let motor = match self.robot.lock().unwrap().get_motor_by_name(req.name) {
@@ -175,32 +199,8 @@ impl GrpcServer {
         self.encode_message(resp)
     }
 
-    fn motor_go_for(&mut self, _message: &[u8]) -> anyhow::Result<()> {
-        anyhow::bail!("unimplemented: motor_go_for")
-    }
-
-    fn motor_go_to(&mut self, _message: &[u8]) -> anyhow::Result<()> {
-        anyhow::bail!("unimplemented: motor_go_to")
-    }
-
-    fn motor_reset_zero_position(&mut self, _message: &[u8]) -> anyhow::Result<()> {
-        anyhow::bail!("unimplemented: motor_reset_zero_position")
-    }
-
-    fn motor_get_position(&mut self, _message: &[u8]) -> anyhow::Result<()> {
-        anyhow::bail!("unimplemented: motor_get_position")
-    }
-
-    fn motor_get_properties(&mut self, _message: &[u8]) -> anyhow::Result<()> {
-        anyhow::bail!("unimplemented: motor_get_properties")
-    }
-
     fn motor_stop(&mut self, _message: &[u8]) -> anyhow::Result<()> {
         anyhow::bail!("unimplemented: motor_stop")
-    }
-
-    fn motor_is_powered(&mut self, _message: &[u8]) -> anyhow::Result<()> {
-        anyhow::bail!("unimplemented: motor_is_powered")
     }
 
     fn board_status(&mut self, message: &[u8]) -> anyhow::Result<()> {
