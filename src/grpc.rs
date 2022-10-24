@@ -316,12 +316,9 @@ impl GrpcServer {
     fn camera_get_frame(&mut self, message: &[u8]) -> anyhow::Result<()> {
         let req = component::camera::v1::GetImageRequest::decode(message)?;
         if let Some(camera) = self.robot.lock().unwrap().get_camera_by_name(req.name) {
-            // Naively, this would be:
-            //     let mut temporary_buffer = allocate_space_for_image();
-            //     camera.lock().unwrap().get_frame(&temporary_buffer)?;
-            //     self.encode_message(temporary_buffer)
-            // However, to avoid copying into and out of the temporary buffer, we copy directly
-            // into self.buffer, and duplicate the implementation of `encode_mesage()` here.
+            // TODO: Modify `get_frame` to return a data structure that can be passed into
+            // `encode_message`, rather than re-implementing `encode_message` here. See
+            // https://viam.atlassian.net/browse/RSDK-824
             let mut buffer = RefCell::borrow_mut(&self.buffer).split_off(0);
             buffer.put_u8(0);
             buffer.put_u32(0.try_into().unwrap());
