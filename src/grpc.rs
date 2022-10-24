@@ -99,51 +99,29 @@ impl GrpcServer {
     fn handle_request(&mut self, path: &str, msg: Bytes) -> anyhow::Result<()> {
         let payload = Self::validate_rpc(&msg)?;
         match path {
-            "/viam.component.base.v1.BaseService/SetPower" => {
-                self.base_set_power(payload)
-            }
-            "/viam.component.base.v1.BaseService/Stop" => {
-                self.base_stop(payload)
-            }
-            "/viam.component.base.v1.BaseService/MoveStraight" => {
-                self.base_move_straight(payload)
-            }
-            "/viam.component.base.v1.BaseService/Spin" => {
-                self.base_spin(payload)
-            }
-            "/viam.component.base.v1.BaseService/SetVelocity" => {
-                self.base_set_velocity(payload)
-            }
+            "/viam.component.base.v1.BaseService/SetPower" => self.base_set_power(payload),
+            "/viam.component.base.v1.BaseService/Stop" => self.base_stop(payload),
+            "/viam.component.base.v1.BaseService/MoveStraight" => self.base_move_straight(payload),
+            "/viam.component.base.v1.BaseService/Spin" => self.base_spin(payload),
+            "/viam.component.base.v1.BaseService/SetVelocity" => self.base_set_velocity(payload),
             "/viam.component.board.v1.BoardService/GetDigitalinterruptValue" => {
                 self.board_get_digital_interrupt_value(payload)
             }
-            "/viam.component.board.v1.BoardService/GetGPIO" => {
-                self.board_get_pin(payload)
-            }
-            "/viam.component.board.v1.BoardService/PWM" => {
-                self.board_pwm(payload)
-            }
+            "/viam.component.board.v1.BoardService/GetGPIO" => self.board_get_pin(payload),
+            "/viam.component.board.v1.BoardService/PWM" => self.board_pwm(payload),
             "/viam.component.board.v1.BoardService/PWMFrequency" => {
                 self.board_pwm_frequency(payload)
             }
             "/viam.component.board.v1.BoardService/ReadAnalogReader" => {
                 self.board_read_analog_reader(payload)
             }
-            "/viam.component.board.v1.BoardService/SetGPIO" => {
-                self.board_set_pin(payload)
-            }
-            "/viam.component.board.v1.BoardService/SetPWM" => {
-                self.board_set_pwm(payload)
-            }
+            "/viam.component.board.v1.BoardService/SetGPIO" => self.board_set_pin(payload),
+            "/viam.component.board.v1.BoardService/SetPWM" => self.board_set_pwm(payload),
             "/viam.component.board.v1.BoardService/SetPWMFrequency" => {
                 self.board_set_pwm_frequency(payload)
             }
-            "/viam.component.board.v1.BoardService/Status" => {
-                self.board_status(payload)
-            }
-            "/viam.component.camera.v1.CameraService/GetImage" => {
-                self.camera_get_frame(payload)
-            }
+            "/viam.component.board.v1.BoardService/Status" => self.board_status(payload),
+            "/viam.component.camera.v1.CameraService/GetImage" => self.camera_get_frame(payload),
             "/viam.component.camera.v1.CameraService/GetPointCloud" => {
                 self.camera_get_point_cloud(payload)
             }
@@ -157,30 +135,16 @@ impl GrpcServer {
             "/viam.component.motor.v1.MotorService/GetProperties" => {
                 self.motor_get_properties(payload)
             }
-            "/viam.component.motor.v1.MotorService/GoFor" => {
-                self.motor_go_for(payload)
-            }
-            "/viam.component.motor.v1.MotorService/GoTo" => {
-                self.motor_go_to(payload)
-            }
-            "/viam.component.motor.v1.MotorService/IsPowered" => {
-                self.motor_is_powered(payload)
-            }
+            "/viam.component.motor.v1.MotorService/GoFor" => self.motor_go_for(payload),
+            "/viam.component.motor.v1.MotorService/GoTo" => self.motor_go_to(payload),
+            "/viam.component.motor.v1.MotorService/IsPowered" => self.motor_is_powered(payload),
             "/viam.component.motor.v1.MotorService/ResetZeroPosition" => {
                 self.motor_reset_zero_position(payload)
             }
-            "/viam.component.motor.v1.MotorService/SetPower" => {
-                self.motor_set_power(payload)
-            }
-            "/viam.component.motor.v1.MotorService/Stop" => {
-                self.motor_stop(payload)
-            }
-            "/viam.robot.v1.RobotService/ResourceNames" => {
-                self.resource_names(payload)
-            }
-            "/viam.robot.v1.RobotService/GetStatus" => {
-                self.robot_status(payload)
-            }
+            "/viam.component.motor.v1.MotorService/SetPower" => self.motor_set_power(payload),
+            "/viam.component.motor.v1.MotorService/Stop" => self.motor_stop(payload),
+            "/viam.robot.v1.RobotService/ResourceNames" => self.resource_names(payload),
+            "/viam.robot.v1.RobotService/GetStatus" => self.robot_status(payload),
             _ => {
                 anyhow::bail!("impl")
             }
