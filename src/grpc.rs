@@ -316,6 +316,9 @@ impl GrpcServer {
     fn camera_get_frame(&mut self, message: &[u8]) -> anyhow::Result<()> {
         let req = component::camera::v1::GetImageRequest::decode(message)?;
         if let Some(camera) = self.robot.lock().unwrap().get_camera_by_name(req.name) {
+            // TODO: Modify `get_frame` to return a data structure that can be passed into
+            // `encode_message`, rather than re-implementing `encode_message` here. See
+            // https://viam.atlassian.net/browse/RSDK-824
             let mut buffer = RefCell::borrow_mut(&self.buffer).split_off(0);
             buffer.put_u8(0);
             buffer.put_u32(0.try_into().unwrap());
@@ -352,9 +355,10 @@ impl GrpcServer {
     }
 
     fn encode_message<M: Message>(&mut self, m: M) -> anyhow::Result<()> {
-        let len = 5 + m.encoded_len();
         let mut buffer = RefCell::borrow_mut(&self.buffer).split_off(0);
-        if len > buffer.capacity() {
+        // The buffer will have a null byte, then 4 bytes containing the big-endian length of the
+        // data (*not* including this 5-byte header), and then the data from the message itself.
+        if 5 + m.encoded_len() > buffer.capacity() {
             return Err(anyhow::anyhow!("not enough space"));
         }
         buffer.put_u8(0);
