@@ -327,7 +327,7 @@ impl GrpcServer {
             buffer.put_u32(0.try_into().unwrap());
             let msg = buffer.split_off(5);
             let msg = camera.lock().unwrap().get_frame(msg)?;
-            let len = (5 + msg.len()).to_be_bytes();
+            let len = msg.len().to_be_bytes();
             buffer[1] = len[0];
             buffer[2] = len[1];
             buffer[3] = len[2];
@@ -358,11 +358,10 @@ impl GrpcServer {
     }
 
     fn encode_message<M: Message>(&mut self, m: M) -> anyhow::Result<()> {
-        // The buffer will have a null byte, then 4 bytes containing the big-endian length of the
-        // entire buffer including this 5-byte header, and then the data from the message itself.
-        let len = 5 + m.encoded_len();
         let mut buffer = RefCell::borrow_mut(&self.buffer).split_off(0);
-        if len > buffer.capacity() {
+        // The buffer will have a null byte, then 4 bytes containing the big-endian length of the
+        // data (*not* including this 5-byte header), and then the data from the message itself.
+        if 5 + m.encoded_len() > buffer.capacity() {
             return Err(anyhow::anyhow!("not enough space"));
         }
         buffer.put_u8(0);
