@@ -93,7 +93,7 @@ impl GrpcServer {
         anyhow::ensure!(use_compression[0] == 0, "Compression not supported");
         let expected_len = usize::from_be_bytes(expected_len.try_into().unwrap());
         anyhow::ensure!(expected_len == rest.len(), "Incorrect payload size");
-        return Ok(rest)
+        Ok(rest)
     }
 
     fn handle_request(&mut self, path: &str, msg: Bytes) -> anyhow::Result<()> {
@@ -104,11 +104,45 @@ impl GrpcServer {
             "/viam.component.base.v1.BaseService/MoveStraight" => self.base_move_straight(payload),
             "/viam.component.base.v1.BaseService/Spin" => self.base_spin(payload),
             "/viam.component.base.v1.BaseService/SetVelocity" => self.base_set_velocity(payload),
+            "/viam.component.board.v1.BoardService/GetDigitalinterruptValue" => {
+                self.board_get_digital_interrupt_value(payload)
+            }
             "/viam.component.board.v1.BoardService/GetGPIO" => self.board_get_pin(payload),
+            "/viam.component.board.v1.BoardService/PWM" => self.board_pwm(payload),
+            "/viam.component.board.v1.BoardService/PWMFrequency" => {
+                self.board_pwm_frequency(payload)
+            }
+            "/viam.component.board.v1.BoardService/ReadAnalogReader" => {
+                self.board_read_analog_reader(payload)
+            }
             "/viam.component.board.v1.BoardService/SetGPIO" => self.board_set_pin(payload),
+            "/viam.component.board.v1.BoardService/SetPWM" => self.board_set_pwm(payload),
+            "/viam.component.board.v1.BoardService/SetPWMFrequency" => {
+                self.board_set_pwm_frequency(payload)
+            }
             "/viam.component.board.v1.BoardService/Status" => self.board_status(payload),
-            "/viam.component.camera.v1.CameraService/GetImage" => self.get_frame(payload),
+            "/viam.component.camera.v1.CameraService/GetImage" => self.camera_get_frame(payload),
+            "/viam.component.camera.v1.CameraService/GetPointCloud" => {
+                self.camera_get_point_cloud(payload)
+            }
+            "/viam.component.camera.v1.CameraService/GetProperties" => {
+                self.camera_get_properties(payload)
+            }
+            "/viam.component.camera.v1.CameraService/RenderFrame" => {
+                self.camera_render_frame(payload)
+            }
+            "/viam.component.motor.v1.MotorService/GetPosition" => self.motor_get_position(payload),
+            "/viam.component.motor.v1.MotorService/GetProperties" => {
+                self.motor_get_properties(payload)
+            }
+            "/viam.component.motor.v1.MotorService/GoFor" => self.motor_go_for(payload),
+            "/viam.component.motor.v1.MotorService/GoTo" => self.motor_go_to(payload),
+            "/viam.component.motor.v1.MotorService/IsPowered" => self.motor_is_powered(payload),
+            "/viam.component.motor.v1.MotorService/ResetZeroPosition" => {
+                self.motor_reset_zero_position(payload)
+            }
             "/viam.component.motor.v1.MotorService/SetPower" => self.motor_set_power(payload),
+            "/viam.component.motor.v1.MotorService/Stop" => self.motor_stop(payload),
             "/viam.robot.v1.RobotService/ResourceNames" => self.resource_names(payload),
             "/viam.robot.v1.RobotService/GetStatus" => self.robot_status(payload),
             _ => anyhow::bail!("impl"),
@@ -130,6 +164,30 @@ impl GrpcServer {
         }
     }
 
+    fn motor_get_position(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: motor_get_position")
+    }
+
+    fn motor_get_properties(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: motor_get_properties")
+    }
+
+    fn motor_go_for(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: motor_go_for")
+    }
+
+    fn motor_go_to(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: motor_go_to")
+    }
+
+    fn motor_is_powered(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: motor_is_powered")
+    }
+
+    fn motor_reset_zero_position(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: motor_reset_zero_position")
+    }
+
     fn motor_set_power(&mut self, message: &[u8]) -> anyhow::Result<()> {
         let req = component::motor::v1::SetPowerRequest::decode(message)?;
         let motor = match self.robot.lock().unwrap().get_motor_by_name(req.name) {
@@ -139,6 +197,14 @@ impl GrpcServer {
         motor.lock().unwrap().set_power(req.power_pct)?;
         let resp = component::motor::v1::SetPowerResponse {};
         self.encode_message(resp)
+    }
+
+    fn motor_stop(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: motor_stop")
+    }
+
+    fn board_get_digital_interrupt_value(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: board_get_digital_interrupt_value")
     }
 
     fn board_status(&mut self, message: &[u8]) -> anyhow::Result<()> {
@@ -154,6 +220,18 @@ impl GrpcServer {
         self.encode_message(status)
     }
 
+    fn board_pwm(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: board_pwm")
+    }
+
+    fn board_pwm_frequency(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: board_pwm_frequency")
+    }
+
+    fn board_read_analog_reader(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: board_read_analog_reader")
+    }
+
     fn board_set_pin(&mut self, message: &[u8]) -> anyhow::Result<()> {
         let req = component::board::v1::SetGpioRequest::decode(message)?;
         let board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
@@ -166,6 +244,14 @@ impl GrpcServer {
         board.lock().unwrap().set_gpio_pin_level(pin, is_high)?;
         let resp = component::board::v1::SetGpioResponse {};
         self.encode_message(resp)
+    }
+
+    fn board_set_pwm(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: board_set_pwm")
+    }
+
+    fn board_set_pwm_frequency(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: board_set_pwm_frequency")
     }
 
     fn board_get_pin(&mut self, message: &[u8]) -> anyhow::Result<()> {
@@ -227,7 +313,7 @@ impl GrpcServer {
         self.encode_message(status)
     }
 
-    fn get_frame(&mut self, message: &[u8]) -> anyhow::Result<()> {
+    fn camera_get_frame(&mut self, message: &[u8]) -> anyhow::Result<()> {
         let req = component::camera::v1::GetImageRequest::decode(message)?;
         if let Some(camera) = self.robot.lock().unwrap().get_camera_by_name(req.name) {
             let mut buffer = RefCell::borrow_mut(&self.buffer).split_off(0);
@@ -245,6 +331,18 @@ impl GrpcServer {
             return Ok(());
         }
         Err(anyhow::anyhow!("resource not found"))
+    }
+
+    fn camera_get_point_cloud(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: camera_get_point_cloud")
+    }
+
+    fn camera_get_properties(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: camera_get_properties")
+    }
+
+    fn camera_render_frame(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: camera_render_frame")
     }
 
     fn resource_names(&mut self, _unused_message: &[u8]) -> anyhow::Result<()> {
