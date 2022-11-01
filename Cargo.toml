@@ -10,8 +10,10 @@ resolver = "2"
 [patch.crates-io]
 smol = { git = "https://github.com/esp-rs-compat/smol" }
 polling = { git = "https://github.com/esp-rs-compat/polling" }
-socket2 = { git = "https://github.com/npmenard/socket2" }
+socket2 = { path = "../socket2" }
 esp-idf-sys = {git = "https://github.com/npmenard/esp-idf-sys.git"}
+viam-rust-utils = {path="../rust-utils"}
+
 [profile.release]
 opt-level = "s"
 
@@ -41,7 +43,11 @@ smol-timeout = "0.6.0"
 socket2 = "0.4.5"
 downcast-rs = "1.2.0"
 downcast = "0.11.0"
+tracing-subscriber = "0.3.16"
+tracing = "0.1.37"
 
 [build-dependencies]
 embuild = "0.29"
 anyhow = "1"
+viam = {path = "../rust-sdk"}
+tokio = { version = "1", features = ["full"] }

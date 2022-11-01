@@ -2,6 +2,7 @@ use hyper::server::conn::Http;
 use proto::common::v1::ResourceName;
 use robot::Esp32Robot;
 use std::collections::HashMap;
+use tls::Esp32tls;
 mod base;
 mod board;
 mod camera;
@@ -12,6 +13,7 @@ mod proto;
 mod robot;
 mod status;
 mod tcp;
+mod tls;
 
 #[allow(dead_code)]
 #[cfg(not(feature = "qemu"))]
@@ -234,14 +236,14 @@ fn main() -> anyhow::Result<()> {
 }
 
 async fn runserver(robot: Esp32Robot) -> Result<(), Box<dyn std::error::Error>> {
+    let tls = Box::new(Esp32tls::new());
     let address: SocketAddr = "0.0.0.0:80".parse().unwrap();
-    let listener = Esp32Listener::new(address.into())?;
-
+    let mut listener = Esp32Listener::new(address.into(), Some(tls))?;
     let exec = Esp32Executor::new();
     let srv = GrpcServer::new(Arc::new(Mutex::new(robot)));
     loop {
         let stream = listener.accept()?;
-        let _ = Http::new()
+        let err = Http::new()
             .with_executor(exec.clone())
             .http2_max_concurrent_streams(1)
             .serve_connection(
@@ -249,6 +251,10 @@ async fn runserver(robot: Esp32Robot) -> Result<(), Box<dyn std::error::Error>> 
                 Timeout::new(srv.clone(), Duration::from_millis(100)),
             )
             .await;
+        log::info!("hey not serving anything");
+        if err.is_err() {
+            log::error!("got {}", err.err().unwrap());
+        }
     }
 }
 #[cfg(feature = "qemu")]

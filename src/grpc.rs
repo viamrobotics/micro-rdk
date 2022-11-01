@@ -383,6 +383,7 @@ impl Service<Request<Body>> for GrpcServer {
         }
         let mut svc = self.clone();
         Box::pin(async move {
+            log::info!("processing req {:?}", req);
             let (path, body) = req.into_parts();
             let msg = body::to_bytes(body).await.map_err(|_| MyErr)?;
             let path = match path.uri.path_and_query() {
