@@ -34,7 +34,7 @@ impl Debug for ESP32TLSStream {
                 "tls",
                 match self.tls_context.conn_state {
                     ESP_TLS_INIT => &"Tls initializing",
-                    ESP_TLS_CONNECTING => &"Tls connnecting",
+                    ESP_TLS_CONNECTING => &"Tls connecting",
                     ESP_TLS_HANDSHAKE => &"Tls handshake",
                     ESP_TLS_FAIL => &"Tls fail",
                     ESP_TLS_DONE => &"Tls closed",
@@ -106,6 +106,10 @@ impl ESP32TLSStream {
 }
 impl Drop for ESP32TLSStream {
     fn drop(&mut self) {
+        // This is not the right way to do it, since rust has allocated the context we should be the one the final free
+        // However esp_tls_conn_destroy actually free the pointer.
+        // Calling esp_tls_internal_event_tracker_destroy might be enough to avoid leaks
+        // Also after this call the socket is closed
         if let Some(err) = EspError::from(unsafe { esp_tls_conn_destroy(&mut **self.tls_context) })
         {
             log::error!("error while dropping the tls connection {}", err);
