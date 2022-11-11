@@ -106,8 +106,6 @@ impl Camera for Esp32Camera {
             let bytes = Bytes::from(buf);
             let msg = camera::v1::GetImageResponse {
                 mime_type: "image/jpeg".to_string(),
-                width_px: 240,
-                height_px: 240,
                 image: bytes,
             };
             msg.encode(&mut buffer).unwrap();
@@ -124,8 +122,6 @@ impl Camera for FakeCamera {
     fn get_frame(&mut self, mut buffer: BytesMut) -> anyhow::Result<BytesMut> {
         let msg = camera::v1::GetImageResponse {
             mime_type: "image/jpeg".to_string(),
-            width_px: 240,
-            height_px: 240,
             image: Bytes::new(),
         };
 
@@ -146,6 +142,6 @@ where
     L: ?Sized + Camera,
 {
     fn get_frame(&mut self, buffer: BytesMut) -> anyhow::Result<BytesMut> {
-        self.lock().unwrap().get_frame(buffer)
+        self.get_mut().unwrap().get_frame(buffer)
     }
 }

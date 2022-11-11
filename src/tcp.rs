@@ -3,7 +3,7 @@ use futures_lite::io;
 use log::*;
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use std::io::{Read, Write};
-use std::os::unix::prelude::AsRawFd;
+
 use std::{
     marker::PhantomData,
     net::{Shutdown, TcpListener, TcpStream},
@@ -41,7 +41,7 @@ impl Esp32Listener {
         match &mut self.tls {
             Some(tls) => {
                 info!("opening TLS ctx");
-                let stream = tls.open_ssl_context(conn)?;
+                let stream = tls.open_ssl_context(Some(conn))?;
                 info!("handshake down");
                 return Ok(Esp32Stream::TLSStream(Box::new(stream)));
             }
@@ -70,6 +70,8 @@ pub enum Esp32Stream {
     LocalPlain(TcpStream),
     TLSStream(Box<ESP32TLSStream>),
 }
+
+unsafe impl Send for Esp32Stream {}
 
 impl AsyncRead for Esp32Stream {
     fn poll_read(
@@ -112,10 +114,7 @@ impl AsyncWrite for Esp32Stream {
     ) -> Poll<io::Result<usize>> {
         match &mut *self {
             Esp32Stream::LocalPlain(s) => match s.write(buf) {
-                Ok(s) => {
-                    //info!("DW");
-                    Poll::Ready(Ok(s))
-                }
+                Ok(s) => Poll::Ready(Ok(s)),
                 Err(_) => Poll::Pending,
             },
             Esp32Stream::TLSStream(s) => match s.write(buf) {

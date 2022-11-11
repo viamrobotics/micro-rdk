@@ -41,9 +41,13 @@ embedded-svc = "0.22"
 embedded-hal = "0.2.7"
 smol-timeout = "0.6.0"
 socket2 = "0.4.5"
+either = "1.8.0"
+h2 = "0.3.14"
 
 [build-dependencies]
 embuild = "0.29"
 anyhow = "1"
 viam = {path = "../rust-sdk"}
 tokio = { version = "1", features = ["full"] }
+const-gen = "1.3.0"
+

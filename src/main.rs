@@ -1,7 +1,11 @@
+use futures_lite::future::block_on;
+
 use hyper::server::conn::Http;
+
 use proto::common::v1::ResourceName;
 use robot::Esp32Robot;
 use std::collections::HashMap;
+
 use tls::Esp32tls;
 mod base;
 mod board;
@@ -11,6 +15,7 @@ mod grpc;
 mod motor;
 mod proto;
 mod robot;
+mod robot_client;
 mod status;
 mod tcp;
 mod tls;
@@ -38,6 +43,7 @@ use crate::camera::FakeCamera;
 use crate::motor::FakeMotor;
 #[cfg(not(feature = "qemu"))]
 use crate::motor::MotorEsp32;
+
 use crate::robot::ResourceType;
 
 #[cfg(feature = "qemu")]
@@ -58,11 +64,11 @@ use esp_idf_svc::nvs::EspDefaultNvs;
 use esp_idf_svc::sysloop::EspSysLoopStack;
 #[cfg(not(feature = "qemu"))]
 use esp_idf_svc::wifi::EspWifi;
-use esp_idf_sys as _; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
 #[cfg(not(feature = "qemu"))]
 use esp_idf_sys::esp_wifi_set_ps;
+use esp_idf_sys::{self as _}; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
 use exec::Esp32Executor;
-use grpc::{GrpcServer, Timeout};
+use grpc::GrpcServer;
 use log::*;
 
 use std::net::SocketAddr;
@@ -213,16 +219,12 @@ fn main() -> anyhow::Result<()> {
     #[cfg(feature = "qemu")]
     let _eth_hw = {
         info!("creating eth object");
-        eth_configure(Box::new(EspEth::new_openeth(
-            netif_stack.clone(),
-            sys_loop_stack.clone(),
-        )?))?
+        eth_configure(Box::new(EspEth::new_openeth(netif_stack, sys_loop_stack)?))?
     };
     {
         esp_idf_sys::esp!(unsafe {
             esp_idf_sys::esp_vfs_eventfd_register(&esp_idf_sys::esp_vfs_eventfd_config_t {
                 max_fds: 5,
-                ..Default::default()
             })
         })?;
     }
@@ -231,30 +233,33 @@ fn main() -> anyhow::Result<()> {
     #[cfg(not(feature = "qemu"))]
     let _esp_idf_sys = { start_wifi(netif_stack, sys_loop_stack, nvs)? };
 
-    futures_lite::future::block_on(async { runserver(robot).await.unwrap() });
+    if let Err(e) = robot_client::start() {
+        log::error!("oops {:?}", e);
+    }
+    if let Err(e) = runserver(robot) {
+        log::error!("robot server failed with error {:?}", e);
+    };
     Ok(())
 }
 
-async fn runserver(robot: Esp32Robot) -> Result<(), Box<dyn std::error::Error>> {
-    let tls = Box::new(Esp32tls::new());
+fn runserver(robot: Esp32Robot) -> anyhow::Result<()> {
+    let tls = Box::new(Esp32tls::new(true));
     let address: SocketAddr = "0.0.0.0:80".parse().unwrap();
     let mut listener = Esp32Listener::new(address.into(), Some(tls))?;
     let exec = Esp32Executor::new();
     let srv = GrpcServer::new(Arc::new(Mutex::new(robot)));
     loop {
         let stream = listener.accept()?;
-        let err = Http::new()
-            .with_executor(exec.clone())
-            .http2_max_concurrent_streams(1)
-            .serve_connection(
-                stream,
-                Timeout::new(srv.clone(), Duration::from_millis(100)),
-            )
-            .await;
-        log::info!("hey not serving anything");
-        if err.is_err() {
-            log::error!("got {}", err.err().unwrap());
-        }
+        block_on(exec.run(async {
+            let err = Http::new()
+                .with_executor(exec.clone())
+                .http2_max_concurrent_streams(1)
+                .serve_connection(stream, srv.clone())
+                .await;
+            if err.is_err() {
+                log::error!("server error {}", err.err().unwrap());
+            }
+        }));
     }
 }
 #[cfg(feature = "qemu")]

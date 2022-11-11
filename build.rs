@@ -1,4 +1,6 @@
 use anyhow::{anyhow, Context};
+use const_gen::*;
+use std::{env, fs, path::Path};
 use tokio::runtime::Runtime;
 
 // Necessary because of this issue: https://github.com/rust-lang/cargo/issues/9641
@@ -30,6 +32,22 @@ fn main() -> anyhow::Result<()> {
     let dest_path = std::path::Path::new(&out_dir).join("key.key");
     let key = String::from(&cfg.cloud.tls_private_key) + "\0";
     std::fs::write(dest_path, key)?;
+
+    let out_dir = env::var_os("OUT_DIR").unwrap();
+    let dest_path = Path::new(&out_dir).join("robot_secret.rs");
+    let robot_decl = vec![
+        const_declaration!(
+            #[allow(clippy::redundant_static_lifetimes)]
+            ROBOT_ID = cfg.cloud.id.as_str()
+        ),
+        const_declaration!(
+            #[allow(clippy::redundant_static_lifetimes)]
+            ROBOT_SECRET = cfg.cloud.secret.as_str()
+        ),
+    ]
+    .join("\n");
+    fs::write(&dest_path, robot_decl).unwrap();
+
     embuild::build::CfgArgs::output_propagated("ESP_IDF")?;
     embuild::build::LinkArgs::output_propagated("ESP_IDF")
 }
