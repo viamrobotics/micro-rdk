@@ -129,6 +129,7 @@ impl Esp32tls {
         ESP32TLSStream::new(socket, &mut self.tls_cfg)
     }
 }
+
 impl ESP32TLSStream {
     fn new(
         socket: Option<TcpStream>,
@@ -186,6 +187,7 @@ impl ESP32TLSStream {
         })
     }
 }
+
 impl Drop for ESP32TLSStream {
     fn drop(&mut self) {
         if let Some(err) = EspError::from(unsafe { esp_tls_conn_destroy(**self.tls_context) }) {
@@ -193,6 +195,7 @@ impl Drop for ESP32TLSStream {
         }
     }
 }
+
 impl Read for ESP32TLSStream {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let read_fn = match unsafe { self.tls_context.read().read } {

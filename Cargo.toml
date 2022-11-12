@@ -8,10 +8,10 @@ resolver = "2"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [patch.crates-io]
-smol = { git = "https://github.com/esp-rs-compat/smol" }
-polling = { git = "https://github.com/esp-rs-compat/polling" }
-socket2 = { path = "../socket2" }
 esp-idf-sys = {git = "https://github.com/npmenard/esp-idf-sys.git"}
+polling = { git = "https://github.com/esp-rs-compat/polling" }
+smol = { git = "https://github.com/esp-rs-compat/smol" }
+socket2 = { path = "../socket2" }
 viam-rust-utils = {path="../rust-utils"}
 
 [profile.release]
@@ -25,29 +25,29 @@ opt-level = "z"
 qemu = []
 
 [dependencies]
-smol = "1.2"
-esp-idf-sys = { version = "0.31.9", features = ["binstart"] }
 anyhow = {version = "1", features = ["backtrace"]}
-log = "0.4"
-hyper = {version="0.14.20", default-features = false, features = ["server","stream","http2"]}
-tokio = { version = "1", default-features = false}
+bytes = "1.2.1"
+either = "1.8.0"
+embedded-hal = "0.2.7"
+embedded-svc = "0.22"
+esp-idf-hal = "0.38"
+esp-idf-svc = {version = "0.42.1"}
+esp-idf-sys = { version = "0.31.9", features = ["binstart"] }
 futures-lite = "1.12.0"
+h2 = "0.3.14"
+hyper = {version="0.14.20", default-features = false, features = ["server","stream","http2"]}
+log = "0.4"
 prost = "0.11.0"
 prost-types = "0.11.1"
-bytes = "1.2.1"
-esp-idf-svc = {version = "0.42.1"}
-esp-idf-hal = "0.38"
-embedded-svc = "0.22"
-embedded-hal = "0.2.7"
+smol = "1.2"
 smol-timeout = "0.6.0"
 socket2 = "0.4.5"
-either = "1.8.0"
-h2 = "0.3.14"
+tokio = { version = "1", default-features = false}
 
 [build-dependencies]
-embuild = "0.29"
 anyhow = "1"
-viam = {path = "../rust-sdk"}
-tokio = { version = "1", features = ["full"] }
 const-gen = "1.3.0"
+embuild = "0.29"
+tokio = { version = "1", features = ["full"] }
+viam = {path = "../rust-sdk"}
 

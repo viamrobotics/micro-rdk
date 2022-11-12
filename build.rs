@@ -21,6 +21,7 @@ fn main() -> anyhow::Result<()> {
                 .unwrap()
         ));
     }
+
     let content = std::fs::read_to_string("viam.json").context("can't read viam.json")?;
     let mut cfg = viam::config::reader::Config::new(content.as_str())?;
     let rt = Runtime::new()?;
