@@ -1,12 +1,3 @@
-use futures_lite::future::block_on;
-
-use hyper::server::conn::Http;
-
-use proto::common::v1::ResourceName;
-use robot::Esp32Robot;
-use std::collections::HashMap;
-
-use tls::Esp32tls;
 mod base;
 mod board;
 mod camera;
@@ -43,9 +34,7 @@ use crate::camera::FakeCamera;
 use crate::motor::FakeMotor;
 #[cfg(not(feature = "qemu"))]
 use crate::motor::MotorEsp32;
-
 use crate::robot::ResourceType;
-
 #[cfg(feature = "qemu")]
 use embedded_svc::eth;
 #[cfg(feature = "qemu")]
@@ -68,15 +57,19 @@ use esp_idf_svc::wifi::EspWifi;
 use esp_idf_sys::esp_wifi_set_ps;
 use esp_idf_sys::{self as _}; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
 use exec::Esp32Executor;
+use futures_lite::future::block_on;
 use grpc::GrpcServer;
+use hyper::server::conn::Http;
 use log::*;
-
+use proto::common::v1::ResourceName;
+use robot::Esp32Robot;
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::Mutex;
-
 use std::time::Duration;
 use tcp::Esp32Listener;
+use tls::Esp32tls;
 
 fn main() -> anyhow::Result<()> {
     esp_idf_sys::link_patches();
@@ -234,11 +227,12 @@ fn main() -> anyhow::Result<()> {
     let _esp_idf_sys = { start_wifi(netif_stack, sys_loop_stack, nvs)? };
 
     if let Err(e) = robot_client::start() {
-        log::error!("oops {:?}", e);
+        log::error!("couldn't start robot client {:?} will start the server", e);
     }
     if let Err(e) = runserver(robot) {
         log::error!("robot server failed with error {:?}", e);
-    };
+        return Err(e);
+    }
     Ok(())
 }
 
@@ -325,7 +319,7 @@ fn start_wifi(
     {
         info!("Connected to AP with ip {:?}", ip);
     } else {
-        anyhow::bail!("Ooops didn't connect {:?}", status);
+        anyhow::bail!("Couldn't connect to Wifi {:?}", status);
     }
 
     esp_idf_sys::esp!(unsafe { esp_wifi_set_ps(esp_idf_sys::wifi_ps_type_t_WIFI_PS_NONE) })?;

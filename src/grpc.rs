@@ -384,6 +384,7 @@ impl Service<Request<Body>> for GrpcServer {
         }
         let mut svc = self.clone();
         Box::pin(async move {
+            #[cfg(debug_assertions)]
             unsafe {
                 heap_caps_print_heap_info(MALLOC_CAP_8BIT | MALLOC_CAP_32BIT);
             }

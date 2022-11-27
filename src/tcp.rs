@@ -1,9 +1,8 @@
+use crate::tls::{Esp32TlsStream, Esp32tls};
 use futures_lite::io;
-
 use log::*;
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use std::io::{Read, Write};
-
 use std::{
     marker::PhantomData,
     net::{Shutdown, TcpListener, TcpStream},
@@ -11,8 +10,7 @@ use std::{
 };
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::tls::{ESP32TLSStream, Esp32tls};
-
+/// Struct to listen for incoming TCP connections
 pub struct Esp32Listener {
     listener: TcpListener,
     #[allow(dead_code)]
@@ -22,6 +20,7 @@ pub struct Esp32Listener {
 }
 
 impl Esp32Listener {
+    /// Creates a new Tcplistener
     pub fn new(addr: SockAddr, tls: Option<Box<Esp32tls>>) -> anyhow::Result<Self> {
         let socket = Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP))?;
         socket.set_reuse_address(true)?;
@@ -35,22 +34,25 @@ impl Esp32Listener {
             tls,
         })
     }
+
+    /// Accept the next incoming connection. Will block until a connection is established
     pub fn accept(&mut self) -> anyhow::Result<Esp32Stream> {
         let (conn, _) = self.listener.accept()?;
         conn.set_nonblocking(true).expect("cannot set nodelay");
-        match &mut self.tls {
+        let stream = match &mut self.tls {
             Some(tls) => {
                 info!("opening TLS ctx");
                 let stream = tls.open_ssl_context(Some(conn))?;
-                info!("handshake down");
-                return Ok(Esp32Stream::TLSStream(Box::new(stream)));
+                info!("handshake done");
+                Esp32Stream::TLSStream(Box::new(stream))
             }
-            None => {}
-        }
-        Ok(Esp32Stream::LocalPlain(conn))
+            None => Esp32Stream::LocalPlain(conn),
+        };
+        Ok(stream)
     }
 }
 
+/// Trait helper for hyper based server
 impl hyper::server::accept::Accept for Esp32Listener {
     type Conn = Esp32Stream;
     type Error = io::Error;
@@ -65,14 +67,15 @@ impl hyper::server::accept::Accept for Esp32Listener {
         Poll::Ready(Some(Ok(stream)))
     }
 }
+
+/// Enum to represent a TCP stream (either plain or encrypted)
 #[derive(Debug)]
 pub enum Esp32Stream {
     LocalPlain(TcpStream),
-    TLSStream(Box<ESP32TLSStream>),
+    TLSStream(Box<Esp32TlsStream>),
 }
 
-unsafe impl Send for Esp32Stream {}
-
+/// Implement AsyncRead trait for Esp32Stream
 impl AsyncRead for Esp32Stream {
     fn poll_read(
         mut self: std::pin::Pin<&mut Self>,
@@ -106,6 +109,7 @@ impl AsyncRead for Esp32Stream {
     }
 }
 
+/// Implement AsyncWrite trait for Esp32Stream
 impl AsyncWrite for Esp32Stream {
     fn poll_write(
         mut self: std::pin::Pin<&mut Self>,
@@ -118,10 +122,7 @@ impl AsyncWrite for Esp32Stream {
                 Err(_) => Poll::Pending,
             },
             Esp32Stream::TLSStream(s) => match s.write(buf) {
-                Ok(s) => {
-                    //info!("DW");
-                    Poll::Ready(Ok(s))
-                }
+                Ok(s) => Poll::Ready(Ok(s)),
                 Err(_) => Poll::Pending,
             },
         }

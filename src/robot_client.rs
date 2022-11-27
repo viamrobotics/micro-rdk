@@ -1,14 +1,3 @@
-use std::ffi::c_void;
-
-use anyhow::Result;
-use bytes::{BufMut, Bytes, BytesMut};
-use esp_idf_sys::{vTaskDelay, vTaskDelete, xTaskCreatePinnedToCore};
-use futures_lite::future::block_on;
-use h2::client::{handshake, SendRequest};
-use hyper::{Method, Request};
-use prost::Message;
-use smol::Task;
-
 use crate::{
     exec::Esp32Executor,
     proto::{
@@ -18,27 +7,46 @@ use crate::{
     tcp::Esp32Stream,
     tls::Esp32tls,
 };
+use anyhow::Result;
+use bytes::{BufMut, Bytes, BytesMut};
+use esp_idf_sys::{vTaskDelay, vTaskDelete, xTaskCreatePinnedToCore};
+use futures_lite::future::block_on;
+use h2::client::{handshake, SendRequest};
+use hyper::{Method, Request};
+use prost::Message;
+use smol::Task;
+use std::ffi::c_void;
 
+/// Robot client to interface with app.viam.com
 struct RobotClient<'a> {
-    exec: Option<Esp32Executor<'a>>,
-    h2: Option<SendRequest<Bytes>>,
-    conn: Option<Task<()>>,
+    /// a local executor to spawn future
+    exec: Esp32Executor<'a>,
+    /// an HTTP2 stream to a server
+    h2: SendRequest<Bytes>,
+    /// an connection to a server
+    #[allow(dead_code)]
+    http2_connection: Task<()>,
+    /// a jwt string for further grpc requests
     jwt: Option<String>,
 }
 
+// Generated robot config during build process
 include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
 static CLIENT_TASK: &[u8] = b"client\0";
 
 impl<'a> RobotClient<'a> {
-    fn new() -> Self {
+    /// Create a new robot client
+    fn new(exec: Esp32Executor<'a>, h2: SendRequest<Bytes>, http2_connection: Task<()>) -> Self {
         RobotClient {
-            exec: None,
-            h2: None,
-            conn: None,
+            exec,
+            h2,
+            http2_connection,
             jwt: None,
         }
     }
+
+    /// Make a request to app.viam.com
     fn build_request(&self, path: &str) -> Result<Request<()>> {
         let mut uri = "https://app.viam.com:443".to_owned();
         uri.push_str(path);
@@ -56,6 +64,8 @@ impl<'a> RobotClient<'a> {
         r.body(())
             .map_err(|e| anyhow::anyhow!("cannot build request {}", e))
     }
+
+    /// read the robot config from the cloud
     fn read_config(&mut self) -> Result<()> {
         let r = self.build_request("/viam.app.v1.RobotService/Config")?;
 
@@ -74,26 +84,26 @@ impl<'a> RobotClient<'a> {
 
         let body: Bytes = {
             let mut buf = BytesMut::with_capacity(req.encoded_len() + 5);
-            let len = req.encoded_len().to_be_bytes();
+
             buf.put_u8(0);
-            buf.put_u32(0.try_into().unwrap());
-            buf[0] = 0;
-            buf[1] = len[0];
-            buf[2] = len[1];
-            buf[3] = len[2];
-            buf[4] = len[3];
+            buf.put_u32(req.encoded_len().try_into()?);
+
             let mut msg = buf.split_off(5);
-            req.encode(&mut msg).unwrap();
+            req.encode(&mut msg)?;
             buf.unsplit(msg);
             buf.into()
         };
 
         let mut r = self.send_request(r, body)?;
         let r = r.split_off(5);
-        let r = ConfigResponse::decode(r)?;
+        // for now we only read the config
+        let _r = ConfigResponse::decode(r)?;
+        log::info!("cfg {:?}", _r);
 
         Ok(())
     }
+
+    /// get a JWT token from app.viam.com
     fn request_jwt_token(&mut self) -> Result<()> {
         let r = self.build_request("/proto.rpc.v1.AuthService/Authenticate")?;
         let body: Bytes = {
@@ -108,18 +118,12 @@ impl<'a> RobotClient<'a> {
             };
 
             let mut buf = BytesMut::with_capacity(req.encoded_len() + 5);
-            let len = req.encoded_len().to_be_bytes();
 
             buf.put_u8(0);
-            buf.put_u32(0.try_into().unwrap());
-            buf[0] = 0;
-            buf[1] = len[0];
-            buf[2] = len[1];
-            buf[3] = len[2];
-            buf[4] = len[3];
+            buf.put_u32(req.encoded_len().try_into()?);
 
             let mut msg = buf.split_off(5);
-            req.encode(&mut msg).unwrap();
+            req.encode(&mut msg)?;
             buf.unsplit(msg);
 
             buf.into()
@@ -133,56 +137,49 @@ impl<'a> RobotClient<'a> {
 
         Ok(())
     }
+
+    /// send a grpc request
     fn send_request(&mut self, r: Request<()>, body: Bytes) -> Result<Bytes> {
-        if self.h2.is_none() {
-            anyhow::bail!("no h2 stream available need to kill the connection");
-        }
+        let h2 = self.h2.clone();
+        // verify if the server can accept a new HTTP2 stream
+        let mut h2 = block_on(self.exec.run(async { h2.ready().await }))?;
 
-        let h2 = self.h2.take().unwrap();
-        let mut h2 = block_on(self.exec.as_ref().unwrap().run(async { h2.ready().await }))?;
-
-        let (rsp, mut send) = h2.send_request(r, false)?;
+        // send the header and let the server know more data are coming
+        let (response, mut send) = h2.send_request(r, false)?;
+        // send the body of the request and let the server know we have nothing else to send
         send.send_data(body, true)?;
 
-        let (p, mut body) =
-            block_on(self.exec.as_ref().unwrap().run(async { rsp.await }))?.into_parts();
-        log::info!("Header received {:?}", p);
+        let (part, mut body) = block_on(self.exec.run(async { response.await }))?.into_parts();
+        log::info!("parts received {:?}", part);
 
-        let mut rsp = BytesMut::with_capacity(1024);
-        let mut flow_control = body.flow_control().clone();
-        while let Some(chunk) =
-            block_on(self.exec.as_ref().unwrap().run(async { body.data().await }))
-        {
+        let mut response_buf = BytesMut::with_capacity(1024);
+        // TODO read the first 5 bytes so we know how much data to expect and we can allocate appropriately
+        while let Some(chunk) = block_on(self.exec.run(async { body.data().await })) {
             let chunk = chunk?;
-            rsp.put_slice(&chunk);
-            let _ = flow_control.release_capacity(chunk.len());
+            response_buf.put_slice(&chunk);
+            let _ = body.flow_control().release_capacity(chunk.len());
         }
 
-        let trailers = block_on(
-            self.exec
-                .as_ref()
-                .unwrap()
-                .run(async { body.trailers().await }),
-        );
-        log::info!("tariler received {:?}", trailers);
+        let _ = block_on(self.exec.run(async { body.trailers().await }));
 
-        self.h2 = Some(h2);
+        self.h2 = h2;
 
-        Ok(rsp.into())
+        Ok(response_buf.into())
     }
 }
 
+/// start the robot client
 pub(crate) fn start() -> Result<()> {
     log::info!("starting up robot client");
     let ret = unsafe {
         xTaskCreatePinnedToCore(
-            Some(client),
-            CLIENT_TASK.as_ptr() as *const i8,
-            8192 * 4,
-            std::ptr::null_mut(),
-            20,
-            std::ptr::null_mut(),
-            0,
+            Some(client_entry),                      // C ABI compatible entry function
+            CLIENT_TASK.as_ptr() as *const i8, // task name
+            8192 * 4,                          // stack size
+            std::ptr::null_mut(),              // no arguments
+            20,                                // priority (low)
+            std::ptr::null_mut(),              // we don't store the handle
+            0,                                 // run it on core 0
         )
     };
     if ret != 1 {
@@ -191,31 +188,19 @@ pub(crate) fn start() -> Result<()> {
     Ok(())
 }
 
+/// client main loop
 fn clientloop() -> Result<()> {
-    let mut robot_client = RobotClient::new();
-    robot_client.exec = Some(Esp32Executor::new());
     let mut tls = Box::new(Esp32tls::new(false));
     let conn = tls.open_ssl_context(None)?;
     let conn = Esp32Stream::TLSStream(Box::new(conn));
+    let executor = Esp32Executor::new();
 
-    //let tcp_stream = TcpStream::connect("10.0.2.2:12345")?;
-    //tcp_stream.set_nonblocking(true);
-    //let conn = Esp32Stream::LocalPlain(tcp_stream);
-
-    let (h2, conn) = block_on(
-        robot_client
-            .exec
-            .as_ref()
-            .unwrap()
-            .run(async { handshake(conn).await }),
-    )?;
-
-    let task = robot_client.exec.as_ref().unwrap().spawn(async move {
+    let (h2, conn) = block_on(executor.run(async { handshake(conn).await }))?;
+    let task = executor.spawn(async move {
         conn.await.unwrap();
     });
 
-    robot_client.conn = Some(task);
-    robot_client.h2 = Some(h2);
+    let mut robot_client = RobotClient::new(executor, h2, task);
 
     robot_client.request_jwt_token()?;
 
@@ -227,11 +212,12 @@ fn clientloop() -> Result<()> {
     }
 }
 
-extern "C" fn client(_: *mut c_void) {
+/// C compatible entry function
+extern "C" fn client_entry(_: *mut c_void) {
+    if let Some(err) = clientloop().err() {
+        log::error!("client returned with error {}", err);
+    }
     unsafe {
-        if let Some(err) = clientloop().err() {
-            log::error!("client returned with error {}", err);
-        }
         vTaskDelete(std::ptr::null_mut());
     }
 }
