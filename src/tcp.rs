@@ -1,4 +1,4 @@
-use crate::tls::{Esp32TlsStream, Esp32tls};
+use crate::tls::{Esp32Tls, Esp32TlsStream};
 use futures_lite::io;
 use log::*;
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
@@ -16,12 +16,12 @@ pub struct Esp32Listener {
     #[allow(dead_code)]
     addr: SockAddr,
     _marker: PhantomData<*const ()>,
-    tls: Option<Box<Esp32tls>>,
+    tls: Option<Box<Esp32Tls>>,
 }
 
 impl Esp32Listener {
     /// Creates a new Tcplistener
-    pub fn new(addr: SockAddr, tls: Option<Box<Esp32tls>>) -> anyhow::Result<Self> {
+    pub fn new(addr: SockAddr, tls: Option<Box<Esp32Tls>>) -> anyhow::Result<Self> {
         let socket = Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP))?;
         socket.set_reuse_address(true)?;
         socket.set_nodelay(true)?;

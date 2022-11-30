@@ -5,7 +5,7 @@ use crate::{
         rpc::v1::{AuthenticateRequest, AuthenticateResponse, Credentials},
     },
     tcp::Esp32Stream,
-    tls::Esp32tls,
+    tls::Esp32Tls,
 };
 use anyhow::Result;
 use bytes::{BufMut, Bytes, BytesMut};
@@ -173,9 +173,9 @@ pub(crate) fn start() -> Result<()> {
     log::info!("starting up robot client");
     let ret = unsafe {
         xTaskCreatePinnedToCore(
-            Some(client_entry),                      // C ABI compatible entry function
+            Some(client_entry),                // C ABI compatible entry function
             CLIENT_TASK.as_ptr() as *const i8, // task name
-            8192 * 4,                          // stack size
+            8192 * 3,                          // stack size
             std::ptr::null_mut(),              // no arguments
             20,                                // priority (low)
             std::ptr::null_mut(),              // we don't store the handle
@@ -190,7 +190,7 @@ pub(crate) fn start() -> Result<()> {
 
 /// client main loop
 fn clientloop() -> Result<()> {
-    let mut tls = Box::new(Esp32tls::new(false));
+    let mut tls = Box::new(Esp32Tls::new_client());
     let conn = tls.open_ssl_context(None)?;
     let conn = Esp32Stream::TLSStream(Box::new(conn));
     let executor = Esp32Executor::new();

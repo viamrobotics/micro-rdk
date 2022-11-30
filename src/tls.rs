@@ -17,7 +17,7 @@ use std::{
 };
 
 /// structure to store tls configuration
-pub struct Esp32tls {
+pub struct Esp32Tls {
     #[allow(dead_code)]
     alpn_ptr: Vec<*const c_char>,
     tls_cfg: Either<Box<esp_tls_cfg_server>, Box<esp_tls_cfg>>,
@@ -40,7 +40,7 @@ impl Debug for Esp32TlsStream {
                     ESP_TLS_HANDSHAKE => &"Tls handshake",
                     ESP_TLS_FAIL => &"Tls fail",
                     ESP_TLS_DONE => &"Tls closed",
-                    _ => unreachable!("nope"),
+                    _ => &"unexpected tls error",
                 },
             )
             .finish()
@@ -50,80 +50,87 @@ impl Debug for Esp32TlsStream {
 static ALPN_PROTOCOLS: &[u8] = b"h2\0";
 static APP_VIAM_HOSTNAME: &[u8] = b"app.viam.com\0";
 
-impl Esp32tls {
-    /// Creates a TLS object ready to accept connection or connect to a server
-    pub fn new(srv: bool) -> Self {
+impl Esp32Tls {
+    pub fn new_client() -> Self {
         let mut alpn_ptr: Vec<_> = vec![ALPN_PROTOCOLS.as_ptr() as *const i8, std::ptr::null()];
-        let tls_cfg = if srv {
-            let cert = include_bytes!(concat!(env!("OUT_DIR"), "/ca.crt"));
-            let key = include_bytes!(concat!(env!("OUT_DIR"), "/key.key"));
+        // this is a root certificate to validate the server's certificate
+        let cert = include_bytes!("../app.crt");
 
-            let tls_cfg_srv = Box::new(esp_tls_cfg_server {
-                alpn_protos: alpn_ptr.as_mut_ptr(),
-                __bindgen_anon_1: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_1 {
-                    cacert_buf: std::ptr::null(),
-                },
-                __bindgen_anon_2: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_2 {
-                    cacert_bytes: 0_u32,
-                },
-                __bindgen_anon_3: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_3 {
-                    servercert_buf: cert.as_ptr(),
-                },
-                __bindgen_anon_4: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_4 {
-                    servercert_bytes: cert.len() as u32,
-                },
-                __bindgen_anon_5: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_5 {
-                    serverkey_buf: key.as_ptr(),
-                },
-                __bindgen_anon_6: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_6 {
-                    serverkey_bytes: key.len() as u32,
-                },
-                serverkey_password: std::ptr::null(),
-                serverkey_password_len: 0_u32,
-            });
-            Either::Left(tls_cfg_srv)
-        } else {
-            // this is a root certificate to validate the server's certificate
-            let cert = include_bytes!("../app.crt");
+        let tls_cfg_client = Box::new(esp_tls_cfg {
+            alpn_protos: alpn_ptr.as_mut_ptr(),
+            __bindgen_anon_1: esp_idf_sys::esp_tls_cfg__bindgen_ty_1 {
+                cacert_buf: cert.as_ptr(),
+            },
+            __bindgen_anon_2: esp_idf_sys::esp_tls_cfg__bindgen_ty_2 {
+                cacert_bytes: cert.len() as u32,
+            },
+            __bindgen_anon_3: esp_idf_sys::esp_tls_cfg__bindgen_ty_3 {
+                clientcert_buf: std::ptr::null(),
+            },
+            __bindgen_anon_4: esp_idf_sys::esp_tls_cfg__bindgen_ty_4 {
+                clientcert_bytes: 0_u32,
+            },
+            __bindgen_anon_5: esp_idf_sys::esp_tls_cfg__bindgen_ty_5 {
+                clientkey_buf: std::ptr::null(),
+            },
+            __bindgen_anon_6: esp_idf_sys::esp_tls_cfg__bindgen_ty_6 {
+                clientkey_bytes: 0_u32,
+            },
+            clientkey_password: std::ptr::null(),
+            clientkey_password_len: 0_u32,
+            non_block: true,
+            use_secure_element: false,
+            use_global_ca_store: false,
+            skip_common_name: false,
+            keep_alive_cfg: std::ptr::null_mut(),
+            psk_hint_key: std::ptr::null(),
+            crt_bundle_attach: None,
+            ds_data: std::ptr::null_mut(),
+            if_name: std::ptr::null_mut(),
+            is_plain_tcp: false,
+            timeout_ms: 50000,
+            common_name: std::ptr::null(),
+        });
 
-            let tls_cfg_client = Box::new(esp_tls_cfg {
-                alpn_protos: alpn_ptr.as_mut_ptr(),
-                __bindgen_anon_1: esp_idf_sys::esp_tls_cfg__bindgen_ty_1 {
-                    cacert_buf: cert.as_ptr(),
-                },
-                __bindgen_anon_2: esp_idf_sys::esp_tls_cfg__bindgen_ty_2 {
-                    cacert_bytes: cert.len() as u32,
-                },
-                __bindgen_anon_3: esp_idf_sys::esp_tls_cfg__bindgen_ty_3 {
-                    clientcert_buf: std::ptr::null(),
-                },
-                __bindgen_anon_4: esp_idf_sys::esp_tls_cfg__bindgen_ty_4 {
-                    clientcert_bytes: 0_u32,
-                },
-                __bindgen_anon_5: esp_idf_sys::esp_tls_cfg__bindgen_ty_5 {
-                    clientkey_buf: std::ptr::null(),
-                },
-                __bindgen_anon_6: esp_idf_sys::esp_tls_cfg__bindgen_ty_6 {
-                    clientkey_bytes: 0_u32,
-                },
-                clientkey_password: std::ptr::null(),
-                clientkey_password_len: 0_u32,
-                non_block: true,
-                use_secure_element: false,
-                use_global_ca_store: false,
-                skip_common_name: false,
-                keep_alive_cfg: std::ptr::null_mut(),
-                psk_hint_key: std::ptr::null(),
-                crt_bundle_attach: None,
-                ds_data: std::ptr::null_mut(),
-                if_name: std::ptr::null_mut(),
-                is_plain_tcp: false,
-                timeout_ms: 50000,
-                common_name: std::ptr::null(),
-            });
-            Either::Right(tls_cfg_client)
-        };
-        Self { alpn_ptr, tls_cfg }
+        Self {
+            alpn_ptr,
+            tls_cfg: Either::Right(tls_cfg_client),
+        }
+    }
+    /// Creates a TLS object ready to accept connection or connect to a server
+    pub fn new_server() -> Self {
+        let mut alpn_ptr: Vec<_> = vec![ALPN_PROTOCOLS.as_ptr() as *const i8, std::ptr::null()];
+        let cert = include_bytes!(concat!(env!("OUT_DIR"), "/ca.crt"));
+        let key = include_bytes!(concat!(env!("OUT_DIR"), "/key.key"));
+
+        let tls_cfg_srv = Box::new(esp_tls_cfg_server {
+            alpn_protos: alpn_ptr.as_mut_ptr(),
+            __bindgen_anon_1: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_1 {
+                cacert_buf: std::ptr::null(),
+            },
+            __bindgen_anon_2: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_2 {
+                cacert_bytes: 0_u32,
+            },
+            __bindgen_anon_3: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_3 {
+                servercert_buf: cert.as_ptr(),
+            },
+            __bindgen_anon_4: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_4 {
+                servercert_bytes: cert.len() as u32,
+            },
+            __bindgen_anon_5: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_5 {
+                serverkey_buf: key.as_ptr(),
+            },
+            __bindgen_anon_6: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_6 {
+                serverkey_bytes: key.len() as u32,
+            },
+            serverkey_password: std::ptr::null(),
+            serverkey_password_len: 0_u32,
+        });
+
+        Self {
+            alpn_ptr,
+            tls_cfg: Either::Left(tls_cfg_srv),
+        }
     }
 
     /// open the a TLS (SSL) context either in client or in server mode
@@ -155,54 +162,52 @@ impl Esp32TlsStream {
                         fd,
                         **tls_context,
                     )) {
-                        log::error!("Can't create TLS context {}", err);
-                        return Err(anyhow::anyhow!(err));
+                        log::error!("can't create TLS context ''{}''", err);
+                        Err(anyhow::anyhow!(err))
+                    } else {
+                        Ok(Self {
+                            tls_context,
+                            socket,
+                        })
                     }
-                };
+                }
             }
             Either::Right(tls_cfg) => {
                 match unsafe {
                     esp_tls_conn_new_sync(
                         APP_VIAM_HOSTNAME.as_ptr() as *const i8,
                         APP_VIAM_HOSTNAME.len() as i32,
-                        443,
+                        443, // HTTPS port
                         &**tls_cfg,
                         **tls_context,
                     )
                 } {
-                    -1 => {
-                        return Err(anyhow::anyhow!(
-                            "Failed to established connection to app.viam.com"
-                        ));
-                    }
+                    -1 => Err(anyhow::anyhow!(
+                        "Failed to established connection to app.viam.com"
+                    )),
                     1 => {
                         log::info!("Connected to app.viam.com");
+                        Ok(Self {
+                            tls_context,
+                            socket,
+                        })
                     }
-                    0 => {
-                        return Err(anyhow::anyhow!("connection to app.viam.com in progress"));
-                    }
-                    n => {
-                        return Err(anyhow::anyhow!("Unexpected error {}", n));
-                    }
+                    0 => Err(anyhow::anyhow!("connection to app.viam.com in progress")),
+                    n => Err(anyhow::anyhow!("Unexpected error '{}'", n)),
                 }
             }
         }
-        Ok(Self {
-            tls_context,
-            socket,
-        })
     }
 }
 
 impl Drop for Esp32TlsStream {
     fn drop(&mut self) {
         if let Some(err) = EspError::from(unsafe { esp_tls_conn_destroy(**self.tls_context) }) {
-            log::error!("error while dropping the tls connection {}", err);
+            log::error!("error while dropping the tls connection '{}'", err);
         }
     }
 }
 
-/// implement read trait for Esp32TlsStream
 impl Read for Esp32TlsStream {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let read_fn = match unsafe { self.tls_context.read().read } {
@@ -221,31 +226,27 @@ impl Read for Esp32TlsStream {
                 buf.len() as u32,
             )
         } {
-            n if n > 0 => Ok(n as usize),
+            n @ 1_i32..=i32::MAX => Ok(n as usize),
             0 => Err(std::io::Error::new(
                 std::io::ErrorKind::NotConnected,
                 "tls read connection closed",
             )),
-            n if n < 0 => match n {
+            n @ i32::MIN..=-1 => match n {
                 e @ (ESP_TLS_ERR_SSL_WANT_READ | ESP_TLS_ERR_SSL_WANT_WRITE) => {
                     Err(std::io::Error::new(
                         std::io::ErrorKind::WouldBlock,
-                        format!("would block cause {}", e),
+                        format!("would block cause '{}'", e),
                     ))
                 }
                 e => Err(std::io::Error::new(
                     std::io::ErrorKind::Other,
-                    format!("tls write failed reason {}", e),
+                    format!("tls write failed reason '{}'", e),
                 )),
             },
-            _ => {
-                unreachable!("panic")
-            }
         }
     }
 }
 
-/// implement write trait for Esp32TlsStream
 impl Write for Esp32TlsStream {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let write_fn = match unsafe { self.tls_context.read().write } {
@@ -264,16 +265,16 @@ impl Write for Esp32TlsStream {
                 buf.len() as u32,
             )
         } {
-            n if n < 0 => match n {
+            n @ i32::MIN..=-1 => match n {
                 e @ (ESP_TLS_ERR_SSL_WANT_READ | ESP_TLS_ERR_SSL_WANT_WRITE) => {
                     Err(std::io::Error::new(
                         std::io::ErrorKind::WouldBlock,
-                        format!("would block cause {}", e),
+                        format!("would block cause '{}'", e),
                     ))
                 }
                 e => Err(std::io::Error::new(
                     std::io::ErrorKind::Other,
-                    format!("tls write failed reason {}", e),
+                    format!("tls write failed reason '{}'", e),
                 )),
             },
             n => Ok(n as usize),

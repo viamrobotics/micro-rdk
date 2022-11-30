@@ -69,7 +69,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 use tcp::Esp32Listener;
-use tls::Esp32tls;
+use tls::Esp32Tls;
 
 fn main() -> anyhow::Result<()> {
     esp_idf_sys::link_patches();
@@ -237,7 +237,7 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn runserver(robot: Esp32Robot) -> anyhow::Result<()> {
-    let tls = Box::new(Esp32tls::new(true));
+    let tls = Box::new(Esp32Tls::new_server());
     let address: SocketAddr = "0.0.0.0:80".parse().unwrap();
     let mut listener = Esp32Listener::new(address.into(), Some(tls))?;
     let exec = Esp32Executor::new();
