@@ -142,6 +142,8 @@ impl Esp32Tls {
     }
 }
 
+/// Esp32TlsStream represents a properly established TLS connection to a server or a client. It can be use bye Esp32TCPStream since it
+/// implements std::io::{Read,Write}
 impl Esp32TlsStream {
     /// based on a role and a configuration, attempt the setup an SSL context
     fn new(
