@@ -3948,6 +3948,7 @@ dependencies = [
 [[package]]
 name = "viam-rust-utils"
 version = "0.0.5"
+source = "git+https://github.com/viamrobotics/rust-utils#6b619ef7bbb19c2a9b2d664e37cc323cc5478e28"
 dependencies = [
  "anyhow",
  "base64",

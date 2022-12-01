@@ -12,7 +12,7 @@ esp-idf-sys = {git = "https://github.com/npmenard/esp-idf-sys.git"}
 polling = { git = "https://github.com/esp-rs-compat/polling" }
 smol = { git = "https://github.com/esp-rs-compat/smol" }
 socket2 = { git = "https://github.com/npmenard/socket2.git" }
-viam-rust-utils = {path="../rust-utils"}
+viam-rust-utils = {git = "https://github.com/viamrobotics/rust-utils"}
 
 [profile.release]
 opt-level = "s"
