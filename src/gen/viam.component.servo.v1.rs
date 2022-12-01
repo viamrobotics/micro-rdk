@@ -7,6 +7,9 @@ pub struct MoveRequest {
     /// the degrees by which to rotate the servo. Accepted values are between 0 and 180
     #[prost(uint32, tag="2")]
     pub angle_deg: u32,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MoveResponse {
@@ -16,6 +19,9 @@ pub struct GetPositionRequest {
     /// the name of the servo, as registered
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPositionResponse {
@@ -28,6 +34,9 @@ pub struct StopRequest {
     /// Name of a servo
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StopResponse {

@@ -4,6 +4,9 @@ pub struct GetControlsRequest {
     /// Name of an input controller
     #[prost(string, tag="1")]
     pub controller: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetControlsResponse {
@@ -17,6 +20,9 @@ pub struct GetEventsRequest {
     /// Name of an input controller
     #[prost(string, tag="1")]
     pub controller: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetEventsResponse {
@@ -33,6 +39,9 @@ pub struct TriggerEventRequest {
     /// Digitally assert a given event
     #[prost(message, optional, tag="2")]
     pub event: ::core::option::Option<Event>,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TriggerEventResponse {
@@ -60,6 +69,9 @@ pub struct StreamEventsRequest {
     /// A list of Events
     #[prost(message, repeated, tag="2")]
     pub events: ::prost::alloc::vec::Vec<stream_events_request::Events>,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 /// Nested message and enum types in `StreamEventsRequest`.
 pub mod stream_events_request {
@@ -69,7 +81,6 @@ pub mod stream_events_request {
         #[prost(string, tag="1")]
         pub control: ::prost::alloc::string::String,
         /// Specify which event types to recieve events for
-        /// To Do (FA): Right now this can be an empty list, but we should error in this case as opening a stream with no messages is expensive
         #[prost(string, repeated, tag="2")]
         pub events: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
         /// Specify which event types to stop recieving events for

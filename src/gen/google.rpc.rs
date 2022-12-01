@@ -105,15 +105,15 @@ pub enum Code {
     ///
     /// Service implementors can use the following guidelines to decide
     /// between `FAILED_PRECONDITION`, `ABORTED`, and `UNAVAILABLE`:
-    ///  (a) Use `UNAVAILABLE` if the client can retry just the failing call.
-    ///  (b) Use `ABORTED` if the client should retry at a higher level
-    ///      (e.g., when a client-specified test-and-set fails, indicating the
-    ///      client should restart a read-modify-write sequence).
-    ///  (c) Use `FAILED_PRECONDITION` if the client should not retry until
-    ///      the system state has been explicitly fixed.  E.g., if an "rmdir"
-    ///      fails because the directory is non-empty, `FAILED_PRECONDITION`
-    ///      should be returned since the client should not retry unless
-    ///      the files are deleted from the directory.
+    ///   (a) Use `UNAVAILABLE` if the client can retry just the failing call.
+    ///   (b) Use `ABORTED` if the client should retry at a higher level
+    ///       (e.g., when a client-specified test-and-set fails, indicating the
+    ///       client should restart a read-modify-write sequence).
+    ///   (c) Use `FAILED_PRECONDITION` if the client should not retry until
+    ///       the system state has been explicitly fixed.  E.g., if an "rmdir"
+    ///       fails because the directory is non-empty, `FAILED_PRECONDITION`
+    ///       should be returned since the client should not retry unless
+    ///       the files are deleted from the directory.
     ///
     /// HTTP Mapping: 400 Bad Request
     FailedPrecondition = 9,
@@ -168,6 +168,33 @@ pub enum Code {
     ///
     /// HTTP Mapping: 500 Internal Server Error
     DataLoss = 15,
+}
+impl Code {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Code::Ok => "OK",
+            Code::Cancelled => "CANCELLED",
+            Code::Unknown => "UNKNOWN",
+            Code::InvalidArgument => "INVALID_ARGUMENT",
+            Code::DeadlineExceeded => "DEADLINE_EXCEEDED",
+            Code::NotFound => "NOT_FOUND",
+            Code::AlreadyExists => "ALREADY_EXISTS",
+            Code::PermissionDenied => "PERMISSION_DENIED",
+            Code::Unauthenticated => "UNAUTHENTICATED",
+            Code::ResourceExhausted => "RESOURCE_EXHAUSTED",
+            Code::FailedPrecondition => "FAILED_PRECONDITION",
+            Code::Aborted => "ABORTED",
+            Code::OutOfRange => "OUT_OF_RANGE",
+            Code::Unimplemented => "UNIMPLEMENTED",
+            Code::Internal => "INTERNAL",
+            Code::Unavailable => "UNAVAILABLE",
+            Code::DataLoss => "DATA_LOSS",
+        }
+    }
 }
 /// Describes when the clients can retry a failed request. Clients could ignore
 /// the recommendation here or retry when this information is missing from error
@@ -242,25 +269,25 @@ pub mod quota_failure {
 /// Example of an error when contacting the "pubsub.googleapis.com" API when it
 /// is not enabled:
 ///
-///     { "reason": "API_DISABLED"
-///       "domain": "googleapis.com"
-///       "metadata": {
-///         "resource": "projects/123",
-///         "service": "pubsub.googleapis.com"
-///       }
-///     }
+///      { "reason": "API_DISABLED"
+///        "domain": "googleapis.com"
+///        "metadata": {
+///          "resource": "projects/123",
+///          "service": "pubsub.googleapis.com"
+///        }
+///      }
 ///
 /// This response indicates that the pubsub.googleapis.com API is not enabled.
 ///
 /// Example of an error that is returned when attempting to create a Spanner
 /// instance in a region that is out of stock:
 ///
-///     { "reason": "STOCKOUT"
-///       "domain": "spanner.googleapis.com",
-///       "metadata": {
-///         "availableRegions": "us-central1,us-east2"
-///       }
-///     }
+///      { "reason": "STOCKOUT"
+///        "domain": "spanner.googleapis.com",
+///        "metadata": {
+///          "availableRegions": "us-central1,us-east2"
+///        }
+///      }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ErrorInfo {
     /// The reason of the error. This is a constant value that identifies the

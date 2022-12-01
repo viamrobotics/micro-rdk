@@ -4,6 +4,9 @@ pub struct GetPositionRequest {
     /// Name of slam service
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPositionResponse {
@@ -30,6 +33,9 @@ pub struct GetMapRequest {
     /// Tells us whether to include the robot position on the 2D image.
     #[prost(bool, tag="4")]
     pub include_robot_marker: bool,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetMapResponse {

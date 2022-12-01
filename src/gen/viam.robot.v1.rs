@@ -73,6 +73,8 @@ pub struct Operation {
     pub arguments: ::core::option::Option<::prost_types::Struct>,
     #[prost(message, optional, tag="4")]
     pub started: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(string, optional, tag="5")]
+    pub session_id: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetOperationsRequest {
@@ -97,6 +99,30 @@ pub struct BlockForOperationRequest {
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BlockForOperationResponse {
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct PeerConnectionInfo {
+    #[prost(enumeration="PeerConnectionType", tag="1")]
+    pub r#type: i32,
+    #[prost(string, optional, tag="2")]
+    pub remote_address: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag="3")]
+    pub local_address: ::core::option::Option<::prost::alloc::string::String>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Session {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="2")]
+    pub peer_connection_info: ::core::option::Option<PeerConnectionInfo>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetSessionsRequest {
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetSessionsResponse {
+    #[prost(message, repeated, tag="1")]
+    pub sessions: ::prost::alloc::vec::Vec<Session>,
 }
 // Discovery
 
@@ -168,5 +194,47 @@ pub struct StopAllRequest {
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StopAllResponse {
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StartSessionRequest {
+    /// resume can be used to attempt to continue a stream after a disconnection event. If
+    /// a session is not found, a new one will be created and returned.
+    #[prost(string, tag="1")]
+    pub resume: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StartSessionResponse {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="2")]
+    pub heartbeat_window: ::core::option::Option<::prost_types::Duration>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SendSessionHeartbeatRequest {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SendSessionHeartbeatResponse {
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum PeerConnectionType {
+    Unspecified = 0,
+    Grpc = 1,
+    Webrtc = 2,
+}
+impl PeerConnectionType {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            PeerConnectionType::Unspecified => "PEER_CONNECTION_TYPE_UNSPECIFIED",
+            PeerConnectionType::Grpc => "PEER_CONNECTION_TYPE_GRPC",
+            PeerConnectionType::Webrtc => "PEER_CONNECTION_TYPE_WEBRTC",
+        }
+    }
 }
 // @@protoc_insertion_point(module)

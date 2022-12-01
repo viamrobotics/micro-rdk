@@ -121,11 +121,11 @@ pub mod attribute_context {
         /// the following pieces of information:
         ///
         /// *  The services intended to receive the credential. For example,
-        ///    ["<https://pubsub.googleapis.com/",> "<https://storage.googleapis.com/"].>
+        ///     ["<https://pubsub.googleapis.com/",> "<https://storage.googleapis.com/"].>
         /// *  A set of service-based scopes. For example,
-        ///    \["<https://www.googleapis.com/auth/cloud-platform"\].>
+        ///     \["<https://www.googleapis.com/auth/cloud-platform"\].>
         /// *  The client id of an app, such as the Firebase project id for JWTs
-        ///    from Firebase Auth.
+        ///     from Firebase Auth.
         ///
         /// Consult the documentation for the credential issuer to determine the
         /// information provided.
@@ -142,13 +142,13 @@ pub mod attribute_context {
         /// is a subset of the standard required and optional claims that would
         /// typically be presented for a Google-based JWT:
         ///
-        ///    {'iss': 'accounts.google.com',
-        ///     'sub': '113289723416554971153',
-        ///     'aud': ['123456789012', 'pubsub.googleapis.com'],
-        ///     'azp': '123456789012.apps.googleusercontent.com',
-        ///     'email': 'jsmith@example.com',
-        ///     'iat': 1353601026,
-        ///     'exp': 1353604926}
+        ///     {'iss': 'accounts.google.com',
+        ///      'sub': '113289723416554971153',
+        ///      'aud': ['123456789012', 'pubsub.googleapis.com'],
+        ///      'azp': '123456789012.apps.googleusercontent.com',
+        ///      'email': 'jsmith@example.com',
+        ///      'iat': 1353601026,
+        ///      'exp': 1353604926}
         ///
         /// SAML assertions are similarly specified, but with an identity provider
         /// dependent structure.
@@ -258,11 +258,11 @@ pub mod attribute_context {
         /// The differences between a resource name and a URI are:
         ///
         /// *   Resource name is a logical identifier, independent of network
-        ///     protocol and API version. For example,
-        ///     `//pubsub.googleapis.com/projects/123/topics/news-feed`.
+        ///      protocol and API version. For example,
+        ///      `//pubsub.googleapis.com/projects/123/topics/news-feed`.
         /// *   URI often includes protocol and version information, so it can
-        ///     be used directly by applications. For example,
-        ///     `<https://pubsub.googleapis.com/v1/projects/123/topics/news-feed`.>
+        ///      be used directly by applications. For example,
+        ///      `<https://pubsub.googleapis.com/v1/projects/123/topics/news-feed`.>
         ///
         /// See <https://cloud.google.com/apis/design/resource_names> for details.
         #[prost(string, tag="2")]

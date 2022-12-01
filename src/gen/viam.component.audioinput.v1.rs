@@ -82,4 +82,17 @@ pub enum SampleFormat {
     Int16Interleaved = 1,
     Float32Interleaved = 2,
 }
+impl SampleFormat {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            SampleFormat::Unspecified => "SAMPLE_FORMAT_UNSPECIFIED",
+            SampleFormat::Int16Interleaved => "SAMPLE_FORMAT_INT16_INTERLEAVED",
+            SampleFormat::Float32Interleaved => "SAMPLE_FORMAT_FLOAT32_INTERLEAVED",
+        }
+    }
+}
 // @@protoc_insertion_point(module)
