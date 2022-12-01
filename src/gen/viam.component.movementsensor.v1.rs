@@ -4,6 +4,9 @@ pub struct GetLinearVelocityRequest {
     /// Name of a movement sensor
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetLinearVelocityResponse {
@@ -16,6 +19,9 @@ pub struct GetAngularVelocityRequest {
     /// Name of a movement sensor
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetAngularVelocityResponse {
@@ -28,6 +34,9 @@ pub struct GetCompassHeadingRequest {
     /// Name of a movement sensor
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetCompassHeadingResponse {
@@ -41,6 +50,9 @@ pub struct GetOrientationRequest {
     /// Name of a movement sensor
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetOrientationResponse {
@@ -52,6 +64,9 @@ pub struct GetPositionRequest {
     /// Name of a movement sensor
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPositionResponse {
@@ -65,6 +80,9 @@ pub struct GetPropertiesRequest {
     /// Name of a movement sensor
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPropertiesResponse {
@@ -84,6 +102,9 @@ pub struct GetAccuracyRequest {
     /// Name of a movement sensor
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetAccuracyResponse {

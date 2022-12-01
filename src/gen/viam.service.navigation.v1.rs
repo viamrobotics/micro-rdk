@@ -3,6 +3,9 @@
 pub struct GetModeRequest {
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetModeResponse {
@@ -15,6 +18,9 @@ pub struct SetModeRequest {
     pub name: ::prost::alloc::string::String,
     #[prost(enumeration="Mode", tag="2")]
     pub mode: i32,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SetModeResponse {
@@ -30,6 +36,9 @@ pub struct Waypoint {
 pub struct GetLocationRequest {
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetLocationResponse {
@@ -40,6 +49,9 @@ pub struct GetLocationResponse {
 pub struct GetWaypointsRequest {
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetWaypointsResponse {
@@ -52,6 +64,9 @@ pub struct AddWaypointRequest {
     pub name: ::prost::alloc::string::String,
     #[prost(message, optional, tag="2")]
     pub location: ::core::option::Option<super::super::super::common::v1::GeoPoint>,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AddWaypointResponse {
@@ -62,6 +77,9 @@ pub struct RemoveWaypointRequest {
     pub name: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
     pub id: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RemoveWaypointResponse {
@@ -72,5 +90,18 @@ pub enum Mode {
     Unspecified = 0,
     Manual = 1,
     Waypoint = 2,
+}
+impl Mode {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Mode::Unspecified => "MODE_UNSPECIFIED",
+            Mode::Manual => "MODE_MANUAL",
+            Mode::Waypoint => "MODE_WAYPOINT",
+        }
+    }
 }
 // @@protoc_insertion_point(module)

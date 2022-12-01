@@ -224,6 +224,8 @@ pub struct AnswerRequestInitStage {
     pub sdp: ::prost::alloc::string::String,
     #[prost(message, optional, tag="2")]
     pub optional_config: ::core::option::Option<WebRtcConfig>,
+    #[prost(message, optional, tag="3")]
+    pub deadline: ::core::option::Option<::prost_types::Timestamp>,
 }
 /// AnswerRequestUpdateStage is multiply used to trickle in ICE candidates to
 /// the controlled (answerer) side.

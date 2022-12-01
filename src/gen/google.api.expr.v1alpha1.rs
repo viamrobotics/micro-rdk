@@ -162,13 +162,13 @@ pub mod expr {
     /// in a map:
     ///
     /// *  `all`, `exists`, `exists_one` -  test a predicate expression against
-    ///    the inputs and return `true` if the predicate is satisfied for all,
-    ///    any, or only one value `list.all(x, x < 10)`.
+    ///     the inputs and return `true` if the predicate is satisfied for all,
+    ///     any, or only one value `list.all(x, x < 10)`.
     /// *  `filter` - test a predicate expression against the inputs and return
-    ///    the subset of elements which satisfy the predicate:
-    ///    `payments.filter(p, p > 1000)`.
+    ///     the subset of elements which satisfy the predicate:
+    ///     `payments.filter(p, p > 1000)`.
     /// *  `map` - apply an expression to all elements in the input and return the
-    ///    output aggregate type: `[1, 2, 3].map(i, i * i)`.
+    ///     output aggregate type: `[1, 2, 3].map(i, i * i)`.
     ///
     /// The `has(m.x)` macro tests whether the property `x` is present in struct
     /// `m`. The semantics of this macro depend on the type of `m`. For proto2
@@ -353,16 +353,16 @@ pub struct CheckedExpr {
     /// The following entries are in this table:
     ///
     /// - An Ident or Select expression is represented here if it resolves to a
-    ///   declaration. For instance, if `a.b.c` is represented by
-    ///   `select(select(id(a), b), c)`, and `a.b` resolves to a declaration,
-    ///   while `c` is a field selection, then the reference is attached to the
-    ///   nested select expression (but not to the id or or the outer select).
-    ///   In turn, if `a` resolves to a declaration and `b.c` are field selections,
-    ///   the reference is attached to the ident expression.
+    ///    declaration. For instance, if `a.b.c` is represented by
+    ///    `select(select(id(a), b), c)`, and `a.b` resolves to a declaration,
+    ///    while `c` is a field selection, then the reference is attached to the
+    ///    nested select expression (but not to the id or or the outer select).
+    ///    In turn, if `a` resolves to a declaration and `b.c` are field selections,
+    ///    the reference is attached to the ident expression.
     /// - Every Call expression has an entry here, identifying the function being
-    ///   called.
+    ///    called.
     /// - Every CreateStruct expression for a message has an entry, identifying
-    ///   the message.
+    ///    the message.
     #[prost(map="int64, message", tag="2")]
     pub reference_map: ::std::collections::HashMap<i64, Reference>,
     /// A map from expression ids to types.
@@ -461,6 +461,23 @@ pub mod r#type {
         /// Bytes type.
         Bytes = 6,
     }
+    impl PrimitiveType {
+        /// String value of the enum field names used in the ProtoBuf definition.
+        ///
+        /// The values are not transformed in any way and thus are considered stable
+        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        pub fn as_str_name(&self) -> &'static str {
+            match self {
+                PrimitiveType::Unspecified => "PRIMITIVE_TYPE_UNSPECIFIED",
+                PrimitiveType::Bool => "BOOL",
+                PrimitiveType::Int64 => "INT64",
+                PrimitiveType::Uint64 => "UINT64",
+                PrimitiveType::Double => "DOUBLE",
+                PrimitiveType::String => "STRING",
+                PrimitiveType::Bytes => "BYTES",
+            }
+        }
+    }
     /// Well-known protobuf types treated with first-class support in CEL.
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
@@ -477,6 +494,20 @@ pub mod r#type {
         Timestamp = 2,
         /// Well-known protobuf.Duration type, internally referenced as `duration`.
         Duration = 3,
+    }
+    impl WellKnownType {
+        /// String value of the enum field names used in the ProtoBuf definition.
+        ///
+        /// The values are not transformed in any way and thus are considered stable
+        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        pub fn as_str_name(&self) -> &'static str {
+            match self {
+                WellKnownType::Unspecified => "WELL_KNOWN_TYPE_UNSPECIFIED",
+                WellKnownType::Any => "ANY",
+                WellKnownType::Timestamp => "TIMESTAMP",
+                WellKnownType::Duration => "DURATION",
+            }
+        }
     }
     /// The kind of type.
     #[derive(Clone, PartialEq, ::prost::Oneof)]
@@ -853,22 +884,22 @@ pub mod expr_value {
         /// unknowns *might* be included included when evaluation could result in
         /// different unknowns. For example:
         ///
-        ///     (<unknown\[1\]> || true) && <unknown\[2\]> -> <unknown\[2\]>
-        ///     <unknown\[1\]> || <unknown\[2\]> -> <unknown\[1,2\]>
-        ///     <unknown\[1\]>.foo -> <unknown\[1\]>
-        ///     foo(<unknown\[1\]>) -> <unknown\[1\]>
-        ///     <unknown\[1\]> + <unknown\[2\]> -> <unknown\[1\]> or <unknown[2[>
+        ///      (<unknown\[1\]> || true) && <unknown\[2\]> -> <unknown\[2\]>
+        ///      <unknown\[1\]> || <unknown\[2\]> -> <unknown\[1,2\]>
+        ///      <unknown\[1\]>.foo -> <unknown\[1\]>
+        ///      foo(<unknown\[1\]>) -> <unknown\[1\]>
+        ///      <unknown\[1\]> + <unknown\[2\]> -> <unknown\[1\]> or <unknown[2[>
         ///
         /// Unknown takes precidence over Error in cases where a `Value` can short
         /// circuit the result:
         ///
-        ///     <error> || <unknown> -> <unknown>
-        ///     <error> && <unknown> -> <unknown>
+        ///      <error> || <unknown> -> <unknown>
+        ///      <error> && <unknown> -> <unknown>
         ///
         /// Errors take precidence in all other cases:
         ///
-        ///     <unknown> + <error> -> <error>
-        ///     foo(<unknown>, <error>) -> <error>
+        ///      <unknown> + <error> -> <error>
+        ///      foo(<unknown>, <error>) -> <error>
         #[prost(message, tag="3")]
         Unknown(super::UnknownSet),
     }

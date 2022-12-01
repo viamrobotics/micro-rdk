@@ -43,6 +43,9 @@ pub struct RobotPart {
     pub local_fqdn: ::prost::alloc::string::String,
     #[prost(message, optional, tag="13")]
     pub created_on: ::core::option::Option<::prost_types::Timestamp>,
+    /// List of secrets allowed for authentication.
+    #[prost(message, repeated, tag="14")]
+    pub secrets: ::prost::alloc::vec::Vec<SharedSecret>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RobotPartHistoryEntry {
@@ -82,6 +85,18 @@ pub struct Location {
     pub created_on: ::core::option::Option<::prost_types::Timestamp>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateLocationRequest {
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub name: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateLocationResponse {
+    #[prost(message, optional, tag="1")]
+    pub location: ::core::option::Option<Location>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListLocationsRequest {
     #[prost(string, tag="1")]
     pub organization_id: ::prost::alloc::string::String,
@@ -92,9 +107,80 @@ pub struct ListLocationsResponse {
     pub locations: ::prost::alloc::vec::Vec<Location>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateLocationSecretRequest {
+    /// Location ID to create the secret in.
+    #[prost(string, tag="1")]
+    pub location_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateLocationSecretResponse {
+    /// Location's auth after updates.
+    #[prost(message, optional, tag="1")]
+    pub auth: ::core::option::Option<LocationAuth>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DeleteLocationSecretRequest {
+    #[prost(string, tag="1")]
+    pub location_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub secret_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DeleteLocationSecretResponse {
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct LocationAuth {
+    /// Deprecated: use secrets field.
+    #[deprecated]
     #[prost(string, tag="1")]
     pub secret: ::prost::alloc::string::String,
+    /// Location ID containing this LocationAuth.
+    #[prost(string, tag="2")]
+    pub location_id: ::prost::alloc::string::String,
+    /// List of secrets used to authenticate to the Location.
+    #[prost(message, repeated, tag="3")]
+    pub secrets: ::prost::alloc::vec::Vec<SharedSecret>,
+}
+/// SharedSecret is a secret used for LocationAuth and RobotParts.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SharedSecret {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    /// The payload of the secret. Used during authentication to the rpc framework.
+    #[prost(string, tag="2")]
+    pub secret: ::prost::alloc::string::String,
+    /// Date/time the secret was first created.
+    #[prost(message, optional, tag="3")]
+    pub created_on: ::core::option::Option<::prost_types::Timestamp>,
+    /// State of the shared secret. In most cases it should be enabled. We may support
+    /// disabling a specific secret while keeping it in the database.
+    #[prost(enumeration="shared_secret::State", tag="4")]
+    pub state: i32,
+}
+/// Nested message and enum types in `SharedSecret`.
+pub mod shared_secret {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+    #[repr(i32)]
+    pub enum State {
+        Unspecified = 0,
+        /// Secret is enabled and can be used in authentication.
+        Enabled = 1,
+        /// Secret is disabled and must not be used to authenticate to rpc.
+        Disabled = 2,
+    }
+    impl State {
+        /// String value of the enum field names used in the ProtoBuf definition.
+        ///
+        /// The values are not transformed in any way and thus are considered stable
+        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        pub fn as_str_name(&self) -> &'static str {
+            match self {
+                State::Unspecified => "STATE_UNSPECIFIED",
+                State::Enabled => "STATE_ENABLED",
+                State::Disabled => "STATE_DISABLED",
+            }
+        }
+    }
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct LocationAuthRequest {
@@ -293,6 +379,28 @@ pub struct MarkPartAsMainRequest {
 pub struct MarkPartAsMainResponse {
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateRobotPartSecretRequest {
+    /// Robot Part ID to create the secret in.
+    #[prost(string, tag="1")]
+    pub part_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateRobotPartSecretResponse {
+    /// Location's auth after updates.
+    #[prost(message, optional, tag="1")]
+    pub part: ::core::option::Option<RobotPart>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DeleteRobotPartSecretRequest {
+    #[prost(string, tag="1")]
+    pub part_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub secret_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DeleteRobotPartSecretResponse {
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RobotConfig {
     #[prost(message, optional, tag="1")]
     pub cloud: ::core::option::Option<CloudConfig>,
@@ -312,6 +420,15 @@ pub struct RobotConfig {
     #[prost(bool, optional, tag="8")]
     pub debug: ::core::option::Option<bool>,
 }
+/// Valid location secret that can be used for authentication to the robot.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct LocationSecret {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    /// secret payload
+    #[prost(string, tag="2")]
+    pub secret: ::prost::alloc::string::String,
+}
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CloudConfig {
     /// Robot part id.
@@ -327,10 +444,16 @@ pub struct CloudConfig {
     pub signaling_address: ::prost::alloc::string::String,
     #[prost(bool, tag="6")]
     pub signaling_insecure: bool,
+    /// Deprecated use location_secrets
+    #[deprecated]
     #[prost(string, tag="7")]
     pub location_secret: ::prost::alloc::string::String,
+    /// Robot part secret
     #[prost(string, tag="8")]
     pub secret: ::prost::alloc::string::String,
+    /// All valid location secrets.
+    #[prost(message, repeated, tag="9")]
+    pub location_secrets: ::prost::alloc::vec::Vec<LocationSecret>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ComponentConfig {
@@ -386,6 +509,10 @@ pub struct ServiceConfig {
     pub r#type: ::prost::alloc::string::String,
     #[prost(message, optional, tag="4")]
     pub attributes: ::core::option::Option<::prost_types::Struct>,
+    #[prost(string, repeated, tag="5")]
+    pub depends_on: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(string, tag="6")]
+    pub model: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct NetworkConfig {
@@ -660,5 +787,20 @@ pub enum CredentialsType {
     ApiKey = 2,
     RobotSecret = 3,
     RobotLocationSecret = 4,
+}
+impl CredentialsType {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            CredentialsType::Unspecified => "CREDENTIALS_TYPE_UNSPECIFIED",
+            CredentialsType::Internal => "CREDENTIALS_TYPE_INTERNAL",
+            CredentialsType::ApiKey => "CREDENTIALS_TYPE_API_KEY",
+            CredentialsType::RobotSecret => "CREDENTIALS_TYPE_ROBOT_SECRET",
+            CredentialsType::RobotLocationSecret => "CREDENTIALS_TYPE_ROBOT_LOCATION_SECRET",
+        }
+    }
 }
 // @@protoc_insertion_point(module)

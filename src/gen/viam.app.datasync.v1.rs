@@ -141,6 +141,8 @@ pub struct TabularCapture {
     pub session_id: ::prost::alloc::string::String,
     #[prost(string, tag="18")]
     pub mime_type: ::prost::alloc::string::String,
+    #[prost(string, tag="19")]
+    pub id: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BinaryCapture {
@@ -178,6 +180,10 @@ pub struct BinaryCapture {
     pub mime_type: ::prost::alloc::string::String,
     #[prost(string, tag="17")]
     pub file_name: ::prost::alloc::string::String,
+    #[prost(string, tag="18")]
+    pub file_ext: ::prost::alloc::string::String,
+    #[prost(string, tag="19")]
+    pub id: ::prost::alloc::string::String,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -186,5 +192,19 @@ pub enum DataType {
     BinarySensor = 1,
     TabularSensor = 2,
     File = 3,
+}
+impl DataType {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            DataType::Unspecified => "DATA_TYPE_UNSPECIFIED",
+            DataType::BinarySensor => "DATA_TYPE_BINARY_SENSOR",
+            DataType::TabularSensor => "DATA_TYPE_TABULAR_SENSOR",
+            DataType::File => "DATA_TYPE_FILE",
+        }
+    }
 }
 // @@protoc_insertion_point(module)

@@ -3,6 +3,8 @@
 pub struct OpenRequest {
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OpenResponse {
@@ -11,17 +13,23 @@ pub struct OpenResponse {
 pub struct GrabRequest {
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GrabResponse {
     #[prost(bool, tag="1")]
     pub success: bool,
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StopRequest {
     /// Name of a gripper
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StopResponse {

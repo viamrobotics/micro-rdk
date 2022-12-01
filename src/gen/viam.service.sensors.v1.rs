@@ -3,6 +3,9 @@
 pub struct GetSensorsRequest {
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetSensorsResponse {
@@ -15,6 +18,9 @@ pub struct GetReadingsRequest {
     pub name: ::prost::alloc::string::String,
     #[prost(message, repeated, tag="2")]
     pub sensor_names: ::prost::alloc::vec::Vec<super::super::super::common::v1::ResourceName>,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Readings {
