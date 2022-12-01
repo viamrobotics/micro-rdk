@@ -9,6 +9,9 @@ pub struct GetPosesRequest {
     /// poses are returned
     #[prost(string, repeated, tag="2")]
     pub body_names: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPosesResponse {

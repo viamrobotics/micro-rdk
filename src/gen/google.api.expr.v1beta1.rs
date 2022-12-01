@@ -196,13 +196,13 @@ pub mod expr {
     /// in a map:
     ///
     /// *  `all`, `exists`, `exists_one` -  test a predicate expression against
-    ///    the inputs and return `true` if the predicate is satisfied for all,
-    ///    any, or only one value `list.all(x, x < 10)`.
+    ///     the inputs and return `true` if the predicate is satisfied for all,
+    ///     any, or only one value `list.all(x, x < 10)`.
     /// *  `filter` - test a predicate expression against the inputs and return
-    ///    the subset of elements which satisfy the predicate:
-    ///    `payments.filter(p, p > 1000)`.
+    ///     the subset of elements which satisfy the predicate:
+    ///     `payments.filter(p, p > 1000)`.
     /// *  `map` - apply an expression to all elements in the input and return the
-    ///    output aggregate type: `[1, 2, 3].map(i, i * i)`.
+    ///     output aggregate type: `[1, 2, 3].map(i, i * i)`.
     ///
     /// The `has(m.x)` macro tests whether the property `x` is present in struct
     /// `m`. The semantics of this macro depend on the type of `m`. For proto2
@@ -551,22 +551,22 @@ pub mod expr_value {
         /// unknowns *might* be included included when evaluation could result in
         /// different unknowns. For example:
         ///
-        ///     (<unknown\[1\]> || true) && <unknown\[2\]> -> <unknown\[2\]>
-        ///     <unknown\[1\]> || <unknown\[2\]> -> <unknown\[1,2\]>
-        ///     <unknown\[1\]>.foo -> <unknown\[1\]>
-        ///     foo(<unknown\[1\]>) -> <unknown\[1\]>
-        ///     <unknown\[1\]> + <unknown\[2\]> -> <unknown\[1\]> or <unknown[2[>
+        ///      (<unknown\[1\]> || true) && <unknown\[2\]> -> <unknown\[2\]>
+        ///      <unknown\[1\]> || <unknown\[2\]> -> <unknown\[1,2\]>
+        ///      <unknown\[1\]>.foo -> <unknown\[1\]>
+        ///      foo(<unknown\[1\]>) -> <unknown\[1\]>
+        ///      <unknown\[1\]> + <unknown\[2\]> -> <unknown\[1\]> or <unknown[2[>
         ///
         /// Unknown takes precidence over Error in cases where a `Value` can short
         /// circuit the result:
         ///
-        ///     <error> || <unknown> -> <unknown>
-        ///     <error> && <unknown> -> <unknown>
+        ///      <error> || <unknown> -> <unknown>
+        ///      <error> && <unknown> -> <unknown>
         ///
         /// Errors take precidence in all other cases:
         ///
-        ///     <unknown> + <error> -> <error>
-        ///     foo(<unknown>, <error>) -> <error>
+        ///      <unknown> + <error> -> <error>
+        ///      foo(<unknown>, <error>) -> <error>
         #[prost(message, tag="3")]
         Unknown(super::UnknownSet),
     }

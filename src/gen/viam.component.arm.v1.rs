@@ -34,7 +34,7 @@ pub struct GetJointPositionsRequest {
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetJointPositionsResponse {
-    ///a list JointPositions
+    /// a list JointPositions
     #[prost(message, optional, tag="1")]
     pub positions: ::core::option::Option<JointPositions>,
 }

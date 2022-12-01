@@ -7,6 +7,9 @@ pub struct GetModelParameterSchemaRequest {
     /// name of the type of vision model
     #[prost(string, tag="2")]
     pub model_type: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetModelParameterSchemaResponse {
@@ -18,6 +21,9 @@ pub struct GetModelParameterSchemaResponse {
 pub struct GetDetectorNamesRequest {
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetDetectorNamesResponse {
@@ -35,6 +41,9 @@ pub struct AddDetectorRequest {
     pub detector_model_type: ::prost::alloc::string::String,
     #[prost(message, optional, tag="4")]
     pub detector_parameters: ::core::option::Option<::prost_types::Struct>,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AddDetectorResponse {
@@ -47,6 +56,9 @@ pub struct RemoveDetectorRequest {
     /// name of detector in registry
     #[prost(string, tag="2")]
     pub detector_name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RemoveDetectorResponse {
@@ -71,6 +83,9 @@ pub struct GetDetectionsRequest {
     /// name of the registered detector to use
     #[prost(string, tag="6")]
     pub detector_name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetDetectionsResponse {
@@ -89,6 +104,9 @@ pub struct GetDetectionsFromCameraRequest {
     /// name of the registered detector to use
     #[prost(string, tag="3")]
     pub detector_name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetDetectionsFromCameraResponse {
@@ -119,6 +137,9 @@ pub struct GetClassifierNamesRequest {
     /// name of the vision service
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetClassifierNamesResponse {
@@ -139,6 +160,9 @@ pub struct AddClassifierRequest {
     /// additional parameters
     #[prost(message, optional, tag="4")]
     pub classifier_parameters: ::core::option::Option<::prost_types::Struct>,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AddClassifierResponse {
@@ -151,6 +175,9 @@ pub struct RemoveClassifierRequest {
     /// name of the classifier in registry
     #[prost(string, tag="2")]
     pub classifier_name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RemoveClassifierResponse {
@@ -178,6 +205,9 @@ pub struct GetClassificationsRequest {
     /// the number of classifications desired
     #[prost(int32, tag="7")]
     pub n: i32,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetClassificationsResponse {
@@ -198,6 +228,9 @@ pub struct GetClassificationsFromCameraRequest {
     /// the number of classifications desired
     #[prost(int32, tag="4")]
     pub n: i32,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetClassificationsFromCameraResponse {
@@ -218,6 +251,9 @@ pub struct Classification {
 pub struct GetSegmenterNamesRequest {
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetSegmenterNamesResponse {
@@ -239,6 +275,9 @@ pub struct AddSegmenterRequest {
     /// parameters of the segmenter model
     #[prost(message, optional, tag="4")]
     pub segmenter_parameters: ::core::option::Option<::prost_types::Struct>,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AddSegmenterResponse {
@@ -251,6 +290,9 @@ pub struct RemoveSegmenterRequest {
     /// name of segmenter in registry
     #[prost(string, tag="2")]
     pub segmenter_name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RemoveSegmenterResponse {
@@ -268,6 +310,9 @@ pub struct GetObjectPointCloudsRequest {
     /// Requested MIME type of response
     #[prost(string, tag="4")]
     pub mime_type: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetObjectPointCloudsResponse {

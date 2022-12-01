@@ -16,12 +16,6 @@ pub struct GetImageResponse {
     /// Frame in bytes
     #[prost(bytes="bytes", tag="2")]
     pub image: ::prost::bytes::Bytes,
-    /// Width of frame in px
-    #[prost(int64, tag="3")]
-    pub width_px: i64,
-    /// Height of frame in px
-    #[prost(int64, tag="4")]
-    pub height_px: i64,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RenderFrameRequest {
