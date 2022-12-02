@@ -54,7 +54,7 @@ impl Esp32Tls {
     pub fn new_client() -> Self {
         let mut alpn_ptr: Vec<_> = vec![ALPN_PROTOCOLS.as_ptr() as *const i8, std::ptr::null()];
         // this is a root certificate to validate the server's certificate
-        let cert = include_bytes!("../app.crt");
+        let cert = include_bytes!("../google_gts_root_r1.crt");
 
         let tls_cfg_client = Box::new(esp_tls_cfg {
             alpn_protos: alpn_ptr.as_mut_ptr(),
