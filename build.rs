@@ -1,9 +1,12 @@
 use anyhow::{anyhow, Context};
 use const_gen::*;
+use local_ip_address::local_ip;
 use serde::{Deserialize, Serialize};
-use std::{env, fs, path::Path};
+use std::{env, ffi::CString, fs, path::Path};
 use tokio::runtime::Runtime;
-use viam::gen::proto::app::v1::{robot_service_client::RobotServiceClient, CertificateRequest};
+use viam::gen::proto::app::v1::{
+    robot_service_client::RobotServiceClient, AgentInfo, CertificateRequest, ConfigRequest,
+};
 use viam_rust_utils::rpc::dial::{DialOptions, RPCCredentials};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -64,6 +67,7 @@ fn main() -> anyhow::Result<()> {
     let mut cfg: Config = serde_json::from_str(content.as_str()).map_err(anyhow::Error::msg)?;
 
     let rt = Runtime::new()?;
+    let local_fqdn = CString::new(rt.block_on(read_cloud_config(&mut cfg))?)?;
     rt.block_on(read_certificates(&mut cfg))?;
     let out_dir = std::env::var_os("OUT_DIR").unwrap();
     let dest_path = std::path::Path::new(&out_dir).join("ca.crt");
@@ -77,12 +81,16 @@ fn main() -> anyhow::Result<()> {
     let dest_path = Path::new(&out_dir).join("robot_secret.rs");
     let robot_decl = vec![
         const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes)]
+            #[allow(clippy::redundant_static_lifetimes, dead_code)]
             ROBOT_ID = cfg.cloud.id.as_str()
         ),
         const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes)]
+            #[allow(clippy::redundant_static_lifetimes, dead_code)]
             ROBOT_SECRET = cfg.cloud.secret.as_str()
+        ),
+        const_declaration!(
+            #[allow(clippy::redundant_static_lifetimes, dead_code)]
+            LOCAL_FQDN = local_fqdn.as_bytes_with_nul()
         ),
     ]
     .join("\n");
@@ -112,4 +120,38 @@ async fn read_certificates(config: &mut Config) -> anyhow::Result<()> {
     config.cloud.tls_certificate = certs.tls_certificate;
     config.cloud.tls_private_key = certs.tls_private_key;
     Ok(())
+}
+
+async fn read_cloud_config(config: &mut Config) -> anyhow::Result<String> {
+    let creds = RPCCredentials::new(
+        Some(config.cloud.id.clone()),
+        "robot-secret".to_string(),
+        config.cloud.secret.clone(),
+    );
+    let agent = AgentInfo {
+        os: "esp32-build".to_string(),
+        host: gethostname::gethostname().to_str().unwrap().to_string(),
+        ips: vec![local_ip().unwrap().to_string()],
+        version: "0.0.1".to_string(),
+        git_revision: "".to_string(),
+    };
+    let cfg_req = ConfigRequest {
+        agent_info: Some(agent),
+        id: config.cloud.id.clone(),
+    };
+    let dial = DialOptions::builder()
+        .uri(config.cloud.app_address.clone().as_str())
+        .with_credentials(creds)
+        .disable_webrtc()
+        .connect()
+        .await?;
+    let mut app_service = RobotServiceClient::new(dial);
+    let cfg = app_service.config(cfg_req).await?.into_inner();
+    match cfg.config {
+        Some(cfg) => match cfg.cloud {
+            Some(cfg) => Ok(cfg.local_fqdn),
+            None => anyhow::bail!("no cloud config for robot"),
+        },
+        None => anyhow::bail!("no config for robot"),
+    }
 }

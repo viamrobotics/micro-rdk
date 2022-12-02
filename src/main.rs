@@ -18,6 +18,9 @@ const SSID: &str = env!("MINI_RDK_WIFI_SSID");
 #[cfg(not(feature = "qemu"))]
 const PASS: &str = env!("MINI_RDK_WIFI_PASSWORD");
 
+// Generated robot config during build process
+include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
+
 #[cfg(not(feature = "qemu"))]
 use crate::base::Esp32WheelBase;
 #[cfg(feature = "qemu")]
@@ -228,6 +231,19 @@ fn main() -> anyhow::Result<()> {
 
     if let Err(e) = robot_client::start() {
         log::error!("couldn't start robot client {:?} will start the server", e);
+    }
+    // start mdns service
+    {
+        unsafe {
+            match esp_idf_sys::mdns_init() {
+                esp_idf_sys::ESP_OK => {}
+                err => log::error!("couldn't start mdns service: '{}'", err),
+            };
+            match esp_idf_sys::mdns_hostname_set(LOCAL_FQDN.as_ptr() as *const i8) {
+                esp_idf_sys::ESP_OK => {}
+                err => log::error!("couldn't sey mdns hostname: '{}'", err),
+            };
+        }
     }
     if let Err(e) = runserver(robot) {
         log::error!("robot server failed with error {:?}", e);
