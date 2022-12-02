@@ -5,6 +5,7 @@ use crate::{
     robot::Esp32Robot,
 };
 use bytes::{BufMut, BytesMut};
+use esp_idf_sys::{heap_caps_print_heap_info, MALLOC_CAP_32BIT, MALLOC_CAP_8BIT};
 use futures_lite::{future, Future};
 use hyper::{
     body::{self, Bytes, HttpBody},
@@ -150,7 +151,7 @@ impl GrpcServer {
     }
 
     fn process_request(&mut self, path: &str, msg: Bytes) {
-        if let Err(_) = self.handle_request(path, msg) {
+        if self.handle_request(path, msg).is_err() {
             self.response
                 .trailers
                 .as_mut()
@@ -383,6 +384,10 @@ impl Service<Request<Body>> for GrpcServer {
         }
         let mut svc = self.clone();
         Box::pin(async move {
+            #[cfg(debug_assertions)]
+            unsafe {
+                heap_caps_print_heap_info(MALLOC_CAP_8BIT | MALLOC_CAP_32BIT);
+            }
             let (path, body) = req.into_parts();
             let msg = body::to_bytes(body).await.map_err(|_| MyErr)?;
             let path = match path.uri.path_and_query() {
@@ -456,6 +461,7 @@ pub struct Timeout<T> {
 }
 
 impl<T> Timeout<T> {
+    #[allow(dead_code)]
     pub fn new(inner: T, timeout: Duration) -> Timeout<T> {
         Timeout { inner, timeout }
     }

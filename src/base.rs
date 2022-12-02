@@ -24,10 +24,10 @@ where
     L: Base,
 {
     fn set_power(&mut self, lin: &Vector3, ang: &Vector3) -> anyhow::Result<()> {
-        self.lock().unwrap().set_power(lin, ang)
+        self.get_mut().unwrap().set_power(lin, ang)
     }
     fn stop(&mut self) -> anyhow::Result<()> {
-        self.lock().unwrap().stop()
+        self.get_mut().unwrap().stop()
     }
 }
 
@@ -74,6 +74,7 @@ where
             motor_left,
         }
     }
+    #[allow(clippy::only_used_in_recursion)]
     fn differential_drive(&self, forward: f64, left: f64) -> (f64, f64) {
         if forward < 0.0 {
             let (r, l) = self.differential_drive(-forward, left);
