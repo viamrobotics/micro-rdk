@@ -1,5 +1,6 @@
 mod base;
 mod board;
+#[cfg(feature = "camera")]
 mod camera;
 mod exec;
 mod grpc;
@@ -29,9 +30,9 @@ use crate::base::FakeBase;
 use crate::board::EspBoard;
 #[cfg(feature = "qemu")]
 use crate::board::FakeBoard;
-#[cfg(not(feature = "qemu"))]
+#[cfg(all(not(feature = "qemu"), feature = "camera"))]
 use crate::camera::Esp32Camera;
-#[cfg(feature = "qemu")]
+#[cfg(all(feature = "qemu", feature = "camera"))]
 use crate::camera::FakeCamera;
 #[cfg(feature = "qemu")]
 use crate::motor::FakeMotor;
@@ -85,9 +86,12 @@ fn main() -> anyhow::Result<()> {
 
     #[cfg(not(feature = "qemu"))]
     let robot = {
-        let camera = Esp32Camera::new();
-        camera.setup()?;
-        let camera = Arc::new(Mutex::new(camera));
+        #[cfg(feature = "camera")]
+        let camera = {
+            Esp32Camera::new();
+            camera.setup()?;
+            Arc::new(Mutex::new(camera))
+        };
         let periph = Peripherals::take().unwrap();
         // // let mut encoder = Esp32Encoder::new(
         // //     periph.pins.gpio15.into_input()?.degrade(),
@@ -154,6 +158,7 @@ fn main() -> anyhow::Result<()> {
             },
             ResourceType::Base(base),
         );
+        #[cfg(feature = "camera")]
         res.insert(
             ResourceName {
                 namespace: "rdk".to_string(),
@@ -171,6 +176,7 @@ fn main() -> anyhow::Result<()> {
         let motor = Arc::new(Mutex::new(FakeMotor::new()));
         let base = Arc::new(Mutex::new(FakeBase::new()));
         let board = Arc::new(Mutex::new(FakeBoard::new()));
+        #[cfg(feature = "camera")]
         let camera = Arc::new(Mutex::new(FakeCamera::new()));
         let mut res: robot::ResourceMap = HashMap::with_capacity(1);
         res.insert(
@@ -200,6 +206,7 @@ fn main() -> anyhow::Result<()> {
             },
             ResourceType::Base(base),
         );
+        #[cfg(feature = "camera")]
         res.insert(
             ResourceName {
                 namespace: "rdk".to_string(),

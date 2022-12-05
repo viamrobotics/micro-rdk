@@ -22,6 +22,11 @@ use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
 
+#[cfg(feature = "camera")]
+static GRPC_BUFFER_SIZE: usize = 10240;
+#[cfg(not(feature = "camera"))]
+static GRPC_BUFFER_SIZE: usize = 4096;
+
 #[derive(Clone)]
 pub struct GrpcBody {
     _marker: PhantomData<*const ()>,
@@ -78,7 +83,7 @@ impl GrpcServer {
         info!("Making server");
         GrpcServer {
             response: body,
-            buffer: Rc::new(RefCell::new(BytesMut::with_capacity(10240))),
+            buffer: Rc::new(RefCell::new(BytesMut::with_capacity(GRPC_BUFFER_SIZE))),
             robot,
         }
     }
@@ -122,13 +127,17 @@ impl GrpcServer {
                 self.board_set_pwm_frequency(payload)
             }
             "/viam.component.board.v1.BoardService/Status" => self.board_status(payload),
+            #[cfg(feature = "camera")]
             "/viam.component.camera.v1.CameraService/GetImage" => self.camera_get_frame(payload),
+            #[cfg(feature = "camera")]
             "/viam.component.camera.v1.CameraService/GetPointCloud" => {
                 self.camera_get_point_cloud(payload)
             }
+            #[cfg(feature = "camera")]
             "/viam.component.camera.v1.CameraService/GetProperties" => {
                 self.camera_get_properties(payload)
             }
+            #[cfg(feature = "camera")]
             "/viam.component.camera.v1.CameraService/RenderFrame" => {
                 self.camera_render_frame(payload)
             }
@@ -314,6 +323,7 @@ impl GrpcServer {
         self.encode_message(status)
     }
 
+    #[cfg(feature = "camera")]
     fn camera_get_frame(&mut self, message: &[u8]) -> anyhow::Result<()> {
         let req = component::camera::v1::GetImageRequest::decode(message)?;
         if let Some(camera) = self.robot.lock().unwrap().get_camera_by_name(req.name) {
@@ -337,14 +347,17 @@ impl GrpcServer {
         Err(anyhow::anyhow!("resource not found"))
     }
 
+    #[cfg(feature = "camera")]
     fn camera_get_point_cloud(&mut self, _message: &[u8]) -> anyhow::Result<()> {
         anyhow::bail!("unimplemented: camera_get_point_cloud")
     }
 
+    #[cfg(feature = "camera")]
     fn camera_get_properties(&mut self, _message: &[u8]) -> anyhow::Result<()> {
         anyhow::bail!("unimplemented: camera_get_properties")
     }
 
+    #[cfg(feature = "camera")]
     fn camera_render_frame(&mut self, _message: &[u8]) -> anyhow::Result<()> {
         anyhow::bail!("unimplemented: camera_render_frame")
     }
@@ -378,9 +391,9 @@ impl Service<Request<Body>> for GrpcServer {
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
 
     fn call(&mut self, req: Request<Body>) -> Self::Future {
-        debug!("clone in Servive GRPC");
+        info!("clone in Servive GRPC");
         {
-            RefCell::borrow_mut(&self.buffer).reserve(10240);
+            RefCell::borrow_mut(&self.buffer).reserve(GRPC_BUFFER_SIZE);
         }
         let mut svc = self.clone();
         Box::pin(async move {
