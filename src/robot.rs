@@ -3,10 +3,12 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+#[cfg(feature = "camera")]
+use crate::camera::Camera;
+
 use crate::{
     base::Base,
     board::Board,
-    camera::Camera,
     motor::Motor,
     proto::{
         common::{self, v1::ResourceName},
@@ -19,6 +21,7 @@ pub enum ResourceType {
     Motor(Arc<Mutex<dyn Motor>>),
     Board(Arc<Mutex<dyn Board>>),
     Base(Arc<Mutex<dyn Base>>),
+    #[cfg(feature = "camera")]
     Camera(Arc<Mutex<dyn Camera>>),
 }
 pub type Resource = ResourceType;
@@ -61,6 +64,7 @@ impl Esp32Robot {
                             status,
                         });
                     }
+                    #[cfg(feature = "camera")]
                     _ => continue,
                 };
             }
@@ -93,6 +97,7 @@ impl Esp32Robot {
                                 status,
                             });
                         }
+                        #[cfg(feature = "camera")]
                         _ => continue,
                     };
                 }
@@ -121,6 +126,7 @@ impl Esp32Robot {
             None => None,
         }
     }
+    #[cfg(feature = "camera")]
     pub fn get_camera_by_name(&self, name: String) -> Option<Arc<Mutex<dyn Camera>>> {
         let name = ResourceName {
             namespace: "rdk".to_string(),
