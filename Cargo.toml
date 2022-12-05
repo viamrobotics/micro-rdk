@@ -8,7 +8,8 @@ resolver = "2"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [patch.crates-io]
-esp-idf-sys = {git = "https://github.com/npmenard/esp-idf-sys.git", rev = "d04b258"}
+esp-idf-svc = {git = "https://github.com/esp-rs/esp-idf-svc"}
+esp-idf-sys = {git = "https://github.com/npmenard/esp-idf-sys.git"}
 polling = { git = "https://github.com/esp-rs-compat/polling" }
 smol = { git = "https://github.com/esp-rs-compat/smol" }
 socket2 = { git = "https://github.com/npmenard/socket2.git" }
@@ -30,10 +31,10 @@ anyhow = {version = "1", features = ["backtrace"]}
 bytes = "1.2.1"
 either = "1.8.0"
 embedded-hal = "0.2.7"
-embedded-svc = "0.22"
-esp-idf-hal = "0.38"
-esp-idf-svc = {version = "0.42.1"}
-esp-idf-sys = { version = "0.31.9", features = ["binstart"] }
+embedded-svc = "0.23"
+esp-idf-hal = "0.39.3"
+esp-idf-svc = {version = "0.43.4"}
+esp-idf-sys = { version = "0.31.11", features = ["binstart"] }
 futures-lite = "1.12.0"
 h2 = "0.3.14"
 hyper = {version="0.14.20", default-features = false, features = ["server","stream","http2"]}

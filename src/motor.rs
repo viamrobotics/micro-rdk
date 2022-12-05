@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use embedded_hal::digital::v2::InputPin;
-use esp_idf_hal::gpio::*;
+
 use esp_idf_sys as espsys;
 use espsys::c_types::{c_short, c_ulong};
 use espsys::pcnt_channel_edge_action_t_PCNT_CHANNEL_EDGE_ACTION_DECREASE as pcnt_count_dec;
@@ -13,6 +13,7 @@ use espsys::pcnt_config_t;
 use espsys::pcnt_evt_type_t_PCNT_EVT_H_LIM as pcnt_evt_h_lim;
 use espsys::pcnt_evt_type_t_PCNT_EVT_L_LIM as pcnt_evt_l_lim;
 
+use crate::pin::PinExt;
 use crate::status::Status;
 use espsys::{esp, EspError, ESP_ERR_INVALID_STATE, ESP_OK};
 use log::*;
@@ -35,8 +36,8 @@ pub struct Esp32Encoder<A, B> {
 
 impl<A, B> Esp32Encoder<A, B>
 where
-    A: InputPin + Pin,
-    B: InputPin + Pin,
+    A: InputPin + PinExt,
+    B: InputPin + PinExt,
 {
     pub fn new(a: A, b: B) -> Self {
         Esp32Encoder {
@@ -172,8 +173,8 @@ where
 }
 impl<A, B> Position for Esp32Encoder<A, B>
 where
-    A: InputPin + Pin,
-    B: InputPin + Pin,
+    A: InputPin + PinExt,
+    B: InputPin + PinExt,
 {
     fn position(&self) -> anyhow::Result<i32> {
         self.get_counter_value()
@@ -197,8 +198,8 @@ pub struct MotorEncodedEsp32<Enc, A, B, PWM> {
 
 impl<Enc, A, B, PWM> MotorEncodedEsp32<Enc, A, B, PWM>
 where
-    A: OutputPin + Pin,
-    B: OutputPin + Pin,
+    A: OutputPin + PinExt,
+    B: OutputPin + PinExt,
     PWM: PwmPin<Duty = u32>,
     Enc: Position,
 {
@@ -208,8 +209,8 @@ where
 }
 impl<Enc, A, B, PWM> Motor for MotorEncodedEsp32<Enc, A, B, PWM>
 where
-    A: OutputPin + Pin,
-    B: OutputPin + Pin,
+    A: OutputPin + PinExt,
+    B: OutputPin + PinExt,
     PWM: PwmPin<Duty = u32>,
     Enc: Position,
 {
@@ -251,8 +252,8 @@ use std::collections::BTreeMap;
 
 impl<Enc, A, B, PWM> Status for MotorEncodedEsp32<Enc, A, B, PWM>
 where
-    A: OutputPin + Pin,
-    B: OutputPin + Pin,
+    A: OutputPin + PinExt,
+    B: OutputPin + PinExt,
     PWM: PwmPin<Duty = u32>,
     Enc: Position,
 {
@@ -349,8 +350,8 @@ pub struct MotorEsp32<A, B, PWM> {
 
 impl<A, B, PWM> MotorEsp32<A, B, PWM>
 where
-    A: OutputPin + Pin,
-    B: OutputPin + Pin,
+    A: OutputPin + PinExt,
+    B: OutputPin + PinExt,
     PWM: PwmPin<Duty = u32>,
 {
     pub fn new(a: A, b: B, pwm: PWM) -> Self {
@@ -359,8 +360,8 @@ where
 }
 impl<A, B, PWM> Motor for MotorEsp32<A, B, PWM>
 where
-    A: OutputPin + Pin,
-    B: OutputPin + Pin,
+    A: OutputPin + PinExt,
+    B: OutputPin + PinExt,
     PWM: PwmPin<Duty = u32>,
 {
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
@@ -394,8 +395,8 @@ where
 
 impl<A, B, PWM> Status for MotorEsp32<A, B, PWM>
 where
-    A: OutputPin + Pin,
-    B: OutputPin + Pin,
+    A: OutputPin + PinExt,
+    B: OutputPin + PinExt,
     PWM: PwmPin<Duty = u32>,
 {
     fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
