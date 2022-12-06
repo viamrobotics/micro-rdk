@@ -41,4 +41,4 @@ buf:	buf-clean
 	buf generate buf.build/viamrobotics/api --template buf.gen.yaml
 
 upload: cargo-ver
-	cargo espflash flash --monitor --partition-table partitions.csv --baud 460800 -f 80M -m qio --use-stub
+	cargo espflash flash --monitor --partition-table partitions.csv --baud 460800 -f 80M --use-stub
