@@ -5,6 +5,7 @@ mod camera;
 mod exec;
 mod grpc;
 mod motor;
+mod pin;
 mod proto;
 mod robot;
 mod robot_client;
@@ -39,27 +40,28 @@ use crate::motor::FakeMotor;
 #[cfg(not(feature = "qemu"))]
 use crate::motor::MotorEsp32;
 use crate::robot::ResourceType;
-#[cfg(feature = "qemu")]
-use embedded_svc::eth;
-#[cfg(feature = "qemu")]
-use embedded_svc::eth::{Eth, TransitionalState};
+use anyhow::bail;
 #[cfg(not(feature = "qemu"))]
-use esp_idf_hal::ledc::{config::TimerConfig, Channel, Timer};
+use esp_idf_hal::gpio::PinDriver;
 #[cfg(not(feature = "qemu"))]
+use esp_idf_hal::ledc::config::TimerConfig;
 use esp_idf_hal::prelude::Peripherals;
+use esp_idf_hal::task::notify;
 #[cfg(not(feature = "qemu"))]
 use esp_idf_hal::units::FromValueType;
+#[cfg(not(feature = "qemu"))]
+use esp_idf_hal::{ledc, peripheral};
 #[cfg(feature = "qemu")]
 use esp_idf_svc::eth::*;
-use esp_idf_svc::netif::EspNetifStack;
-#[cfg(not(feature = "qemu"))]
-use esp_idf_svc::nvs::EspDefaultNvs;
-use esp_idf_svc::sysloop::EspSysLoopStack;
+#[cfg(feature = "qemu")]
+use esp_idf_svc::eth::{EspEth, EthWait};
+use esp_idf_svc::eventloop::EspSystemEventLoop;
+use esp_idf_svc::netif::{EspNetif, EspNetifWait};
 #[cfg(not(feature = "qemu"))]
 use esp_idf_svc::wifi::EspWifi;
 #[cfg(not(feature = "qemu"))]
 use esp_idf_sys::esp_wifi_set_ps;
-use esp_idf_sys::{self as _}; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
+use esp_idf_sys::{self as _, TaskHandle_t}; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
 use exec::Esp32Executor;
 use futures_lite::future::block_on;
 use grpc::GrpcServer;
@@ -79,10 +81,8 @@ fn main() -> anyhow::Result<()> {
     esp_idf_sys::link_patches();
 
     esp_idf_svc::log::EspLogger::initialize_default();
-    let sys_loop_stack = Arc::new(EspSysLoopStack::new()?);
-    let netif_stack = Arc::new(EspNetifStack::new()?);
-    #[cfg(not(feature = "qemu"))]
-    let nvs = Arc::new(EspDefaultNvs::new()?);
+    let sys_loop_stack = EspSystemEventLoop::take().unwrap();
+    let periph = Peripherals::take().unwrap();
 
     #[cfg(not(feature = "qemu"))]
     let robot = {
@@ -92,7 +92,6 @@ fn main() -> anyhow::Result<()> {
             camera.setup()?;
             Arc::new(Mutex::new(camera))
         };
-        let periph = Peripherals::take().unwrap();
         // // let mut encoder = Esp32Encoder::new(
         // //     periph.pins.gpio15.into_input()?.degrade(),
         // //     periph.pins.gpio14.into_input()?.degrade(),
@@ -100,21 +99,31 @@ fn main() -> anyhow::Result<()> {
         // // encoder.setup_pcnt()?;
         // // encoder.start()?;
         let tconf = TimerConfig::default().frequency(10.kHz().into());
-        let timer = Arc::new(Timer::new(periph.ledc.timer0, &tconf).unwrap());
-        let chan = Channel::new(periph.ledc.channel0, timer.clone(), periph.pins.gpio14)?;
+        let timer = Arc::new(ledc::LedcTimerDriver::new(periph.ledc.timer0, &tconf).unwrap());
+        let chan = ledc::LedcDriver::new(
+            periph.ledc.channel0,
+            timer.clone(),
+            periph.pins.gpio14,
+            &tconf,
+        )?;
         let m1 = MotorEsp32::new(
-            periph.pins.gpio33.into_output()?.degrade(),
-            periph.pins.gpio32.into_output()?.degrade(),
+            PinDriver::output(periph.pins.gpio33)?,
+            PinDriver::output(periph.pins.gpio32)?,
             chan,
         );
-
-        let chan2 = Channel::new(periph.ledc.channel2, timer, periph.pins.gpio2)?;
+        let chan2 = ledc::LedcDriver::new(
+            periph.ledc.channel2,
+            timer.clone(),
+            periph.pins.gpio2,
+            &tconf,
+        )?;
         let m2 = MotorEsp32::new(
-            periph.pins.gpio13.into_output()?.degrade(),
-            periph.pins.gpio12.into_output()?.degrade(),
+            PinDriver::output(periph.pins.gpio13)?,
+            PinDriver::output(periph.pins.gpio12)?,
             chan2,
         );
-        let pins = vec![periph.pins.gpio15.into_output().unwrap().degrade()];
+
+        let pins = vec![PinDriver::output(periph.pins.gpio15)?];
         let b = EspBoard::new(pins);
         let motor = Arc::new(Mutex::new(m1));
         let m2 = Arc::new(Mutex::new(m2));
@@ -220,9 +229,17 @@ fn main() -> anyhow::Result<()> {
     };
 
     #[cfg(feature = "qemu")]
-    let _eth_hw = {
+    let (ip, _eth) = {
+        use std::net::Ipv4Addr;
         info!("creating eth object");
-        eth_configure(Box::new(EspEth::new_openeth(netif_stack, sys_loop_stack)?))?
+        let eth = eth_configure(
+            &sys_loop_stack,
+            Box::new(esp_idf_svc::eth::EspEth::wrap(EthDriver::new_openeth(
+                periph.mac,
+                sys_loop_stack.clone(),
+            )?)?),
+        )?;
+        (Ipv4Addr::new(0, 0, 0, 0), eth)
     };
     {
         esp_idf_sys::esp!(unsafe {
@@ -234,11 +251,18 @@ fn main() -> anyhow::Result<()> {
 
     #[allow(clippy::redundant_clone)]
     #[cfg(not(feature = "qemu"))]
-    let _esp_idf_sys = { start_wifi(netif_stack, sys_loop_stack, nvs)? };
+    let (ip, _wifi) = {
+        let wifi = start_wifi(periph.modem, sys_loop_stack)?;
+        (wifi.sta_netif().get_ip_info()?.ip, wifi)
+    };
 
-    if let Err(e) = robot_client::start() {
-        log::error!("couldn't start robot client {:?} will start the server", e);
-    }
+    let hnd = match robot_client::start(ip) {
+        Err(e) => {
+            log::error!("couldn't start robot client {:?} will start the server", e);
+            None
+        }
+        Ok(hnd) => Some(hnd),
+    };
     // start mdns service
     {
         unsafe {
@@ -252,14 +276,14 @@ fn main() -> anyhow::Result<()> {
             };
         }
     }
-    if let Err(e) = runserver(robot) {
+    if let Err(e) = runserver(robot, hnd) {
         log::error!("robot server failed with error {:?}", e);
         return Err(e);
     }
     Ok(())
 }
 
-fn runserver(robot: Esp32Robot) -> anyhow::Result<()> {
+fn runserver(robot: Esp32Robot, client_handle: Option<TaskHandle_t>) -> anyhow::Result<()> {
     let tls = Box::new(Esp32Tls::new_server());
     let address: SocketAddr = "0.0.0.0:80".parse().unwrap();
     let mut listener = Esp32Listener::new(address.into(), Some(tls))?;
@@ -267,6 +291,11 @@ fn runserver(robot: Esp32Robot) -> anyhow::Result<()> {
     let srv = GrpcServer::new(Arc::new(Mutex::new(robot)));
     loop {
         let stream = listener.accept()?;
+        if let Some(hnd) = client_handle {
+            if unsafe { notify(hnd, 1) } {
+                log::info!("successfully notified client task")
+            }
+        }
         block_on(exec.run(async {
             let err = Http::new()
                 .with_executor(exec.clone())
@@ -280,37 +309,42 @@ fn runserver(robot: Esp32Robot) -> anyhow::Result<()> {
     }
 }
 #[cfg(feature = "qemu")]
-fn eth_configure<HW>(mut eth: Box<EspEth<HW>>) -> anyhow::Result<Box<EspEth<HW>>> {
-    info!("Eth created");
-    eth.set_configuration(&eth::Configuration::Client(Default::default()))?;
+fn eth_configure(
+    sl_stack: &EspSystemEventLoop,
+    mut eth: Box<EspEth<'static>>,
+) -> anyhow::Result<Box<EspEth<'static>>> {
+    use std::net::Ipv4Addr;
 
-    info!("Eth configuration set, about to get status");
+    eth.start()?;
 
-    eth.wait_status_with_timeout(Duration::from_secs(10), |status| !status.is_transitional())
-        .map_err(|e| anyhow::anyhow!("Unexpected Eth status: {:?}", e))?;
-
-    let status = eth.get_status();
-
-    if let eth::Status::Started(eth::ConnectionStatus::Connected(eth::IpStatus::Done(Some(
-        ip_settings,
-    )))) = status
+    if !EthWait::new(eth.driver(), sl_stack)?
+        .wait_with_timeout(Duration::from_secs(30), || eth.is_started().unwrap())
     {
-        info!("Eth connected IP {:?}", ip_settings);
-    } else {
-        anyhow::bail!("Unexpected Eth status: {:?}", status);
+        bail!("couldn't start eth driver")
     }
 
+    if !EspNetifWait::new::<EspNetif>(eth.netif(), sl_stack)?
+        .wait_with_timeout(Duration::from_secs(20), || {
+            eth.netif().get_ip_info().unwrap().ip != Ipv4Addr::new(0, 0, 0, 0)
+        })
+    {
+        bail!("didn't get an ip")
+    }
+    let ip_info = eth.netif().get_ip_info()?;
+    info!("ETH IP {:?}", ip_info);
     Ok(eth)
 }
+
 #[cfg(not(feature = "qemu"))]
 fn start_wifi(
-    nf_stack: Arc<EspNetifStack>,
-    sl_stack: Arc<EspSysLoopStack>,
-    defaul_nvs: Arc<EspDefaultNvs>,
-) -> anyhow::Result<Box<EspWifi>> {
-    use embedded_svc::wifi::*;
+    modem: impl peripheral::Peripheral<P = esp_idf_hal::modem::Modem> + 'static,
+    sl_stack: EspSystemEventLoop,
+) -> anyhow::Result<Box<EspWifi<'static>>> {
+    use embedded_svc::wifi::{ClientConfiguration, Wifi};
+    use esp_idf_svc::wifi::WifiWait;
+    use std::net::Ipv4Addr;
 
-    let mut wifi = Box::new(EspWifi::new(nf_stack, sl_stack, defaul_nvs)?);
+    let mut wifi = Box::new(EspWifi::new(modem, sl_stack.clone(), None)?);
 
     info!("scanning");
     let aps = wifi.scan()?;
@@ -328,22 +362,31 @@ fn start_wifi(
         channel,
         ..Default::default()
     };
-    wifi.set_configuration(&Configuration::Client(client_config))?;
+    wifi.set_configuration(&embedded_svc::wifi::Configuration::Client(client_config))?; //&Configuration::Client(client_config)
 
-    wifi.wait_status_with_timeout(Duration::from_secs(20), |s| !s.is_transitional())
-        .map_err(|e| anyhow::anyhow!("unexpectedb statis {:?}", e))?;
+    wifi.start()?;
 
-    let status = wifi.get_status();
-
-    if let Status(
-        ClientStatus::Started(ClientConnectionStatus::Connected(ClientIpStatus::Done(ip))),
-        ApStatus::Stopped,
-    ) = status
+    if !WifiWait::new(&sl_stack)?
+        .wait_with_timeout(Duration::from_secs(20), || wifi.is_started().unwrap())
     {
-        info!("Connected to AP with ip {:?}", ip);
-    } else {
-        anyhow::bail!("Couldn't connect to Wifi {:?}", status);
+        bail!("couldn't start wifi")
     }
+
+    wifi.connect()?;
+
+    if !EspNetifWait::new::<EspNetif>(wifi.sta_netif(), &sl_stack)?.wait_with_timeout(
+        Duration::from_secs(20),
+        || {
+            wifi.is_connected().unwrap()
+                && wifi.sta_netif().get_ip_info().unwrap().ip != Ipv4Addr::new(0, 0, 0, 0)
+        },
+    ) {
+        bail!("wifi couldn't connect")
+    }
+
+    let ip_info = wifi.sta_netif().get_ip_info()?;
+
+    info!("Wifi DHCP info: {:?}", ip_info);
 
     esp_idf_sys::esp!(unsafe { esp_wifi_set_ps(esp_idf_sys::wifi_ps_type_t_WIFI_PS_NONE) })?;
 

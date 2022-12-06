@@ -1,8 +1,8 @@
 #![allow(dead_code)]
+use crate::pin::PinExt;
 use crate::proto::common;
 use crate::status::Status;
 use embedded_hal::digital::v2::OutputPin;
-use esp_idf_hal::gpio::*;
 use log::*;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
@@ -75,7 +75,7 @@ pub struct EspBoard<Pins> {
 
 impl<Pins> EspBoard<Pins>
 where
-    Pins: OutputPin + Pin,
+    Pins: OutputPin + PinExt,
 {
     pub fn new(pins: Vec<Pins>) -> Self {
         EspBoard { pins }
@@ -84,7 +84,7 @@ where
 
 impl<Pins> Board for EspBoard<Pins>
 where
-    Pins: OutputPin + Pin,
+    Pins: OutputPin + PinExt,
 {
     fn set_gpio_pin_level(&mut self, pin: i32, is_high: bool) -> anyhow::Result<()> {
         if let Some(pin) = self.pins.iter_mut().find(|x| x.pin() == pin) {
@@ -113,7 +113,7 @@ where
 }
 impl<Pins> Status for EspBoard<Pins>
 where
-    Pins: OutputPin + Pin,
+    Pins: OutputPin + PinExt,
 {
     fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
         let mut bt = BTreeMap::new();

@@ -9,13 +9,14 @@ use crate::{
 };
 use anyhow::Result;
 use bytes::{BufMut, Bytes, BytesMut};
-use esp_idf_sys::{vTaskDelay, vTaskDelete, xTaskCreatePinnedToCore};
+use esp_idf_hal::task::wait_notification;
+use esp_idf_sys::{vTaskDelete, xTaskCreatePinnedToCore, xTaskGetCurrentTaskHandle, TaskHandle_t};
 use futures_lite::future::block_on;
 use h2::client::{handshake, SendRequest};
 use hyper::{Method, Request};
 use prost::Message;
 use smol::Task;
-use std::ffi::c_void;
+use std::{ffi::c_void, net::Ipv4Addr, time::Duration};
 
 /// Robot client to interface with app.viam.com
 struct RobotClient<'a> {
@@ -28,6 +29,8 @@ struct RobotClient<'a> {
     http2_connection: Task<()>,
     /// a jwt string for further grpc requests
     jwt: Option<String>,
+    /// IpV4
+    ip: Box<Ipv4Addr>,
 }
 
 // Generated robot config during build process
@@ -37,12 +40,18 @@ static CLIENT_TASK: &[u8] = b"client\0";
 
 impl<'a> RobotClient<'a> {
     /// Create a new robot client
-    fn new(exec: Esp32Executor<'a>, h2: SendRequest<Bytes>, http2_connection: Task<()>) -> Self {
+    fn new(
+        exec: Esp32Executor<'a>,
+        h2: SendRequest<Bytes>,
+        http2_connection: Task<()>,
+        ip: Box<Ipv4Addr>,
+    ) -> Self {
         RobotClient {
             exec,
             h2,
             http2_connection,
             jwt: None,
+            ip,
         }
     }
 
@@ -72,7 +81,7 @@ impl<'a> RobotClient<'a> {
         let agent = AgentInfo {
             os: "esp32".to_string(),
             host: "esp32".to_string(),
-            ips: vec!["0.0.0.0".to_string()],
+            ips: vec![self.ip.to_string()],
             version: "0.0.2".to_string(),
             git_revision: "".to_string(),
         };
@@ -169,27 +178,30 @@ impl<'a> RobotClient<'a> {
 }
 
 /// start the robot client
-pub(crate) fn start() -> Result<()> {
+pub(crate) fn start(ip: Ipv4Addr) -> Result<TaskHandle_t> {
     log::info!("starting up robot client");
+    let ip = Box::into_raw(Box::new(ip));
+    let mut hnd: TaskHandle_t = std::ptr::null_mut();
     let ret = unsafe {
         xTaskCreatePinnedToCore(
             Some(client_entry),                // C ABI compatible entry function
             CLIENT_TASK.as_ptr() as *const i8, // task name
             8192 * 3,                          // stack size
-            std::ptr::null_mut(),              // no arguments
+            ip as *mut c_void,                 // pass ip as argument
             20,                                // priority (low)
-            std::ptr::null_mut(),              // we don't store the handle
+            &mut hnd,                          // we don't store the handle
             0,                                 // run it on core 0
         )
     };
     if ret != 1 {
         return Err(anyhow::anyhow!("wasn't able to create the client task"));
     }
-    Ok(())
+    log::error!("got handle {:?}", hnd);
+    Ok(hnd)
 }
 
 /// client main loop
-fn clientloop() -> Result<()> {
+fn clientloop(ip: Box<Ipv4Addr>) -> Result<()> {
     let mut tls = Box::new(Esp32Tls::new_client());
     let conn = tls.open_ssl_context(None)?;
     let conn = Esp32Stream::TLSStream(Box::new(conn));
@@ -200,21 +212,26 @@ fn clientloop() -> Result<()> {
         conn.await.unwrap();
     });
 
-    let mut robot_client = RobotClient::new(executor, h2, task);
+    let mut robot_client = RobotClient::new(executor, h2, task, ip);
 
     robot_client.request_jwt_token()?;
-
     loop {
         robot_client.read_config()?;
-        unsafe {
-            vTaskDelay(10000);
+        if let Some(_r) = wait_notification(Some(Duration::from_secs(30))) {
+            log::info!("connection incomming the client task will stop");
+            break;
         }
     }
+    log::error!("current task handle {:?}", unsafe {
+        xTaskGetCurrentTaskHandle()
+    });
+    Ok(())
 }
 
 /// C compatible entry function
-extern "C" fn client_entry(_: *mut c_void) {
-    if let Some(err) = clientloop().err() {
+extern "C" fn client_entry(ip: *mut c_void) {
+    let ip: Box<Ipv4Addr> = unsafe { Box::from_raw(ip as *mut Ipv4Addr) };
+    if let Some(err) = clientloop(ip).err() {
         log::error!("client returned with error {}", err);
     }
     unsafe {
