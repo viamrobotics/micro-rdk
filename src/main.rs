@@ -56,6 +56,7 @@ use esp_idf_svc::eth::*;
 #[cfg(feature = "qemu")]
 use esp_idf_svc::eth::{EspEth, EthWait};
 use esp_idf_svc::eventloop::EspSystemEventLoop;
+use esp_idf_svc::mdns::EspMdns;
 use esp_idf_svc::netif::{EspNetif, EspNetifWait};
 #[cfg(not(feature = "qemu"))]
 use esp_idf_svc::wifi::EspWifi;
@@ -264,18 +265,13 @@ fn main() -> anyhow::Result<()> {
         Ok(hnd) => Some(hnd),
     };
     // start mdns service
-    {
-        unsafe {
-            match esp_idf_sys::mdns_init() {
-                esp_idf_sys::ESP_OK => {}
-                err => log::error!("couldn't start mdns service: '{}'", err),
-            };
-            match esp_idf_sys::mdns_hostname_set(LOCAL_FQDN.as_ptr() as *const i8) {
-                esp_idf_sys::ESP_OK => {}
-                err => log::error!("couldn't sey mdns hostname: '{}'", err),
-            };
-        }
-    }
+    let _mdms = {
+        let mut mdns = EspMdns::take()?;
+        mdns.set_hostname(ROBOT_NAME)?;
+        mdns.set_instance_name(ROBOT_NAME)?;
+        mdns.add_service(None, "_rpc", "_tcp", 80, &[])?;
+        mdns
+    };
     if let Err(e) = runserver(robot, hnd) {
         log::error!("robot server failed with error {:?}", e);
         return Err(e);

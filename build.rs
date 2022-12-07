@@ -2,7 +2,7 @@ use anyhow::{anyhow, Context};
 use const_gen::*;
 use local_ip_address::local_ip;
 use serde::{Deserialize, Serialize};
-use std::{env, ffi::CString, fs, path::Path};
+use std::{env, fs, path::Path};
 use tokio::runtime::Runtime;
 use viam::gen::proto::app::v1::{
     robot_service_client::RobotServiceClient, AgentInfo, CertificateRequest, ConfigRequest,
@@ -67,7 +67,8 @@ fn main() -> anyhow::Result<()> {
     let mut cfg: Config = serde_json::from_str(content.as_str()).map_err(anyhow::Error::msg)?;
 
     let rt = Runtime::new()?;
-    let local_fqdn = CString::new(rt.block_on(read_cloud_config(&mut cfg))?)?;
+    let local_fqdn = rt.block_on(read_cloud_config(&mut cfg))?;
+    let robot_name = local_fqdn.split('.').next().unwrap_or("");
     rt.block_on(read_certificates(&mut cfg))?;
     let out_dir = std::env::var_os("OUT_DIR").unwrap();
     let dest_path = std::path::Path::new(&out_dir).join("ca.crt");
@@ -90,7 +91,11 @@ fn main() -> anyhow::Result<()> {
         ),
         const_declaration!(
             #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            LOCAL_FQDN = local_fqdn.as_bytes_with_nul()
+            FQDN = local_fqdn.as_str()
+        ),
+        const_declaration!(
+            #[allow(clippy::redundant_static_lifetimes, dead_code)]
+            ROBOT_NAME = robot_name
         ),
     ]
     .join("\n");
