@@ -62,6 +62,7 @@ use esp_idf_svc::netif::{EspNetif, EspNetifWait};
 use esp_idf_svc::wifi::EspWifi;
 #[cfg(not(feature = "qemu"))]
 use esp_idf_sys::esp_wifi_set_ps;
+use esp_idf_sys::vTaskDelay;
 use esp_idf_sys::{self as _, TaskHandle_t}; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
 use exec::Esp32Executor;
 use futures_lite::future::block_on;
@@ -285,13 +286,20 @@ fn runserver(robot: Esp32Robot, client_handle: Option<TaskHandle_t>) -> anyhow::
     let mut listener = Esp32Listener::new(address.into(), Some(tls))?;
     let exec = Esp32Executor::new();
     let srv = GrpcServer::new(Arc::new(Mutex::new(robot)));
+    if let Some(hnd) = client_handle {
+        if unsafe { notify(hnd, 1) } {
+            log::info!("successfully notified client task");
+            unsafe {
+                vTaskDelay(1000);
+            };
+        } else {
+            log::error!("failed to notity client task had handle {:?}", hnd);
+        }
+    } else {
+        log::error!("no handle")
+    }
     loop {
         let stream = listener.accept()?;
-        if let Some(hnd) = client_handle {
-            if unsafe { notify(hnd, 1) } {
-                log::info!("successfully notified client task")
-            }
-        }
         block_on(exec.run(async {
             let err = Http::new()
                 .with_executor(exec.clone())

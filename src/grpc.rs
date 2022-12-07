@@ -1,7 +1,7 @@
 use std::{fmt::Debug, marker::PhantomData, sync::Arc, sync::Mutex, time::Duration};
 
 use crate::{
-    proto::{component, robot},
+    proto::{self, component, robot},
     robot::Esp32Robot,
 };
 use bytes::{BufMut, BytesMut};
@@ -155,7 +155,8 @@ impl GrpcServer {
             "/viam.component.motor.v1.MotorService/Stop" => self.motor_stop(payload),
             "/viam.robot.v1.RobotService/ResourceNames" => self.resource_names(payload),
             "/viam.robot.v1.RobotService/GetStatus" => self.robot_status(payload),
-            _ => anyhow::bail!("impl"),
+            "/proto.rpc.v1.AuthService/Authenticate" => self.auth_service_authentificate(payload),
+            _ => anyhow::bail!("unimplemented method"),
         }
     }
 
@@ -196,6 +197,14 @@ impl GrpcServer {
 
     fn motor_reset_zero_position(&mut self, _message: &[u8]) -> anyhow::Result<()> {
         anyhow::bail!("unimplemented: motor_reset_zero_position")
+    }
+
+    fn auth_service_authentificate(&mut self, message: &[u8]) -> anyhow::Result<()> {
+        let _req = proto::rpc::v1::AuthenticateRequest::decode(message)?;
+        let resp = proto::rpc::v1::AuthenticateResponse {
+            access_token: "esp32".to_string(),
+        };
+        self.encode_message(resp)
     }
 
     fn motor_set_power(&mut self, message: &[u8]) -> anyhow::Result<()> {
@@ -397,10 +406,6 @@ impl Service<Request<Body>> for GrpcServer {
         }
         let mut svc = self.clone();
         Box::pin(async move {
-            #[cfg(debug_assertions)]
-            unsafe {
-                heap_caps_print_heap_info(MALLOC_CAP_8BIT | MALLOC_CAP_32BIT);
-            }
             let (path, body) = req.into_parts();
             let msg = body::to_bytes(body).await.map_err(|_| MyErr)?;
             let path = match path.uri.path_and_query() {

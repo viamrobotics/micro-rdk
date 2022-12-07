@@ -215,8 +215,9 @@ fn clientloop(ip: Box<Ipv4Addr>) -> Result<()> {
     let mut robot_client = RobotClient::new(executor, h2, task, ip);
 
     robot_client.request_jwt_token()?;
+    robot_client.read_config()?;
     loop {
-        robot_client.read_config()?;
+        //
         if let Some(_r) = wait_notification(Some(Duration::from_secs(30))) {
             log::info!("connection incomming the client task will stop");
             break;
