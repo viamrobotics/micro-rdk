@@ -54,7 +54,7 @@ impl Esp32Tls {
     pub fn new_client() -> Self {
         let mut alpn_ptr: Vec<_> = vec![ALPN_PROTOCOLS.as_ptr() as *const i8, std::ptr::null()];
         // this is a root certificate to validate the server's certificate
-        let cert = include_bytes!("../google_gts_root_r1.crt");
+        let cert = include_bytes!("../certs/google_gts_root_r1.crt");
 
         let tls_cfg_client = Box::new(esp_tls_cfg {
             alpn_protos: alpn_ptr.as_mut_ptr(),
@@ -102,14 +102,15 @@ impl Esp32Tls {
         let mut alpn_ptr: Vec<_> = vec![ALPN_PROTOCOLS.as_ptr() as *const i8, std::ptr::null()];
         let cert = include_bytes!(concat!(env!("OUT_DIR"), "/ca.crt"));
         let key = include_bytes!(concat!(env!("OUT_DIR"), "/key.key"));
+        let ca_cert = include_bytes!("../certs/isrgrootx1.pem");
 
         let tls_cfg_srv = Box::new(esp_tls_cfg_server {
             alpn_protos: alpn_ptr.as_mut_ptr(),
             __bindgen_anon_1: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_1 {
-                cacert_buf: std::ptr::null(),
+                cacert_buf: ca_cert.as_ptr(),
             },
             __bindgen_anon_2: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_2 {
-                cacert_bytes: 0_u32,
+                cacert_bytes: ca_cert.len() as u32,
             },
             __bindgen_anon_3: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_3 {
                 servercert_buf: cert.as_ptr(),
