@@ -1,3 +1,4 @@
+mod analog;
 mod base;
 mod board;
 #[cfg(feature = "camera")]
@@ -23,34 +24,13 @@ const PASS: &str = env!("MINI_RDK_WIFI_PASSWORD");
 // Generated robot config during build process
 include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
-#[cfg(not(feature = "qemu"))]
-use crate::base::Esp32WheelBase;
-#[cfg(feature = "qemu")]
-use crate::base::FakeBase;
-#[cfg(not(feature = "qemu"))]
-use crate::board::EspBoard;
-#[cfg(feature = "qemu")]
-use crate::board::FakeBoard;
 #[cfg(all(not(feature = "qemu"), feature = "camera"))]
 use crate::camera::Esp32Camera;
-#[cfg(all(feature = "qemu", feature = "camera"))]
-use crate::camera::FakeCamera;
-#[cfg(feature = "qemu")]
-use crate::motor::FakeMotor;
-#[cfg(not(feature = "qemu"))]
-use crate::motor::MotorEsp32;
+
 use crate::robot::ResourceType;
 use anyhow::bail;
-#[cfg(not(feature = "qemu"))]
-use esp_idf_hal::gpio::PinDriver;
-#[cfg(not(feature = "qemu"))]
-use esp_idf_hal::ledc::config::TimerConfig;
 use esp_idf_hal::prelude::Peripherals;
 use esp_idf_hal::task::notify;
-#[cfg(not(feature = "qemu"))]
-use esp_idf_hal::units::FromValueType;
-#[cfg(not(feature = "qemu"))]
-use esp_idf_hal::{ledc, peripheral};
 #[cfg(feature = "qemu")]
 use esp_idf_svc::eth::*;
 #[cfg(feature = "qemu")]
@@ -71,8 +51,10 @@ use hyper::server::conn::Http;
 use log::*;
 use proto::common::v1::ResourceName;
 use robot::Esp32Robot;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -88,6 +70,16 @@ fn main() -> anyhow::Result<()> {
 
     #[cfg(not(feature = "qemu"))]
     let robot = {
+        use crate::analog::Esp32AnalogReader;
+        use crate::base::Esp32WheelBase;
+        use crate::board::EspBoard;
+        use crate::motor::MotorEsp32;
+        use esp_idf_hal::adc::config::Config;
+        use esp_idf_hal::adc::{self, AdcChannelDriver, AdcDriver, Atten11dB};
+        use esp_idf_hal::gpio::PinDriver;
+        use esp_idf_hal::ledc;
+        use esp_idf_hal::ledc::config::TimerConfig;
+        use esp_idf_hal::units::FromValueType;
         #[cfg(feature = "camera")]
         let camera = {
             Esp32Camera::new();
@@ -126,7 +118,20 @@ fn main() -> anyhow::Result<()> {
         );
 
         let pins = vec![PinDriver::output(periph.pins.gpio15)?];
-        let b = EspBoard::new(pins);
+        let adc1 = Rc::new(RefCell::new(AdcDriver::new(
+            periph.adc1,
+            &Config::new().calibration(true),
+        )?));
+        let chan: AdcChannelDriver<_, Atten11dB<adc::ADC1>> =
+            AdcChannelDriver::new(periph.pins.gpio34)?;
+        let r = Esp32AnalogReader::new("A1".to_string(), chan, adc1.clone());
+        let chan: AdcChannelDriver<_, Atten11dB<adc::ADC1>> =
+            AdcChannelDriver::new(periph.pins.gpio35)?;
+        let r2 = Esp32AnalogReader::new("A2".to_string(), chan, adc1.clone());
+        let b = EspBoard::new(
+            pins,
+            vec![Rc::new(RefCell::new(r)), Rc::new(RefCell::new(r2))],
+        );
         let motor = Arc::new(Mutex::new(m1));
         let m2 = Arc::new(Mutex::new(m2));
         let board = Arc::new(Mutex::new(b));
@@ -184,9 +189,18 @@ fn main() -> anyhow::Result<()> {
 
     #[cfg(feature = "qemu")]
     let robot = {
+        use crate::analog::FakeAnalogReader;
+        use crate::base::FakeBase;
+        use crate::board::FakeBoard;
+        #[cfg(feature = "camera")]
+        use crate::camera::FakeCamera;
+        use crate::motor::FakeMotor;
         let motor = Arc::new(Mutex::new(FakeMotor::new()));
         let base = Arc::new(Mutex::new(FakeBase::new()));
-        let board = Arc::new(Mutex::new(FakeBoard::new()));
+        let board = Arc::new(Mutex::new(FakeBoard::new(vec![
+            Rc::new(RefCell::new(FakeAnalogReader::new("A1".to_string(), 10))),
+            Rc::new(RefCell::new(FakeAnalogReader::new("A2".to_string(), 20))),
+        ])));
         #[cfg(feature = "camera")]
         let camera = Arc::new(Mutex::new(FakeCamera::new()));
         let mut res: robot::ResourceMap = HashMap::with_capacity(1);
@@ -341,7 +355,7 @@ fn eth_configure(
 
 #[cfg(not(feature = "qemu"))]
 fn start_wifi(
-    modem: impl peripheral::Peripheral<P = esp_idf_hal::modem::Modem> + 'static,
+    modem: impl esp_idf_hal::peripheral::Peripheral<P = esp_idf_hal::modem::Modem> + 'static,
     sl_stack: EspSystemEventLoop,
 ) -> anyhow::Result<Box<EspWifi<'static>>> {
     use embedded_svc::wifi::{ClientConfiguration, Wifi};

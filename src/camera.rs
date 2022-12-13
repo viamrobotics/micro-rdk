@@ -4,7 +4,6 @@ use std::time::Duration;
 
 use crate::proto::component::camera;
 use bytes::{Bytes, BytesMut};
-use embedded_svc::sys_time::SystemTime;
 use esp_idf_svc::systime::EspSystemTime;
 use esp_idf_sys::camera_config_t;
 use esp_idf_sys::camera_config_t__bindgen_ty_1;

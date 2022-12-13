@@ -1,6 +1,7 @@
 use std::{fmt::Debug, marker::PhantomData, sync::Arc, sync::Mutex, time::Duration};
 
 use crate::{
+    board::Board,
     proto::{self, component, robot},
     robot::Esp32Robot,
 };
@@ -247,8 +248,17 @@ impl GrpcServer {
         anyhow::bail!("unimplemented: board_pwm_frequency")
     }
 
-    fn board_read_analog_reader(&mut self, _message: &[u8]) -> anyhow::Result<()> {
-        anyhow::bail!("unimplemented: board_read_analog_reader")
+    fn board_read_analog_reader(&mut self, message: &[u8]) -> anyhow::Result<()> {
+        let req = component::board::v1::ReadAnalogReaderRequest::decode(message)?;
+        let board = match self.robot.lock().unwrap().get_board_by_name(req.board_name) {
+            Some(b) => b,
+            None => return Err(anyhow::anyhow!("resource not found")),
+        };
+        let reader = board.get_analog_reader_by_name(req.analog_reader_name)?;
+        let resp = component::board::v1::ReadAnalogReaderResponse {
+            value: reader.borrow_mut().read()? as i32,
+        };
+        self.encode_message(resp)
     }
 
     fn board_set_pin(&mut self, message: &[u8]) -> anyhow::Result<()> {
