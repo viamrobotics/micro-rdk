@@ -1,5 +1,23 @@
+Table of Contents
+=================
+
+* [Mini-RDK](#mini-rdk)
+   * [Getting Started](#getting-started)
+      * [Installing ESP-IDF](#installing-esp-idf)
+      * [Installing the Rust ESP Toolchain](#installing-the-rust-esp-toolchain)
+      * [Updating cargo espflash](#updating-cargo-espflash)
+      * [(Optional) Installing QEMU for esp32](#optional-installing-qemu-for-esp32)
+      * [(Optional) Installing buf](#optional-installing-buf)
+         * [MacOS](#macos)
+         * [Linux](#linux)
+   * [Building for ESP32](#building-for-esp32)
+      * [Wifi Configuration](#wifi-configuration)
+   * [Building for QEMU](#building-for-qemu)
+   
+
 # Mini-RDK
 The Mini-RDK is a lightweight version of Viam's RDK, it's goal is to be ran on resource limited embedded systems. The only embedded system currently supported is the ESP32.
+
 
 ## Getting Started
 
@@ -33,6 +51,13 @@ chmod a+x install-rust-toolchain.sh
 ./install-rust-toolchain.sh
 ```
 The script will give you two variables to add to you `.zshrc` or `.bashrc` do so and refresh the shell
+
+### Updating cargo espflash
+The default version of espflash has a bug therefore we need to update it to a beta version 
+
+``` shell
+cargo install cargo-espflash@2.0.0-rc.1
+```
 
 ### (Optional) Installing QEMU for esp32
 Espressif maintains a pretty good QEMU emulator supporting the ESP32, we recommend using it during development. See [here](https://github.com/espressif/qemu) for more information

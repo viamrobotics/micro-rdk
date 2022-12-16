@@ -6,7 +6,6 @@ use crate::{
     robot::Esp32Robot,
 };
 use bytes::{BufMut, BytesMut};
-use esp_idf_sys::{heap_caps_print_heap_info, MALLOC_CAP_32BIT, MALLOC_CAP_8BIT};
 use futures_lite::{future, Future};
 use hyper::{
     body::{self, Bytes, HttpBody},
