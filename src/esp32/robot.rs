@@ -7,14 +7,14 @@ use std::{
 use crate::camera::Camera;
 
 use crate::{
-    base::Base,
-    board::Board,
-    motor::Motor,
+    common::base::Base,
+    common::board::Board,
+    common::motor::Motor,
+    common::status::Status,
     proto::{
         common::{self, v1::ResourceName},
         robot,
     },
-    status::Status,
 };
 use log::*;
 pub enum ResourceType {

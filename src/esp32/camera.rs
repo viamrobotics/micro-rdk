@@ -11,10 +11,6 @@ use esp_idf_sys::camera_config_t__bindgen_ty_2;
 use log::*;
 use prost::Message;
 
-pub trait Camera {
-    fn get_frame(&mut self, buffer: BytesMut) -> anyhow::Result<BytesMut>;
-}
-
 pub struct Esp32Camera {
     config: camera_config_t,
     last_grab: Duration,
@@ -112,35 +108,5 @@ impl Camera for Esp32Camera {
             return Ok(buffer);
         }
         Err(anyhow::anyhow!("cannot get frame"))
-    }
-}
-
-pub struct FakeCamera {}
-
-impl Camera for FakeCamera {
-    fn get_frame(&mut self, mut buffer: BytesMut) -> anyhow::Result<BytesMut> {
-        let msg = camera::v1::GetImageResponse {
-            mime_type: "image/jpeg".to_string(),
-            image: Bytes::new(),
-        };
-
-        msg.encode(&mut buffer).unwrap();
-
-        Ok(buffer)
-    }
-}
-
-impl FakeCamera {
-    pub fn new() -> Self {
-        FakeCamera {}
-    }
-}
-
-impl<L> Camera for Mutex<L>
-where
-    L: ?Sized + Camera,
-{
-    fn get_frame(&mut self, buffer: BytesMut) -> anyhow::Result<BytesMut> {
-        self.get_mut().unwrap().get_frame(buffer)
     }
 }

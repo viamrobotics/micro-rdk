@@ -1,9 +1,9 @@
 use std::{fmt::Debug, marker::PhantomData, sync::Arc, sync::Mutex, time::Duration};
 
 use crate::{
-    board::Board,
+    common::board::Board,
+    esp32::robot::Esp32Robot,
     proto::{self, component, robot},
-    robot::Esp32Robot,
 };
 use bytes::{BufMut, BytesMut};
 use futures_lite::{future, Future};

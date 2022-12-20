@@ -1,4 +1,4 @@
-use crate::tls::{Esp32Tls, Esp32TlsStream};
+use crate::esp32::tls::{Esp32Tls, Esp32TlsStream};
 use futures_lite::io;
 use log::*;
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};

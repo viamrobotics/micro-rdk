@@ -29,6 +29,29 @@ pub struct Esp32TlsStream {
     socket: Option<TcpStream>, // may store the raw socket
 }
 
+pub struct Esp32TlsServerConfig {
+    srv_cert: *const u8,
+    srv_cert_len: u32,
+    srv_key: *const u8,
+    srv_key_len: u32,
+}
+
+impl Esp32TlsServerConfig {
+    pub fn new(
+        srv_cert: *const u8,
+        srv_cert_len: u32,
+        srv_key: *const u8,
+        srv_key_len: u32,
+    ) -> Self {
+        Esp32TlsServerConfig {
+            srv_cert,
+            srv_cert_len,
+            srv_key,
+            srv_key_len,
+        }
+    }
+}
+
 impl Debug for Esp32TlsStream {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Esp32TlsStream")
@@ -54,7 +77,7 @@ impl Esp32Tls {
     pub fn new_client() -> Self {
         let mut alpn_ptr: Vec<_> = vec![ALPN_PROTOCOLS.as_ptr() as *const i8, std::ptr::null()];
         // this is a root certificate to validate the server's certificate
-        let cert = include_bytes!("../certs/google_gts_root_r1.crt");
+        let cert = include_bytes!("../../certs/google_gts_root_r1.crt");
 
         let tls_cfg_client = Box::new(esp_tls_cfg {
             alpn_protos: alpn_ptr.as_mut_ptr(),
@@ -98,12 +121,9 @@ impl Esp32Tls {
         }
     }
     /// Creates a TLS object ready to accept connection or connect to a server
-    pub fn new_server() -> Self {
+    pub fn new_server(cfg: &Esp32TlsServerConfig) -> Self {
         let mut alpn_ptr: Vec<_> = vec![ALPN_PROTOCOLS.as_ptr() as *const i8, std::ptr::null()];
-        let cert = include_bytes!(concat!(env!("OUT_DIR"), "/ca.crt"));
-        let key = include_bytes!(concat!(env!("OUT_DIR"), "/key.key"));
-        let ca_cert = include_bytes!("../certs/isrgrootx1.pem");
-
+        let ca_cert = include_bytes!("../../certs/isrgrootx1.pem");
         let tls_cfg_srv = Box::new(esp_tls_cfg_server {
             alpn_protos: alpn_ptr.as_mut_ptr(),
             __bindgen_anon_1: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_1 {
@@ -113,16 +133,16 @@ impl Esp32Tls {
                 cacert_bytes: ca_cert.len() as u32,
             },
             __bindgen_anon_3: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_3 {
-                servercert_buf: cert.as_ptr(),
+                servercert_buf: cfg.srv_cert,
             },
             __bindgen_anon_4: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_4 {
-                servercert_bytes: cert.len() as u32,
+                servercert_bytes: cfg.srv_cert_len,
             },
             __bindgen_anon_5: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_5 {
-                serverkey_buf: key.as_ptr(),
+                serverkey_buf: cfg.srv_key,
             },
             __bindgen_anon_6: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_6 {
-                serverkey_bytes: key.len() as u32,
+                serverkey_bytes: cfg.srv_key_len,
             },
             serverkey_password: std::ptr::null(),
             serverkey_password_len: 0_u32,

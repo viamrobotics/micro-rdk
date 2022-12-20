@@ -1,6 +1,4 @@
 #![allow(dead_code)]
-use embedded_hal::digital::v2::InputPin;
-
 use esp_idf_sys as espsys;
 use espsys::c_types::{c_short, c_ulong};
 use espsys::pcnt_channel_edge_action_t_PCNT_CHANNEL_EDGE_ACTION_DECREASE as pcnt_count_dec;
@@ -13,18 +11,17 @@ use espsys::pcnt_config_t;
 use espsys::pcnt_evt_type_t_PCNT_EVT_H_LIM as pcnt_evt_h_lim;
 use espsys::pcnt_evt_type_t_PCNT_EVT_L_LIM as pcnt_evt_l_lim;
 
-use crate::pin::PinExt;
-use crate::status::Status;
+use crate::common::motor::Motor;
+use crate::common::motor::Position;
+use crate::common::pin::PinExt;
+use crate::common::status::Status;
 use espsys::{esp, EspError, ESP_ERR_INVALID_STATE, ESP_OK};
 use log::*;
 use std::sync::atomic::{AtomicI32, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-pub trait Position {
-    fn position(&self) -> anyhow::Result<i32> {
-        Ok(0)
-    }
-}
+use embedded_hal::digital::v2::{InputPin, OutputPin};
+use embedded_hal::PwmPin;
 
 pub struct Esp32Encoder<A, B> {
     acc: Arc<AtomicI32>,
@@ -181,14 +178,6 @@ where
     }
 }
 
-use embedded_hal::digital::v2::OutputPin;
-use embedded_hal::PwmPin;
-
-pub trait Motor: Status {
-    fn set_power(&mut self, pct: f64) -> anyhow::Result<()>;
-    fn get_position(&mut self) -> anyhow::Result<i32>;
-}
-
 pub struct MotorEncodedEsp32<Enc, A, B, PWM> {
     a: A,
     b: B,
@@ -276,72 +265,6 @@ where
     }
 }
 
-pub struct FakeMotor {
-    pos: f64,
-    power: f64,
-}
-
-impl FakeMotor {
-    pub fn new() -> Self {
-        FakeMotor {
-            pos: 10.0,
-            power: 0.0,
-        }
-    }
-}
-impl<L> Motor for Mutex<L>
-where
-    L: ?Sized + Motor,
-{
-    fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
-        self.get_mut().unwrap().set_power(pct)
-    }
-    fn get_position(&mut self) -> anyhow::Result<i32> {
-        self.get_mut().unwrap().get_position()
-    }
-}
-
-impl<A> Motor for Arc<Mutex<A>>
-where
-    A: ?Sized + Motor,
-{
-    fn get_position(&mut self) -> anyhow::Result<i32> {
-        self.lock().unwrap().get_position()
-    }
-    fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
-        self.lock().unwrap().set_power(pct)
-    }
-}
-
-impl Motor for FakeMotor {
-    fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
-        info!("setting power to {}", pct);
-        self.power = pct;
-        Ok(())
-    }
-    fn get_position(&mut self) -> anyhow::Result<i32> {
-        Ok(self.pos as i32)
-    }
-}
-impl Status for FakeMotor {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
-        let mut bt = BTreeMap::new();
-        bt.insert(
-            "position".to_string(),
-            prost_types::Value {
-                kind: Some(prost_types::value::Kind::NumberValue(15.0)),
-            },
-        );
-        bt.insert(
-            "position_reporting".to_string(),
-            prost_types::Value {
-                kind: Some(prost_types::value::Kind::BoolValue(true)),
-            },
-        );
-
-        Ok(Some(prost_types::Struct { fields: bt }))
-    }
-}
 pub struct MotorEsp32<A, B, PWM> {
     a: A,
     b: B,

@@ -1,19 +1,3 @@
-mod analog;
-mod base;
-mod board;
-#[cfg(feature = "camera")]
-mod camera;
-mod exec;
-mod grpc;
-mod motor;
-mod pin;
-mod proto;
-mod robot;
-mod robot_client;
-mod status;
-mod tcp;
-mod tls;
-
 #[allow(dead_code)]
 #[cfg(not(feature = "qemu"))]
 const SSID: &str = env!("MINI_RDK_WIFI_SSID");
@@ -27,7 +11,6 @@ include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 #[cfg(all(not(feature = "qemu"), feature = "camera"))]
 use crate::camera::Esp32Camera;
 
-use crate::robot::ResourceType;
 use anyhow::bail;
 use esp_idf_hal::prelude::Peripherals;
 use esp_idf_hal::task::notify;
@@ -44,13 +27,17 @@ use esp_idf_svc::wifi::EspWifi;
 use esp_idf_sys::esp_wifi_set_ps;
 use esp_idf_sys::vTaskDelay;
 use esp_idf_sys::{self as _, TaskHandle_t}; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
-use exec::Esp32Executor;
 use futures_lite::future::block_on;
-use grpc::GrpcServer;
 use hyper::server::conn::Http;
 use log::*;
-use proto::common::v1::ResourceName;
-use robot::Esp32Robot;
+use mini_rdk::esp32::exec::Esp32Executor;
+use mini_rdk::esp32::grpc::GrpcServer;
+use mini_rdk::esp32::robot::Esp32Robot;
+use mini_rdk::esp32::robot::ResourceType;
+use mini_rdk::esp32::robot_client::RobotClientConfig;
+use mini_rdk::esp32::tcp::Esp32Listener;
+use mini_rdk::esp32::tls::{Esp32Tls, Esp32TlsServerConfig};
+use mini_rdk::proto::common::v1::ResourceName;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -58,8 +45,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
-use tcp::Esp32Listener;
-use tls::Esp32Tls;
 
 fn main() -> anyhow::Result<()> {
     esp_idf_sys::link_patches();
@@ -70,16 +55,16 @@ fn main() -> anyhow::Result<()> {
 
     #[cfg(not(feature = "qemu"))]
     let robot = {
-        use crate::analog::Esp32AnalogReader;
-        use crate::base::Esp32WheelBase;
-        use crate::board::EspBoard;
-        use crate::motor::MotorEsp32;
         use esp_idf_hal::adc::config::Config;
         use esp_idf_hal::adc::{self, AdcChannelDriver, AdcDriver, Atten11dB};
         use esp_idf_hal::gpio::PinDriver;
         use esp_idf_hal::ledc;
         use esp_idf_hal::ledc::config::TimerConfig;
         use esp_idf_hal::units::FromValueType;
+        use mini_rdk::esp32::analog::Esp32AnalogReader;
+        use mini_rdk::esp32::base::Esp32WheelBase;
+        use mini_rdk::esp32::board::EspBoard;
+        use mini_rdk::esp32::motor::MotorEsp32;
         #[cfg(feature = "camera")]
         let camera = {
             Esp32Camera::new();
@@ -137,7 +122,7 @@ fn main() -> anyhow::Result<()> {
         let board = Arc::new(Mutex::new(b));
         let base = Arc::new(Mutex::new(Esp32WheelBase::new(motor.clone(), m2.clone())));
 
-        let mut res: robot::ResourceMap = HashMap::with_capacity(5);
+        let mut res: mini_rdk::esp32::robot::ResourceMap = HashMap::with_capacity(5);
         res.insert(
             ResourceName {
                 namespace: "rdk".to_string(),
@@ -189,12 +174,12 @@ fn main() -> anyhow::Result<()> {
 
     #[cfg(feature = "qemu")]
     let robot = {
-        use crate::analog::FakeAnalogReader;
-        use crate::base::FakeBase;
-        use crate::board::FakeBoard;
+        use mini_rdk::common::analog::FakeAnalogReader;
+        use mini_rdk::common::base::FakeBase;
+        use mini_rdk::common::board::FakeBoard;
         #[cfg(feature = "camera")]
-        use crate::camera::FakeCamera;
-        use crate::motor::FakeMotor;
+        use mini_rdk::common::camera::FakeCamera;
+        use mini_rdk::common::motor::FakeMotor;
         let motor = Arc::new(Mutex::new(FakeMotor::new()));
         let base = Arc::new(Mutex::new(FakeBase::new()));
         let board = Arc::new(Mutex::new(FakeBoard::new(vec![
@@ -203,7 +188,7 @@ fn main() -> anyhow::Result<()> {
         ])));
         #[cfg(feature = "camera")]
         let camera = Arc::new(Mutex::new(FakeCamera::new()));
-        let mut res: robot::ResourceMap = HashMap::with_capacity(1);
+        let mut res: mini_rdk::esp32::robot::ResourceMap = HashMap::with_capacity(1);
         res.insert(
             ResourceName {
                 namespace: "rdk".to_string(),
@@ -272,7 +257,9 @@ fn main() -> anyhow::Result<()> {
         (wifi.sta_netif().get_ip_info()?.ip, wifi)
     };
 
-    let hnd = match robot_client::start(ip) {
+    let client_cfg = { RobotClientConfig::new(ROBOT_SECRET.to_string(), ROBOT_ID.to_string(), ip) };
+
+    let hnd = match mini_rdk::esp32::robot_client::start(client_cfg) {
         Err(e) => {
             log::error!("couldn't start robot client {:?} will start the server", e);
             None
@@ -295,7 +282,17 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn runserver(robot: Esp32Robot, client_handle: Option<TaskHandle_t>) -> anyhow::Result<()> {
-    let tls = Box::new(Esp32Tls::new_server());
+    let cfg = {
+        let cert = include_bytes!(concat!(env!("OUT_DIR"), "/ca.crt"));
+        let key = include_bytes!(concat!(env!("OUT_DIR"), "/key.key"));
+        Esp32TlsServerConfig::new(
+            cert.as_ptr(),
+            cert.len() as u32,
+            key.as_ptr(),
+            key.len() as u32,
+        )
+    };
+    let tls = Box::new(Esp32Tls::new_server(&cfg));
     let address: SocketAddr = "0.0.0.0:80".parse().unwrap();
     let mut listener = Esp32Listener::new(address.into(), Some(tls))?;
     let exec = Esp32Executor::new();

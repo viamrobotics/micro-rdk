@@ -1,11 +1,12 @@
+#![allow(dead_code)]
 use crate::{
-    exec::Esp32Executor,
+    esp32::exec::Esp32Executor,
+    esp32::tcp::Esp32Stream,
+    esp32::tls::Esp32Tls,
     proto::{
         app::v1::{AgentInfo, ConfigRequest, ConfigResponse},
         rpc::v1::{AuthenticateRequest, AuthenticateResponse, Credentials},
     },
-    tcp::Esp32Stream,
-    tls::Esp32Tls,
 };
 use anyhow::Result;
 use bytes::{BufMut, Bytes, BytesMut};
@@ -29,12 +30,24 @@ struct RobotClient<'a> {
     http2_connection: Task<()>,
     /// a jwt string for further grpc requests
     jwt: Option<String>,
-    /// IpV4
-    ip: Box<Ipv4Addr>,
+    config: Box<RobotClientConfig>,
 }
 
-// Generated robot config during build process
-include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
+pub struct RobotClientConfig {
+    robot_secret: String,
+    robot_id: String,
+    ip: Ipv4Addr,
+}
+
+impl RobotClientConfig {
+    pub fn new(robot_secret: String, robot_id: String, ip: Ipv4Addr) -> Self {
+        RobotClientConfig {
+            robot_secret,
+            robot_id,
+            ip,
+        }
+    }
+}
 
 static CLIENT_TASK: &[u8] = b"client\0";
 
@@ -44,14 +57,14 @@ impl<'a> RobotClient<'a> {
         exec: Esp32Executor<'a>,
         h2: SendRequest<Bytes>,
         http2_connection: Task<()>,
-        ip: Box<Ipv4Addr>,
+        config: Box<RobotClientConfig>,
     ) -> Self {
         RobotClient {
             exec,
             h2,
             http2_connection,
             jwt: None,
-            ip,
+            config,
         }
     }
 
@@ -81,14 +94,14 @@ impl<'a> RobotClient<'a> {
         let agent = AgentInfo {
             os: "esp32".to_string(),
             host: "esp32".to_string(),
-            ips: vec![self.ip.to_string()],
+            ips: vec![self.config.ip.to_string()],
             version: "0.0.2".to_string(),
             git_revision: "".to_string(),
         };
 
         let req = ConfigRequest {
             agent_info: Some(agent),
-            id: ROBOT_ID.to_string(),
+            id: self.config.robot_id.clone(),
         };
 
         let body: Bytes = {
@@ -118,11 +131,11 @@ impl<'a> RobotClient<'a> {
         let body: Bytes = {
             let cred = Credentials {
                 r#type: "robot-secret".to_string(),
-                payload: ROBOT_SECRET.to_string(),
+                payload: self.config.robot_secret.clone(),
             };
 
             let req = AuthenticateRequest {
-                entity: ROBOT_ID.to_string(),
+                entity: self.config.robot_id.clone(),
                 credentials: Some(cred),
             };
 
@@ -178,7 +191,7 @@ impl<'a> RobotClient<'a> {
 }
 
 /// start the robot client
-pub(crate) fn start(ip: Ipv4Addr) -> Result<TaskHandle_t> {
+pub fn start(ip: RobotClientConfig) -> Result<TaskHandle_t> {
     log::info!("starting up robot client");
     let ip = Box::into_raw(Box::new(ip));
     let mut hnd: TaskHandle_t = std::ptr::null_mut();
@@ -201,7 +214,7 @@ pub(crate) fn start(ip: Ipv4Addr) -> Result<TaskHandle_t> {
 }
 
 /// client main loop
-fn clientloop(ip: Box<Ipv4Addr>) -> Result<()> {
+fn clientloop(config: Box<RobotClientConfig>) -> Result<()> {
     let mut tls = Box::new(Esp32Tls::new_client());
     let conn = tls.open_ssl_context(None)?;
     let conn = Esp32Stream::TLSStream(Box::new(conn));
@@ -212,7 +225,7 @@ fn clientloop(ip: Box<Ipv4Addr>) -> Result<()> {
         conn.await.unwrap();
     });
 
-    let mut robot_client = RobotClient::new(executor, h2, task, ip);
+    let mut robot_client = RobotClient::new(executor, h2, task, config);
 
     robot_client.request_jwt_token()?;
     robot_client.read_config()?;
@@ -230,9 +243,9 @@ fn clientloop(ip: Box<Ipv4Addr>) -> Result<()> {
 }
 
 /// C compatible entry function
-extern "C" fn client_entry(ip: *mut c_void) {
-    let ip: Box<Ipv4Addr> = unsafe { Box::from_raw(ip as *mut Ipv4Addr) };
-    if let Some(err) = clientloop(ip).err() {
+extern "C" fn client_entry(config: *mut c_void) {
+    let config: Box<RobotClientConfig> = unsafe { Box::from_raw(config as *mut RobotClientConfig) };
+    if let Some(err) = clientloop(config).err() {
         log::error!("client returned with error {}", err);
     }
     unsafe {
