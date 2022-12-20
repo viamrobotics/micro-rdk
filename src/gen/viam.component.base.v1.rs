@@ -83,4 +83,14 @@ pub struct SetVelocityRequest {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SetVelocityResponse {
 }
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct IsMovingRequest {
+    #[prost(string, tag="1")]
+    pub name: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct IsMovingResponse {
+    #[prost(bool, tag="1")]
+    pub is_moving: bool,
+}
 // @@protoc_insertion_point(module)

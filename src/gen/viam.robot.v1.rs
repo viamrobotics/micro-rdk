@@ -1,12 +1,11 @@
 // @generated
+/// this is an experimental API message
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FrameSystemConfig {
-    #[prost(string, tag="1")]
-    pub name: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="1")]
+    pub frame: ::core::option::Option<super::super::common::v1::Transform>,
     #[prost(message, optional, tag="2")]
-    pub pose_in_parent_frame: ::core::option::Option<super::super::common::v1::PoseInFrame>,
-    #[prost(bytes="vec", tag="3")]
-    pub model_json: ::prost::alloc::vec::Vec<u8>,
+    pub kinematics: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FrameSystemConfigRequest {

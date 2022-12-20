@@ -28,8 +28,6 @@ pub struct Filter {
     pub component_model: ::prost::alloc::string::String,
     #[prost(string, tag="4")]
     pub method: ::prost::alloc::string::String,
-    #[prost(string, repeated, tag="5")]
-    pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(string, tag="6")]
     pub robot_name: ::prost::alloc::string::String,
     #[prost(string, tag="7")]
@@ -46,6 +44,19 @@ pub struct Filter {
     pub mime_type: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(message, optional, tag="13")]
     pub interval: ::core::option::Option<CaptureInterval>,
+    #[prost(message, optional, tag="14")]
+    pub tags_filter: ::core::option::Option<TagsFilter>,
+    #[deprecated]
+    #[prost(string, repeated, tag="5")]
+    pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TagsFilter {
+    #[prost(enumeration="TagsFilterType", tag="1")]
+    pub r#type: i32,
+    /// Tags are used to match documents if `type` is UNSPECIFIED or MATCH_BY_ORG
+    #[prost(string, repeated, tag="2")]
+    pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 /// CaptureMetadata contains information on the settings used for the data capture
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -271,6 +282,18 @@ pub struct RemoveTagsFromBinaryDataByFilterResponse {
     #[prost(uint64, tag="1")]
     pub deleted_count: u64,
 }
+/// TagsByFilterRequest requests the unique tags from data based on given filter
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TagsByFilterRequest {
+    #[prost(message, optional, tag="1")]
+    pub filter: ::core::option::Option<Filter>,
+}
+/// TagsByFilterResponse returns the unique tags from data based on given filter
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TagsByFilterResponse {
+    #[prost(string, repeated, tag="1")]
+    pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum Order {
@@ -308,6 +331,32 @@ impl Status {
             Status::Unspecified => "STATUS_UNSPECIFIED",
             Status::PartialSuccess => "STATUS_PARTIAL_SUCCESS",
             Status::Success => "STATUS_SUCCESS",
+        }
+    }
+}
+/// TagsFilterType specifies how data can be filtered based on tags
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum TagsFilterType {
+    Unspecified = 0,
+    /// TAGS_FILTER_TYPE_MATCH_BY_OR specifies documents matched (using logical OR) on the tags field in the TagsFilter
+    MatchByOr = 1,
+    /// TAGS_FILTER_TYPE_TAGGED specifies that all tagged documents should be returned
+    Tagged = 2,
+    /// TAGS_FILTER_TYPE_UNTAGGED specifes that all untagged documents should be returned
+    Untagged = 3,
+}
+impl TagsFilterType {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            TagsFilterType::Unspecified => "TAGS_FILTER_TYPE_UNSPECIFIED",
+            TagsFilterType::MatchByOr => "TAGS_FILTER_TYPE_MATCH_BY_OR",
+            TagsFilterType::Tagged => "TAGS_FILTER_TYPE_TAGGED",
+            TagsFilterType::Untagged => "TAGS_FILTER_TYPE_UNTAGGED",
         }
     }
 }

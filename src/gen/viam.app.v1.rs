@@ -102,6 +102,30 @@ pub struct ListLocationsRequest {
     pub organization_id: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ShareLocationRequest {
+    /// Location ID to be shared.
+    #[prost(string, tag="1")]
+    pub location_id: ::prost::alloc::string::String,
+    /// Organization ID to share the location with.
+    #[prost(string, tag="2")]
+    pub organization_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ShareLocationResponse {
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UnshareLocationRequest {
+    /// Location ID to be unshared.
+    #[prost(string, tag="1")]
+    pub location_id: ::prost::alloc::string::String,
+    /// Organization ID to unshare the location with.
+    #[prost(string, tag="2")]
+    pub organization_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UnshareLocationResponse {
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListLocationsResponse {
     #[prost(message, repeated, tag="1")]
     pub locations: ::prost::alloc::vec::Vec<Location>,
@@ -419,6 +443,8 @@ pub struct RobotConfig {
     /// Turns on debug mode for robot, adding an echo server and more logging and tracing. Only works after restart
     #[prost(bool, optional, tag="8")]
     pub debug: ::core::option::Option<bool>,
+    #[prost(message, repeated, tag="9")]
+    pub modules: ::prost::alloc::vec::Vec<ModuleConfig>,
 }
 /// Valid location secret that can be used for authentication to the robot.
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -473,6 +499,8 @@ pub struct ComponentConfig {
     pub service_configs: ::prost::alloc::vec::Vec<ResourceLevelServiceConfig>,
     #[prost(message, optional, tag="8")]
     pub attributes: ::core::option::Option<::prost_types::Struct>,
+    #[prost(string, tag="9")]
+    pub api: ::prost::alloc::string::String,
 }
 /// A ResourceLevelServiceConfig describes component or remote configuration for a service.
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -533,11 +561,31 @@ pub struct AuthConfig {
     pub tls_auth_entities: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct JwksFile {
+    /// JSON Web Keys (JWKS) file as arbitary json.
+    /// See <https://www.rfc-editor.org/rfc/rfc7517>
+    #[prost(message, optional, tag="1")]
+    pub json: ::core::option::Option<::prost_types::Struct>,
+}
+/// Structured config for the credential type CREDENTIALS_TYPE_WEB_OAUTH
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AuthHandlerWebOauthConfig {
+    /// The allowed aud claims by the web oauth handler.
+    #[prost(string, repeated, tag="1")]
+    pub allowed_audiences: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(message, optional, tag="2")]
+    pub jwks: ::core::option::Option<JwksFile>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AuthHandlerConfig {
     #[prost(enumeration="CredentialsType", tag="1")]
     pub r#type: i32,
     #[prost(message, optional, tag="5")]
     pub config: ::core::option::Option<::prost_types::Struct>,
+    /// Structured config for CREDENTIALS_TYPE_WEB_OAUTH type.
+    /// Note: When this is set the config field will be empty.
+    #[prost(message, optional, tag="6")]
+    pub web_oauth_config: ::core::option::Option<AuthHandlerWebOauthConfig>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Frame {
@@ -547,6 +595,8 @@ pub struct Frame {
     pub translation: ::core::option::Option<Translation>,
     #[prost(message, optional, tag="3")]
     pub orientation: ::core::option::Option<Orientation>,
+    #[prost(message, optional, tag="4")]
+    pub geometry: ::core::option::Option<super::super::common::v1::Geometry>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Translation {
@@ -779,6 +829,15 @@ pub struct NeedsRestartResponse {
     #[prost(message, optional, tag="3")]
     pub restart_check_interval: ::core::option::Option<::prost_types::Duration>,
 }
+/// ModuleConfig is the configuration for a module.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ModuleConfig {
+    #[prost(string, tag="1")]
+    pub name: ::prost::alloc::string::String,
+    /// path to the executable
+    #[prost(string, tag="2")]
+    pub path: ::prost::alloc::string::String,
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum CredentialsType {
@@ -787,6 +846,7 @@ pub enum CredentialsType {
     ApiKey = 2,
     RobotSecret = 3,
     RobotLocationSecret = 4,
+    WebOauth = 5,
 }
 impl CredentialsType {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -800,6 +860,7 @@ impl CredentialsType {
             CredentialsType::ApiKey => "CREDENTIALS_TYPE_API_KEY",
             CredentialsType::RobotSecret => "CREDENTIALS_TYPE_ROBOT_SECRET",
             CredentialsType::RobotLocationSecret => "CREDENTIALS_TYPE_ROBOT_LOCATION_SECRET",
+            CredentialsType::WebOauth => "CREDENTIALS_TYPE_WEB_OAUTH",
         }
     }
 }

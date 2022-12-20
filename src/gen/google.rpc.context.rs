@@ -70,7 +70,7 @@ pub mod attribute_context {
         pub labels: ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
         /// The identity of this peer. Similar to `Request.auth.principal`, but
         /// relative to the peer instead of the request. For example, the
-        /// idenity associated with a load balancer that forwared the request.
+        /// identity associated with a load balancer that forwarded the request.
         #[prost(string, tag="7")]
         pub principal: ::prost::alloc::string::String,
         /// The CLDR country/region code associated with the above IP address.
@@ -182,7 +182,7 @@ pub mod attribute_context {
         /// lowercased, because HTTP header keys are case-insensitive.
         #[prost(map="string, string", tag="3")]
         pub headers: ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
-        /// The HTTP URL path.
+        /// The HTTP URL path, excluding the query parameters.
         #[prost(string, tag="4")]
         pub path: ::prost::alloc::string::String,
         /// The HTTP request `Host` header value.
@@ -236,7 +236,7 @@ pub mod attribute_context {
         /// the response.
         #[prost(message, optional, tag="4")]
         pub time: ::core::option::Option<::prost_types::Timestamp>,
-        /// The length of time it takes the backend service to fully respond to a
+        /// The amount of time it takes the backend service to fully respond to a
         /// request. Measured from when the destination service starts to send the
         /// request to the backend until when the destination service receives the
         /// complete response from the backend.
@@ -270,7 +270,8 @@ pub mod attribute_context {
         /// The type of the resource. The syntax is platform-specific because
         /// different platforms define their resources differently.
         ///
-        /// For Google APIs, the type format must be "{service}/{kind}".
+        /// For Google APIs, the type format must be "{service}/{kind}", such as
+        /// "pubsub.googleapis.com/Topic".
         #[prost(string, tag="3")]
         pub r#type: ::prost::alloc::string::String,
         /// The labels or tags on the resource, such as AWS resource tags and

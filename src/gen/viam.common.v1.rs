@@ -115,13 +115,13 @@ pub struct Geometry {
     /// Label of the geometry. If none supplied, will be an empty string.
     #[prost(string, tag="4")]
     pub label: ::prost::alloc::string::String,
-    /// Deminsions of a give geometry. This can be a sphere or box
+    /// Dimensions of a given geometry. This can be a sphere or box
     #[prost(oneof="geometry::GeometryType", tags="2, 3")]
     pub geometry_type: ::core::option::Option<geometry::GeometryType>,
 }
 /// Nested message and enum types in `Geometry`.
 pub mod geometry {
-    /// Deminsions of a give geometry. This can be a sphere or box
+    /// Dimensions of a given geometry. This can be a sphere or box
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum GeometryType {
         #[prost(message, tag="2")]
@@ -170,6 +170,8 @@ pub struct Transform {
     /// the pose of the above reference frame with respect to a different observer reference frame
     #[prost(message, optional, tag="2")]
     pub pose_in_observer_frame: ::core::option::Option<PoseInFrame>,
+    #[prost(message, optional, tag="3")]
+    pub physical_object: ::core::option::Option<Geometry>,
 }
 /// WorldState contains information about the physical environment around a given robot. All of the fields within this message are optional,
 /// they can include information about the physical dimensions of an obstacle, the freespace of a robot, and any desired transforms between a
@@ -179,11 +181,11 @@ pub struct WorldState {
     /// a list of obstacles expressed as a geometry and the reference frame in which it was observed; this field is optional
     #[prost(message, repeated, tag="1")]
     pub obstacles: ::prost::alloc::vec::Vec<GeometriesInFrame>,
-    /// a list of spaces the robot is allowed to operate within expressed as a geometry and the reference frame it is measured fom;
+    /// a list of spaces the robot is allowed to operate within expressed as a geometry and the reference frame it is measured from;
     /// this field is optional
     #[prost(message, repeated, tag="2")]
     pub interaction_spaces: ::prost::alloc::vec::Vec<GeometriesInFrame>,
-    /// a list of Transforms needed to transform a pose from one reference frame to another; this field is optional
+    /// a list of Transforms, optionally with geometries. Used as supplemental transforms to transform a pose from one reference frame to another, or to attach moving geometries to the frame system. This field is optional
     #[prost(message, repeated, tag="3")]
     pub transforms: ::prost::alloc::vec::Vec<Transform>,
 }

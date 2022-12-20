@@ -132,14 +132,21 @@ pub struct Status {
     /// Returns true if the motor is powered
     #[prost(bool, tag="1")]
     pub is_powered: bool,
-    /// Returns true if the motor has position support
-    #[prost(bool, tag="2")]
-    pub position_reporting: bool,
     /// Returns current position of the motor relative to its home
     #[prost(double, tag="3")]
     pub position: f64,
     /// Returns true if the motor is moving
     #[prost(bool, tag="4")]
+    pub is_moving: bool,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct IsMovingRequest {
+    #[prost(string, tag="1")]
+    pub name: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct IsMovingResponse {
+    #[prost(bool, tag="1")]
     pub is_moving: bool,
 }
 // @@protoc_insertion_point(module)
