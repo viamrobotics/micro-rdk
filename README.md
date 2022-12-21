@@ -5,16 +5,17 @@ Table of Contents
    * [Getting Started](#getting-started)
       * [Installing ESP-IDF](#installing-esp-idf)
       * [Installing the Rust ESP Toolchain](#installing-the-rust-esp-toolchain)
+      * [Installing cargo generate](#installing-cargo-generate)
       * [Updating cargo espflash](#updating-cargo-espflash)
       * [(Optional) Installing QEMU for esp32](#optional-installing-qemu-for-esp32)
-      * [(Optional) Installing buf](#optional-installing-buf)
          * [MacOS](#macos)
          * [Linux](#linux)
-   * [Building for ESP32](#building-for-esp32)
-      * [Wifi Configuration](#wifi-configuration)
+   * [Your first esp32 robot](#your-first-esp32-robot)
+      * [Create a new robot](#create-a-new-robot)
+      * [Generate a new mini-rdk project](#generate-a-new-mini-rdk-project)
+      * [Upload!!!](#upload)
    * [Building for QEMU](#building-for-qemu)
    
-
 # Mini-RDK
 The Mini-RDK is a lightweight version of Viam's RDK, it's goal is to be ran on resource limited embedded systems. The only embedded system currently supported is the ESP32.
 
@@ -52,6 +53,12 @@ chmod a+x install-rust-toolchain.sh
 ```
 The script will give you two variables to add to you `.zshrc` or `.bashrc` do so and refresh the shell
 
+### Installing cargo generate
+
+``` shell
+cargo install cargo-generate
+```
+
 ### Updating cargo espflash
 The default version of espflash has a bug therefore we need to update it to a beta version 
 
@@ -61,13 +68,6 @@ cargo install cargo-espflash@2.0.0-rc.1
 
 ### (Optional) Installing QEMU for esp32
 Espressif maintains a pretty good QEMU emulator supporting the ESP32, we recommend using it during development. See [here](https://github.com/espressif/qemu) for more information
-
-### (Optional) Installing buf
-
-If you need to update the protocol buffers, you'll need to have `buf` installed:
-``` shell
-brew install bufbuild/buf/buf
-```
 
 #### MacOS
 ``` shell
@@ -99,22 +99,26 @@ cd build && ninja
 
 Add `export QEMU_ESP32_XTENSA=<path-to-clone-qemu>/build/` to your `.zshrc` or `.bashrc`
 
-## Building for ESP32
-Navigate to the root of the Mini-RDK repository, once here run  `. $HOME/esp/esp-idf/export.sh` if you haven't done so already.
-You will need to uncomment two lines from the file `sdkconfig.defaults` if they have been commented out for QEMU building in the past:
+## Your first esp32 robot
+Congratulation for making it this far, just a few more steps and you will be running your first esp32 robot!
 
-``` editorconfig
-#CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
-#CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
-```
-### Wifi Configuration
-By default the esp32 will select `Viam-2G` as a default WiFi SSID, you can change that by `export MINI_RDK_WIFI_WIFI=<ssid>` We don't save Viam WiFi password in the repository so you will have to `export MINI_RDK_WIFI_PASSWORD=****` too.
+### Create a new robot
+You will want to navigate to app.viam.com and create a new robot with an empty config in your favorite location
 
-You can then run (with your esp32 connected)
+### Generate a new mini-rdk project
+Using a template we are going to create a new mini-rdk project that can be uploaded to an esp32. 
+You will be asked several questions needed to setup Wifi among other things, at one point you will be asked to input a viam robot configuration be sure to use the one you just created from app.viam.com
 ``` shell
-make build
+cargo generate --git git@github.com:viamrobotics/mini-rdk-template.git
+```
+
+### Upload!!!
+Modify src/main.rs to you liking and run :
+
+``` shell
 make upload
 ```
+If everything went well the esp32 connected will be programmed and you will be able to see your robot live on app.viam.com
 
 ## Building for QEMU
 Navigate to the root of the Mini-RDK repository, once here run  `. $HOME/esp/esp-idf/export.sh` if you haven't done so already.
