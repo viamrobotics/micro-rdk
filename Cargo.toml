@@ -31,7 +31,7 @@ camera = []
 anyhow = {version = "1", features = ["backtrace"]}
 bytes = "1.2.1"
 either = "1.8.0"
-embedded-hal = "0.2.7"
+embedded-hal = {version = "0.2.7", features = ["unproven"]}
 embedded-svc = "0.23"
 esp-idf-hal = "0.39.3"
 esp-idf-svc = {version = "0.43.4"}

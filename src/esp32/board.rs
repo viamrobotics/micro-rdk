@@ -5,7 +5,7 @@ use crate::common::pin::PinExt;
 use crate::common::status::Status;
 use crate::proto::common;
 use core::cell::RefCell;
-use embedded_hal::digital::v2::OutputPin;
+use embedded_hal::digital::v2::StatefulOutputPin;
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 pub struct EspBoard<Pins> {
@@ -15,7 +15,7 @@ pub struct EspBoard<Pins> {
 
 impl<Pins> EspBoard<Pins>
 where
-    Pins: OutputPin + PinExt,
+    Pins: StatefulOutputPin + PinExt,
 {
     pub fn new(
         pins: Vec<Pins>,
@@ -27,7 +27,7 @@ where
 
 impl<Pins> Board for EspBoard<Pins>
 where
-    Pins: OutputPin + PinExt,
+    Pins: StatefulOutputPin + PinExt,
 {
     fn set_gpio_pin_level(&mut self, pin: i32, is_high: bool) -> anyhow::Result<()> {
         if let Some(pin) = self.pins.iter_mut().find(|x| x.pin() == pin) {
@@ -41,8 +41,13 @@ where
         }
         Ok(())
     }
-    fn get_gpio_level(&self, _: i32) -> anyhow::Result<bool> {
-        Ok(true)
+    fn get_gpio_level(&self, pin: i32) -> anyhow::Result<bool> {
+        if let Some(pin) = self.pins.iter().find(|x| x.pin() == pin) {
+            return pin
+                .is_set_high()
+                .map_err(|_| anyhow::anyhow!("error getting pin {}", pin.pin()));
+        }
+        anyhow::bail!("pin {} not found", pin)
     }
     fn get_board_status(&self) -> anyhow::Result<common::v1::BoardStatus> {
         let mut b = common::v1::BoardStatus {
@@ -72,7 +77,7 @@ where
 }
 impl<Pins> Status for EspBoard<Pins>
 where
-    Pins: OutputPin + PinExt,
+    Pins: StatefulOutputPin + PinExt,
 {
     fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
         let mut bt = BTreeMap::new();
