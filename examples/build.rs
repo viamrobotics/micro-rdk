@@ -55,7 +55,7 @@ fn main() -> anyhow::Result<()> {
     if std::env::var_os("MINI_RDK_WIFI_PASSWORD").is_none() {
         return Err(anyhow!(
             "please set the password for WiFi {}",
-            std::env::var_os("MINI_RDK_WIFI_SSID")
+            std::env::var_os("MINI_RDK_WIFI_PASSWORD")
                 .unwrap()
                 .to_str()
                 .unwrap()
