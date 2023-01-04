@@ -255,12 +255,6 @@ where
                 kind: Some(prost_types::value::Kind::NumberValue(pos)),
             },
         );
-        bt.insert(
-            "position_reporting".to_string(),
-            prost_types::Value {
-                kind: Some(prost_types::value::Kind::BoolValue(true)),
-            },
-        );
         Ok(Some(prost_types::Struct { fields: bt }))
     }
 }
@@ -329,12 +323,6 @@ where
             "position".to_string(),
             prost_types::Value {
                 kind: Some(prost_types::value::Kind::NumberValue(pos)),
-            },
-        );
-        bt.insert(
-            "position_reporting".to_string(),
-            prost_types::Value {
-                kind: Some(prost_types::value::Kind::BoolValue(false)),
             },
         );
         Ok(Some(prost_types::Struct { fields: bt }))
