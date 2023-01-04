@@ -1,5 +1,33 @@
 // @generated
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DataCaptureUploadRequest {
+    #[prost(message, optional, tag="1")]
+    pub metadata: ::core::option::Option<UploadMetadata>,
+    #[prost(message, repeated, tag="2")]
+    pub sensor_contents: ::prost::alloc::vec::Vec<SensorData>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DataCaptureUploadResponse {
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FileUploadRequest {
+    #[prost(oneof="file_upload_request::UploadPacket", tags="1, 2")]
+    pub upload_packet: ::core::option::Option<file_upload_request::UploadPacket>,
+}
+/// Nested message and enum types in `FileUploadRequest`.
+pub mod file_upload_request {
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum UploadPacket {
+        #[prost(message, tag="1")]
+        Metadata(super::UploadMetadata),
+        #[prost(message, tag="2")]
+        FileContents(super::FileData),
+    }
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FileUploadResponse {
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SensorMetadata {
     #[prost(message, optional, tag="1")]
     pub time_requested: ::core::option::Option<::prost_types::Timestamp>,
@@ -52,28 +80,6 @@ pub struct UploadMetadata {
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(string, tag="11")]
     pub session_id: ::prost::alloc::string::String,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct UploadRequest {
-    #[prost(oneof="upload_request::UploadPacket", tags="1, 2, 3")]
-    pub upload_packet: ::core::option::Option<upload_request::UploadPacket>,
-}
-/// Nested message and enum types in `UploadRequest`.
-pub mod upload_request {
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
-    pub enum UploadPacket {
-        #[prost(message, tag="1")]
-        Metadata(super::UploadMetadata),
-        #[prost(message, tag="2")]
-        SensorContents(super::SensorData),
-        #[prost(message, tag="3")]
-        FileContents(super::FileData),
-    }
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct UploadResponse {
-    #[prost(int32, tag="1")]
-    pub requests_written: i32,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CaptureInterval {

@@ -445,6 +445,8 @@ pub struct RobotConfig {
     pub debug: ::core::option::Option<bool>,
     #[prost(message, repeated, tag="9")]
     pub modules: ::prost::alloc::vec::Vec<ModuleConfig>,
+    #[prost(bool, optional, tag="10")]
+    pub disable_partial_start: ::core::option::Option<bool>,
 }
 /// Valid location secret that can be used for authentication to the robot.
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -526,6 +528,10 @@ pub struct ProcessConfig {
     pub one_shot: bool,
     #[prost(bool, tag="6")]
     pub log: bool,
+    #[prost(int32, tag="7")]
+    pub stop_signal: i32,
+    #[prost(message, optional, tag="8")]
+    pub stop_timeout: ::core::option::Option<::prost_types::Duration>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ServiceConfig {

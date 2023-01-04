@@ -96,6 +96,8 @@ pub struct GetPropertiesResponse {
     pub position_supported: bool,
     #[prost(bool, tag="5")]
     pub compass_heading_supported: bool,
+    #[prost(bool, tag="6")]
+    pub linear_acceleration_supported: bool,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetAccuracyRequest {
@@ -110,5 +112,19 @@ pub struct GetAccuracyRequest {
 pub struct GetAccuracyResponse {
     #[prost(map="string, float", tag="1")]
     pub accuracy_mm: ::std::collections::HashMap<::prost::alloc::string::String, f32>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetLinearAccelerationRequest {
+    /// Name of a movement sensor
+    #[prost(string, tag="1")]
+    pub name: ::prost::alloc::string::String,
+    /// Addition arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetLinearAccelerationResponse {
+    #[prost(message, optional, tag="1")]
+    pub linear_acceleration: ::core::option::Option<super::super::super::common::v1::Vector3>,
 }
 // @@protoc_insertion_point(module)
