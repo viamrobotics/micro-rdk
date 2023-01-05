@@ -10,7 +10,7 @@ use crate::{
 };
 use anyhow::Result;
 use bytes::{BufMut, Bytes, BytesMut};
-use esp_idf_hal::task::wait_notification;
+use esp_idf_hal::task::{notify, wait_notification};
 use esp_idf_sys::{vTaskDelete, xTaskCreatePinnedToCore, xTaskGetCurrentTaskHandle, TaskHandle_t};
 use futures_lite::future::block_on;
 use h2::client::{handshake, SendRequest};
@@ -30,13 +30,14 @@ struct RobotClient<'a> {
     http2_connection: Task<()>,
     /// a jwt string for further grpc requests
     jwt: Option<String>,
-    config: Box<RobotClientConfig>,
+    config: &'a Box<RobotClientConfig>,
 }
 
 pub struct RobotClientConfig {
     robot_secret: String,
     robot_id: String,
     ip: Ipv4Addr,
+    main_handle: Option<TaskHandle_t>,
 }
 
 impl RobotClientConfig {
@@ -45,7 +46,11 @@ impl RobotClientConfig {
             robot_secret,
             robot_id,
             ip,
+            main_handle: None,
         }
+    }
+    pub fn set_main_handle(&mut self, hnd: TaskHandle_t) {
+        self.main_handle = Some(hnd)
     }
 }
 
@@ -57,7 +62,7 @@ impl<'a> RobotClient<'a> {
         exec: Esp32Executor<'a>,
         h2: SendRequest<Bytes>,
         http2_connection: Task<()>,
-        config: Box<RobotClientConfig>,
+        config: &'a Box<RobotClientConfig>,
     ) -> Self {
         RobotClient {
             exec,
@@ -214,7 +219,7 @@ pub fn start(ip: RobotClientConfig) -> Result<TaskHandle_t> {
 }
 
 /// client main loop
-fn clientloop(config: Box<RobotClientConfig>) -> Result<()> {
+fn clientloop(config: &Box<RobotClientConfig>) -> Result<()> {
     let mut tls = Box::new(Esp32Tls::new_client());
     let conn = tls.open_ssl_context(None)?;
     let conn = Esp32Stream::TLSStream(Box::new(conn));
@@ -229,11 +234,12 @@ fn clientloop(config: Box<RobotClientConfig>) -> Result<()> {
 
     robot_client.request_jwt_token()?;
     robot_client.read_config()?;
-    loop {
-        //
-        if let Some(_r) = wait_notification(Some(Duration::from_secs(30))) {
-            log::info!("connection incomming the client task will stop");
-            break;
+    if config.main_handle.is_none() {
+        loop {
+            if let Some(_r) = wait_notification(Some(Duration::from_secs(30))) {
+                log::info!("connection incomming the client task will stop");
+                break;
+            }
         }
     }
     log::error!("current task handle {:?}", unsafe {
@@ -245,8 +251,13 @@ fn clientloop(config: Box<RobotClientConfig>) -> Result<()> {
 /// C compatible entry function
 extern "C" fn client_entry(config: *mut c_void) {
     let config: Box<RobotClientConfig> = unsafe { Box::from_raw(config as *mut RobotClientConfig) };
-    if let Some(err) = clientloop(config).err() {
+    if let Some(err) = clientloop(&config).err() {
         log::error!("client returned with error {}", err);
+    }
+    if let Some(hnd) = config.main_handle {
+        unsafe {
+            let _ = notify(hnd, 0);
+        }
     }
     unsafe {
         vTaskDelete(std::ptr::null_mut());

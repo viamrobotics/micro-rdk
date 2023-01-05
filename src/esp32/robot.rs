@@ -17,6 +17,7 @@ use crate::{
     },
 };
 use log::*;
+
 pub enum ResourceType {
     Motor(Arc<Mutex<dyn Motor>>),
     Board(Arc<Mutex<dyn Board>>),

@@ -19,6 +19,7 @@ pub mod esp32 {
     pub mod motor;
     pub mod robot;
     pub mod robot_client;
+    pub mod server;
     pub mod tcp;
     pub mod tls;
 }
