@@ -17,8 +17,26 @@ Table of Contents
    * [Building for QEMU](#building-for-qemu)
    
 # Mini-RDK
-The Mini-RDK is a lightweight version of Viam's RDK, it's goal is to be ran on resource limited embedded systems. The only embedded system currently supported is the ESP32.
 
+Viam provides an open source robot architecture that provides robotics functionality via simple APIs
+
+The Mini-RDK is a lightweight version of Viam's [RDK](https://github.com/viamrobotics/rdk). Its goal is to be run on resource-limited embedded systems. The only embedded system currently supported is the ESP32.
+
+**Website**: [viam.com](https://www.viam.com)
+
+**Documentation**: [docs.viam.com](https://docs.viam.com)
+
+**Cloud App**: [app.viam.com](https://app.viam.com)
+
+## Contact
+
+* Community Slack: [join](https://join.slack.com/t/viamrobotics/shared_invite/zt-1f5xf1qk5-TECJc1MIY1MW0d6ZCg~Wnw)
+* Support: https://support.viam.com
+
+## (In)stability Notice
+
+**Warning**
+This is an beta release of the Viam Mini RDK. Stability is not guaranteed. Breaking changes are likely to occur, and occur often.
 
 ## Getting Started
 
@@ -137,3 +155,8 @@ Or if you want to connect a debugger
 ``` shell
 make debug-local
 ```
+
+## License
+Copyright 2022-2023 Viam Inc.
+
+AGPLv3 - See [LICENSE](https://github.com/viamrobotics/mini-rdk/blob/main/LICENSE) file
