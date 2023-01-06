@@ -36,7 +36,7 @@ The Mini-RDK is a lightweight version of Viam's [RDK](https://github.com/viamrob
 ## (In)stability Notice
 
 **Warning**
-This is an beta release of the Viam Mini RDK. Stability is not guaranteed. Breaking changes are likely to occur, and occur often.
+This is an alpha release of the Viam Mini RDK. Stability is not guaranteed. Breaking changes are likely to occur, and occur often.
 
 ## Getting Started
 
