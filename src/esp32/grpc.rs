@@ -2,7 +2,7 @@ use std::{fmt::Debug, marker::PhantomData, sync::Arc, sync::Mutex, time::Duratio
 
 use crate::{
     common::board::Board,
-    esp32::robot::Esp32Robot,
+    common::robot::LocalRobot,
     proto::{self, component, robot},
 };
 use bytes::{BufMut, BytesMut};
@@ -74,11 +74,11 @@ impl HttpBody for GrpcBody {
 pub struct GrpcServer {
     response: GrpcBody,
     buffer: Rc<RefCell<BytesMut>>,
-    robot: Arc<Mutex<Esp32Robot>>,
+    robot: Arc<Mutex<LocalRobot>>,
 }
 
 impl GrpcServer {
-    pub fn new(robot: Arc<Mutex<Esp32Robot>>) -> Self {
+    pub fn new(robot: Arc<Mutex<LocalRobot>>) -> Self {
         let body = GrpcBody::new();
         info!("Making server");
         GrpcServer {
@@ -457,7 +457,7 @@ pub struct MakeSvcGrpcServer {
 
 impl MakeSvcGrpcServer {
     #[allow(dead_code)]
-    pub fn new(robot: Arc<Mutex<Esp32Robot>>) -> Self {
+    pub fn new(robot: Arc<Mutex<LocalRobot>>) -> Self {
         MakeSvcGrpcServer {
             server: GrpcServer::new(robot),
         }

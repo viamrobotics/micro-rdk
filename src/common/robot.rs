@@ -28,13 +28,13 @@ pub enum ResourceType {
 pub type Resource = ResourceType;
 pub type ResourceMap = HashMap<ResourceName, Resource>;
 
-pub struct Esp32Robot {
+pub struct LocalRobot {
     resources: ResourceMap,
 }
 
-impl Esp32Robot {
+impl LocalRobot {
     pub fn new(res: ResourceMap) -> Self {
-        Esp32Robot { resources: res }
+        LocalRobot { resources: res }
     }
     pub fn get_status(
         &self,

@@ -6,6 +6,7 @@ pub mod common {
     pub mod motor;
     pub mod pin;
     pub mod status;
+    pub mod robot;
 }
 
 pub mod esp32 {
@@ -17,7 +18,6 @@ pub mod esp32 {
     pub mod exec;
     pub mod grpc;
     pub mod motor;
-    pub mod robot;
     pub mod robot_client;
     pub mod server;
     pub mod tcp;

@@ -5,6 +5,7 @@ use std::{
     time::Duration,
 };
 
+use super::super::common::robot::LocalRobot;
 use esp_idf_hal::task::{notify, wait_notification};
 use esp_idf_svc::mdns::EspMdns;
 use esp_idf_sys::{vTaskDelay, xTaskGetCurrentTaskHandle, TaskHandle_t};
@@ -14,7 +15,6 @@ use hyper::server::conn::Http;
 use super::{
     exec::Esp32Executor,
     grpc::GrpcServer,
-    robot::Esp32Robot,
     robot_client::RobotClientConfig,
     tcp::Esp32Listener,
     tls::{Esp32Tls, Esp32TlsServerConfig},
@@ -49,12 +49,12 @@ impl<'a> CloudConfig<'a> {
 }
 
 pub struct Esp32Server<'a> {
-    robot: Arc<Mutex<Esp32Robot>>,
+    robot: Arc<Mutex<LocalRobot>>,
     cloud_cfg: CloudConfig<'a>,
 }
 
 impl<'a> Esp32Server<'a> {
-    pub fn new(robot: Esp32Robot, cloud_cfg: CloudConfig<'a>) -> Self {
+    pub fn new(robot: LocalRobot, cloud_cfg: CloudConfig<'a>) -> Self {
         Esp32Server {
             robot: Arc::new(Mutex::new(robot)),
             cloud_cfg,
