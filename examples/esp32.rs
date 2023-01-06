@@ -244,7 +244,7 @@ fn main() -> anyhow::Result<()> {
     #[allow(clippy::redundant_clone)]
     #[cfg(not(feature = "qemu"))]
     let (ip, _wifi) = {
-        let wifi = start_wifi(modem, sys_loop_stack)?;
+        let wifi = start_wifi(periph.modem, sys_loop_stack)?;
         (wifi.sta_netif().get_ip_info()?.ip, wifi)
     };
 

@@ -5,6 +5,8 @@ use std::{
     time::Duration,
 };
 
+use crate::common::grpc::GrpcServer;
+
 use super::super::common::robot::LocalRobot;
 use esp_idf_hal::task::{notify, wait_notification};
 use esp_idf_svc::mdns::EspMdns;
@@ -14,7 +16,6 @@ use hyper::server::conn::Http;
 
 use super::{
     exec::Esp32Executor,
-    grpc::GrpcServer,
     robot_client::RobotClientConfig,
     tcp::Esp32Listener,
     tls::{Esp32Tls, Esp32TlsServerConfig},
