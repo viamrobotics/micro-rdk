@@ -11,14 +11,6 @@ authors = ["Viam, inc. <contact@viam.com>"]
 [lib]
 crate-type = ["lib"]
 
-[patch.crates-io]
-esp-idf-svc = {git = "https://github.com/esp-rs/esp-idf-svc"}
-esp-idf-sys = {git = "https://github.com/npmenard/esp-idf-sys.git"}
-polling = { git = "https://github.com/esp-rs-compat/polling" }
-smol = { git = "https://github.com/esp-rs-compat/smol" }
-socket2 = { git = "https://github.com/npmenard/socket2.git" }
-viam-rust-utils = {git = "https://github.com/viamrobotics/rust-utils"}
-
 [profile.release]
 opt-level = "s"
 
@@ -27,18 +19,21 @@ debug = true # Symbols are nice and they don't increase the size on Flash
 opt-level = "z"
 
 [features]
+default = ["esp32"]
 qemu = []
 camera = []
+esp32 = ["dep:esp-idf-hal", "dep:esp-idf-svc","dep:esp-idf-sys","dep:embedded-svc"]
+native = ["dep:rustls","dep:webpki-roots", "dep:rustls-pemfile", "dep:mdns-sd", "dep:local-ip-address"]
 
 [dependencies]
 anyhow = {version = "1", features = ["backtrace"]}
 bytes = "1.2.1"
 either = "1.8.0"
 embedded-hal = {version = "0.2.7", features = ["unproven"]}
-embedded-svc = "0.23"
-esp-idf-hal = "0.39.3"
-esp-idf-svc = {version = "0.43.4"}
-esp-idf-sys = { version = "0.31.11", features = ["binstart"] }
+embedded-svc = {version = "0.23", optional =true}
+esp-idf-hal = {version="0.39.3", optional = true}
+esp-idf-svc = {version = "0.43.4",  optional = true}
+esp-idf-sys = { version = "0.31.11", features = ["binstart"],  optional = true }
 futures-lite = "1.12.0"
 h2 = "0.3.14"
 hyper = {version="0.14.20", default-features = false, features = ["server","stream","http2"]}
@@ -49,3 +44,8 @@ smol = "1.2"
 smol-timeout = "0.6.0"
 socket2 = "0.4.5"
 tokio = { version = "1", default-features = false}
+rustls = { version = "0.20.7", features = ["logging","tls12"], optional = true}
+webpki-roots = {version = "0.22.6", optional = true }
+rustls-pemfile = {version = "1.0.2", optional = true}
+mdns-sd = {version = "0.5.10", optional = true, default-features = false, features = ["async"]}
+local-ip-address = {version = "0.4.9", optional = true}

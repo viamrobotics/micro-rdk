@@ -46,6 +46,12 @@ impl GrpcBody {
     }
 }
 
+impl Default for GrpcBody {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Drop for GrpcBody {
     fn drop(&mut self) {
         debug!("Dropping body");
@@ -97,8 +103,8 @@ impl GrpcServer {
         let (header, rest) = message.split_at(5);
         let (use_compression, expected_len) = header.split_at(1);
         anyhow::ensure!(use_compression[0] == 0, "Compression not supported");
-        let expected_len = usize::from_be_bytes(expected_len.try_into().unwrap());
-        anyhow::ensure!(expected_len == rest.len(), "Incorrect payload size");
+        let expected_len = u32::from_be_bytes(expected_len.try_into().unwrap());
+        anyhow::ensure!(expected_len == rest.len() as u32, "Incorrect payload size");
         Ok(rest)
     }
 
@@ -409,11 +415,14 @@ impl Service<Request<Body>> for GrpcServer {
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
 
     fn call(&mut self, req: Request<Body>) -> Self::Future {
-        info!("clone in Servive GRPC");
+        #[cfg(debug_assertions)]
+        debug!("clone in Servive GRPC");
         {
             RefCell::borrow_mut(&self.buffer).reserve(GRPC_BUFFER_SIZE);
         }
         let mut svc = self.clone();
+        #[cfg(debug_assertions)]
+        log::debug!("processing {:?}", req);
         Box::pin(async move {
             let (path, body) = req.into_parts();
             let msg = body::to_bytes(body).await.map_err(|_| MyErr)?;
@@ -447,7 +456,7 @@ impl std::error::Error for MyErr {}
 
 impl std::fmt::Display for MyErr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_str("I AM ERROR")
+        f.write_str("<todo> error types")
     }
 }
 

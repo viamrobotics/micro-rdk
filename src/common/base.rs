@@ -17,6 +17,11 @@ impl FakeBase {
         FakeBase {}
     }
 }
+impl Default for FakeBase {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl<L> Base for Mutex<L>
 where

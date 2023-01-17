@@ -23,7 +23,7 @@ qemu = []
 camera = []
 
 [dependencies]
-mini-rdk = {path = "../" }
+mini-rdk = {path = "../../" }
 anyhow = {version = "1", features = ["backtrace"]}
 embedded-hal = "0.2.7"
 embedded-svc = "0.23"
