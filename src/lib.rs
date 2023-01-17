@@ -3,8 +3,10 @@ pub mod common {
     pub mod base;
     pub mod board;
     pub mod camera;
+    pub mod grpc;
     pub mod motor;
     pub mod pin;
+    pub mod robot;
     pub mod status;
 }
 
@@ -15,9 +17,7 @@ pub mod esp32 {
     #[cfg(feature = "camera")]
     pub mod camera;
     pub mod exec;
-    pub mod grpc;
     pub mod motor;
-    pub mod robot;
     pub mod robot_client;
     pub mod server;
     pub mod tcp;

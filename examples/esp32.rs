@@ -25,8 +25,8 @@ use esp_idf_sys as _; // If using the `binstart` feature of `esp-idf-sys`, alway
 #[cfg(not(feature = "qemu"))]
 use esp_idf_sys::esp_wifi_set_ps;
 use log::*;
-use mini_rdk::esp32::robot::Esp32Robot;
-use mini_rdk::esp32::robot::ResourceType;
+use mini_rdk::common::robot::LocalRobot;
+use mini_rdk::common::robot::ResourceType;
 use mini_rdk::esp32::server::{CloudConfig, Esp32Server};
 use mini_rdk::esp32::tls::Esp32TlsServerConfig;
 use mini_rdk::proto::common::v1::ResourceName;
@@ -113,7 +113,7 @@ fn main() -> anyhow::Result<()> {
         let board = Arc::new(Mutex::new(b));
         let base = Arc::new(Mutex::new(Esp32WheelBase::new(motor.clone(), m2.clone())));
 
-        let mut res: mini_rdk::esp32::robot::ResourceMap = HashMap::with_capacity(5);
+        let mut res: mini_rdk::common::robot::ResourceMap = HashMap::with_capacity(5);
         res.insert(
             ResourceName {
                 namespace: "rdk".to_string(),
@@ -160,7 +160,7 @@ fn main() -> anyhow::Result<()> {
             },
             ResourceType::Camera(camera),
         );
-        Esp32Robot::new(res)
+        LocalRobot::new(res)
     };
 
     #[cfg(feature = "qemu")]
@@ -179,7 +179,7 @@ fn main() -> anyhow::Result<()> {
         ])));
         #[cfg(feature = "camera")]
         let camera = Arc::new(Mutex::new(FakeCamera::new()));
-        let mut res: mini_rdk::esp32::robot::ResourceMap = HashMap::with_capacity(1);
+        let mut res: mini_rdk::common::robot::ResourceMap = HashMap::with_capacity(1);
         res.insert(
             ResourceName {
                 namespace: "rdk".to_string(),
@@ -217,7 +217,7 @@ fn main() -> anyhow::Result<()> {
             },
             ResourceType::Camera(camera),
         );
-        Esp32Robot::new(res)
+        LocalRobot::new(res)
     };
 
     #[cfg(feature = "qemu")]
@@ -243,9 +243,8 @@ fn main() -> anyhow::Result<()> {
 
     #[allow(clippy::redundant_clone)]
     #[cfg(not(feature = "qemu"))]
-    let modem = periph.modem;
     let (ip, _wifi) = {
-        let wifi = start_wifi(modem, sys_loop_stack)?;
+        let wifi = start_wifi(periph.modem, sys_loop_stack)?;
         (wifi.sta_netif().get_ip_info()?.ip, wifi)
     };
 
