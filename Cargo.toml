@@ -21,7 +21,7 @@ opt-level = "z"
 [features]
 camera = []
 default = ["esp32"]
-esp32 = ["dep:esp-idf-hal", "dep:esp-idf-svc","dep:esp-idf-sys","dep:embedded-svc"]
+esp32 = ["dep:esp-idf-hal", "dep:esp-idf-svc","dep:esp-idf-sys","dep:embedded-svc","dep:embedded-hal"]
 native = ["dep:rustls","dep:webpki-roots", "dep:rustls-pemfile", "dep:mdns-sd", "dep:local-ip-address"]
 qemu = []
 
@@ -29,8 +29,8 @@ qemu = []
 anyhow = { version = "1", features = ["backtrace"] }
 bytes = "1.2.1"
 either = "1.8.0"
-embedded-hal = { version = "0.2.7", features = ["unproven"] }
-embedded-svc = { version = "0.23", optional =true }
+embedded-hal = { version = "0.2.7", features = ["unproven"], optional = true }
+embedded-svc = { version = "0.23", optional = true }
 esp-idf-hal = { version="0.39.3", optional = true }
 esp-idf-svc = { version = "0.43.4",  optional = true }
 esp-idf-sys = { version = "0.31.11", features = ["binstart"],  optional = true }
