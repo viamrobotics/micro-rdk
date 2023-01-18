@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context};
+use anyhow::Context;
 use const_gen::*;
 use local_ip_address::local_ip;
 use serde::{Deserialize, Serialize};
@@ -44,23 +44,28 @@ pub struct Cloud {
     pub tls_private_key: String,
 }
 
-// Necessary because of this issue: https://github.com/rust-lang/cargo/issues/9641
 fn main() -> anyhow::Result<()> {
-    if std::env::var_os("IDF_PATH").is_none() {
-        return Err(anyhow!("You need to run IDF's export.sh before building"));
-    }
-    if std::env::var_os("MINI_RDK_WIFI_SSID").is_none() {
-        std::env::set_var("MINI_RDK_WIFI_SSID", "Viam-2G");
-        println!("cargo:rustc-env=MINI_RDK_WIFI_SSID=Viam-2G");
-    }
-    if std::env::var_os("MINI_RDK_WIFI_PASSWORD").is_none() {
-        return Err(anyhow!(
-            "please set the password for WiFi {}",
-            std::env::var_os("MINI_RDK_WIFI_PASSWORD")
-                .unwrap()
-                .to_str()
-                .unwrap()
-        ));
+    if env::var("TARGET").unwrap() == "xtensa-esp32-espidf" {
+        if std::env::var_os("IDF_PATH").is_none() {
+            return Err(anyhow::anyhow!(
+                "You need to run IDF's export.sh before building"
+            ));
+        }
+        if std::env::var_os("MINI_RDK_WIFI_SSID").is_none() {
+            std::env::set_var("MINI_RDK_WIFI_SSID", "Viam-2G");
+            println!("cargo:rustc-env=MINI_RDK_WIFI_SSID=Viam-2G");
+        }
+        if std::env::var_os("MINI_RDK_WIFI_PASSWORD").is_none() {
+            return Err(anyhow::anyhow!(
+                "please set the password for WiFi {}",
+                std::env::var_os("MINI_RDK_WIFI_PASSWORD")
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+            ));
+        }
+        embuild::build::CfgArgs::output_propagated("ESP_IDF")?;
+        embuild::build::LinkArgs::output_propagated("ESP_IDF")?;
     }
 
     let content = std::fs::read_to_string("viam.json").context("can't read viam.json")?;
@@ -75,10 +80,10 @@ fn main() -> anyhow::Result<()> {
     rt.block_on(read_certificates(&mut cfg))?;
     let out_dir = std::env::var_os("OUT_DIR").unwrap();
     let dest_path = std::path::Path::new(&out_dir).join("ca.crt");
-    let ca_cert = String::from(&cfg.cloud.tls_certificate) + "\0";
+    let ca_cert = String::from(&cfg.cloud.tls_certificate);
     std::fs::write(dest_path, ca_cert)?;
     let dest_path = std::path::Path::new(&out_dir).join("key.key");
-    let key = String::from(&cfg.cloud.tls_private_key) + "\0";
+    let key = String::from(&cfg.cloud.tls_private_key);
     std::fs::write(dest_path, key)?;
 
     let out_dir = env::var_os("OUT_DIR").unwrap();
@@ -107,9 +112,7 @@ fn main() -> anyhow::Result<()> {
     ]
     .join("\n");
     fs::write(&dest_path, robot_decl).unwrap();
-
-    embuild::build::CfgArgs::output_propagated("ESP_IDF")?;
-    embuild::build::LinkArgs::output_propagated("ESP_IDF")
+    Ok(())
 }
 
 async fn read_certificates(config: &mut Config) -> anyhow::Result<()> {
