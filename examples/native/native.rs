@@ -2,11 +2,11 @@
 include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
 use log::*;
-use mini_rdk::common::robot::LocalRobot;
-use mini_rdk::common::robot::ResourceType;
-use mini_rdk::native::server::{CloudConfig, NativeServer};
-use mini_rdk::native::tls::NativeTlsServerConfig;
-use mini_rdk::proto::common::v1::ResourceName;
+use micro_rdk::common::robot::LocalRobot;
+use micro_rdk::common::robot::ResourceType;
+use micro_rdk::native::server::{CloudConfig, NativeServer};
+use micro_rdk::native::tls::NativeTlsServerConfig;
+use micro_rdk::proto::common::v1::ResourceName;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -24,12 +24,12 @@ fn main() -> anyhow::Result<()> {
     //     // sets this to be the default, global collector for this application.
     //     .init();
     let robot = {
-        use mini_rdk::common::analog::FakeAnalogReader;
-        use mini_rdk::common::base::FakeBase;
-        use mini_rdk::common::board::FakeBoard;
+        use micro_rdk::common::analog::FakeAnalogReader;
+        use micro_rdk::common::base::FakeBase;
+        use micro_rdk::common::board::FakeBoard;
         #[cfg(feature = "camera")]
-        use mini_rdk::common::camera::FakeCamera;
-        use mini_rdk::common::motor::FakeMotor;
+        use micro_rdk::common::camera::FakeCamera;
+        use micro_rdk::common::motor::FakeMotor;
         let motor = Arc::new(Mutex::new(FakeMotor::new()));
         let base = Arc::new(Mutex::new(FakeBase::new()));
         let board = Arc::new(Mutex::new(FakeBoard::new(vec![
@@ -38,7 +38,7 @@ fn main() -> anyhow::Result<()> {
         ])));
         #[cfg(feature = "camera")]
         let camera = Arc::new(Mutex::new(FakeCamera::new()));
-        let mut res: mini_rdk::common::robot::ResourceMap = HashMap::with_capacity(1);
+        let mut res: micro_rdk::common::robot::ResourceMap = HashMap::with_capacity(1);
         res.insert(
             ResourceName {
                 namespace: "rdk".to_string(),

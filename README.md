@@ -1,7 +1,7 @@
 Table of Contents
 =================
 
-* [Mini-RDK](#mini-rdk)
+* [Micro-Rdk](#micro-rdk)
    * [Getting Started](#getting-started)
       * [Installing ESP-IDF](#installing-esp-idf)
       * [Installing the Rust ESP Toolchain](#installing-the-rust-esp-toolchain)
@@ -12,15 +12,15 @@ Table of Contents
          * [Linux](#linux)
    * [Your first esp32 robot](#your-first-esp32-robot)
       * [Create a new robot](#create-a-new-robot)
-      * [Generate a new mini-rdk project](#generate-a-new-mini-rdk-project)
+      * [Generate a new micro-rdk project](#generate-a-new-micro-rdk-project)
       * [Upload!!!](#upload)
    * [Building for QEMU](#building-for-qemu)
    
-# Mini-RDK
+# Micro-Rdk
 
 Viam provides an open source robot architecture that provides robotics functionality via simple APIs
 
-The Mini-RDK is a lightweight version of Viam's [RDK](https://github.com/viamrobotics/rdk). Its goal is to be run on resource-limited embedded systems. The only embedded system currently supported is the ESP32.
+The Micro-Rdk is a lightweight version of Viam's [RDK](https://github.com/viamrobotics/rdk). Its goal is to be run on resource-limited embedded systems. The only embedded system currently supported is the ESP32.
 
 **Website**: [viam.com](https://www.viam.com)
 
@@ -123,11 +123,11 @@ Congratulation for making it this far, just a few more steps and you will be run
 ### Create a new robot
 You will want to navigate to app.viam.com and create a new robot with an empty config in your favorite location
 
-### Generate a new mini-rdk project
-Using a template we are going to create a new mini-rdk project that can be uploaded to an esp32. 
+### Generate a new micro-rdk project
+Using a template we are going to create a new micro-rdk project that can be uploaded to an esp32. 
 You will be asked several questions needed to setup Wifi among other things, at one point you will be asked to input a viam robot configuration be sure to use the one you just created from app.viam.com
 ``` shell
-cargo generate --git git@github.com:viamrobotics/mini-rdk-template.git
+cargo generate --git git@github.com:viamrobotics/micro-rdk-template.git
 ```
 
 ### Upload!!!
@@ -139,7 +139,7 @@ make upload
 If everything went well the esp32 connected will be programmed and you will be able to see your robot live on app.viam.com
 
 ## Building for QEMU
-Navigate to the root of the Mini-RDK repository, once here run  `. $HOME/esp/esp-idf/export.sh` if you haven't done so already.
+Navigate to the root of the Micro-Rdk repository, once here run  `. $HOME/esp/esp-idf/export.sh` if you haven't done so already.
 You will need to comment out two lines from the file `sdkconfig.defaults`
 
 ``` editorconfig
@@ -159,4 +159,4 @@ make debug-local
 ## License
 Copyright 2022-2023 Viam Inc.
 
-AGPLv3 - See [LICENSE](https://github.com/viamrobotics/mini-rdk/blob/main/LICENSE) file
+AGPLv3 - See [LICENSE](https://github.com/viamrobotics/micro-rdk/blob/main/LICENSE) file

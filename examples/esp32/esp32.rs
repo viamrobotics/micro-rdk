@@ -1,9 +1,9 @@
 #[allow(dead_code)]
 #[cfg(not(feature = "qemu"))]
-const SSID: &str = env!("MINI_RDK_WIFI_SSID");
+const SSID: &str = env!("MICRO_RDK_WIFI_SSID");
 #[allow(dead_code)]
 #[cfg(not(feature = "qemu"))]
-const PASS: &str = env!("MINI_RDK_WIFI_PASSWORD");
+const PASS: &str = env!("MICRO_RDK_WIFI_PASSWORD");
 
 // Generated robot config during build process
 include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
@@ -25,11 +25,11 @@ use esp_idf_sys as _; // If using the `binstart` feature of `esp-idf-sys`, alway
 #[cfg(not(feature = "qemu"))]
 use esp_idf_sys::esp_wifi_set_ps;
 use log::*;
-use mini_rdk::common::robot::LocalRobot;
-use mini_rdk::common::robot::ResourceType;
-use mini_rdk::esp32::server::{CloudConfig, Esp32Server};
-use mini_rdk::esp32::tls::Esp32TlsServerConfig;
-use mini_rdk::proto::common::v1::ResourceName;
+use micro_rdk::common::robot::LocalRobot;
+use micro_rdk::common::robot::ResourceType;
+use micro_rdk::esp32::server::{CloudConfig, Esp32Server};
+use micro_rdk::esp32::tls::Esp32TlsServerConfig;
+use micro_rdk::proto::common::v1::ResourceName;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -52,10 +52,10 @@ fn main() -> anyhow::Result<()> {
         use esp_idf_hal::ledc;
         use esp_idf_hal::ledc::config::TimerConfig;
         use esp_idf_hal::units::FromValueType;
-        use mini_rdk::esp32::analog::Esp32AnalogReader;
-        use mini_rdk::esp32::base::Esp32WheelBase;
-        use mini_rdk::esp32::board::EspBoard;
-        use mini_rdk::esp32::motor::MotorEsp32;
+        use micro_rdk::esp32::analog::Esp32AnalogReader;
+        use micro_rdk::esp32::base::Esp32WheelBase;
+        use micro_rdk::esp32::board::EspBoard;
+        use micro_rdk::esp32::motor::MotorEsp32;
         #[cfg(feature = "camera")]
         let camera = {
             Esp32Camera::new();
@@ -113,7 +113,7 @@ fn main() -> anyhow::Result<()> {
         let board = Arc::new(Mutex::new(b));
         let base = Arc::new(Mutex::new(Esp32WheelBase::new(motor.clone(), m2.clone())));
 
-        let mut res: mini_rdk::common::robot::ResourceMap = HashMap::with_capacity(5);
+        let mut res: micro_rdk::common::robot::ResourceMap = HashMap::with_capacity(5);
         res.insert(
             ResourceName {
                 namespace: "rdk".to_string(),
@@ -165,12 +165,12 @@ fn main() -> anyhow::Result<()> {
 
     #[cfg(feature = "qemu")]
     let robot = {
-        use mini_rdk::common::analog::FakeAnalogReader;
-        use mini_rdk::common::base::FakeBase;
-        use mini_rdk::common::board::FakeBoard;
+        use micro_rdk::common::analog::FakeAnalogReader;
+        use micro_rdk::common::base::FakeBase;
+        use micro_rdk::common::board::FakeBoard;
         #[cfg(feature = "camera")]
-        use mini_rdk::common::camera::FakeCamera;
-        use mini_rdk::common::motor::FakeMotor;
+        use micro_rdk::common::camera::FakeCamera;
+        use micro_rdk::common::motor::FakeMotor;
         let motor = Arc::new(Mutex::new(FakeMotor::new()));
         let base = Arc::new(Mutex::new(FakeBase::new()));
         let board = Arc::new(Mutex::new(FakeBoard::new(vec![
@@ -179,7 +179,7 @@ fn main() -> anyhow::Result<()> {
         ])));
         #[cfg(feature = "camera")]
         let camera = Arc::new(Mutex::new(FakeCamera::new()));
-        let mut res: mini_rdk::common::robot::ResourceMap = HashMap::with_capacity(1);
+        let mut res: micro_rdk::common::robot::ResourceMap = HashMap::with_capacity(1);
         res.insert(
             ResourceName {
                 namespace: "rdk".to_string(),

@@ -3,8 +3,8 @@ authors = ["Viam, inc. <contact@viam.com>"]
 description = "Viam Mini RDK"
 edition = "2021"
 license = "AGPL-3.0"
-name = "mini-rdk"
-repository = "https://github.com/viamrobotics/mini-rdk"
+name = "micro-rdk"
+repository = "https://github.com/viamrobotics/micro-rdk"
 resolver = "2"
 version = "0.0.1"
 
