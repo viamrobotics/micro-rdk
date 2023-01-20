@@ -1,7 +1,7 @@
 #![allow(dead_code)]
+use super::pin::PinExt;
 use crate::common::analog::AnalogReader;
 use crate::common::board::Board;
-use crate::common::pin::PinExt;
 use crate::common::status::Status;
 use crate::proto::common;
 use core::cell::RefCell;

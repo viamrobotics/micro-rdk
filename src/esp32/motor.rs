@@ -11,9 +11,9 @@ use espsys::pcnt_config_t;
 use espsys::pcnt_evt_type_t_PCNT_EVT_H_LIM as pcnt_evt_h_lim;
 use espsys::pcnt_evt_type_t_PCNT_EVT_L_LIM as pcnt_evt_l_lim;
 
+use super::pin::PinExt;
 use crate::common::motor::Motor;
 use crate::common::motor::Position;
-use crate::common::pin::PinExt;
 use crate::common::status::Status;
 use espsys::{esp, EspError, ESP_ERR_INVALID_STATE, ESP_OK};
 use log::*;

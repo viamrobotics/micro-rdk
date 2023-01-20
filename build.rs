@@ -1,11 +1,12 @@
-use anyhow::{anyhow, Context};
+use anyhow::Context;
 use const_gen::*;
 use local_ip_address::local_ip;
 use serde::{Deserialize, Serialize};
 use std::{env, fs, path::Path};
 use tokio::runtime::Runtime;
 use viam::gen::proto::app::v1::{
-    robot_service_client::RobotServiceClient, AgentInfo, CertificateRequest, ConfigRequest,
+    robot_service_client::RobotServiceClient, AgentInfo, CertificateRequest, CloudConfig,
+    ConfigRequest,
 };
 use viam_rust_utils::rpc::dial::{DialOptions, RPCCredentials};
 
@@ -43,23 +44,28 @@ pub struct Cloud {
     pub tls_private_key: String,
 }
 
-// Necessary because of this issue: https://github.com/rust-lang/cargo/issues/9641
 fn main() -> anyhow::Result<()> {
-    if std::env::var_os("IDF_PATH").is_none() {
-        return Err(anyhow!("You need to run IDF's export.sh before building"));
-    }
-    if std::env::var_os("MINI_RDK_WIFI_SSID").is_none() {
-        std::env::set_var("MINI_RDK_WIFI_SSID", "Viam-2G");
-        println!("cargo:rustc-env=MINI_RDK_WIFI_SSID=Viam-2G");
-    }
-    if std::env::var_os("MINI_RDK_WIFI_PASSWORD").is_none() {
-        return Err(anyhow!(
-            "please set the password for WiFi {}",
-            std::env::var_os("MINI_RDK_WIFI_PASSWORD")
-                .unwrap()
-                .to_str()
-                .unwrap()
-        ));
+    if env::var("TARGET").unwrap() == "xtensa-esp32-espidf" {
+        if std::env::var_os("IDF_PATH").is_none() {
+            return Err(anyhow::anyhow!(
+                "You need to run IDF's export.sh before building"
+            ));
+        }
+        if std::env::var_os("MINI_RDK_WIFI_SSID").is_none() {
+            std::env::set_var("MINI_RDK_WIFI_SSID", "Viam-2G");
+            println!("cargo:rustc-env=MINI_RDK_WIFI_SSID=Viam-2G");
+        }
+        if std::env::var_os("MINI_RDK_WIFI_PASSWORD").is_none() {
+            return Err(anyhow::anyhow!(
+                "please set the password for WiFi {}",
+                std::env::var_os("MINI_RDK_WIFI_PASSWORD")
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+            ));
+        }
+        embuild::build::CfgArgs::output_propagated("ESP_IDF")?;
+        embuild::build::LinkArgs::output_propagated("ESP_IDF")?;
     }
 
     let content = std::fs::read_to_string("viam.json").context("can't read viam.json")?;
@@ -67,15 +73,17 @@ fn main() -> anyhow::Result<()> {
     let mut cfg: Config = serde_json::from_str(content.as_str()).map_err(anyhow::Error::msg)?;
 
     let rt = Runtime::new()?;
-    let local_fqdn = rt.block_on(read_cloud_config(&mut cfg))?;
-    let robot_name = local_fqdn.split('.').next().unwrap_or("");
+    let cloud_cfg = rt.block_on(read_cloud_config(&mut cfg))?;
+    let robot_name = cloud_cfg.local_fqdn.split('.').next().unwrap_or("");
+    let local_fqdn = cloud_cfg.local_fqdn.replace('.', "-");
+    let fqdn = cloud_cfg.fqdn.replace('.', "-");
     rt.block_on(read_certificates(&mut cfg))?;
     let out_dir = std::env::var_os("OUT_DIR").unwrap();
     let dest_path = std::path::Path::new(&out_dir).join("ca.crt");
-    let ca_cert = String::from(&cfg.cloud.tls_certificate) + "\0";
+    let ca_cert = String::from(&cfg.cloud.tls_certificate);
     std::fs::write(dest_path, ca_cert)?;
     let dest_path = std::path::Path::new(&out_dir).join("key.key");
-    let key = String::from(&cfg.cloud.tls_private_key) + "\0";
+    let key = String::from(&cfg.cloud.tls_private_key);
     std::fs::write(dest_path, key)?;
 
     let out_dir = env::var_os("OUT_DIR").unwrap();
@@ -91,7 +99,11 @@ fn main() -> anyhow::Result<()> {
         ),
         const_declaration!(
             #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            FQDN = local_fqdn.as_str()
+            LOCAL_FQDN = local_fqdn.as_str()
+        ),
+        const_declaration!(
+            #[allow(clippy::redundant_static_lifetimes, dead_code)]
+            FQDN = fqdn.as_str()
         ),
         const_declaration!(
             #[allow(clippy::redundant_static_lifetimes, dead_code)]
@@ -100,9 +112,7 @@ fn main() -> anyhow::Result<()> {
     ]
     .join("\n");
     fs::write(&dest_path, robot_decl).unwrap();
-
-    embuild::build::CfgArgs::output_propagated("ESP_IDF")?;
-    embuild::build::LinkArgs::output_propagated("ESP_IDF")
+    Ok(())
 }
 
 async fn read_certificates(config: &mut Config) -> anyhow::Result<()> {
@@ -127,7 +137,7 @@ async fn read_certificates(config: &mut Config) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn read_cloud_config(config: &mut Config) -> anyhow::Result<String> {
+async fn read_cloud_config(config: &mut Config) -> anyhow::Result<CloudConfig> {
     let creds = RPCCredentials::new(
         Some(config.cloud.id.clone()),
         "robot-secret".to_string(),
@@ -154,7 +164,7 @@ async fn read_cloud_config(config: &mut Config) -> anyhow::Result<String> {
     let cfg = app_service.config(cfg_req).await?.into_inner();
     match cfg.config {
         Some(cfg) => match cfg.cloud {
-            Some(cfg) => Ok(cfg.local_fqdn),
+            Some(cfg) => Ok(cfg),
             None => anyhow::bail!("no cloud config for robot"),
         },
         None => anyhow::bail!("no config for robot"),

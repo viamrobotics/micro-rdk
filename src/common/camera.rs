@@ -30,6 +30,12 @@ impl FakeCamera {
     }
 }
 
+impl Default for FakeCamera {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<L> Camera for Mutex<L>
 where
     L: ?Sized + Camera,

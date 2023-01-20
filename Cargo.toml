@@ -1,23 +1,15 @@
 [package]
-name = "mini-rdk"
-version = "0.0.1"
-edition = "2021"
-resolver = "2"
-license = "AGPL-3.0"
-description = "Viam Mini RDK"
-repository = "https://github.com/viamrobotics/mini-rdk"
 authors = ["Viam, inc. <contact@viam.com>"]
+description = "Viam Mini RDK"
+edition = "2021"
+license = "AGPL-3.0"
+name = "mini-rdk"
+repository = "https://github.com/viamrobotics/mini-rdk"
+resolver = "2"
+version = "0.0.1"
 
 [lib]
 crate-type = ["lib"]
-
-[patch.crates-io]
-esp-idf-svc = {git = "https://github.com/esp-rs/esp-idf-svc"}
-esp-idf-sys = {git = "https://github.com/npmenard/esp-idf-sys.git"}
-polling = { git = "https://github.com/esp-rs-compat/polling" }
-smol = { git = "https://github.com/esp-rs-compat/smol" }
-socket2 = { git = "https://github.com/npmenard/socket2.git" }
-viam-rust-utils = {git = "https://github.com/viamrobotics/rust-utils"}
 
 [profile.release]
 opt-level = "s"
@@ -26,26 +18,65 @@ opt-level = "s"
 debug = true # Symbols are nice and they don't increase the size on Flash
 opt-level = "z"
 
+[patch.crates-io]
+esp-idf-sys = { git = "https://github.com/npmenard/esp-idf-sys.git" }
+polling = { git = "https://github.com/esp-rs-compat/polling" }
+smol = { git = "https://github.com/esp-rs-compat/smol" }
+socket2 = { git = "https://github.com/npmenard/socket2.git" }
+
 [features]
-qemu = []
 camera = []
+esp32 = ["dep:esp-idf-hal", "dep:esp-idf-svc","dep:esp-idf-sys","dep:embedded-svc","dep:embedded-hal"]
+native = ["dep:rustls","dep:webpki-roots", "dep:rustls-pemfile", "dep:mdns-sd", "dep:local-ip-address"]
+qemu = []
 
 [dependencies]
-anyhow = {version = "1", features = ["backtrace"]}
+anyhow = { version = "1", features = ["backtrace"] }
 bytes = "1.2.1"
 either = "1.8.0"
-embedded-hal = {version = "0.2.7", features = ["unproven"]}
-embedded-svc = "0.23"
-esp-idf-hal = "0.39.3"
-esp-idf-svc = {version = "0.43.4"}
-esp-idf-sys = { version = "0.31.11", features = ["binstart"] }
+embedded-hal = { version = "0.2.7", features = ["unproven"], optional = true }
+embedded-svc = { version = "0.23", optional = true }
+esp-idf-hal = { version="0.39.3", optional = true }
+esp-idf-svc = { version = "0.43.4",  optional = true }
+esp-idf-sys = { version = "0.31.11", features = ["binstart"],  optional = true }
 futures-lite = "1.12.0"
 h2 = "0.3.14"
-hyper = {version="0.14.20", default-features = false, features = ["server","stream","http2"]}
+hyper = { version="0.14.20", default-features = false, features = ["server","stream","http2"] }
+local-ip-address = { version = "0.4.9", optional = true }
 log = "0.4"
+mdns-sd = { version = "0.5.10", optional = true, default-features = false, features = ["async"] }
 prost = "0.11.0"
 prost-types = "0.11.1"
+rustls = { version = "0.20.7", features = ["logging","tls12"], optional = true }
+rustls-pemfile = { version = "1.0.2", optional = true }
 smol = "1.2"
 smol-timeout = "0.6.0"
 socket2 = "0.4.5"
-tokio = { version = "1", default-features = false}
+tokio = { version = "1", default-features = false }
+webpki-roots = { version = "0.22.6", optional = true }
+
+[dev-dependencies]
+simple_logger = "2.3.0"
+
+
+[build-dependencies]
+anyhow = "1"
+const-gen = "1.3.0"
+embuild = "0.29"
+gethostname = "0.4.1"
+local-ip-address = "0.4.9"
+serde = { version="1.0.145",features=["derive"] }
+serde_json = "1.0.86"
+tokio = { version = "1", features = ["full"] }
+viam = { version = ">=0.0.7", git = "https://github.com/viamrobotics/viam-rust-sdk.git" }
+viam-rust-utils = "0.0.6"
+
+[[example]]
+name = "native"
+path = "examples/native/native.rs"
+required-features = ["native"]
+
+[[example]]
+name = "esp32"
+path = "examples/esp32/esp32.rs"
+required-features = ["esp32"]

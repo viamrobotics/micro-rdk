@@ -28,6 +28,12 @@ impl FakeMotor {
         }
     }
 }
+impl Default for FakeMotor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<L> Motor for Mutex<L>
 where
     L: ?Sized + Motor,

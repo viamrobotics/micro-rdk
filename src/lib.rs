@@ -5,11 +5,11 @@ pub mod common {
     pub mod camera;
     pub mod grpc;
     pub mod motor;
-    pub mod pin;
     pub mod robot;
     pub mod status;
 }
 
+#[cfg(feature = "esp32")]
 pub mod esp32 {
     pub mod analog;
     pub mod base;
@@ -18,11 +18,22 @@ pub mod esp32 {
     pub mod camera;
     pub mod exec;
     pub mod motor;
+    pub mod pin;
     pub mod robot_client;
     pub mod server;
     pub mod tcp;
     pub mod tls;
 }
+
+#[cfg(feature = "native")]
+pub mod native {
+    pub mod exec;
+    pub mod robot_client;
+    pub mod server;
+    pub mod tcp;
+    pub mod tls;
+}
+
 pub mod proto {
     pub mod common {
         pub mod v1 {

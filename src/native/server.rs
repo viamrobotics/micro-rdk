@@ -1,5 +1,6 @@
 #![allow(unused)]
 use std::{
+    collections::HashMap,
     net::{Ipv4Addr, SocketAddr},
     sync::{Arc, Mutex},
     time::Duration,
@@ -8,17 +9,17 @@ use std::{
 use crate::common::grpc::GrpcServer;
 
 use super::super::common::robot::LocalRobot;
-use esp_idf_hal::task::{notify, wait_notification};
-use esp_idf_svc::mdns::EspMdns;
-use esp_idf_sys::{vTaskDelay, xTaskGetCurrentTaskHandle, TaskHandle_t};
 use futures_lite::future::block_on;
 use hyper::server::conn::Http;
+use local_ip_address::local_ip;
+use log::logger;
+use mdns_sd::{ServiceDaemon, ServiceInfo};
 
 use super::{
-    exec::Esp32Executor,
+    exec::NativeExecutor,
     robot_client::RobotClientConfig,
-    tcp::Esp32Listener,
-    tls::{Esp32Tls, Esp32TlsServerConfig},
+    tcp::NativeListener,
+    tls::{NativeTls, NativeTlsServerConfig},
 };
 
 pub struct CloudConfig<'a> {
@@ -27,7 +28,7 @@ pub struct CloudConfig<'a> {
     robot_fqdn: &'a str,
     robot_id: &'a str,
     robot_secret: &'a str,
-    robot_tls_config: Option<Esp32TlsServerConfig>,
+    robot_tls_config: Option<NativeTlsServerConfig>,
 }
 
 impl<'a> CloudConfig<'a> {
@@ -47,19 +48,19 @@ impl<'a> CloudConfig<'a> {
             robot_tls_config: None,
         }
     }
-    pub fn set_tls_config(&mut self, tls_cfg: Esp32TlsServerConfig) {
+    pub fn set_tls_config(&mut self, tls_cfg: NativeTlsServerConfig) {
         self.robot_tls_config = Some(tls_cfg)
     }
 }
 
-pub struct Esp32Server<'a> {
+pub struct NativeServer<'a> {
     robot: Arc<Mutex<LocalRobot>>,
     cloud_cfg: CloudConfig<'a>,
 }
 
-impl<'a> Esp32Server<'a> {
+impl<'a> NativeServer<'a> {
     pub fn new(robot: LocalRobot, cloud_cfg: CloudConfig<'a>) -> Self {
-        Esp32Server {
+        NativeServer {
             robot: Arc::new(Mutex::new(robot)),
             cloud_cfg,
         }
@@ -72,7 +73,6 @@ impl<'a> Esp32Server<'a> {
                 ip,
             )
         };
-        client_cfg.set_main_handle(unsafe { xTaskGetCurrentTaskHandle() });
         let hnd = match super::robot_client::start(client_cfg) {
             Err(e) => {
                 log::error!("couldn't start robot client {:?} will start the server", e);
@@ -80,54 +80,45 @@ impl<'a> Esp32Server<'a> {
             }
             Ok(hnd) => Some(hnd),
         };
-        let _ = wait_notification(Some(Duration::from_secs(30)));
-        let _mdns = {
-            let mut mdns = EspMdns::take()?;
-            mdns.set_hostname(self.cloud_cfg.robot_name)?;
-            mdns.add_service(
-                Some(self.cloud_cfg.robot_local_fqdn),
-                "_rpc",
-                "_tcp",
-                4545,
-                &[("grpc", "")],
-            )?;
-            mdns.add_service(
-                Some(self.cloud_cfg.robot_fqdn),
-                "_rpc",
-                "_tcp",
-                4545,
-                &[("grpc", "")],
-            )?;
-            mdns
-        };
-        if let Err(e) = self.runserver(None) {
+        let _ = hnd.unwrap().join();
+        //let _mdns = md
+        let mdns = ServiceDaemon::new()?;
+        let mut prop = HashMap::new();
+        prop.insert("grpc".to_string(), "".to_string());
+        let srv = ServiceInfo::new(
+            "_rpc._tcp.local.",
+            self.cloud_cfg.robot_fqdn,
+            self.cloud_cfg.robot_name,
+            local_ip().unwrap().to_string(),
+            12346,
+            Some(prop.clone()),
+        )?;
+        mdns.register(srv)?;
+        let srv = ServiceInfo::new(
+            "_rpc._tcp.local.",
+            self.cloud_cfg.robot_local_fqdn,
+            self.cloud_cfg.robot_name,
+            local_ip().unwrap().to_string(),
+            12346,
+            Some(prop.clone()),
+        )?;
+        mdns.register(srv)?;
+        if let Err(e) = self.runserver() {
             log::error!("robot server failed with error {:?}", e);
             return Err(e);
         }
         Ok(())
     }
-    fn runserver(&self, client_handle: Option<TaskHandle_t>) -> anyhow::Result<()> {
+    fn runserver(&self) -> anyhow::Result<()> {
         let tls_cfg = match &self.cloud_cfg.robot_tls_config {
             Some(tls_cfg) => tls_cfg,
             None => return Err(anyhow::anyhow!("no tls configuration supplied")),
         };
-        let tls = Box::new(Esp32Tls::new_server(tls_cfg));
-        let address: SocketAddr = "0.0.0.0:4545".parse().unwrap();
-        let mut listener = Esp32Listener::new(address.into(), Some(tls))?;
-        let exec = Esp32Executor::new();
+        let tls = Box::new(NativeTls::new_server(tls_cfg.clone()));
+        let address: SocketAddr = "0.0.0.0:12346".parse().unwrap();
+        let mut listener = NativeListener::new(address.into(), Some(tls))?;
+        let exec = NativeExecutor::new();
         let srv = GrpcServer::new(self.robot.clone());
-        if let Some(hnd) = client_handle {
-            if unsafe { notify(hnd, 1) } {
-                log::info!("successfully notified client task");
-                unsafe {
-                    vTaskDelay(1000);
-                };
-            } else {
-                log::error!("failed to notity client task had handle {:?}", hnd);
-            }
-        } else {
-            log::error!("no handle")
-        }
         loop {
             let stream = listener.accept()?;
             block_on(exec.run(async {

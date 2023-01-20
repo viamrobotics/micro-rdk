@@ -259,7 +259,7 @@ fn main() -> anyhow::Result<()> {
         )
     };
 
-    let mut cloud_cfg = CloudConfig::new(ROBOT_NAME, FQDN, ROBOT_ID, ROBOT_SECRET);
+    let mut cloud_cfg = CloudConfig::new(ROBOT_NAME, LOCAL_FQDN, FQDN, ROBOT_ID, ROBOT_SECRET);
     cloud_cfg.set_tls_config(cfg);
     let esp32_srv = Esp32Server::new(robot, cloud_cfg);
     esp32_srv.start(ip)?;
