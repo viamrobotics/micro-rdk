@@ -1,6 +1,6 @@
 [package]
 authors = ["Viam, inc. <contact@viam.com>"]
-description = "Viam Micro-RDK"
+description = "Viam RDK for microcontroller"
 edition = "2021"
 license = "AGPL-3.0"
 name = "micro-rdk"

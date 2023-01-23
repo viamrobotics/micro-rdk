@@ -1,7 +1,10 @@
 Table of Contents
 =================
 
-* [Micro-RDK](#micro-rdk)
+* [Table of Contents](#table-of-contents)
+* [Micro-RDK (RDK for Microcontroller)](#micro-rdk-rdk-for-microcontroller)
+   * [Contact](#contact)
+   * [(In)stability Notice](#instability-notice)
    * [Getting Started](#getting-started)
       * [Installing ESP-IDF](#installing-esp-idf)
       * [Installing the Rust ESP Toolchain](#installing-the-rust-esp-toolchain)
@@ -15,8 +18,9 @@ Table of Contents
       * [Generate a new micro-rdk project](#generate-a-new-micro-rdk-project)
       * [Upload!!!](#upload)
    * [Building for QEMU](#building-for-qemu)
+   * [License](#license)
    
-# Micro-RDK
+# Micro-RDK (RDK for Microcontroller)
 
 Viam provides an open source robot architecture that provides robotics functionality via simple APIs
 
