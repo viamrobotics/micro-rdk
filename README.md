@@ -14,12 +14,14 @@ Table of Contents
       * [Create a new robot](#create-a-new-robot)
       * [Generate a new mini-rdk project](#generate-a-new-mini-rdk-project)
       * [Upload!!!](#upload)
-     * [Building for QEMU](#building-for-qemu)
-   * [Next Steps](#nex-steps)
+      * [Building for QEMU](#building-for-qemu)
+   * [Next Steps](#next-steps)
+      * [Configure the esp32 as a remote](#configure-the-esp32-as-a-remote)
+      * [Troubleshooting](#troubleshooting)
 
 # Mini-RDK
 
-Viam provides an open source robot architecture that provides robotics functionality via simple APIs
+Viam provides an open source robot architecture that provides robotics functionality via simple APIs.
 
 The Mini-RDK is a lightweight version of Viam's [RDK](https://github.com/viamrobotics/rdk). Its goal
 is to be run on resource-limited embedded systems. The only embedded system currently supported is
@@ -57,7 +59,7 @@ cd esp-idf
 git checkout v4.4.1
 git submodule update --init --recursive
 ```
-You will then need to install the tools for ESP-IDF
+You will then need to install the tools for ESP-IDF:
 
 ``` shell
 cd ~/esp/esp-idf
@@ -102,7 +104,7 @@ cargo install cargo-espflash@2.0.0-rc.1
 
 ### (Optional) Installing QEMU for esp32
 Espressif maintains a pretty good QEMU emulator supporting the ESP32, we recommend using it during
-development. See [here](https://github.com/espressif/qemu) for more information
+development. See [here](https://github.com/espressif/qemu) for more information.
 
 #### MacOS
 ``` shell
@@ -118,7 +120,7 @@ cd build && ninja
 ```
 #### Linux
 
-First, make sure you have the libgcrypt library and headers installed. On Ubuntu or Debian, this is
+First, make sure you have the libgcrypt library and headers installed. On Ubuntu or Debian, this is:
 
 ``` shell
 sudo apt-get install libgcrypt20 libgcrypt20-dev
@@ -145,14 +147,13 @@ esp32 robot!
 You will want to navigate to app.viam.com and create a new robot with an empty config in your
 favorite location. The `Mode` and `Architecture` selections can be ignored and left at the
 default. You may also skip any setup steps about downloading, installing, or starting `viam-server`,
-since it is not used on the ESP32 board The only required step is to download the Viam app config
-for the new robot.
+since it is not used on the ESP32 board.
 
 ### Generate a new mini-rdk project
 Using a template we are going to create a new mini-rdk project that can be uploaded to an esp32. You
-will be asked several questions needed to setup Wifi among other things, at one point you will be
-asked to input a viam robot configuration: be sure to use the one you just downloaded from
-app.viam.com
+will be asked several questions needed to setup Wifi among other things. At one point you will be
+asked to input a viam robot configuration. Use the `Copy viam-server config` button on the `Setup`
+tab for your new robot to obtain the correct value.
 
 ``` shell
 cargo generate --git git@github.com:viamrobotics/mini-rdk-template.git
@@ -204,6 +205,8 @@ index f75b465..2b0ba9c 100644
 
 ## Next Steps
 
+### Configure the esp32 as a remote
+
 In order to control the robot now running on the esp32, you will need another robot to host your
 application, since the esp32 cannot do so.
 
@@ -213,31 +216,35 @@ application, since the esp32 cannot do so.
   - Navigate to the `Control` tab of the esp32-backed robot and copy its `Remote Address`.
   - Navigate to the `Config` tab of the robot from which you want to control the esp32-based robot,
     select the `Remotes` tab, and create a new remote.
-  - Set the `Address` field of the new remote to be the `Remote Address` you copied above, and add
-    `:4545` to the end
+  - Set the `Address` field of the new remote to be the `Remote Address` you copied above.
   - Set `TLS` for the remote to `Enabled`.
 - Ensure that the controlling robot is live.
 - The esp32-backed robot should now be programmatically available in the application controlling the
   robot to which the esp-backed robot was added as a remote.
 
+### Troubleshooting
+
+- If you are unable to connect to the esp32-backed robot as a remote, try adding `:4545` to the end
+  of the value set in the remotes `Address` field above.
+
 
 ## Building for QEMU
 Navigate to the root of the Mini-RDK repository, once here run `. $HOME/esp/esp-idf/export.sh` if
 you haven't done so already. You will need to comment out two lines from the file
-`sdkconfig.defaults`
+`sdkconfig.defaults`:
 
 ``` editorconfig
 CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
 CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
 ```
 
-You can then run
+You can then run:
 
 ``` shell
 make sim-local
 ```
 
-Or if you want to connect a debugger
+Or if you want to connect a debugger:
 
 ``` shell
 make debug-local
