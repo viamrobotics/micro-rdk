@@ -51,14 +51,14 @@ fn main() -> anyhow::Result<()> {
                 "You need to run IDF's export.sh before building"
             ));
         }
-        if std::env::var_os("MINI_RDK_WIFI_SSID").is_none() {
-            std::env::set_var("MINI_RDK_WIFI_SSID", "Viam-2G");
-            println!("cargo:rustc-env=MINI_RDK_WIFI_SSID=Viam-2G");
+        if std::env::var_os("MICRO_RDK_WIFI_SSID").is_none() {
+            std::env::set_var("MICRO_RDK_WIFI_SSID", "Viam-2G");
+            println!("cargo:rustc-env=MICRO_RDK_WIFI_SSID=Viam-2G");
         }
-        if std::env::var_os("MINI_RDK_WIFI_PASSWORD").is_none() {
+        if std::env::var_os("MICRO_RDK_WIFI_PASSWORD").is_none() {
             return Err(anyhow::anyhow!(
                 "please set the password for WiFi {}",
-                std::env::var_os("MINI_RDK_WIFI_PASSWORD")
+                std::env::var_os("MICRO_RDK_WIFI_PASSWORD")
                     .unwrap()
                     .to_str()
                     .unwrap()
