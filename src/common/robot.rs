@@ -10,6 +10,7 @@ use crate::{
     common::base::Base,
     common::board::Board,
     common::motor::Motor,
+    common::sensor::Sensor,
     common::status::Status,
     proto::{
         common::{self, v1::ResourceName},
@@ -22,6 +23,7 @@ pub enum ResourceType {
     Motor(Arc<Mutex<dyn Motor>>),
     Board(Arc<Mutex<dyn Board>>),
     Base(Arc<Mutex<dyn Base>>),
+    Sensor(Arc<Mutex<dyn Sensor>>),
     #[cfg(feature = "camera")]
     Camera(Arc<Mutex<dyn Camera>>),
 }
@@ -65,6 +67,13 @@ impl LocalRobot {
                             status,
                         });
                     }
+                    ResourceType::Sensor(b) => {
+                        let status = b.get_status()?;
+                        vec.push(robot::v1::Status {
+                            name: Some(name.clone()),
+                            status,
+                        });
+                    }
                     #[cfg(feature = "camera")]
                     _ => continue,
                 };
@@ -92,6 +101,13 @@ impl LocalRobot {
                             });
                         }
                         ResourceType::Base(b) => {
+                            let status = b.get_status()?;
+                            vec.push(robot::v1::Status {
+                                name: Some(name),
+                                status,
+                            });
+                        }
+                        ResourceType::Sensor(b) => {
                             let status = b.get_status()?;
                             vec.push(robot::v1::Status {
                                 name: Some(name),
@@ -163,6 +179,19 @@ impl LocalRobot {
         };
         match self.resources.get(&name) {
             Some(ResourceType::Board(r)) => Some(r.clone()),
+            Some(_) => None,
+            None => None,
+        }
+    }
+    pub fn get_sensor_by_name(&self, name: String) -> Option<Arc<Mutex<dyn Sensor>>> {
+        let name = ResourceName {
+            namespace: "rdk".to_string(),
+            r#type: "component".to_string(),
+            subtype: "sensor".to_string(),
+            name,
+        };
+        match self.resources.get(&name) {
+            Some(ResourceType::Sensor(r)) => Some(r.clone()),
             Some(_) => None,
             None => None,
         }
