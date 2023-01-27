@@ -79,10 +79,10 @@ fn main() -> anyhow::Result<()> {
     rt.block_on(read_certificates(&mut cfg))?;
     let out_dir = std::env::var_os("OUT_DIR").unwrap();
     let dest_path = std::path::Path::new(&out_dir).join("ca.crt");
-    let ca_cert = String::from(&cfg.cloud.tls_certificate);
+    let ca_cert = String::from(&cfg.cloud.tls_certificate) + "\0";
     std::fs::write(dest_path, ca_cert)?;
     let dest_path = std::path::Path::new(&out_dir).join("key.key");
-    let key = String::from(&cfg.cloud.tls_private_key);
+    let key = String::from(&cfg.cloud.tls_private_key) + "\0";
     std::fs::write(dest_path, key)?;
 
     let out_dir = env::var_os("OUT_DIR").unwrap();
