@@ -19,6 +19,9 @@ Table of Contents
       * [Upload!!!](#upload)
    * [Next Steps](#next-steps)
       * [Configure the esp32 as a remote](#configure-the-esp32-as-a-remote)
+      * [Modifying generated template](#modifying-generated-template)
+         * [Exposing other gpio pins](#exposing-other-gpio-pins)
+         * [Adding a new analog reader](#adding-a-new-analog-reader)
       * [Troubleshooting](#troubleshooting)
    * [Building for QEMU](#building-for-qemu)
    * [License](#license)
@@ -167,52 +170,6 @@ If you like, you can initialize a new revision control repository in the newly c
 track any changes you need to make to the generated project. All of the generated files should be
 safe to commit with the exception of `viam.json`, since it contains a secret key.
 
-### Modifying generated template
-You can find the declaration of the robot in the generated file `src/main.rs`, in this example we 
-expose one gpio pin (pin 18) and one analog reader attached to gpio pin 34.
-
-#### Exposing other gpio pins
-Once you selected an appropriate gpio pin (according to the pinout diagram you can add to the collection
-of exposed pins.
-For example, if you want to expose gpio pin 21 simply change the line :
-
-``` rust
-let pins = vec![PinDriver::output(periph.pins.gpio18.downgrade_output())?];
-```
-to
-``` rust
-let pins = vec![PinDriver::output(periph.pins.gpio18.downgrade_output())?,
-    PinDriver::output(periph.pins.gpio21.downgrade_output())?,];
-```
-You will now be able to change & read the state of pin 21 from app.viam.com
-
-#### Adding a new analog reader
-Adding a new analog reader requires a couple more steps, first you will want to identify a pin capable of
-analog reading. In the pinout diagram of the Esp32 the pins are labeled like this `ADCn_y` where `n` is the adc
-number (1 or 2, noting that 2 cannot be used with WiFi enabled) and `y` is the channel number.
-Once you identify an appropriate pin follow these steps to add it, for example we want to add gpio pin 35
-which is labeled `ADC1_7` in the pinout diagram
-
-- Create a new ADC channel 
-``` rust
-let my_analog_channel = adc_chan: AdcChannelDriver<_, Atten11dB<adc::ADC1>> =
-            AdcChannelDriver::new(periph.pins.gpio35)?;
-```
-- Create the actual Analog reader, note here that `adc1` is declared above
-
-``` rust
-let my_analog_reader = Esp32AnalogReader::new("A2".to_string(), my_analog_channel, adc1.clone());
-```
-
-- Finally add it the the collection of analog readers 
-
-``` rust
-let analog_readers = vec![
-            Rc::new(RefCell::new(analog1)),
-            Rc::new(RefCell::new(my_analog_reader)),
-        ];
-```
-
 ### Upload!!!
 Modify src/main.rs to you liking and run :
 
@@ -271,6 +228,53 @@ application, since the esp32 cannot do so.
 - Ensure that the controlling robot is live.
 - The esp32-backed robot should now be programmatically available in the application controlling the
   robot to which the esp-backed robot was added as a remote.
+  
+### Modifying generated template
+You can find the declaration of the robot in the generated file `src/main.rs`, in this example we 
+expose one gpio pin (pin 18) and one analog reader attached to gpio pin 34.
+
+#### Exposing other gpio pins
+Once you selected an appropriate gpio pin (according to the pinout diagram you can add to the collection
+of exposed pins.
+For example, if you want to expose gpio pin 21 simply change the line :
+
+``` rust
+let pins = vec![PinDriver::output(periph.pins.gpio18.downgrade_output())?];
+```
+to
+``` rust
+let pins = vec![PinDriver::output(periph.pins.gpio18.downgrade_output())?,
+    PinDriver::output(periph.pins.gpio21.downgrade_output())?,];
+```
+You will now be able to change & read the state of pin 21 from app.viam.com
+
+#### Adding a new analog reader
+Adding a new analog reader requires a couple more steps, first you will want to identify a pin capable of
+analog reading. In the pinout diagram of the Esp32 the pins are labeled like this `ADCn_y` where `n` is the adc
+number (1 or 2, noting that 2 cannot be used with WiFi enabled) and `y` is the channel number.
+Once you identify an appropriate pin follow these steps to add it, for example we want to add gpio pin 35
+which is labeled `ADC1_7` in the pinout diagram
+
+- Create a new ADC channel 
+``` rust
+let my_analog_channel = adc_chan: AdcChannelDriver<_, Atten11dB<adc::ADC1>> =
+            AdcChannelDriver::new(periph.pins.gpio35)?;
+```
+- Create the actual Analog reader, note here that `adc1` is declared above
+
+``` rust
+let my_analog_reader = Esp32AnalogReader::new("A2".to_string(), my_analog_channel, adc1.clone());
+```
+
+- Finally add it the the collection of analog readers 
+
+``` rust
+let analog_readers = vec![
+            Rc::new(RefCell::new(analog1)),
+            Rc::new(RefCell::new(my_analog_reader)),
+        ];
+```
+
 
 ### Troubleshooting
 
