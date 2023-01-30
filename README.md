@@ -195,7 +195,7 @@ which is labeled `ADC1_7` in the pinout diagram
 
 - Create a new ADC channel 
 ``` rust
-let my_analog_channel = let adc_chan: AdcChannelDriver<_, Atten11dB<adc::ADC1>> =
+let my_analog_channel = adc_chan: AdcChannelDriver<_, Atten11dB<adc::ADC1>> =
             AdcChannelDriver::new(periph.pins.gpio35)?;
 ```
 - Create the actual Analog reader, note here that `adc1` is declared above
