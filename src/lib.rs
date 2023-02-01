@@ -4,6 +4,7 @@ pub mod common {
     pub mod board;
     pub mod camera;
     pub mod grpc;
+    pub mod grpc_client;
     pub mod motor;
     pub mod robot;
     pub mod status;
@@ -53,6 +54,14 @@ pub mod proto {
         pub mod v1 {
             #![allow(clippy::derive_partial_eq_without_eq)]
             include!("gen/proto.rpc.v1.rs");
+        }
+        pub mod examples {
+            pub mod echo {
+                pub mod v1 {
+                    #![allow(clippy::derive_partial_eq_without_eq)]
+                    include!("gen/proto.rpc.examples.echo.v1.rs");
+                }
+            }
         }
     }
 

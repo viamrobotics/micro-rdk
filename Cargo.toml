@@ -12,9 +12,14 @@ version = "0.0.1"
 crate-type = ["lib"]
 
 [features]
+default = ["native"]
 camera = []
 esp32 = ["dep:esp-idf-hal", "dep:esp-idf-svc","dep:esp-idf-sys","dep:embedded-svc","dep:embedded-hal"]
 native = ["dep:rustls","dep:webpki-roots", "dep:rustls-pemfile", "dep:mdns-sd", "dep:local-ip-address"]
+
+[dev-dependencies]
+test-log = "0.2.11"
+env_logger = "0.10.0"
 
 [dependencies]
 anyhow = { version = "1", features = ["backtrace"] }
