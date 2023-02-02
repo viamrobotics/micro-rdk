@@ -182,7 +182,7 @@ mod tests {
 
         let r =
             grpc_client.build_request("/proto.rpc.examples.echo.v1.EchoService/EchoBiDi", &None)?;
-        log::info!("sending request");
+
         let (mut sender_half, mut recv_half) = grpc_client
             .send_request_bidi::<EchoBiDiRequest, EchoBiDiResponse>(
                 r,
@@ -191,24 +191,40 @@ mod tests {
                 }),
             )?;
 
-        let (p, recv_half) = block_on(executor.run(async {
+        let (p, mut recv_half) = block_on(executor.run(async {
             let p = recv_half.next().await.unwrap().message;
             (p, recv_half)
         }));
         assert_eq!("1", p);
+
+        let recv_half_ref = recv_half.by_ref();
+
         sender_half.send_message(EchoBiDiRequest {
             message: "hello".to_string(),
         })?;
-        log::info!("message sent");
+
         let p = block_on(executor.run(async {
-            recv_half
+            recv_half_ref
                 .take(5)
                 .map(|m| m.message)
                 .collect::<String>()
                 .await
         }));
+
         assert_eq!("hello", p);
 
+        sender_half.send_message(EchoBiDiRequest {
+            message: "123456".to_string(),
+        })?;
+        let p = block_on(executor.run(async {
+            recv_half_ref
+                .take(6)
+                .map(|m| m.message)
+                .collect::<String>()
+                .await
+        }));
+
+        assert_eq!("123456", p);
         Ok(())
     }
 }

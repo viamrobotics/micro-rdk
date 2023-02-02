@@ -67,6 +67,9 @@ impl<T> GrpcMessageStream<T> {
             _marker: PhantomData,
         }
     }
+    pub(crate) fn by_ref(&mut self) -> &mut Self {
+        self
+    }
 }
 
 impl<T> Stream for GrpcMessageStream<T>
