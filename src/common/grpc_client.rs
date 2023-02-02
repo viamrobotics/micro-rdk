@@ -54,13 +54,13 @@ impl<T> Drop for GrpcMessageSender<T> {
     }
 }
 
-pub(crate) struct GprcMessageStream<T> {
+pub(crate) struct GrpcMessageStream<T> {
     receiver_half: RecvStream,
     _marker: PhantomData<T>,
 }
-impl<T> Unpin for GprcMessageStream<T> {}
+impl<T> Unpin for GrpcMessageStream<T> {}
 
-impl<T> GprcMessageStream<T> {
+impl<T> GrpcMessageStream<T> {
     pub(crate) fn new(receiver_half: RecvStream) -> Self {
         Self {
             receiver_half,
@@ -69,11 +69,12 @@ impl<T> GprcMessageStream<T> {
     }
 }
 
-impl<T> Stream for GprcMessageStream<T>
+impl<T> Stream for GrpcMessageStream<T>
 where
     T: prost::Message + std::default::Default,
 {
     type Item = T;
+
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
@@ -120,6 +121,7 @@ impl<'a> GrpcClient<'a> {
         T: AsyncRead + AsyncWrite + Unpin + 'a,
     {
         let (http2_connection, conn) = block_on(executor.run(async { handshake(io).await }))?;
+
         let http2_task = executor.spawn(async move {
             if let Err(e) = conn.await {
                 log::error!("GrpcClient failed with {:?}", e);
@@ -156,7 +158,7 @@ impl<'a> GrpcClient<'a> {
         r: Request<()>,
         message: Option<R>, // we shouldn't need this to get server headers when initiating a
                             // bidi stream
-    ) -> Result<(GrpcMessageSender<R>, GprcMessageStream<P>)>
+    ) -> Result<(GrpcMessageSender<R>, GrpcMessageStream<P>)>
     where
         R: prost::Message + std::default::Default,
         P: prost::Message + std::default::Default,
@@ -166,15 +168,19 @@ impl<'a> GrpcClient<'a> {
             block_on(self.executor.run(async { http2_connection.ready().await }))?;
 
         let (response, send) = http2_connection.send_request(r, false)?;
+
         let mut r: GrpcMessageSender<R> = GrpcMessageSender::new(send);
+
         if let Some(message) = message {
             r.send_message(message)?;
         }
+
         let (part, body) = block_on(self.executor.run(async { response.await }))?.into_parts();
+
         if part.status != status::StatusCode::OK {
             log::error!("received status code {}", part.status.to_string());
         }
-        let p: GprcMessageStream<P> = GprcMessageStream::new(body);
+        let p: GrpcMessageStream<P> = GrpcMessageStream::new(body);
 
         Ok((r, p))
     }
@@ -196,6 +202,7 @@ impl<'a> GrpcClient<'a> {
         }
 
         let mut response_buf = BytesMut::with_capacity(1024);
+
         // TODO read the first 5 bytes so we know how much data to expect and we can allocate appropriately
         while let Some(chunk) = block_on(self.executor.run(async { body.data().await })) {
             let chunk = chunk?;
@@ -204,6 +211,7 @@ impl<'a> GrpcClient<'a> {
         }
 
         let trailers = block_on(self.executor.run(async { body.trailers().await }))?;
+
         if let Some(trailers) = trailers {
             match trailers.get("grpc-status") {
                 Some(status) => {
@@ -230,9 +238,6 @@ impl<'a> GrpcClient<'a> {
                 }
             }
         }
-
-        //self.http2_connection = http2_connection;
-
         Ok(response_buf.into())
     }
 }
