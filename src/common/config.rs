@@ -177,7 +177,7 @@ pub enum Kind {
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct StaticComponentConfig {
+pub struct StaticComponentConfig {
     pub name: &'static str,
     pub namespace: &'static str,
     pub r#type: &'static str,
@@ -186,7 +186,7 @@ pub(crate) struct StaticComponentConfig {
 }
 
 #[derive(Debug)]
-pub(crate) struct RobotConfigStatic {
+pub struct RobotConfigStatic {
     pub components: Option<&'static [StaticComponentConfig]>,
 }
 

@@ -1,7 +1,9 @@
 // Generated robot config during build process
 include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
+include!(concat!(env!("OUT_DIR"), "/robot_config.rs"));
 
 use log::*;
+use micro_rdk::common::config::{Kind, RobotConfigStatic, StaticComponentConfig};
 use micro_rdk::common::robot::LocalRobot;
 use micro_rdk::common::robot::ResourceType;
 use micro_rdk::native::server::{CloudConfig, NativeServer};
@@ -19,7 +21,7 @@ fn main() -> anyhow::Result<()> {
         .init()
         .unwrap();
     // tracing_subscriber::fmt()
-    //     // enable everything
+    //     // enabble everything
     //     .with_max_level(tracing::Level::TRACE)
     //     // sets this to be the default, global collector for this application.
     //     .init();
