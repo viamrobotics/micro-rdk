@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -19,6 +21,11 @@ use crate::{
 };
 use log::*;
 
+use super::{
+    config::{Component, RobotConfigStatic},
+    registry::COMPONENT_REGISTRY,
+};
+
 pub enum ResourceType {
     Motor(Arc<Mutex<dyn Motor>>),
     Board(Arc<Mutex<dyn Board>>),
@@ -37,6 +44,48 @@ pub struct LocalRobot {
 impl LocalRobot {
     pub fn new(res: ResourceMap) -> Self {
         LocalRobot { resources: res }
+    }
+    pub(crate) fn new_from_static(cfg: &RobotConfigStatic) -> anyhow::Result<Self> {
+        let mut robot = LocalRobot {
+            resources: ResourceMap::new(),
+        };
+        log::info!("Building robot with {:?}", &cfg);
+        if let Some(components) = cfg.components.as_ref() {
+            let r = components.iter().find(|x| x.get_type() == "board");
+            let b = match r {
+                Some(r) => {
+                    let ctor = COMPONENT_REGISTRY.get_board_constructor(r.get_model())?;
+                    let b = ctor(r);
+                    if let Ok(b) = b {
+                        Some(b)
+                    } else {
+                        None
+                    }
+                }
+                None => None,
+            };
+            for x in components.iter() {
+                log::info!("processing {:?}", &x);
+                match x.get_type() {
+                    "motor" => {
+                        let ctor = COMPONENT_REGISTRY.get_motor_constructor(x.get_model())?;
+                        let m = ctor(x, b.clone())?;
+                        robot
+                            .resources
+                            .insert(x.get_resource_name(), ResourceType::Motor(m));
+                    }
+                    "board" => {
+                        if let Some(b) = b.as_ref() {
+                            robot
+                                .resources
+                                .insert(x.get_resource_name(), ResourceType::Board(b.clone()));
+                        }
+                    }
+                    &_ => continue,
+                }
+            }
+        }
+        Ok(robot)
     }
     pub fn get_status(
         &self,
@@ -195,5 +244,49 @@ impl LocalRobot {
             Some(_) => None,
             None => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::common::config::{Kind, RobotConfigStatic, StaticComponentConfig};
+    use crate::common::robot::LocalRobot;
+    #[test_log::test]
+    fn test_robot_from_static() {
+        #[allow(clippy::redundant_static_lifetimes, dead_code)]
+        const PMR: &'static RobotConfigStatic = &RobotConfigStatic {
+            components: Some(&[
+                StaticComponentConfig {
+                    name: "board",
+                    namespace: "rdk",
+                    r#type: "board",
+                    model: "fake",
+                    attributes: Some(
+                        phf::phf_map! {"pins" => Kind::ListValueStatic(&[Kind::StringValueStatic("11"),Kind::StringValueStatic("12"),Kind::StringValueStatic("13")])},
+                    ),
+                },
+                StaticComponentConfig {
+                    name: "motor",
+                    namespace: "rdk",
+                    r#type: "motor",
+                    model: "fake",
+                    attributes: Some(
+                        phf::phf_map! {"pins" => Kind::StructValueStatic(phf::phf_map!{"a" => Kind::StringValueStatic("29"),"pwm" => Kind::StringValueStatic("12"),"b" => Kind::StringValueStatic("5")}),"board" => Kind::StringValueStatic("board")},
+                    ),
+                },
+            ]),
+        };
+
+        let robot = LocalRobot::new_from_static(PMR);
+        assert!(robot.is_ok());
+        let robot = robot.unwrap();
+
+        let motor = robot.get_motor_by_name("motor".to_string());
+
+        assert!(motor.is_some());
+
+        let board = robot.get_board_by_name("board".to_string());
+
+        assert!(board.is_some());
     }
 }

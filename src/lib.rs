@@ -3,9 +3,11 @@ pub mod common {
     pub mod base;
     pub mod board;
     pub mod camera;
+    pub mod config;
     pub mod grpc;
     pub mod moisture_sensor;
     pub mod motor;
+    pub mod registry;
     pub mod robot;
     pub mod sensor;
     pub mod status;

@@ -9,6 +9,18 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::Mutex;
 
+use super::config::StaticComponentConfig;
+use super::registry::ComponentRegistry;
+
+pub(crate) fn register_models(registry: &mut ComponentRegistry) {
+    if registry
+        .register_board("fake", &FakeBoard::from_static_config)
+        .is_err()
+    {
+        log::error!("model fake is already registered")
+    }
+}
+
 pub struct FakeBoard {
     analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>,
 }
@@ -22,9 +34,14 @@ pub trait Board: Status {
     ) -> anyhow::Result<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>;
 }
 
+pub(crate) type BoardType = Arc<Mutex<dyn Board>>;
+
 impl FakeBoard {
     pub fn new(analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>) -> Self {
         FakeBoard { analogs }
+    }
+    pub(crate) fn from_static_config(_: &StaticComponentConfig) -> anyhow::Result<BoardType> {
+        Ok(Arc::new(Mutex::new(FakeBoard::new(Vec::new()))))
     }
 }
 

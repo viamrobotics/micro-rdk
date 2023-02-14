@@ -4,6 +4,19 @@ use log::*;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
+use super::board::BoardType;
+use super::config::{Component, StaticComponentConfig};
+use super::registry::ComponentRegistry;
+
+pub(crate) fn register_models(registry: &mut ComponentRegistry) {
+    if registry
+        .register_motor("fake", &FakeMotor::from_static_config)
+        .is_err()
+    {
+        log::error!("fake type is already resgitered");
+    }
+}
+
 pub trait Position {
     fn position(&self) -> anyhow::Result<i32> {
         Ok(0)
@@ -14,6 +27,8 @@ pub trait Motor: Status {
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()>;
     fn get_position(&mut self) -> anyhow::Result<i32>;
 }
+
+pub(crate) type MotorType = Arc<Mutex<dyn Motor>>;
 
 pub struct FakeMotor {
     pos: f64,
@@ -26,6 +41,15 @@ impl FakeMotor {
             pos: 10.0,
             power: 0.0,
         }
+    }
+    pub(crate) fn from_static_config(
+        cfg: &StaticComponentConfig,
+        _: Option<BoardType>,
+    ) -> anyhow::Result<MotorType> {
+        if let Ok(pos) = cfg.get_attribute::<f64>("fake_positon") {
+            return Ok(Arc::new(Mutex::new(FakeMotor { pos, power: 0.0 })));
+        }
+        Ok(Arc::new(Mutex::new(FakeMotor::new())))
     }
 }
 impl Default for FakeMotor {
