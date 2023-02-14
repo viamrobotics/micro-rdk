@@ -100,7 +100,7 @@ impl Status for FakeMotor {
         bt.insert(
             "position".to_string(),
             prost_types::Value {
-                kind: Some(prost_types::value::Kind::NumberValue(self.pos as f64)),
+                kind: Some(prost_types::value::Kind::NumberValue(self.pos)),
             },
         );
         bt.insert(
