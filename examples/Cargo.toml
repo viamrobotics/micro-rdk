@@ -66,4 +66,8 @@ path = "native/native.rs"
 name = "esp32"
 path = "esp32/esp32.rs"
 
+[[example]]
+name = "esp32_static"
+path = "esp32/esp32_static.rs"
+
 

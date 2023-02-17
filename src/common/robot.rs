@@ -45,7 +45,7 @@ impl LocalRobot {
     pub fn new(res: ResourceMap) -> Self {
         LocalRobot { resources: res }
     }
-    pub(crate) fn new_from_static(cfg: &RobotConfigStatic) -> anyhow::Result<Self> {
+    pub fn new_from_static(cfg: &RobotConfigStatic) -> anyhow::Result<Self> {
         let mut robot = LocalRobot {
             resources: ResourceMap::new(),
         };
@@ -65,7 +65,6 @@ impl LocalRobot {
                 None => None,
             };
             for x in components.iter() {
-                log::info!("processing {:?}", &x);
                 match x.get_type() {
                     "motor" => {
                         let ctor = COMPONENT_REGISTRY.get_motor_constructor(x.get_model())?;
@@ -81,7 +80,10 @@ impl LocalRobot {
                                 .insert(x.get_resource_name(), ResourceType::Board(b.clone()));
                         }
                     }
-                    &_ => continue,
+                    &_ => {
+                        log::error!("component type {} is not supported yet", x.get_type());
+                        continue;
+                    }
                 }
             }
         }
@@ -250,11 +252,12 @@ impl LocalRobot {
 #[cfg(test)]
 mod tests {
     use crate::common::config::{Kind, RobotConfigStatic, StaticComponentConfig};
+    use crate::common::motor::Motor;
     use crate::common::robot::LocalRobot;
     #[test_log::test]
     fn test_robot_from_static() {
         #[allow(clippy::redundant_static_lifetimes, dead_code)]
-        const PMR: &'static RobotConfigStatic = &RobotConfigStatic {
+        const STATIC_ROBOT_CONFIG: Option<RobotConfigStatic> = Some(RobotConfigStatic {
             components: Some(&[
                 StaticComponentConfig {
                     name: "board",
@@ -271,19 +274,25 @@ mod tests {
                     r#type: "motor",
                     model: "fake",
                     attributes: Some(
-                        phf::phf_map! {"pins" => Kind::StructValueStatic(phf::phf_map!{"a" => Kind::StringValueStatic("29"),"pwm" => Kind::StringValueStatic("12"),"b" => Kind::StringValueStatic("5")}),"board" => Kind::StringValueStatic("board")},
+                        phf::phf_map! {"pins" => Kind::StructValueStatic(phf::phf_map!{"pwm" => Kind::StringValueStatic("12"),"a" => Kind::StringValueStatic("29"),"b" => Kind::StringValueStatic("5")}),"board" => Kind::StringValueStatic("board"),"fake_position" => Kind::StringValueStatic("1205")},
                     ),
                 },
             ]),
-        };
+        });
 
-        let robot = LocalRobot::new_from_static(PMR);
+        let robot = LocalRobot::new_from_static(&STATIC_ROBOT_CONFIG.unwrap());
         assert!(robot.is_ok());
         let robot = robot.unwrap();
 
         let motor = robot.get_motor_by_name("motor".to_string());
 
         assert!(motor.is_some());
+
+        let position = motor.unwrap().get_position();
+
+        assert!(position.is_ok());
+
+        assert_eq!(position.ok().unwrap(), 1205);
 
         let board = robot.get_board_by_name("board".to_string());
 
