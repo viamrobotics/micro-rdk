@@ -13,7 +13,7 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
         .register_motor("fake", &FakeMotor::from_static_config)
         .is_err()
     {
-        log::error!("fake type is already resgitered");
+        log::error!("fake type is already registered");
     }
 }
 

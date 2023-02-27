@@ -21,7 +21,7 @@ fn main() -> anyhow::Result<()> {
         .init()
         .unwrap();
     // tracing_subscriber::fmt()
-    //     // enabble everything
+    //     // enable everything
     //     .with_max_level(tracing::Level::TRACE)
     //     // sets this to be the default, global collector for this application.
     //     .init();

@@ -115,7 +115,6 @@ where
 {
     type Error = AttributeError;
     fn try_from(value: &Kind) -> Result<Self, Self::Error> {
-        println!("Obj {:?}", value);
         match value {
             Kind::StructValueStatic(v) => v
                 .into_iter()
