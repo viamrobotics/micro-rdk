@@ -3,6 +3,7 @@
 use crate::common::status::Status;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 pub type GenericReadingsResult =
     ::std::collections::HashMap<::prost::alloc::string::String, ::prost_types::Value>;
@@ -12,6 +13,8 @@ pub type TypedReadingsResult<T> = ::std::collections::HashMap<String, T>;
 pub trait Sensor: Status {
     fn get_generic_readings(&self) -> anyhow::Result<GenericReadingsResult>;
 }
+
+pub(crate) type SensorType = Arc<Mutex<dyn Sensor>>;
 
 pub trait SensorT<T>: Sensor {
     fn get_readings(&self) -> anyhow::Result<TypedReadingsResult<T>>;

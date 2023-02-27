@@ -6,7 +6,7 @@ use std::{
 };
 
 #[cfg(feature = "camera")]
-use crate::camera::Camera;
+use crate::camera::{Camera, CameraType};
 
 use crate::{
     common::base::Base,
@@ -22,17 +22,21 @@ use crate::{
 use log::*;
 
 use super::{
+    base::BaseType,
+    board::BoardType,
     config::{Component, RobotConfigStatic},
+    motor::MotorType,
     registry::COMPONENT_REGISTRY,
+    sensor::SensorType,
 };
 
 pub enum ResourceType {
-    Motor(Arc<Mutex<dyn Motor>>),
-    Board(Arc<Mutex<dyn Board>>),
-    Base(Arc<Mutex<dyn Base>>),
-    Sensor(Arc<Mutex<dyn Sensor>>),
+    Motor(MotorType),
+    Board(BoardType),
+    Base(BaseType),
+    Sensor(SensorType),
     #[cfg(feature = "camera")]
-    Camera(Arc<Mutex<dyn Camera>>),
+    Camera(CameraType),
 }
 pub type Resource = ResourceType;
 pub type ResourceMap = HashMap<ResourceName, Resource>;
