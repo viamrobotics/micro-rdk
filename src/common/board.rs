@@ -9,7 +9,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use super::config::ConfigType;
+use super::analog::FakeAnalogReader;
+use super::config::{Component, ConfigType};
 use super::registry::ComponentRegistry;
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
@@ -40,7 +41,25 @@ impl FakeBoard {
     pub fn new(analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>) -> Self {
         FakeBoard { analogs }
     }
-    pub(crate) fn from_config(_: ConfigType) -> anyhow::Result<BoardType> {
+    pub(crate) fn from_config(cfg: ConfigType) -> anyhow::Result<BoardType> {
+        match cfg {
+            ConfigType::Static(cfg) => {
+                if let Ok(analogs) = cfg.get_attribute::<BTreeMap<&'static str, f64>>("analogs") {
+                    let analogs = analogs
+                        .iter()
+                        .map(|(k, v)| {
+                            let a: Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>> =
+                                Rc::new(RefCell::new(FakeAnalogReader::new(
+                                    k.to_string(),
+                                    *v as u16,
+                                )));
+                            a
+                        })
+                        .collect();
+                    return Ok(Arc::new(Mutex::new(FakeBoard { analogs })));
+                }
+            }
+        };
         Ok(Arc::new(Mutex::new(FakeBoard::new(Vec::new()))))
     }
 }

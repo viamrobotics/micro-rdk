@@ -262,6 +262,7 @@ impl LocalRobot {
 
 #[cfg(test)]
 mod tests {
+    use crate::common::board::Board;
     use crate::common::config::{Kind, RobotConfigStatic, StaticComponentConfig};
     use crate::common::motor::Motor;
     use crate::common::robot::LocalRobot;
@@ -277,7 +278,8 @@ mod tests {
                     r#type: "board",
                     model: "fake",
                     attributes: Some(
-                        phf::phf_map! {"pins" => Kind::ListValueStatic(&[Kind::StringValueStatic("11"),Kind::StringValueStatic("12"),Kind::StringValueStatic("13")])},
+                        phf::phf_map! {"pins" => Kind::ListValueStatic(&[Kind::StringValueStatic("11"),Kind::StringValueStatic("12"),Kind::StringValueStatic("13")]),
+                        "analogs" => Kind::StructValueStatic(phf::phf_map!{"1" => Kind::StringValueStatic("11.12")})},
                     ),
                 },
                 StaticComponentConfig {
@@ -318,6 +320,25 @@ mod tests {
         let board = robot.get_board_by_name("board".to_string());
 
         assert!(board.is_some());
+
+        assert!(board
+            .as_ref()
+            .unwrap()
+            .get_analog_reader_by_name("1".to_string())
+            .is_ok());
+
+        let value = board
+            .as_ref()
+            .unwrap()
+            .get_analog_reader_by_name("1".to_string())
+            .unwrap()
+            .clone()
+            .borrow_mut()
+            .read();
+
+        assert!(value.is_ok());
+
+        assert_eq!(value.unwrap(), 11);
 
         let sensor = robot.get_sensor_by_name("sensor".to_string());
 
