@@ -5,6 +5,7 @@ lazy_static::lazy_static! {
         let mut r = ComponentRegistry::new();
         crate::common::board::register_models(&mut r);
         crate::common::motor::register_models(&mut r);
+        crate::common::sensor::register_models(&mut r);
         r
     };
 }
@@ -32,16 +33,18 @@ impl Error for RegistryError {}
 use core::fmt;
 use std::{collections::BTreeMap as Map, error::Error};
 
-use super::{board::BoardType, config::StaticComponentConfig, motor::MotorType};
+use super::{board::BoardType, config::ConfigType, motor::MotorType, sensor::SensorType};
 
-type MotorConstructor =
-    dyn Fn(&StaticComponentConfig, Option<BoardType>) -> anyhow::Result<MotorType>;
+type MotorConstructor = dyn Fn(ConfigType, Option<BoardType>) -> anyhow::Result<MotorType>;
 
-type BoardConstructor = dyn Fn(&StaticComponentConfig) -> anyhow::Result<BoardType>;
+type SensorConstructor = dyn Fn(ConfigType, Option<BoardType>) -> anyhow::Result<SensorType>;
+
+type BoardConstructor = dyn Fn(ConfigType) -> anyhow::Result<BoardType>;
 
 pub(crate) struct ComponentRegistry {
     motors: Map<&'static str, &'static MotorConstructor>,
     board: Map<&'static str, &'static BoardConstructor>,
+    sensor: Map<&'static str, &'static SensorConstructor>,
 }
 
 unsafe impl Sync for ComponentRegistry {}
@@ -51,6 +54,7 @@ impl ComponentRegistry {
         Self {
             motors: Map::new(),
             board: Map::new(),
+            sensor: Map::new(),
         }
     }
     pub(crate) fn register_motor(
@@ -62,6 +66,18 @@ impl ComponentRegistry {
             return Err(RegistryError::ModelAlreadyRegistered(model));
         }
         let _ = self.motors.insert(model, constructor);
+        Ok(())
+    }
+
+    pub(crate) fn register_sensor(
+        &mut self,
+        model: &'static str,
+        constructor: &'static SensorConstructor,
+    ) -> Result<(), RegistryError> {
+        if self.sensor.contains_key(model) {
+            return Err(RegistryError::ModelAlreadyRegistered(model));
+        }
+        let _ = self.sensor.insert(model, constructor);
         Ok(())
     }
 
@@ -95,12 +111,21 @@ impl ComponentRegistry {
         }
         Err(RegistryError::ModelNotFound)
     }
+    pub(crate) fn get_sensor_constructor(
+        &self,
+        model: &'static str,
+    ) -> Result<&'static SensorConstructor, RegistryError> {
+        if let Some(ctor) = self.sensor.get(model) {
+            return Ok(*ctor);
+        }
+        Err(RegistryError::ModelNotFound)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::common;
-    use crate::common::config::StaticComponentConfig;
+    use crate::common::config::{ConfigType, StaticComponentConfig};
     use crate::common::registry::{ComponentRegistry, RegistryError, COMPONENT_REGISTRY};
     #[test_log::test]
     fn test_registry() -> anyhow::Result<()> {
@@ -147,7 +172,7 @@ mod tests {
         let ctor = registry.get_motor_constructor("fake2");
         assert!(ctor.is_ok());
 
-        let ret = ctor.unwrap()(&cfg, None);
+        let ret = ctor.unwrap()(ConfigType::Static(&cfg), None);
 
         assert!(ret.is_err());
         assert_eq!(format!("{}", ret.err().unwrap()), "not implemented");
@@ -155,7 +180,7 @@ mod tests {
         let ctor = registry.get_board_constructor("fake2");
         assert!(ctor.is_ok());
 
-        let ret = ctor.unwrap()(&cfg);
+        let ret = ctor.unwrap()(ConfigType::Static(&cfg));
 
         assert!(ret.is_err());
         assert_eq!(format!("{}", ret.err().unwrap()), "not implemented");

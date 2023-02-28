@@ -24,7 +24,7 @@ use log::*;
 use super::{
     base::BaseType,
     board::BoardType,
-    config::{Component, RobotConfigStatic},
+    config::{Component, ConfigType, RobotConfigStatic},
     motor::MotorType,
     registry::COMPONENT_REGISTRY,
     sensor::SensorType,
@@ -59,7 +59,7 @@ impl LocalRobot {
             let b = match r {
                 Some(r) => {
                     let ctor = COMPONENT_REGISTRY.get_board_constructor(r.get_model())?;
-                    let b = ctor(r);
+                    let b = ctor(ConfigType::Static(r));
                     if let Ok(b) = b {
                         Some(b)
                     } else {
@@ -72,7 +72,7 @@ impl LocalRobot {
                 match x.get_type() {
                     "motor" => {
                         let ctor = COMPONENT_REGISTRY.get_motor_constructor(x.get_model())?;
-                        let m = ctor(x, b.clone())?;
+                        let m = ctor(ConfigType::Static(x), b.clone())?;
                         robot
                             .resources
                             .insert(x.get_resource_name(), ResourceType::Motor(m));
@@ -83,6 +83,13 @@ impl LocalRobot {
                                 .resources
                                 .insert(x.get_resource_name(), ResourceType::Board(b.clone()));
                         }
+                    }
+                    "sensor" => {
+                        let ctor = COMPONENT_REGISTRY.get_sensor_constructor(x.get_model())?;
+                        let s = ctor(ConfigType::Static(x), b.clone())?;
+                        robot
+                            .resources
+                            .insert(x.get_resource_name(), ResourceType::Sensor(s));
                     }
                     &_ => {
                         log::error!("component type {} is not supported yet", x.get_type());
@@ -258,6 +265,7 @@ mod tests {
     use crate::common::config::{Kind, RobotConfigStatic, StaticComponentConfig};
     use crate::common::motor::Motor;
     use crate::common::robot::LocalRobot;
+    use crate::common::sensor::Sensor;
     #[test_log::test]
     fn test_robot_from_static() {
         #[allow(clippy::redundant_static_lifetimes, dead_code)]
@@ -281,6 +289,15 @@ mod tests {
                         phf::phf_map! {"pins" => Kind::StructValueStatic(phf::phf_map!{"pwm" => Kind::StringValueStatic("12"),"a" => Kind::StringValueStatic("29"),"b" => Kind::StringValueStatic("5")}),"board" => Kind::StringValueStatic("board"),"fake_position" => Kind::StringValueStatic("1205")},
                     ),
                 },
+                StaticComponentConfig {
+                    name: "sensor",
+                    namespace: "rdk",
+                    r#type: "sensor",
+                    model: "fake",
+                    attributes: Some(
+                        phf::phf_map! {"fake_value" => Kind::StringValueStatic("11.12")},
+                    ),
+                },
             ]),
         });
 
@@ -301,5 +318,34 @@ mod tests {
         let board = robot.get_board_by_name("board".to_string());
 
         assert!(board.is_some());
+
+        let sensor = robot.get_sensor_by_name("sensor".to_string());
+
+        assert!(sensor.is_some());
+
+        let value = sensor.unwrap().get_generic_readings();
+
+        assert!(value.is_ok());
+
+        assert!(value.as_ref().unwrap().contains_key("fake_sensor"));
+
+        let value = value
+            .as_ref()
+            .unwrap()
+            .get("fake_sensor")
+            .unwrap()
+            .kind
+            .clone();
+
+        assert!(value.is_some());
+
+        let value = match value {
+            Some(prost_types::value::Kind::NumberValue(a)) => Some(a),
+            _ => None,
+        };
+
+        assert!(value.is_some());
+
+        assert_eq!(value.unwrap(), 11.12);
     }
 }

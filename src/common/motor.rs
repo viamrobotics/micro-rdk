@@ -5,12 +5,12 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use super::board::BoardType;
-use super::config::{Component, StaticComponentConfig};
+use super::config::{Component, ConfigType};
 use super::registry::ComponentRegistry;
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
-        .register_motor("fake", &FakeMotor::from_static_config)
+        .register_motor("fake", &FakeMotor::from_config)
         .is_err()
     {
         log::error!("fake type is already registered");
@@ -42,13 +42,15 @@ impl FakeMotor {
             power: 0.0,
         }
     }
-    pub(crate) fn from_static_config(
-        cfg: &StaticComponentConfig,
-        _: Option<BoardType>,
-    ) -> anyhow::Result<MotorType> {
-        if let Ok(pos) = cfg.get_attribute::<f64>("fake_positon") {
-            return Ok(Arc::new(Mutex::new(FakeMotor { pos, power: 0.0 })));
-        }
+    pub(crate) fn from_config(cfg: ConfigType, _: Option<BoardType>) -> anyhow::Result<MotorType> {
+        match cfg {
+            ConfigType::Static(cfg) => {
+                if let Ok(pos) = cfg.get_attribute::<f64>("fake_position") {
+                    return Ok(Arc::new(Mutex::new(FakeMotor { pos, power: 0.0 })));
+                }
+            }
+        };
+
         Ok(Arc::new(Mutex::new(FakeMotor::new())))
     }
 }

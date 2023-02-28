@@ -9,12 +9,12 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use super::config::StaticComponentConfig;
+use super::config::ConfigType;
 use super::registry::ComponentRegistry;
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
-        .register_board("fake", &FakeBoard::from_static_config)
+        .register_board("fake", &FakeBoard::from_config)
         .is_err()
     {
         log::error!("model fake is already registered")
@@ -40,7 +40,7 @@ impl FakeBoard {
     pub fn new(analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>) -> Self {
         FakeBoard { analogs }
     }
-    pub(crate) fn from_static_config(_: &StaticComponentConfig) -> anyhow::Result<BoardType> {
+    pub(crate) fn from_config(_: ConfigType) -> anyhow::Result<BoardType> {
         Ok(Arc::new(Mutex::new(FakeBoard::new(Vec::new()))))
     }
 }

@@ -185,6 +185,11 @@ pub struct StaticComponentConfig {
 }
 
 #[derive(Debug)]
+pub enum ConfigType<'a> {
+    Static(&'a StaticComponentConfig),
+}
+
+#[derive(Debug)]
 pub struct RobotConfigStatic {
     pub components: Option<&'static [StaticComponentConfig]>,
 }
