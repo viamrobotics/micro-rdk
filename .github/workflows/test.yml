@@ -27,6 +27,7 @@ jobs:
       with:
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: 2
+        
     - name: Write Viam JSON
       uses: "DamianReeves/write-file-action@master"
       with:
@@ -34,16 +35,20 @@ jobs:
         write-mode: overwrite
         contents: |
             ${{ secrets.VIAM_BUILD_JSON }}
+            
     - name: Test
       run: |
         chown -R testbot .
         sudo -u testbot bash -lc 'make test'
+        
     - name: Clippy
       run: |
         sudo -u testbot bash -lc 'make clippy'
+        
     - name: Build ESP32
       run: |
         sudo -u testbot bash -lc 'export MICRO_RDK_WIFI_PASSWORD=0 && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && make build'
+        
     - name: Build Native
       run: |
         sudo -u testbot bash -lc 'make build-native'
