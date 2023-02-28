@@ -1,10 +1,12 @@
+#![allow(dead_code)]
+
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
 };
 
 #[cfg(feature = "camera")]
-use crate::camera::Camera;
+use crate::camera::{Camera, CameraType};
 
 use crate::{
     common::base::Base,
@@ -19,13 +21,22 @@ use crate::{
 };
 use log::*;
 
+use super::{
+    base::BaseType,
+    board::BoardType,
+    config::{Component, ConfigType, RobotConfigStatic},
+    motor::MotorType,
+    registry::COMPONENT_REGISTRY,
+    sensor::SensorType,
+};
+
 pub enum ResourceType {
-    Motor(Arc<Mutex<dyn Motor>>),
-    Board(Arc<Mutex<dyn Board>>),
-    Base(Arc<Mutex<dyn Base>>),
-    Sensor(Arc<Mutex<dyn Sensor>>),
+    Motor(MotorType),
+    Board(BoardType),
+    Base(BaseType),
+    Sensor(SensorType),
     #[cfg(feature = "camera")]
-    Camera(Arc<Mutex<dyn Camera>>),
+    Camera(CameraType),
 }
 pub type Resource = ResourceType;
 pub type ResourceMap = HashMap<ResourceName, Resource>;
@@ -37,6 +48,57 @@ pub struct LocalRobot {
 impl LocalRobot {
     pub fn new(res: ResourceMap) -> Self {
         LocalRobot { resources: res }
+    }
+    pub fn new_from_static(cfg: &RobotConfigStatic) -> anyhow::Result<Self> {
+        let mut robot = LocalRobot {
+            resources: ResourceMap::new(),
+        };
+        log::info!("Building robot with {:?}", &cfg);
+        if let Some(components) = cfg.components.as_ref() {
+            let r = components.iter().find(|x| x.get_type() == "board");
+            let b = match r {
+                Some(r) => {
+                    let ctor = COMPONENT_REGISTRY.get_board_constructor(r.get_model())?;
+                    let b = ctor(ConfigType::Static(r));
+                    if let Ok(b) = b {
+                        Some(b)
+                    } else {
+                        None
+                    }
+                }
+                None => None,
+            };
+            for x in components.iter() {
+                match x.get_type() {
+                    "motor" => {
+                        let ctor = COMPONENT_REGISTRY.get_motor_constructor(x.get_model())?;
+                        let m = ctor(ConfigType::Static(x), b.clone())?;
+                        robot
+                            .resources
+                            .insert(x.get_resource_name(), ResourceType::Motor(m));
+                    }
+                    "board" => {
+                        if let Some(b) = b.as_ref() {
+                            robot
+                                .resources
+                                .insert(x.get_resource_name(), ResourceType::Board(b.clone()));
+                        }
+                    }
+                    "sensor" => {
+                        let ctor = COMPONENT_REGISTRY.get_sensor_constructor(x.get_model())?;
+                        let s = ctor(ConfigType::Static(x), b.clone())?;
+                        robot
+                            .resources
+                            .insert(x.get_resource_name(), ResourceType::Sensor(s));
+                    }
+                    &_ => {
+                        log::error!("component type {} is not supported yet", x.get_type());
+                        continue;
+                    }
+                }
+            }
+        }
+        Ok(robot)
     }
     pub fn get_status(
         &self,
@@ -195,5 +257,116 @@ impl LocalRobot {
             Some(_) => None,
             None => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::common::board::Board;
+    use crate::common::config::{Kind, RobotConfigStatic, StaticComponentConfig};
+    use crate::common::motor::Motor;
+    use crate::common::robot::LocalRobot;
+    use crate::common::sensor::Sensor;
+    #[test_log::test]
+    fn test_robot_from_static() {
+        #[allow(clippy::redundant_static_lifetimes, dead_code)]
+        const STATIC_ROBOT_CONFIG: Option<RobotConfigStatic> = Some(RobotConfigStatic {
+            components: Some(&[
+                StaticComponentConfig {
+                    name: "board",
+                    namespace: "rdk",
+                    r#type: "board",
+                    model: "fake",
+                    attributes: Some(
+                        phf::phf_map! {"pins" => Kind::ListValueStatic(&[Kind::StringValueStatic("11"),Kind::StringValueStatic("12"),Kind::StringValueStatic("13")]),
+                        "analogs" => Kind::StructValueStatic(phf::phf_map!{"1" => Kind::StringValueStatic("11.12")})},
+                    ),
+                },
+                StaticComponentConfig {
+                    name: "motor",
+                    namespace: "rdk",
+                    r#type: "motor",
+                    model: "fake",
+                    attributes: Some(
+                        phf::phf_map! {"pins" => Kind::StructValueStatic(phf::phf_map!{"pwm" => Kind::StringValueStatic("12"),"a" => Kind::StringValueStatic("29"),"b" => Kind::StringValueStatic("5")}),"board" => Kind::StringValueStatic("board"),"fake_position" => Kind::StringValueStatic("1205")},
+                    ),
+                },
+                StaticComponentConfig {
+                    name: "sensor",
+                    namespace: "rdk",
+                    r#type: "sensor",
+                    model: "fake",
+                    attributes: Some(
+                        phf::phf_map! {"fake_value" => Kind::StringValueStatic("11.12")},
+                    ),
+                },
+            ]),
+        });
+
+        let robot = LocalRobot::new_from_static(&STATIC_ROBOT_CONFIG.unwrap());
+        assert!(robot.is_ok());
+        let robot = robot.unwrap();
+
+        let motor = robot.get_motor_by_name("motor".to_string());
+
+        assert!(motor.is_some());
+
+        let position = motor.unwrap().get_position();
+
+        assert!(position.is_ok());
+
+        assert_eq!(position.ok().unwrap(), 1205);
+
+        let board = robot.get_board_by_name("board".to_string());
+
+        assert!(board.is_some());
+
+        assert!(board
+            .as_ref()
+            .unwrap()
+            .get_analog_reader_by_name("1".to_string())
+            .is_ok());
+
+        let value = board
+            .as_ref()
+            .unwrap()
+            .get_analog_reader_by_name("1".to_string())
+            .unwrap()
+            .clone()
+            .borrow_mut()
+            .read();
+
+        assert!(value.is_ok());
+
+        assert_eq!(value.unwrap(), 11);
+
+        let sensor = robot.get_sensor_by_name("sensor".to_string());
+
+        assert!(sensor.is_some());
+
+        let value = sensor.unwrap().get_generic_readings();
+
+        assert!(value.is_ok());
+
+        assert!(value.as_ref().unwrap().contains_key("fake_sensor"));
+
+        let value = value
+            .as_ref()
+            .unwrap()
+            .get("fake_sensor")
+            .unwrap()
+            .kind
+            .clone();
+
+        assert!(value.is_some());
+
+        let value = match value {
+            Some(prost_types::value::Kind::NumberValue(a)) => Some(a),
+            _ => None,
+        };
+
+        assert!(value.is_some());
+
+        assert_eq!(value.unwrap(), 11.12);
     }
 }

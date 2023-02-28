@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use crate::proto::component::camera;
 use bytes::{Bytes, BytesMut};
@@ -8,6 +8,8 @@ use prost::Message;
 pub trait Camera {
     fn get_frame(&mut self, buffer: BytesMut) -> anyhow::Result<BytesMut>;
 }
+
+pub(crate) type CameraType = Arc<Mutex<dyn Camera>>;
 
 pub struct FakeCamera {}
 

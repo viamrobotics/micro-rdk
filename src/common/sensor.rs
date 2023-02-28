@@ -3,6 +3,21 @@
 use crate::common::status::Status;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
+use super::board::BoardType;
+use super::config::Component;
+use super::config::ConfigType;
+use super::registry::ComponentRegistry;
+
+pub(crate) fn register_models(registry: &mut ComponentRegistry) {
+    if registry
+        .register_sensor("fake", &FakeSensor::from_config)
+        .is_err()
+    {
+        log::error!("fake sensor type is already registered");
+    }
+}
 
 pub type GenericReadingsResult =
     ::std::collections::HashMap<::prost::alloc::string::String, ::prost_types::Value>;
@@ -12,6 +27,8 @@ pub type TypedReadingsResult<T> = ::std::collections::HashMap<String, T>;
 pub trait Sensor: Status {
     fn get_generic_readings(&self) -> anyhow::Result<GenericReadingsResult>;
 }
+
+pub(crate) type SensorType = Arc<Mutex<dyn Sensor>>;
 
 pub trait SensorT<T>: Sensor {
     fn get_readings(&self) -> anyhow::Result<TypedReadingsResult<T>>;
@@ -40,6 +57,16 @@ impl FakeSensor {
             fake_reading: 42.42,
         }
     }
+    pub(crate) fn from_config(cfg: ConfigType, _: Option<BoardType>) -> anyhow::Result<SensorType> {
+        match cfg {
+            ConfigType::Static(cfg) => {
+                if let Ok(val) = cfg.get_attribute::<f64>("fake_value") {
+                    return Ok(Arc::new(Mutex::new(FakeSensor { fake_reading: val })));
+                }
+            }
+        }
+        Ok(Arc::new(Mutex::new(FakeSensor::new())))
+    }
 }
 
 impl Default for FakeSensor {
@@ -63,6 +90,14 @@ impl SensorT<f64> for FakeSensor {
         let mut x = HashMap::new();
         x.insert("fake_sensor".to_string(), self.fake_reading);
         Ok(x)
+    }
+}
+impl<A> Sensor for Mutex<A>
+where
+    A: ?Sized + Sensor,
+{
+    fn get_generic_readings(&self) -> anyhow::Result<GenericReadingsResult> {
+        self.lock().unwrap().get_generic_readings()
     }
 }
 
