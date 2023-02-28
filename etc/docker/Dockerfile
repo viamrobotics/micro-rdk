@@ -42,11 +42,11 @@ RUN set -eux; \
    
 WORKDIR /src/
 
-RUN git clone https://github.com/espressif/qemu
+RUN git clone --depth 1 --branch v4.1.0 https://github.com/espressif/qemu
 
-RUN cd qemu &&./configure --target-list=xtensa-softmmu     --enable-gcrypt \
+RUN cd qemu && mkdir build && cd build && ../configure --target-list=xtensa-softmmu     --enable-gcrypt \
    --enable-debug --enable-sanitizers  --disable-strip --disable-user \
-   --disable-capstone --disable-vnc --disable-sdl --disable-gtk && cd build && ninja && ninja install
+    --disable-capstone --disable-vnc --disable-sdl --disable-gtk && make -j$(nproc) && make install
 RUN rm -rf /src
 
 RUN useradd -s /bin/bash -m testbot && \
@@ -88,5 +88,7 @@ RUN apt-get autoremove -y && \
 
 COPY entrypoint.sh /usr/local/bin/
 RUN chmod 755 /usr/local/bin/entrypoint.sh
+
+USER testbot
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
