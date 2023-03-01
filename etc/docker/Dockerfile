@@ -13,11 +13,13 @@ ENV RUSTUP_HOME=/opt/rust/rustup \
 
 RUN echo "deb http://deb.debian.org/debian bullseye-backports main" >> /etc/apt/sources.list.d/backports.list
 
-RUN apt update && apt upgrade -y
+RUN apt update && apt dist-upgrade -y
 
 
-RUN apt-get install -y libgcrypt20 libgcrypt20-dev  ninja-build libudev-dev sudo wget git flex bison gperf python3 python3-venv ccache libffi-dev libssl-dev dfu-util libusb-1.0-0 python3-pip cmake pkg-config libglib2.0-dev libpixman-1-dev && \
-    apt-get install -y cmake/bullseye-backports && \
+RUN apt-get install -y --no-install-recommends make bzip2 gcc libgcrypt20 libgcrypt20-dev  ninja-build libudev-dev sudo wget git flex bison gperf python3 python3-venv ccache libffi-dev libssl-dev dfu-util libusb-1.0-0 python3-pip cmake pkg-config libglib2.0-dev libpixman-1-dev software-properties-common && \
+    apt-add-repository 'deb http://deb.debian.org/debian bullseye-backports main' && \
+    apt update && \
+    apt-get install -y --no-install-recommends cmake/bullseye-backports && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3 10 && \
     python -m pip install --upgrade pip virtualenv
 
