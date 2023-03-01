@@ -212,7 +212,7 @@ Add `export QEMU_ESP32_XTENSA=<path-to-clone-qemu>/build/` to your `.zshrc` or `
 
 ### Create a new robot
 
-Navigate to [the Viam App](app.viam.com) and create a new robot in your desired location.
+Navigate to [the Viam App](https://app.viam.com) and create a new robot in your desired location.
 Leave your `Mode` and `Architecture` selections at default.
 Skip any setup steps about downloading, installing, or starting `viam-server`, since it is not used on the ESP32 board.
 
@@ -250,7 +250,7 @@ make ESPFLASH_FLASH_ARGS="-p /dev/cu.usbserial-130" upload
 If successful, `make upload` will retain a serial connection to the board until `Ctrl-C` is pressed, so consider running it within a dedicated terminal session (or under `tmux` or `screen`).
 While the serial connection is live, you can also restart the currently flashed image with `Ctrl-R`.
 
-If everything went well, your ESP32 will be programmed so that you will be able to see your robot live on <app.viam.com>.
+If everything went well, your ESP32 will be programmed so that you will be able to see your robot live on [the Viam app](https://app.viam.com).
 
 NOTE: If you encounter a crash due to stack overflow, you may need to increase the stack available to the main task.
 Edit the generated `sdkconfig.defaults` file as follows and re-flash the board:
@@ -275,7 +275,7 @@ index f75b465..2b0ba9c 100644
 In order to control the robot now running on the ESP32, you will need another robot to host your
 application, since the esp32 cannot do so.
 
-- Navigate to <app.viam.com>. Create and configure a new robot, *or* select an existing robot
+- Navigate to [the Viam app](https://app.viam.com). Create and configure a new robot, *or* select an existing robot
   to which you would like to add the ESP32-backed robot.
 - Add the ESP32-backed robot as a "remote" of your new or existing robot:
   - Navigate to the `Control` tab of the ESP32-backed robot and copy its `Remote Address`.
@@ -283,7 +283,7 @@ application, since the esp32 cannot do so.
     select the `Remotes` tab, and create a new remote.
   - Set the `Address` field of the new remote to be the `Remote Address` you copied above.
   - Set `TLS` for the remote to `Enabled`.
-- Ensure that the controlling robot is live in <app.viam.com>.
+- Ensure that the controlling robot is live in [the Viam app](https://app.viam.com).
   - The ESP32-backed robot should now be programmatically available in the application controlling the
   robot to which the ESP-backed robot was added as a remote.
   
@@ -308,7 +308,7 @@ let pins = vec![PinDriver::output(periph.pins.gpio18.downgrade_output())?,
     PinDriver::output(periph.pins.gpio21.downgrade_output())?,];
 ```
 
-You will now be able to change & read the state of pin 21 from <app.viam.com>.
+You will now be able to change & read the state of pin 21 from [the Viam app](https://app.viam.com).
 
 #### Adding a new analog reader
 
