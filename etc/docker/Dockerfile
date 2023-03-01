@@ -89,6 +89,5 @@ RUN apt-get autoremove -y && \
 COPY entrypoint.sh /usr/local/bin/
 RUN chmod 755 /usr/local/bin/entrypoint.sh
 
-USER testbot
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

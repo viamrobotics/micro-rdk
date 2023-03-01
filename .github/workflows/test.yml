@@ -27,14 +27,6 @@ jobs:
       with:
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: 2
-        
-    - name: Write Viam JSON
-      uses: "DamianReeves/write-file-action@master"
-      with:
-        path: examples/viam.json
-        write-mode: overwrite
-        contents: |
-            ${{ secrets.VIAM_BUILD_JSON }}
             
     - name: Test
       run: |
