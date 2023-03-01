@@ -9,7 +9,7 @@ on:
 jobs:
   build_and_test:
     name: Build and Test
-    runs-on: [x64, qemu-host]
+    runs-on: [internal]
     container:
       image: ghcr.io/viamrobotics/micro-rdk-canon:latest
     timeout-minutes: 10
