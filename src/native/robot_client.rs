@@ -173,6 +173,7 @@ mod tests {
     use futures_lite::StreamExt;
     use std::net::TcpStream;
     #[test_log::test]
+    #[ignore]
     fn test_client_bidi() -> anyhow::Result<()> {
         let socket = TcpStream::connect("127.0.0.1:8080").unwrap();
         socket.set_nonblocking(true)?;

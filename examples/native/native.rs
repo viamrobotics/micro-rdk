@@ -1,3 +1,4 @@
+#![allow(unused_imports)]
 // Generated robot config during build process
 include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 include!(concat!(env!("OUT_DIR"), "/robot_config.rs"));

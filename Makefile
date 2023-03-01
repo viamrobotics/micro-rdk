@@ -20,6 +20,9 @@ endif
 build:
 	cd examples && cargo build  --example esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
 
+build-native:
+	cd examples && cargo build  --example native
+
 build-qemu:
 	cd examples && cargo build  --example esp32  --features qemu --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort && cargo espflash save-image --features qemu --merge --chip esp32 target/xtensa-esp32-espidf/debug/debug.bin -T esp32/partitions.csv -s 4M  --example esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
 
@@ -42,3 +45,12 @@ endif
 
 upload: cargo-ver
 	cd examples && ls && cargo espflash flash --monitor --partition-table esp32/partitions.csv --baud 460800 -f 80M --use-stub --example esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
+
+test:
+	cargo test --lib
+
+clippy:
+	cargo clippy --no-deps --features native -- -Dwarnings
+
+format:
+	cargo fmt --all -- --check

@@ -1,0 +1,51 @@
+name: Test
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: ['main']
+  push:
+
+jobs:
+  build_and_test:
+    name: Build and Test
+    runs-on: [x64, qemu-host]
+    container:
+      image: ghcr.io/viamrobotics/micro-rdk-canon:latest
+    timeout-minutes: 10
+
+    steps:
+    - name : Checkout main branch code
+      if: github.event_name != 'pull_request_target'
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 2
+        
+    - name: Check out PR branch code
+      if: github.event_name == 'pull_request_target'
+      uses: actions/checkout@v3
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        fetch-depth: 2
+          
+        
+    - name: Clippy
+      run: |
+        chown -R testbot .
+        sudo -u testbot bash -lc 'make clippy'
+        
+    - name: Format
+      run: |
+        sudo -u testbot bash -lc 'make format'
+        
+    - name: Build ESP32
+      run: |
+        sudo -u testbot bash -lc 'export MICRO_RDK_WIFI_PASSWORD=0 && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && make build'
+        
+    - name: Build Native
+      run: |
+        sudo -u testbot bash -lc 'make build-native'
+        
+    - name: Test
+      run: |
+        sudo -u testbot bash -lc 'make test'

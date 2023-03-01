@@ -1,4 +1,3 @@
-use anyhow::Context;
 use const_gen::*;
 use local_ip_address::local_ip;
 use serde::{Deserialize, Serialize};
@@ -107,12 +106,12 @@ impl const_gen::CompileConst for Attributes {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Config {
     pub cloud: Cloud,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Cloud {
     pub id: String,
     pub secret: String,
@@ -164,17 +163,22 @@ fn main() -> anyhow::Result<()> {
         embuild::build::LinkArgs::output_propagated("ESP_IDF")?;
     }
 
-    let content = std::fs::read_to_string("viam.json").context("can't read viam.json")?;
+    let (robot_cfg, cfg) = if let Ok(content) = std::fs::read_to_string("viam.json") {
+        let mut cfg: Config = serde_json::from_str(content.as_str()).map_err(anyhow::Error::msg)?;
 
-    let mut cfg: Config = serde_json::from_str(content.as_str()).map_err(anyhow::Error::msg)?;
+        let rt = Runtime::new()?;
+        let robot_cfg = rt.block_on(read_cloud_config(&mut cfg))?;
+        rt.block_on(read_certificates(&mut cfg))?;
+        (robot_cfg, cfg)
+    } else {
+        (RobotConfig::default(), Config::default())
+    };
 
-    let rt = Runtime::new()?;
-    let robot_cfg = rt.block_on(read_cloud_config(&mut cfg))?;
-    let cloud_cfg = robot_cfg.cloud.unwrap();
+    let cloud_cfg = robot_cfg.cloud.unwrap_or_default();
     let robot_name = cloud_cfg.local_fqdn.split('.').next().unwrap_or("");
     let local_fqdn = cloud_cfg.local_fqdn.replace('.', "-");
     let fqdn = cloud_cfg.fqdn.replace('.', "-");
-    rt.block_on(read_certificates(&mut cfg))?;
+
     let out_dir = std::env::var_os("OUT_DIR").unwrap();
     let dest_path = std::path::Path::new(&out_dir).join("ca.crt");
     let ca_cert = String::from(&cfg.cloud.tls_certificate) + "\0";
