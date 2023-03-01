@@ -27,15 +27,16 @@ jobs:
       with:
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: 2
-            
-    - name: Test
-      run: |
-        chown -R testbot .
-        sudo -u testbot bash -lc 'make test'
+          
         
     - name: Clippy
       run: |
+        chown -R testbot .
         sudo -u testbot bash -lc 'make clippy'
+        
+    - name: Format
+      run: |
+        sudo -u testbot bash -lc 'make format'
         
     - name: Build ESP32
       run: |
@@ -44,3 +45,7 @@ jobs:
     - name: Build Native
       run: |
         sudo -u testbot bash -lc 'make build-native'
+        
+    - name: Test
+      run: |
+        sudo -u testbot bash -lc 'make test'

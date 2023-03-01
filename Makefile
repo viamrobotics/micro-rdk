@@ -51,3 +51,6 @@ test:
 
 clippy:
 	cargo clippy --no-deps --features native -- -Dwarnings
+
+format:
+	cargo fmt --all -- --check

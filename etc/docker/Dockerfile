@@ -76,6 +76,7 @@ RUN cargo install espup
 RUN espup install -s -f $ESP_ROOT/export-esp.sh -v $RUST_VERSION
 RUN cargo install ldproxy
 RUN rustup component add clippy-preview
+RUN rustup component add rustfmt
 
 RUN rm -rf $CARGO_HOME/registry
 
