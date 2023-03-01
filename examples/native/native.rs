@@ -1,7 +1,10 @@
+#![allow(unused_imports)]
 // Generated robot config during build process
 include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
+include!(concat!(env!("OUT_DIR"), "/robot_config.rs"));
 
 use log::*;
+use micro_rdk::common::config::{Kind, RobotConfigStatic, StaticComponentConfig};
 use micro_rdk::common::robot::LocalRobot;
 use micro_rdk::common::robot::ResourceType;
 use micro_rdk::native::server::{CloudConfig, NativeServer};

@@ -3,12 +3,14 @@ use crate::common::status::Status;
 use crate::proto::common::v1::Vector3;
 use log::*;
 use std::collections::BTreeMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 pub trait Base: Status {
     fn set_power(&mut self, lin: &Vector3, ang: &Vector3) -> anyhow::Result<()>;
     fn stop(&mut self) -> anyhow::Result<()>;
 }
+
+pub(crate) type BaseType = Arc<Mutex<dyn Base>>;
 
 pub struct FakeBase {}
 

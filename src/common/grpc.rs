@@ -162,6 +162,9 @@ impl GrpcServer {
             "/viam.robot.v1.RobotService/ResourceNames" => self.resource_names(payload),
             "/viam.robot.v1.RobotService/GetStatus" => self.robot_status(payload),
             "/proto.rpc.v1.AuthService/Authenticate" => self.auth_service_authentificate(payload),
+            "/viam.component.sensor.v1.SensorService/GetReadings" => {
+                self.sensor_get_readings(payload)
+            }
             _ => anyhow::bail!("unimplemented method"),
         }
     }
@@ -298,6 +301,18 @@ impl GrpcServer {
         let pin: i32 = req.pin.parse::<i32>().unwrap();
         let level = board.lock().unwrap().get_gpio_level(pin)?;
         let resp = component::board::v1::GetGpioResponse { high: level };
+        self.encode_message(resp)
+    }
+
+    fn sensor_get_readings(&mut self, message: &[u8]) -> anyhow::Result<()> {
+        let req = component::sensor::v1::GetReadingsRequest::decode(message)?;
+        let sensor = match self.robot.lock().unwrap().get_sensor_by_name(req.name) {
+            Some(b) => b,
+            None => return Err(anyhow::anyhow!("resource not found")),
+        };
+
+        let readings = sensor.lock().unwrap().get_generic_readings()?;
+        let resp = component::sensor::v1::GetReadingsResponse { readings };
         self.encode_message(resp)
     }
 

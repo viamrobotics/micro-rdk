@@ -1,21 +1,117 @@
-use anyhow::Context;
 use const_gen::*;
 use local_ip_address::local_ip;
 use serde::{Deserialize, Serialize};
 use std::{env, fs, path::Path};
 use tokio::runtime::Runtime;
 use viam::gen::proto::app::v1::{
-    robot_service_client::RobotServiceClient, AgentInfo, CertificateRequest, CloudConfig,
-    ConfigRequest,
+    robot_service_client::RobotServiceClient, AgentInfo, CertificateRequest, ConfigRequest,
+    RobotConfig,
 };
 use viam_rust_utils::rpc::dial::{DialOptions, RPCCredentials};
 
-#[derive(Serialize, Deserialize, Debug)]
+struct ComponentConfig(viam::gen::proto::app::v1::ComponentConfig);
+struct Attributes(prost_types::Struct);
+struct Kind(prost_types::value::Kind);
+struct StaticRobotConfig {
+    components: Vec<ComponentConfig>,
+}
+
+impl const_gen::CompileConst for StaticRobotConfig {
+    fn const_type() -> String {
+        String::from("RobotConfigStatic")
+    }
+    fn const_val(&self) -> String {
+        let mut obj = String::new();
+        if self.components.len() > 0 {
+            obj.push_str(&format!("Some({})", self.components.const_val()));
+        } else {
+            obj.push_str("None");
+        }
+        format!("RobotConfigStatic {{components: {}}}", obj)
+    }
+}
+
+impl const_gen::CompileConst for Kind {
+    fn const_type() -> String {
+        String::from("Kind")
+    }
+    fn const_val(&self) -> String {
+        let mut obj = String::new();
+        match self.0.clone() {
+            prost_types::value::Kind::NumberValue(v) => {
+                obj.push_str(&format!("NumberValue({})", v.const_val()));
+            }
+            prost_types::value::Kind::NullValue(v) => {
+                obj.push_str(&format!("NullValue({})", v.const_val()));
+            }
+            prost_types::value::Kind::StringValue(v) => {
+                obj.push_str(&format!("StringValueStatic({})", v.const_val()));
+            }
+            prost_types::value::Kind::ListValue(v) => {
+                obj.push_str(&format!(
+                    "ListValueStatic({})",
+                    v.values
+                        .into_iter()
+                        .filter(|a| a.kind.is_some())
+                        .map(|a| Kind(a.kind.unwrap()))
+                        .collect::<Vec<Kind>>()
+                        .const_val()
+                ));
+            }
+            prost_types::value::Kind::StructValue(v) => {
+                obj.push_str(&format!("StructValueStatic({})", Attributes(v).const_val()));
+            }
+            prost_types::value::Kind::BoolValue(v) => {
+                obj.push_str(&format!("BoolValue({})", v.const_val()));
+            }
+        }
+        format!("Kind::{}", obj)
+    }
+}
+
+impl const_gen::CompileConst for ComponentConfig {
+    fn const_type() -> String {
+        String::from("StaticComponentConfig")
+    }
+    fn const_val(&self) -> String {
+        let mut obj = String::new();
+        obj.push_str(&format!("name: {},", &self.0.name.const_val()));
+        obj.push_str(&format!("namespace: {},", self.0.namespace.const_val()));
+        obj.push_str(&format!("r#type: {},", self.0.r#type.const_val()));
+        obj.push_str(&format!("model: {},", self.0.model.const_val()));
+        match self.0.attributes.clone() {
+            Some(attrs) => obj.push_str(&format!(
+                "attributes: Some({}),",
+                Attributes(attrs).const_val()
+            )),
+            None => obj.push_str("None"),
+        };
+        format!("StaticComponentConfig {{{}}}", obj)
+    }
+}
+
+impl const_gen::CompileConst for Attributes {
+    fn const_type() -> String {
+        format!("phf::Map<{}, {}>", "&'static str", "Kind")
+    }
+    fn const_val(&self) -> String {
+        self.0
+            .fields
+            .clone()
+            .into_iter()
+            .filter(|(_, v)| v.kind.is_some())
+            .map(|(k, v)| (k, Kind(v.kind.unwrap())))
+            .collect::<std::collections::HashMap<_, _>>()
+            .const_val()
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Config {
     pub cloud: Cloud,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Cloud {
     pub id: String,
     pub secret: String,
@@ -67,16 +163,22 @@ fn main() -> anyhow::Result<()> {
         embuild::build::LinkArgs::output_propagated("ESP_IDF")?;
     }
 
-    let content = std::fs::read_to_string("viam.json").context("can't read viam.json")?;
+    let (robot_cfg, cfg) = if let Ok(content) = std::fs::read_to_string("viam.json") {
+        let mut cfg: Config = serde_json::from_str(content.as_str()).map_err(anyhow::Error::msg)?;
 
-    let mut cfg: Config = serde_json::from_str(content.as_str()).map_err(anyhow::Error::msg)?;
+        let rt = Runtime::new()?;
+        let robot_cfg = rt.block_on(read_cloud_config(&mut cfg))?;
+        rt.block_on(read_certificates(&mut cfg))?;
+        (robot_cfg, cfg)
+    } else {
+        (RobotConfig::default(), Config::default())
+    };
 
-    let rt = Runtime::new()?;
-    let cloud_cfg = rt.block_on(read_cloud_config(&mut cfg))?;
+    let cloud_cfg = robot_cfg.cloud.unwrap_or_default();
     let robot_name = cloud_cfg.local_fqdn.split('.').next().unwrap_or("");
     let local_fqdn = cloud_cfg.local_fqdn.replace('.', "-");
     let fqdn = cloud_cfg.fqdn.replace('.', "-");
-    rt.block_on(read_certificates(&mut cfg))?;
+
     let out_dir = std::env::var_os("OUT_DIR").unwrap();
     let dest_path = std::path::Path::new(&out_dir).join("ca.crt");
     let ca_cert = String::from(&cfg.cloud.tls_certificate) + "\0";
@@ -111,6 +213,30 @@ fn main() -> anyhow::Result<()> {
     ]
     .join("\n");
     fs::write(&dest_path, robot_decl).unwrap();
+
+    let components_config = robot_cfg
+        .components
+        .into_iter()
+        .map(ComponentConfig)
+        .collect::<Vec<ComponentConfig>>();
+    let robot_config = StaticRobotConfig {
+        components: components_config,
+    };
+    let dest_path = Path::new(&out_dir).join("robot_config.rs");
+    let conf_decl = if robot_config.components.len() > 0 {
+        vec![const_declaration!(
+            #[allow(clippy::redundant_static_lifetimes, dead_code)]
+            STATIC_ROBOT_CONFIG = Some(robot_config)
+        )]
+    } else {
+        vec![const_declaration!(
+            #[allow(clippy::redundant_static_lifetimes, dead_code)]
+            STATIC_ROBOT_CONFIG = None::<StaticRobotConfig>
+        )]
+    }
+    .join("\n");
+    fs::write(&dest_path, conf_decl).unwrap();
+
     Ok(())
 }
 
@@ -136,7 +262,7 @@ async fn read_certificates(config: &mut Config) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn read_cloud_config(config: &mut Config) -> anyhow::Result<CloudConfig> {
+async fn read_cloud_config(config: &mut Config) -> anyhow::Result<RobotConfig> {
     let creds = RPCCredentials::new(
         Some(config.cloud.id.clone()),
         "robot-secret".to_string(),
@@ -162,10 +288,7 @@ async fn read_cloud_config(config: &mut Config) -> anyhow::Result<CloudConfig> {
     let mut app_service = RobotServiceClient::new(dial);
     let cfg = app_service.config(cfg_req).await?.into_inner();
     match cfg.config {
-        Some(cfg) => match cfg.cloud {
-            Some(cfg) => Ok(cfg),
-            None => anyhow::bail!("no cloud config for robot"),
-        },
+        Some(cfg) => Ok(cfg),
         None => anyhow::bail!("no config for robot"),
     }
 }
