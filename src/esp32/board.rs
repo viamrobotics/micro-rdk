@@ -4,10 +4,13 @@ use crate::common::analog::AnalogReader;
 use crate::common::board::Board;
 use crate::common::status::Status;
 use crate::proto::common;
+use crate::proto::component;
 use core::cell::RefCell;
 use embedded_hal::digital::v2::StatefulOutputPin;
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
+use std::time::Duration;
+
 pub struct EspBoard<Pins> {
     pins: Vec<Pins>,
     analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>,
@@ -73,6 +76,13 @@ where
             Some(reader) => Ok(reader.clone()),
             None => Err(anyhow::anyhow!("couldn't find analog reader {}", name)),
         }
+    }
+    fn set_power_mode(
+        &self,
+        _mode: component::board::v1::PowerMode,
+        _duration: Option<Duration>,
+    ) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented: EspBoard::set_power_mode")
     }
 }
 impl<Pins> Status for EspBoard<Pins>
