@@ -18,7 +18,7 @@ smol = { git = "https://github.com/esp-rs-compat/smol" }
 socket2 = { git = "https://github.com/npmenard/socket2.git" }
 
 [features]
-default = ["esp32"]
+default = ["native"]
 camera = []
 esp32 = ["dep:esp-idf-hal", "dep:esp-idf-svc","dep:esp-idf-sys","dep:embedded-svc","dep:embedded-hal"]
 native = ["dep:rustls","dep:webpki-roots", "dep:rustls-pemfile", "dep:mdns-sd", "dep:local-ip-address"]

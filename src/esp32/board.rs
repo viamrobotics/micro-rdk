@@ -14,7 +14,7 @@ use esp_idf_hal::adc::AdcChannelDriver;
 use esp_idf_hal::adc::AdcDriver;
 use esp_idf_hal::adc::Atten11dB;
 use esp_idf_hal::adc::ADC1;
-use esp_idf_hal::gpio::{ AnyInputPin, AnyOutputPin, Output, PinDriver};
+use esp_idf_hal::gpio::{AnyInputPin, AnyOutputPin, Output, PinDriver};
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
@@ -42,6 +42,9 @@ impl EspBoard {
             analogs,
         }
     }
+    /// This is a temporary approach aimed at ensuring a good POC for runtime config consumption by the ESP32,
+    /// Down the road we will need to wrap the Esp32Board in a singleton instance owning the peripherals and giving them as requested.
+    /// The potential approach is described in esp32/motor.rs:383
     pub(crate) fn from_config(cfg: ConfigType) -> anyhow::Result<BoardType> {
         let (analogs, pins) = match cfg {
             ConfigType::Static(cfg) => {

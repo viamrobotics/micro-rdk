@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 use esp_idf_hal::gpio::{AnyOutputPin, Output, PinDriver};
 use esp_idf_hal::ledc::config::TimerConfig;
-use esp_idf_hal::ledc::{ LedcDriver, LedcTimerDriver, CHANNEL0, CHANNEL1, CHANNEL2};
+use esp_idf_hal::ledc::{LedcDriver, LedcTimerDriver, CHANNEL0, CHANNEL1, CHANNEL2};
 use esp_idf_sys as espsys;
 use espsys::c_types::{c_short, c_ulong};
 use espsys::pcnt_channel_edge_action_t_PCNT_CHANNEL_EDGE_ACTION_DECREASE as pcnt_count_dec;
@@ -380,6 +380,13 @@ where
     }
 }
 
+/// Below is a first attempt as an approach to runtime configuration, the problem raise with runtime configuration is
+/// enforcing single instance of any peripheral at any point in the program. For example say you have a Motor that uses pins 33,34 and 35 and
+/// a AnalogReader that uses pin 35. This situation is wrong since two objects own pin 35. In embedded rust this is avoided by having any hardware
+/// peripherals be singleton and leveraging the borrow checker so that single ownership rules are enforced. When dealing with runtime configuration,
+/// the borrow checker cannot help us. We can however follow the singleton approach and wrap peripherals into options that will be 'taken out' when
+/// something needs an hardware component. Following is an implementation of the proposed approach, a significant limitation is that the hardware can
+/// only be taken once and can never be returned.
 enum PwmChannel {
     C0(CHANNEL0),
     C1(CHANNEL1),
