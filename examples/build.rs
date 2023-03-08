@@ -22,7 +22,7 @@ impl const_gen::CompileConst for StaticRobotConfig {
     }
     fn const_val(&self) -> String {
         let mut obj = String::new();
-        if self.components.len() > 0 {
+        if !self.components.is_empty() {
             obj.push_str(&format!("Some({})", self.components.const_val()));
         } else {
             obj.push_str("None");
@@ -223,7 +223,7 @@ fn main() -> anyhow::Result<()> {
         components: components_config,
     };
     let dest_path = Path::new(&out_dir).join("robot_config.rs");
-    let conf_decl = if robot_config.components.len() > 0 {
+    let conf_decl = if !robot_config.components.is_empty() {
         vec![const_declaration!(
             #[allow(clippy::redundant_static_lifetimes, dead_code)]
             STATIC_ROBOT_CONFIG = Some(robot_config)

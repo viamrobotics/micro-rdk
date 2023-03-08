@@ -6,6 +6,10 @@ lazy_static::lazy_static! {
         crate::common::board::register_models(&mut r);
         crate::common::motor::register_models(&mut r);
         crate::common::sensor::register_models(&mut r);
+        #[cfg(esp32)]
+        crate::esp32::board::register_models(&mut r);
+        #[cfg(esp32)]
+        crate::esp32::motor::register_models(&mut r);
         r
     };
 }

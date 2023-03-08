@@ -151,6 +151,26 @@ where
     }
 }
 
+impl TryFrom<Kind> for &str {
+    type Error = AttributeError;
+    fn try_from(value: Kind) -> Result<Self, Self::Error> {
+        match value {
+            Kind::StringValueStatic(v) => Ok(v),
+            _ => Err(AttributeError::ConversionImpossibleError),
+        }
+    }
+}
+
+impl TryFrom<&Kind> for &str {
+    type Error = AttributeError;
+    fn try_from(value: &Kind) -> Result<Self, Self::Error> {
+        match value {
+            Kind::StringValueStatic(v) => Ok(*v),
+            _ => Err(AttributeError::ConversionImpossibleError),
+        }
+    }
+}
+
 impl TryFrom<&Kind> for Kind {
     type Error = AttributeError;
     fn try_from(value: &Kind) -> Result<Self, Self::Error> {

@@ -21,7 +21,7 @@ struct RobotClient<'a> {
     grpc_client: GrpcClient<'a>,
     /// a jwt string for further grpc requests
     jwt: Option<String>,
-    config: &'a Box<RobotClientConfig>,
+    config: &'a RobotClientConfig,
 }
 
 pub struct RobotClientConfig {
@@ -49,7 +49,7 @@ static CLIENT_TASK: &[u8] = b"client\0";
 
 impl<'a> RobotClient<'a> {
     /// Create a new robot client
-    fn new(grpc_client: GrpcClient<'a>, config: &'a Box<RobotClientConfig>) -> Self {
+    fn new(grpc_client: GrpcClient<'a>, config: &'a RobotClientConfig) -> Self {
         RobotClient {
             grpc_client,
             jwt: None,
@@ -158,7 +158,7 @@ pub fn start(ip: RobotClientConfig) -> Result<TaskHandle_t> {
 }
 
 /// client main loop
-fn clientloop(config: &Box<RobotClientConfig>) -> Result<()> {
+fn clientloop(config: &RobotClientConfig) -> Result<()> {
     let mut tls = Box::new(Esp32Tls::new_client());
     let conn = tls.open_ssl_context(None)?;
     let conn = Esp32Stream::TLSStream(Box::new(conn));
