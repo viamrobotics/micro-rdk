@@ -187,15 +187,18 @@ pub struct Http {
 /// 1. Leaf request fields (recursive expansion nested messages in the request
 ///     message) are classified into three categories:
 ///     - Fields referred by the path template. They are passed via the URL path.
-///     - Fields referred by the \[HttpRule.body][google.api.HttpRule.body\]. They are passed via the HTTP
+///     - Fields referred by the \[HttpRule.body][google.api.HttpRule.body\]. They
+///     are passed via the HTTP
 ///       request body.
 ///     - All other fields are passed via the URL query parameters, and the
 ///       parameter name is the field path in the request message. A repeated
 ///       field can be represented as multiple query parameters under the same
 ///       name.
-///   2. If \[HttpRule.body][google.api.HttpRule.body\] is "*", there is no URL query parameter, all fields
+///   2. If \[HttpRule.body][google.api.HttpRule.body\] is "*", there is no URL
+///   query parameter, all fields
 ///      are passed via URL path and HTTP request body.
-///   3. If \[HttpRule.body][google.api.HttpRule.body\] is omitted, there is no HTTP request body, all
+///   3. If \[HttpRule.body][google.api.HttpRule.body\] is omitted, there is no HTTP
+///   request body, all
 ///      fields are passed via URL path and URL query parameters.
 ///
 /// ### Path template syntax
@@ -291,7 +294,8 @@ pub struct Http {
 pub struct HttpRule {
     /// Selects a method to which this rule applies.
     ///
-    /// Refer to \[selector][google.api.DocumentationRule.selector\] for syntax details.
+    /// Refer to \[selector][google.api.DocumentationRule.selector\] for syntax
+    /// details.
     #[prost(string, tag="1")]
     pub selector: ::prost::alloc::string::String,
     /// The name of the request field whose value is mapped to the HTTP request
@@ -438,7 +442,9 @@ pub struct CommonLanguageSettings {
 /// Details about how and where to publish client libraries.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ClientLibrarySettings {
-    /// Version of the API to apply these settings to.
+    /// Version of the API to apply these settings to. This is the full protobuf
+    /// package for the API, ending in the version element.
+    /// Examples: "google.cloud.speech.v1" and "google.spanner.admin.database.v1".
     #[prost(string, tag="1")]
     pub version: ::prost::alloc::string::String,
     /// Launch stage of this version of the API.
@@ -514,6 +520,10 @@ pub struct Publishing {
     /// settings with the same version string are discarded.
     #[prost(message, repeated, tag="109")]
     pub library_settings: ::prost::alloc::vec::Vec<ClientLibrarySettings>,
+    /// Optional link to proto reference documentation.  Example:
+    /// <https://cloud.google.com/pubsub/lite/docs/reference/rpc>
+    #[prost(string, tag="110")]
+    pub proto_reference_documentation_uri: ::prost::alloc::string::String,
 }
 /// Settings for Java client libraries.
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -614,8 +624,8 @@ pub struct MethodSettings {
     /// Example of a YAML configuration::
     ///
     ///   publishing:
-    ///     method_behavior:
-    ///       - selector: CreateAdDomain
+    ///     method_settings:
+    ///       - selector: google.cloud.speech.v2.Speech.BatchRecognize
     ///         long_running:
     ///           initial_poll_delay:
     ///             seconds: 60 # 1 minute

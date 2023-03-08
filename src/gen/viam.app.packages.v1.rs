@@ -20,8 +20,6 @@ pub struct PackageInfo {
     pub files: ::prost::alloc::vec::Vec<FileInfo>,
     #[prost(message, optional, tag="6")]
     pub metadata: ::core::option::Option<::prost_types::Struct>,
-    #[prost(message, optional, tag="7")]
-    pub created_on: ::core::option::Option<::prost_types::Timestamp>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CreatePackageRequest {
@@ -39,32 +37,37 @@ pub mod create_package_request {
         Contents(::prost::alloc::vec::Vec<u8>),
     }
 }
+/// Returns the package ID and version which are populated in GetPackageRequest and DeletePackageRequest to
+/// retrieve or delete this package.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CreatePackageResponse {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub version: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DeletePackageRequest {
     #[prost(string, tag="1")]
-    pub organization_id: ::prost::alloc::string::String,
+    pub id: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
-    pub name: ::prost::alloc::string::String,
-    #[prost(string, repeated, tag="3")]
-    pub versions: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    pub version: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DeletePackageResponse {
-    /// Number of versions deleted
-    #[prost(int64, tag="1")]
-    pub deleted_count: i64,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Package {
     #[prost(message, optional, tag="1")]
     pub info: ::core::option::Option<PackageInfo>,
     #[prost(string, tag="2")]
-    pub uri: ::prost::alloc::string::String,
+    pub url: ::prost::alloc::string::String,
     #[prost(message, optional, tag="3")]
     pub created_on: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(string, tag="4")]
+    pub checksum: ::prost::alloc::string::String,
+    #[prost(string, tag="5")]
+    pub id: ::prost::alloc::string::String,
 }
 /// InternalPackage is stored in the packages database and represents our interval view of the uploaded package
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -85,15 +88,19 @@ pub struct InternalPackage {
     pub blob_path: ::prost::alloc::string::String,
     #[prost(message, optional, tag="8")]
     pub created_on: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(string, tag="9")]
+    pub checksum: ::prost::alloc::string::String,
+    #[prost(bool, tag="10")]
+    pub latest: bool,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPackageRequest {
     #[prost(string, tag="1")]
-    pub organization_id: ::prost::alloc::string::String,
+    pub id: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
-    pub name: ::prost::alloc::string::String,
-    #[prost(string, tag="3")]
     pub version: ::prost::alloc::string::String,
+    #[prost(bool, optional, tag="3")]
+    pub include_url: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPackageResponse {
@@ -110,6 +117,8 @@ pub struct ListPackagesRequest {
     pub version: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(enumeration="PackageType", optional, tag="4")]
     pub r#type: ::core::option::Option<i32>,
+    #[prost(bool, optional, tag="5")]
+    pub include_url: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListPackagesResponse {

@@ -40,6 +40,26 @@ pub struct TransformPoseResponse {
     pub pose: ::core::option::Option<super::super::common::v1::PoseInFrame>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TransformPcdRequest {
+    /// the point clouds to transform. This should be in the PCD format
+    /// encoded into bytes: <https://pointclouds.org/documentation/tutorials/pcd_file_format.html>
+    #[prost(bytes="vec", tag="1")]
+    pub point_cloud_pcd: ::prost::alloc::vec::Vec<u8>,
+    /// the reference frame of the point cloud.
+    #[prost(string, tag="2")]
+    pub source: ::prost::alloc::string::String,
+    /// the reference frame into which the source data should be transformed, if unset this defaults to the "world" reference frame.
+    /// Do not move the robot between the generation of the initial pointcloud and the receipt
+    /// of the transformed pointcloud because that will make the transformations inaccurate
+    #[prost(string, tag="3")]
+    pub destination: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TransformPcdResponse {
+    #[prost(bytes="vec", tag="1")]
+    pub point_cloud_pcd: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ResourceNamesRequest {
 }
 #[derive(Clone, PartialEq, ::prost::Message)]

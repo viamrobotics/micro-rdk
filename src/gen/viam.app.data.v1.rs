@@ -115,6 +115,8 @@ pub struct TabularDataByFilterResponse {
     pub count: i64,
     #[prost(string, tag="4")]
     pub last: ::prost::alloc::string::String,
+    #[prost(uint64, tag="5")]
+    pub total_size_bytes: u64,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TabularData {
@@ -170,8 +172,6 @@ pub struct BinaryDataByIDsResponse {
     pub data: ::prost::alloc::vec::Vec<BinaryData>,
     #[prost(uint64, tag="2")]
     pub count: u64,
-    #[prost(string, tag="3")]
-    pub last: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BinaryMetadata {
