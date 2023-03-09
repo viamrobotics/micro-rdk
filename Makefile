@@ -49,8 +49,14 @@ upload: cargo-ver
 test:
 	cargo test --lib
 
-clippy:
-	cargo clippy --no-deps --features native -- -Dwarnings
+clippy-native:
+	cargo clippy --no-deps --features native --no-default-features -- -Dwarnings
+
+clippy-esp32:
+	cargo clippy --features esp32 --no-default-features --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
 
 format:
 	cargo fmt --all -- --check
+
+doc:
+	cargo doc --no-default-features --features esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort

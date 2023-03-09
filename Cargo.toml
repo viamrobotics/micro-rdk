@@ -11,6 +11,14 @@ version = "0.0.1"
 [lib]
 crate-type = ["lib"]
 
+[patch.crates-io]
+esp-idf-sys = {git = "https://github.com/npmenard/esp-idf-sys.git"}
+polling = { git = "https://github.com/esp-rs-compat/polling" }
+smol = { git = "https://github.com/esp-rs-compat/smol" }
+socket2 = { git = "https://github.com/npmenard/socket2.git" }
+
+
+
 [features]
 default = ["native"]
 camera = []
