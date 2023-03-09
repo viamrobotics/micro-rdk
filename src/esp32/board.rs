@@ -36,11 +36,11 @@ pub struct EspBoard {
 }
 
 impl EspBoard {
-    pub fn new(analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>) -> Self {
-        EspBoard {
-            pins: vec![],
-            analogs,
-        }
+    pub fn new(
+        pins: Vec<PinDriver<'static, AnyOutputPin, Output>>,
+        analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>,
+    ) -> Self {
+        EspBoard { pins, analogs }
     }
     /// This is a temporary approach aimed at ensuring a good POC for runtime config consumption by the ESP32,
     /// Down the road we will need to wrap the Esp32Board in a singleton instance owning the peripherals and giving them as requested.

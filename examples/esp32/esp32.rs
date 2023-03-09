@@ -48,6 +48,7 @@ fn main() -> anyhow::Result<()> {
     let robot = {
         use esp_idf_hal::adc::config::Config;
         use esp_idf_hal::adc::{self, AdcChannelDriver, AdcDriver, Atten11dB};
+        use esp_idf_hal::gpio::OutputPin;
         use esp_idf_hal::gpio::PinDriver;
         use esp_idf_hal::ledc;
         use esp_idf_hal::ledc::config::TimerConfig;
@@ -93,7 +94,7 @@ fn main() -> anyhow::Result<()> {
             chan2,
         );
 
-        let pins = vec![PinDriver::output(periph.pins.gpio15)?];
+        let pins = vec![PinDriver::output(periph.pins.gpio15.downgrade_output())?];
         let adc1 = Rc::new(RefCell::new(AdcDriver::new(
             periph.adc1,
             &Config::new().calibration(true),
