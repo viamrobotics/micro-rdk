@@ -45,7 +45,7 @@ the ESP32.
 
 ## Contact
 
-- Discord: <https://discord.com/invite/viam>
+- Discord: <https://discord.gg/viam>
 - Support: <https://support.viam.com>
 
 ## (In)stability Notice
