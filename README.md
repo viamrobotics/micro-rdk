@@ -55,7 +55,6 @@ the ESP32.
 
 For documentation of the Micro-RDK, see the [Viam Documentation](https://docs.viam.com/installation/microcontrollers/).
 
-
 ## License
 
 Copyright 2022-2023 Viam Inc.
