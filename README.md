@@ -53,6 +53,8 @@ the ESP32.
 > **Warning**
 > This is an alpha release of the Viam Micro-RDK. Stability is not guaranteed. Breaking changes are likely to occur, and occur often.
 
+## Getting Started
+
 For documentation of the Micro-RDK, see the [Viam Documentation](https://docs.viam.com/installation/microcontrollers/).
 
 ## License
