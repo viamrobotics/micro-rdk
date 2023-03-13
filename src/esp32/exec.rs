@@ -27,6 +27,12 @@ impl<'a> Esp32Executor<'a> {
     }
 }
 
+impl<'a> Default for Esp32Executor<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// helper trait for hyper to spwan future onto a local executor
 impl<F> hyper::rt::Executor<F> for Esp32Executor<'_>
 where
