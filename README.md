@@ -55,7 +55,6 @@ the ESP32.
 
 For documentation of the Micro-RDK, see the [Viam Documentation](https://docs.viam.com/installation/microcontrollers/).
 
-### Troubleshooting
 
 - If you are unable to connect to the esp32-backed robot as a remote, try adding `:4545` to the end
   of the value set in the remotes `Address` field above.
