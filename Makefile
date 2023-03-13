@@ -47,7 +47,7 @@ upload: cargo-ver
 	cd examples && ls && cargo espflash flash --monitor --partition-table esp32/partitions.csv --baud 460800 -f 80M --use-stub --example esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
 
 test:
-	cargo test --lib
+	cargo test --lib --features native
 
 clippy-native:
 	cargo clippy --no-deps --features native --no-default-features -- -Dwarnings
