@@ -45,7 +45,7 @@ the ESP32.
 
 ## Contact
 
-- Community Slack: [join](https://join.slack.com/t/viamrobotics/shared_invite/zt-1f5xf1qk5-TECJc1MIY1MW0d6ZCg~Wnw)
+- Discord: <https://discord.gg/viam>
 - Support: <https://support.viam.com>
 
 ## (In)stability Notice
