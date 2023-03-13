@@ -53,7 +53,7 @@ clippy-native:
 	cargo clippy --no-deps --features native --no-default-features -- -Dwarnings
 
 clippy-esp32:
-	cargo clippy --features esp32 --no-default-features --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
+	cargo +esp clippy  --features esp32 --no-default-features --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
 
 format:
 	cargo fmt --all -- --check
