@@ -43,7 +43,7 @@ fn main() -> anyhow::Result<()> {
     let robot = LocalRobot::new_from_static(&STATIC_ROBOT_CONFIG.unwrap());
     if robot.is_err() {
         log::info!(
-            "failure to buyild rebot woth {:?}",
+            "failure to build rebot woth {:?}",
             robot.as_ref().err().unwrap()
         );
     }
