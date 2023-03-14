@@ -11,8 +11,16 @@ version = "0.0.1"
 [lib]
 crate-type = ["lib"]
 
+[patch.crates-io]
+esp-idf-sys = {git = "https://github.com/npmenard/esp-idf-sys.git"}
+polling = { git = "https://github.com/esp-rs-compat/polling" }
+smol = { git = "https://github.com/esp-rs-compat/smol" }
+socket2 = { git = "https://github.com/npmenard/socket2.git" }
+
+
+
 [features]
-default = ["native"]
+default = []
 camera = []
 esp32 = ["dep:esp-idf-hal", "dep:esp-idf-svc","dep:esp-idf-sys","dep:embedded-svc","dep:embedded-hal"]
 native = ["dep:rustls","dep:webpki-roots", "dep:rustls-pemfile", "dep:mdns-sd", "dep:local-ip-address"]
