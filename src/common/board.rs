@@ -2,12 +2,14 @@
 use crate::common::analog::AnalogReader;
 use crate::common::status::Status;
 use crate::proto::common;
+use crate::proto::component;
 use core::cell::RefCell;
 use log::*;
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::time::Duration;
 
 use super::analog::FakeAnalogReader;
 use super::config::{Component, ConfigType};
@@ -33,6 +35,11 @@ pub trait Board: Status {
         &self,
         name: String,
     ) -> anyhow::Result<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>;
+    fn set_power_mode(
+        &self,
+        mode: component::board::v1::PowerMode,
+        duration: Option<Duration>,
+    ) -> anyhow::Result<()>;
 }
 
 pub(crate) type BoardType = Arc<Mutex<dyn Board>>;
@@ -98,6 +105,21 @@ impl Board for FakeBoard {
             None => Err(anyhow::anyhow!("couldn't find analog reader {}", name)),
         }
     }
+    fn set_power_mode(
+        &self,
+        mode: component::board::v1::PowerMode,
+        duration: Option<Duration>,
+    ) -> anyhow::Result<()> {
+        info!(
+            "set power mode to {} for {} milliseconds",
+            mode.as_str_name(),
+            match duration {
+                Some(dur) => dur.as_millis().to_string(),
+                None => "<forever>".to_string(),
+            }
+        );
+        Ok(())
+    }
 }
 
 impl Status for FakeBoard {
@@ -154,5 +176,13 @@ where
         name: String,
     ) -> anyhow::Result<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>> {
         self.lock().unwrap().get_analog_reader_by_name(name)
+    }
+
+    fn set_power_mode(
+        &self,
+        mode: component::board::v1::PowerMode,
+        duration: Option<Duration>,
+    ) -> anyhow::Result<()> {
+        self.lock().unwrap().set_power_mode(mode, duration)
     }
 }

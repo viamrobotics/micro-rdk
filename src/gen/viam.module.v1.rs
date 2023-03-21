@@ -51,4 +51,14 @@ pub struct ReadyResponse {
     #[prost(message, optional, tag="2")]
     pub handlermap: ::core::option::Option<HandlerMap>,
 }
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ValidateConfigRequest {
+    #[prost(message, optional, tag="1")]
+    pub config: ::core::option::Option<super::super::app::v1::ComponentConfig>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ValidateConfigResponse {
+    #[prost(string, repeated, tag="1")]
+    pub dependencies: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
 // @@protoc_insertion_point(module)

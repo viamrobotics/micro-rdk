@@ -4,10 +4,14 @@ use crate::common::analog::AnalogReader;
 use crate::common::board::Board;
 use crate::common::status::Status;
 use crate::proto::common;
+use crate::proto::component;
 use core::cell::RefCell;
 use embedded_hal::digital::v2::StatefulOutputPin;
+use log::*;
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
+use std::time::Duration;
+
 pub struct EspBoard<Pins> {
     pins: Vec<Pins>,
     analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>,
@@ -73,6 +77,52 @@ where
             Some(reader) => Ok(reader.clone()),
             None => Err(anyhow::anyhow!("couldn't find analog reader {}", name)),
         }
+    }
+    fn set_power_mode(
+        &self,
+        mode: component::board::v1::PowerMode,
+        duration: Option<Duration>,
+    ) -> anyhow::Result<()> {
+        info!(
+            "Esp32 received request to set power mode to {} for {} milliseconds",
+            mode.as_str_name(),
+            match duration {
+                Some(dur) => dur.as_millis().to_string(),
+                None => "<forever>".to_string(),
+            }
+        );
+
+        anyhow::ensure!(
+            mode == component::board::v1::PowerMode::OfflineDeep,
+            "unimplemented: EspBoard::set_power_mode: modes other than 'OfflineDeep' are not currently supported"
+        );
+
+        if let Some(dur) = duration {
+            let dur_micros = dur.as_micros() as u64;
+            let result: esp_idf_sys::esp_err_t;
+            unsafe {
+                result = esp_idf_sys::esp_sleep_enable_timer_wakeup(dur_micros);
+            }
+            anyhow::ensure!(
+                result == esp_idf_sys::ESP_OK,
+                "unimplemented: EspBoard::set_power_mode: sleep duration {:?} rejected as unsupportedly long", dur
+            );
+            warn!("Esp32 entering deep sleep for {} microseconds!", dur_micros);
+        } else {
+            warn!("Esp32 entering deep sleep without scheduled wakeup!");
+        }
+
+        unsafe {
+            esp_idf_sys::esp_deep_sleep_start();
+        }
+
+        // The esp_deep_sleep_start function above is documented to
+        // not return. If we have somehow proceeded past it, then the
+        // request has failed.
+
+        anyhow::bail!(
+            "call to esp_deep_sleep_start returned - board failed to honor power mode request"
+        );
     }
 }
 impl<Pins> Status for EspBoard<Pins>

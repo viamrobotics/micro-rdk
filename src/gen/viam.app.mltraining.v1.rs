@@ -26,10 +26,20 @@ pub struct GetTrainingJobRequest {
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetTrainingJobResponse {
-    #[prost(string, tag="1")]
-    pub id: ::prost::alloc::string::String,
-    #[prost(message, optional, tag="2")]
+    #[prost(message, optional, tag="1")]
     pub metadata: ::core::option::Option<TrainingJobMetadata>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListTrainingJobsRequest {
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+    #[prost(enumeration="TrainingStatus", tag="2")]
+    pub status: i32,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListTrainingJobsResponse {
+    #[prost(message, repeated, tag="1")]
+    pub jobs: ::prost::alloc::vec::Vec<TrainingJobMetadata>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TrainingJobMetadata {
@@ -43,21 +53,18 @@ pub struct TrainingJobMetadata {
     pub last_modified: ::core::option::Option<::prost_types::Timestamp>,
     #[prost(string, tag="5")]
     pub synced_model_id: ::prost::alloc::string::String,
+    #[prost(string, tag="6")]
+    pub user_email: ::prost::alloc::string::String,
+    #[prost(string, tag="7")]
+    pub id: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct TrainingJob {
+pub struct CancelTrainingJobRequest {
     #[prost(string, tag="1")]
     pub id: ::prost::alloc::string::String,
-    #[prost(message, optional, tag="2")]
-    pub metadata: ::core::option::Option<TrainingJobMetadata>,
-    #[prost(string, tag="3")]
-    pub output_path: ::prost::alloc::string::String,
-    /// The vertex_job_id is the id of the Vertex AI custom training job
-    /// backing our concept of a TrainingJob.
-    #[prost(string, tag="4")]
-    pub vertex_job_id: ::prost::alloc::string::String,
-    #[prost(message, optional, tag="5")]
-    pub model_metadata: ::core::option::Option<::prost_types::Struct>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CancelTrainingJobResponse {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -87,7 +94,7 @@ pub enum TrainingStatus {
     InProgress = 2,
     Completed = 3,
     Failed = 4,
-    Submitting = 5,
+    Canceled = 5,
 }
 impl TrainingStatus {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -101,7 +108,7 @@ impl TrainingStatus {
             TrainingStatus::InProgress => "TRAINING_STATUS_IN_PROGRESS",
             TrainingStatus::Completed => "TRAINING_STATUS_COMPLETED",
             TrainingStatus::Failed => "TRAINING_STATUS_FAILED",
-            TrainingStatus::Submitting => "TRAINING_STATUS_SUBMITTING",
+            TrainingStatus::Canceled => "TRAINING_STATUS_CANCELED",
         }
     }
 }
