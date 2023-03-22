@@ -12,6 +12,7 @@ use crate::{
     common::base::Base,
     common::board::Board,
     common::motor::Motor,
+    common::movement_sensor::MovementSensor,
     common::sensor::Sensor,
     common::status::Status,
     proto::{
@@ -26,6 +27,7 @@ use super::{
     board::BoardType,
     config::{Component, ConfigType, RobotConfigStatic},
     motor::MotorType,
+    movement_sensor::MovementSensorType,
     registry::COMPONENT_REGISTRY,
     sensor::SensorType,
 };
@@ -35,6 +37,7 @@ pub enum ResourceType {
     Board(BoardType),
     Base(BaseType),
     Sensor(SensorType),
+    MovementSensor(MovementSensorType),
     #[cfg(feature = "camera")]
     Camera(CameraType),
 }
@@ -91,6 +94,14 @@ impl LocalRobot {
                             .resources
                             .insert(x.get_resource_name(), ResourceType::Sensor(s));
                     }
+                    "movement_sensor" => {
+                        let ctor =
+                            COMPONENT_REGISTRY.get_movement_sensor_constructor(x.get_model())?;
+                        let s = ctor(ConfigType::Static(x), b.clone())?;
+                        robot
+                            .resources
+                            .insert(x.get_resource_name(), ResourceType::MovementSensor(s));
+                    }
                     &_ => {
                         log::error!("component type {} is not supported yet", x.get_type());
                         continue;
@@ -136,6 +147,13 @@ impl LocalRobot {
                             status,
                         });
                     }
+                    ResourceType::MovementSensor(b) => {
+                        let status = b.get_status()?;
+                        vec.push(robot::v1::Status {
+                            name: Some(name.clone()),
+                            status,
+                        });
+                    }
                     #[cfg(feature = "camera")]
                     _ => continue,
                 };
@@ -170,6 +188,13 @@ impl LocalRobot {
                             });
                         }
                         ResourceType::Sensor(b) => {
+                            let status = b.get_status()?;
+                            vec.push(robot::v1::Status {
+                                name: Some(name),
+                                status,
+                            });
+                        }
+                        ResourceType::MovementSensor(b) => {
                             let status = b.get_status()?;
                             vec.push(robot::v1::Status {
                                 name: Some(name),
@@ -254,6 +279,23 @@ impl LocalRobot {
         };
         match self.resources.get(&name) {
             Some(ResourceType::Sensor(r)) => Some(r.clone()),
+            Some(_) => None,
+            None => None,
+        }
+    }
+
+    pub fn get_movement_sensor_by_name(
+        &self,
+        name: String,
+    ) -> Option<Arc<Mutex<dyn MovementSensor>>> {
+        let name = ResourceName {
+            namespace: "rdk".to_string(),
+            r#type: "component".to_string(),
+            subtype: "movement_sensor".to_string(),
+            name,
+        };
+        match self.resources.get(&name) {
+            Some(ResourceType::MovementSensor(r)) => Some(r.clone()),
             Some(_) => None,
             None => None,
         }
