@@ -71,33 +71,278 @@ pub struct Organization {
     pub created_on: ::core::option::Option<::prost_types::Timestamp>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OrganizationMember {
+    #[prost(string, tag="1")]
+    pub user_id: ::prost::alloc::string::String,
+    #[prost(string, repeated, tag="2")]
+    pub emails: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(message, optional, tag="3")]
+    pub date_added: ::core::option::Option<::prost_types::Timestamp>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListOrganizationsResponse {
     #[prost(message, repeated, tag="1")]
     pub organizations: ::prost::alloc::vec::Vec<Organization>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Location {
+pub struct OrganizationInvite {
     #[prost(string, tag="1")]
-    pub id: ::prost::alloc::string::String,
+    pub organization_id: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
-    pub name: ::prost::alloc::string::String,
+    pub email: ::prost::alloc::string::String,
     #[prost(message, optional, tag="3")]
     pub created_on: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(int64, tag="4")]
+    pub robot_count: i64,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CreateLocationRequest {
+pub struct CreateOrganizationRequest {
+    #[prost(string, tag="1")]
+    pub name: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateOrganizationResponse {
+    #[prost(message, optional, tag="1")]
+    pub organization: ::core::option::Option<Organization>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetOrganizationRequest {
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetOrganizationResponse {
+    #[prost(message, optional, tag="1")]
+    pub organization: ::core::option::Option<Organization>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UpdateOrganizationRequest {
     #[prost(string, tag="1")]
     pub organization_id: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
     pub name: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UpdateOrganizationResponse {
+    #[prost(message, optional, tag="1")]
+    pub organization: ::core::option::Option<Organization>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DeleteOrganizationRequest {
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DeleteOrganizationResponse {
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListOrganizationMembersRequest {
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListOrganizationMembersResponse {
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+    #[prost(message, repeated, tag="2")]
+    pub members: ::prost::alloc::vec::Vec<OrganizationMember>,
+    #[prost(message, repeated, tag="3")]
+    pub invites: ::prost::alloc::vec::Vec<OrganizationInvite>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateOrganizationInviteRequest {
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub email: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateOrganizationInviteResponse {
+    #[prost(message, optional, tag="1")]
+    pub invite: ::core::option::Option<OrganizationInvite>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DeleteOrganizationInviteRequest {
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub email: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DeleteOrganizationInviteResponse {
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ResendOrganizationInviteRequest {
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub email: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ResendOrganizationInviteResponse {
+    #[prost(message, optional, tag="1")]
+    pub invite: ::core::option::Option<OrganizationInvite>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DeleteOrganizationMemberRequest {
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub user_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DeleteOrganizationMemberResponse {
+}
+// Location
+//
+
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct LocationOrganization {
+    /// Organization ID the location is shared with.
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+    /// Whether the organization is the primary owner or not.
+    #[prost(bool, tag="2")]
+    pub primary: bool,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct LocationAuth {
+    /// Deprecated: use secrets field.
+    #[deprecated]
+    #[prost(string, tag="1")]
+    pub secret: ::prost::alloc::string::String,
+    /// Location ID containing this LocationAuth.
+    #[prost(string, tag="2")]
+    pub location_id: ::prost::alloc::string::String,
+    /// List of secrets used to authenticate to the Location.
+    #[prost(message, repeated, tag="3")]
+    pub secrets: ::prost::alloc::vec::Vec<SharedSecret>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Location {
+    /// Location ID.
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    /// Location name.
+    #[prost(string, tag="2")]
+    pub name: ::prost::alloc::string::String,
+    /// Location ID of the parent location.
+    #[prost(string, tag="4")]
+    pub parent_location_id: ::prost::alloc::string::String,
+    /// Location authentication secrets.
+    #[prost(message, optional, tag="5")]
+    pub auth: ::core::option::Option<LocationAuth>,
+    /// Organizations that the location is shared with.
+    #[prost(message, repeated, tag="6")]
+    pub organizations: ::prost::alloc::vec::Vec<LocationOrganization>,
+    /// Location creation timestamp.
+    #[prost(message, optional, tag="3")]
+    pub created_on: ::core::option::Option<::prost_types::Timestamp>,
+    ///
+    #[prost(int32, tag="7")]
+    pub robot_count: i32,
+}
+/// SharedSecret is a secret used for LocationAuth and RobotParts.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SharedSecret {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    /// The payload of the secret. Used during authentication to the rpc framework.
+    #[prost(string, tag="2")]
+    pub secret: ::prost::alloc::string::String,
+    /// Date/time the secret was first created.
+    #[prost(message, optional, tag="3")]
+    pub created_on: ::core::option::Option<::prost_types::Timestamp>,
+    /// State of the shared secret. In most cases it should be enabled. We may support
+    /// disabling a specific secret while keeping it in the database.
+    #[prost(enumeration="shared_secret::State", tag="4")]
+    pub state: i32,
+}
+/// Nested message and enum types in `SharedSecret`.
+pub mod shared_secret {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+    #[repr(i32)]
+    pub enum State {
+        Unspecified = 0,
+        /// Secret is enabled and can be used in authentication.
+        Enabled = 1,
+        /// Secret is disabled and must not be used to authenticate to rpc.
+        Disabled = 2,
+    }
+    impl State {
+        /// String value of the enum field names used in the ProtoBuf definition.
+        ///
+        /// The values are not transformed in any way and thus are considered stable
+        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        pub fn as_str_name(&self) -> &'static str {
+            match self {
+                State::Unspecified => "STATE_UNSPECIFIED",
+                State::Enabled => "STATE_ENABLED",
+                State::Disabled => "STATE_DISABLED",
+            }
+        }
+    }
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateLocationRequest {
+    /// Organization ID to create the location under.
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+    /// Name of the location.
+    #[prost(string, tag="2")]
+    pub name: ::prost::alloc::string::String,
+    /// The new parent location to move the location under.
+    #[prost(string, optional, tag="3")]
+    pub parent_location_id: ::core::option::Option<::prost::alloc::string::String>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CreateLocationResponse {
+    /// Location object is returned.
     #[prost(message, optional, tag="1")]
     pub location: ::core::option::Option<Location>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetLocationRequest {
+    /// Location ID of location to get.
+    #[prost(string, tag="1")]
+    pub location_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetLocationResponse {
+    /// Location object is returned.
+    #[prost(message, optional, tag="1")]
+    pub location: ::core::option::Option<Location>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UpdateLocationRequest {
+    /// Location ID of location to update.
+    #[prost(string, tag="1")]
+    pub location_id: ::prost::alloc::string::String,
+    /// The new to be updated on location.
+    #[prost(string, optional, tag="2")]
+    pub name: ::core::option::Option<::prost::alloc::string::String>,
+    /// The new parent location to move the location under.
+    #[prost(string, optional, tag="3")]
+    pub parent_location_id: ::core::option::Option<::prost::alloc::string::String>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UpdateLocationResponse {
+    /// Location object is returned.
+    #[prost(message, optional, tag="1")]
+    pub location: ::core::option::Option<Location>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DeleteLocationRequest {
+    /// Location ID of location to delete.
+    #[prost(string, tag="1")]
+    pub location_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DeleteLocationResponse {
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListLocationsRequest {
+    /// Organization ID under which to list all locations.
     #[prost(string, tag="1")]
     pub organization_id: ::prost::alloc::string::String,
 }
@@ -153,60 +398,6 @@ pub struct DeleteLocationSecretRequest {
 pub struct DeleteLocationSecretResponse {
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct LocationAuth {
-    /// Deprecated: use secrets field.
-    #[deprecated]
-    #[prost(string, tag="1")]
-    pub secret: ::prost::alloc::string::String,
-    /// Location ID containing this LocationAuth.
-    #[prost(string, tag="2")]
-    pub location_id: ::prost::alloc::string::String,
-    /// List of secrets used to authenticate to the Location.
-    #[prost(message, repeated, tag="3")]
-    pub secrets: ::prost::alloc::vec::Vec<SharedSecret>,
-}
-/// SharedSecret is a secret used for LocationAuth and RobotParts.
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SharedSecret {
-    #[prost(string, tag="1")]
-    pub id: ::prost::alloc::string::String,
-    /// The payload of the secret. Used during authentication to the rpc framework.
-    #[prost(string, tag="2")]
-    pub secret: ::prost::alloc::string::String,
-    /// Date/time the secret was first created.
-    #[prost(message, optional, tag="3")]
-    pub created_on: ::core::option::Option<::prost_types::Timestamp>,
-    /// State of the shared secret. In most cases it should be enabled. We may support
-    /// disabling a specific secret while keeping it in the database.
-    #[prost(enumeration="shared_secret::State", tag="4")]
-    pub state: i32,
-}
-/// Nested message and enum types in `SharedSecret`.
-pub mod shared_secret {
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
-    #[repr(i32)]
-    pub enum State {
-        Unspecified = 0,
-        /// Secret is enabled and can be used in authentication.
-        Enabled = 1,
-        /// Secret is disabled and must not be used to authenticate to rpc.
-        Disabled = 2,
-    }
-    impl State {
-        /// String value of the enum field names used in the ProtoBuf definition.
-        ///
-        /// The values are not transformed in any way and thus are considered stable
-        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-        pub fn as_str_name(&self) -> &'static str {
-            match self {
-                State::Unspecified => "STATE_UNSPECIFIED",
-                State::Enabled => "STATE_ENABLED",
-                State::Disabled => "STATE_DISABLED",
-            }
-        }
-    }
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct LocationAuthRequest {
     #[prost(string, tag="1")]
     pub location_id: ::prost::alloc::string::String,
@@ -220,6 +411,27 @@ pub struct LocationAuthResponse {
 pub struct GetRobotRequest {
     #[prost(string, tag="1")]
     pub id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetRoverRentalRobotsRequest {
+    #[prost(string, tag="1")]
+    pub org_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RoverRentalRobot {
+    #[prost(string, tag="1")]
+    pub robot_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub location_id: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub robot_name: ::prost::alloc::string::String,
+    #[prost(string, tag="4")]
+    pub robot_main_part_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetRoverRentalRobotsResponse {
+    #[prost(message, repeated, tag="1")]
+    pub robots: ::prost::alloc::vec::Vec<RoverRentalRobot>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetRobotResponse {
@@ -254,6 +466,10 @@ pub struct GetRobotPartLogsRequest {
     pub id: ::prost::alloc::string::String,
     #[prost(bool, tag="2")]
     pub errors_only: bool,
+    #[prost(string, optional, tag="3")]
+    pub filter: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag="4")]
+    pub page_token: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct LogEntry {
@@ -278,6 +494,8 @@ pub struct LogEntry {
 pub struct GetRobotPartLogsResponse {
     #[prost(message, repeated, tag="1")]
     pub logs: ::prost::alloc::vec::Vec<LogEntry>,
+    #[prost(string, tag="2")]
+    pub next_page_token: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TailRobotPartLogsRequest {
@@ -285,6 +503,8 @@ pub struct TailRobotPartLogsRequest {
     pub id: ::prost::alloc::string::String,
     #[prost(bool, tag="2")]
     pub errors_only: bool,
+    #[prost(string, optional, tag="3")]
+    pub filter: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TailRobotPartLogsResponse {
@@ -349,14 +569,85 @@ pub struct Fragment {
     pub public: bool,
     #[prost(message, optional, tag="6")]
     pub created_on: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(string, tag="7")]
+    pub organization_name: ::prost::alloc::string::String,
+    #[prost(bool, tag="8")]
+    pub readonly: bool,
+    /// number of robot parts using this fragment
+    #[prost(int32, tag="9")]
+    pub robot_part_count: i32,
+    /// number of organizations using this fragment
+    #[prost(int32, tag="10")]
+    pub organization_count: i32,
+    /// whether the organization(s) using this fragment is the same as the fragment org
+    #[prost(bool, tag="11")]
+    pub only_used_by_owner: bool,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct FindRobotsRequest {
+pub struct ListFragmentsRequest {
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+    #[prost(bool, tag="2")]
+    pub show_public: bool,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListFragmentsResponse {
+    #[prost(message, repeated, tag="1")]
+    pub fragments: ::prost::alloc::vec::Vec<Fragment>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetFragmentRequest {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetFragmentResponse {
+    #[prost(message, optional, tag="1")]
+    pub fragment: ::core::option::Option<Fragment>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateFragmentRequest {
+    #[prost(string, tag="1")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="2")]
+    pub config: ::core::option::Option<::prost_types::Struct>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateFragmentResponse {
+    #[prost(message, optional, tag="1")]
+    pub fragment: ::core::option::Option<Fragment>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UpdateFragmentRequest {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="3")]
+    pub config: ::core::option::Option<::prost_types::Struct>,
+    #[prost(bool, optional, tag="4")]
+    pub public: ::core::option::Option<bool>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UpdateFragmentResponse {
+    #[prost(message, optional, tag="1")]
+    pub fragment: ::core::option::Option<Fragment>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DeleteFragmentRequest {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DeleteFragmentResponse {
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListRobotsRequest {
     #[prost(string, tag="1")]
     pub location_id: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct FindRobotsResponse {
+pub struct ListRobotsResponse {
     #[prost(message, repeated, tag="1")]
     pub robots: ::prost::alloc::vec::Vec<Robot>,
 }
@@ -403,6 +694,14 @@ pub struct MarkPartAsMainRequest {
 pub struct MarkPartAsMainResponse {
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MarkPartForRestartRequest {
+    #[prost(string, tag="1")]
+    pub part_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MarkPartForRestartResponse {
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CreateRobotPartSecretRequest {
     /// Robot Part ID to create the secret in.
     #[prost(string, tag="1")]
@@ -447,6 +746,8 @@ pub struct RobotConfig {
     pub modules: ::prost::alloc::vec::Vec<ModuleConfig>,
     #[prost(bool, optional, tag="10")]
     pub disable_partial_start: ::core::option::Option<bool>,
+    #[prost(message, repeated, tag="11")]
+    pub packages: ::prost::alloc::vec::Vec<PackageConfig>,
 }
 /// Valid location secret that can be used for authentication to the robot.
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -565,6 +866,8 @@ pub struct AuthConfig {
     pub handlers: ::prost::alloc::vec::Vec<AuthHandlerConfig>,
     #[prost(string, repeated, tag="2")]
     pub tls_auth_entities: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(message, optional, tag="3")]
+    pub external_auth_config: ::core::option::Option<ExternalAuthConfig>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct JwksFile {
@@ -574,12 +877,20 @@ pub struct JwksFile {
     pub json: ::core::option::Option<::prost_types::Struct>,
 }
 /// Structured config for the credential type CREDENTIALS_TYPE_WEB_OAUTH
+/// TODO(APP-1412): remove after a week from being deployed
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AuthHandlerWebOauthConfig {
     /// The allowed aud claims by the web oauth handler.
     #[prost(string, repeated, tag="1")]
     pub allowed_audiences: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(message, optional, tag="2")]
+    pub jwks: ::core::option::Option<JwksFile>,
+}
+/// ExternalAuthConfig describes how a viam managed robot can accept
+/// credentials signed by the cloud app.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ExternalAuthConfig {
+    #[prost(message, optional, tag="1")]
     pub jwks: ::core::option::Option<JwksFile>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -844,6 +1155,19 @@ pub struct ModuleConfig {
     #[prost(string, tag="2")]
     pub path: ::prost::alloc::string::String,
 }
+/// PackageConfig is the configration for deployed Packages.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct PackageConfig {
+    /// Name is the local name of the package on the RDK. Must be unique across Packages. Must not be empty.
+    #[prost(string, tag="1")]
+    pub name: ::prost::alloc::string::String,
+    /// Package is the unique package name hosted by Viam. Must not be empty.
+    #[prost(string, tag="2")]
+    pub package: ::prost::alloc::string::String,
+    /// version of the package ID hosted by Viam. If not specified "latest" is assumed.
+    #[prost(string, tag="3")]
+    pub version: ::prost::alloc::string::String,
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum CredentialsType {
@@ -852,6 +1176,7 @@ pub enum CredentialsType {
     ApiKey = 2,
     RobotSecret = 3,
     RobotLocationSecret = 4,
+    /// TODO(APP-1412): remove after a week from being deployed
     WebOauth = 5,
 }
 impl CredentialsType {

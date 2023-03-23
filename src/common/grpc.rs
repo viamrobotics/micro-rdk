@@ -133,6 +133,9 @@ impl GrpcServer {
                 self.board_set_pwm_frequency(payload)
             }
             "/viam.component.board.v1.BoardService/Status" => self.board_status(payload),
+            "/viam.component.board.v1.BoardService/SetPowerMode" => {
+                self.board_set_power_mode(payload)
+            }
             #[cfg(feature = "camera")]
             "/viam.component.camera.v1.CameraService/GetImage" => self.camera_get_frame(payload),
             #[cfg(feature = "camera")]
@@ -289,6 +292,34 @@ impl GrpcServer {
 
     fn board_set_pwm_frequency(&mut self, _message: &[u8]) -> anyhow::Result<()> {
         anyhow::bail!("unimplemented: board_set_pwm_frequency")
+    }
+
+    fn board_set_power_mode(&mut self, message: &[u8]) -> anyhow::Result<()> {
+        let req = component::board::v1::SetPowerModeRequest::decode(message)?;
+        let pm = req.power_mode();
+
+        anyhow::ensure!(
+            pm != component::board::v1::PowerMode::Unspecified,
+            "unimplemented: board_set_power_mode: cannot honor the 'unspecified' power mode"
+        );
+
+        let dur = match req.duration {
+            Some(dur) => match Duration::try_from(dur) {
+                Ok(converted) => Some(converted),
+                Err(e) => return Err(e.into()),
+            },
+            None => None,
+        };
+
+        let board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
+            Some(b) => b,
+            None => return Err(anyhow::anyhow!("resource not found")),
+        };
+
+        board.lock().unwrap().set_power_mode(pm, dur)?;
+
+        let resp = component::board::v1::SetPowerModeResponse {};
+        self.encode_message(resp)
     }
 
     fn board_get_pin(&mut self, message: &[u8]) -> anyhow::Result<()> {

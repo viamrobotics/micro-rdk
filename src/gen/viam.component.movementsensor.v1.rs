@@ -118,7 +118,7 @@ pub struct GetLinearAccelerationRequest {
     /// Name of a movement sensor
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
-    /// Addition arguments to the method
+    /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }

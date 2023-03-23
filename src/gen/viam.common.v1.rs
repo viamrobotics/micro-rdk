@@ -99,6 +99,13 @@ pub struct Sphere {
     #[prost(double, tag="1")]
     pub radius_mm: f64,
 }
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Capsule {
+    #[prost(double, tag="1")]
+    pub radius_mm: f64,
+    #[prost(double, tag="2")]
+    pub length_mm: f64,
+}
 /// RectangularPrism contains a Vector3 field corresponding to the X, Y, Z dimensions of the prism in mms
 /// These dimensions are with respect to the referenceframe in which the RectangularPrism is defined
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -109,14 +116,14 @@ pub struct RectangularPrism {
 /// Geometry contains the dimensions of a given geometry and the pose of its center. The geometry is one of either a sphere or a box.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Geometry {
-    /// Pose of a gemetries center point
+    /// Pose of a geometries center point
     #[prost(message, optional, tag="1")]
     pub center: ::core::option::Option<Pose>,
     /// Label of the geometry. If none supplied, will be an empty string.
     #[prost(string, tag="4")]
     pub label: ::prost::alloc::string::String,
     /// Dimensions of a given geometry. This can be a sphere or box
-    #[prost(oneof="geometry::GeometryType", tags="2, 3")]
+    #[prost(oneof="geometry::GeometryType", tags="2, 3, 5")]
     pub geometry_type: ::core::option::Option<geometry::GeometryType>,
 }
 /// Nested message and enum types in `Geometry`.
@@ -128,6 +135,8 @@ pub mod geometry {
         Sphere(super::Sphere),
         #[prost(message, tag="3")]
         Box(super::RectangularPrism),
+        #[prost(message, tag="5")]
+        Capsule(super::Capsule),
     }
 }
 /// GeometriesinFrame contains the dimensions of a given geometry, pose of its center point, and the reference frame by which it was
@@ -181,10 +190,6 @@ pub struct WorldState {
     /// a list of obstacles expressed as a geometry and the reference frame in which it was observed; this field is optional
     #[prost(message, repeated, tag="1")]
     pub obstacles: ::prost::alloc::vec::Vec<GeometriesInFrame>,
-    /// a list of spaces the robot is allowed to operate within expressed as a geometry and the reference frame it is measured from;
-    /// this field is optional
-    #[prost(message, repeated, tag="2")]
-    pub interaction_spaces: ::prost::alloc::vec::Vec<GeometriesInFrame>,
     /// a list of Transforms, optionally with geometries. Used as supplemental transforms to transform a pose from one reference frame to another, or to attach moving geometries to the frame system. This field is optional
     #[prost(message, repeated, tag="3")]
     pub transforms: ::prost::alloc::vec::Vec<Transform>,
@@ -194,5 +199,19 @@ pub struct WorldState {
 pub struct ActuatorStatus {
     #[prost(bool, tag="1")]
     pub is_moving: bool,
+}
+/// DoCommandRequest represents a generic DoCommand input
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DoCommandRequest {
+    #[prost(string, tag="1")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="2")]
+    pub command: ::core::option::Option<::prost_types::Struct>,
+}
+/// DoCommandResponse represents a generic DoCommand output
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DoCommandResponse {
+    #[prost(message, optional, tag="1")]
+    pub result: ::core::option::Option<::prost_types::Struct>,
 }
 // @@protoc_insertion_point(module)

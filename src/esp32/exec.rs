@@ -3,7 +3,7 @@ use futures_lite::{future, Future};
 use smol::{LocalExecutor, Task};
 use std::rc::Rc;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 /// This executor is local and bounded to the CPU that created it usually you would create it after spwaning a thread on a specific core
 pub struct Esp32Executor<'a> {
     /// A local executor
@@ -24,6 +24,12 @@ impl<'a> Esp32Executor<'a> {
     /// Run a future until it's completion
     pub async fn run<T>(&self, future: impl Future<Output = T>) -> T {
         self.executor.run(future).await
+    }
+}
+
+impl<'a> Default for Esp32Executor<'a> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
