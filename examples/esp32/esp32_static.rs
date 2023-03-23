@@ -13,6 +13,7 @@ include!(concat!(env!("OUT_DIR"), "/robot_config.rs"));
 use crate::camera::Esp32Camera;
 
 use anyhow::bail;
+
 use esp_idf_hal::prelude::Peripherals;
 #[cfg(feature = "qemu")]
 use esp_idf_svc::eth::*;
@@ -28,15 +29,8 @@ use esp_idf_sys::esp_wifi_set_ps;
 use log::*;
 use micro_rdk::common::config::{Kind, RobotConfigStatic, StaticComponentConfig};
 use micro_rdk::common::robot::LocalRobot;
-use micro_rdk::common::robot::ResourceType;
 use micro_rdk::esp32::server::{CloudConfig, Esp32Server};
 use micro_rdk::esp32::tls::Esp32TlsServerConfig;
-use micro_rdk::proto::common::v1::ResourceName;
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::rc::Rc;
-use std::sync::Arc;
-use std::sync::Mutex;
 use std::time::Duration;
 
 fn main() -> anyhow::Result<()> {
@@ -46,7 +40,14 @@ fn main() -> anyhow::Result<()> {
     let sys_loop_stack = EspSystemEventLoop::take().unwrap();
     let periph = Peripherals::take().unwrap();
 
-    let robot = LocalRobot::new_from_static(&STATIC_ROBOT_CONFIG.unwrap()).unwrap();
+    let robot = LocalRobot::new_from_static(&STATIC_ROBOT_CONFIG.unwrap());
+    if robot.is_err() {
+        log::info!(
+            "failure to build rebot woth {:?}",
+            robot.as_ref().err().unwrap()
+        );
+    }
+    let robot = robot.unwrap();
 
     #[cfg(feature = "qemu")]
     let (ip, _eth) = {

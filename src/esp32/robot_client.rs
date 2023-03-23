@@ -91,8 +91,6 @@ impl<'a> RobotClient<'a> {
         let r = r.split_off(5);
         // for now we only read the config
         let _r = ConfigResponse::decode(r)?;
-        log::info!("cfg {:?}", _r);
-
         Ok(())
     }
 

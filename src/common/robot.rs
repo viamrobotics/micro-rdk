@@ -53,7 +53,6 @@ impl LocalRobot {
         let mut robot = LocalRobot {
             resources: ResourceMap::new(),
         };
-        log::info!("Building robot with {:?}", &cfg);
         if let Some(components) = cfg.components.as_ref() {
             let r = components.iter().find(|x| x.get_type() == "board");
             let b = match r {
@@ -63,6 +62,7 @@ impl LocalRobot {
                     if let Ok(b) = b {
                         Some(b)
                     } else {
+                        log::info!("failed to build the board with {:?}", b.err().unwrap());
                         None
                     }
                 }

@@ -36,6 +36,7 @@ micro-rdk = { path = "../", default-features = false, features = ["esp32"] }
 embedded-svc = "0.23"
 esp-idf-svc = { version = "0.43.4" }
 esp-idf-hal = "0.39.3"
+embedded-hal = { version = "0.2.7", features = ["unproven"]}
 log = "0.4"
 
 [target.'cfg(target_os="espidf")'.dependencies]
