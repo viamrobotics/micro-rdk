@@ -307,6 +307,7 @@ mod tests {
     use crate::common::board::Board;
     use crate::common::config::{Kind, RobotConfigStatic, StaticComponentConfig};
     use crate::common::motor::Motor;
+    use crate::common::movement_sensor::MovementSensor;
     use crate::common::robot::LocalRobot;
     use crate::common::sensor::Sensor;
     #[test_log::test]
@@ -341,6 +342,20 @@ mod tests {
                     attributes: Some(
                         phf::phf_map! {"fake_value" => Kind::StringValueStatic("11.12")},
                     ),
+                },
+                StaticComponentConfig {
+                    name: "m_sensor",
+                    namespace: "rdk",
+                    r#type: "movement_sensor",
+                    model: "fake",
+                    attributes: Some(phf::phf_map! {
+                        "fake_lat" => Kind::StringValueStatic("68.86"),
+                        "fake_lon" => Kind::StringValueStatic("-85.44"),
+                        "fake_alt" => Kind::StringValueStatic("3000.1"),
+                        "lin_acc_x" => Kind::StringValueStatic("200.2"),
+                        "lin_acc_y" => Kind::StringValueStatic("-100.3"),
+                        "lin_acc_z" => Kind::StringValueStatic("100.4"),
+                    }),
                 },
             ]),
         });
@@ -410,5 +425,26 @@ mod tests {
         assert!(value.is_some());
 
         assert_eq!(value.unwrap(), 11.12);
+
+        let m_sensor = robot.get_movement_sensor_by_name("m_sensor".to_string());
+
+        assert!(m_sensor.is_some());
+
+        let m_sensor_pos = m_sensor.unwrap().get_position();
+
+        assert!(m_sensor_pos.is_ok());
+
+        let unwrapped_pos = m_sensor_pos.unwrap();
+
+        assert_eq!(unwrapped_pos.lat, 68.86);
+        assert_eq!(unwrapped_pos.lon, -85.44);
+        assert_eq!(unwrapped_pos.alt, 3000.1);
+
+        let lin_acc_result = m_sensor.unwrap().get_linear_acceleration();
+        assert!(lin_acc_result.is_ok());
+        let lin_acc = lin_acc_result.unwrap();
+        assert_eq!(lin_acc.x, 200.2);
+        assert_eq!(lin_acc.y, -100.3);
+        assert_eq!(lin_acc.z, 100.4);
     }
 }

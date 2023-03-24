@@ -68,12 +68,12 @@ impl From<GeoPosition> for movement_sensor::v1::GetPositionResponse {
 // A trait for implementing a movement sensor component driver. TODO: add
 // get_orientation and get_accuracy if/when they become supportable.
 pub trait MovementSensor: Status {
-    fn get_position(&mut self) -> anyhow::Result<GeoPosition>;
-    fn get_linear_velocity(&mut self) -> anyhow::Result<Vector3>;
-    fn get_angular_velocity(&mut self) -> anyhow::Result<Vector3>;
-    fn get_linear_acceleration(&mut self) -> anyhow::Result<Vector3>;
-    fn get_compass_heading(&mut self) -> anyhow::Result<f64>;
-    fn get_properties(&mut self) -> MovementSensorSupportedMethods;
+    fn get_position(&self) -> anyhow::Result<GeoPosition>;
+    fn get_linear_velocity(&self) -> anyhow::Result<Vector3>;
+    fn get_angular_velocity(&self) -> anyhow::Result<Vector3>;
+    fn get_linear_acceleration(&self) -> anyhow::Result<Vector3>;
+    fn get_compass_heading(&self) -> anyhow::Result<f64>;
+    fn get_properties(&self) -> MovementSensorSupportedMethods;
 }
 
 pub(crate) type MovementSensorType = Arc<Mutex<dyn MovementSensor>>;
@@ -142,15 +142,15 @@ impl FakeMovementSensor {
 }
 
 impl MovementSensor for FakeMovementSensor {
-    fn get_position(&mut self) -> anyhow::Result<GeoPosition> {
+    fn get_position(&self) -> anyhow::Result<GeoPosition> {
         Ok(self.pos)
     }
 
-    fn get_linear_acceleration(&mut self) -> anyhow::Result<Vector3> {
+    fn get_linear_acceleration(&self) -> anyhow::Result<Vector3> {
         Ok(self.linear_acc)
     }
 
-    fn get_properties(&mut self) -> MovementSensorSupportedMethods {
+    fn get_properties(&self) -> MovementSensorSupportedMethods {
         MovementSensorSupportedMethods {
             position_supported: true,
             linear_acceleration_supported: true,
@@ -160,15 +160,15 @@ impl MovementSensor for FakeMovementSensor {
         }
     }
 
-    fn get_linear_velocity(&mut self) -> anyhow::Result<Vector3> {
+    fn get_linear_velocity(&self) -> anyhow::Result<Vector3> {
         anyhow::bail!("unimplemented: movement_sensor_get_linear_velocity")
     }
 
-    fn get_angular_velocity(&mut self) -> anyhow::Result<Vector3> {
+    fn get_angular_velocity(&self) -> anyhow::Result<Vector3> {
         anyhow::bail!("unimplemented: movement_sensor_get_angular_velocity")
     }
 
-    fn get_compass_heading(&mut self) -> anyhow::Result<f64> {
+    fn get_compass_heading(&self) -> anyhow::Result<f64> {
         anyhow::bail!("unimplemented: movement_sensor_get_compass_heading")
     }
 }
@@ -178,5 +178,34 @@ impl Status for FakeMovementSensor {
         Ok(Some(prost_types::Struct {
             fields: BTreeMap::new(),
         }))
+    }
+}
+
+impl<A> MovementSensor for Mutex<A>
+where
+    A: ?Sized + MovementSensor,
+{
+    fn get_position(&self) -> anyhow::Result<GeoPosition> {
+        self.lock().unwrap().get_position()
+    }
+
+    fn get_linear_acceleration(&self) -> anyhow::Result<Vector3> {
+        self.lock().unwrap().get_linear_acceleration()
+    }
+
+    fn get_linear_velocity(&self) -> anyhow::Result<Vector3> {
+        self.lock().unwrap().get_linear_velocity()
+    }
+
+    fn get_angular_velocity(&self) -> anyhow::Result<Vector3> {
+        self.lock().unwrap().get_angular_velocity()
+    }
+
+    fn get_compass_heading(&self) -> anyhow::Result<f64> {
+        self.lock().unwrap().get_compass_heading()
+    }
+
+    fn get_properties(&self) -> MovementSensorSupportedMethods {
+        self.lock().unwrap().get_properties()
     }
 }
