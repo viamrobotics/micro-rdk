@@ -6,8 +6,10 @@ pub mod common {
     pub mod config;
     pub mod grpc;
     pub mod grpc_client;
+    pub mod math_utils;
     pub mod moisture_sensor;
     pub mod motor;
+    pub mod movement_sensor;
     pub mod registry;
     pub mod robot;
     pub mod sensor;
@@ -104,6 +106,13 @@ pub mod proto {
             pub mod v1 {
                 #![allow(clippy::derive_partial_eq_without_eq)]
                 include!("gen/viam.component.sensor.v1.rs");
+            }
+        }
+
+        pub mod movement_sensor {
+            pub mod v1 {
+                #![allow(clippy::derive_partial_eq_without_eq)]
+                include!("gen/viam.component.movementsensor.v1.rs");
             }
         }
     }

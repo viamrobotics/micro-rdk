@@ -6,6 +6,7 @@ lazy_static::lazy_static! {
         crate::common::board::register_models(&mut r);
         crate::common::motor::register_models(&mut r);
         crate::common::sensor::register_models(&mut r);
+        crate::common::movement_sensor::register_models(&mut r);
         #[cfg(esp32)]
         crate::esp32::board::register_models(&mut r);
         #[cfg(esp32)]
@@ -37,11 +38,17 @@ impl Error for RegistryError {}
 use core::fmt;
 use std::{collections::BTreeMap as Map, error::Error};
 
-use super::{board::BoardType, config::ConfigType, motor::MotorType, sensor::SensorType};
+use super::{
+    board::BoardType, config::ConfigType, motor::MotorType, movement_sensor::MovementSensorType,
+    sensor::SensorType,
+};
 
 type MotorConstructor = dyn Fn(ConfigType, Option<BoardType>) -> anyhow::Result<MotorType>;
 
 type SensorConstructor = dyn Fn(ConfigType, Option<BoardType>) -> anyhow::Result<SensorType>;
+
+type MovementSensorConstructor =
+    dyn Fn(ConfigType, Option<BoardType>) -> anyhow::Result<MovementSensorType>;
 
 type BoardConstructor = dyn Fn(ConfigType) -> anyhow::Result<BoardType>;
 
@@ -49,6 +56,7 @@ pub(crate) struct ComponentRegistry {
     motors: Map<&'static str, &'static MotorConstructor>,
     board: Map<&'static str, &'static BoardConstructor>,
     sensor: Map<&'static str, &'static SensorConstructor>,
+    movement_sensors: Map<&'static str, &'static MovementSensorConstructor>,
 }
 
 unsafe impl Sync for ComponentRegistry {}
@@ -59,6 +67,7 @@ impl ComponentRegistry {
             motors: Map::new(),
             board: Map::new(),
             sensor: Map::new(),
+            movement_sensors: Map::new(),
         }
     }
     pub(crate) fn register_motor(
@@ -82,6 +91,18 @@ impl ComponentRegistry {
             return Err(RegistryError::ModelAlreadyRegistered(model));
         }
         let _ = self.sensor.insert(model, constructor);
+        Ok(())
+    }
+
+    pub(crate) fn register_movement_sensor(
+        &mut self,
+        model: &'static str,
+        constructor: &'static MovementSensorConstructor,
+    ) -> Result<(), RegistryError> {
+        if self.movement_sensors.contains_key(model) {
+            return Err(RegistryError::ModelAlreadyRegistered(model));
+        }
+        let _ = self.movement_sensors.insert(model, constructor);
         Ok(())
     }
 
@@ -120,6 +141,16 @@ impl ComponentRegistry {
         model: &'static str,
     ) -> Result<&'static SensorConstructor, RegistryError> {
         if let Some(ctor) = self.sensor.get(model) {
+            return Ok(*ctor);
+        }
+        Err(RegistryError::ModelNotFound)
+    }
+
+    pub(crate) fn get_movement_sensor_constructor(
+        &self,
+        model: &'static str,
+    ) -> Result<&'static MovementSensorConstructor, RegistryError> {
+        if let Some(ctor) = self.movement_sensors.get(model) {
             return Ok(*ctor);
         }
         Err(RegistryError::ModelNotFound)

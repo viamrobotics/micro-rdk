@@ -12,6 +12,7 @@ use crate::{
     common::base::Base,
     common::board::Board,
     common::motor::Motor,
+    common::movement_sensor::MovementSensor,
     common::sensor::Sensor,
     common::status::Status,
     proto::{
@@ -26,6 +27,7 @@ use super::{
     board::BoardType,
     config::{Component, ConfigType, RobotConfigStatic},
     motor::MotorType,
+    movement_sensor::MovementSensorType,
     registry::COMPONENT_REGISTRY,
     sensor::SensorType,
 };
@@ -35,6 +37,7 @@ pub enum ResourceType {
     Board(BoardType),
     Base(BaseType),
     Sensor(SensorType),
+    MovementSensor(MovementSensorType),
     #[cfg(feature = "camera")]
     Camera(CameraType),
 }
@@ -91,6 +94,14 @@ impl LocalRobot {
                             .resources
                             .insert(x.get_resource_name(), ResourceType::Sensor(s));
                     }
+                    "movement_sensor" => {
+                        let ctor =
+                            COMPONENT_REGISTRY.get_movement_sensor_constructor(x.get_model())?;
+                        let s = ctor(ConfigType::Static(x), b.clone())?;
+                        robot
+                            .resources
+                            .insert(x.get_resource_name(), ResourceType::MovementSensor(s));
+                    }
                     &_ => {
                         log::error!("component type {} is not supported yet", x.get_type());
                         continue;
@@ -136,6 +147,13 @@ impl LocalRobot {
                             status,
                         });
                     }
+                    ResourceType::MovementSensor(b) => {
+                        let status = b.get_status()?;
+                        vec.push(robot::v1::Status {
+                            name: Some(name.clone()),
+                            status,
+                        });
+                    }
                     #[cfg(feature = "camera")]
                     _ => continue,
                 };
@@ -170,6 +188,13 @@ impl LocalRobot {
                             });
                         }
                         ResourceType::Sensor(b) => {
+                            let status = b.get_status()?;
+                            vec.push(robot::v1::Status {
+                                name: Some(name),
+                                status,
+                            });
+                        }
+                        ResourceType::MovementSensor(b) => {
                             let status = b.get_status()?;
                             vec.push(robot::v1::Status {
                                 name: Some(name),
@@ -258,6 +283,23 @@ impl LocalRobot {
             None => None,
         }
     }
+
+    pub fn get_movement_sensor_by_name(
+        &self,
+        name: String,
+    ) -> Option<Arc<Mutex<dyn MovementSensor>>> {
+        let name = ResourceName {
+            namespace: "rdk".to_string(),
+            r#type: "component".to_string(),
+            subtype: "movement_sensor".to_string(),
+            name,
+        };
+        match self.resources.get(&name) {
+            Some(ResourceType::MovementSensor(r)) => Some(r.clone()),
+            Some(_) => None,
+            None => None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -265,6 +307,7 @@ mod tests {
     use crate::common::board::Board;
     use crate::common::config::{Kind, RobotConfigStatic, StaticComponentConfig};
     use crate::common::motor::Motor;
+    use crate::common::movement_sensor::MovementSensor;
     use crate::common::robot::LocalRobot;
     use crate::common::sensor::Sensor;
     #[test_log::test]
@@ -299,6 +342,20 @@ mod tests {
                     attributes: Some(
                         phf::phf_map! {"fake_value" => Kind::StringValueStatic("11.12")},
                     ),
+                },
+                StaticComponentConfig {
+                    name: "m_sensor",
+                    namespace: "rdk",
+                    r#type: "movement_sensor",
+                    model: "fake",
+                    attributes: Some(phf::phf_map! {
+                        "fake_lat" => Kind::StringValueStatic("68.86"),
+                        "fake_lon" => Kind::StringValueStatic("-85.44"),
+                        "fake_alt" => Kind::StringValueStatic("3000.1"),
+                        "lin_acc_x" => Kind::StringValueStatic("200.2"),
+                        "lin_acc_y" => Kind::StringValueStatic("-100.3"),
+                        "lin_acc_z" => Kind::StringValueStatic("100.4"),
+                    }),
                 },
             ]),
         });
@@ -368,5 +425,26 @@ mod tests {
         assert!(value.is_some());
 
         assert_eq!(value.unwrap(), 11.12);
+
+        let m_sensor = robot.get_movement_sensor_by_name("m_sensor".to_string());
+
+        assert!(m_sensor.is_some());
+
+        let m_sensor_pos = m_sensor.as_ref().unwrap().get_position();
+
+        assert!(m_sensor_pos.is_ok());
+
+        let unwrapped_pos = m_sensor_pos.unwrap();
+
+        assert_eq!(unwrapped_pos.lat, 68.86);
+        assert_eq!(unwrapped_pos.lon, -85.44);
+        assert_eq!(unwrapped_pos.alt, 3000.1);
+
+        let lin_acc_result = m_sensor.as_ref().unwrap().get_linear_acceleration();
+        assert!(lin_acc_result.is_ok());
+        let lin_acc = lin_acc_result.unwrap();
+        assert_eq!(lin_acc.x, 200.2);
+        assert_eq!(lin_acc.y, -100.3);
+        assert_eq!(lin_acc.z, 100.4);
     }
 }

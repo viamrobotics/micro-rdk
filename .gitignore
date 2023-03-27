@@ -1,2 +1,5 @@
 /target
 .*.swp
+Cargo.lock
+/examples/viam.json
+/examples/target/*

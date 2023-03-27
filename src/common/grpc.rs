@@ -168,6 +168,30 @@ impl GrpcServer {
             "/viam.component.sensor.v1.SensorService/GetReadings" => {
                 self.sensor_get_readings(payload)
             }
+            "/viam.component.movementsensor.v1.MovementSensorService/GetPosition" => {
+                self.movement_sensor_get_position(payload)
+            }
+            "/viam.component.movementsensor.v1.MovementSensorService/GetLinearVelocity" => {
+                self.movement_sensor_get_linear_velocity(payload)
+            }
+            "/viam.component.movementsensor.v1.MovementSensorService/GetAngularVelocity" => {
+                self.movement_sensor_get_angular_velocity(payload)
+            }
+            "/viam.component.movementsensor.v1.MovementSensorService/GetLinearAcceleration" => {
+                self.movement_sensor_get_linear_acceleration(payload)
+            }
+            "/viam.component.movementsensor.v1.MovementSensorService/GetCompassHeading" => {
+                self.movement_sensor_get_compass_heading(payload)
+            }
+            "/viam.component.movementsensor.v1.MovementSensorService/GetProperties" => {
+                self.movement_sensor_get_properties(payload)
+            }
+            "/viam.component.movementsensor.v1.MovementSensorService/GetOrientation" => {
+                self.movement_sensor_get_orientation(payload)
+            }
+            "/viam.component.movementsensor.v1.MovementSensorService/GetAccuracy" => {
+                self.movement_sensor_get_accuracy(payload)
+            }
             _ => anyhow::bail!("unimplemented method"),
         }
     }
@@ -345,6 +369,119 @@ impl GrpcServer {
         let readings = sensor.lock().unwrap().get_generic_readings()?;
         let resp = component::sensor::v1::GetReadingsResponse { readings };
         self.encode_message(resp)
+    }
+
+    fn movement_sensor_get_position(&mut self, message: &[u8]) -> anyhow::Result<()> {
+        let req = component::movement_sensor::v1::GetPositionRequest::decode(message)?;
+        let m_sensor = match self
+            .robot
+            .lock()
+            .unwrap()
+            .get_movement_sensor_by_name(req.name)
+        {
+            Some(b) => b,
+            None => return Err(anyhow::anyhow!("resource not found")),
+        };
+        let position = m_sensor.lock().unwrap().get_position()?;
+        let resp = component::movement_sensor::v1::GetPositionResponse::from(position);
+        self.encode_message(resp)
+    }
+
+    fn movement_sensor_get_linear_velocity(&mut self, message: &[u8]) -> anyhow::Result<()> {
+        let req = component::movement_sensor::v1::GetLinearVelocityRequest::decode(message)?;
+        let m_sensor = match self
+            .robot
+            .lock()
+            .unwrap()
+            .get_movement_sensor_by_name(req.name)
+        {
+            Some(b) => b,
+            None => return Err(anyhow::anyhow!("resource not found")),
+        };
+        let l_vel = m_sensor.lock().unwrap().get_linear_velocity()?;
+        let l_vel_msg = proto::common::v1::Vector3::from(l_vel);
+        let resp = component::movement_sensor::v1::GetLinearVelocityResponse {
+            linear_velocity: Some(l_vel_msg),
+        };
+        self.encode_message(resp)
+    }
+
+    fn movement_sensor_get_angular_velocity(&mut self, message: &[u8]) -> anyhow::Result<()> {
+        let req = component::movement_sensor::v1::GetAngularVelocityRequest::decode(message)?;
+        let m_sensor = match self
+            .robot
+            .lock()
+            .unwrap()
+            .get_movement_sensor_by_name(req.name)
+        {
+            Some(b) => b,
+            None => return Err(anyhow::anyhow!("resource not found")),
+        };
+        let a_vel = m_sensor.lock().unwrap().get_angular_velocity()?;
+        let a_vel_msg = proto::common::v1::Vector3::from(a_vel);
+        let resp = component::movement_sensor::v1::GetAngularVelocityResponse {
+            angular_velocity: Some(a_vel_msg),
+        };
+        self.encode_message(resp)
+    }
+
+    fn movement_sensor_get_linear_acceleration(&mut self, message: &[u8]) -> anyhow::Result<()> {
+        let req = component::movement_sensor::v1::GetLinearAccelerationRequest::decode(message)?;
+        let m_sensor = match self
+            .robot
+            .lock()
+            .unwrap()
+            .get_movement_sensor_by_name(req.name)
+        {
+            Some(b) => b,
+            None => return Err(anyhow::anyhow!("resource not found")),
+        };
+        let l_acc = m_sensor.lock().unwrap().get_linear_acceleration()?;
+        let l_acc_msg = proto::common::v1::Vector3::from(l_acc);
+        let resp = component::movement_sensor::v1::GetLinearAccelerationResponse {
+            linear_acceleration: Some(l_acc_msg),
+        };
+        self.encode_message(resp)
+    }
+
+    fn movement_sensor_get_compass_heading(&mut self, message: &[u8]) -> anyhow::Result<()> {
+        let req = component::movement_sensor::v1::GetCompassHeadingRequest::decode(message)?;
+        let m_sensor = match self
+            .robot
+            .lock()
+            .unwrap()
+            .get_movement_sensor_by_name(req.name)
+        {
+            Some(b) => b,
+            None => return Err(anyhow::anyhow!("resource not found")),
+        };
+        let heading = m_sensor.lock().unwrap().get_compass_heading()?;
+        let resp = component::movement_sensor::v1::GetCompassHeadingResponse { value: heading };
+        self.encode_message(resp)
+    }
+
+    fn movement_sensor_get_properties(&mut self, message: &[u8]) -> anyhow::Result<()> {
+        let req = component::movement_sensor::v1::GetPropertiesRequest::decode(message)?;
+        let m_sensor = match self
+            .robot
+            .lock()
+            .unwrap()
+            .get_movement_sensor_by_name(req.name)
+        {
+            Some(b) => b,
+            None => return Err(anyhow::anyhow!("resource not found")),
+        };
+        let props = m_sensor.lock().unwrap().get_properties();
+        let resp = component::movement_sensor::v1::GetPropertiesResponse::from(props);
+        self.encode_message(resp)
+    }
+
+    fn movement_sensor_get_accuracy(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented movement_sensor_get_accuracy")
+    }
+
+    fn movement_sensor_get_orientation(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+        anyhow::bail!("unimplemented movement_sensor_get_orientation")
     }
 
     fn base_move_straight(&mut self, _message: &[u8]) -> anyhow::Result<()> {

@@ -33,12 +33,14 @@ fn main() -> anyhow::Result<()> {
         #[cfg(feature = "camera")]
         use micro_rdk::common::camera::FakeCamera;
         use micro_rdk::common::motor::FakeMotor;
+        use micro_rdk::common::movement_sensor::FakeMovementSensor;
         let motor = Arc::new(Mutex::new(FakeMotor::new()));
         let base = Arc::new(Mutex::new(FakeBase::new()));
         let board = Arc::new(Mutex::new(FakeBoard::new(vec![
             Rc::new(RefCell::new(FakeAnalogReader::new("A1".to_string(), 10))),
             Rc::new(RefCell::new(FakeAnalogReader::new("A2".to_string(), 20))),
         ])));
+        let movement_sensor = Arc::new(Mutex::new(FakeMovementSensor::new()));
         #[cfg(feature = "camera")]
         let camera = Arc::new(Mutex::new(FakeCamera::new()));
         let mut res: micro_rdk::common::robot::ResourceMap = HashMap::with_capacity(1);
@@ -68,6 +70,15 @@ fn main() -> anyhow::Result<()> {
                 name: "base".to_string(),
             },
             ResourceType::Base(base),
+        );
+        res.insert(
+            ResourceName {
+                namespace: "rdk".to_string(),
+                r#type: "component".to_string(),
+                subtype: "movement_sensor".to_string(),
+                name: "ms".to_string(),
+            },
+            ResourceType::MovementSensor(movement_sensor),
         );
         #[cfg(feature = "camera")]
         res.insert(
