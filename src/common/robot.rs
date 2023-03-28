@@ -306,6 +306,7 @@ impl LocalRobot {
 mod tests {
     use crate::common::board::Board;
     use crate::common::config::{Kind, RobotConfigStatic, StaticComponentConfig};
+    use crate::common::i2c::I2CHandle;
     use crate::common::motor::Motor;
     use crate::common::movement_sensor::MovementSensor;
     use crate::common::robot::LocalRobot;
@@ -322,7 +323,15 @@ mod tests {
                     model: "fake",
                     attributes: Some(
                         phf::phf_map! {"pins" => Kind::ListValueStatic(&[Kind::StringValueStatic("11"),Kind::StringValueStatic("12"),Kind::StringValueStatic("13")]),
-                        "analogs" => Kind::StructValueStatic(phf::phf_map!{"1" => Kind::StringValueStatic("11.12")})},
+                        "analogs" => Kind::StructValueStatic(phf::phf_map!{"1" => Kind::StringValueStatic("11.12")}),
+                        "i2cs" => Kind::ListValueStatic(&[
+                            Kind::StructValueStatic(phf::phf_map!{"name" => Kind::StringValueStatic("i2c0")}),
+                            Kind::StructValueStatic(phf::phf_map!{
+                                "name" => Kind::StringValueStatic("i2c1"),
+                                "value_1" => Kind::StringValueStatic("5"),
+                                "value_2" => Kind::StringValueStatic("4")
+                            })
+                        ])},
                     ),
                 },
                 StaticComponentConfig {
@@ -396,6 +405,29 @@ mod tests {
         assert!(value.is_ok());
 
         assert_eq!(value.unwrap(), 11);
+
+        let mut i2c_driver = board.as_ref().unwrap().get_i2c_by_name("i2c0".to_string());
+        assert!(i2c_driver.is_ok());
+        let bytes: [u8; 3] = [0, 1, 2];
+        assert!(i2c_driver.as_mut().unwrap().write_i2c(0, &bytes).is_ok());
+        let mut buffer: [u8; 3] = [0, 0, 0];
+        assert!(i2c_driver
+            .as_mut()
+            .unwrap()
+            .read_i2c(0, &mut buffer)
+            .is_ok());
+        assert!(buffer.iter().zip(bytes.iter()).all(|(a, b)| a == b));
+
+        let mut i2c_driver_2 = board.as_ref().unwrap().get_i2c_by_name("i2c1".to_string());
+        assert!(i2c_driver_2.is_ok());
+        let init_bytes: [u8; 3] = [5, 4, 0];
+        let mut buffer_2: [u8; 3] = [0, 0, 0];
+        assert!(i2c_driver_2
+            .as_mut()
+            .unwrap()
+            .read_i2c(0, &mut buffer_2)
+            .is_ok());
+        assert!(buffer_2.iter().zip(init_bytes.iter()).all(|(a, b)| a == b));
 
         let sensor = robot.get_sensor_by_name("sensor".to_string());
 

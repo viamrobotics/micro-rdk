@@ -6,6 +6,7 @@ pub mod common {
     pub mod config;
     pub mod grpc;
     pub mod grpc_client;
+    pub mod i2c;
     pub mod math_utils;
     pub mod moisture_sensor;
     pub mod motor;

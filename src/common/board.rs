@@ -13,6 +13,10 @@ use std::time::Duration;
 
 use super::analog::FakeAnalogReader;
 use super::config::{Component, ConfigType};
+use super::i2c::FakeI2CHandle;
+use super::i2c::FakeI2cConfig;
+use super::i2c::I2CHandle;
+use super::i2c::I2cHandleType;
 use super::registry::ComponentRegistry;
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
@@ -26,6 +30,7 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 
 pub struct FakeBoard {
     analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>,
+    i2cs: HashMap<String, Arc<Mutex<FakeI2CHandle>>>,
 }
 pub trait Board: Status {
     fn set_gpio_pin_level(&mut self, pin: i32, is_high: bool) -> anyhow::Result<()>;
@@ -40,19 +45,27 @@ pub trait Board: Status {
         mode: component::board::v1::PowerMode,
         duration: Option<Duration>,
     ) -> anyhow::Result<()>;
+    fn get_i2c_by_name(&self, name: String) -> anyhow::Result<I2cHandleType>;
 }
 
 pub(crate) type BoardType = Arc<Mutex<dyn Board>>;
 
 impl FakeBoard {
     pub fn new(analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>) -> Self {
-        FakeBoard { analogs }
+        let mut i2cs: HashMap<String, Arc<Mutex<FakeI2CHandle>>> = HashMap::new();
+        let i2c0 = Arc::new(Mutex::new(FakeI2CHandle::new("i2c0".to_string())));
+        i2cs.insert(i2c0.name(), i2c0);
+        let i2c1 = Arc::new(Mutex::new(FakeI2CHandle::new("i2c1".to_string())));
+        i2cs.insert(i2c1.name(), i2c1);
+        FakeBoard { analogs, i2cs }
     }
     pub(crate) fn from_config(cfg: ConfigType) -> anyhow::Result<BoardType> {
         match cfg {
             ConfigType::Static(cfg) => {
-                if let Ok(analogs) = cfg.get_attribute::<BTreeMap<&'static str, f64>>("analogs") {
-                    let analogs = analogs
+                let analogs = if let Ok(analog_confs) =
+                    cfg.get_attribute::<BTreeMap<&'static str, f64>>("analogs")
+                {
+                    analog_confs
                         .iter()
                         .map(|(k, v)| {
                             let a: Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>> =
@@ -62,12 +75,28 @@ impl FakeBoard {
                                 )));
                             a
                         })
-                        .collect();
-                    return Ok(Arc::new(Mutex::new(FakeBoard { analogs })));
-                }
+                        .collect()
+                } else {
+                    vec![]
+                };
+
+                let i2cs = if let Ok(i2c_confs) = cfg.get_attribute::<Vec<FakeI2cConfig>>("i2cs") {
+                    let name_to_i2c = i2c_confs.iter().map(|v| {
+                        let name = v.name.to_string();
+                        let value: [u8; 3] = [v.value_1, v.value_2, v.value_3];
+                        (
+                            name.to_string(),
+                            Arc::new(Mutex::new(FakeI2CHandle::new_with_value(name, value))),
+                        )
+                    });
+                    HashMap::from_iter(name_to_i2c)
+                } else {
+                    HashMap::new()
+                };
+
+                Ok(Arc::new(Mutex::new(FakeBoard { analogs, i2cs })))
             }
-        };
-        Ok(Arc::new(Mutex::new(FakeBoard::new(Vec::new()))))
+        }
     }
 }
 
@@ -119,6 +148,13 @@ impl Board for FakeBoard {
             }
         );
         Ok(())
+    }
+    fn get_i2c_by_name(&self, name: String) -> anyhow::Result<I2cHandleType> {
+        if let Some(i2c_handle) = self.i2cs.get(&name) {
+            Ok((*i2c_handle).clone())
+        } else {
+            anyhow::bail!("could not find I2C with name {}", name)
+        }
     }
 }
 
@@ -184,5 +220,9 @@ where
         duration: Option<Duration>,
     ) -> anyhow::Result<()> {
         self.lock().unwrap().set_power_mode(mode, duration)
+    }
+
+    fn get_i2c_by_name(&self, name: String) -> anyhow::Result<I2cHandleType> {
+        self.lock().unwrap().get_i2c_by_name(name)
     }
 }
