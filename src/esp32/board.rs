@@ -24,6 +24,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use super::analog::Esp32AnalogReader;
+use super::i2c::{Esp32I2C, Esp32I2cConfig};
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
@@ -37,6 +38,7 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 pub struct EspBoard {
     pins: Vec<PinDriver<'static, AnyOutputPin, Output>>,
     analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>,
+    i2cs: HashMap<String, Arc<Mutex<Esp32I2C<'static>>>>,
 }
 
 impl EspBoard {
@@ -44,13 +46,18 @@ impl EspBoard {
         pins: Vec<PinDriver<'static, AnyOutputPin, Output>>,
         analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>,
     ) -> Self {
-        EspBoard { pins, analogs }
+        let i2cs = HashMap::new();
+        EspBoard {
+            pins,
+            analogs,
+            i2cs,
+        }
     }
     /// This is a temporary approach aimed at ensuring a good POC for runtime config consumption by the ESP32,
     /// Down the road we will need to wrap the Esp32Board in a singleton instance owning the peripherals and giving them as requested.
     /// The potential approach is described in esp32/motor.rs:383
     pub(crate) fn from_config(cfg: ConfigType) -> anyhow::Result<BoardType> {
-        let (analogs, pins) = match cfg {
+        let (analogs, pins, i2c_confs) = match cfg {
             ConfigType::Static(cfg) => {
                 let analogs = if let Ok(analogs) =
                     cfg.get_attribute::<Vec<AnalogReaderConfig>>("analogs")
@@ -200,10 +207,27 @@ impl EspBoard {
                 } else {
                     vec![]
                 };
-                (analogs, pins)
+
+                let i2c_confs =
+                    if let Ok(i2c_confs) = cfg.get_attribute::<Vec<Esp32I2cConfig>>("i2cs") {
+                        i2c_confs
+                    } else {
+                        vec![]
+                    };
+                (analogs, pins, i2c_confs)
             }
         };
-        Ok(Arc::new(Mutex::new(Self { pins, analogs })))
+        let mut i2cs = HashMap::new();
+        for conf in i2c_confs.iter() {
+            let name = (*conf).name.to_string();
+            let i2c = Esp32I2C::new_from_config(*conf)?;
+            i2cs.insert(name.to_string(), Arc::new(Mutex::new(i2c)));
+        }
+        Ok(Arc::new(Mutex::new(Self {
+            pins,
+            analogs,
+            i2cs,
+        })))
     }
 }
 
