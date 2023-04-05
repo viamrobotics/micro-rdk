@@ -5,6 +5,7 @@ use crate::common::board::Board;
 use crate::common::board::BoardType;
 use crate::common::config::Component;
 use crate::common::config::ConfigType;
+use crate::common::i2c::I2cHandleType;
 use crate::common::registry::ComponentRegistry;
 use crate::common::status::Status;
 use crate::proto::common;
@@ -290,7 +291,11 @@ impl Board for EspBoard {
             esp_idf_sys::esp_deep_sleep_start();
         }
     }
+    fn get_i2c_by_name(&self, _name: String) -> anyhow::Result<I2cHandleType> {
+        anyhow::bail!("i2c for esp32 not yet implemented")
+    }
 }
+
 impl Status for EspBoard {
     fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
         let mut bt = BTreeMap::new();
