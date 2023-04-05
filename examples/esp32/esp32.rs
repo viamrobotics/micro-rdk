@@ -71,12 +71,7 @@ fn main() -> anyhow::Result<()> {
         // // encoder.start()?;
         let tconf = TimerConfig::default().frequency(10.kHz().into());
         let timer = Arc::new(ledc::LedcTimerDriver::new(periph.ledc.timer0, &tconf).unwrap());
-        let chan = ledc::LedcDriver::new(
-            periph.ledc.channel0,
-            timer.clone(),
-            periph.pins.gpio14,
-            &tconf,
-        )?;
+        let chan = ledc::LedcDriver::new(periph.ledc.channel0, timer.clone(), periph.pins.gpio14)?;
         let m1 = MotorEsp32::new(
             PinDriver::output(periph.pins.gpio33)?,
             PinDriver::output(periph.pins.gpio32)?,

@@ -1,9 +1,9 @@
 #![allow(dead_code)]
+use core::ffi::{c_short, c_ulong};
 use esp_idf_hal::gpio::{AnyOutputPin, Output, PinDriver};
 use esp_idf_hal::ledc::config::TimerConfig;
 use esp_idf_hal::ledc::{LedcDriver, LedcTimerDriver, CHANNEL0, CHANNEL1, CHANNEL2};
 use esp_idf_sys as espsys;
-use espsys::c_types::{c_short, c_ulong};
 use espsys::pcnt_channel_edge_action_t_PCNT_CHANNEL_EDGE_ACTION_DECREASE as pcnt_count_dec;
 use espsys::pcnt_channel_edge_action_t_PCNT_CHANNEL_EDGE_ACTION_INCREASE as pcnt_count_inc;
 use espsys::pcnt_channel_level_action_t_PCNT_CHANNEL_LEVEL_ACTION_INVERSE as pcnt_mode_reverse;
@@ -178,7 +178,7 @@ where
     }
     #[inline(always)]
     #[link_section = ".iram1.pcnt_srv"]
-    unsafe extern "C" fn irq_handler(arg: *mut esp_idf_sys::c_types::c_void) {
+    unsafe extern "C" fn irq_handler(arg: *mut core::ffi::c_void) {
         let arg: &mut Esp32Encoder<A, B> = &mut *(arg as *mut _);
         let mut status = 0;
         esp_idf_sys::pcnt_get_event_status(arg.unit, &mut status as *mut c_ulong);
@@ -310,9 +310,9 @@ where
                         let pwm_pin = unsafe { AnyOutputPin::new(pins.pwm) };
                         let chan = PWMCHANNELS.lock().unwrap().take_next_channel()?;
                         let chan = match chan {
-                            PwmChannel::C0(c) => LedcDriver::new(c, timer, pwm_pin, &pwm_tconf)?,
-                            PwmChannel::C1(c) => LedcDriver::new(c, timer, pwm_pin, &pwm_tconf)?,
-                            PwmChannel::C2(c) => LedcDriver::new(c, timer, pwm_pin, &pwm_tconf)?,
+                            PwmChannel::C0(c) => LedcDriver::new(c, timer, pwm_pin)?,
+                            PwmChannel::C1(c) => LedcDriver::new(c, timer, pwm_pin)?,
+                            PwmChannel::C2(c) => LedcDriver::new(c, timer, pwm_pin)?,
                         };
                         return Ok(Arc::new(Mutex::new(MotorEsp32::new(
                             PinDriver::output(unsafe { AnyOutputPin::new(pins.a.unwrap()) })?,
