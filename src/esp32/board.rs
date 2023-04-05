@@ -219,7 +219,7 @@ impl EspBoard {
         };
         let mut i2cs = HashMap::new();
         for conf in i2c_confs.iter() {
-            let name = (*conf).name.to_string();
+            let name = conf.name.to_string();
             let i2c = Esp32I2C::new_from_config(*conf)?;
             i2cs.insert(name.to_string(), Arc::new(Mutex::new(i2c)));
         }
