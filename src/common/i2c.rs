@@ -16,6 +16,16 @@ pub trait I2CHandle<AddressType> {
     fn write_i2c(&mut self, _address: AddressType, _bytes: &[u8]) -> anyhow::Result<()> {
         anyhow::bail!("write_i2c unimplemented")
     }
+
+    // a transactional write and subsequent read action
+    fn write_read_i2c(
+        &mut self,
+        _address: AddressType,
+        _bytes: &[u8],
+        _buffer: &mut [u8],
+    ) -> anyhow::Result<()> {
+        anyhow::bail!("write_read_i2c unimplemented")
+    }
 }
 
 pub(crate) type I2cHandleType = Arc<Mutex<dyn I2CHandle<u8>>>;
