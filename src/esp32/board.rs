@@ -289,14 +289,6 @@ impl Board for EspBoard {
         unsafe {
             esp_idf_sys::esp_deep_sleep_start();
         }
-
-        // The esp_deep_sleep_start function above is documented to
-        // not return. If we have somehow proceeded past it, then the
-        // request has failed.
-
-        anyhow::bail!(
-            "call to esp_deep_sleep_start returned - board failed to honor power mode request"
-        );
     }
 }
 impl Status for EspBoard {
