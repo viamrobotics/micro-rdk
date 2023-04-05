@@ -77,12 +77,7 @@ fn main() -> anyhow::Result<()> {
             PinDriver::output(periph.pins.gpio32)?,
             chan,
         );
-        let chan2 = ledc::LedcDriver::new(
-            periph.ledc.channel2,
-            timer.clone(),
-            periph.pins.gpio2,
-            &tconf,
-        )?;
+        let chan2 = ledc::LedcDriver::new(periph.ledc.channel2, timer.clone(), periph.pins.gpio2)?;
         let m2 = MotorEsp32::new(
             PinDriver::output(periph.pins.gpio13)?,
             PinDriver::output(periph.pins.gpio12)?,

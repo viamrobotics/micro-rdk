@@ -33,7 +33,7 @@ anyhow = { version = "1", features = ["backtrace"] }
 [target.'cfg(target_os="espidf")'.dev-dependencies]
 anyhow = {version = "1", features = ["backtrace"]}
 micro-rdk = { path = "../", default-features = false, features = ["esp32"] }
-embedded-svc = "0.23"
+embedded-svc = "0.24"
 esp-idf-svc = { version = "0.45.0" }
 esp-idf-hal = "0.40.1"
 embedded-hal = { version = "0.2.7", features = ["unproven"]}
