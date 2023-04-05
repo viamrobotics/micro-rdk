@@ -242,13 +242,8 @@ impl Read for Esp32TlsStream {
                 ))
             }
         };
-        match unsafe {
-            read_fn(
-                **self.tls_context,
-                buf.as_mut_ptr() as *mut i8,
-                buf.len() as u32,
-            )
-        } {
+        match unsafe { read_fn(**self.tls_context, buf.as_mut_ptr() as *mut i8, buf.len()) as i32 }
+        {
             n @ 1_i32..=i32::MAX => Ok(n as usize),
             0 => Err(std::io::Error::new(
                 std::io::ErrorKind::NotConnected,
@@ -281,13 +276,7 @@ impl Write for Esp32TlsStream {
                 ))
             }
         };
-        match unsafe {
-            write_fn(
-                **self.tls_context,
-                buf.as_ptr() as *mut i8,
-                buf.len() as u32,
-            )
-        } {
+        match unsafe { write_fn(**self.tls_context, buf.as_ptr() as *mut i8, buf.len()) as i32 } {
             n @ i32::MIN..=-1 => match n {
                 e @ (ESP_TLS_ERR_SSL_WANT_READ | ESP_TLS_ERR_SSL_WANT_WRITE) => {
                     Err(std::io::Error::new(
