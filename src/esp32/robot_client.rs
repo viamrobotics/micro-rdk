@@ -1,9 +1,11 @@
 #![allow(dead_code)]
+use crate::common::webrtc::api::{WebRTCApi, WebRTCError};
+use crate::esp32::certificate::WebRTCCertificate;
 use crate::{
     common::grpc_client::GrpcClient,
     esp32::exec::Esp32Executor,
-    esp32::tcp::Esp32Stream,
     esp32::tls::Esp32Tls,
+    esp32::{dtls::Esp32Dtls, tcp::Esp32Stream},
     proto::{
         app::v1::{AgentInfo, ConfigRequest, ConfigResponse},
         rpc::v1::{AuthenticateRequest, AuthenticateResponse, Credentials},
@@ -14,10 +16,11 @@ use bytes::{BufMut, Bytes, BytesMut};
 use esp_idf_hal::task::{notify, wait_notification};
 use esp_idf_sys::{vTaskDelete, xTaskCreatePinnedToCore, xTaskGetCurrentTaskHandle, TaskHandle_t};
 use prost::Message;
+use std::rc::Rc;
 use std::{ffi::c_void, net::Ipv4Addr, time::Duration};
 
 /// Robot client to interface with app.viam.com
-struct RobotClient<'a> {
+pub struct RobotClient<'a> {
     grpc_client: GrpcClient<'a>,
     /// a jwt string for further grpc requests
     jwt: Option<String>,
@@ -29,15 +32,22 @@ pub struct RobotClientConfig {
     robot_id: String,
     ip: Ipv4Addr,
     main_handle: Option<TaskHandle_t>,
+    webrtc_certificate: Option<Rc<WebRTCCertificate>>,
 }
 
 impl RobotClientConfig {
-    pub fn new(robot_secret: String, robot_id: String, ip: Ipv4Addr) -> Self {
+    pub fn new(
+        robot_secret: String,
+        robot_id: String,
+        ip: Ipv4Addr,
+        cert: Option<Rc<WebRTCCertificate>>,
+    ) -> Self {
         RobotClientConfig {
             robot_secret,
             robot_id,
             ip,
             main_handle: None,
+            webrtc_certificate: cert,
         }
     }
     pub fn set_main_handle(&mut self, hnd: TaskHandle_t) {
@@ -47,9 +57,15 @@ impl RobotClientConfig {
 
 static CLIENT_TASK: &[u8] = b"client\0";
 
+impl<'a> Drop for RobotClient<'a> {
+    fn drop(&mut self) {
+        log::error!("Dro[ppoing robot client")
+    }
+}
+
 impl<'a> RobotClient<'a> {
     /// Create a new robot client
-    fn new(grpc_client: GrpcClient<'a>, config: &'a RobotClientConfig) -> Self {
+    pub fn new(grpc_client: GrpcClient<'a>, config: &'a RobotClientConfig) -> Self {
         RobotClient {
             grpc_client,
             jwt: None,
@@ -57,7 +73,7 @@ impl<'a> RobotClient<'a> {
         }
     }
     /// read the robot config from the cloud
-    fn read_config(&mut self) -> Result<()> {
+    pub fn read_config(&mut self) -> Result<()> {
         let r = self
             .grpc_client
             .build_request("/viam.app.v1.RobotService/Config", &self.jwt)?;
@@ -95,7 +111,7 @@ impl<'a> RobotClient<'a> {
     }
 
     /// get a JWT token from app.viam.com
-    fn request_jwt_token(&mut self) -> Result<()> {
+    pub fn request_jwt_token(&mut self) -> Result<()> {
         let r = self
             .grpc_client
             .build_request("/proto.rpc.v1.AuthService/Authenticate", &None)?;
@@ -129,6 +145,46 @@ impl<'a> RobotClient<'a> {
         self.jwt = Some(format!("Bearer {}", r.access_token));
 
         Ok(())
+    }
+    pub fn start_answering_signaling<'b>(
+        &mut self,
+        executor: Esp32Executor<'b>,
+    ) -> Result<WebRTCApi<'b, WebRTCCertificate, Esp32Dtls<WebRTCCertificate>>> {
+        use crate::proto::rpc::webrtc::v1::AnswerRequest;
+        use crate::proto::rpc::webrtc::v1::AnswerResponse;
+        use futures_lite::future::block_on;
+
+        let r = self
+            .grpc_client
+            .build_request("/proto.rpc.webrtc.v1.SignalingService/Answer", &self.jwt)?;
+        log::debug!("Spawning signaling");
+        let (tx_half, rx_half) = self
+            .grpc_client
+            .send_request_bidi::<AnswerResponse, AnswerRequest>(r, None)?;
+        let cloned_exec = executor.clone();
+        let certificate = match self.config.webrtc_certificate.as_ref() {
+            Some(c) => c.clone(),
+            None => return Err(anyhow::anyhow!("no certificate supplied")),
+        };
+
+        let dtls =
+            Esp32Dtls::new(certificate.clone()).map_err(|e| WebRTCError::DtlsError(Box::new(e)))?;
+
+        let mut webrtc = WebRTCApi::new(
+            executor.clone(),
+            tx_half,
+            rx_half,
+            certificate,
+            self.config.ip,
+            dtls,
+        );
+        block_on(cloned_exec.run(async { webrtc.answer().await })).unwrap();
+        unsafe {
+            use esp_idf_sys::{heap_caps_print_heap_info, MALLOC_CAP_32BIT, MALLOC_CAP_8BIT};
+            heap_caps_print_heap_info(MALLOC_CAP_8BIT | MALLOC_CAP_32BIT);
+        }
+        block_on(cloned_exec.run(async { webrtc.run_ice_till_connected().await })).unwrap();
+        Ok(webrtc)
     }
 }
 

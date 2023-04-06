@@ -1,7 +1,9 @@
-///! The exec module exposes helpers to execute futures on an ESP32
+///! The exec module exposes helpers to execute futures on Native
 use futures_lite::{future, Future};
 use smol::{LocalExecutor, Task};
 use std::rc::Rc;
+
+use crate::common::webrtc::exec::WebRTCExecutor;
 
 #[derive(Clone, Debug)]
 /// This executor is local and bounded to the CPU that created it usually you would create it after spwaning a thread on a specific core
@@ -35,6 +37,15 @@ impl<'a> Default for NativeExecutor<'a> {
 
 /// helper trait for hyper to spwan future onto a local executor
 impl<F> hyper::rt::Executor<F> for NativeExecutor<'_>
+where
+    F: future::Future + 'static,
+{
+    fn execute(&self, fut: F) {
+        self.executor.spawn(fut).detach();
+    }
+}
+
+impl<F> WebRTCExecutor<F> for NativeExecutor<'_>
 where
     F: future::Future + 'static,
 {

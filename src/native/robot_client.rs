@@ -1,21 +1,30 @@
 #![allow(dead_code)]
 use crate::{
-    common::grpc_client::GrpcClient,
+    common::{grpc_client::GrpcClient, webrtc::api::WebRTCApi},
     native::exec::NativeExecutor,
     native::tcp::NativeStream,
-    native::tls::NativeTls,
+    native::{certificate::WebRTCCertificate, tls::NativeTls},
     proto::{
         app::v1::{AgentInfo, ConfigRequest, ConfigResponse},
-        rpc::v1::{AuthenticateRequest, AuthenticateResponse, Credentials},
+        rpc::{
+            v1::{AuthenticateRequest, AuthenticateResponse, Credentials},
+            webrtc::v1::{AnswerRequest, AnswerResponse},
+        },
     },
 };
 use anyhow::Result;
 use bytes::{BufMut, Bytes, BytesMut};
+
+use futures_lite::future::block_on;
 use prost::Message;
+
 use std::{
     net::Ipv4Addr,
+    rc::Rc,
     thread::{self, JoinHandle},
 };
+
+use super::dtls::Dtls;
 
 /// Robot client to interface with app.viam.com
 struct RobotClient<'a> {
@@ -126,12 +135,49 @@ impl<'a> RobotClient<'a> {
         let mut r = self.grpc_client.send_request(r, body)?;
         let r = r.split_off(5);
         let r = AuthenticateResponse::decode(r)?;
+        log::info!("has tocken {:?}", &r.access_token);
         self.jwt = Some(format!("Bearer {}", r.access_token));
 
         Ok(())
     }
     fn test_echo_request(&mut self) -> Result<()> {
         Ok(())
+    }
+    fn start_answering_signaling<'b>(
+        &mut self,
+        executor: NativeExecutor<'b>,
+    ) -> Result<WebRTCApi<'b, WebRTCCertificate, Dtls>> {
+        let r = self
+            .grpc_client
+            .build_request("/proto.rpc.webrtc.v1.SignalingService/Answer", &self.jwt)?;
+        log::info!("Spawning signaling");
+        let (tx_half, rx_half) = self
+            .grpc_client
+            .send_request_bidi::<AnswerResponse, AnswerRequest>(r, None)?;
+        let cloned_exec = executor.clone();
+        let our_ip = match local_ip_address::local_ip()? {
+            std::net::IpAddr::V4(v4) => v4,
+            _ => {
+                return Err(anyhow::anyhow!("our_ip is not an IpV4Addr"));
+            }
+        };
+        let certificate = WebRTCCertificate::new().unwrap();
+        //let dtls_t = self.transport.get_dtls_channel().unwrap();
+        let dtls = Dtls::new(Rc::new(certificate.clone())).unwrap();
+        let mut webrtc = WebRTCApi::new(
+            executor,
+            tx_half,
+            rx_half,
+            Rc::new(certificate),
+            our_ip,
+            dtls,
+        );
+        let answer = block_on(cloned_exec.run(async { webrtc.answer().await }));
+        log::info!("answer {:?}", answer);
+        let connected = block_on(cloned_exec.run(async { webrtc.run_ice_till_connected().await }));
+        log::info!("connected {:?}", connected);
+
+        Ok(webrtc)
     }
 }
 
@@ -165,13 +211,27 @@ fn client_entry(config: RobotClientConfig) {
 
 #[cfg(test)]
 mod tests {
+    use crate::common::board::FakeBoard;
+    use crate::common::grpc::GrpcServer;
+    use crate::common::robot::{LocalRobot, ResourceMap, ResourceType};
+    use crate::common::webrtc::grpc::{WebRTCGrpcBody, WebRTCGrpcServer};
     use crate::native::exec::NativeExecutor;
     use crate::native::robot_client::GrpcClient;
     use crate::native::tcp::NativeStream;
+    use crate::native::tls::NativeTls;
+
+    use crate::proto::common::v1::ResourceName;
     use crate::proto::rpc::examples::echo::v1::{EchoBiDiRequest, EchoBiDiResponse};
+
     use futures_lite::future::block_on;
     use futures_lite::StreamExt;
-    use std::net::TcpStream;
+
+    use std::collections::HashMap;
+    use std::net::{Ipv4Addr, TcpStream};
+
+    use std::sync::{Arc, Mutex};
+
+    use super::{RobotClient, RobotClientConfig};
     #[test_log::test]
     #[ignore]
     fn test_client_bidi() -> anyhow::Result<()> {
@@ -227,5 +287,59 @@ mod tests {
 
         assert_eq!("123456", p);
         Ok(())
+    }
+
+    #[test_log::test]
+    #[ignore]
+    fn test_webrtc_signaling() -> anyhow::Result<()> {
+        let cfg = RobotClientConfig {
+            robot_secret: "<Some secret>".to_string(),
+            robot_id: "<Some robot>".to_string(),
+            ip: Ipv4Addr::new(0, 0, 0, 0),
+        };
+
+        let robot = {
+            let board = Arc::new(Mutex::new(FakeBoard::new(vec![])));
+            let mut res: ResourceMap = HashMap::with_capacity(1);
+            res.insert(
+                ResourceName {
+                    namespace: "rdk".to_string(),
+                    r#type: "component".to_string(),
+                    subtype: "board".to_string(),
+                    name: "b".to_string(),
+                },
+                ResourceType::Board(board),
+            );
+            Arc::new(Mutex::new(LocalRobot::new(res)))
+        };
+
+        let executor = NativeExecutor::new();
+
+        let mut webrtc = {
+            let tls = Box::new(NativeTls::new_client());
+            let conn = tls.open_ssl_context(None)?;
+            let conn = NativeStream::TLSStream(Box::new(conn));
+            let grpc_client = GrpcClient::new(conn, executor.clone(), "https://app.viam.com:443")?;
+            let mut robot_client = RobotClient::new(grpc_client, &cfg);
+
+            robot_client.request_jwt_token()?;
+            robot_client.read_config()?;
+
+            let p = robot_client
+                .start_answering_signaling(executor.clone())
+                .unwrap();
+
+            drop(robot_client);
+            p
+        };
+        let channel = block_on(executor.run(async { webrtc.open_data_channel().await })).unwrap();
+        log::info!("channel opened {:?}", channel);
+
+        let mut webrtc_grpc =
+            WebRTCGrpcServer::new(channel, GrpcServer::new(robot, WebRTCGrpcBody::default()));
+
+        loop {
+            block_on(executor.run(async { webrtc_grpc.next_request().await.unwrap() }));
+        }
     }
 }

@@ -3,6 +3,7 @@ use std::{fmt::Debug, marker::PhantomData, sync::Arc, sync::Mutex, time::Duratio
 use crate::{
     common::board::Board,
     common::robot::LocalRobot,
+    google::rpc::Status,
     proto::{self, component, robot},
 };
 use bytes::{BufMut, BytesMut};
@@ -22,12 +23,14 @@ use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
 
+use super::webrtc::grpc::WebRTCGrpcService;
+
 #[cfg(feature = "camera")]
 static GRPC_BUFFER_SIZE: usize = 10240;
 #[cfg(not(feature = "camera"))]
 static GRPC_BUFFER_SIZE: usize = 4096;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GrpcBody {
     _marker: PhantomData<*const ()>,
     data: Option<Bytes>,
@@ -43,6 +46,33 @@ impl GrpcBody {
             trailers: Some(trailers),
             _marker: PhantomData,
         }
+    }
+}
+
+impl GrpcResponse for GrpcBody {
+    fn put_data(&mut self, data: Bytes) {
+        let _ = self.data.insert(data);
+    }
+    fn insert_trailer(&mut self, key: &'static str, value: &'_ str) {
+        self.trailers
+            .as_mut()
+            .unwrap()
+            .insert(key, value.parse().unwrap());
+    }
+    fn set_status(&mut self, code: i32, message: Option<&'_ str>) {
+        self.trailers
+            .as_mut()
+            .unwrap()
+            .insert("grpc-status", code.into());
+        if let Some(message) = message {
+            self.trailers
+                .as_mut()
+                .unwrap()
+                .insert("grpc-message", message.parse().unwrap());
+        }
+    }
+    fn get_data(&mut self) -> Bytes {
+        self.data.take().unwrap()
     }
 }
 
@@ -76,16 +106,38 @@ impl HttpBody for GrpcBody {
     }
 }
 
+pub trait GrpcResponse {
+    fn put_data(&mut self, data: Bytes);
+    fn insert_trailer(&mut self, key: &'static str, value: &'_ str);
+    fn set_status(&mut self, code: i32, message: Option<&'_ str>);
+    fn get_data(&mut self) -> Bytes;
+}
+
 #[derive(Clone)]
-pub struct GrpcServer {
-    response: GrpcBody,
-    buffer: Rc<RefCell<BytesMut>>,
+pub struct GrpcServer<R> {
+    pub(crate) response: R,
+    pub(crate) buffer: Rc<RefCell<BytesMut>>,
     robot: Arc<Mutex<LocalRobot>>,
 }
 
-impl GrpcServer {
-    pub fn new(robot: Arc<Mutex<LocalRobot>>) -> Self {
-        let body = GrpcBody::new();
+impl<R> Debug for GrpcServer<R>
+where
+    R: Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "GrpcServer {{ response : {:?} }}, {{ buffer : {:?} }}",
+            self.response, self.buffer
+        )
+    }
+}
+
+impl<R> GrpcServer<R>
+where
+    R: GrpcResponse,
+{
+    pub fn new(robot: Arc<Mutex<LocalRobot>>, body: R) -> Self {
         info!("Making server");
         GrpcServer {
             response: body,
@@ -108,8 +160,7 @@ impl GrpcServer {
         Ok(rest)
     }
 
-    fn handle_request(&mut self, path: &str, msg: Bytes) -> anyhow::Result<()> {
-        let payload = Self::validate_rpc(&msg)?;
+    pub(crate) fn handle_request(&mut self, path: &str, payload: &[u8]) -> anyhow::Result<()> {
         match path {
             "/viam.component.base.v1.BaseService/SetPower" => self.base_set_power(payload),
             "/viam.component.base.v1.BaseService/Stop" => self.base_stop(payload),
@@ -164,6 +215,8 @@ impl GrpcServer {
             "/viam.component.motor.v1.MotorService/Stop" => self.motor_stop(payload),
             "/viam.robot.v1.RobotService/ResourceNames" => self.resource_names(payload),
             "/viam.robot.v1.RobotService/GetStatus" => self.robot_status(payload),
+            "/viam.robot.v1.RobotService/StreamStatus" => self.robot_status_stream(payload),
+            "/viam.robot.v1.RobotService/GetOperations" => self.robot_get_oprations(payload),
             "/proto.rpc.v1.AuthService/Authenticate" => self.auth_service_authentificate(payload),
             "/viam.component.sensor.v1.SensorService/GetReadings" => {
                 self.sensor_get_readings(payload)
@@ -206,17 +259,9 @@ impl GrpcServer {
     }
 
     fn process_request(&mut self, path: &str, msg: Bytes) {
-        if self.handle_request(path, msg).is_err() {
-            self.response
-                .trailers
-                .as_mut()
-                .unwrap()
-                .insert("grpc-message", "unimplemented".parse().unwrap());
-            self.response
-                .trailers
-                .as_mut()
-                .unwrap()
-                .insert("grpc-status", "12".parse().unwrap());
+        let payload = Self::validate_rpc(&msg);
+        if payload.is_err() || self.handle_request(path, payload.unwrap()).is_err() {
+            self.response.set_status(12, Some("unimplemented"));
         }
     }
 
@@ -508,7 +553,7 @@ impl GrpcServer {
         anyhow::bail!("unimplemented: base_spin")
     }
 
-    fn base_set_velocity(&mut self, _message: &[u8]) -> anyhow::Result<()> {
+    fn base_set_velocity(&mut self, _: &[u8]) -> anyhow::Result<()> {
         anyhow::bail!("unimplemented: base_set_velocity")
     }
 
@@ -574,6 +619,27 @@ impl GrpcServer {
         self.encode_message(resp)
     }
 
+    // This is a placeholder for status stream, app.viam.com requires it when
+    // connecting over webrtc, in this implementation we return one object only
+    fn robot_status_stream(&mut self, message: &[u8]) -> anyhow::Result<()> {
+        let req = robot::v1::StreamStatusRequest::decode(message)?;
+        // fake a GetStatusRequest because local robot expect this
+        let req = robot::v1::GetStatusRequest {
+            resource_names: req.resource_names,
+        };
+        let status = robot::v1::StreamStatusResponse {
+            status: self.robot.lock().unwrap().get_status(req)?,
+        };
+        self.encode_message(status)
+    }
+
+    // robot_get_operations returns an empty response since operation are not yet
+    // supported on micro-rdk
+    fn robot_get_oprations(&mut self, _: &[u8]) -> anyhow::Result<()> {
+        let operation = robot::v1::GetOperationsResponse::default();
+        self.encode_message(operation)
+    }
+
     fn robot_status(&mut self, message: &[u8]) -> anyhow::Result<()> {
         let req = robot::v1::GetStatusRequest::decode(message)?;
         let status = robot::v1::GetStatusResponse {
@@ -600,7 +666,7 @@ impl GrpcServer {
             buffer[3] = len[2];
             buffer[4] = len[3];
             buffer.unsplit(msg);
-            self.response.data = Some(buffer.freeze());
+            self.response.put_data(buffer.freeze());
             return Ok(());
         }
         Err(anyhow::anyhow!("resource not found"))
@@ -639,13 +705,49 @@ impl GrpcServer {
         let mut msg = buffer.split();
         m.encode(&mut msg)?;
         buffer.unsplit(msg);
-        self.response.data = Some(buffer.freeze());
+        self.response.put_data(buffer.freeze());
         Ok(())
     }
 }
 
-impl Service<Request<Body>> for GrpcServer {
-    type Response = Response<GrpcBody>;
+impl<R> WebRTCGrpcService for GrpcServer<R>
+where
+    R: GrpcResponse + 'static,
+{
+    fn unary_rpc(
+        &mut self,
+        method: &str,
+        data: &Bytes,
+    ) -> Result<Bytes, crate::google::rpc::Status> {
+        {
+            let cap = RefCell::borrow(&self.buffer).capacity();
+            let len = RefCell::borrow(&self.buffer).len();
+            log::info!("current status of buffer is cap: {:?} len: {:?}", cap, len);
+        }
+        debug!("webRTC");
+        {
+            RefCell::borrow_mut(&self.buffer).reserve(GRPC_BUFFER_SIZE);
+        }
+        log::info!("req is {:?}, ", method);
+        match self.handle_request(method, data) {
+            Err(e) => {
+                log::error!("received error {:?}", e);
+                Err(Status {
+                    code: 12,
+                    message: "unimplemented".to_owned(),
+                    ..Default::default()
+                })
+            }
+            Ok(_) => Ok(self.response.get_data().split_off(5)),
+        }
+    }
+}
+
+impl<R> Service<Request<Body>> for GrpcServer<R>
+where
+    R: GrpcResponse + HttpBody + Clone + 'static,
+{
+    type Response = Response<R>;
     type Error = MyErr;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
 
@@ -678,7 +780,7 @@ impl Service<Request<Body>> for GrpcServer {
         Poll::Ready(Ok(()))
     }
 }
-impl Drop for GrpcServer {
+impl<R> Drop for GrpcServer<R> {
     fn drop(&mut self) {
         debug!("Server dropped");
     }
@@ -696,20 +798,20 @@ impl std::fmt::Display for MyErr {
 }
 
 pub struct MakeSvcGrpcServer {
-    server: GrpcServer,
+    server: GrpcServer<GrpcBody>,
 }
 
 impl MakeSvcGrpcServer {
     #[allow(dead_code)]
     pub fn new(robot: Arc<Mutex<LocalRobot>>) -> Self {
         MakeSvcGrpcServer {
-            server: GrpcServer::new(robot),
+            server: GrpcServer::new(robot, GrpcBody::new()),
         }
     }
 }
 
 impl<T> Service<T> for MakeSvcGrpcServer {
-    type Response = GrpcServer;
+    type Response = GrpcServer<GrpcBody>;
     type Error = MyErr;
     type Future = future::Ready<Result<Self::Response, Self::Error>>;
 
