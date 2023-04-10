@@ -154,7 +154,7 @@ impl<'a> Esp32I2C<'a> {
     }
 }
 
-impl<'a> I2CHandle<u8> for Esp32I2C<'a> {
+impl<'a> I2CHandle for Esp32I2C<'a> {
     fn name(&self) -> String {
         self.name.clone()
     }

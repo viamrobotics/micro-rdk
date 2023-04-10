@@ -4,23 +4,22 @@ use super::config::{AttributeError, Kind};
 use std::sync::{Arc, Mutex};
 
 // A trait representing blocking I2C communication for a board. TODO: replace with the
-// embedded_hal I2C trait when supporting boards beyond ESP32. AddressType is
-// either u8 (indicating support for 7-bit addresses) or u16 (for supporting 10-bit addresses)
-pub trait I2CHandle<AddressType> {
+// embedded_hal I2C trait when supporting boards beyond ESP32.
+pub trait I2CHandle {
     fn name(&self) -> String;
 
-    fn read_i2c(&mut self, _address: AddressType, _buffer: &mut [u8]) -> anyhow::Result<()> {
+    fn read_i2c(&mut self, _address: u8, _buffer: &mut [u8]) -> anyhow::Result<()> {
         anyhow::bail!("read_i2c unimplemented")
     }
 
-    fn write_i2c(&mut self, _address: AddressType, _bytes: &[u8]) -> anyhow::Result<()> {
+    fn write_i2c(&mut self, _address: u8, _bytes: &[u8]) -> anyhow::Result<()> {
         anyhow::bail!("write_i2c unimplemented")
     }
 
     // a transactional write and subsequent read action
     fn write_read_i2c(
         &mut self,
-        _address: AddressType,
+        _address: u8,
         _bytes: &[u8],
         _buffer: &mut [u8],
     ) -> anyhow::Result<()> {
@@ -28,7 +27,7 @@ pub trait I2CHandle<AddressType> {
     }
 }
 
-pub type I2cHandleType = Arc<Mutex<dyn I2CHandle<u8> + Send>>;
+pub type I2cHandleType = Arc<Mutex<dyn I2CHandle + Send>>;
 
 #[derive(Debug)]
 pub(crate) struct FakeI2cConfig {
@@ -123,7 +122,7 @@ impl FakeI2CHandle {
     }
 }
 
-impl I2CHandle<u8> for FakeI2CHandle {
+impl I2CHandle for FakeI2CHandle {
     fn name(&self) -> String {
         self.name.clone()
     }
@@ -145,9 +144,9 @@ impl I2CHandle<u8> for FakeI2CHandle {
     }
 }
 
-impl<A> I2CHandle<u8> for Arc<Mutex<A>>
+impl<A> I2CHandle for Arc<Mutex<A>>
 where
-    A: ?Sized + I2CHandle<u8>,
+    A: ?Sized + I2CHandle,
 {
     fn name(&self) -> String {
         self.lock().unwrap().name()
@@ -171,19 +170,3 @@ where
     }
 }
 
-impl<A> I2CHandle<u16> for Arc<Mutex<A>>
-where
-    A: ?Sized + I2CHandle<u16>,
-{
-    fn name(&self) -> String {
-        self.lock().unwrap().name()
-    }
-
-    fn read_i2c(&mut self, address: u16, buffer: &mut [u8]) -> anyhow::Result<()> {
-        self.lock().unwrap().read_i2c(address, buffer)
-    }
-
-    fn write_i2c(&mut self, address: u16, bytes: &[u8]) -> anyhow::Result<()> {
-        self.lock().unwrap().write_i2c(address, bytes)
-    }
-}
