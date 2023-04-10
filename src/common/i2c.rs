@@ -28,7 +28,7 @@ pub trait I2CHandle<AddressType> {
     }
 }
 
-pub(crate) type I2cHandleType = Arc<Mutex<dyn I2CHandle<u8>>>;
+pub type I2cHandleType = Arc<Mutex<dyn I2CHandle<u8> + Send>>;
 
 #[derive(Debug)]
 pub(crate) struct FakeI2cConfig {
@@ -159,6 +159,15 @@ where
 
     fn write_i2c(&mut self, address: u8, bytes: &[u8]) -> anyhow::Result<()> {
         self.lock().unwrap().write_i2c(address, bytes)
+    }
+
+    fn write_read_i2c(
+        &mut self,
+        address: u8,
+        bytes: &[u8],
+        buffer: &mut [u8],
+    ) -> anyhow::Result<()> {
+        self.lock().unwrap().write_read_i2c(address, bytes, buffer)
     }
 }
 
