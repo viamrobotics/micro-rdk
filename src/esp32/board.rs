@@ -319,7 +319,7 @@ impl Board for EspBoard {
     fn get_i2c_by_name(&self, name: String) -> anyhow::Result<I2cHandleType> {
         match self.i2cs.get(&name) {
             Some(i2c_handle) => Ok(Arc::clone(i2c_handle)),
-            None => Err(anyhow::anyhow!("no i2c found with name {}", name))
+            None => Err(anyhow::anyhow!("no i2c found with name {}", name)),
         }
     }
 }

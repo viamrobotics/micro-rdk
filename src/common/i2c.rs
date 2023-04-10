@@ -169,4 +169,3 @@ where
         self.lock().unwrap().write_read_i2c(address, bytes, buffer)
     }
 }
-
