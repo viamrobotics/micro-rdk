@@ -3,3 +3,4 @@
 Cargo.lock
 /examples/viam.json
 /examples/target/*
+.vscode

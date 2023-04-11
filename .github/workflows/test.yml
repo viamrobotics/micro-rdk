@@ -44,7 +44,7 @@ jobs:
         
     - name: Build ESP32
       run: |
-        sudo -u testbot bash -lc 'export MICRO_RDK_WIFI_PASSWORD=0 && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && cd examples && cargo update -p x25519-dalek --precise 2.0.0-pre.1 && cd ../ && make build'
+        sudo -u testbot bash -lc 'export MICRO_RDK_WIFI_PASSWORD=0 && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && cd examples && cd ../ && make build'
         
     - name: Build Native
       run: |

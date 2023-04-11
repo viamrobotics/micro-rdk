@@ -98,6 +98,7 @@ fn main() -> anyhow::Result<()> {
         let b = EspBoard::new(
             pins,
             vec![Rc::new(RefCell::new(r)), Rc::new(RefCell::new(r2))],
+            HashMap::new()
         );
         let motor = Arc::new(Mutex::new(m1));
         let m2 = Arc::new(Mutex::new(m2));

@@ -25,6 +25,7 @@ pub mod esp32 {
     #[cfg(feature = "camera")]
     pub mod camera;
     pub mod exec;
+    pub mod i2c;
     pub mod motor;
     pub mod pin;
     pub mod robot_client;
