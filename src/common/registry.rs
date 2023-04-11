@@ -7,6 +7,7 @@ lazy_static::lazy_static! {
         crate::common::motor::register_models(&mut r);
         crate::common::sensor::register_models(&mut r);
         crate::common::movement_sensor::register_models(&mut r);
+        crate::common::mpu6050::register_models(&mut r);
         #[cfg(esp32)]
         crate::esp32::board::register_models(&mut r);
         #[cfg(esp32)]

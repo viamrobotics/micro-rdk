@@ -17,6 +17,7 @@ use esp_idf_hal::adc::AdcDriver;
 use esp_idf_hal::adc::Atten11dB;
 use esp_idf_hal::adc::ADC1;
 use esp_idf_hal::gpio::{AnyInputPin, AnyOutputPin, Output, PinDriver};
+// use esp_idf_hal::peripherals::Peripherals;
 use log::*;
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
