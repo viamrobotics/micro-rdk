@@ -11,9 +11,8 @@ use super::movement_sensor::MovementSensorType;
 use super::registry::ComponentRegistry;
 use super::status::Status;
 
-use byteorder::{BigEndian, ReadBytesExt};
 use std::collections::BTreeMap;
-use std::io::Cursor;
+use std::mem::size_of;
 use std::sync::{Arc, Mutex};
 
 // This module represents an implementation of the MPU-6050 gyroscope/accelerometer
@@ -101,13 +100,12 @@ impl Drop for MPU6050 {
     }
 }
 
-fn get_angular_velocity_from_reading(reading: [u8; 14]) -> Vector3 {
-    let mut slice_copy = vec![0; 6];
-    slice_copy.clone_from_slice(&(reading[8..14]));
-    let mut rdr = Cursor::new(slice_copy);
-    let unscaled_x = rdr.read_u16::<BigEndian>().unwrap();
-    let unscaled_y = rdr.read_u16::<BigEndian>().unwrap();
-    let unscaled_z = rdr.read_u16::<BigEndian>().unwrap();
+fn get_angular_velocity_from_reading(reading: &[u8; 14]) -> Vector3 {
+    let (x_bytes, y_z_bytes) = reading[8..14].split_at(size_of::<u16>());
+    let unscaled_x = u16::from_be_bytes(x_bytes.try_into().unwrap());
+    let (y_bytes, z_bytes) = y_z_bytes.split_at(size_of::<u16>());
+    let unscaled_y = u16::from_be_bytes(y_bytes.try_into().unwrap());
+    let unscaled_z = u16::from_be_bytes(z_bytes.try_into().unwrap());
 
     let max_velocity: f64 = 250.0;
     let max_u16: f64 = 32768.0;
@@ -118,13 +116,12 @@ fn get_angular_velocity_from_reading(reading: [u8; 14]) -> Vector3 {
     Vector3 { x, y, z }
 }
 
-fn get_linear_acceleration_from_reading(reading: [u8; 14]) -> Vector3 {
-    let mut slice_copy = vec![0; 6];
-    slice_copy.clone_from_slice(&(reading[0..6]));
-    let mut rdr = Cursor::new(slice_copy);
-    let unscaled_x = rdr.read_i16::<BigEndian>().unwrap();
-    let unscaled_y = rdr.read_i16::<BigEndian>().unwrap();
-    let unscaled_z = rdr.read_i16::<BigEndian>().unwrap();
+fn get_linear_acceleration_from_reading(reading: &[u8; 14]) -> Vector3 {
+    let (x_bytes, y_z_bytes) = reading[0..6].split_at(size_of::<u16>());
+    let unscaled_x = u16::from_be_bytes(x_bytes.try_into().unwrap());
+    let (y_bytes, z_bytes) = y_z_bytes.split_at(size_of::<u16>());
+    let unscaled_y = u16::from_be_bytes(y_bytes.try_into().unwrap());
+    let unscaled_z = u16::from_be_bytes(z_bytes.try_into().unwrap());
 
     let max_acceleration: f64 = 2.0 * 9.81 * 1000.0;
     let max_u16: f64 = 32768.0;
@@ -151,7 +148,7 @@ impl MovementSensor for MPU6050 {
         let mut result: [u8; 14] = [0; 14];
         self.i2c_handle
             .write_read_i2c(self.i2c_address, &register_write, &mut result)?;
-        Ok(get_angular_velocity_from_reading(result))
+        Ok(get_angular_velocity_from_reading(&result))
     }
 
     fn get_linear_acceleration(&mut self) -> anyhow::Result<Vector3> {
@@ -159,7 +156,7 @@ impl MovementSensor for MPU6050 {
         let mut result: [u8; 14] = [0; 14];
         self.i2c_handle
             .write_read_i2c(self.i2c_address, &register_write, &mut result)?;
-        Ok(get_linear_acceleration_from_reading(result))
+        Ok(get_linear_acceleration_from_reading(&result))
     }
 
     fn get_position(&mut self) -> anyhow::Result<super::movement_sensor::GeoPosition> {
@@ -190,7 +187,7 @@ mod tests {
     #[test_log::test]
     fn test_read_linear_acceleration() -> anyhow::Result<()> {
         let reading: [u8; 14] = [64, 0, 32, 0, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        let lin_acc = get_linear_acceleration_from_reading(reading);
+        let lin_acc = get_linear_acceleration_from_reading(&reading);
         assert_eq!(lin_acc.x, 9810.0);
         assert_eq!(lin_acc.y, 4905.0);
         assert_eq!(lin_acc.z, 2452.5);
@@ -200,7 +197,7 @@ mod tests {
     #[test_log::test]
     fn test_read_angular_velocity() -> anyhow::Result<()> {
         let reading: [u8; 14] = [0, 0, 0, 0, 0, 0, 0, 0, 64, 0, 32, 0, 16, 0];
-        let ang_vel = get_angular_velocity_from_reading(reading);
+        let ang_vel = get_angular_velocity_from_reading(&reading);
         assert_eq!(ang_vel.x, 125.0);
         assert_eq!(ang_vel.y, 62.5);
         assert_eq!(ang_vel.z, 31.25);
