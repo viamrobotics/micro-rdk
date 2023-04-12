@@ -1,4 +1,5 @@
 pub mod common {
+    pub mod adxl345;
     pub mod analog;
     pub mod base;
     pub mod board;
