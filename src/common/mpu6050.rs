@@ -28,8 +28,8 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     }
 }
 
-const reading_start_register: u8 = 59;
-const standby_mode_register: u8 = 107;
+const READING_START_REGISTER: u8 = 59;
+const STANDBY_MODE_REGISTER: u8 = 107;
 
 pub struct MPU6050 {
     i2c_handle: I2cHandleType,
@@ -38,7 +38,7 @@ pub struct MPU6050 {
 
 impl MPU6050 {
     pub fn new(mut i2c_handle: I2cHandleType, i2c_address: u8) -> anyhow::Result<Self> {
-        let bytes: [u8; 2] = [standby_mode_register, 0];
+        let bytes: [u8; 2] = [STANDBY_MODE_REGISTER, 0];
         i2c_handle.write_i2c(i2c_address, &bytes)?;
         Ok(MPU6050 {
             i2c_handle,
@@ -83,7 +83,7 @@ impl MPU6050 {
 
     pub fn close(&mut self) -> anyhow::Result<()> {
         // put the MPU in the sleep state
-        let off_data: [u8; 2] = [standby_mode_register, 64];
+        let off_data: [u8; 2] = [STANDBY_MODE_REGISTER, 64];
         if let Err(err) = self.i2c_handle.write_i2c(self.i2c_address, &off_data) {
             return Err(anyhow::anyhow!("mpu6050 sleep command failed: {:?}", err));
         };
@@ -147,7 +147,7 @@ impl MovementSensor for MPU6050 {
     }
 
     fn get_angular_velocity(&mut self) -> anyhow::Result<Vector3> {
-        let register_write: [u8; 1] = [reading_start_register];
+        let register_write: [u8; 1] = [READING_START_REGISTER];
         let mut result: [u8; 14] = [0; 14];
         self.i2c_handle
             .write_read_i2c(self.i2c_address, &register_write, &mut result)?;
@@ -155,7 +155,7 @@ impl MovementSensor for MPU6050 {
     }
 
     fn get_linear_acceleration(&mut self) -> anyhow::Result<Vector3> {
-        let register_write: [u8; 1] = [reading_start_register];
+        let register_write: [u8; 1] = [READING_START_REGISTER];
         let mut result: [u8; 14] = [0; 14];
         self.i2c_handle
             .write_read_i2c(self.i2c_address, &register_write, &mut result)?;
