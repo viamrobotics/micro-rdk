@@ -462,7 +462,7 @@ mod tests {
 
         assert!(m_sensor.is_some());
 
-        let m_sensor_pos = m_sensor.as_ref().unwrap().get_position();
+        let m_sensor_pos = m_sensor.unwrap().get_position();
 
         assert!(m_sensor_pos.is_ok());
 
@@ -472,7 +472,11 @@ mod tests {
         assert_eq!(unwrapped_pos.lon, -85.44);
         assert_eq!(unwrapped_pos.alt, 3000.1);
 
-        let lin_acc_result = m_sensor.as_ref().unwrap().get_linear_acceleration();
+        let m_sensor_2 = robot.get_movement_sensor_by_name("m_sensor".to_string());
+
+        assert!(m_sensor_2.is_some());
+
+        let lin_acc_result = m_sensor_2.unwrap().get_linear_acceleration();
         assert!(lin_acc_result.is_ok());
         let lin_acc = lin_acc_result.unwrap();
         assert_eq!(lin_acc.x, 200.2);
