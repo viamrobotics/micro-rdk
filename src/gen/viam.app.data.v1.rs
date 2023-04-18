@@ -46,6 +46,8 @@ pub struct Filter {
     pub interval: ::core::option::Option<CaptureInterval>,
     #[prost(message, optional, tag="14")]
     pub tags_filter: ::core::option::Option<TagsFilter>,
+    #[prost(string, repeated, tag="15")]
+    pub bbox_labels: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[deprecated]
     #[prost(string, repeated, tag="5")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
@@ -173,6 +175,29 @@ pub struct BinaryDataByIDsResponse {
     #[prost(uint64, tag="2")]
     pub count: u64,
 }
+/// BoundingBox represents a labeled bounding box on an image.
+/// x and y values are normalized ratios between 0 and 1.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BoundingBox {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub label: ::prost::alloc::string::String,
+    #[prost(float, tag="3")]
+    pub x_min_normalized: f32,
+    #[prost(float, tag="4")]
+    pub y_min_normalized: f32,
+    #[prost(float, tag="5")]
+    pub x_max_normalized: f32,
+    #[prost(float, tag="6")]
+    pub y_max_normalized: f32,
+}
+/// Annotations are data annotations used for machine learning.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Annotations {
+    #[prost(message, repeated, tag="1")]
+    pub bboxes: ::prost::alloc::vec::Vec<BoundingBox>,
+}
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BinaryMetadata {
     #[prost(string, tag="1")]
@@ -189,6 +214,8 @@ pub struct BinaryMetadata {
     pub file_ext: ::prost::alloc::string::String,
     #[prost(string, tag="7")]
     pub uri: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="8")]
+    pub annotations: ::core::option::Option<Annotations>,
 }
 /// DeleteTabularDataByFilterRequest deletes the data and metadata of tabular data when a filter is provided
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -293,6 +320,46 @@ pub struct TagsByFilterRequest {
 pub struct TagsByFilterResponse {
     #[prost(string, repeated, tag="1")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AddBoundingBoxToImageByIdRequest {
+    #[prost(string, tag="1")]
+    pub file_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub label: ::prost::alloc::string::String,
+    #[prost(float, tag="3")]
+    pub x_min_normalized: f32,
+    #[prost(float, tag="4")]
+    pub y_min_normalized: f32,
+    #[prost(float, tag="5")]
+    pub x_max_normalized: f32,
+    #[prost(float, tag="6")]
+    pub y_max_normalized: f32,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AddBoundingBoxToImageByIdResponse {
+    #[prost(string, tag="1")]
+    pub bbox_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RemoveBoundingBoxFromImageByIdRequest {
+    #[prost(string, tag="1")]
+    pub file_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub bbox_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RemoveBoundingBoxFromImageByIdResponse {
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BoundingBoxLabelsByFilterRequest {
+    #[prost(message, optional, tag="1")]
+    pub filter: ::core::option::Option<Filter>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BoundingBoxLabelsByFilterResponse {
+    #[prost(string, repeated, tag="1")]
+    pub labels: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]

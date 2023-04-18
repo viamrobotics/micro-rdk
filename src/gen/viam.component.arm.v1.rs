@@ -38,15 +38,17 @@ pub struct GetJointPositionsResponse {
     #[prost(message, optional, tag="1")]
     pub positions: ::core::option::Option<JointPositions>,
 }
+/// Moves an arm to the specified pose that is within the reference frame of the arm.
+/// Move request in Motion API has the same behavior except that it performs obstacle avoidance when a world_state
+/// message is specified.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MoveToPositionRequest {
     /// Name of an arm
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// The destination to move the arm to; this is from the reference frame of the arm.
     #[prost(message, optional, tag="2")]
     pub to: ::core::option::Option<super::super::super::common::v1::Pose>,
-    #[prost(message, optional, tag="3")]
-    pub world_state: ::core::option::Option<super::super::super::common::v1::WorldState>,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,

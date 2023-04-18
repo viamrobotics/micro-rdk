@@ -1,24 +1,52 @@
 // @generated
+/// Moves any component on the robot to a specified destination which can be from the reference frame of any other component on the robot.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MoveRequest {
+    /// Name of the motion service
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// Destination to move to, which can a pose in the reference frame of any frame in the robot's frame system
     #[prost(message, optional, tag="2")]
     pub destination: ::core::option::Option<super::super::super::common::v1::PoseInFrame>,
+    /// Component on the robot to move to the specified destination
     #[prost(message, optional, tag="3")]
     pub component_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
+    /// Avoid obstacles by specifying their geometries in the world state
+    /// Augment the frame system of the robot by specifying additional transforms to add to it for the duration of the Move
     #[prost(message, optional, tag="4")]
     pub world_state: ::core::option::Option<super::super::super::common::v1::WorldState>,
+    /// Constrain the way the robot will move
     #[prost(message, optional, tag="5")]
     pub constraints: ::core::option::Option<Constraints>,
-    #[prost(message, optional, tag="6")]
-    pub slam_service_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MoveResponse {
+    #[prost(bool, tag="1")]
+    pub success: bool,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MoveOnMapRequest {
+    /// Name of the motion service
+    #[prost(string, tag="1")]
+    pub name: ::prost::alloc::string::String,
+    /// Specify a destination to, which can be any pose with respect to the SLAM map's origin
+    #[prost(message, optional, tag="2")]
+    pub destination: ::core::option::Option<super::super::super::common::v1::Pose>,
+    /// Component on the robot to move to the specified destination
+    #[prost(message, optional, tag="3")]
+    pub component_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
+    /// Name of the slam service from which the SLAM map is requested
+    #[prost(message, optional, tag="4")]
+    pub slam_service_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MoveOnMapResponse {
     #[prost(bool, tag="1")]
     pub success: bool,
 }

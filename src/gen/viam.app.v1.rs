@@ -155,6 +155,8 @@ pub struct CreateOrganizationInviteRequest {
     pub organization_id: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
     pub email: ::prost::alloc::string::String,
+    #[prost(message, repeated, tag="3")]
+    pub authorizations: ::prost::alloc::vec::Vec<Authorization>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CreateOrganizationInviteResponse {
@@ -724,6 +726,253 @@ pub struct DeleteRobotPartSecretRequest {
 pub struct DeleteRobotPartSecretResponse {
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Authorization {
+    #[prost(string, tag="1")]
+    pub authorization_type: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub authorization_id: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub resource_type: ::prost::alloc::string::String,
+    #[prost(string, tag="4")]
+    pub resource_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AddRoleRequest {
+    #[prost(string, tag="1")]
+    pub identity_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub role_id: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub resource_type: ::prost::alloc::string::String,
+    #[prost(string, tag="4")]
+    pub resource_id: ::prost::alloc::string::String,
+    #[prost(string, tag="5")]
+    pub organization_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AddRoleResponse {
+    #[prost(message, optional, tag="1")]
+    pub authorization: ::core::option::Option<Authorization>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RemoveRoleRequest {
+    #[prost(string, tag="1")]
+    pub identity_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub role_id: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub resource_type: ::prost::alloc::string::String,
+    #[prost(string, tag="4")]
+    pub resource_id: ::prost::alloc::string::String,
+    #[prost(string, tag="5")]
+    pub organization_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RemoveRoleResponse {
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListAuthorizationsRequest {
+    #[prost(string, tag="1")]
+    pub resource_type: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub resource_id: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub organization_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Authorizations {
+    #[prost(string, tag="1")]
+    pub identity_id: ::prost::alloc::string::String,
+    #[prost(message, repeated, tag="2")]
+    pub authorizations: ::prost::alloc::vec::Vec<Authorization>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListAuthorizationsResponse {
+    #[prost(message, repeated, tag="1")]
+    pub authorizations: ::prost::alloc::vec::Vec<Authorizations>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CheckPermissionsRequest {
+    #[prost(message, repeated, tag="1")]
+    pub permissions: ::prost::alloc::vec::Vec<AuthorizedPermissions>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AuthorizedPermissions {
+    #[prost(string, tag="1")]
+    pub resource_id: ::prost::alloc::string::String,
+    #[prost(string, repeated, tag="2")]
+    pub permissions: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CheckPermissionsResponse {
+    #[prost(message, repeated, tag="1")]
+    pub authorized_permissions: ::prost::alloc::vec::Vec<AuthorizedPermissions>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CurrentMonthUsageSummary {
+    #[prost(double, tag="1")]
+    pub cloud_storage_usage: f64,
+    #[prost(double, tag="2")]
+    pub cloud_storage_usage_cost: f64,
+    #[prost(double, tag="3")]
+    pub data_upload_usage_cost: f64,
+    #[prost(double, tag="4")]
+    pub data_upload_usage_quantity: f64,
+    #[prost(double, tag="5")]
+    pub data_egres_usage_cost: f64,
+    #[prost(double, tag="6")]
+    pub data_egres_usage_quantity: f64,
+    #[prost(double, tag="7")]
+    pub standard_compute_usage_cost: f64,
+    #[prost(double, tag="8")]
+    pub standard_compute_usage_quantity: f64,
+    #[prost(double, tag="9")]
+    pub total_usage_quantity: f64,
+    /// returns amt with any discounts applied
+    #[prost(double, tag="10")]
+    pub total_usage_with_discount: f64,
+    /// returns amt without any discounts applied
+    #[prost(double, tag="11")]
+    pub total_usage_without_discount: f64,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct InvoiceSummary {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="2")]
+    pub invoice_date: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(double, tag="3")]
+    pub invoice_amount: f64,
+    #[prost(string, tag="4")]
+    pub status: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="5")]
+    pub due_date: ::core::option::Option<::prost_types::Timestamp>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BillableResourceEvent {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub r#type: ::prost::alloc::string::String,
+    #[prost(double, tag="3")]
+    pub usage_quantity: f64,
+    #[prost(string, tag="4")]
+    pub usage_quantity_unit: ::prost::alloc::string::String,
+    #[prost(string, tag="5")]
+    pub usage_cost: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="6")]
+    pub occurred_at: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(string, tag="7")]
+    pub user_name: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Invoice {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="2")]
+    pub invoice_date: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(double, tag="3")]
+    pub invoice_amount: f64,
+    #[prost(string, tag="4")]
+    pub status: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="5")]
+    pub due_date: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(message, repeated, tag="6")]
+    pub items: ::prost::alloc::vec::Vec<BillableResourceEvent>,
+    #[prost(string, tag="7")]
+    pub emailed_to: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetCurrentMonthUsageSummaryRequest {
+    #[prost(string, tag="1")]
+    pub org_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetCurrentMonthUsageSummaryResponse {
+    #[prost(double, tag="1")]
+    pub cloud_storage_usage: f64,
+    #[prost(double, tag="2")]
+    pub cloud_storage_usage_cost: f64,
+    #[prost(double, tag="3")]
+    pub data_upload_usage_cost: f64,
+    #[prost(double, tag="4")]
+    pub data_upload_usage_quantity: f64,
+    #[prost(double, tag="5")]
+    pub data_egres_usage_cost: f64,
+    #[prost(double, tag="6")]
+    pub data_egres_usage_quantity: f64,
+    #[prost(double, tag="7")]
+    pub standard_compute_usage_cost: f64,
+    #[prost(double, tag="8")]
+    pub standard_compute_usage_quantity: f64,
+    #[prost(double, tag="9")]
+    pub total_usage_quantity: f64,
+    /// returns amt with any discounts applied
+    #[prost(double, tag="10")]
+    pub total_usage_with_discount: f64,
+    /// returns amt without any discounts applied
+    #[prost(double, tag="11")]
+    pub total_usage_without_discount: f64,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetUnpaidBalanceRequest {
+    #[prost(string, tag="1")]
+    pub org_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetUnpaidBalanceResponse {
+    #[prost(double, tag="1")]
+    pub unpaid_balance: f64,
+    #[prost(message, optional, tag="2")]
+    pub unpaid_balance_due_date: ::core::option::Option<::prost_types::Timestamp>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetInvoiceHistoryRequest {
+    #[prost(string, tag="1")]
+    pub org_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetInvoiceHistoryResponse {
+    #[prost(message, repeated, tag="1")]
+    pub invoices: ::prost::alloc::vec::Vec<InvoiceSummary>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetItemizedInvoiceRequest {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetItemizedInvoiceResponse {
+    #[prost(message, optional, tag="1")]
+    pub invoice: ::core::option::Option<Invoice>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetBillingSummaryRequest {
+    #[prost(string, tag="1")]
+    pub org_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetBillingSummaryResponse {
+    #[prost(message, optional, tag="1")]
+    pub usage_summary: ::core::option::Option<CurrentMonthUsageSummary>,
+    #[prost(message, repeated, tag="2")]
+    pub invoices: ::prost::alloc::vec::Vec<InvoiceSummary>,
+    /// all unpaid balances at the end of the last billing cycle
+    #[prost(double, tag="3")]
+    pub statement_balance: f64,
+    /// statement_balance + current_month_usage
+    #[prost(double, tag="4")]
+    pub current_balance: f64,
+    /// current_month_usage_cost
+    #[prost(double, tag="5")]
+    pub current_month_balance: f64,
+    /// due date for current month usage
+    #[prost(message, optional, tag="7")]
+    pub current_month_due_date: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(string, tag="8")]
+    pub invoice_email: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RobotConfig {
     #[prost(message, optional, tag="1")]
     pub cloud: ::core::option::Option<CloudConfig>,
@@ -876,16 +1125,6 @@ pub struct JwksFile {
     #[prost(message, optional, tag="1")]
     pub json: ::core::option::Option<::prost_types::Struct>,
 }
-/// Structured config for the credential type CREDENTIALS_TYPE_WEB_OAUTH
-/// TODO(APP-1412): remove after a week from being deployed
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AuthHandlerWebOauthConfig {
-    /// The allowed aud claims by the web oauth handler.
-    #[prost(string, repeated, tag="1")]
-    pub allowed_audiences: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    #[prost(message, optional, tag="2")]
-    pub jwks: ::core::option::Option<JwksFile>,
-}
 /// ExternalAuthConfig describes how a viam managed robot can accept
 /// credentials signed by the cloud app.
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -899,10 +1138,6 @@ pub struct AuthHandlerConfig {
     pub r#type: i32,
     #[prost(message, optional, tag="5")]
     pub config: ::core::option::Option<::prost_types::Struct>,
-    /// Structured config for CREDENTIALS_TYPE_WEB_OAUTH type.
-    /// Note: When this is set the config field will be empty.
-    #[prost(message, optional, tag="6")]
-    pub web_oauth_config: ::core::option::Option<AuthHandlerWebOauthConfig>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Frame {
@@ -1176,8 +1411,6 @@ pub enum CredentialsType {
     ApiKey = 2,
     RobotSecret = 3,
     RobotLocationSecret = 4,
-    /// TODO(APP-1412): remove after a week from being deployed
-    WebOauth = 5,
 }
 impl CredentialsType {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -1191,7 +1424,6 @@ impl CredentialsType {
             CredentialsType::ApiKey => "CREDENTIALS_TYPE_API_KEY",
             CredentialsType::RobotSecret => "CREDENTIALS_TYPE_ROBOT_SECRET",
             CredentialsType::RobotLocationSecret => "CREDENTIALS_TYPE_ROBOT_LOCATION_SECRET",
-            CredentialsType::WebOauth => "CREDENTIALS_TYPE_WEB_OAUTH",
         }
     }
 }
