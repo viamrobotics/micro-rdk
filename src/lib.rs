@@ -5,6 +5,7 @@ pub mod common {
     pub mod board;
     pub mod camera;
     pub mod config;
+    pub mod encoder;
     pub mod grpc;
     pub mod grpc_client;
     pub mod i2c;
@@ -104,6 +105,13 @@ pub mod proto {
             pub mod v1 {
                 #![allow(clippy::derive_partial_eq_without_eq)]
                 include!("gen/viam.component.base.v1.rs");
+            }
+        }
+
+        pub mod encoder {
+            pub mod v1 {
+                #![allow(clippy::derive_partial_eq_without_eq)]
+                include!("gen/viam.component.encoder.v1.rs");
             }
         }
         pub mod sensor {
