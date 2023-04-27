@@ -60,7 +60,6 @@ pub mod native {
     pub mod server;
     pub mod tcp;
     pub mod tls;
-    pub mod webrtc;
 }
 
 pub mod google {
