@@ -192,6 +192,15 @@ impl GrpcServer {
             "/viam.component.movementsensor.v1.MovementSensorService/GetAccuracy" => {
                 self.movement_sensor_get_accuracy(payload)
             }
+            "/viam.component.encoder.v1.EncoderService/GetPosition" => {
+                self.encoder_get_position(payload)
+            }
+            "/viam.component.encoder.v1.EncoderService/ResetPosition" => {
+                self.encoder_reset_position(payload)
+            }
+            "/viam.component.encoder.v1.EncoderService/GetProperties" => {
+                self.encoder_get_properties(payload)
+            }
             _ => anyhow::bail!("unimplemented method"),
         }
     }
@@ -519,6 +528,42 @@ impl GrpcServer {
 
         base.lock().unwrap().stop()?;
         let resp = component::base::v1::StopResponse {};
+        self.encode_message(resp)
+    }
+
+    fn encoder_get_properties(&mut self, message: &[u8]) -> anyhow::Result<()> {
+        let req = component::encoder::v1::GetPropertiesRequest::decode(message)?;
+        let enc = match self.robot.lock().unwrap().get_encoder_by_name(req.name) {
+            Some(e) => e,
+            None => return Err(anyhow::anyhow!("resource not found")),
+        };
+
+        let props = enc.lock().unwrap().get_properties();
+        let resp = component::encoder::v1::GetPropertiesResponse::from(props);
+        self.encode_message(resp)
+    }
+
+    fn encoder_get_position(&mut self, message: &[u8]) -> anyhow::Result<()> {
+        let req = component::encoder::v1::GetPositionRequest::decode(message)?;
+        let name = req.name.clone();
+        let pos_type = req.position_type();
+        let enc = match self.robot.lock().unwrap().get_encoder_by_name(name) {
+            Some(e) => e,
+            None => return Err(anyhow::anyhow!("resource not found")),
+        };
+        let pos = enc.lock().unwrap().get_position(pos_type.into())?;
+        let resp = component::encoder::v1::GetPositionResponse::from(pos);
+        self.encode_message(resp)
+    }
+
+    fn encoder_reset_position(&mut self, message: &[u8]) -> anyhow::Result<()> {
+        let req = component::encoder::v1::ResetPositionRequest::decode(message)?;
+        let enc = match self.robot.lock().unwrap().get_encoder_by_name(req.name) {
+            Some(e) => e,
+            None => return Err(anyhow::anyhow!("resource not found")),
+        };
+        enc.lock().unwrap().reset_position()?;
+        let resp = component::encoder::v1::ResetPositionResponse {};
         self.encode_message(resp)
     }
 

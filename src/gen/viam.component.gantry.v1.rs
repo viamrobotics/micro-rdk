@@ -16,10 +16,9 @@ pub struct GetPositionResponse {
 pub struct MoveToPositionRequest {
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// Number of millimeters to move the gantry by respective to each axis.
     #[prost(double, repeated, tag="2")]
     pub positions_mm: ::prost::alloc::vec::Vec<f64>,
-    #[prost(message, optional, tag="3")]
-    pub world_state: ::core::option::Option<super::super::super::common::v1::WorldState>,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,

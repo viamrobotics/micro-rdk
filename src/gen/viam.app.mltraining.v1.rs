@@ -72,6 +72,7 @@ pub enum ModelType {
     Unspecified = 0,
     SingleLabelClassification = 1,
     MultiLabelClassification = 2,
+    ObjectDetection = 3,
 }
 impl ModelType {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -83,6 +84,7 @@ impl ModelType {
             ModelType::Unspecified => "MODEL_TYPE_UNSPECIFIED",
             ModelType::SingleLabelClassification => "MODEL_TYPE_SINGLE_LABEL_CLASSIFICATION",
             ModelType::MultiLabelClassification => "MODEL_TYPE_MULTI_LABEL_CLASSIFICATION",
+            ModelType::ObjectDetection => "MODEL_TYPE_OBJECT_DETECTION",
         }
     }
 }

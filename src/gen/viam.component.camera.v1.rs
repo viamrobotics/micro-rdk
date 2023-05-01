@@ -69,7 +69,7 @@ pub struct Webcams {
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Webcam {
-    /// Camera driver label
+    /// Camera driver label (for internal use only)
     #[prost(string, tag="1")]
     pub label: ::prost::alloc::string::String,
     /// Camera driver status
@@ -78,6 +78,12 @@ pub struct Webcam {
     /// Camera properties
     #[prost(message, repeated, tag="3")]
     pub properties: ::prost::alloc::vec::Vec<Property>,
+    /// Camera human-readable driver name
+    #[prost(string, tag="4")]
+    pub name: ::prost::alloc::string::String,
+    /// Camera unique identifier
+    #[prost(string, tag="5")]
+    pub id: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Property {
