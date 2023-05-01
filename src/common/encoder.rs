@@ -41,7 +41,7 @@ impl From<EncoderSupportedRepresentations> for GetPropertiesResponse {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum EncoderPositionType {
     UNSPECIFIED,
     TICKS,
@@ -49,7 +49,7 @@ pub enum EncoderPositionType {
 }
 
 impl EncoderPositionType {
-    fn wrap_value(self, value: f32) -> EncoderPosition {
+    pub fn wrap_value(self, value: f32) -> EncoderPosition {
         EncoderPosition {
             position_type: self,
             value,
@@ -77,6 +77,7 @@ impl From<PositionType> for EncoderPositionType {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
 pub struct EncoderPosition {
     pub position_type: EncoderPositionType,
     pub value: f32,
@@ -161,7 +162,7 @@ impl Encoder for FakeIncrementalEncoder {
 }
 
 impl Status for FakeIncrementalEncoder {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
+    fn get_status(&mut self) -> anyhow::Result<Option<prost_types::Struct>> {
         Ok(Some(prost_types::Struct {
             fields: BTreeMap::new(),
         }))
@@ -231,7 +232,7 @@ impl Encoder for FakeEncoder {
 }
 
 impl Status for FakeEncoder {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
+    fn get_status(&mut self) -> anyhow::Result<Option<prost_types::Struct>> {
         Ok(Some(prost_types::Struct {
             fields: BTreeMap::new(),
         }))
