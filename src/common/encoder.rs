@@ -162,7 +162,7 @@ impl Encoder for FakeIncrementalEncoder {
 }
 
 impl Status for FakeIncrementalEncoder {
-    fn get_status(&mut self) -> anyhow::Result<Option<prost_types::Struct>> {
+    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
         Ok(Some(prost_types::Struct {
             fields: BTreeMap::new(),
         }))
@@ -232,7 +232,7 @@ impl Encoder for FakeEncoder {
 }
 
 impl Status for FakeEncoder {
-    fn get_status(&mut self) -> anyhow::Result<Option<prost_types::Struct>> {
+    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
         Ok(Some(prost_types::Struct {
             fields: BTreeMap::new(),
         }))
