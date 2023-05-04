@@ -174,7 +174,7 @@ impl MovementSensor for FakeMovementSensor {
 }
 
 impl Status for FakeMovementSensor {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
+    fn get_status(&mut self) -> anyhow::Result<Option<prost_types::Struct>> {
         Ok(Some(prost_types::Struct {
             fields: BTreeMap::new(),
         }))

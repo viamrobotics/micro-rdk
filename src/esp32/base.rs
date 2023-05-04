@@ -39,7 +39,7 @@ where
     ML: Motor,
     MR: Motor,
 {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
+    fn get_status(&mut self) -> anyhow::Result<Option<prost_types::Struct>> {
         let mut bt = BTreeMap::new();
         bt.insert(
             "is_moving".to_string(),

@@ -159,7 +159,7 @@ impl Board for FakeBoard {
 }
 
 impl Status for FakeBoard {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
+    fn get_status(&mut self) -> anyhow::Result<Option<prost_types::Struct>> {
         let mut bt = BTreeMap::new();
         let mut analogs = BTreeMap::new();
         self.analogs.iter().for_each(|a| {

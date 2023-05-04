@@ -111,7 +111,7 @@ where
     PWM: PwmPin<Duty = u32>,
     Enc: Encoder,
 {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
+    fn get_status(&mut self) -> anyhow::Result<Option<prost_types::Struct>> {
         let mut bt = BTreeMap::new();
         let pos = self.get_position()? as f64;
         bt.insert(
@@ -213,7 +213,7 @@ where
     B: OutputPin + PinExt,
     PWM: PwmPin<Duty = u32>,
 {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
+    fn get_status(&mut self) -> anyhow::Result<Option<prost_types::Struct>> {
         let mut bt = BTreeMap::new();
         let pos = self.get_position()? as f64;
         bt.insert(

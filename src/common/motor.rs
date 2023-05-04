@@ -148,7 +148,7 @@ impl Motor for FakeMotor {
     }
 }
 impl Status for FakeMotor {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
+    fn get_status(&mut self) -> anyhow::Result<Option<prost_types::Struct>> {
         let mut bt = BTreeMap::new();
         bt.insert(
             "position".to_string(),
