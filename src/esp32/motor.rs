@@ -272,12 +272,12 @@ where
     }
 }
 
-impl<DIR, PWM> Status for *mut PWMDirMotorEsp32<DIR, PWM>
+impl<DIR, PWM> Status for PWMDirMotorEsp32<DIR, PWM>
 where
     DIR: OutputPin + PinExt,
     PWM: PwmPin<Duty = u32>,
 {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
+    fn get_status(&mut self) -> anyhow::Result<Option<prost_types::Struct>> {
         let mut bt = BTreeMap::new();
         let pos = self.get_position()? as f64;
         bt.insert(
@@ -360,13 +360,13 @@ where
     }
 }
 
-impl<DIR, PWM, Enc> Status for *mut PWMDirMotorEsp32Encoded<DIR, PWM, Enc>
+impl<DIR, PWM, Enc> Status for PWMDirMotorEsp32Encoded<DIR, PWM, Enc>
 where
     DIR: OutputPin + PinExt,
     PWM: PwmPin<Duty = u32>,
     Enc: Encoder,
 {
-    fn get_status(self) -> anyhow::Result<Option<prost_types::Struct>> {
+    fn get_status(&mut self) -> anyhow::Result<Option<prost_types::Struct>> {
         let mut bt = BTreeMap::new();
         let pos = self.get_position()? as f64;
         bt.insert(
