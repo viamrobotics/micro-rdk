@@ -142,6 +142,7 @@ pub struct Cloud {
 }
 
 fn main() -> anyhow::Result<()> {
+    println!("cargo:rerun-if-changed=viam.json");
     if env::var("TARGET").unwrap() == "xtensa-esp32-espidf" {
         if std::env::var_os("IDF_PATH").is_none() {
             return Err(anyhow::anyhow!(

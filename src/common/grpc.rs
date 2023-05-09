@@ -619,8 +619,8 @@ where
         self.encode_message(resp)
     }
 
-    // This is a placeholder for status stream, app.viam.com requires it when
-    // connecting over webrtc, in this implementation we return one object only
+    // This is a placeholder for status stream; app.viam.com requires it when
+    // connecting over webrtc and in this implementation we return one response only.
     fn robot_status_stream(&mut self, message: &[u8]) -> anyhow::Result<()> {
         let req = robot::v1::StreamStatusRequest::decode(message)?;
         // fake a GetStatusRequest because local robot expect this
@@ -633,7 +633,7 @@ where
         self.encode_message(status)
     }
 
-    // robot_get_operations returns an empty response since operation are not yet
+    // robot_get_operations returns an empty response since operations are not yet
     // supported on micro-rdk
     fn robot_get_oprations(&mut self, _: &[u8]) -> anyhow::Result<()> {
         let operation = robot::v1::GetOperationsResponse::default();

@@ -183,7 +183,7 @@ impl<'a> RobotClient<'a> {
             use esp_idf_sys::{heap_caps_print_heap_info, MALLOC_CAP_32BIT, MALLOC_CAP_8BIT};
             heap_caps_print_heap_info(MALLOC_CAP_8BIT | MALLOC_CAP_32BIT);
         }
-        block_on(cloned_exec.run(async { webrtc.run_ice_till_connected().await })).unwrap();
+        block_on(cloned_exec.run(async { webrtc.run_ice_until_connected().await })).unwrap();
         Ok(webrtc)
     }
 }

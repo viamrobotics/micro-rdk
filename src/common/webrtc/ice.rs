@@ -116,7 +116,7 @@ impl ICEAgent {
         let stun_ip = match stun_ip {
             SocketAddr::V4(v4) => v4,
             _ => {
-                bail!("stun server if ipv6, currently unsupported");
+                bail!("stun server is ipv6, currently unsupported");
             }
         };
 
@@ -150,7 +150,7 @@ impl ICEAgent {
                 Some(addr) => addr.address(),
                 None => {
                     return Err(anyhow::anyhow!(
-                "We didn't received a xor_mapped_addr while we were expecting it message is {:?}",
+                "We didn't receive a xor_mapped_addr while we were expecting. The received message is {:?}",
                 decoded
             ))
                 }
@@ -159,7 +159,7 @@ impl ICEAgent {
         let rflx_addr = match xor_mapped_addr {
             SocketAddr::V4(v4) => v4,
             SocketAddr::V6(_) => {
-                bail!("stun request returned an ipv6 addr");
+                bail!("the ice agent has an ipv6 address, currently unsupported");
             }
         };
 

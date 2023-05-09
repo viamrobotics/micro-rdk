@@ -41,7 +41,7 @@ where
             .send_data(body, false)
             .map_err(|err| anyhow::anyhow!("couldn't send message {}", err))
     }
-    pub(crate) fn send_empty_frag(&mut self) -> anyhow::Result<()> {
+    pub(crate) fn send_empty_body(&mut self) -> anyhow::Result<()> {
         self.sender_half
             .send_data(Bytes::new(), false)
             .map_err(|err| anyhow::anyhow!("couldn't send message {}", err))
@@ -86,7 +86,6 @@ where
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        // TODO read the first 5 bytes so we know how much data to expect and we can allocate appropriately
         if self.buffer.is_empty() {
             let chunk = match self.receiver_half.poll_data(cx) {
                 Poll::Pending => return Poll::Pending,
@@ -101,7 +100,9 @@ where
             self.buffer = chunk;
         }
 
+        // Split off the length prefixed message containing the compressed flag (B0) and the message length (B1-B4)
         let mut delim = self.buffer.split_to(5);
+        // Discard compression flag
         let _ = delim.split_to(1);
 
         let len = u32::from_be_bytes(delim.as_ref().try_into().unwrap());
@@ -152,10 +153,10 @@ impl<'a> GrpcClient<'a> {
     {
         let (http2_connection, conn) = block_on(executor.run(async {
             h2::client::Builder::new()
-                // .initial_connection_window_size(4096)
-                // .initial_window_size(4096)
-                // .max_concurrent_reset_streams(1)
-                // .max_concurrent_streams(1)
+                .initial_connection_window_size(4096)
+                .initial_window_size(4096)
+                .max_concurrent_reset_streams(1)
+                .max_concurrent_streams(1)
                 .handshake(io)
                 .await
         }))?;
@@ -213,7 +214,7 @@ impl<'a> GrpcClient<'a> {
         if let Some(message) = message {
             r.send_message(message)?;
         } else {
-            r.send_empty_frag()?
+            r.send_empty_body()?
         }
 
         log::info!("awaiting response");

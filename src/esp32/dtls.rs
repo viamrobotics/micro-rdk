@@ -278,7 +278,7 @@ impl SSLContext {
                 self.drbg_ctx.as_mut() as *mut mbedtls_ctr_drbg_context as *mut c_void,
             );
             // if wee need to debug the handshake
-            mbedtls_debug_set_threshold(0);
+            // mbedtls_debug_set_threshold(0);
             mbedtls_ssl_conf_dbg(
                 self.ssl_config.as_mut(),
                 Some(ssl_debug),

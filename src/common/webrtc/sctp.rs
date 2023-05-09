@@ -248,7 +248,7 @@ where
                                 .open_stream(0, sctp_proto::PayloadProtocolIdentifier::Binary)
                             {
                                 Err(e) => {
-                                    log::error!(" cannot open stream zut {:?}", e);
+                                    log::error!(" cannot open stream {:?}", e);
                                 }
                                 Ok(s) => {
                                     let c = Channel {
@@ -269,7 +269,7 @@ where
                         }
                         Event::Stream(stream) => match stream {
                             StreamEvent::Opened => {
-                                log::debug!("some stream was openend")
+                                log::debug!("some stream was opened")
                             }
                             StreamEvent::Readable { id } => {
                                 if let Some(channel) = self.channels.get(&ChannelId(id)) {

@@ -162,7 +162,7 @@ impl WebRTCSignaling {
         };
         match self.signaling_tx.send_message(answer) {
             Err(e) => {
-                log::error!("signaling sent {:?}", e);
+                log::error!("error sending signaling message: {:?}", e);
                 Err(WebRTCError::SignalingDisconnected())
             }
             Ok(_) => Ok(()),
@@ -291,7 +291,7 @@ where
         }
     }
 
-    pub async fn run_ice_till_connected(&mut self) -> Result<(), WebRTCError> {
+    pub async fn run_ice_until_connected(&mut self) -> Result<(), WebRTCError> {
         let (tx, rx) = smol::channel::bounded(1);
 
         //(TODO) implement ICEError
@@ -342,7 +342,7 @@ where
                     }
                     Err(e) => {
                         log::error!(
-                            "received error while gathering remote candidate continuing {:?}",
+                            "received error while gathering remote candidates continuing anyway {:?}",
                             e
                         );
                     }

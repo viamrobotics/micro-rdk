@@ -175,7 +175,7 @@ where
                     }
                 }
                 webrtc::v1::request::Type::RstStream(rst) => {
-                    log::info!("reseting stream ");
+                    log::info!("reseting the stream");
                     if rst {
                         let _ = self.stream.take();
                     }

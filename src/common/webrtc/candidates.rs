@@ -393,8 +393,7 @@ impl CandidatePair {
             && self.binding_req_sent > self.binding_req_recv
             && self.binding_req_sent - self.binding_req_recv > 20
         {
-            // 20 attempts failed forget the pair
-            //log::info!("failer pair {:?} ", &self);
+            // after 20 failed attempts mark the pair as failed
             self.state = CandidatePairState::Failed;
         }
     }

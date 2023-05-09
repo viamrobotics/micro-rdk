@@ -166,6 +166,6 @@ impl Write for NativeTlsStream {
 
 impl Drop for NativeTlsStream {
     fn drop(&mut self) {
-        log::error!("droppijng the tls stream");
+        log::debug!("dropping the tls stream");
     }
 }
