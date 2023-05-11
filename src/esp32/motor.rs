@@ -6,7 +6,7 @@ use esp_idf_hal::ledc::{LedcDriver, LedcTimerDriver, CHANNEL0, CHANNEL1, CHANNEL
 use super::pin::PinExt;
 use crate::common::board::BoardType;
 use crate::common::config::{Component, ConfigType};
-use crate::common::encoder::Encoder;
+use crate::common::encoder::{Encoder, EncoderPositionType};
 use crate::common::motor::{Motor, MotorConfig, MotorType};
 use crate::common::registry::ComponentRegistry;
 use crate::common::status::Status;
@@ -32,71 +32,43 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     }
 }
 
-pub struct ABMotorEsp32Encoded<A, B, PWM, Enc> {
-    a: A,
-    b: B,
-    pwm: PWM,
-    enc: Enc,
+pub struct EncodedMotor<M, Enc> {
+    motor: M,
+    enc: Enc
 }
 
-impl<A, B, PWM, Enc> ABMotorEsp32Encoded<A, B, PWM, Enc>
+impl<M, Enc> EncodedMotor<M, Enc>
 where
-    A: OutputPin + PinExt,
-    B: OutputPin + PinExt,
-    PWM: PwmPin<Duty = u32>,
-    Enc: Encoder,
+    M: Motor,
+    Enc: Encoder
 {
-    pub fn new(a: A, b: B, pwm: PWM, enc: Enc) -> Self {
-        Self { a, b, pwm, enc }
+    pub fn new(motor: M, enc: Enc) -> Self {
+        Self { motor, enc }
     }
 }
 
-impl<A, B, PWM, Enc> Motor for ABMotorEsp32Encoded<A, B, PWM, Enc>
+impl<M, Enc> Motor for EncodedMotor<M, Enc>
 where
-    A: OutputPin + PinExt,
-    B: OutputPin + PinExt,
-    PWM: PwmPin<Duty = u32>,
-    Enc: Encoder,
+    M: Motor,
+    Enc: Encoder
 {
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
-        if !(-1.0..=1.0).contains(&pct) {
-            anyhow::bail!("power outside limit")
-        }
-        let max_duty = self.pwm.get_max_duty();
-        if pct < 0.0 {
-            self.a
-                .set_high()
-                .map_err(|_| anyhow::anyhow!("error setting A pin"))?;
-            self.b
-                .set_low()
-                .map_err(|_| anyhow::anyhow!("error setting B pin"))?;
-        } else {
-            self.a
-                .set_low()
-                .map_err(|_| anyhow::anyhow!("error setting A pin"))?;
-            self.b
-                .set_high()
-                .map_err(|_| anyhow::anyhow!("error setting B pin"))?;
-        }
-        self.pwm
-            .set_duty(((max_duty as f64) * pct.abs()).floor() as u32);
-        Ok(())
+        self.motor.set_power(pct)
     }
+
     fn get_position(&mut self) -> anyhow::Result<i32> {
-        Ok(self.enc.get_default_position()? as i32)
+        Ok(self.enc.get_position(EncoderPositionType::UNSPECIFIED)?.value as i32)
     }
 }
 
-impl<A, B, PWM, Enc> Status for ABMotorEsp32Encoded<A, B, PWM, Enc>
+impl<M, Enc> Status for EncodedMotor<M, Enc>
 where
-    A: OutputPin + PinExt,
-    B: OutputPin + PinExt,
-    PWM: PwmPin<Duty = u32>,
-    Enc: Encoder,
+    M: Motor,
+    Enc: Encoder
 {
     fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
         let mut bt = BTreeMap::new();
-        let pos = self.enc.get_default_position()? as f64;
+        let pos = self.enc.get_position(EncoderPositionType::UNSPECIFIED)?.value as f64;
         bt.insert(
             "position".to_string(),
             prost_types::Value {
@@ -263,78 +235,6 @@ where
     fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
         let mut bt = BTreeMap::new();
         let pos = 0.0;
-        bt.insert(
-            "position".to_string(),
-            prost_types::Value {
-                kind: Some(prost_types::value::Kind::NumberValue(pos)),
-            },
-        );
-        Ok(Some(prost_types::Struct { fields: bt }))
-    }
-}
-
-pub struct PWMDirMotorEsp32Encoded<DIR, PWM, Enc> {
-    dir: DIR,
-    pwm: PWM,
-    dir_flip: bool,
-    enc: Enc,
-}
-
-impl<DIR, PWM, Enc> PWMDirMotorEsp32Encoded<DIR, PWM, Enc>
-where
-    DIR: OutputPin + PinExt,
-    PWM: PwmPin<Duty = u32>,
-    Enc: Encoder,
-{
-    pub fn new(dir: DIR, pwm: PWM, dir_flip: bool, enc: Enc) -> Self {
-        Self {
-            dir,
-            pwm,
-            dir_flip,
-            enc,
-        }
-    }
-}
-
-impl<DIR, PWM, Enc> Motor for PWMDirMotorEsp32Encoded<DIR, PWM, Enc>
-where
-    DIR: OutputPin + PinExt,
-    PWM: PwmPin<Duty = u32>,
-    Enc: Encoder,
-{
-    fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
-        if !(-1.0..=1.0).contains(&pct) {
-            anyhow::bail!("power outside limit")
-        }
-        let max_duty = self.pwm.get_max_duty();
-        let set_high = (pct > 0.0) && !self.dir_flip;
-        if set_high {
-            self.dir
-                .set_high()
-                .map_err(|_| anyhow::anyhow!("error setting direction pin"))?;
-        } else {
-            self.dir
-                .set_low()
-                .map_err(|_| anyhow::anyhow!("error setting direction pin"))?;
-        }
-        self.pwm
-            .set_duty(((max_duty as f64) * pct.abs()).floor() as u32);
-        Ok(())
-    }
-    fn get_position(&mut self) -> anyhow::Result<i32> {
-        Ok(self.enc.get_default_position()? as i32)
-    }
-}
-
-impl<DIR, PWM, Enc> Status for PWMDirMotorEsp32Encoded<DIR, PWM, Enc>
-where
-    DIR: OutputPin + PinExt,
-    PWM: PwmPin<Duty = u32>,
-    Enc: Encoder,
-{
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
-        let mut bt = BTreeMap::new();
-        let pos = self.enc.get_default_position()? as f64;
         bt.insert(
             "position".to_string(),
             prost_types::Value {

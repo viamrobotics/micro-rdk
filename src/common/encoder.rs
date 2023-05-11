@@ -98,9 +98,6 @@ pub trait Encoder: Status {
     fn reset_position(&mut self) -> anyhow::Result<()> {
         anyhow::bail!("unimplemented: encoder_reset_position")
     }
-    fn get_default_position(&self) -> anyhow::Result<f32> {
-        anyhow::bail!("unimplemented: encoder_get_default_position")
-    }
 }
 
 pub(crate) type EncoderType = Arc<Mutex<dyn Encoder>>;

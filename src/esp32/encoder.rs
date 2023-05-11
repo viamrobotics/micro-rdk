@@ -265,9 +265,7 @@ where
     fn reset_position(&mut self) -> anyhow::Result<()> {
         self.reset()
     }
-    fn get_default_position(&self) -> anyhow::Result<f32> {
-        Ok(self.get_counter_value()? as f32)
-    }
+    
 }
 
 impl<A, B> Status for Esp32Encoder<A, B>
