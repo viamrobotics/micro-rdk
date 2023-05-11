@@ -12,7 +12,7 @@ use espsys::pcnt_channel_t_PCNT_CHANNEL_1 as pcnt_channel_1;
 use espsys::pcnt_config_t;
 use espsys::pcnt_evt_type_t_PCNT_EVT_H_LIM as pcnt_evt_h_lim;
 use espsys::pcnt_evt_type_t_PCNT_EVT_L_LIM as pcnt_evt_l_lim;
-use espsys::{esp, EspError, ESP_ERR_INVALID_STATE, ESP_OK};
+use espsys::{esp, EspError, ESP_OK};
 
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicI32, Ordering};
@@ -126,7 +126,7 @@ where
         }
     }
 
-    pub fn start(&self) -> anyhow::Result<()> {
+    fn start(&self) -> anyhow::Result<()> {
         unsafe {
             match esp_idf_sys::pcnt_counter_resume(self.config.unit) {
                 ESP_OK => {}
@@ -135,7 +135,7 @@ where
         }
         Ok(())
     }
-    pub fn stop(&self) -> anyhow::Result<()> {
+    fn stop(&self) -> anyhow::Result<()> {
         unsafe {
             match esp_idf_sys::pcnt_counter_pause(self.config.unit) {
                 ESP_OK => {}
@@ -144,7 +144,7 @@ where
         }
         Ok(())
     }
-    pub fn reset(&self) -> anyhow::Result<()> {
+    fn reset(&self) -> anyhow::Result<()> {
         self.stop()?;
         unsafe {
             match esp_idf_sys::pcnt_counter_clear(self.config.unit) {
@@ -152,10 +152,11 @@ where
                 err => return Err(EspError::from(err).unwrap().into()),
             }
         }
+        self.pulse_counter.acc.store(0, Ordering::Relaxed);
         self.start()?;
         Ok(())
     }
-    pub fn get_counter_value(&self) -> anyhow::Result<i32> {
+    fn get_counter_value(&self) -> anyhow::Result<i32> {
         let mut ctr: i16 = 0;
         unsafe {
             match esp_idf_sys::pcnt_get_counter_value(self.config.unit, &mut ctr as *mut c_short) {
@@ -166,10 +167,10 @@ where
         let tot = self.pulse_counter.acc.load(Ordering::Relaxed) * 100 + i32::from(ctr);
         Ok(tot)
     }
-    pub fn setup_pcnt(&mut self) -> anyhow::Result<()> {
+    fn setup_pcnt(&mut self) -> anyhow::Result<()> {
         unsafe {
             match esp_idf_sys::pcnt_unit_config(&self.config as *const pcnt_config_t) {
-                ESP_OK | ESP_ERR_INVALID_STATE => {}
+                ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
         }
@@ -180,7 +181,7 @@ where
         self.config.neg_mode = pcnt_count_inc;
         unsafe {
             match esp_idf_sys::pcnt_unit_config(&self.config as *const pcnt_config_t) {
-                ESP_OK | ESP_ERR_INVALID_STATE => {}
+                ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
         }
@@ -198,7 +199,7 @@ where
 
         unsafe {
             match esp_idf_sys::pcnt_isr_service_install(0) {
-                ESP_OK | ESP_ERR_INVALID_STATE => {}
+                ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
         }
@@ -213,11 +214,11 @@ where
 
         unsafe {
             match esp_idf_sys::pcnt_event_enable(self.config.unit, pcnt_evt_h_lim) {
-                ESP_OK | ESP_ERR_INVALID_STATE => {}
+                ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
             match esp_idf_sys::pcnt_event_enable(self.config.unit, pcnt_evt_l_lim) {
-                ESP_OK | ESP_ERR_INVALID_STATE => {}
+                ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
         }
@@ -250,10 +251,7 @@ where
             angle_degrees_supported: false,
         }
     }
-    fn get_position(
-        &mut self,
-        position_type: EncoderPositionType,
-    ) -> anyhow::Result<EncoderPosition> {
+    fn get_position(&self, position_type: EncoderPositionType) -> anyhow::Result<EncoderPosition> {
         match position_type {
             EncoderPositionType::TICKS | EncoderPositionType::UNSPECIFIED => {
                 let count = self.get_counter_value()?;
@@ -267,6 +265,9 @@ where
     fn reset_position(&mut self) -> anyhow::Result<()> {
         self.reset()
     }
+    fn get_default_position(&self) -> anyhow::Result<f32> {
+        Ok(self.get_counter_value()? as f32)
+    }
 }
 
 impl<A, B> Status for Esp32Encoder<A, B>
@@ -274,7 +275,7 @@ where
     A: InputPin + PinExt,
     B: InputPin + PinExt,
 {
-    fn get_status(&mut self) -> anyhow::Result<Option<prost_types::Struct>> {
+    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
         Ok(Some(prost_types::Struct {
             fields: BTreeMap::new(),
         }))

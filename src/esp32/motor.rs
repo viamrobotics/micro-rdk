@@ -6,7 +6,7 @@ use esp_idf_hal::ledc::{LedcDriver, LedcTimerDriver, CHANNEL0, CHANNEL1, CHANNEL
 use super::pin::PinExt;
 use crate::common::board::BoardType;
 use crate::common::config::{Component, ConfigType};
-use crate::common::encoder::{Encoder, EncoderPositionType, EncoderSupportedRepresentations};
+use crate::common::encoder::Encoder;
 use crate::common::motor::{Motor, MotorConfig, MotorType};
 use crate::common::registry::ComponentRegistry;
 use crate::common::status::Status;
@@ -83,24 +83,7 @@ where
         Ok(())
     }
     fn get_position(&mut self) -> anyhow::Result<i32> {
-        let props = self.enc.get_properties();
-        let pos_type = match props {
-            EncoderSupportedRepresentations {
-                ticks_count_supported: true,
-                ..
-            } => EncoderPositionType::TICKS,
-            EncoderSupportedRepresentations {
-                angle_degrees_supported: true,
-                ..
-            } => EncoderPositionType::DEGREES,
-            _ => {
-                return Err(anyhow::anyhow!(
-                    "encoder for this motor does not support any known position representations"
-                ));
-            }
-        };
-        let pos = self.enc.get_position(pos_type)?;
-        Ok(pos.value as i32)
+        Ok(self.enc.get_default_position()? as i32)
     }
 }
 
@@ -111,9 +94,9 @@ where
     PWM: PwmPin<Duty = u32>,
     Enc: Encoder,
 {
-    fn get_status(&mut self) -> anyhow::Result<Option<prost_types::Struct>> {
+    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
         let mut bt = BTreeMap::new();
-        let pos = self.get_position()? as f64;
+        let pos = self.enc.get_default_position()? as f64;
         bt.insert(
             "position".to_string(),
             prost_types::Value {
@@ -213,9 +196,9 @@ where
     B: OutputPin + PinExt,
     PWM: PwmPin<Duty = u32>,
 {
-    fn get_status(&mut self) -> anyhow::Result<Option<prost_types::Struct>> {
+    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
         let mut bt = BTreeMap::new();
-        let pos = self.get_position()? as f64;
+        let pos = 0.0;
         bt.insert(
             "position".to_string(),
             prost_types::Value {
@@ -277,9 +260,9 @@ where
     DIR: OutputPin + PinExt,
     PWM: PwmPin<Duty = u32>,
 {
-    fn get_status(&mut self) -> anyhow::Result<Option<prost_types::Struct>> {
+    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
         let mut bt = BTreeMap::new();
-        let pos = self.get_position()? as f64;
+        let pos = 0.0;
         bt.insert(
             "position".to_string(),
             prost_types::Value {
@@ -339,24 +322,7 @@ where
         Ok(())
     }
     fn get_position(&mut self) -> anyhow::Result<i32> {
-        let props = self.enc.get_properties();
-        let pos_type = match props {
-            EncoderSupportedRepresentations {
-                ticks_count_supported: true,
-                ..
-            } => EncoderPositionType::TICKS,
-            EncoderSupportedRepresentations {
-                angle_degrees_supported: true,
-                ..
-            } => EncoderPositionType::DEGREES,
-            _ => {
-                return Err(anyhow::anyhow!(
-                    "encoder for this motor does not support any known position representations"
-                ));
-            }
-        };
-        let pos = self.enc.get_position(pos_type)?;
-        Ok(pos.value as i32)
+        Ok(self.enc.get_default_position()? as i32)
     }
 }
 
@@ -366,9 +332,9 @@ where
     PWM: PwmPin<Duty = u32>,
     Enc: Encoder,
 {
-    fn get_status(&mut self) -> anyhow::Result<Option<prost_types::Struct>> {
+    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
         let mut bt = BTreeMap::new();
-        let pos = self.get_position()? as f64;
+        let pos = self.enc.get_default_position()? as f64;
         bt.insert(
             "position".to_string(),
             prost_types::Value {
