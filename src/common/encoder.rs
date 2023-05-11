@@ -41,7 +41,7 @@ impl From<EncoderSupportedRepresentations> for GetPropertiesResponse {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum EncoderPositionType {
     UNSPECIFIED,
     TICKS,
@@ -49,7 +49,7 @@ pub enum EncoderPositionType {
 }
 
 impl EncoderPositionType {
-    fn wrap_value(self, value: f32) -> EncoderPosition {
+    pub fn wrap_value(self, value: f32) -> EncoderPosition {
         EncoderPosition {
             position_type: self,
             value,
@@ -77,6 +77,7 @@ impl From<PositionType> for EncoderPositionType {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
 pub struct EncoderPosition {
     pub position_type: EncoderPositionType,
     pub value: f32,
@@ -93,10 +94,7 @@ impl From<EncoderPosition> for GetPositionResponse {
 
 pub trait Encoder: Status {
     fn get_properties(&mut self) -> EncoderSupportedRepresentations;
-    fn get_position(
-        &mut self,
-        position_type: EncoderPositionType,
-    ) -> anyhow::Result<EncoderPosition>;
+    fn get_position(&self, position_type: EncoderPositionType) -> anyhow::Result<EncoderPosition>;
     fn reset_position(&mut self) -> anyhow::Result<()> {
         anyhow::bail!("unimplemented: encoder_reset_position")
     }
@@ -141,10 +139,7 @@ impl Encoder for FakeIncrementalEncoder {
             angle_degrees_supported: false,
         }
     }
-    fn get_position(
-        &mut self,
-        position_type: EncoderPositionType,
-    ) -> anyhow::Result<EncoderPosition> {
+    fn get_position(&self, position_type: EncoderPositionType) -> anyhow::Result<EncoderPosition> {
         match position_type {
             EncoderPositionType::TICKS | EncoderPositionType::UNSPECIFIED => {
                 Ok(EncoderPositionType::TICKS.wrap_value(self.ticks))
@@ -213,10 +208,7 @@ impl Encoder for FakeEncoder {
             angle_degrees_supported: true,
         }
     }
-    fn get_position(
-        &mut self,
-        position_type: EncoderPositionType,
-    ) -> anyhow::Result<EncoderPosition> {
+    fn get_position(&self, position_type: EncoderPositionType) -> anyhow::Result<EncoderPosition> {
         match position_type {
             EncoderPositionType::UNSPECIFIED => {
                 anyhow::bail!("must specify position_type to get FakeEncoder position")
@@ -248,11 +240,8 @@ where
     fn reset_position(&mut self) -> anyhow::Result<()> {
         self.get_mut().unwrap().reset_position()
     }
-    fn get_position(
-        &mut self,
-        position_type: EncoderPositionType,
-    ) -> anyhow::Result<EncoderPosition> {
-        self.get_mut().unwrap().get_position(position_type)
+    fn get_position(&self, position_type: EncoderPositionType) -> anyhow::Result<EncoderPosition> {
+        self.lock().unwrap().get_position(position_type)
     }
 }
 
@@ -266,10 +255,7 @@ where
     fn reset_position(&mut self) -> anyhow::Result<()> {
         self.lock().unwrap().reset_position()
     }
-    fn get_position(
-        &mut self,
-        position_type: EncoderPositionType,
-    ) -> anyhow::Result<EncoderPosition> {
+    fn get_position(&self, position_type: EncoderPositionType) -> anyhow::Result<EncoderPosition> {
         self.lock().unwrap().get_position(position_type)
     }
 }

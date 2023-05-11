@@ -263,8 +263,15 @@ impl GrpcServer {
         self.encode_message(resp)
     }
 
-    fn motor_stop(&mut self, _message: &[u8]) -> anyhow::Result<()> {
-        anyhow::bail!("unimplemented: motor_stop")
+    fn motor_stop(&mut self, message: &[u8]) -> anyhow::Result<()> {
+        let req = component::motor::v1::StopRequest::decode(message)?;
+        let motor = match self.robot.lock().unwrap().get_motor_by_name(req.name) {
+            Some(m) => m,
+            None => return Err(anyhow::anyhow!("resource not found")),
+        };
+        motor.lock().unwrap().set_power(0.0)?;
+        let resp = component::motor::v1::StopResponse {};
+        self.encode_message(resp)
     }
 
     fn board_get_digital_interrupt_value(&mut self, _message: &[u8]) -> anyhow::Result<()> {

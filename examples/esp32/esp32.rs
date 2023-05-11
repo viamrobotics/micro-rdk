@@ -57,7 +57,7 @@ fn main() -> anyhow::Result<()> {
         use micro_rdk::esp32::analog::Esp32AnalogReader;
         use micro_rdk::esp32::base::Esp32WheelBase;
         use micro_rdk::esp32::board::EspBoard;
-        use micro_rdk::esp32::motor::MotorEsp32;
+        use micro_rdk::esp32::motor::ABMotorEsp32;
         use micro_rdk::esp32::i2c::{Esp32I2cConfig, Esp32I2C};
         #[cfg(feature = "camera")]
         let camera = {
@@ -74,13 +74,13 @@ fn main() -> anyhow::Result<()> {
         let tconf = TimerConfig::default().frequency(10.kHz().into());
         let timer = Arc::new(ledc::LedcTimerDriver::new(periph.ledc.timer0, &tconf).unwrap());
         let chan = ledc::LedcDriver::new(periph.ledc.channel0, timer.clone(), periph.pins.gpio14)?;
-        let m1 = MotorEsp32::new(
+        let m1 = ABMotorEsp32::new(
             PinDriver::output(periph.pins.gpio33)?,
             PinDriver::output(periph.pins.gpio32)?,
             chan,
         );
         let chan2 = ledc::LedcDriver::new(periph.ledc.channel2, timer.clone(), periph.pins.gpio2)?;
-        let m2 = MotorEsp32::new(
+        let m2 = ABMotorEsp32::new(
             PinDriver::output(periph.pins.gpio13)?,
             PinDriver::output(periph.pins.gpio12)?,
             chan2,

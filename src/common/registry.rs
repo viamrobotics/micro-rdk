@@ -14,6 +14,8 @@ lazy_static::lazy_static! {
         crate::esp32::board::register_models(&mut r);
         #[cfg(esp32)]
         crate::esp32::motor::register_models(&mut r);
+        #[cfg(esp32)]
+        crate::esp32::encoder::register_models(&mut r);
         r
     };
 }

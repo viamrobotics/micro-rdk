@@ -27,6 +27,7 @@ pub mod esp32 {
     pub mod board;
     #[cfg(feature = "camera")]
     pub mod camera;
+    pub mod encoder;
     pub mod exec;
     pub mod i2c;
     pub mod motor;

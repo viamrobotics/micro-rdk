@@ -122,12 +122,12 @@ impl LocalRobot {
         Ok(robot)
     }
     pub fn get_status(
-        &self,
+        &mut self,
         mut msg: robot::v1::GetStatusRequest,
     ) -> anyhow::Result<Vec<robot::v1::Status>> {
         if msg.resource_names.is_empty() {
             let mut vec = Vec::with_capacity(self.resources.len());
-            for (name, val) in self.resources.iter() {
+            for (name, val) in self.resources.iter_mut() {
                 match val {
                     ResourceType::Motor(m) => {
                         let status = m.get_status()?;
@@ -180,7 +180,7 @@ impl LocalRobot {
         let mut vec = Vec::with_capacity(msg.resource_names.len());
         for name in msg.resource_names.drain(0..) {
             debug!("processing {:?}", name);
-            match self.resources.get(&name) {
+            match self.resources.get_mut(&name) {
                 Some(val) => {
                     match val {
                         ResourceType::Motor(m) => {
