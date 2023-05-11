@@ -17,12 +17,6 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     }
 }
 
-pub trait Position {
-    fn position(&self) -> anyhow::Result<i32> {
-        Ok(0)
-    }
-}
-
 pub trait Motor: Status {
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()>;
     fn get_position(&mut self) -> anyhow::Result<i32>;
