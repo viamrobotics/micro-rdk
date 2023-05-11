@@ -1,6 +1,6 @@
 #![allow(dead_code)]
-use crate::common::webrtc::api::{WebRTCApi, WebRTCError};
-use crate::esp32::certificate::WebRTCCertificate;
+use crate::common::webrtc::api::{WebRtcApi, WebRtcError};
+use crate::esp32::certificate::WebRtcCertificate;
 use crate::{
     common::grpc_client::GrpcClient,
     esp32::exec::Esp32Executor,
@@ -32,7 +32,8 @@ pub struct RobotClientConfig {
     robot_id: String,
     ip: Ipv4Addr,
     main_handle: Option<TaskHandle_t>,
-    webrtc_certificate: Option<Rc<WebRTCCertificate>>,
+    webrtc_certificate: Option<Rc<WebRtcCertificate>>,
+    robot_fqdn: String,
 }
 
 impl RobotClientConfig {
@@ -40,7 +41,8 @@ impl RobotClientConfig {
         robot_secret: String,
         robot_id: String,
         ip: Ipv4Addr,
-        cert: Option<Rc<WebRTCCertificate>>,
+        cert: Option<Rc<WebRtcCertificate>>,
+        robot_fqdn: String,
     ) -> Self {
         RobotClientConfig {
             robot_secret,
@@ -48,6 +50,7 @@ impl RobotClientConfig {
             ip,
             main_handle: None,
             webrtc_certificate: cert,
+            robot_fqdn,
         }
     }
     pub fn set_main_handle(&mut self, hnd: TaskHandle_t) {
@@ -149,7 +152,7 @@ impl<'a> RobotClient<'a> {
     pub fn start_answering_signaling<'b>(
         &mut self,
         executor: Esp32Executor<'b>,
-    ) -> Result<WebRTCApi<'b, WebRTCCertificate, Esp32Dtls<WebRTCCertificate>>> {
+    ) -> Result<WebRtcApi<'b, WebRtcCertificate, Esp32Dtls<WebRtcCertificate>>> {
         use crate::proto::rpc::webrtc::v1::AnswerRequest;
         use crate::proto::rpc::webrtc::v1::AnswerResponse;
         use futures_lite::future::block_on;
@@ -168,9 +171,9 @@ impl<'a> RobotClient<'a> {
         };
 
         let dtls =
-            Esp32Dtls::new(certificate.clone()).map_err(|e| WebRTCError::DtlsError(Box::new(e)))?;
+            Esp32Dtls::new(certificate.clone()).map_err(|e| WebRtcError::DtlsError(Box::new(e)))?;
 
-        let mut webrtc = WebRTCApi::new(
+        let mut webrtc = WebRtcApi::new(
             executor.clone(),
             tx_half,
             rx_half,
@@ -218,7 +221,12 @@ fn clientloop(config: &RobotClientConfig) -> Result<()> {
     let conn = Esp32Stream::TLSStream(Box::new(conn));
     let executor = Esp32Executor::new();
 
-    let grpc_client = GrpcClient::new(conn, executor, "https://app.viam.com:443")?;
+    let grpc_client = GrpcClient::new(
+        conn,
+        executor,
+        "https://app.viam.com:443",
+        config.robot_fqdn.clone(),
+    )?;
 
     let mut robot_client = RobotClient::new(grpc_client, config);
 

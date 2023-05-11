@@ -1,13 +1,13 @@
 use crate::common::webrtc::certificate::{Certificate, Fingerprint};
 
 #[derive(Clone)]
-pub struct WebRTCCertificate {
+pub struct WebRtcCertificate {
     serialized_der: &'static [u8],
     key_pair: &'static [u8],
     fingerprint: Fingerprint,
 }
 
-impl WebRTCCertificate {
+impl WebRtcCertificate {
     pub fn new(
         serialized_der: &'static [u8],
         key_pair: &'static [u8],
@@ -21,7 +21,7 @@ impl WebRTCCertificate {
     }
 }
 
-impl Certificate for WebRTCCertificate {
+impl Certificate for WebRtcCertificate {
     fn get_der_certificate(&self) -> &'_ [u8] {
         self.serialized_der
     }

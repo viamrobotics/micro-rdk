@@ -13,18 +13,18 @@ use crate::{
     },
 };
 
-use super::{api::WebRTCError, sctp::Channel};
+use super::{api::WebRtcError, sctp::Channel};
 
 #[derive(Debug, Default)]
-pub struct WebRTCGrpcBody {
+pub struct WebRtcGrpcBody {
     data: Option<Bytes>,
     status: Status,
     trailers: Option<Metadata>,
 }
 
-impl WebRTCGrpcBody {
+impl WebRtcGrpcBody {
     fn new() -> Self {
-        WebRTCGrpcBody {
+        WebRtcGrpcBody {
             data: None,
             status: Status {
                 code: 0,
@@ -36,7 +36,7 @@ impl WebRTCGrpcBody {
     }
 }
 
-impl GrpcResponse for WebRTCGrpcBody {
+impl GrpcResponse for WebRtcGrpcBody {
     fn put_data(&mut self, data: bytes::Bytes) {
         let _ = self.data.insert(data);
     }
@@ -52,20 +52,20 @@ impl GrpcResponse for WebRTCGrpcBody {
     }
 }
 
-pub struct WebRTCGrpcServer<S> {
+pub struct WebRtcGrpcServer<S> {
     service: S,
     channel: Channel,
     stream: Option<webrtc::v1::Stream>,
     headers: Option<RequestHeaders>,
 }
 
-pub trait WebRTCGrpcService {
+pub trait WebRtcGrpcService {
     fn unary_rpc(&mut self, method: &str, data: &Bytes) -> Result<Bytes, Status>;
 }
 
-impl<S> WebRTCGrpcServer<S>
+impl<S> WebRtcGrpcServer<S>
 where
-    S: WebRTCGrpcService,
+    S: WebRtcGrpcService,
 {
     pub fn new(channel: Channel, service: S) -> Self {
         Self {
@@ -79,13 +79,13 @@ where
         &mut self,
         buf: &mut Vec<u8>,
         response: webrtc::v1::Response,
-    ) -> Result<(), WebRTCError> {
+    ) -> Result<(), WebRtcError> {
         let len = response.encoded_len();
-        response.encode(buf).map_err(WebRTCError::GprcEncodeError)?;
+        response.encode(buf).map_err(WebRtcError::GprcEncodeError)?;
         self.channel.write(&buf[..len]).await;
         Ok(())
     }
-    pub async fn next_request(&mut self) -> Result<(), WebRTCError> {
+    pub async fn next_request(&mut self) -> Result<(), WebRtcError> {
         let mut msg_buffer = Vec::with_capacity(1200);
 
         let wrtc_msg = {
@@ -94,9 +94,9 @@ where
                 .channel
                 .read(&mut msg_buffer)
                 .await
-                .map_err(WebRTCError::IoError)?;
+                .map_err(WebRtcError::IoError)?;
             webrtc::v1::Request::decode(&msg_buffer[..read])
-                .map_err(WebRTCError::GrpcDecodeError)?
+                .map_err(WebRtcError::GrpcDecodeError)?
         };
 
         if let Some(wrtc_type) = wrtc_msg.r#type {

@@ -4,13 +4,13 @@ use sha2::{Digest, Sha256};
 use crate::common::webrtc::certificate::{Certificate, Fingerprint};
 
 #[derive(Clone)]
-pub struct WebRTCCertificate {
+pub struct WebRtcCertificate {
     serialized_der: Vec<u8>,
     key_pair: Vec<u8>,
     fingerprint: Fingerprint,
 }
 
-impl WebRTCCertificate {
+impl WebRtcCertificate {
     pub fn new() -> anyhow::Result<Self> {
         let mut param: CertificateParams = Default::default();
         param.not_before = date_time_ymd(2021, 5, 19);
@@ -42,7 +42,7 @@ impl WebRTCCertificate {
     }
 }
 
-impl Certificate for WebRTCCertificate {
+impl Certificate for WebRtcCertificate {
     fn get_der_certificate(&self) -> &'_ [u8] {
         &self.serialized_der
     }

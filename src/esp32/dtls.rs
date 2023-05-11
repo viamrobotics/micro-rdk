@@ -224,7 +224,7 @@ impl SSLContext {
             mbedtls_ctr_drbg_init(self.drbg_ctx.as_mut());
         }
         let ret = unsafe {
-            //TODO(npm) we can avoid an allocation if we use the nocpy version
+            //TODO(RSDK-3058) we can avoid an allocation if we use the nocpy version
             mbedtls_x509_crt_parse_der(
                 self.x509.as_mut(),
                 certificate.get_der_certificate().as_ptr(),
@@ -749,7 +749,7 @@ where
         })
     }
     fn poll_close(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
-        // TODO(npm) implement
+        // TODO(RSDK-3059) implement
         Poll::Ready(Ok(()))
     }
 }

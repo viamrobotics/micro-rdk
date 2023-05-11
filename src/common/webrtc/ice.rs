@@ -107,7 +107,7 @@ impl ICEAgent {
         let mut encoder = stun_codec::MessageEncoder::new();
         let bytes = Bytes::from(encoder.encode_into_bytes(message).unwrap());
 
-        // TODO(npm) Twilio address is hard-coded, we should support additional server via WebRTCOptions
+        // TODO(RSDK-3063) Twilio address is hard-coded, we should support additional server via WebRTCOptions
         let mut stun_ip = "global.stun.twilio.com:3478".to_socket_addrs().unwrap();
 
         // TODO(npm) it is problematic to panic if the resolution fails.
@@ -240,7 +240,6 @@ impl ICEAgent {
                     MessageClass::Request => {
                         log::debug!("processing a stun request");
                         if let Ok(msg) = self.process_stun_request(&decoded, &addr) {
-                            // TODO(npm) should retry here
                             self.transport.send_to(msg.into(), addr).await.unwrap();
                         }
                     }
@@ -252,11 +251,11 @@ impl ICEAgent {
                     }
 
                     MessageClass::ErrorResponse => {
-                        //TODO
+                        //TODO(RSDK-3064)
                         log::error!("received a stun error");
                     }
                     MessageClass::Indication => {
-                        //TODO
+                        //TODO(RSDK-3064)
                         log::error!("received a stun indication")
                     }
                 }
@@ -285,7 +284,7 @@ impl ICEAgent {
             // Assumption, ipv6 candidates are rejected by default
             let remote = &self.remote_candidates[remote_idx];
 
-            // TODO(npm) srflx candidate should be replaced with their base
+            // TODO(RSDK-3065) srflx candidate should be replaced with their base
             // see 5.7.3.  Pruning the Pairs
             if local.candidate_type == CandidateType::ServerReflexive {
                 continue;
@@ -321,7 +320,7 @@ impl ICEAgent {
                     idx
                 }
             };
-            // TODO(npm) prune the pairs
+            // TODO(RSDK-3066) prune the pairs
         }
 
         log::debug!(
@@ -379,7 +378,6 @@ impl ICEAgent {
                     self.remote_credentials.u_frag
                 )
             }
-            // TODO(npm) check integrity
 
             return Ok(());
         }
@@ -407,7 +405,7 @@ impl ICEAgent {
             .is_none()
         {
             log::debug!("we should have had the controlling attribute")
-            // TODO(npm) probably should error out here
+            // TODO(RSDK-3067) probably should error out here
         };
 
         let have_as_remote_candidate = match self
@@ -557,7 +555,7 @@ mod tests {
     use crate::common::webrtc::ice::{ICEAgent, ICECredentials};
 
     use crate::{
-        common::webrtc::{candidates::Candidate, io::WebRTCTransport},
+        common::webrtc::{candidates::Candidate, io::WebRtcTransport},
         native::exec::NativeExecutor,
     };
 
@@ -574,7 +572,7 @@ mod tests {
 
         let udp = block_on(executor.run(async { UdpSocket::bind("0.0.0.0:0").await.unwrap() }));
 
-        let transport = WebRTCTransport::new(udp);
+        let transport = WebRtcTransport::new(udp);
         let tx = transport.clone();
         let rx = transport.clone();
         executor.spawn(async move { tx.read_loop().await }).detach();

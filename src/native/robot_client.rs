@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 use crate::{
-    common::{grpc_client::GrpcClient, webrtc::api::WebRTCApi},
+    common::{grpc_client::GrpcClient, webrtc::api::WebRtcApi},
     native::exec::NativeExecutor,
     native::tcp::NativeStream,
-    native::{certificate::WebRTCCertificate, tls::NativeTls},
+    native::{certificate::WebRtcCertificate, tls::NativeTls},
     proto::{
         app::v1::{AgentInfo, ConfigRequest, ConfigResponse},
         rpc::{
@@ -146,7 +146,7 @@ impl<'a> RobotClient<'a> {
     fn start_answering_signaling<'b>(
         &mut self,
         executor: NativeExecutor<'b>,
-    ) -> Result<WebRTCApi<'b, WebRTCCertificate, Dtls>> {
+    ) -> Result<WebRtcApi<'b, WebRtcCertificate, Dtls>> {
         let r = self
             .grpc_client
             .build_request("/proto.rpc.webrtc.v1.SignalingService/Answer", &self.jwt)?;
@@ -161,10 +161,10 @@ impl<'a> RobotClient<'a> {
                 return Err(anyhow::anyhow!("our_ip is not an IpV4Addr"));
             }
         };
-        let certificate = WebRTCCertificate::new().unwrap();
+        let certificate = WebRtcCertificate::new().unwrap();
         //let dtls_t = self.transport.get_dtls_channel().unwrap();
         let dtls = Dtls::new(Rc::new(certificate.clone())).unwrap();
-        let mut webrtc = WebRTCApi::new(
+        let mut webrtc = WebRtcApi::new(
             executor,
             tx_half,
             rx_half,
@@ -174,7 +174,7 @@ impl<'a> RobotClient<'a> {
         );
         let answer = block_on(cloned_exec.run(async { webrtc.answer().await }));
         log::info!("answer {:?}", answer);
-        let connected = block_on(cloned_exec.run(async { webrtc.run_ice_till_connected().await }));
+        let connected = block_on(cloned_exec.run(async { webrtc.run_ice_until_connected().await }));
         log::info!("connected {:?}", connected);
 
         Ok(webrtc)
@@ -214,7 +214,7 @@ mod tests {
     use crate::common::board::FakeBoard;
     use crate::common::grpc::GrpcServer;
     use crate::common::robot::{LocalRobot, ResourceMap, ResourceType};
-    use crate::common::webrtc::grpc::{WebRTCGrpcBody, WebRTCGrpcServer};
+    use crate::common::webrtc::grpc::{WebRtcGrpcBody, WebRtcGrpcServer};
     use crate::native::exec::NativeExecutor;
     use crate::native::robot_client::GrpcClient;
     use crate::native::tcp::NativeStream;
@@ -336,7 +336,7 @@ mod tests {
         log::info!("channel opened {:?}", channel);
 
         let mut webrtc_grpc =
-            WebRTCGrpcServer::new(channel, GrpcServer::new(robot, WebRTCGrpcBody::default()));
+            WebRtcGrpcServer::new(channel, GrpcServer::new(robot, WebRtcGrpcBody::default()));
 
         loop {
             block_on(executor.run(async { webrtc_grpc.next_request().await.unwrap() }));

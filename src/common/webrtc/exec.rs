@@ -1,4 +1,4 @@
-pub trait WebRTCExecutor<F>
+pub trait WebRtcExecutor<F>
 where
     F: futures_lite::Future + 'static,
 {

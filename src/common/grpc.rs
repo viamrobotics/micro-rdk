@@ -23,7 +23,7 @@ use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
 
-use super::webrtc::grpc::WebRTCGrpcService;
+use super::webrtc::grpc::WebRtcGrpcService;
 
 #[cfg(feature = "camera")]
 static GRPC_BUFFER_SIZE: usize = 10240;
@@ -710,7 +710,7 @@ where
     }
 }
 
-impl<R> WebRTCGrpcService for GrpcServer<R>
+impl<R> WebRtcGrpcService for GrpcServer<R>
 where
     R: GrpcResponse + 'static,
 {

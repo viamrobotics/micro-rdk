@@ -3,7 +3,7 @@ use futures_lite::{future, Future};
 use smol::{LocalExecutor, Task};
 use std::rc::Rc;
 
-use crate::common::webrtc::exec::WebRTCExecutor;
+use crate::common::webrtc::exec::WebRtcExecutor;
 
 #[derive(Clone, Debug)]
 /// This executor is local and bounded to the CPU that created it usually you would create it after spwaning a thread on a specific core
@@ -45,7 +45,7 @@ where
     }
 }
 
-impl<F> WebRTCExecutor<F> for NativeExecutor<'_>
+impl<F> WebRtcExecutor<F> for NativeExecutor<'_>
 where
     F: future::Future + 'static,
 {

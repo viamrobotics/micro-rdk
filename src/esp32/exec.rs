@@ -1,4 +1,4 @@
-use crate::common::webrtc::exec::WebRTCExecutor;
+use crate::common::webrtc::exec::WebRtcExecutor;
 ///! The exec module exposes helpers to execute futures on an ESP32
 use futures_lite::{future, Future};
 use smol::{LocalExecutor, Task};
@@ -43,7 +43,7 @@ where
     }
 }
 
-impl<F> WebRTCExecutor<F> for Esp32Executor<'_>
+impl<F> WebRtcExecutor<F> for Esp32Executor<'_>
 where
     F: future::Future + 'static,
 {

@@ -41,12 +41,12 @@ use super::{
     certificate::Certificate,
     dtls::DtlsConnector,
     ice::{ICEAgent, ICECredentials},
-    io::WebRTCTransport,
+    io::WebRtcTransport,
     sctp::{Channel, SctpProto},
 };
 
 #[derive(Error, Debug)]
-pub enum WebRTCError {
+pub enum WebRtcError {
     #[error("signaling server disconnected")]
     SignalingDisconnected(),
     #[error("invalid SDP offer")]
@@ -71,7 +71,7 @@ pub enum WebRTCError {
     DtlsError(#[from] Box<dyn std::error::Error + Send + Sync>),
 }
 
-pub(crate) struct WebRTCSignaling {
+pub(crate) struct WebRtcSignalingChannel {
     signaling_tx: GrpcMessageSender<AnswerResponse>,
     signaling_rx: GrpcMessageStream<AnswerRequest>,
     engine: general_purpose::GeneralPurpose,
@@ -79,28 +79,29 @@ pub(crate) struct WebRTCSignaling {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct SdpOffer {
-    pub r#type: String,
+    #[serde(rename = "type")]
+    pub sdp_type: String,
     pub sdp: String,
 }
 
 #[derive(Debug, Clone)]
-pub struct WebRTCSdp {
+pub struct WebRtcSdp {
     sdp: SessionDescription,
     uuid: String,
 }
 
-impl WebRTCSdp {
+impl WebRtcSdp {
     pub fn new(sdp: SessionDescription, uuid: String) -> Self {
-        WebRTCSdp { sdp, uuid }
+        WebRtcSdp { sdp, uuid }
     }
 }
 
-impl WebRTCSignaling {
-    pub(crate) async fn wait_sdp_offer(&mut self) -> Result<WebRTCSdp, WebRTCError> {
+impl WebRtcSignalingChannel {
+    pub(crate) async fn wait_sdp_offer(&mut self) -> Result<WebRtcSdp, WebRtcError> {
         loop {
             match self.signaling_rx.next().await {
                 None => {
-                    return Err(WebRTCError::SignalingDisconnected());
+                    return Err(WebRtcError::SignalingDisconnected());
                 }
                 Some(req) => {
                     if let Some(stage) = req.stage.clone() {
@@ -109,15 +110,15 @@ impl WebRTCSignaling {
                                 let sdp_decoded = self
                                     .engine
                                     .decode(s.sdp)
-                                    .map_err(|e| WebRTCError::InvalidSDPOffer(e.to_string()))?;
+                                    .map_err(|e| WebRtcError::InvalidSDPOffer(e.to_string()))?;
                                 let sdp_decoded: SdpOffer =
                                     serde_json::from_slice(sdp_decoded.as_slice())
-                                        .map_err(|e| WebRTCError::InvalidSDPOffer(e.to_string()))?;
+                                        .map_err(|e| WebRtcError::InvalidSDPOffer(e.to_string()))?;
 
-                                if sdp_decoded.r#type != "offer" {
-                                    return Err(WebRTCError::InvalidSDPOffer(format!(
+                                if sdp_decoded.sdp_type != "offer" {
+                                    return Err(WebRtcError::InvalidSDPOffer(format!(
                                         "unexpected type {}",
-                                        sdp_decoded.r#type
+                                        sdp_decoded.sdp_type
                                     )));
                                 }
 
@@ -125,34 +126,34 @@ impl WebRTCSignaling {
 
                                 let mut cursor = Cursor::new(sdp_decoded.sdp);
                                 let sdp = sdp::SessionDescription::unmarshal(&mut cursor)
-                                    .map_err(|e| WebRTCError::InvalidSDPOffer(e.to_string()))?;
-                                return Ok(WebRTCSdp::new(sdp, req.uuid));
+                                    .map_err(|e| WebRtcError::InvalidSDPOffer(e.to_string()))?;
+                                return Ok(WebRtcSdp::new(sdp, req.uuid));
                             }
                             answer_request::Stage::Error(s) => {
                                 if let Some(status) = s.status {
-                                    return Err(WebRTCError::SignalingError(status.message));
+                                    return Err(WebRtcError::SignalingError(status.message));
                                 }
-                                return Err(WebRTCError::SignalingError("unknown".to_owned()));
+                                return Err(WebRtcError::SignalingError("unknown".to_owned()));
                             }
                             _ => {
                                 continue;
                             }
                         }
                     } else {
-                        return Err(WebRTCError::InvalidSignalingRequest);
+                        return Err(WebRtcError::InvalidSignalingRequest);
                     }
                 }
             }
         }
     }
-    pub(crate) async fn send_sdp_answer(&mut self, sdp: WebRTCSdp) -> Result<(), WebRTCError> {
+    pub(crate) async fn send_sdp_answer(&mut self, sdp: WebRtcSdp) -> Result<(), WebRtcError> {
         let answer = SdpOffer {
-            r#type: "answer".to_owned(),
+            sdp_type: "answer".to_owned(),
             sdp: sdp.sdp.marshal(),
         };
         let answer = self
             .engine
-            .encode(serde_json::to_string(&answer).map_err(WebRTCError::AnswerMarshalError)?);
+            .encode(serde_json::to_string(&answer).map_err(WebRtcError::AnswerMarshalError)?);
 
         let answer = AnswerResponse {
             uuid: sdp.uuid,
@@ -163,7 +164,7 @@ impl WebRTCSignaling {
         match self.signaling_tx.send_message(answer) {
             Err(e) => {
                 log::error!("error sending signaling message: {:?}", e);
-                Err(WebRTCError::SignalingDisconnected())
+                Err(WebRtcError::SignalingDisconnected())
             }
             Ok(_) => Ok(()),
         }
@@ -173,7 +174,7 @@ impl WebRTCSignaling {
         candidate: &Candidate,
         ufrag: String,
         uuid: String,
-    ) -> Result<(), WebRTCError> {
+    ) -> Result<(), WebRtcError> {
         let answer = AnswerResponse {
             uuid,
             stage: Some(answer_response::Stage::Update(AnswerResponseUpdateStage {
@@ -186,13 +187,13 @@ impl WebRTCSignaling {
             })),
         };
         match self.signaling_tx.send_message(answer) {
-            Err(_) => Err(WebRTCError::SignalingDisconnected()),
+            Err(_) => Err(WebRtcError::SignalingDisconnected()),
             Ok(_) => Ok(()),
         }
     }
-    pub(crate) async fn next_remote_candidate(&mut self) -> Result<Option<Candidate>, WebRTCError> {
+    pub(crate) async fn next_remote_candidate(&mut self) -> Result<Option<Candidate>, WebRtcError> {
         match self.signaling_rx.next().await {
-            None => Err(WebRTCError::SignalingDisconnected()),
+            None => Err(WebRtcError::SignalingDisconnected()),
             Some(req) => {
                 if let Some(stage) = req.stage {
                     match stage {
@@ -208,15 +209,15 @@ impl WebRTCSignaling {
                         }
                         answer_request::Stage::Error(s) => {
                             if let Some(status) = s.status {
-                                return Err(WebRTCError::SignalingError(status.message));
+                                return Err(WebRtcError::SignalingError(status.message));
                             }
-                            return Err(WebRTCError::SignalingError("unknown".to_owned()));
+                            return Err(WebRtcError::SignalingError("unknown".to_owned()));
                         }
                         answer_request::Stage::Done(_) => {
                             return Ok(None);
                         }
                         _ => {
-                            return Err(WebRTCError::SignalingError("unexpected stage".to_owned()))
+                            return Err(WebRtcError::SignalingError("unexpected stage".to_owned()))
                         }
                     }
                 }
@@ -224,13 +225,13 @@ impl WebRTCSignaling {
             }
         }
     }
-    pub fn send_done(&mut self, uuid: String) -> Result<(), WebRTCError> {
+    pub fn send_done(&mut self, uuid: String) -> Result<(), WebRtcError> {
         let answer = AnswerResponse {
             uuid,
             stage: Some(answer_response::Stage::Done(AnswerResponseDoneStage {})),
         };
         match self.signaling_tx.send_message(answer) {
-            Err(_) => Err(WebRTCError::SignalingDisconnected()),
+            Err(_) => Err(WebRtcError::SignalingDisconnected()),
             Ok(_) => Ok(()),
         }
     }
@@ -241,11 +242,11 @@ type Executor<'a> = NativeExecutor<'a>;
 #[cfg(feature = "esp32")]
 type Executor<'a> = Esp32Executor<'a>;
 
-pub struct WebRTCApi<'a, S, D> {
+pub struct WebRtcApi<'a, S, D> {
     executor: Executor<'a>,
-    signaling: Option<WebRTCSignaling>,
+    signaling: Option<WebRtcSignalingChannel>,
     uuid: Option<String>,
-    transport: WebRTCTransport,
+    transport: WebRtcTransport,
     certificate: Rc<S>,
     local_creds: ICECredentials,
     remote_creds: Option<ICECredentials>,
@@ -253,21 +254,21 @@ pub struct WebRTCApi<'a, S, D> {
     dtls: Option<D>,
 }
 
-impl<'a, S, D> WebRTCApi<'a, S, D>
+impl<'a, C, D> WebRtcApi<'a, C, D>
 where
-    S: Certificate,
+    C: Certificate,
     D: DtlsConnector,
 {
     pub(crate) fn new(
         executor: Executor<'a>,
         tx_half: GrpcMessageSender<AnswerResponse>,
         rx_half: GrpcMessageStream<AnswerRequest>,
-        certificate: Rc<S>,
+        certificate: Rc<C>,
         local_ip: Ipv4Addr,
         dtls: D,
     ) -> Self {
         let udp = block_on(executor.run(async { UdpSocket::bind("0.0.0.0:61205").await.unwrap() }));
-        let transport = WebRTCTransport::new(udp);
+        let transport = WebRtcTransport::new(udp);
         let tx = transport.clone();
         let rx = transport.clone();
         executor.spawn(async move { tx.read_loop().await }).detach();
@@ -276,7 +277,7 @@ where
             .detach();
         Self {
             executor: executor.clone(),
-            signaling: Some(WebRTCSignaling {
+            signaling: Some(WebRtcSignalingChannel {
                 signaling_tx: tx_half,
                 signaling_rx: rx_half,
                 engine: general_purpose::STANDARD,
@@ -291,10 +292,10 @@ where
         }
     }
 
-    pub async fn run_ice_until_connected(&mut self) -> Result<(), WebRTCError> {
+    pub async fn run_ice_until_connected(&mut self) -> Result<(), WebRtcError> {
         let (tx, rx) = smol::channel::bounded(1);
 
-        //(TODO) implement ICEError
+        //(TODO(RSDK-3060)) implement ICEError
         let ice_transport = self.transport.get_stun_channel().unwrap();
         let mut ice_agent = ICEAgent::new(
             rx,
@@ -310,7 +311,7 @@ where
         for c in &ice_agent.local_candidates {
             self.signaling
                 .as_mut()
-                .ok_or(WebRTCError::SignalingDisconnected())?
+                .ok_or(WebRtcError::SignalingDisconnected())?
                 .send_local_candidate(
                     c,
                     self.local_creds.u_frag.clone(),
@@ -329,7 +330,7 @@ where
             if let Some(candidate) = self
                 .signaling
                 .as_mut()
-                .ok_or(WebRTCError::SignalingDisconnected())?
+                .ok_or(WebRtcError::SignalingDisconnected())?
                 .next_remote_candidate()
                 .timeout(Duration::from_millis(250))
                 .await
@@ -351,19 +352,19 @@ where
         }
         self.signaling
             .as_mut()
-            .ok_or(WebRTCError::SignalingDisconnected())?
+            .ok_or(WebRtcError::SignalingDisconnected())?
             .send_done(self.uuid.take().unwrap())?;
         let _ = self.signaling.take();
         Ok(())
     }
 
-    pub async fn open_data_channel(&mut self) -> Result<Channel, WebRTCError> {
+    pub async fn open_data_channel(&mut self) -> Result<Channel, WebRtcError> {
         let mut dtls = self.dtls.take().unwrap();
 
         let dtls_transport = self
             .transport
             .get_dtls_channel()
-            .map_err(WebRTCError::Other)?;
+            .map_err(WebRtcError::Other)?;
 
         dtls.set_transport(dtls_transport);
 
@@ -380,28 +381,36 @@ where
             return Ok(c_rx.recv().await.unwrap());
         }
 
-        Err(WebRTCError::DataChannelOpenError())
+        Err(WebRtcError::DataChannelOpenError())
     }
 
-    pub async fn answer(&mut self) -> Result<(), WebRTCError> {
+    pub async fn answer(&mut self) -> Result<(), WebRtcError> {
         let offer = self
             .signaling
             .as_mut()
-            .ok_or(WebRTCError::SignalingDisconnected())?
+            .ok_or(WebRtcError::SignalingDisconnected())?
             .wait_sdp_offer()
             .await?;
         let answer = SessionDescription::new_jsep_session_description(false);
 
+        let attribute = offer
+            .sdp
+            .media_descriptions
+            .get(0)
+            .ok_or(WebRtcError::InvalidSDPOffer(
+                "no media description".to_owned(),
+            ))?;
+
         let remote_creds = ICECredentials::new(
-            offer.sdp.media_descriptions[0]
+            attribute
                 .attribute("ice-ufrag")
-                .unwrap()
-                .unwrap()
+                .flatten()
+                .ok_or(WebRtcError::InvalidSDPOffer("ice-ufrag absent".to_string()))?
                 .to_owned(),
-            offer.sdp.media_descriptions[0]
+            attribute
                 .attribute("ice-pwd")
-                .unwrap()
-                .unwrap()
+                .flatten()
+                .ok_or(WebRtcError::InvalidSDPOffer("ice-pwd absent".to_string()))?
                 .to_owned(),
         );
 
@@ -452,10 +461,10 @@ where
 
         let answer = answer.with_media(media);
 
-        let answer = WebRTCSdp::new(answer, self.uuid.as_ref().unwrap().clone());
+        let answer = WebRtcSdp::new(answer, self.uuid.as_ref().unwrap().clone());
         self.signaling
             .as_mut()
-            .ok_or(WebRTCError::SignalingDisconnected())?
+            .ok_or(WebRtcError::SignalingDisconnected())?
             .send_sdp_answer(answer)
             .await?;
         Ok(())

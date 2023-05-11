@@ -217,14 +217,14 @@ impl IoPktChannel {
     }
 }
 #[derive(Clone)]
-pub struct WebRTCTransport {
+pub struct WebRtcTransport {
     socket: UdpSocket,
     stun: IoPktChannel,
     dtls: IoPktChannel,
     rx: smol::channel::Receiver<IoPkt>,
 }
 
-impl WebRTCTransport {
+impl WebRtcTransport {
     pub fn new(socket: UdpSocket) -> Self {
         let (tx, rx) = smol::channel::bounded::<IoPkt>(3);
         Self {

@@ -71,6 +71,7 @@ impl<'a> Esp32Server<'a> {
                 self.cloud_cfg.robot_id.to_owned(),
                 ip,
                 None,
+                "esp32-test-webrtc-main.33vvxnbbw9.viam.cloud".to_owned(),
             )
         };
         client_cfg.set_main_handle(unsafe { xTaskGetCurrentTaskHandle() });

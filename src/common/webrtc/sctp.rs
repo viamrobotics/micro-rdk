@@ -20,7 +20,7 @@ use sctp_proto::{
 
 use smol_timeout::TimeoutExt;
 
-use super::exec::WebRTCExecutor;
+use super::exec::WebRtcExecutor;
 
 //#[derive(Clone)]
 struct SctpStream {
@@ -63,7 +63,7 @@ impl AsyncRead for Channel {
         let mut rx_stream = self.rx_channel.lock().unwrap();
         if !rx_stream.data.is_empty() {
             let chunk = rx_stream.data.pop_front().unwrap();
-            // TODO : we assume that buf.len > chunk.len() this is wrong, we should do a
+            // TODO(RSDK-3062) : we assume that buf.len > chunk.len() this is wrong, we should do a
             // partial read an update remaining data accordingly
             let r = chunk.read(buf).unwrap();
             Poll::Ready(Ok(r))
@@ -98,7 +98,7 @@ unsafe impl<S, E> Send for SctpProto<E, S> {}
 
 impl<E, S> SctpProto<E, S>
 where
-    E: WebRTCExecutor<Pin<Box<dyn Future<Output = ()> + Send>>>,
+    E: WebRtcExecutor<Pin<Box<dyn Future<Output = ()> + Send>>>,
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     pub fn new(transport: S, executor: E, channel_send: Sender<Channel>) -> Self {
