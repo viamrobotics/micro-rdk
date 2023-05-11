@@ -265,7 +265,6 @@ where
     fn reset_position(&mut self) -> anyhow::Result<()> {
         self.reset()
     }
-    
 }
 
 impl<A, B> Status for Esp32Encoder<A, B>

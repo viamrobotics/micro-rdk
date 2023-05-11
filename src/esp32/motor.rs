@@ -34,13 +34,13 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 
 pub struct EncodedMotor<M, Enc> {
     motor: M,
-    enc: Enc
+    enc: Enc,
 }
 
 impl<M, Enc> EncodedMotor<M, Enc>
 where
     M: Motor,
-    Enc: Encoder
+    Enc: Encoder,
 {
     pub fn new(motor: M, enc: Enc) -> Self {
         Self { motor, enc }
@@ -50,25 +50,31 @@ where
 impl<M, Enc> Motor for EncodedMotor<M, Enc>
 where
     M: Motor,
-    Enc: Encoder
+    Enc: Encoder,
 {
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
         self.motor.set_power(pct)
     }
 
     fn get_position(&mut self) -> anyhow::Result<i32> {
-        Ok(self.enc.get_position(EncoderPositionType::UNSPECIFIED)?.value as i32)
+        Ok(self
+            .enc
+            .get_position(EncoderPositionType::UNSPECIFIED)?
+            .value as i32)
     }
 }
 
 impl<M, Enc> Status for EncodedMotor<M, Enc>
 where
     M: Motor,
-    Enc: Encoder
+    Enc: Encoder,
 {
     fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
         let mut bt = BTreeMap::new();
-        let pos = self.enc.get_position(EncoderPositionType::UNSPECIFIED)?.value as f64;
+        let pos = self
+            .enc
+            .get_position(EncoderPositionType::UNSPECIFIED)?
+            .value as f64;
         bt.insert(
             "position".to_string(),
             prost_types::Value {
