@@ -267,7 +267,7 @@ where
         local_ip: Ipv4Addr,
         dtls: D,
     ) -> Self {
-        let udp = block_on(executor.run(async { UdpSocket::bind("0.0.0.0:61205").await.unwrap() }));
+        let udp = block_on(executor.run(async { UdpSocket::bind("0.0.0.0:0").await.unwrap() }));
         let transport = WebRtcTransport::new(udp);
         let tx = transport.clone();
         let rx = transport.clone();

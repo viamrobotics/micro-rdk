@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 use std::{
     fmt::Debug,
-    io::Read,
     io::Write,
+    io::{ErrorKind, Read},
     net::{SocketAddr, SocketAddrV4},
     pin::Pin,
     task::{Poll, Waker},
@@ -181,6 +181,10 @@ impl IoPktChannel {
         Ok(self.transport_tx.clone())
     }
     async fn send_pkt(&self, pkt: IoPkt) -> anyhow::Result<()> {
+        if self.tx.is_full() {
+            log::error!("packet was dropped");
+            return Ok(());
+        }
         self.tx
             .send(pkt)
             .await
@@ -275,10 +279,13 @@ impl WebRtcTransport {
     pub async fn write_loop(&self) {
         loop {
             let pkt = self.rx.recv().await.unwrap();
-            self.socket
-                .send_to(pkt.payload.chunk(), pkt.addr)
-                .await
-                .unwrap();
+            match self.socket.send_to(pkt.payload.chunk(), pkt.addr).await {
+                Ok(_) => {}
+                Err(e) if e.kind() == ErrorKind::OutOfMemory => {}
+                Err(e) => {
+                    log::error!("unexpected error {:?}", e);
+                }
+            }
         }
     }
 }
