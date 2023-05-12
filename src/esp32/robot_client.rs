@@ -33,7 +33,7 @@ pub struct RobotClientConfig {
     ip: Ipv4Addr,
     main_handle: Option<TaskHandle_t>,
     webrtc_certificate: Option<Rc<WebRtcCertificate>>,
-    robot_fqdn: String,
+    pub robot_fqdn: &'static str,
 }
 
 impl RobotClientConfig {
@@ -42,7 +42,7 @@ impl RobotClientConfig {
         robot_id: String,
         ip: Ipv4Addr,
         cert: Option<Rc<WebRtcCertificate>>,
-        robot_fqdn: String,
+        robot_fqdn: &'static str,
     ) -> Self {
         RobotClientConfig {
             robot_secret,
@@ -62,7 +62,7 @@ static CLIENT_TASK: &[u8] = b"client\0";
 
 impl<'a> Drop for RobotClient<'a> {
     fn drop(&mut self) {
-        log::error!("Dro[ppoing robot client")
+        log::debug!("Dropping robot client")
     }
 }
 
@@ -221,12 +221,15 @@ fn clientloop(config: &RobotClientConfig) -> Result<()> {
     let conn = Esp32Stream::TLSStream(Box::new(conn));
     let executor = Esp32Executor::new();
 
-    let grpc_client = GrpcClient::new(
-        conn,
-        executor,
-        "https://app.viam.com:443",
-        config.robot_fqdn.clone(),
-    )?;
+    let fqdn_split: Vec<&str> = config.robot_fqdn.rsplitn(4, '-').collect();
+    let fqdn: String = fqdn_split
+        .iter()
+        .rev()
+        .cloned()
+        .collect::<Vec<&str>>()
+        .join(".");
+
+    let grpc_client = GrpcClient::new(conn, executor, "https://app.viam.com:443", fqdn)?;
 
     let mut robot_client = RobotClient::new(grpc_client, config);
 
