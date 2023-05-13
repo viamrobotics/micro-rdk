@@ -303,9 +303,7 @@ where
                 Err(e) => {
                     log::error!("Error while sending data {:?}", e);
                 }
-                Ok(_size) => {
-                    //log::info!("wrote {:?}", size);
-                }
+                Ok(_) => {}
             }
             if let Some(assoc) = self.association.as_mut() {
                 if let Some(timeout) = assoc.poll_timeout() {
@@ -334,7 +332,10 @@ where
             }
             DatagramEvent::AssociationEvent(ev) => {
                 if hnd != self.hnd {
-                    log::error!("handles are different unexpected")
+                    log::error!(
+                        "the association handle of the datagram is not the one active currently"
+                    );
+                    return Ok(());
                 }
                 if let Some(assoc) = self.association.as_mut() {
                     assoc.handle_event(ev);
