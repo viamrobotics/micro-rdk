@@ -49,7 +49,16 @@ impl ICECredentials {
     }
 }
 
-/// This ICE partially implements RFC5245
+/// ICE Agent implementation for micro-RDK, the goal is to keep it lightweight. Therefore it doesn't
+/// implement the full RFC5245
+/// Notable omissions:
+/// * Only support ICE-CONTROLLED
+/// * Doesn't resolve local mDNS candidate presented
+/// * Doesn't do a best effort to find a better pair once one was nominated
+/// * Doesn't support Ice Restart
+/// * Doesn't support freeing candidates
+/// * Can only do trickle ice
+/// * Adding/Removing tracks
 pub struct ICEAgent {
     pub(crate) local_candidates: Vec<Candidate>,
     remote_candidates: Vec<Candidate>,
@@ -212,6 +221,12 @@ impl ICEAgent {
                 }
             }
 
+            /// next_stun_request finds the next suitable pair to do a connection check to
+            /// to do so it parses the pair list in the following manner
+            /// 1) If a pair has no pending STUN request it generates an TransactionId and attach to the pair
+            /// 2) If a pair has a pending STUN request and its timeout is elapsed it will resend
+            /// the generated TransactionId
+            /// 3) Otherwise it moves to the next candidate pair
             let req = self.next_stun_request();
             if let Some(req) = req {
                 if let Ok(msg) = self.make_stun_request(req.0) {
