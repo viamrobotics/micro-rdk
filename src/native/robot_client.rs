@@ -254,7 +254,12 @@ mod tests {
         socket.set_nonblocking(true)?;
         let conn = NativeStream::LocalPlain(socket);
         let executor = NativeExecutor::new();
-        let mut grpc_client = GrpcClient::new(conn, executor.clone(), "http://localhost")?;
+        let mut grpc_client = GrpcClient::new(
+            conn,
+            executor.clone(),
+            "http://localhost",
+            "some_fqdn".to_owned(),
+        )?;
 
         let r =
             grpc_client.build_request("/proto.rpc.examples.echo.v1.EchoService/EchoBiDi", &None)?;
@@ -311,6 +316,7 @@ mod tests {
             robot_secret: "<Some secret>".to_string(),
             robot_id: "<Some robot>".to_string(),
             ip: Ipv4Addr::new(0, 0, 0, 0),
+            robot_fqdn: "some_fqdn",
         };
 
         let robot = {
@@ -334,7 +340,12 @@ mod tests {
             let tls = Box::new(NativeTls::new_client());
             let conn = tls.open_ssl_context(None)?;
             let conn = NativeStream::TLSStream(Box::new(conn));
-            let grpc_client = GrpcClient::new(conn, executor.clone(), "https://app.viam.com:443")?;
+            let grpc_client = GrpcClient::new(
+                conn,
+                executor.clone(),
+                "https://app.viam.com:443",
+                "some_fqdn".to_owned(),
+            )?;
             let mut robot_client = RobotClient::new(grpc_client, &cfg);
 
             robot_client.request_jwt_token()?;
