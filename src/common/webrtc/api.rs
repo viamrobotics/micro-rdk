@@ -97,6 +97,8 @@ impl WebRtcSdp {
 }
 
 impl WebRtcSignalingChannel {
+    /// The function waits for an Offer to be made, once received a user should poll for candidate using next_remote_candidate
+    /// the function will ignore Stage::Update
     pub(crate) async fn wait_sdp_offer(&mut self) -> Result<WebRtcSdp, WebRtcError> {
         loop {
             match self.signaling_rx.next().await {
