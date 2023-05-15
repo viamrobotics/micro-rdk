@@ -118,7 +118,7 @@ where
                     if stream != *self.stream.as_ref().unwrap() {
                         log::error!("unexpected stream id {:?}", stream);
                     }
-                    log::info!(
+                    log::debug!(
                         "do we have a message {:?} is it eos {:?} msg {:?}",
                         msg.has_message,
                         msg.eos,

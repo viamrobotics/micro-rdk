@@ -18,7 +18,7 @@ ifeq "$(ESPFLASHVERSION)" "1"
 endif
 
 build:
-	cd examples && cargo build  --example esp32_static --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort
+	cd examples && cargo build  --example esp32 --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort
 
 build-native:
 	cd examples && cargo build  --example native

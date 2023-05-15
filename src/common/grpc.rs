@@ -722,13 +722,13 @@ where
         {
             let cap = RefCell::borrow(&self.buffer).capacity();
             let len = RefCell::borrow(&self.buffer).len();
-            log::info!("current status of buffer is cap: {:?} len: {:?}", cap, len);
+            log::debug!("current status of buffer is cap: {:?} len: {:?}", cap, len);
         }
         debug!("webRTC");
         {
             RefCell::borrow_mut(&self.buffer).reserve(GRPC_BUFFER_SIZE);
         }
-        log::info!("req is {:?}, ", method);
+        log::debug!("req is {:?}, ", method);
         match self.handle_request(method, data) {
             Err(e) => {
                 log::error!("received error {:?}", e);

@@ -1,6 +1,7 @@
 pub mod common {
     pub mod adxl345;
     pub mod analog;
+    pub mod app_client;
     pub mod base;
     pub mod board;
     pub mod camera;
@@ -41,11 +42,11 @@ pub mod esp32 {
     pub mod certificate;
     pub mod dtls;
     pub mod encoder;
+    pub mod entry;
     pub mod exec;
     pub mod i2c;
     pub mod motor;
     pub mod pin;
-    pub mod robot_client;
     pub mod server;
     pub mod tcp;
     pub mod tls;
@@ -55,8 +56,8 @@ pub mod esp32 {
 pub mod native {
     pub mod certificate;
     pub mod dtls;
+    pub mod entry;
     pub mod exec;
-    pub mod robot_client;
     pub mod server;
     pub mod tcp;
     pub mod tls;
