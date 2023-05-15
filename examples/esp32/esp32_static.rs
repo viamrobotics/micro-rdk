@@ -1,3 +1,4 @@
+#![allow(unused)]
 #[allow(dead_code)]
 #[cfg(not(feature = "qemu"))]
 const SSID: &str = env!("MICRO_RDK_WIFI_SSID");
