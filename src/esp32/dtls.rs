@@ -13,18 +13,18 @@ use crate::common::webrtc::{certificate::Certificate, dtls::DtlsConnector, io::I
 
 use core::ffi::CStr;
 use esp_idf_sys::{
-    heap_caps_print_heap_info, mbedtls_ctr_drbg_context, mbedtls_ctr_drbg_init,
-    mbedtls_ctr_drbg_random, mbedtls_ctr_drbg_seed, mbedtls_entropy_context, mbedtls_entropy_func,
-    mbedtls_entropy_init, mbedtls_pk_context, mbedtls_pk_init, mbedtls_pk_parse_key,
-    mbedtls_ssl_conf_ca_chain, mbedtls_ssl_conf_dbg, mbedtls_ssl_conf_dtls_cookies,
+    mbedtls_ctr_drbg_context, mbedtls_ctr_drbg_init, mbedtls_ctr_drbg_random,
+    mbedtls_ctr_drbg_seed, mbedtls_entropy_context, mbedtls_entropy_func, mbedtls_entropy_init,
+    mbedtls_pk_context, mbedtls_pk_init, mbedtls_pk_parse_key, mbedtls_ssl_conf_ca_chain,
+    mbedtls_ssl_conf_dbg, mbedtls_ssl_conf_dtls_cookies,
     mbedtls_ssl_conf_dtls_srtp_protection_profiles, mbedtls_ssl_conf_own_cert,
     mbedtls_ssl_conf_rng, mbedtls_ssl_config, mbedtls_ssl_config_defaults, mbedtls_ssl_config_init,
     mbedtls_ssl_context, mbedtls_ssl_handshake, mbedtls_ssl_init, mbedtls_ssl_read,
     mbedtls_ssl_set_bio, mbedtls_ssl_set_timer_cb, mbedtls_ssl_setup, mbedtls_ssl_write,
-    mbedtls_x509_crt, mbedtls_x509_crt_init, mbedtls_x509_crt_parse_der, MALLOC_CAP_32BIT,
-    MALLOC_CAP_8BIT, MBEDTLS_ERR_NET_RECV_FAILED, MBEDTLS_ERR_NET_SEND_FAILED,
-    MBEDTLS_ERR_SSL_WANT_READ, MBEDTLS_ERR_SSL_WANT_WRITE, MBEDTLS_SSL_IS_SERVER,
-    MBEDTLS_SSL_PRESET_DEFAULT, MBEDTLS_SSL_TRANSPORT_DATAGRAM,
+    mbedtls_x509_crt, mbedtls_x509_crt_init, mbedtls_x509_crt_parse_der,
+    MBEDTLS_ERR_NET_RECV_FAILED, MBEDTLS_ERR_NET_SEND_FAILED, MBEDTLS_ERR_SSL_WANT_READ,
+    MBEDTLS_ERR_SSL_WANT_WRITE, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_PRESET_DEFAULT,
+    MBEDTLS_SSL_TRANSPORT_DATAGRAM,
 };
 use futures_lite::{AsyncRead, AsyncWrite, Future};
 use log::{log, Level};
@@ -35,7 +35,6 @@ extern "C" {
 }
 
 pub struct SslStreamState<S> {
-    pub cookie: u32,
     pub stream: S,
     pub error: Option<std::io::Error>,
 }
@@ -46,7 +45,6 @@ where
 {
     fn new(stream: S) -> Self {
         Self {
-            cookie: 0xDEADBEEF,
             stream,
             error: None,
         }
@@ -63,9 +61,7 @@ unsafe extern "C" fn mbedtls_net_write<S: Write>(
     len: usize,
 ) -> c_int {
     let state = state::<S>(ctx);
-    if state.cookie != 0xDEADBEEF {
-        panic!("cookie failed in write");
-    }
+
     let buf = std::slice::from_raw_parts(buf as *const _, len as usize);
 
     match state.stream.write(buf) {
@@ -86,10 +82,9 @@ unsafe extern "C" fn mbedtls_net_read<S: Read>(
     len: usize,
 ) -> c_int {
     let state = state::<S>(ctx);
-    if state.cookie != 0xDEADBEEF {
-        panic!("cookie failed in read");
-    }
+
     let buf = std::slice::from_raw_parts_mut(buf as *mut _, len as usize);
+
     match state.stream.read(buf) {
         Ok(len) => len as c_int,
         Err(e) => {
@@ -136,7 +131,6 @@ extern "C" fn ssl_debug(
 
 #[derive(Debug)]
 struct Esp32DtlsDelay {
-    cookie: u32, // tempo ensure pointer doesn't move
     intermediate: Option<Instant>,
     fin: Option<Instant>,
 }
@@ -144,7 +138,6 @@ struct Esp32DtlsDelay {
 impl Default for Esp32DtlsDelay {
     fn default() -> Self {
         Self {
-            cookie: 0xDEADBEEF,
             intermediate: None,
             fin: None,
         }
@@ -157,9 +150,7 @@ extern "C" fn mbedtls_timing_dtls_set_delay(
     fin_ms: c_uint,
 ) {
     let ctx: &mut Esp32DtlsDelay = unsafe { &mut *(data as *mut _) };
-    if ctx.cookie != 0xDEADBEEF {
-        panic!("timing dtls moved");
-    }
+
     if fin_ms == 0 {
         ctx.intermediate = None;
         ctx.fin = None
@@ -174,9 +165,7 @@ extern "C" fn mbedtls_timing_dtls_set_delay(
 
 extern "C" fn mbedtls_timing_get_delay(data: *mut c_void) -> c_int {
     let ctx: &mut Esp32DtlsDelay = unsafe { &mut *(data as *mut _) };
-    if ctx.cookie != 0xDEADBEEF {
-        panic!("timing dtls moved");
-    }
+
     if ctx.fin.is_none() {
         return -1;
     }
@@ -394,17 +383,12 @@ where
     }
 
     fn init(&mut self) -> Result<(), SSLError> {
-        unsafe {
-            heap_caps_print_heap_info(MALLOC_CAP_8BIT | MALLOC_CAP_32BIT);
-        }
         self.context.set_srtp_profiles([
             MbedTlsStrpProfile::MbedtlsSrtpAes128CmHmacSha180,
             MbedTlsStrpProfile::MbedtlsSrtpUnsetProfile,
         ]);
         self.context.init(self.certificate.clone())?;
-        unsafe {
-            heap_caps_print_heap_info(MALLOC_CAP_8BIT);
-        }
+
         Ok(())
     }
 
@@ -585,9 +569,7 @@ where
 
 impl<S> AsyncInnerStreamWrapper<S> {
     unsafe fn as_parts(&mut self) -> (Pin<&mut S>, &mut Context<'_>) {
-        if self.context.is_none() {
-            panic!("null context");
-        }
+        debug_assert!(self.context.is_some());
         let c = &mut *(self.context.unwrap() as *mut Context);
         let s = Pin::new_unchecked(&mut self.stream);
 
