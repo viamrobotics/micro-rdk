@@ -221,7 +221,7 @@ impl ICEAgent {
                 }
             }
 
-            /// next_stun_request finds the next suitable pair to do a connection check to
+            /// next_stun_request finds the next suitable pair to do a connection check on
             /// to do so it parses the pair list in the following manner
             /// 1) If a pair has no pending STUN request it generates an TransactionId and attach to the pair
             /// 2) If a pair has a pending STUN request and its timeout is elapsed it will resend
