@@ -221,12 +221,6 @@ impl ICEAgent {
                 }
             }
 
-            /// next_stun_request finds the next suitable pair to do a connection check on
-            /// to do so it parses the pair list in the following manner
-            /// 1) If a pair has no pending STUN request it generates an TransactionId and attach to the pair
-            /// 2) If a pair has a pending STUN request and its timeout is elapsed it will resend
-            /// the generated TransactionId
-            /// 3) Otherwise it moves to the next candidate pair
             let req = self.next_stun_request();
             if let Some(req) = req {
                 if let Ok(msg) = self.make_stun_request(req.0) {
@@ -278,6 +272,12 @@ impl ICEAgent {
         }
     }
 
+    /// next_stun_request finds the next suitable pair to do a connection check on
+    /// to do so it parses the pair list in the following manner
+    /// 1) If a pair has no pending STUN request it generates an TransactionId and attach to the pair
+    /// 2) If a pair has a pending STUN request and its timeout is elapsed it will resend
+    /// the generated TransactionId
+    /// 3) Otherwise it moves to the next candidate pair
     fn next_stun_request(&mut self) -> Option<(TransactionId, SocketAddrV4)> {
         for pair in &mut self.candidate_pairs {
             log::debug!("processing pair {:?}", pair);
