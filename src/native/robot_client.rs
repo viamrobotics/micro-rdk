@@ -39,14 +39,21 @@ pub struct RobotClientConfig {
     robot_secret: String,
     robot_id: String,
     ip: Ipv4Addr,
+    pub robot_fqdn: &'static str,
 }
 
 impl RobotClientConfig {
-    pub fn new(robot_secret: String, robot_id: String, ip: Ipv4Addr) -> Self {
+    pub fn new(
+        robot_secret: String,
+        robot_id: String,
+        ip: Ipv4Addr,
+        robot_fqdn: &'static str,
+    ) -> Self {
         RobotClientConfig {
             robot_secret,
             robot_id,
             ip,
+            robot_fqdn,
         }
     }
 }
@@ -194,7 +201,15 @@ fn clientloop(config: &RobotClientConfig) -> Result<()> {
     let conn = NativeStream::TLSStream(Box::new(conn));
     let executor = NativeExecutor::new();
 
-    let grpc_client = GrpcClient::new(conn, executor, "https://app.viam.com:443")?;
+    let fqdn_split: Vec<&str> = config.robot_fqdn.rsplitn(4, '-').collect();
+    let fqdn: String = fqdn_split
+        .iter()
+        .rev()
+        .cloned()
+        .collect::<Vec<&str>>()
+        .join(".");
+
+    let grpc_client = GrpcClient::new(conn, executor, "https://app.viam.com:443", fqdn)?;
 
     let mut robot_client = RobotClient::new(grpc_client, config);
 

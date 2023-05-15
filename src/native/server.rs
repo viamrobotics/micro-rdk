@@ -71,6 +71,7 @@ impl<'a> NativeServer<'a> {
                 self.cloud_cfg.robot_secret.to_owned(),
                 self.cloud_cfg.robot_id.to_owned(),
                 ip,
+                "",
             )
         };
         let hnd = match super::robot_client::start(client_cfg) {

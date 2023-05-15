@@ -23,8 +23,8 @@ use futures_lite::future::block_on;
 use log::*;
 use micro_rdk::common::grpc::GrpcServer;
 use micro_rdk::common::robot::{LocalRobot, ResourceMap, ResourceType};
-use micro_rdk::common::webrtc::grpc::{WebRTCGrpcBody, WebRTCGrpcServer};
-use micro_rdk::esp32::certificate::WebRTCCertificate;
+use micro_rdk::common::webrtc::grpc::{WebRtcGrpcBody, WebRtcGrpcServer};
+use micro_rdk::esp32::certificate::WebRtcCertificate;
 use micro_rdk::esp32::exec::Esp32Executor;
 use micro_rdk::esp32::robot_client::RobotClientConfig;
 use micro_rdk::proto::common::v1::ResourceName;
@@ -70,12 +70,12 @@ fn main() -> anyhow::Result<()> {
         use esp_idf_hal::ledc::config::TimerConfig;
         use esp_idf_hal::units::FromValueType;
         use micro_rdk::esp32::board::EspBoard;
-        use micro_rdk::esp32::motor::MotorEsp32;
+        use micro_rdk::esp32::motor::ABMotorEsp32;
         let tconf = TimerConfig::default().frequency(10.kHz().into());
         let timer = Arc::new(ledc::LedcTimerDriver::new(periph.ledc.timer0, &tconf).unwrap());
         let chan =
             ledc::LedcDriver::new(periph.ledc.channel0, timer.clone(), periph.pins.gpio14).unwrap();
-        let m1 = MotorEsp32::new(
+        let m1 = ABMotorEsp32::new(
             PinDriver::output(periph.pins.gpio33).unwrap(),
             PinDriver::output(periph.pins.gpio32).unwrap(),
             chan,
@@ -132,17 +132,18 @@ fn main() -> anyhow::Result<()> {
         (wifi.sta_netif().get_ip_info()?.ip, wifi)
     };
 
-    let webrtc_certificate = Rc::new(WebRTCCertificate::new(
+    let webrtc_certificate = Rc::new(WebRtcCertificate::new(
         ROBOT_DTLS_CERT,
         ROBOT_DTLS_KEY_PAIR,
         ROBOT_DTLS_CERT_FP,
     ));
 
     let cfg = RobotClientConfig::new(
-        "<Some Secret>".to_string(),
-        "<Some Robot>".to_string(),
+        ROBOT_SECRET.to_owned(),
+        ROBOT_ID.to_owned(),
         ip,
         Some(webrtc_certificate),
+        FQDN,
     );
     run_server(robot, cfg);
     Ok(())
@@ -153,15 +154,23 @@ fn run_server(robot: Arc<Mutex<LocalRobot>>, cfg: RobotClientConfig) {
     use micro_rdk::esp32::robot_client::RobotClient;
     use micro_rdk::esp32::tcp::Esp32Stream;
     use micro_rdk::esp32::tls::Esp32Tls;
-    log::info!("Starting WebRTC ");
+    log::info!("Starting WebRtc ");
     let executor = Esp32Executor::new();
     let mut webrtc = {
         let mut tls = Box::new(Esp32Tls::new_client());
         let conn = tls.open_ssl_context(None).unwrap();
         let conn = Esp32Stream::TLSStream(Box::new(conn));
 
+        let fqdn_split: Vec<&str> = cfg.robot_fqdn.rsplitn(4, '-').collect();
+        let fqdn: String = fqdn_split
+            .iter()
+            .rev()
+            .cloned()
+            .collect::<Vec<&str>>()
+            .join(".");
+
         let grpc_client =
-            GrpcClient::new(conn, executor.clone(), "https://app.viam.com:443").unwrap();
+            GrpcClient::new(conn, executor.clone(), "https://app.viam.com:443", fqdn).unwrap();
         let mut robot_client = RobotClient::new(grpc_client, &cfg);
 
         robot_client.request_jwt_token().unwrap();
@@ -179,7 +188,7 @@ fn run_server(robot: Arc<Mutex<LocalRobot>>, cfg: RobotClientConfig) {
         heap_caps_print_heap_info(MALLOC_CAP_8BIT | MALLOC_CAP_32BIT);
     }
     let mut webrtc_grpc =
-        WebRTCGrpcServer::new(channel, GrpcServer::new(robot, WebRTCGrpcBody::default()));
+        WebRtcGrpcServer::new(channel, GrpcServer::new(robot, WebRtcGrpcBody::default()));
 
     unsafe {
         use esp_idf_sys::{heap_caps_print_heap_info, MALLOC_CAP_32BIT, MALLOC_CAP_8BIT};
@@ -241,7 +250,7 @@ fn start_wifi(
         channel,
         ..Default::default()
     };
-    wifi.set_configuration(&embedded_svc::wifi::Configuration::Client(client_config))?; //&Configuration::Client(client_config)
+    wifi.set_configuration(&embedded_svc::wifi::Configuration::Client(client_config))?;
 
     wifi.start()?;
 

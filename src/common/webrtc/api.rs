@@ -399,20 +399,18 @@ where
             .sdp
             .media_descriptions
             .get(0)
-            .ok_or(WebRtcError::InvalidSDPOffer(
-                "no media description".to_owned(),
-            ))?;
+            .ok_or_else(|| WebRtcError::InvalidSDPOffer("no media description".to_owned()))?;
 
         let remote_creds = ICECredentials::new(
             attribute
                 .attribute("ice-ufrag")
                 .flatten()
-                .ok_or(WebRtcError::InvalidSDPOffer("ice-ufrag absent".to_string()))?
+                .ok_or_else(|| WebRtcError::InvalidSDPOffer("ice-ufrag absent".to_string()))?
                 .to_owned(),
             attribute
                 .attribute("ice-pwd")
                 .flatten()
-                .ok_or(WebRtcError::InvalidSDPOffer("ice-pwd absent".to_string()))?
+                .ok_or_else(|| WebRtcError::InvalidSDPOffer("ice-pwd absent".to_string()))?
                 .to_owned(),
         );
 

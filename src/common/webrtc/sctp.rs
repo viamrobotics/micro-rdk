@@ -299,11 +299,8 @@ where
                     }
                 }
             }
-            match self.handle_outgoing_data().await {
-                Err(e) => {
-                    log::error!("Error while sending data {:?}", e);
-                }
-                Ok(_) => {}
+            if let Err(e) = self.handle_outgoing_data().await {
+                log::error!("Error while sending data {:?}", e);
             }
             if let Some(assoc) = self.association.as_mut() {
                 if let Some(timeout) = assoc.poll_timeout() {
