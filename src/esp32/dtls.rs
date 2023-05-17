@@ -129,19 +129,10 @@ extern "C" fn ssl_debug(
     log!(level, "[mbedtls] {}:{} - {}", file, line, msg);
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct Esp32DtlsDelay {
     intermediate: Option<Instant>,
     fin: Option<Instant>,
-}
-
-impl Default for Esp32DtlsDelay {
-    fn default() -> Self {
-        Self {
-            intermediate: None,
-            fin: None,
-        }
-    }
 }
 
 extern "C" fn mbedtls_timing_dtls_set_delay(
