@@ -3,8 +3,8 @@
 /// transmit over WebRTC data channels.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PacketMessage {
-    #[prost(bytes="vec", tag="1")]
-    pub data: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes="bytes", tag="1")]
+    pub data: ::prost::bytes::Bytes,
     #[prost(bool, tag="2")]
     pub eom: bool,
 }

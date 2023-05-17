@@ -6,10 +6,7 @@ use crate::native::exec::NativeExecutor;
 use anyhow::Result;
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_lite::{future::block_on, Stream};
-use h2::{
-    client::{handshake, SendRequest},
-    RecvStream, SendStream,
-};
+use h2::{client::SendRequest, RecvStream, SendStream};
 use hyper::{http::status, Method, Request};
 use smol::Task;
 use std::{marker::PhantomData, task::Poll};
@@ -44,6 +41,11 @@ where
             .send_data(body, false)
             .map_err(|err| anyhow::anyhow!("couldn't send message {}", err))
     }
+    pub(crate) fn send_empty_body(&mut self) -> anyhow::Result<()> {
+        self.sender_half
+            .send_data(Bytes::new(), false)
+            .map_err(|err| anyhow::anyhow!("couldn't send message {}", err))
+    }
 }
 
 impl<T> Drop for GrpcMessageSender<T> {
@@ -57,6 +59,7 @@ impl<T> Drop for GrpcMessageSender<T> {
 pub(crate) struct GrpcMessageStream<T> {
     receiver_half: RecvStream,
     _marker: PhantomData<T>,
+    buffer: Bytes,
 }
 impl<T> Unpin for GrpcMessageStream<T> {}
 
@@ -65,6 +68,7 @@ impl<T> GrpcMessageStream<T> {
         Self {
             receiver_half,
             _marker: PhantomData,
+            buffer: Bytes::new(),
         }
     }
     pub(crate) fn by_ref(&mut self) -> &mut Self {
@@ -82,48 +86,86 @@ where
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        // TODO read the first 5 bytes so we know how much data to expect and we can allocate appropriately
-        let mut chunk = match self.receiver_half.poll_data(cx) {
-            Poll::Pending => return Poll::Pending,
-            Poll::Ready(r) => match r {
-                Some(r) => match r {
-                    Err(_) => return Poll::Ready(None),
-                    Ok(r) => r,
+        if self.buffer.is_empty() {
+            let chunk = match self.receiver_half.poll_data(cx) {
+                Poll::Pending => return Poll::Pending,
+                Poll::Ready(r) => match r {
+                    Some(r) => match r {
+                        Err(_) => return Poll::Ready(None),
+                        Ok(r) => r,
+                    },
+                    None => return Poll::Ready(None),
                 },
-                None => return Poll::Ready(None),
-            },
-        };
+            };
+            self.buffer = chunk;
+        }
 
+        // Split off the length prefixed message containing the compressed flag (B0) and the message length (B1-B4)
+        let mut delim = self.buffer.split_to(5);
+        // Discard compression flag
+        let _ = delim.split_to(1);
+
+        let len = u32::from_be_bytes(delim.as_ref().try_into().unwrap());
+
+        let message = self.buffer.split_to(len as usize);
         let _ = self
             .receiver_half
             .flow_control()
-            .release_capacity(chunk.len());
-        let chunk = chunk.split_off(5);
-        let p = match T::decode(chunk) {
-            Err(_) => return Poll::Pending,
+            .release_capacity(message.len() + 5);
+
+        let message = match T::decode(message) {
+            Err(e) => {
+                log::error!("decoding error {:?}", e);
+                return Poll::Pending;
+            }
             Ok(m) => m,
         };
-        Poll::Ready(Some(p))
+        Poll::Ready(Some(message))
     }
 }
 #[cfg(feature = "native")]
 type Executor<'a> = NativeExecutor<'a>;
 #[cfg(feature = "esp32")]
 type Executor<'a> = Esp32Executor<'a>;
-pub(crate) struct GrpcClient<'a> {
+pub struct GrpcClient<'a> {
     executor: Executor<'a>,
     http2_connection: SendRequest<Bytes>,
     #[allow(dead_code)]
-    http2_task: Task<()>,
+    http2_task: Option<Task<()>>,
     uri: &'a str,
+    rpc_host: String,
+}
+
+impl<'a> Drop for GrpcClient<'a> {
+    fn drop(&mut self) {
+        if let Some(task) = self.http2_task.take() {
+            //(TODO(RSDK-3061)) avoid blocking on if possible
+            block_on(self.executor.run(async {
+                task.cancel().await;
+            }));
+        }
+    }
 }
 
 impl<'a> GrpcClient<'a> {
-    pub(crate) fn new<T>(io: T, executor: Executor<'a>, uri: &'a str) -> anyhow::Result<Self>
+    pub fn new<T>(
+        io: T,
+        executor: Executor<'a>,
+        uri: &'a str,
+        rpc_host: String,
+    ) -> anyhow::Result<Self>
     where
         T: AsyncRead + AsyncWrite + Unpin + 'a,
     {
-        let (http2_connection, conn) = block_on(executor.run(async { handshake(io).await }))?;
+        let (http2_connection, conn) = block_on(executor.run(async {
+            h2::client::Builder::new()
+                .initial_connection_window_size(4096)
+                .initial_window_size(4096)
+                .max_concurrent_reset_streams(1)
+                .max_concurrent_streams(1)
+                .handshake(io)
+                .await
+        }))?;
 
         let http2_task = executor.spawn(async move {
             if let Err(e) = conn.await {
@@ -133,8 +175,9 @@ impl<'a> GrpcClient<'a> {
         Ok(Self {
             executor,
             http2_connection,
-            http2_task,
+            http2_task: Some(http2_task),
             uri,
+            rpc_host,
         })
     }
 
@@ -147,6 +190,7 @@ impl<'a> GrpcClient<'a> {
             .uri(uri)
             .header("content-type", "application/grpc")
             .header("te", "trailers")
+            .header("rpc-host", &self.rpc_host)
             .header("user-agent", "esp32");
 
         if let Some(jwt) = jwt {
@@ -176,7 +220,11 @@ impl<'a> GrpcClient<'a> {
 
         if let Some(message) = message {
             r.send_message(message)?;
+        } else {
+            r.send_empty_body()?
         }
+
+        log::info!("awaiting response");
 
         let (part, body) = block_on(self.executor.run(async { response.await }))?.into_parts();
 

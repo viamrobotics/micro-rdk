@@ -1,8 +1,8 @@
+use crate::common::webrtc::exec::WebRtcExecutor;
 ///! The exec module exposes helpers to execute futures on an ESP32
 use futures_lite::{future, Future};
 use smol::{LocalExecutor, Task};
 use std::rc::Rc;
-
 #[derive(Clone, Debug)]
 /// This executor is local and bounded to the CPU that created it usually you would create it after spwaning a thread on a specific core
 pub struct Esp32Executor<'a> {
@@ -35,6 +35,15 @@ impl<'a> Default for Esp32Executor<'a> {
 
 /// helper trait for hyper to spwan future onto a local executor
 impl<F> hyper::rt::Executor<F> for Esp32Executor<'_>
+where
+    F: future::Future + 'static,
+{
+    fn execute(&self, fut: F) {
+        self.executor.spawn(fut).detach();
+    }
+}
+
+impl<F> WebRtcExecutor<F> for Esp32Executor<'_>
 where
     F: future::Future + 'static,
 {

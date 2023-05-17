@@ -33,7 +33,7 @@ impl fmt::Display for RegistryError {
                 write!(f, "RegistryError : Model not found")
             }
             RegistryError::ModelAlreadyRegistered(model) => {
-                write!(f, "RegistryError : model {} already exists", model)
+                write!(f, "RegistryError : model {model} already exists")
             }
         }
     }

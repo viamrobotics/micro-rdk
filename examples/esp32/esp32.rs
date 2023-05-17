@@ -10,7 +10,6 @@ include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
 #[cfg(all(not(feature = "qemu"), feature = "camera"))]
 use crate::camera::Esp32Camera;
-
 use anyhow::bail;
 use esp_idf_hal::prelude::Peripherals;
 #[cfg(feature = "qemu")]

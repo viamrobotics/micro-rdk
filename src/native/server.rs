@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use crate::common::grpc::GrpcServer;
+use crate::common::grpc::{GrpcBody, GrpcServer};
 
 use super::super::common::robot::LocalRobot;
 use futures_lite::future::block_on;
@@ -71,6 +71,7 @@ impl<'a> NativeServer<'a> {
                 self.cloud_cfg.robot_secret.to_owned(),
                 self.cloud_cfg.robot_id.to_owned(),
                 ip,
+                "",
             )
         };
         let hnd = match super::robot_client::start(client_cfg) {
@@ -118,7 +119,7 @@ impl<'a> NativeServer<'a> {
         let address: SocketAddr = "0.0.0.0:12346".parse().unwrap();
         let mut listener = NativeListener::new(address.into(), Some(tls))?;
         let exec = NativeExecutor::new();
-        let srv = GrpcServer::new(self.robot.clone());
+        let srv = GrpcServer::new(self.robot.clone(), GrpcBody::new());
         loop {
             let stream = listener.accept()?;
             block_on(exec.run(async {

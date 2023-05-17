@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use crate::common::grpc::GrpcServer;
+use crate::common::grpc::{GrpcBody, GrpcServer};
 
 use super::super::common::robot::LocalRobot;
 use esp_idf_hal::task::{notify, wait_notification};
@@ -70,6 +70,8 @@ impl<'a> Esp32Server<'a> {
                 self.cloud_cfg.robot_secret.to_owned(),
                 self.cloud_cfg.robot_id.to_owned(),
                 ip,
+                None,
+                "",
             )
         };
         client_cfg.set_main_handle(unsafe { xTaskGetCurrentTaskHandle() });
@@ -115,7 +117,7 @@ impl<'a> Esp32Server<'a> {
         let address: SocketAddr = "0.0.0.0:4545".parse().unwrap();
         let mut listener = Esp32Listener::new(address.into(), Some(tls))?;
         let exec = Esp32Executor::new();
-        let srv = GrpcServer::new(self.robot.clone());
+        let srv = GrpcServer::new(self.robot.clone(), GrpcBody::new());
         if let Some(hnd) = client_handle {
             if unsafe { notify(hnd, 1) } {
                 log::info!("successfully notified client task");

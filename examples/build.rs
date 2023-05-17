@@ -1,5 +1,6 @@
 use const_gen::*;
 use local_ip_address::local_ip;
+use rcgen::{date_time_ymd, CertificateParams, DistinguishedName};
 use serde::{Deserialize, Serialize};
 use std::{env, fs, path::Path};
 use tokio::runtime::Runtime;
@@ -141,6 +142,7 @@ pub struct Cloud {
 }
 
 fn main() -> anyhow::Result<()> {
+    println!("cargo:rerun-if-changed=viam.json");
     if env::var("TARGET").unwrap() == "xtensa-esp32-espidf" {
         if std::env::var_os("IDF_PATH").is_none() {
             return Err(anyhow::anyhow!(
@@ -162,6 +164,8 @@ fn main() -> anyhow::Result<()> {
         }
         embuild::build::LinkArgs::output_propagated("ESP_IDF")?;
     }
+
+    let (cert_der, kp_der, fp) = generate_dtls_certificate()?;
 
     let (robot_cfg, cfg) = if let Ok(content) = std::fs::read_to_string("viam.json") {
         let mut cfg: Config = serde_json::from_str(content.as_str()).map_err(anyhow::Error::msg)?;
@@ -210,6 +214,18 @@ fn main() -> anyhow::Result<()> {
             #[allow(clippy::redundant_static_lifetimes, dead_code)]
             ROBOT_NAME = robot_name
         ),
+        const_declaration!(
+            #[allow(clippy::redundant_static_lifetimes, dead_code)]
+            ROBOT_DTLS_CERT = cert_der
+        ),
+        const_declaration!(
+            #[allow(clippy::redundant_static_lifetimes, dead_code)]
+            ROBOT_DTLS_KEY_PAIR = kp_der
+        ),
+        const_declaration!(
+            #[allow(clippy::redundant_static_lifetimes, dead_code)]
+            ROBOT_DTLS_CERT_FP = fp
+        ),
     ]
     .join("\n");
     fs::write(&dest_path, robot_decl).unwrap();
@@ -238,6 +254,33 @@ fn main() -> anyhow::Result<()> {
     fs::write(&dest_path, conf_decl).unwrap();
 
     Ok(())
+}
+
+fn generate_dtls_certificate() -> anyhow::Result<(Vec<u8>, Vec<u8>, String)> {
+    let mut param: CertificateParams = CertificateParams::new(vec!["esp32".to_string()]);
+    param.not_before = date_time_ymd(2021, 5, 19);
+    param.not_after = date_time_ymd(4096, 1, 1);
+    let mut dn = DistinguishedName::new();
+    dn.push(rcgen::DnType::OrganizationName, "Viam");
+    param.distinguished_name = dn;
+    param.alg = &rcgen::PKCS_ECDSA_P256_SHA256;
+
+    let kp = rcgen::KeyPair::generate(&rcgen::PKCS_ECDSA_P256_SHA256)?;
+    let kp_der = kp.serialize_der();
+
+    param.key_pair = Some(kp);
+
+    let cert = rcgen::Certificate::from_params(param).unwrap();
+    let cert_der = cert.serialize_der().unwrap();
+    let fp = ring::digest::digest(&ring::digest::SHA256, &cert_der)
+        .as_ref()
+        .iter()
+        .map(|b| format!("{:02X}", b))
+        .collect::<Vec<String>>()
+        .join(":");
+    let fp = String::from("sha-256") + " " + &fp;
+
+    Ok((cert_der, kp_der, fp))
 }
 
 async fn read_certificates(config: &mut Config) -> anyhow::Result<()> {

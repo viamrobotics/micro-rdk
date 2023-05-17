@@ -5,7 +5,7 @@ use std::{
 };
 
 use rustls::{
-    ClientConfig, ClientConnection, OwnedTrustAnchor, RootCertStore, ServerConfig,
+    ClientConfig, ClientConnection, KeyLogFile, OwnedTrustAnchor, RootCertStore, ServerConfig,
     ServerConnection, StreamOwned,
 };
 
@@ -53,6 +53,18 @@ impl NativeTls {
     /// open the a TLS (SSL) context either in client or in server mode
     pub fn open_ssl_context(&self, socket: Option<TcpStream>) -> anyhow::Result<NativeTlsStream> {
         NativeTlsStream::new(socket, &self.server_config)
+    }
+}
+
+use rustls::KeyLog;
+
+struct Key {}
+impl KeyLog for Key {
+    fn log(&self, label: &str, client_random: &[u8], secret: &[u8]) {
+        log::info!("{} {:?} {:?}", label, client_random, secret);
+    }
+    fn will_log(&self, _label: &str) -> bool {
+        true
     }
 }
 
@@ -106,12 +118,13 @@ impl NativeTlsStream {
                     )
                 },
             ));
-
+            let log = Arc::new(KeyLogFile::new());
             let mut cfg = ClientConfig::builder()
                 .with_safe_defaults()
                 .with_root_certificates(root_certs)
                 .with_no_client_auth();
             cfg.alpn_protocols = vec!["h2".as_bytes().to_vec()];
+            cfg.key_log = log;
             let mut conn = ClientConnection::new(Arc::new(cfg), "app.viam.com".try_into()?)?;
             let mut socket = TcpStream::connect("app.viam.com:443")?;
             conn.complete_io::<TcpStream>(&mut socket)?;
@@ -148,5 +161,11 @@ impl Write for NativeTlsStream {
             Some(s) => s.flush(),
             None => Ok(()),
         }
+    }
+}
+
+impl Drop for NativeTlsStream {
+    fn drop(&mut self) {
+        log::debug!("dropping the tls stream");
     }
 }

@@ -18,6 +18,17 @@ pub mod common {
     pub mod robot;
     pub mod sensor;
     pub mod status;
+    pub mod webrtc {
+        pub mod api;
+        pub mod candidates;
+        pub mod certificate;
+        pub mod dtls;
+        pub mod exec;
+        pub mod grpc;
+        pub mod ice;
+        pub mod io;
+        pub mod sctp;
+    }
 }
 
 #[cfg(feature = "esp32")]
@@ -27,6 +38,8 @@ pub mod esp32 {
     pub mod board;
     #[cfg(feature = "camera")]
     pub mod camera;
+    pub mod certificate;
+    pub mod dtls;
     pub mod encoder;
     pub mod exec;
     pub mod i2c;
@@ -40,11 +53,20 @@ pub mod esp32 {
 
 #[cfg(feature = "native")]
 pub mod native {
+    pub mod certificate;
+    pub mod dtls;
     pub mod exec;
     pub mod robot_client;
     pub mod server;
     pub mod tcp;
     pub mod tls;
+}
+
+pub mod google {
+    pub mod rpc {
+        #![allow(clippy::derive_partial_eq_without_eq)]
+        include!("gen/google.rpc.rs");
+    }
 }
 
 pub mod proto {
@@ -66,6 +88,12 @@ pub mod proto {
         pub mod v1 {
             #![allow(clippy::derive_partial_eq_without_eq)]
             include!("gen/proto.rpc.v1.rs");
+        }
+        pub mod webrtc {
+            pub mod v1 {
+                #![allow(clippy::derive_partial_eq_without_eq)]
+                include!("gen/proto.rpc.webrtc.v1.rs");
+            }
         }
         pub mod examples {
             pub mod echo {
@@ -130,3 +158,25 @@ pub mod proto {
         }
     }
 }
+
+#[macro_use]
+extern crate trackable;
+
+use stun_codec::rfc5245::attributes::*;
+use stun_codec::rfc5389::attributes::*;
+stun_codec::define_attribute_enums!(
+    IceAttribute,
+    AttributeDecoder,
+    AttributeEncoder,
+    [
+        Username,
+        MessageIntegrity,
+        ErrorCode,
+        XorMappedAddress,
+        Fingerprint,
+        IceControlled,
+        IceControlling,
+        Priority,
+        UseCandidate
+    ]
+);
