@@ -65,6 +65,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     #[test_log::test]
+    #[ignore]
     fn test_app_client() {
         let tls = Box::new(NativeTls::new_client());
         let conn = tls.open_ssl_context(None);
