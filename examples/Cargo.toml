@@ -22,8 +22,8 @@ polling = { git = "https://github.com/esp-rs-compat/polling" }
 smol = { git = "https://github.com/esp-rs-compat/smol" }
 socket2 = { git = "https://github.com/npmenard/socket2.git" }
 
-[target.'cfg( not(target_os = "espidf"))'.dev-dependencies]
-micro-rdk = { path = "../", features = ["native"] }
+[target.'cfg(not(target_os = "espidf"))'.dev-dependencies]
+micro-rdk = { path = "../", features = ["native"], default-features = false }
 simple_logger = "2.3.0"
 local-ip-address = { version = "0.4.9" }
 log = "0.4"

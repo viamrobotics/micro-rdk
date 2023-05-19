@@ -28,6 +28,7 @@ where
         }
     }
     pub(crate) fn send_message(&mut self, message: T) -> anyhow::Result<()> {
+        log::debug!("sending a message");
         let body: Bytes = {
             let mut buf = BytesMut::with_capacity(message.encoded_len() + 5);
             buf.put_u8(0);
@@ -50,6 +51,7 @@ where
 
 impl<T> Drop for GrpcMessageSender<T> {
     fn drop(&mut self) {
+        log::debug!("dropping the sender");
         if let Err(err) = self.sender_half.send_data(Bytes::new(), true) {
             log::error!("failed to close sender half {:?}", err)
         }
@@ -133,11 +135,11 @@ pub struct GrpcClient<'a> {
     #[allow(dead_code)]
     http2_task: Option<Task<()>>,
     uri: &'a str,
-    rpc_host: String,
 }
 
 impl<'a> Drop for GrpcClient<'a> {
     fn drop(&mut self) {
+        log::debug!("client is dropping");
         if let Some(task) = self.http2_task.take() {
             //(TODO(RSDK-3061)) avoid blocking on if possible
             block_on(self.executor.run(async {
@@ -148,12 +150,7 @@ impl<'a> Drop for GrpcClient<'a> {
 }
 
 impl<'a> GrpcClient<'a> {
-    pub fn new<T>(
-        io: T,
-        executor: Executor<'a>,
-        uri: &'a str,
-        rpc_host: String,
-    ) -> anyhow::Result<Self>
+    pub fn new<T>(io: T, executor: Executor<'a>, uri: &'a str) -> anyhow::Result<Self>
     where
         T: AsyncRead + AsyncWrite + Unpin + 'a,
     {
@@ -177,11 +174,15 @@ impl<'a> GrpcClient<'a> {
             http2_connection,
             http2_task: Some(http2_task),
             uri,
-            rpc_host,
         })
     }
 
-    pub(crate) fn build_request(&self, path: &str, jwt: &Option<String>) -> Result<Request<()>> {
+    pub(crate) fn build_request(
+        &self,
+        path: &str,
+        jwt: Option<&str>,
+        rpc_host: &str,
+    ) -> Result<Request<()>> {
         let mut uri = self.uri.to_owned();
         uri.push_str(path);
 
@@ -190,12 +191,12 @@ impl<'a> GrpcClient<'a> {
             .uri(uri)
             .header("content-type", "application/grpc")
             .header("te", "trailers")
-            .header("rpc-host", &self.rpc_host)
+            .header("rpc-host", rpc_host)
             .header("user-agent", "esp32");
-
         if let Some(jwt) = jwt {
-            r = r.header("authorization", jwt.clone());
+            r = r.header("authorization", jwt);
         };
+
         r.body(())
             .map_err(|e| anyhow::anyhow!("cannot build request {}", e))
     }
@@ -223,8 +224,6 @@ impl<'a> GrpcClient<'a> {
         } else {
             r.send_empty_body()?
         }
-
-        log::info!("awaiting response");
 
         let (part, body) = block_on(self.executor.run(async { response.await }))?.into_parts();
 

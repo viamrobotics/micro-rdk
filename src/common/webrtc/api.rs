@@ -2,7 +2,9 @@
 use std::{
     fmt::Debug,
     io::{self, Cursor},
+    marker::PhantomData,
     net::Ipv4Addr,
+    pin::Pin,
     rc::Rc,
     sync::{atomic::AtomicBool, Arc},
     time::Duration,
@@ -22,7 +24,7 @@ use crate::{
 };
 
 use base64::{engine::general_purpose, Engine};
-use futures_lite::{future::block_on, StreamExt};
+use futures_lite::{Future, StreamExt};
 use prost::{DecodeError, EncodeError};
 use sdp::{
     description::{
@@ -40,6 +42,7 @@ use super::{
     candidates::Candidate,
     certificate::Certificate,
     dtls::DtlsConnector,
+    exec::WebRtcExecutor,
     ice::{ICEAgent, ICECredentials},
     io::WebRtcTransport,
     sctp::{Channel, SctpProto},
@@ -244,8 +247,8 @@ type Executor<'a> = NativeExecutor<'a>;
 #[cfg(feature = "esp32")]
 type Executor<'a> = Esp32Executor<'a>;
 
-pub struct WebRtcApi<'a, S, D> {
-    executor: Executor<'a>,
+pub struct WebRtcApi<'a, S, D, E> {
+    executor: E,
     signaling: Option<WebRtcSignalingChannel>,
     uuid: Option<String>,
     transport: WebRtcTransport,
@@ -254,31 +257,33 @@ pub struct WebRtcApi<'a, S, D> {
     remote_creds: Option<ICECredentials>,
     local_ip: Ipv4Addr,
     dtls: Option<D>,
+    marker: PhantomData<&'a E>,
 }
 
-impl<'a, C, D> WebRtcApi<'a, C, D>
+impl<'a, C, D, E> WebRtcApi<'a, C, D, E>
 where
     C: Certificate,
     D: DtlsConnector,
+    E: WebRtcExecutor<Pin<Box<dyn Future<Output = ()> + Send>>> + Clone + 'static,
 {
     pub(crate) fn new(
-        executor: Executor<'a>,
+        executor: E,
         tx_half: GrpcMessageSender<AnswerResponse>,
         rx_half: GrpcMessageStream<AnswerRequest>,
         certificate: Rc<C>,
         local_ip: Ipv4Addr,
         dtls: D,
     ) -> Self {
-        let udp = block_on(executor.run(async { UdpSocket::bind("0.0.0.0:0").await.unwrap() }));
+        let udp = executor.block_on(UdpSocket::bind("0.0.0.0:0")).unwrap();
         let transport = WebRtcTransport::new(udp);
         let tx = transport.clone();
         let rx = transport.clone();
-        executor.spawn(async move { tx.read_loop().await }).detach();
-        executor
-            .spawn(async move { rx.write_loop().await })
-            .detach();
+        executor.execute(Box::pin(async move { tx.read_loop().await }));
+
+        executor.execute(Box::pin(async move { rx.write_loop().await }));
+
         Self {
-            executor: executor.clone(),
+            executor,
             signaling: Some(WebRtcSignalingChannel {
                 signaling_tx: tx_half,
                 signaling_rx: rx_half,
@@ -291,6 +296,7 @@ where
             local_creds: Default::default(),
             local_ip,
             dtls: Some(dtls),
+            marker: PhantomData,
         }
     }
 
@@ -311,6 +317,7 @@ where
         ice_agent.local_candidates().await.unwrap();
 
         for c in &ice_agent.local_candidates {
+            log::debug!("sending local candidates {:?}", c);
             self.signaling
                 .as_mut()
                 .ok_or(WebRtcError::SignalingDisconnected())?
@@ -322,11 +329,9 @@ where
         }
         let sync = Arc::new(AtomicBool::new(false));
         let sync_clone = sync.clone();
-        self.executor
-            .spawn(async move {
-                ice_agent.run(sync).await;
-            })
-            .detach();
+        self.executor.execute(Box::pin(async move {
+            ice_agent.run(sync).await;
+        }));
 
         while !sync_clone.load(std::sync::atomic::Ordering::Relaxed) {
             if let Some(candidate) = self
@@ -375,11 +380,9 @@ where
 
             let mut sctp = Box::new(SctpProto::new(dtls_stream, self.executor.clone(), c_tx));
             sctp.listen().await.unwrap();
-            self.executor
-                .spawn(async move {
-                    sctp.run().await;
-                })
-                .detach();
+            self.executor.execute(Box::pin(async move {
+                sctp.run().await;
+            }));
             return Ok(c_rx.recv().await.unwrap());
         }
 
@@ -462,6 +465,7 @@ where
         let answer = answer.with_media(media);
 
         let answer = WebRtcSdp::new(answer, self.uuid.as_ref().unwrap().clone());
+        log::debug!("sending answer {:?}", &answer);
         self.signaling
             .as_mut()
             .ok_or(WebRtcError::SignalingDisconnected())?

@@ -6,7 +6,10 @@ use std::{
     time::Duration,
 };
 
-use crate::common::grpc::{GrpcBody, GrpcServer};
+use crate::common::{
+    app_client::AppClientConfig,
+    grpc::{GrpcBody, GrpcServer},
+};
 
 use super::super::common::robot::LocalRobot;
 use futures_lite::future::block_on;
@@ -17,7 +20,6 @@ use mdns_sd::{ServiceDaemon, ServiceInfo};
 
 use super::{
     exec::NativeExecutor,
-    robot_client::RobotClientConfig,
     tcp::NativeListener,
     tls::{NativeTls, NativeTlsServerConfig},
 };
@@ -67,14 +69,13 @@ impl<'a> NativeServer<'a> {
     }
     pub fn start(&self, ip: Ipv4Addr) -> anyhow::Result<()> {
         let mut client_cfg = {
-            RobotClientConfig::new(
+            AppClientConfig::new(
                 self.cloud_cfg.robot_secret.to_owned(),
                 self.cloud_cfg.robot_id.to_owned(),
                 ip,
-                "",
             )
         };
-        let hnd = match super::robot_client::start(client_cfg) {
+        let hnd = match super::entry::start(client_cfg) {
             Err(e) => {
                 log::error!("couldn't start robot client {:?} will start the server", e);
                 None

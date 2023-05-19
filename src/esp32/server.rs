@@ -5,7 +5,10 @@ use std::{
     time::Duration,
 };
 
-use crate::common::grpc::{GrpcBody, GrpcServer};
+use crate::common::{
+    app_client::AppClientConfig,
+    grpc::{GrpcBody, GrpcServer},
+};
 
 use super::super::common::robot::LocalRobot;
 use esp_idf_hal::task::{notify, wait_notification};
@@ -16,7 +19,6 @@ use hyper::server::conn::Http;
 
 use super::{
     exec::Esp32Executor,
-    robot_client::RobotClientConfig,
     tcp::Esp32Listener,
     tls::{Esp32Tls, Esp32TlsServerConfig},
 };
@@ -66,23 +68,24 @@ impl<'a> Esp32Server<'a> {
     }
     pub fn start(&self, ip: Ipv4Addr) -> anyhow::Result<()> {
         let mut client_cfg = {
-            RobotClientConfig::new(
+            AppClientConfig::new(
                 self.cloud_cfg.robot_secret.to_owned(),
                 self.cloud_cfg.robot_id.to_owned(),
                 ip,
-                None,
-                "",
             )
         };
-        client_cfg.set_main_handle(unsafe { xTaskGetCurrentTaskHandle() });
-        let hnd = match super::robot_client::start(client_cfg) {
-            Err(e) => {
-                log::error!("couldn't start robot client {:?} will start the server", e);
-                None
-            }
-            Ok(hnd) => Some(hnd),
-        };
+
+        let hnd =
+            match super::entry::start(client_cfg, Some(unsafe { xTaskGetCurrentTaskHandle() })) {
+                Err(e) => {
+                    log::error!("couldn't start robot client {:?} will start the server", e);
+                    None
+                }
+                Ok(hnd) => Some(hnd),
+            };
+
         let _ = wait_notification(Some(Duration::from_secs(30)));
+
         let _mdns = {
             let mut mdns = EspMdns::take()?;
             mdns.set_hostname(self.cloud_cfg.robot_name)?;

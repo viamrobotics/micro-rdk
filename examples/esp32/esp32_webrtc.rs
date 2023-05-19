@@ -21,12 +21,13 @@ use anyhow::bail;
 use esp_idf_sys::esp_wifi_set_ps;
 use futures_lite::future::block_on;
 use log::*;
+use micro_rdk::common::app_client::{AppClientBuilder, AppClientConfig};
 use micro_rdk::common::grpc::GrpcServer;
 use micro_rdk::common::robot::{LocalRobot, ResourceMap, ResourceType};
 use micro_rdk::common::webrtc::grpc::{WebRtcGrpcBody, WebRtcGrpcServer};
 use micro_rdk::esp32::certificate::WebRtcCertificate;
+use micro_rdk::esp32::dtls::Esp32Dtls;
 use micro_rdk::esp32::exec::Esp32Executor;
-use micro_rdk::esp32::robot_client::RobotClientConfig;
 use micro_rdk::proto::common::v1::ResourceName;
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
@@ -132,26 +133,13 @@ fn main() -> anyhow::Result<()> {
         (wifi.sta_netif().get_ip_info()?.ip, wifi)
     };
 
-    let webrtc_certificate = Rc::new(WebRtcCertificate::new(
-        ROBOT_DTLS_CERT,
-        ROBOT_DTLS_KEY_PAIR,
-        ROBOT_DTLS_CERT_FP,
-    ));
-
-    let cfg = RobotClientConfig::new(
-        ROBOT_SECRET.to_owned(),
-        ROBOT_ID.to_owned(),
-        ip,
-        Some(webrtc_certificate),
-        FQDN,
-    );
+    let cfg = AppClientConfig::new(ROBOT_SECRET.to_owned(), ROBOT_ID.to_owned(), ip);
     run_server(robot, cfg);
     Ok(())
 }
 
-fn run_server(robot: Arc<Mutex<LocalRobot>>, cfg: RobotClientConfig) {
+fn run_server(robot: Arc<Mutex<LocalRobot>>, cfg: AppClientConfig) {
     use micro_rdk::common::grpc_client::GrpcClient;
-    use micro_rdk::esp32::robot_client::RobotClient;
     use micro_rdk::esp32::tcp::Esp32Stream;
     use micro_rdk::esp32::tls::Esp32Tls;
     log::info!("Starting WebRtc ");
@@ -161,39 +149,31 @@ fn run_server(robot: Arc<Mutex<LocalRobot>>, cfg: RobotClientConfig) {
         let conn = tls.open_ssl_context(None).unwrap();
         let conn = Esp32Stream::TLSStream(Box::new(conn));
 
-        let fqdn_split: Vec<&str> = cfg.robot_fqdn.rsplitn(4, '-').collect();
-        let fqdn: String = fqdn_split
-            .iter()
-            .rev()
-            .cloned()
-            .collect::<Vec<&str>>()
-            .join(".");
-
         let grpc_client =
-            GrpcClient::new(conn, executor.clone(), "https://app.viam.com:443", fqdn).unwrap();
-        let mut robot_client = RobotClient::new(grpc_client, &cfg);
+            GrpcClient::new(conn, executor.clone(), "https://app.viam.com:443").unwrap();
+        let mut app_client = AppClientBuilder::new(grpc_client, cfg).build().unwrap();
 
-        robot_client.request_jwt_token().unwrap();
-        robot_client.read_config().unwrap();
+        let webrtc_certificate = Rc::new(WebRtcCertificate::new(
+            ROBOT_DTLS_CERT,
+            ROBOT_DTLS_KEY_PAIR,
+            ROBOT_DTLS_CERT_FP,
+        ));
 
-        let r = robot_client.start_answering_signaling(executor.clone());
-        drop(robot_client);
-        r
-    }
-    .unwrap();
+        let dtls = Esp32Dtls::new(webrtc_certificate.clone()).unwrap();
+
+        let webrtc = app_client
+            .connect_webrtc(webrtc_certificate, executor.clone(), dtls)
+            .unwrap();
+
+        drop(app_client);
+        webrtc
+    };
     let channel = block_on(executor.run(async { webrtc.open_data_channel().await })).unwrap();
     log::info!("channel opened {:?}", channel);
-    unsafe {
-        use esp_idf_sys::{heap_caps_print_heap_info, MALLOC_CAP_32BIT, MALLOC_CAP_8BIT};
-        heap_caps_print_heap_info(MALLOC_CAP_8BIT | MALLOC_CAP_32BIT);
-    }
+
     let mut webrtc_grpc =
         WebRtcGrpcServer::new(channel, GrpcServer::new(robot, WebRtcGrpcBody::default()));
 
-    unsafe {
-        use esp_idf_sys::{heap_caps_print_heap_info, MALLOC_CAP_32BIT, MALLOC_CAP_8BIT};
-        heap_caps_print_heap_info(MALLOC_CAP_8BIT | MALLOC_CAP_32BIT);
-    }
     loop {
         block_on(executor.run(async { webrtc_grpc.next_request().await })).unwrap();
     }
