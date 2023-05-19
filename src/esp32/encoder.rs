@@ -1,4 +1,5 @@
 use super::pin::PinExt;
+use super::pulse_counter::{get_unit, isr_install, isr_remove_unit};
 
 use core::ffi::{c_short, c_ulong};
 use esp_idf_hal::gpio::{AnyInputPin, Input, PinDriver};
@@ -61,9 +62,10 @@ where
     B: InputPin + PinExt,
 {
     pub fn new(a: A, b: B) -> anyhow::Result<Self> {
+        let unit = get_unit()?;
         let pcnt = Box::new(PulseStorage {
             acc: Arc::new(AtomicI32::new(0)),
-            unit: 0,
+            unit,
         });
         let mut enc = Esp32Encoder {
             pulse_counter: pcnt,
@@ -77,7 +79,7 @@ where
                 counter_h_lim: 100,
                 counter_l_lim: -100,
                 channel: pcnt_channel_0,
-                unit: 0,
+                unit,
             },
             a,
             b,
@@ -197,12 +199,7 @@ where
             }
         }
 
-        unsafe {
-            match esp_idf_sys::pcnt_isr_service_install(0) {
-                ESP_OK => {}
-                err => return Err(EspError::from(err).unwrap().into()),
-            }
-        }
+        isr_install()?;
 
         esp!(unsafe {
             esp_idf_sys::pcnt_isr_handler_add(
@@ -276,5 +273,11 @@ where
         Ok(Some(prost_types::Struct {
             fields: BTreeMap::new(),
         }))
+    }
+}
+
+impl<A, B> Drop for Esp32Encoder<A, B> {
+    fn drop(&mut self) {
+        isr_remove_unit();
     }
 }

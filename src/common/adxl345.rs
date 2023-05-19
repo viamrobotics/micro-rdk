@@ -39,6 +39,7 @@ impl ADXL345 {
     pub fn new(mut i2c_handle: I2cHandleType, i2c_address: u8) -> anyhow::Result<Self> {
         let bytes: [u8; 2] = [STANDBY_MODE_REGISTER, 8];
         i2c_handle.write_i2c(i2c_address, &bytes)?;
+        println!("created adxl");
         Ok(Self {
             i2c_handle,
             i2c_address,
