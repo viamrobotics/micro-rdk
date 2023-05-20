@@ -230,7 +230,7 @@ pub struct WebRtcTransport {
 
 impl WebRtcTransport {
     pub fn new(socket: UdpSocket) -> Self {
-        let (tx, rx) = smol::channel::bounded::<IoPkt>(3);
+        let (tx, rx) = smol::channel::bounded::<IoPkt>(10);
         Self {
             socket,
             stun: IoPktChannel::new(tx.clone()),
