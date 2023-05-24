@@ -96,10 +96,7 @@ where
             buffer: BytesMut::zeroed(1300),
         }
     }
-    async fn send_response(
-        &mut self,
-        response: webrtc::v1::Response,
-    ) -> Result<(), WebRtcError> {
+    async fn send_response(&mut self, response: webrtc::v1::Response) -> Result<(), WebRtcError> {
         let len = response.encoded_len();
         let b = self.buffer.split_off(len);
         self.buffer.clear();
@@ -270,6 +267,5 @@ where
             }
         }
         Ok(())
-
     }
 }
