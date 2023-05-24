@@ -1,15 +1,20 @@
 #![allow(dead_code)]
 #![allow(clippy::read_zero_byte_vec)]
-use bytes::Bytes;
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant},
+};
+
+use bytes::{Bytes, BytesMut};
 use futures_lite::AsyncReadExt;
 use prost::Message;
 
 use crate::{
-    common::grpc::GrpcResponse,
+    common::grpc::{GrpcError, GrpcResponse},
     google::rpc::Status,
     proto::rpc::webrtc::{
         self,
-        v1::{Metadata, RequestHeaders},
+        v1::{Metadata, RequestHeaders, RequestMessage, Stream},
     },
 };
 
@@ -40,10 +45,10 @@ impl GrpcResponse for WebRtcGrpcBody {
     fn put_data(&mut self, data: bytes::Bytes) {
         let _ = self.data.insert(data);
     }
-    fn set_status(&mut self, code: i32, message: Option<&'_ str>) {
+    fn set_status(&mut self, code: i32, message: Option<String>) {
         self.status.code = code;
         if let Some(message) = message {
-            self.status.message = message.to_owned();
+            self.status.message = message
         }
     }
     fn insert_trailer(&mut self, _: &'static str, _: &'_ str) {}
@@ -52,15 +57,29 @@ impl GrpcResponse for WebRtcGrpcBody {
     }
 }
 
+#[derive(Debug)]
+struct RpcCall(
+    webrtc::v1::RequestHeaders,
+    Option<Instant>,
+    Option<RequestMessage>,
+);
+
 pub struct WebRtcGrpcServer<S> {
     service: S,
     channel: Channel,
     stream: Option<webrtc::v1::Stream>,
     headers: Option<RequestHeaders>,
+    streams: HashMap<u32, RpcCall>,
+    buffer: BytesMut,
 }
 
 pub trait WebRtcGrpcService {
-    fn unary_rpc(&mut self, method: &str, data: &Bytes) -> Result<Bytes, Status>;
+    fn unary_rpc(&mut self, method: &str, data: &Bytes) -> Result<Bytes, GrpcError>;
+    fn server_stream_rpc(
+        &mut self,
+        method: &str,
+        data: &Bytes,
+    ) -> Result<(Bytes, Instant), GrpcError>;
 }
 
 impl<S> WebRtcGrpcServer<S>
@@ -73,115 +92,184 @@ where
             channel,
             stream: None,
             headers: None,
+            streams: HashMap::new(),
+            buffer: BytesMut::zeroed(1300),
         }
     }
     async fn send_response(
         &mut self,
-        buf: &mut Vec<u8>,
         response: webrtc::v1::Response,
     ) -> Result<(), WebRtcError> {
         let len = response.encoded_len();
-        response.encode(buf).map_err(WebRtcError::GprcEncodeError)?;
-        self.channel.write(&buf[..len]).await;
+        let b = self.buffer.split_off(len);
+        self.buffer.clear();
+        response
+            .encode(&mut self.buffer)
+            .map_err(WebRtcError::GprcEncodeError)?;
+        self.channel.write(&self.buffer[..len]).await;
+        self.buffer.unsplit(b);
         Ok(())
     }
-    pub async fn next_request(&mut self) -> Result<(), WebRtcError> {
-        let mut msg_buffer = Vec::with_capacity(1200);
+    async fn process_rpc_request(
+        &mut self,
+        stream: Stream,
+        msg: &RequestMessage,
+        hdr: &RequestHeaders,
+    ) -> Result<(Status, Option<Instant>), WebRtcError> {
+        let method = &hdr.method;
+        log::debug!("processing req {:?}", method);
+        let ret = if let Some(pkt) = msg.packet_message.as_ref() {
+            if method.contains("Stream") {
+                match self.service.server_stream_rpc(method, &pkt.data) {
+                    Ok(data) => {
+                        self.send_rpc_response(data.0, stream).await?;
+                        (
+                            Status {
+                                code: 0,
+                                ..Default::default()
+                            },
+                            Some(data.1),
+                        )
+                    }
+                    Err(e) => (e.to_status(), None),
+                }
+            } else {
+                match self.service.unary_rpc(method, &pkt.data) {
+                    Ok(data) => {
+                        self.send_rpc_response(data, stream).await?;
+                        (
+                            Status {
+                                code: 0,
+                                ..Default::default()
+                            },
+                            None,
+                        )
+                    }
+                    Err(e) => (e.to_status(), None),
+                }
+            }
+        } else {
+            (
+                Status {
+                    code: 0,
+                    ..Default::default()
+                },
+                None,
+            )
+        };
+        Ok(ret)
+    }
+    async fn send_rpc_response(&mut self, data: Bytes, stream: Stream) -> Result<(), WebRtcError> {
+        let message_response = webrtc::v1::Response {
+            stream: Some(stream),
+            r#type: Some(webrtc::v1::response::Type::Message(
+                webrtc::v1::ResponseMessage {
+                    packet_message: Some(webrtc::v1::PacketMessage { data, eom: true }),
+                },
+            )),
+        };
+        self.send_response(message_response).await
+    }
+    async fn send_trailers(&mut self, stream: Stream, status: Status) -> Result<(), WebRtcError> {
+        let trailer_response = webrtc::v1::Response {
+            stream: Some(stream),
+            r#type: Some(webrtc::v1::response::Type::Trailers(
+                webrtc::v1::ResponseTrailers {
+                    status: Some(status),
+                    metadata: None,
+                },
+            )),
+        };
+        self.send_response(trailer_response).await
+    }
 
-        let wrtc_msg = {
-            unsafe { msg_buffer.set_len(1200) };
+    async fn next_rpc_call(&mut self) -> Result<u32, WebRtcError> {
+        loop {
             let read = self
                 .channel
-                .read(&mut msg_buffer)
+                .read(&mut self.buffer)
                 .await
                 .map_err(WebRtcError::IoError)?;
-            webrtc::v1::Request::decode(&msg_buffer[..read])
-                .map_err(WebRtcError::GrpcDecodeError)?
-        };
-
-        if let Some(wrtc_type) = wrtc_msg.r#type {
-            match wrtc_type {
-                webrtc::v1::request::Type::Headers(hdr) => {
-                    let header_response = webrtc::v1::Response {
-                        stream: wrtc_msg.stream.clone(),
-                        r#type: Some(webrtc::v1::response::Type::Headers(
-                            webrtc::v1::ResponseHeaders { metadata: None },
-                        )),
-                    };
-                    let _ = self.stream.insert(wrtc_msg.stream.unwrap());
-                    let _ = self.headers.insert(hdr);
-                    msg_buffer.clear();
-                    self.send_response(&mut msg_buffer, header_response).await?;
-                }
-                webrtc::v1::request::Type::Message(msg) => {
-                    let stream = wrtc_msg.stream.unwrap();
-                    if stream != *self.stream.as_ref().unwrap() {
-                        log::error!("unexpected stream id {:?}", stream);
+            let req = webrtc::v1::Request::decode(&self.buffer[..read])
+                .map_err(WebRtcError::GrpcDecodeError)?;
+            if let Some(wrtc_type) = req.r#type {
+                match wrtc_type {
+                    webrtc::v1::request::Type::Headers(hdr) => {
+                        let header_response = webrtc::v1::Response {
+                            stream: req.stream.clone(),
+                            r#type: Some(webrtc::v1::response::Type::Headers(
+                                webrtc::v1::ResponseHeaders { metadata: None },
+                            )),
+                        };
+                        let _ = self
+                            .streams
+                            .insert(req.stream.unwrap().id as u32, RpcCall(hdr, None, None));
+                        self.send_response(header_response).await?;
                     }
-                    log::debug!(
-                        "do we have a message {:?} is it eos {:?} msg {:?}",
-                        msg.has_message,
-                        msg.eos,
-                        msg
-                    );
+                    webrtc::v1::request::Type::Message(msg) => {
+                        let stream = req.stream.unwrap();
+                        let key = stream.id as u32;
 
-                    if let Some(pkt) = msg.packet_message {
-                        let status = match self
-                            .service
-                            .unary_rpc(&self.headers.as_ref().unwrap().method, &pkt.data)
-                        {
-                            Ok(data) => {
-                                let message_response = webrtc::v1::Response {
-                                    stream: Some(stream.clone()),
-                                    r#type: Some(webrtc::v1::response::Type::Message(
-                                        webrtc::v1::ResponseMessage {
-                                            packet_message: Some(webrtc::v1::PacketMessage {
-                                                data,
-                                                eom: true,
-                                            }),
-                                        },
-                                    )),
-                                };
-
-                                msg_buffer.clear();
-                                self.send_response(&mut msg_buffer, message_response)
-                                    .await?;
+                        if let Some(call) = self.streams.get_mut(&key) {
+                            let _ = call.2.insert(msg);
+                            return Ok(key);
+                        }
+                    }
+                    webrtc::v1::request::Type::RstStream(rst) => {
+                        log::debug!("reseting the stream");
+                        if rst {
+                            let stream = req.stream.unwrap();
+                            let key = stream.id as u32;
+                            let _ = self.streams.remove(&key);
+                            self.send_trailers(
+                                stream,
                                 Status {
                                     code: 0,
                                     ..Default::default()
-                                }
-                            }
-                            Err(status) => status,
-                        };
-                        // this is a work around so app.viam.com don't drop the connection because
-                        // we sent trailers. When we support Server Side streaming this would need to be
-                        // removed
-                        if &self.headers.as_ref().unwrap().method
-                            != "/viam.robot.v1.RobotService/StreamStatus"
-                        {
-                            let trailer_response = webrtc::v1::Response {
-                                stream: Some(stream.clone()),
-                                r#type: Some(webrtc::v1::response::Type::Trailers(
-                                    webrtc::v1::ResponseTrailers {
-                                        status: Some(status),
-                                        metadata: None,
-                                    },
-                                )),
-                            };
-                            msg_buffer.clear();
-                            self.send_response(&mut msg_buffer, trailer_response)
-                                .await?;
+                                },
+                            )
+                            .await?;
                         }
-                    }
-                }
-                webrtc::v1::request::Type::RstStream(rst) => {
-                    log::info!("reseting the stream");
-                    if rst {
-                        let _ = self.stream.take();
                     }
                 }
             }
         }
+    }
+
+    pub async fn next_request(&mut self) -> Result<(), WebRtcError> {
+        let next_stream = self
+            .streams
+            .iter()
+            .min_by(|a, b| {
+                a.1 .1
+                    .as_ref()
+                    .map_or(Duration::MAX, |i| {
+                        i.saturating_duration_since(Instant::now())
+                    })
+                    .cmp(&b.1 .1.as_ref().map_or(Duration::MAX, |i| {
+                        i.saturating_duration_since(Instant::now())
+                    }))
+            })
+            .map(|(k, v)| (*k, v.1.map_or_else(smol::Timer::never, smol::Timer::at)))
+            .unwrap_or((0, smol::Timer::never()));
+
+        let id = futures_lite::future::or(async { self.next_rpc_call().await }, async {
+            next_stream.1.await;
+            Ok(next_stream.0)
+        })
+        .await?;
+        if let Some(mut call) = self.streams.remove(&id) {
+            let r = self
+                .process_rpc_request(Stream { id: id as u64 }, call.2.as_ref().unwrap(), &call.0)
+                .await?;
+            if let Some(next) = r.1 {
+                let _ = call.1.insert(next);
+                let _ = self.streams.insert(id, call);
+            } else {
+                self.send_trailers(Stream { id: id as u64 }, r.0).await?;
+            }
+        }
         Ok(())
+
     }
 }

@@ -8,11 +8,6 @@ repository = "https://github.com/viamrobotics/micro-rdk"
 resolver = "2"
 version = "0.0.1"
 
-[profile.dev]
-debug = true # Symbols are nice and they don't increase the size on Flash
-[profile.test]
-debug = true # Symbols are nice and they don't increase the size on Flash
-
 [lib]
 crate-type = ["lib"]
 
