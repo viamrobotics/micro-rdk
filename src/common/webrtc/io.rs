@@ -38,7 +38,7 @@ impl Clone for IoPktChannel {
             rx: self.rx.clone(),
             transport_tx: self.transport_tx.clone(),
             tx: self.tx.clone(),
-            ip: self.ip.clone(),
+            ip: self.ip,
             recv_operation: None,
             send_operation: None,
             waker: None,
