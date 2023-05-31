@@ -6,7 +6,7 @@ use std::{
     pin::Pin,
     sync::{Arc, Mutex},
     task::{Poll, Waker},
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 use async_channel::Sender;
@@ -17,8 +17,6 @@ use sctp_proto::{
     Association, AssociationHandle, Chunks, ClientConfig, DatagramEvent, Endpoint, EndpointConfig,
     Event, Payload, ServerConfig, StreamEvent, StreamId, Transmit,
 };
-
-use smol_timeout::TimeoutExt;
 
 use super::exec::WebRtcExecutor;
 
@@ -74,11 +72,13 @@ impl AsyncRead for Channel {
     }
 }
 
+#[derive(Debug)]
 enum SctpEvent {
     IncomingData((SocketAddr, Bytes)),
     OutgoingData,
     Timeout(Instant),
     OutgoingStreamData((StreamId, Bytes)),
+    Disconnect,
 }
 
 pub struct SctpProto<E, S> {
@@ -171,44 +171,36 @@ where
         Ok(())
     }
     pub async fn run(&mut self) {
-        let tx = self.sctp_event_tx.clone();
-        //let mut transport = self.transport.clone();
-
+        let mut sctp_timeout = None;
         loop {
-            let mut buf = [0; 1024];
-            if let Some(len) = self
-                .transport
-                .read(&mut buf)
-                .timeout(Duration::from_millis(15))
-                .await
-            {
-                let len = len.unwrap();
-                let buf = Bytes::copy_from_slice(&buf[..len]);
-                // SCTP requires an ip field we set it to localhost 5000
-                let from = "127.0.0.1:5000".parse().unwrap();
-                tx.send(crate::common::webrtc::sctp::SctpEvent::IncomingData((
-                    from, buf,
-                )))
-                .await
-                .unwrap();
-            }
-
-            let event = if let Some(e) = self
-                .sctp_event_rx
-                .recv()
-                .timeout(Duration::from_millis(19))
-                .await
-            {
-                match e {
-                    Ok(e) => e,
-                    Err(e) => {
-                        log::error!("Error waiting for event in an SCTP context {:?}", e);
-                        continue;
+            let mut buf = [0; 1500];
+            let timeout = sctp_timeout
+                .take()
+                .map_or_else(smol::Timer::never, smol::Timer::at);
+            let event = futures_lite::future::or(
+                async {
+                    match self.sctp_event_rx.recv().await {
+                        Ok(e) => e,
+                        Err(_) => SctpEvent::Disconnect,
                     }
-                }
-            } else {
-                continue;
-            };
+                },
+                futures_lite::future::or(
+                    async {
+                        let r = self.transport.read(&mut buf).await;
+                        let len = r.unwrap();
+                        let buf = Bytes::copy_from_slice(&buf[..len]);
+                        let from = "127.0.0.1:5000".parse().unwrap();
+                        SctpEvent::IncomingData((from, buf))
+                    },
+                    async {
+                        timeout.await;
+                        log::debug!("TIMEOUT");
+                        SctpEvent::Timeout(Instant::now())
+                    },
+                ),
+            )
+            .await;
+
             match event {
                 SctpEvent::IncomingData((from, data)) => {
                     if let Some(ret) = self.endpoint.handle(Instant::now(), from, None, None, data)
@@ -229,11 +221,19 @@ where
                 SctpEvent::OutgoingStreamData((id, buf)) => {
                     if let Some(assoc) = self.association.as_mut() {
                         if let Ok(mut stream) = assoc.stream(id) {
+                            log::debug!("writing payload {:?}", buf.len());
                             stream.write(&buf).unwrap();
                         } else {
                             log::error!("couldn't get stream .....");
                         }
                     }
+                }
+                SctpEvent::Disconnect => {
+                    log::debug!("disconnected");
+                    if let Some(assoc) = self.association.as_mut() {
+                        let _ = assoc.close();
+                    }
+                    break;
                 }
             };
 
@@ -304,13 +304,12 @@ where
             }
             if let Some(assoc) = self.association.as_mut() {
                 if let Some(timeout) = assoc.poll_timeout() {
-                    let tx = self.sctp_event_tx.clone();
-                    self.executor.execute(Box::pin(async move {
-                        smol::Timer::at(timeout).await;
-                        if let Err(e) = tx.send(SctpEvent::Timeout(Instant::now())).await {
-                            log::error!("failed to send an SctpEvent {:?}", e);
-                        }
-                    }));
+                    log::debug!(
+                        "Log {:?} would timeout in {:?}",
+                        assoc.side(),
+                        timeout - Instant::now()
+                    );
+                    let _ = sctp_timeout.insert(timeout);
                 }
             }
         }
@@ -567,7 +566,7 @@ mod tests {
             assert_eq!(b"hello world", &buf[..read]);
         }
 
-        let random_bytes: Vec<u8> = (0..256).map(|_| rand::random::<u8>()).collect();
+        let random_bytes: Vec<u8> = (0..4096).map(|_| rand::random::<u8>()).collect();
 
         channel.write(&random_bytes).await;
         {
