@@ -180,7 +180,7 @@ where
     ) -> Result<std::time::Instant, GrpcError> {
         match path {
             "/viam.robot.v1.RobotService/StreamStatus" => self.robot_status_stream(payload),
-            _ => Err(GrpcError::RpcUnaivailable),
+            _ => Err(GrpcError::RpcUnavailable),
         }
     }
 
@@ -329,7 +329,7 @@ where
             .map_err(|_| GrpcError::RpcInvalidArgument)?;
         let motor = match self.robot.lock().unwrap().get_motor_by_name(req.name) {
             Some(m) => m,
-            None => return Err(GrpcError::RpcUnaivailable),
+            None => return Err(GrpcError::RpcUnavailable),
         };
         motor
             .lock()
@@ -345,7 +345,7 @@ where
             .map_err(|_| GrpcError::RpcInvalidArgument)?;
         let motor = match self.robot.lock().unwrap().get_motor_by_name(req.name) {
             Some(m) => m,
-            None => return Err(GrpcError::RpcUnaivailable),
+            None => return Err(GrpcError::RpcUnavailable),
         };
         motor
             .lock()
@@ -365,7 +365,7 @@ where
             .map_err(|_| GrpcError::RpcInvalidArgument)?;
         let board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnaivailable),
+            None => return Err(GrpcError::RpcUnavailable),
         };
         let status = board
             .lock()
@@ -391,11 +391,11 @@ where
             .map_err(|_| GrpcError::RpcInvalidArgument)?;
         let board = match self.robot.lock().unwrap().get_board_by_name(req.board_name) {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnaivailable),
+            None => return Err(GrpcError::RpcUnavailable),
         };
         let reader = board
             .get_analog_reader_by_name(req.analog_reader_name)
-            .map_err(|_| GrpcError::RpcUnaivailable)?;
+            .map_err(|_| GrpcError::RpcUnavailable)?;
         let resp = component::board::v1::ReadAnalogReaderResponse {
             value: reader
                 .borrow_mut()
@@ -410,7 +410,7 @@ where
             .map_err(|_| GrpcError::RpcInvalidArgument)?;
         let board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnaivailable),
+            None => return Err(GrpcError::RpcUnavailable),
         };
 
         let pin: i32 = req.pin.parse::<i32>().unwrap();
@@ -451,7 +451,7 @@ where
 
         let board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnaivailable),
+            None => return Err(GrpcError::RpcUnavailable),
         };
 
         board
@@ -469,7 +469,7 @@ where
             .map_err(|_| GrpcError::RpcInvalidArgument)?;
         let board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnaivailable),
+            None => return Err(GrpcError::RpcUnavailable),
         };
 
         let pin: i32 = req.pin.parse::<i32>().unwrap();
@@ -487,7 +487,7 @@ where
             .map_err(|_| GrpcError::RpcInvalidArgument)?;
         let sensor = match self.robot.lock().unwrap().get_sensor_by_name(req.name) {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnaivailable),
+            None => return Err(GrpcError::RpcUnavailable),
         };
 
         let readings = sensor
@@ -509,7 +509,7 @@ where
             .get_movement_sensor_by_name(req.name)
         {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnaivailable),
+            None => return Err(GrpcError::RpcUnavailable),
         };
         let position = m_sensor
             .lock()
@@ -530,7 +530,7 @@ where
             .get_movement_sensor_by_name(req.name)
         {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnaivailable),
+            None => return Err(GrpcError::RpcUnavailable),
         };
         let l_vel = m_sensor
             .lock()
@@ -554,7 +554,7 @@ where
             .get_movement_sensor_by_name(req.name)
         {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnaivailable),
+            None => return Err(GrpcError::RpcUnavailable),
         };
         let a_vel = m_sensor
             .lock()
@@ -578,7 +578,7 @@ where
             .get_movement_sensor_by_name(req.name)
         {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnaivailable),
+            None => return Err(GrpcError::RpcUnavailable),
         };
         let l_acc = m_sensor
             .lock()
@@ -602,7 +602,7 @@ where
             .get_movement_sensor_by_name(req.name)
         {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnaivailable),
+            None => return Err(GrpcError::RpcUnavailable),
         };
         let heading = m_sensor
             .lock()
@@ -623,7 +623,7 @@ where
             .get_movement_sensor_by_name(req.name)
         {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnaivailable),
+            None => return Err(GrpcError::RpcUnavailable),
         };
         let props = m_sensor.lock().unwrap().get_properties();
         let resp = component::movement_sensor::v1::GetPropertiesResponse::from(props);
@@ -655,7 +655,7 @@ where
             .map_err(|_| GrpcError::RpcInvalidArgument)?;
         let base = match self.robot.lock().unwrap().get_base_by_name(req.name) {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnaivailable),
+            None => return Err(GrpcError::RpcUnavailable),
         };
         base.lock()
             .unwrap()
@@ -673,7 +673,7 @@ where
             .map_err(|_| GrpcError::RpcInvalidArgument)?;
         let base = match self.robot.lock().unwrap().get_base_by_name(req.name) {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnaivailable),
+            None => return Err(GrpcError::RpcUnavailable),
         };
 
         base.lock()
@@ -689,7 +689,7 @@ where
             .map_err(|_| GrpcError::RpcInvalidArgument)?;
         let enc = match self.robot.lock().unwrap().get_encoder_by_name(req.name) {
             Some(e) => e,
-            None => return Err(GrpcError::RpcUnaivailable),
+            None => return Err(GrpcError::RpcUnavailable),
         };
 
         let props = enc.lock().unwrap().get_properties();
@@ -704,7 +704,7 @@ where
         let pos_type = req.position_type();
         let enc = match self.robot.lock().unwrap().get_encoder_by_name(name) {
             Some(e) => e,
-            None => return Err(GrpcError::RpcUnaivailable),
+            None => return Err(GrpcError::RpcUnavailable),
         };
         let pos = enc
             .lock()
@@ -720,7 +720,7 @@ where
             .map_err(|_| GrpcError::RpcInvalidArgument)?;
         let enc = match self.robot.lock().unwrap().get_encoder_by_name(req.name) {
             Some(e) => e,
-            None => return Err(GrpcError::RpcUnaivailable),
+            None => return Err(GrpcError::RpcUnavailable),
         };
         enc.lock()
             .unwrap()
@@ -798,7 +798,7 @@ where
             self.response.put_data(buffer.freeze());
             return Ok(());
         }
-        Err(GrpcError::RpcUnaivailable)
+        Err(GrpcError::RpcUnavailable)
     }
 
     #[cfg(feature = "camera")]
@@ -954,7 +954,7 @@ pub enum GrpcError {
     #[error("internal")]
     RpcInternal = 13,
     #[error("unavailable")]
-    RpcUnaivailable = 14,
+    RpcUnavailable = 14,
     #[error("data loss")]
     RpcDataLoss = 15,
     #[error("unauthenticated")]
