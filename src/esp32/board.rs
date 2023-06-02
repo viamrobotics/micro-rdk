@@ -10,13 +10,14 @@ use crate::common::registry::ComponentRegistry;
 use crate::common::status::Status;
 use crate::proto::common;
 use crate::proto::component;
+use anyhow::Context;
 use core::cell::RefCell;
 use esp_idf_hal::adc::config::Config;
 use esp_idf_hal::adc::AdcChannelDriver;
 use esp_idf_hal::adc::AdcDriver;
 use esp_idf_hal::adc::Atten11dB;
 use esp_idf_hal::adc::ADC1;
-use esp_idf_hal::gpio::{AnyInputPin, AnyOutputPin, Output, PinDriver};
+use esp_idf_hal::gpio::{AnyIOPin, InputOutput, PinDriver};
 use log::*;
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
@@ -36,14 +37,14 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 }
 
 pub struct EspBoard {
-    pins: Vec<PinDriver<'static, AnyOutputPin, Output>>,
+    pins: Vec<PinDriver<'static, AnyIOPin, InputOutput>>,
     analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>,
     i2cs: HashMap<String, I2cHandleType>,
 }
 
 impl EspBoard {
     pub fn new(
-        pins: Vec<PinDriver<'static, AnyOutputPin, Output>>,
+        pins: Vec<PinDriver<'static, AnyIOPin, InputOutput>>,
         analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>,
         i2cs: HashMap<String, I2cHandleType>,
     ) -> Self {
@@ -196,7 +197,7 @@ impl EspBoard {
                 let pins = if let Ok(pins) = cfg.get_attribute::<Vec<i32>>("pins") {
                     pins.iter()
                         .filter_map(|pin| {
-                            let p = PinDriver::output(unsafe { AnyOutputPin::new(*pin) });
+                            let p = PinDriver::input_output(unsafe { AnyIOPin::new(*pin) });
                             if let Ok(p) = p {
                                 Some(p)
                             } else {
@@ -249,8 +250,11 @@ impl Board for EspBoard {
         Err(anyhow::anyhow!("pin {} is not set as an output pin", pin))
     }
     fn get_gpio_level(&self, pin: i32) -> anyhow::Result<bool> {
-        let pin = PinDriver::input(unsafe { AnyInputPin::new(pin) })
-            .map_err(|e| anyhow::anyhow!("couldn't construct esp32 pin {} as input {}", pin, e))?;
+        let pin = self
+            .pins
+            .iter()
+            .find(|p| p.pin() == pin)
+            .context(format!("pin {} not registered on board", pin))?;
         Ok(pin.is_high())
     }
     fn get_board_status(&self) -> anyhow::Result<common::v1::BoardStatus> {
