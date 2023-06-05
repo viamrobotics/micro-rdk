@@ -19,6 +19,7 @@ pub mod common {
     pub mod robot;
     pub mod sensor;
     pub mod status;
+    pub mod stop;
     pub mod webrtc {
         pub mod api;
         pub mod candidates;

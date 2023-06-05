@@ -59,6 +59,10 @@ impl Motor for SingleEncodedMotor {
         let pos = self.encoder.get_position(pos_type)?;
         Ok(pos.value as i32)
     }
+
+    fn stop(&mut self) -> anyhow::Result<()> {
+        self.stop(0.0)
+    }
 }
 
 impl Status for SingleEncodedMotor {

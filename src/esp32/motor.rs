@@ -92,16 +92,20 @@ where
     M: Motor,
     Enc: Encoder,
 {
-    /// Accepts percentage as a float, e.g. `0.5` equals `50%` power.
-    fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
-        self.motor.set_power(pct)
-    }
-
     fn get_position(&mut self) -> anyhow::Result<i32> {
         Ok(self
             .enc
             .get_position(EncoderPositionType::UNSPECIFIED)?
             .value as i32)
+    }
+
+    /// Accepts percentage as a float, e.g. `0.5` equals `50%` power.
+    fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
+        self.motor.set_power(pct)
+    }
+
+    fn stop(&mut self) -> anyhow::Result<()> {
+        self.set_power(0.0)
     }
 }
 
@@ -208,6 +212,9 @@ where
     fn get_position(&mut self) -> anyhow::Result<i32> {
         Ok(0)
     }
+    fn stop(&mut self) -> anyhow::Result<()> {
+        self.set_power(0.0)
+    }
 }
 
 impl<A, B, PWM> Status for ABMotorEsp32<A, B, PWM>
@@ -272,6 +279,9 @@ where
     }
     fn get_position(&mut self) -> anyhow::Result<i32> {
         Ok(0)
+    }
+    fn stop(&mut self) -> anyhow::Result<()> {
+        self.set_power(0.0)
     }
 }
 

@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex};
 use super::board::BoardType;
 use super::config::{AttributeError, Component, ConfigType, Kind};
 use super::registry::ComponentRegistry;
+use super::stop::Stoppable;
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
@@ -17,9 +18,10 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     }
 }
 
-pub trait Motor: Status {
+pub trait Motor: Status + Stoppable {
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()>;
     fn get_position(&mut self) -> anyhow::Result<i32>;
+    fn stop(&mut self) -> anyhow::Result<()>;
 }
 
 pub(crate) type MotorType = Arc<Mutex<dyn Motor>>;
@@ -84,7 +86,7 @@ impl TryFrom<&Kind> for MotorConfig {
 
 impl FakeMotor {
     pub fn new() -> Self {
-        FakeMotor {
+        Self {
             pos: 10.0,
             power: 0.0,
         }
@@ -111,11 +113,14 @@ impl<L> Motor for Mutex<L>
 where
     L: ?Sized + Motor,
 {
+    fn get_position(&mut self) -> anyhow::Result<i32> {
+        self.get_mut().unwrap().get_position()
+    }
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
         self.get_mut().unwrap().set_power(pct)
     }
-    fn get_position(&mut self) -> anyhow::Result<i32> {
-        self.get_mut().unwrap().get_position()
+    fn stop(&mut self) -> anyhow::Result<()> {
+        self.get_mut().unwrap().stop()
     }
 }
 
@@ -129,16 +134,24 @@ where
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
         self.lock().unwrap().set_power(pct)
     }
+    fn stop(&mut self) -> anyhow::Result<()> {
+        self.lock().unwrap().stop()
+    }
 }
 
 impl Motor for FakeMotor {
+    fn get_position(&mut self) -> anyhow::Result<i32> {
+        Ok(self.pos as i32)
+    }
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
         info!("setting power to {}", pct);
         self.power = pct;
         Ok(())
     }
-    fn get_position(&mut self) -> anyhow::Result<i32> {
-        Ok(self.pos as i32)
+    fn stop(&mut self) -> anyhow::Result<()> {
+        info!("stopping motor");
+        self.set_power(0.0);
+        Ok(())
     }
 }
 impl Status for FakeMotor {
