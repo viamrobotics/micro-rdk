@@ -144,12 +144,12 @@ impl Motor for FakeMotor {
         Ok(self.pos as i32)
     }
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
-        info!("setting power to {}", pct);
+        debug!("setting power to {}", pct);
         self.power = pct;
         Ok(())
     }
     fn stop(&mut self) -> anyhow::Result<()> {
-        info!("stopping motor");
+        debug!("stopping motor");
         self.set_power(0.0);
         Ok(())
     }
