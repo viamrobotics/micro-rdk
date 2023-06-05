@@ -1,3 +1,43 @@
+//! Base structs and methods for supported motors.
+//!
+//! # Creating a Motor
+//!
+//! ```ignore
+//! use esp_idf_hal::ledc::{config::TimerConfig, LedcDriver, LedcTimerDriver};
+//! use micro_rdk::esp32::motor::PwmDirMotorEsp32;
+//! use esp_idf_hal::units::FromValueType;
+//!
+//! let tconf = TimerConfig::default().frequency(10.kHz().into());
+//! let timer = Arc::new(LedcTimerDriver::new(periph.ledc.channel0, &tconf)).unwrap();
+//! let pwm = LedcDriver::new(periph.ledc.channel0, timer.clone(), periph.pins.gpio15)?;
+//! let mut motor = PwmDirMotorEsp32::new(
+//!     PinDriver::output(periph.pins.gpio23)?, // DIR
+//!     pwm, // PWM
+//!     true, // dir_flip
+//! );
+//!
+//! motor.set_power(1.0).unwrap();
+//!
+//! ```
+//!
+//! # Creating a Robot with a Motor
+//! ```ignore
+//! let mut res: micro_rdk::common::robot::ResourceMap = HashMap::with_capacity(1);
+//!
+//! res.insert(
+//!     ResourceName {
+//!         namespace: "rdk".to_string(),
+//!         r#type: "component".to_string(),
+//!         subtype: "motor".to_string(),
+//!         name: "left-motor"
+//!     },
+//!     ResourceType::Motor(Arc::new(Mutex::new(motor))),
+//! );
+//!
+//! let robot_with_motor = LocalRobot(res);
+//!
+//! ```
+//!
 #![allow(dead_code)]
 use esp_idf_hal::gpio::{AnyOutputPin, Output, PinDriver};
 use esp_idf_hal::ledc::config::TimerConfig;
@@ -52,6 +92,7 @@ where
     M: Motor,
     Enc: Encoder,
 {
+    /// Accepts percentage as a float, e.g. `0.5` equals `50%` power.
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
         self.motor.set_power(pct)
     }
@@ -189,13 +230,13 @@ where
 }
 
 // Represents a motor using a direction pin and a PWM pin
-pub struct PWMDirMotorEsp32<DIR, PWM> {
+pub struct PwmDirMotorEsp32<DIR, PWM> {
     dir: DIR,
     pwm: PWM,
     dir_flip: bool,
 }
 
-impl<DIR, PWM> PWMDirMotorEsp32<DIR, PWM>
+impl<DIR, PWM> PwmDirMotorEsp32<DIR, PWM>
 where
     DIR: OutputPin + PinExt,
     PWM: PwmPin<Duty = u32>,
@@ -205,7 +246,7 @@ where
     }
 }
 
-impl<DIR, PWM> Motor for PWMDirMotorEsp32<DIR, PWM>
+impl<DIR, PWM> Motor for PwmDirMotorEsp32<DIR, PWM>
 where
     DIR: OutputPin + PinExt,
     PWM: PwmPin<Duty = u32>,
@@ -234,7 +275,7 @@ where
     }
 }
 
-impl<DIR, PWM> Status for PWMDirMotorEsp32<DIR, PWM>
+impl<DIR, PWM> Status for PwmDirMotorEsp32<DIR, PWM>
 where
     DIR: OutputPin + PinExt,
     PWM: PwmPin<Duty = u32>,
