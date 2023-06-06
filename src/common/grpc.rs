@@ -350,7 +350,7 @@ where
         motor
             .lock()
             .unwrap()
-            .set_power(0.0)
+            .stop()
             .map_err(|_| GrpcError::RpcInternal)?;
         let resp = component::motor::v1::StopResponse {};
         self.encode_message(resp)

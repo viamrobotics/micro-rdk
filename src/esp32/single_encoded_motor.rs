@@ -64,7 +64,7 @@ impl Motor for SingleEncodedMotor {
 
 impl Stoppable for SingleEncodedMotor {
     fn stop(&mut self) -> anyhow::Result<()> {
-        self.stop(0.0)
+        self.motor.stop()
     }
 }
 
