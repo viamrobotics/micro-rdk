@@ -100,7 +100,6 @@ where
             .get_position(EncoderPositionType::UNSPECIFIED)?
             .value as i32)
     }
-<<<<<<< HEAD
 
     /// Accepts percentage as a float, e.g. `0.5` equals `50%` power.
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
@@ -116,10 +115,7 @@ where
     fn stop(&mut self) -> anyhow::Result<()> {
         self.set_power(0.0)
     }
-    fn go_for(&mut self) -> anyhow::Result<()> {
-=======
-    fn go_for(&mut self, rev: u32) -> anyhow::Result<()> {
->>>>>>> 04f668d (update go_for signature)
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
         unimplemented!()
     }
 }
@@ -227,7 +223,7 @@ where
     fn get_position(&mut self) -> anyhow::Result<i32> {
         Ok(0)
     }
-    fn go_for(&mut self, rev: u32) -> anyhow::Result<()> {
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
         unimplemented!()
     }
 }
@@ -306,7 +302,7 @@ where
     fn get_position(&mut self) -> anyhow::Result<i32> {
         Ok(0)
     }
-    fn go_for(&mut self, rev: u32) -> anyhow::Result<()> {
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
         unimplemented!()
     }
 }
