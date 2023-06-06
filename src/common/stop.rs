@@ -13,11 +13,11 @@ where
     }
 }
 
-impl<A> Stoppable for Arc<A>
+impl<A> Stoppable for Arc<Mutex<A>>
 where
     A: ?Sized + Stoppable,
 {
     fn stop(&mut self) -> anyhow::Result<()> {
-        self.get_mut().unwrap().stop()
+        self.stop()
     }
 }

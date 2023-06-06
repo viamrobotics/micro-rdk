@@ -165,7 +165,7 @@ impl Status for FakeMotor {
 impl Stoppable for FakeMotor {
     fn stop(&mut self) -> anyhow::Result<()> {
         debug!("stopping motor");
-        self.set_power(0.0);
+        self.set_power(0.0)?;
         Ok(())
     }
 }
