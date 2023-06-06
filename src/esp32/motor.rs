@@ -51,6 +51,7 @@ use crate::common::motor::{Motor, MotorConfig, MotorType};
 use crate::common::registry::ComponentRegistry;
 use crate::common::status::Status;
 use crate::common::stop::Stoppable;
+use log::*;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
