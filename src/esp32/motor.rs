@@ -1,6 +1,6 @@
 //! Base structs and methods for supported motors.
 //!
-//! # Creating a Motor
+//! # Creating a `PwmDirMotorEsp32` Motor
 //!
 //! ```ignore
 //! use esp_idf_hal::ledc::{config::TimerConfig, LedcDriver, LedcTimerDriver};
