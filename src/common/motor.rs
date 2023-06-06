@@ -31,7 +31,7 @@ pub trait Motor: Status + Stoppable {
     /// This method will return an error if position reporting is not supported.
     /// If revolutions is 0, this will run the motor at rpm indefinitely.
     /// If revolutions != 0, this will block until the number of revolutions has been completed or another operation comes in.
-    fn go_for(&mut self) -> anyhow::Result<()>; 
+    fn go_for(&mut self, rev: u32) -> anyhow::Result<()>; 
 }
 
 pub(crate) type MotorType = Arc<Mutex<dyn Motor>>;
@@ -130,6 +130,8 @@ where
         self.get_mut().unwrap().set_power(pct)
     }
     fn go_for(&mut self) -> anyhow::Result<()> {
+    }
+    fn go_for(&mut self, rev: u32) -> anyhow::Result<()> {
         unimplemented!()
     }
 }
@@ -144,7 +146,7 @@ where
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
         self.lock().unwrap().set_power(pct)
     }
-    fn go_for(&mut self) -> anyhow::Result<()> {
+    fn go_for(&mut self, rev: u32) -> anyhow::Result<()> {
         unimplemented!()
     }
 }
@@ -159,6 +161,8 @@ impl Motor for FakeMotor {
         Ok(())
     }
     fn go_for(&mut self) -> anyhow::Result<()> {
+    }
+    fn go_for(&mut self, rev: u32) -> anyhow::Result<()> {
         unimplemented!()
     }
 }
