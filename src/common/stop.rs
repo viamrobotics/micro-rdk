@@ -6,7 +6,7 @@ pub trait Stoppable {
 
 impl<L> Stoppable for Mutex<L>
 where
-    L: Stoppable,
+    L: ?Sized + Stoppable,
 {
     fn stop(&mut self) -> anyhow::Result<()> {
         self.lock().unwrap().stop()
@@ -15,7 +15,7 @@ where
 
 impl<A> Stoppable for Arc<A>
 where
-    A: Stoppable,
+    A: ?Sized + Stoppable,
 {
     fn stop(&mut self) -> anyhow::Result<()> {
         (**self).stop()

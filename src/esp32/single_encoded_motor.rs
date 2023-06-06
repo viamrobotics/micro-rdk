@@ -60,7 +60,6 @@ impl Motor for SingleEncodedMotor {
         let pos = self.encoder.get_position(pos_type)?;
         Ok(pos.value as i32)
     }
-
 }
 
 impl Stoppable for SingleEncodedMotor {
