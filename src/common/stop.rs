@@ -18,6 +18,6 @@ where
     A: ?Sized + Stoppable,
 {
     fn stop(&mut self) -> anyhow::Result<()> {
-        (**self).stop()
+        self.get_mut().unwrap().stop()
     }
 }
