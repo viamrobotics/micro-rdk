@@ -213,7 +213,7 @@ where
         }
         self.pwm
             .set_duty(((max_duty as f64) * pct.abs()).floor() as u32);
-        println!("set to {:?} pct", pct);
+        debug!("set to {:?} pct", pct);
         Ok(())
     }
     fn get_position(&mut self) -> anyhow::Result<i32> {
