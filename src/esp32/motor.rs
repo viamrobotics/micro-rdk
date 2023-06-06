@@ -50,6 +50,7 @@ use crate::common::encoder::{Encoder, EncoderPositionType};
 use crate::common::motor::{Motor, MotorConfig, MotorType};
 use crate::common::registry::ComponentRegistry;
 use crate::common::status::Status;
+use crate::common::stop::Stoppable;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
@@ -103,6 +104,14 @@ where
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
         self.motor.set_power(pct)
     }
+
+}
+
+impl<M, Enc> Stoppable for EncodedMotor<M, Enc>
+where
+    M: Motor,
+    Enc: Encoder,
+{
 
     fn stop(&mut self) -> anyhow::Result<()> {
         self.set_power(0.0)
@@ -212,9 +221,7 @@ where
     fn get_position(&mut self) -> anyhow::Result<i32> {
         Ok(0)
     }
-    fn stop(&mut self) -> anyhow::Result<()> {
-        self.set_power(0.0)
-    }
+    
 }
 
 impl<A, B, PWM> Status for ABMotorEsp32<A, B, PWM>
@@ -279,9 +286,6 @@ where
     }
     fn get_position(&mut self) -> anyhow::Result<i32> {
         Ok(0)
-    }
-    fn stop(&mut self) -> anyhow::Result<()> {
-        self.set_power(0.0)
     }
 }
 

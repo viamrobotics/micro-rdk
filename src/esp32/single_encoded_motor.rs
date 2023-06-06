@@ -5,6 +5,7 @@ use crate::common::encoder::{
 use crate::common::motor::{Motor, MotorType};
 
 use crate::common::status::Status;
+use crate::common::stop::Stoppable;
 use std::collections::BTreeMap;
 
 pub struct SingleEncodedMotor {
@@ -60,6 +61,9 @@ impl Motor for SingleEncodedMotor {
         Ok(pos.value as i32)
     }
 
+}
+
+impl Stoppable for SingleEncodedMotor {
     fn stop(&mut self) -> anyhow::Result<()> {
         self.stop(0.0)
     }

@@ -21,7 +21,6 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 pub trait Motor: Status + Stoppable {
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()>;
     fn get_position(&mut self) -> anyhow::Result<i32>;
-    fn stop(&mut self) -> anyhow::Result<()>;
 }
 
 pub(crate) type MotorType = Arc<Mutex<dyn Motor>>;
@@ -119,9 +118,6 @@ where
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
         self.get_mut().unwrap().set_power(pct)
     }
-    fn stop(&mut self) -> anyhow::Result<()> {
-        self.get_mut().unwrap().stop()
-    }
 }
 
 impl<A> Motor for Arc<Mutex<A>>
@@ -134,9 +130,6 @@ where
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
         self.lock().unwrap().set_power(pct)
     }
-    fn stop(&mut self) -> anyhow::Result<()> {
-        self.lock().unwrap().stop()
-    }
 }
 
 impl Motor for FakeMotor {
@@ -146,11 +139,6 @@ impl Motor for FakeMotor {
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
         debug!("setting power to {}", pct);
         self.power = pct;
-        Ok(())
-    }
-    fn stop(&mut self) -> anyhow::Result<()> {
-        debug!("stopping motor");
-        self.set_power(0.0);
         Ok(())
     }
 }
@@ -171,6 +159,14 @@ impl Status for FakeMotor {
         );
 
         Ok(Some(prost_types::Struct { fields: bt }))
+    }
+}
+
+impl Stoppable for FakeMotor {
+    fn stop(&mut self) -> anyhow::Result<()> {
+        debug!("stopping motor");
+        self.set_power(0.0);
+        Ok(())
     }
 }
 
