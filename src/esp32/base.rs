@@ -52,10 +52,14 @@ where
     }
 }
 
-impl<ML, MR> Stoppable for Esp32WheelBase<ML, MR> {
+impl<ML, MR> Stoppable for Esp32WheelBase<ML, MR>
+where
+    ML: Motor,
+    MR: Motor,
+{
     fn stop(&mut self) -> anyhow::Result<()> {
-        self.motor_left.set_power(0.0)?;
-        self.motor_right.set_power(0.0)?;
+        self.motor_left.stop()?;
+        self.motor_right.stop()?;
         Ok(())
     }
 }
