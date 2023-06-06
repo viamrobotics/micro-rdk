@@ -240,6 +240,17 @@ where
     }
 }
 
+impl<A, B, PWM> Stoppable for ABMotorEsp32<A, B, PWM>
+where
+    A: OutputPin + PinExt,
+    B: OutputPin + PinExt,
+    PWM: PwmPin<Duty = u32>,
+{
+    fn stop(&mut self) -> anyhow::Result<()> {
+        self.set_power(0.0)
+    }
+}
+
 // Represents a motor using a direction pin and a PWM pin
 pub struct PwmDirMotorEsp32<DIR, PWM> {
     dir: DIR,
@@ -301,6 +312,16 @@ where
             },
         );
         Ok(Some(prost_types::Struct { fields: bt }))
+    }
+}
+
+impl<DIR, PWM> Stoppable for PwmDirMotorEsp32<DIR, PWM>
+where
+    DIR: OutputPin + PinExt,
+    PWM: PwmPin<Duty = u32>,
+{
+    fn stop(&mut self) -> anyhow::Result<()> {
+        self.set_power(0.0)
     }
 }
 
