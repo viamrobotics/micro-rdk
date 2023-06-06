@@ -2,9 +2,9 @@
 use crate::common::base::Base;
 use crate::common::motor::Motor;
 use crate::common::status::Status;
+use crate::common::stop::Stoppable;
 use crate::proto::common::v1::Vector3;
 use std::collections::BTreeMap;
-use crate::common::stop::Stoppable;
 pub struct Esp32WheelBase<ML, MR> {
     motor_right: MR,
     motor_left: ML,
