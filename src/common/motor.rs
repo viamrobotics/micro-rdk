@@ -171,8 +171,6 @@ impl Motor for FakeMotor {
         self.power = pct;
         Ok(())
     }
-    fn go_for(&mut self) -> anyhow::Result<()> {
-    }
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
         // get_max_rpm
         let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions).unwrap(); 
