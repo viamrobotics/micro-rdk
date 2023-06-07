@@ -142,8 +142,6 @@ where
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
         self.get_mut().unwrap().set_power(pct)
     }
-    fn go_for(&mut self) -> anyhow::Result<()> {
-    }
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
         self.get_mut().unwrap().go_for(rpm, revolutions)
     }
