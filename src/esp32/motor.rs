@@ -115,6 +115,9 @@ where
     fn stop(&mut self) -> anyhow::Result<()> {
         self.set_power(0.0)
     }
+    fn go_for(&mut self) -> anyhow::Result<()> {
+        unimplemented!()
+    }
 }
 
 impl<M, Enc> Status for EncodedMotor<M, Enc>
@@ -220,6 +223,9 @@ where
     fn get_position(&mut self) -> anyhow::Result<i32> {
         Ok(0)
     }
+    fn go_for(&mut self) -> anyhow::Result<()> {
+        unimplemented!()
+    }
 }
 
 impl<A, B, PWM> Status for ABMotorEsp32<A, B, PWM>
@@ -295,6 +301,9 @@ where
     }
     fn get_position(&mut self) -> anyhow::Result<i32> {
         Ok(0)
+    }
+    fn go_for(&mut self) -> anyhow::Result<()> {
+        unimplemented!()
     }
 }
 

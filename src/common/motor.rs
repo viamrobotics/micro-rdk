@@ -19,8 +19,19 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 }
 
 pub trait Motor: Status + Stoppable {
+    /// Sets the percentage of the motor's total power that should be employed.
+    /// expressed a value between `-1.0` and `1.0` where negative values indicate a backwards
+    /// direction and positive values a forward direction.
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()>;
+    /// Reports the position of the robot's motor relative to its zero position.
+    /// This method will return an error if position reporting is not supported.
     fn get_position(&mut self) -> anyhow::Result<i32>;
+    /// Instructs the motor to turn at a specified speed, which is expressed in RPM,
+    /// for a specified number of rotations relative to its starting position.
+    /// This method will return an error if position reporting is not supported.
+    /// If revolutions is 0, this will run the motor at rpm indefinitely.
+    /// If revolutions != 0, this will block until the number of revolutions has been completed or another operation comes in.
+    fn go_for(&mut self) -> anyhow::Result<()>; 
 }
 
 pub(crate) type MotorType = Arc<Mutex<dyn Motor>>;
@@ -118,6 +129,9 @@ where
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
         self.get_mut().unwrap().set_power(pct)
     }
+    fn go_for(&mut self) -> anyhow::Result<()> {
+        unimplemented!()
+    }
 }
 
 impl<A> Motor for Arc<Mutex<A>>
@@ -130,6 +144,9 @@ where
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
         self.lock().unwrap().set_power(pct)
     }
+    fn go_for(&mut self) -> anyhow::Result<()> {
+        unimplemented!()
+    }
 }
 
 impl Motor for FakeMotor {
@@ -140,6 +157,9 @@ impl Motor for FakeMotor {
         debug!("setting power to {}", pct);
         self.power = pct;
         Ok(())
+    }
+    fn go_for(&mut self) -> anyhow::Result<()> {
+        unimplemented!()
     }
 }
 impl Status for FakeMotor {
