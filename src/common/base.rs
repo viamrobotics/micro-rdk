@@ -1,13 +1,13 @@
 #![allow(dead_code)]
 use crate::common::status::Status;
+use crate::common::stop::Stoppable;
 use crate::proto::common::v1::Vector3;
 use log::*;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-pub trait Base: Status {
+pub trait Base: Status + Stoppable {
     fn set_power(&mut self, lin: &Vector3, ang: &Vector3) -> anyhow::Result<()>;
-    fn stop(&mut self) -> anyhow::Result<()>;
 }
 
 pub(crate) type BaseType = Arc<Mutex<dyn Base>>;
@@ -32,21 +32,21 @@ where
     fn set_power(&mut self, lin: &Vector3, ang: &Vector3) -> anyhow::Result<()> {
         self.get_mut().unwrap().set_power(lin, ang)
     }
-    fn stop(&mut self) -> anyhow::Result<()> {
-        self.get_mut().unwrap().stop()
-    }
 }
 
 impl Base for FakeBase {
     fn set_power(&mut self, lin: &Vector3, ang: &Vector3) -> anyhow::Result<()> {
-        info!(
+        debug!(
             "Setting power following lin vec {:?} and ang {:?}",
             lin, ang
         );
         Ok(())
     }
+}
+
+impl Stoppable for FakeBase {
     fn stop(&mut self) -> anyhow::Result<()> {
-        info!("Stopping base");
+        debug!("Stopping base");
         Ok(())
     }
 }
