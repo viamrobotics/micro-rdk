@@ -386,6 +386,7 @@ mod tests {
                         "b" => Kind::StringValueStatic("5")}
                     ),
                     "board" => Kind::StringValueStatic("board"),
+                    "max_rpm" => Kind::StringValueStatic("100"),
                     "fake_position" => Kind::StringValueStatic("1205")}),
                 },
                 StaticComponentConfig {

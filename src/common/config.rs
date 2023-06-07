@@ -310,7 +310,7 @@ mod tests {
         let val = PMR.components.unwrap()[1].get_attribute::<u32>("nope");
 
         assert_eq!(val.as_ref().ok(), None);
-        assert_eq!(val.err().unwrap(), AttributeError::KeyNotFound);
+        assert_eq!(val.err().unwrap(), AttributeError::KeyNotFound("nope".to_string()));
 
         let val = PMR.components.unwrap()[0].get_attribute::<u32>("pins");
 

@@ -238,8 +238,7 @@ impl Stoppable for FakeMotor {
 #[cfg(test)]
 mod tests {
     use crate::common::config::{Component, Kind, RobotConfigStatic, StaticComponentConfig};
-    use crate::common::motor::{ConfigType, FakeMotor, Motor, MotorPinsConfig};
-    use std::sync::{Arc, Mutex};
+    use crate::common::motor::{ConfigType, FakeMotor, MotorPinsConfig};
     #[test_log::test]
     fn test_motor_config() -> anyhow::Result<()> {
         #[allow(clippy::redundant_static_lifetimes, dead_code)]
@@ -251,6 +250,7 @@ mod tests {
                 model: "gpio",
                 attributes: Some(phf::phf_map! {
                     "max_rpm" => Kind::NumberValue(10000f64),
+                    "fake_position" => Kind::NumberValue(10f64),
                     "board" => Kind::StringValueStatic("board"),
                     "pins" => Kind::StructValueStatic(
                         phf::phf_map!{
@@ -273,6 +273,10 @@ mod tests {
         assert!(val.b.is_some());
         assert_eq!(val.b.unwrap(), 12);
         assert_eq!(val.pwm, 13);
+
+        let static_conf = ConfigType::Static(&STATIC_ROBOT_CONFIG.unwrap().components.unwrap()[0]);
+        assert!(FakeMotor::from_config(static_conf, None).is_ok());
+
         Ok(())
     }
 }
