@@ -176,13 +176,15 @@ impl Motor for FakeMotor {
     fn go_for(&mut self) -> anyhow::Result<()> {
     }
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
+        // get_max_rpm
+        let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions).unwrap(); 
         if revolutions == 0.0 {
-            info!(
-                "going forward forever like Forrest Gump, rpm:{}, rev: {}",
-                rpm, revolutions
-            );
+            self.set_power(pwr);
         } else {
-            info!("going forward, rpm:{}, rev: {}", rpm, revolutions);
+            self.set_power(pwr);
+            // wait for duration
+            std::thread::sleep(dur);
+            // self.stop();
         }
         Ok(())
     }

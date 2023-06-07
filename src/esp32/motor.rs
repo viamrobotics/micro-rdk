@@ -117,6 +117,8 @@ where
         self.set_power(0.0)
     }
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
+        // if rev == 0.0, run forever, else block
+        // This is where the magic happens
         unimplemented!()
     }
 }
@@ -225,6 +227,7 @@ where
         Ok(0)
     }
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
+        // a lil magic here
         unimplemented!()
     }
 }
@@ -304,6 +307,7 @@ where
         Ok(0)
     }
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
+        // hurr muh gurrrr
         unimplemented!()
     }
 }
