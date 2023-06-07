@@ -32,13 +32,13 @@ pub trait Motor: Status + Stoppable {
     /// This method will return an error if position reporting is not supported.
     /// If revolutions is 0, this will run the motor at rpm indefinitely.
     /// If revolutions != 0, this will block until the number of revolutions has been completed or another operation comes in.
-    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()>; 
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()>;
 }
 
 pub(crate) type MotorType = Arc<Mutex<dyn Motor>>;
 
 #[derive(Debug, Default)]
-pub(crate) struct MotorConfig {
+pub(crate) struct MotorPinsConfig {
     pub(crate) a: Option<i32>,
     pub(crate) b: Option<i32>,
     pub(crate) pwm: i32,
@@ -47,24 +47,29 @@ pub(crate) struct MotorConfig {
 pub struct FakeMotor {
     pos: f64,
     power: f64,
+    max_rpm: f64,
 }
 
-impl TryFrom<Kind> for MotorConfig {
+impl TryFrom<Kind> for MotorPinsConfig {
     type Error = AttributeError;
     fn try_from(value: Kind) -> Result<Self, Self::Error> {
-        let mut motor = MotorConfig::default();
+        let mut motor = MotorPinsConfig::default();
         match value {
             Kind::StructValueStatic(v) => {
-                if !v.contains_key("pwm") {
-                    return Err(AttributeError::KeyNotFound("pwm".to_string()));
-                }
-                motor.pwm = v.get("pwm").unwrap().try_into()?;
-                if v.contains_key("a") {
-                    motor.a = Some(v.get("a").unwrap().try_into()?);
-                }
-                if v.contains_key("b") {
-                    motor.b = Some(v.get("b").unwrap().try_into()?);
-                }
+                motor.pwm = v
+                    .get("pwm")
+                    .ok_or(AttributeError::KeyNotFound("pwm".to_string()))?
+                    .try_into()?;
+                motor.a = Some(
+                    v.get("a")
+                        .ok_or(AttributeError::KeyNotFound("a".to_string()))?
+                        .try_into()?,
+                );
+                motor.b = Some(
+                    v.get("b")
+                        .ok_or(AttributeError::KeyNotFound("b".to_string()))?
+                        .try_into()?,
+                );
             }
             _ => return Err(AttributeError::ConversionImpossibleError),
         }
@@ -78,16 +83,20 @@ impl TryFrom<&Kind> for MotorPinsConfig {
         let mut motor = MotorPinsConfig::default();
         match value {
             Kind::StructValueStatic(v) => {
-                if !v.contains_key("pwm") {
-                    return Err(AttributeError::KeyNotFound("pwm".to_string()));
-                }
-                motor.pwm = v.get("pwm").unwrap().try_into()?;
-                if v.contains_key("a") {
-                    motor.a = Some(v.get("a").unwrap().try_into()?);
-                }
-                if v.contains_key("b") {
-                    motor.b = Some(v.get("b").unwrap().try_into()?);
-                }
+                motor.pwm = v
+                    .get("pwm")
+                    .ok_or(AttributeError::KeyNotFound("pwm".to_string()))?
+                    .try_into()?;
+                motor.a = Some(
+                    v.get("a")
+                        .ok_or(AttributeError::KeyNotFound("a".to_string()))?
+                        .try_into()?,
+                );
+                motor.b = Some(
+                    v.get("b")
+                        .ok_or(AttributeError::KeyNotFound("b".to_string()))?
+                        .try_into()?,
+                );
             }
             _ => return Err(AttributeError::ConversionImpossibleError),
         }
@@ -100,20 +109,20 @@ impl FakeMotor {
         Self {
             pos: 10.0,
             power: 0.0,
+            max_rpm: 0.0,
         }
     }
     pub(crate) fn from_config(cfg: ConfigType, _: Option<BoardType>) -> anyhow::Result<MotorType> {
+        let mut motor = FakeMotor::default();
         match cfg {
             ConfigType::Static(cfg) => {
-                if let Ok(pos) = cfg.get_attribute::<f64>("fake_position") {
-                    return Ok(Arc::new(Mutex::new(FakeMotor { pos, power: 0.0 })));
-                }
+                motor.pos = cfg.get_attribute::<f64>("fake_position")?;
 
-                motor.max_rpm = cfg.get_attribute::<f64>("max_rpm").map_err(|e| AttributeError::KeyNotFound(e.to_string()))?;
+                motor.max_rpm = cfg.get_attribute::<f64>("max_rpm")?;
             }
         }
 
-        Ok(Arc::new(Mutex::new(FakeMotor::new())))
+        Ok(Arc::new(Mutex::new(motor)))
     }
 }
 impl Default for FakeMotor {
@@ -135,7 +144,7 @@ where
     fn go_for(&mut self) -> anyhow::Result<()> {
     }
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
-        unimplemented!()
+        self.get_mut().unwrap().go_for(rpm, revolutions)
     }
 }
 
@@ -150,7 +159,7 @@ where
         self.lock().unwrap().set_power(pct)
     }
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
-        unimplemented!()
+        self.lock().unwrap().go_for(rpm, revolutions)
     }
 }
 
@@ -166,7 +175,15 @@ impl Motor for FakeMotor {
     fn go_for(&mut self) -> anyhow::Result<()> {
     }
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
-        unimplemented!()
+        if revolutions == 0.0 {
+            info!(
+                "going forward forever like Forrest Gump, rpm:{}, rev: {}",
+                rpm, revolutions
+            );
+        } else {
+            info!("going forward, rpm:{}, rev: {}", rpm, revolutions);
+        }
+        Ok(())
     }
 }
 impl Status for FakeMotor {
@@ -200,7 +217,8 @@ impl Stoppable for FakeMotor {
 #[cfg(test)]
 mod tests {
     use crate::common::config::{Component, Kind, RobotConfigStatic, StaticComponentConfig};
-    use crate::common::motor::MotorConfig;
+    use crate::common::motor::{ConfigType, FakeMotor, Motor, MotorPinsConfig};
+    use std::sync::{Arc, Mutex};
     #[test_log::test]
     fn test_motor_config() -> anyhow::Result<()> {
         #[allow(clippy::redundant_static_lifetimes, dead_code)]
@@ -210,13 +228,21 @@ mod tests {
                 namespace: "rdk",
                 r#type: "motor",
                 model: "gpio",
-                attributes: Some(
-                    phf::phf_map! {"max_rpm" => Kind::NumberValue(10000f64),"board" => Kind::StringValueStatic("board"),"pins" => Kind::StructValueStatic(phf::phf_map!{"a" => Kind::StringValueStatic("11"),"pwm" => Kind::StringValueStatic("13"),"b" => Kind::StringValueStatic("12")})},
-                ),
+                attributes: Some(phf::phf_map! {
+                    "max_rpm" => Kind::NumberValue(10000f64),
+                    "board" => Kind::StringValueStatic("board"),
+                    "pins" => Kind::StructValueStatic(
+                        phf::phf_map!{
+                            "a" => Kind::StringValueStatic("11"),
+                            "b" => Kind::StringValueStatic("12"),
+                            "pwm" => Kind::StringValueStatic("13"),
+                        }
+                    )
+                }),
             }]),
         });
         let val = STATIC_ROBOT_CONFIG.unwrap().components.unwrap()[0]
-            .get_attribute::<MotorConfig>("pins");
+            .get_attribute::<MotorPinsConfig>("pins");
         assert!(&val.is_ok());
 
         let val = val.unwrap();

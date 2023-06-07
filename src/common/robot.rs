@@ -350,6 +350,7 @@ mod tests {
     use crate::common::movement_sensor::MovementSensor;
     use crate::common::robot::LocalRobot;
     use crate::common::sensor::Sensor;
+
     #[test_log::test]
     fn test_robot_from_static() {
         #[allow(clippy::redundant_static_lifetimes, dead_code)]
@@ -378,9 +379,14 @@ mod tests {
                     namespace: "rdk",
                     r#type: "motor",
                     model: "fake",
-                    attributes: Some(
-                        phf::phf_map! {"pins" => Kind::StructValueStatic(phf::phf_map!{"pwm" => Kind::StringValueStatic("12"),"a" => Kind::StringValueStatic("29"),"b" => Kind::StringValueStatic("5")}),"board" => Kind::StringValueStatic("board"),"fake_position" => Kind::StringValueStatic("1205")},
+                    attributes: Some(phf::phf_map! {
+                    "pins" => Kind::StructValueStatic(phf::phf_map!{
+                        "pwm" => Kind::StringValueStatic("12"),
+                        "a" => Kind::StringValueStatic("29"),
+                        "b" => Kind::StringValueStatic("5")}
                     ),
+                    "board" => Kind::StringValueStatic("board"),
+                    "fake_position" => Kind::StringValueStatic("1205")}),
                 },
                 StaticComponentConfig {
                     name: "sensor",
@@ -426,7 +432,6 @@ mod tests {
                 },
             ]),
         });
-
         let robot = LocalRobot::new_from_static(&STATIC_ROBOT_CONFIG.unwrap());
         assert!(robot.is_ok());
         let robot = robot.unwrap();
