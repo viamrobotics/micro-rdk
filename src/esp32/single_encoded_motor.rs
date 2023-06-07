@@ -2,7 +2,7 @@ use super::single_encoder::SingleEncoderType;
 use crate::common::encoder::{
     Direction, Encoder, EncoderPositionType, EncoderSupportedRepresentations, SingleEncoder,
 };
-use crate::common::motor::{Motor, MotorType};
+use crate::common::motor::{Motor, MotorType, go_for_math};
 
 use crate::common::status::Status;
 use crate::common::stop::Stoppable;
@@ -11,11 +11,12 @@ use std::collections::BTreeMap;
 pub struct SingleEncodedMotor {
     encoder: SingleEncoderType,
     motor: MotorType,
+    max_rpm: f64,
 }
 
 impl SingleEncodedMotor {
     pub fn new(motor: MotorType, encoder: SingleEncoderType) -> Self {
-        Self { encoder, motor }
+        Self { encoder, motor , max_rpm: 1.0}
     }
 }
 
@@ -61,7 +62,19 @@ impl Motor for SingleEncodedMotor {
         Ok(pos.value as i32)
     }
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
-        unimplemented!()
+
+        let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions).unwrap();
+
+        assert!(revolutions >= 0.0);
+
+        if revolutions == 0.0 {
+            self.set_power(pwr)?;
+        } else {
+            self.set_power(pwr)?;
+            std::thread::sleep(dur);
+            self.stop()?;
+        }
+        Ok(())
     }
 }
 

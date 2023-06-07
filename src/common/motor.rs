@@ -175,11 +175,11 @@ impl Motor for FakeMotor {
         // get_max_rpm
         let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions).unwrap(); 
         if revolutions == 0.0 {
-            self.set_power(pwr);
+            self.set_power(pwr)?;
         } else {
-            self.set_power(pwr);
+            self.set_power(pwr)?;
             std::thread::sleep(dur); 
-            self.stop();
+            self.stop()?;
         }
         Ok(())
     }
