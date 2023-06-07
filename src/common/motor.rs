@@ -178,9 +178,8 @@ impl Motor for FakeMotor {
             self.set_power(pwr);
         } else {
             self.set_power(pwr);
-            // wait for duration
-            std::thread::sleep(dur);
-            // self.stop();
+            std::thread::sleep(dur); 
+            self.stop();
         }
         Ok(())
     }
