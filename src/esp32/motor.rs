@@ -47,13 +47,14 @@ use super::pin::PinExt;
 use crate::common::board::BoardType;
 use crate::common::config::{Component, ConfigType};
 use crate::common::encoder::{Encoder, EncoderPositionType};
-use crate::common::motor::{Motor, MotorConfig, MotorType};
+use crate::common::motor::{Motor, MotorPinsConfig, MotorType};
 use crate::common::registry::ComponentRegistry;
 use crate::common::status::Status;
 use crate::common::stop::Stoppable;
 use log::*;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::PwmPin;
@@ -161,7 +162,7 @@ where
     pub(crate) fn from_config(cfg: ConfigType, _: Option<BoardType>) -> anyhow::Result<MotorType> {
         match cfg {
             ConfigType::Static(cfg) => {
-                if let Ok(pins) = cfg.get_attribute::<MotorConfig>("pins") {
+                if let Ok(pins) = cfg.get_attribute::<MotorPinsConfig>("pins") {
                     if pins.a.is_some() && pins.b.is_some() {
                         use esp_idf_hal::units::FromValueType;
                         let pwm_tconf = TimerConfig::default().frequency(10.kHz().into());
