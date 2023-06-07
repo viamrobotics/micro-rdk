@@ -5,7 +5,8 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use super::board::BoardType;
-use super::config::{AttributeError, Component, ConfigType, Kind};
+use super::config::{Component, ConfigType, Kind};
+use super::error::AttributeError;
 use super::registry::ComponentRegistry;
 use super::stop::Stoppable;
 

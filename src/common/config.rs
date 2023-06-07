@@ -1,29 +1,9 @@
 #![allow(dead_code)]
+use super::error::AttributeError;
 
-#[derive(Debug, Eq, PartialEq)]
-pub enum AttributeError {
-    ParseNumError,
-    ConversionImpossibleError,
-    KeyNotFound,
-}
-
-use std::{
-    collections::BTreeMap,
-    num::{ParseFloatError, ParseIntError},
-};
+use std::collections::BTreeMap;
 
 use crate::proto::common::v1::ResourceName;
-
-impl From<ParseIntError> for AttributeError {
-    fn from(_: ParseIntError) -> AttributeError {
-        AttributeError::ParseNumError
-    }
-}
-impl From<ParseFloatError> for AttributeError {
-    fn from(_: ParseFloatError) -> AttributeError {
-        AttributeError::ParseNumError
-    }
-}
 
 macro_rules! primitives
 {

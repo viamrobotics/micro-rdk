@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
-use crate::common::config::{AttributeError, Kind};
+use crate::common::config::Kind;
+use crate::common::error::AttributeError;
 use crate::common::i2c::I2CHandle;
 use esp_idf_hal::delay::BLOCK;
 use esp_idf_hal::gpio::AnyIOPin;
