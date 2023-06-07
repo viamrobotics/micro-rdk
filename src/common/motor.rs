@@ -56,7 +56,7 @@ impl TryFrom<Kind> for MotorConfig {
         match value {
             Kind::StructValueStatic(v) => {
                 if !v.contains_key("pwm") {
-                    return Err(AttributeError::KeyNotFound);
+                    return Err(AttributeError::KeyNotFound("pwm".to_string()));
                 }
                 motor.pwm = v.get("pwm").unwrap().try_into()?;
                 if v.contains_key("a") {
@@ -72,14 +72,14 @@ impl TryFrom<Kind> for MotorConfig {
     }
 }
 
-impl TryFrom<&Kind> for MotorConfig {
+impl TryFrom<&Kind> for MotorPinsConfig {
     type Error = AttributeError;
     fn try_from(value: &Kind) -> Result<Self, Self::Error> {
-        let mut motor = MotorConfig::default();
+        let mut motor = MotorPinsConfig::default();
         match value {
             Kind::StructValueStatic(v) => {
                 if !v.contains_key("pwm") {
-                    return Err(AttributeError::KeyNotFound);
+                    return Err(AttributeError::KeyNotFound("pwm".to_string()));
                 }
                 motor.pwm = v.get("pwm").unwrap().try_into()?;
                 if v.contains_key("a") {
@@ -108,8 +108,10 @@ impl FakeMotor {
                 if let Ok(pos) = cfg.get_attribute::<f64>("fake_position") {
                     return Ok(Arc::new(Mutex::new(FakeMotor { pos, power: 0.0 })));
                 }
+
+                motor.max_rpm = cfg.get_attribute::<f64>("max_rpm").map_err(|e| AttributeError::KeyNotFound(e.to_string()))?;
             }
-        };
+        }
 
         Ok(Arc::new(Mutex::new(FakeMotor::new())))
     }

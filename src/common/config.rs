@@ -236,7 +236,7 @@ impl Component for StaticComponentConfig {
                 return v.try_into();
             }
         }
-        Err(AttributeError::KeyNotFound)
+        Err(AttributeError::KeyNotFound(key.to_string()))
     }
 }
 

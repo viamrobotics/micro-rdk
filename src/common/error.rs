@@ -8,8 +8,8 @@ pub enum AttributeError {
     ParseNumError,
     #[error("failed to parse number")]
     ConversionImpossibleError,
-    #[error("failed to parse number")]
-    KeyNotFound,
+    #[error("attribute `{0}` was not found")]
+    KeyNotFound(String),
 }
 
 impl From<ParseIntError> for AttributeError {

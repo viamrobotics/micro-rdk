@@ -44,7 +44,7 @@ impl TryFrom<Kind> for FakeI2cConfig {
         match value {
             Kind::StructValueStatic(v) => {
                 if !v.contains_key("name") {
-                    return Err(AttributeError::KeyNotFound);
+                    return Err(AttributeError::KeyNotFound("name".to_string()));
                 }
                 let name = v.get("name").unwrap().try_into()?;
                 let value_1 = match v.get("value_1") {
@@ -77,7 +77,7 @@ impl TryFrom<&Kind> for FakeI2cConfig {
         match value {
             Kind::StructValueStatic(v) => {
                 if !v.contains_key("name") {
-                    return Err(AttributeError::KeyNotFound);
+                    return Err(AttributeError::KeyNotFound("name".to_string()));
                 }
                 let name = v.get("name").unwrap().try_into()?;
                 let value_1 = match v.get("value_1") {
