@@ -231,12 +231,12 @@ impl Component for StaticComponentConfig {
         T: std::convert::TryFrom<Kind, Error = AttributeError>
             + std::convert::TryFrom<&'a Kind, Error = AttributeError>,
     {
-        if let Some(v) = self.attributes.as_ref() {
-            if let Some(v) = v.get(key) {
-                return v.try_into();
-            }
-        }
-        Err(AttributeError::KeyNotFound(key.to_string()))
+        self.attributes
+            .as_ref()
+            .ok_or(AttributeError::NoAttributeMap)?
+            .get(key)
+            .ok_or(AttributeError::KeyNotFound(key.to_owned()))?
+            .try_into()
     }
 }
 

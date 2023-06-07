@@ -6,10 +6,12 @@ use thiserror::Error;
 pub enum AttributeError {
     #[error("failed to parse number")]
     ParseNumError,
-    #[error("failed to parse number")]
+    #[error("value not possible")]
     ConversionImpossibleError,
     #[error("attribute `{0}` was not found")]
     KeyNotFound(String),
+    #[error("config has no attribute map")]
+    NoAttributeMap,
 }
 
 impl From<ParseIntError> for AttributeError {
