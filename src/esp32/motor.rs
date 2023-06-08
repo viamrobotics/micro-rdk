@@ -52,6 +52,8 @@ use crate::common::motor::{Motor, MotorPinsConfig, MotorType};
 use crate::common::registry::ComponentRegistry;
 use crate::common::status::Status;
 use crate::common::stop::Stoppable;
+use async_io::Timer;
+use futures_lite::future;
 use log::*;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
@@ -234,7 +236,7 @@ where
         let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions)?;
         if let Some(dur) = dur {
             self.set_power(pwr)?;
-            std::thread::sleep(dur);
+            future::block_on(async { Timer::after(dur).await });
             self.stop()?;
         } else {
             self.set_power(pwr)?;
@@ -327,6 +329,7 @@ where
         let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions)?;
         if let Some(dur) = dur {
             self.set_power(pwr)?;
+            future::block_on(async { Timer::after(dur).await });
             std::thread::sleep(dur);
             self.stop()?;
         } else {

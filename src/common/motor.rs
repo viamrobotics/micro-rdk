@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use crate::common::status::Status;
+use futures_lite::future;
 use log::*;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
@@ -9,6 +10,7 @@ use super::config::{AttributeError, Component, ConfigType, Kind};
 use super::math_utils::go_for_math;
 use super::registry::ComponentRegistry;
 use super::stop::Stoppable;
+use async_io::Timer;
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
@@ -175,7 +177,9 @@ impl Motor for FakeMotor {
         let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions).unwrap();
         if let Some(dur) = dur {
             self.set_power(pwr)?;
-            std::thread::sleep(dur);
+            future::block_on(async {
+                Timer::after(dur).await;
+            });
             self.stop()?;
         } else {
             self.set_power(pwr)?;
