@@ -1,9 +1,32 @@
 #![allow(dead_code)]
-use super::error::AttributeError;
-
-use std::collections::BTreeMap;
-
 use crate::proto::common::v1::ResourceName;
+use std::collections::BTreeMap;
+use std::num::{ParseFloatError, ParseIntError};
+use thiserror::Error;
+
+#[derive(Error, Debug, Eq, PartialEq)]
+pub enum AttributeError {
+    #[error("failed to parse number")]
+    ParseNumError,
+    #[error("value not possible")]
+    ConversionImpossibleError,
+    #[error("attribute `{0}` was not found")]
+    KeyNotFound(String),
+    #[error("config has no attribute map")]
+    NoAttributeMap,
+}
+
+impl From<ParseIntError> for AttributeError {
+    fn from(_: ParseIntError) -> AttributeError {
+        AttributeError::ParseNumError
+    }
+}
+
+impl From<ParseFloatError> for AttributeError {
+    fn from(_: ParseFloatError) -> AttributeError {
+        AttributeError::ParseNumError
+    }
+}
 
 macro_rules! primitives
 {
@@ -310,7 +333,10 @@ mod tests {
         let val = PMR.components.unwrap()[1].get_attribute::<u32>("nope");
 
         assert_eq!(val.as_ref().ok(), None);
-        assert_eq!(val.err().unwrap(), AttributeError::KeyNotFound("nope".to_string()));
+        assert_eq!(
+            val.err().unwrap(),
+            AttributeError::KeyNotFound("nope".to_string())
+        );
 
         let val = PMR.components.unwrap()[0].get_attribute::<u32>("pins");
 

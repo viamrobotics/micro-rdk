@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
-use super::config::Kind;
-use super::error::AttributeError;
+use super::config::{AttributeError, Kind};
 use std::sync::{Arc, Mutex};
 
 // A trait representing blocking I2C communication for a board. TODO: replace with the

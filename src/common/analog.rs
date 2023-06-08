@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
-use super::config::Kind;
-use super::error::AttributeError;
+use super::config::{AttributeError, Kind};
 
 pub struct FakeAnalogReader {
     name: String,

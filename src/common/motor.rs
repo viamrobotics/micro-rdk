@@ -5,11 +5,10 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use super::board::BoardType;
-use super::config::{Component, ConfigType, Kind};
-use super::error::AttributeError;
+use super::config::{AttributeError, Component, ConfigType, Kind};
+use super::math_utils::go_for_math;
 use super::registry::ComponentRegistry;
 use super::stop::Stoppable;
-use super::math_utils::go_for_math;
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
@@ -173,12 +172,12 @@ impl Motor for FakeMotor {
     }
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
         // get_max_rpm
-        let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions).unwrap(); 
+        let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions).unwrap();
         if revolutions == 0.0 {
             self.set_power(pwr)?;
         } else {
             self.set_power(pwr)?;
-            std::thread::sleep(dur); 
+            std::thread::sleep(dur);
             self.stop()?;
         }
         Ok(())
