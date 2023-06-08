@@ -254,9 +254,9 @@ impl Component for StaticComponentConfig {
     {
         self.attributes
             .as_ref()
-            .ok_or(AttributeError::KeyNotFound(key.to_owned()))? // no attribute map
+            .ok_or_else(|| AttributeError::KeyNotFound(key.to_owned()))? // no attribute map
             .get(key)
-            .ok_or(AttributeError::KeyNotFound(key.to_owned()))? // no key in attribute map
+            .ok_or_else(|| AttributeError::KeyNotFound(key.to_owned()))? // no key in attribute map
             .try_into()
     }
 }

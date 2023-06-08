@@ -58,7 +58,7 @@ impl TryFrom<Kind> for MotorPinsConfig {
             Kind::StructValueStatic(v) => {
                 motor.pwm = v
                     .get("pwm")
-                    .ok_or(AttributeError::KeyNotFound("pwm".to_string()))?
+                    .ok_or_else(|| AttributeError::KeyNotFound("pwm".to_string()))?
                     .try_into()?;
                 if let Some(a) = v.get("a") {
                     motor.a = Some(a.try_into()?);
@@ -85,16 +85,16 @@ impl TryFrom<&Kind> for MotorPinsConfig {
             Kind::StructValueStatic(v) => {
                 motor.pwm = v
                     .get("pwm")
-                    .ok_or(AttributeError::KeyNotFound("pwm".to_string()))?
+                    .ok_or_else(|| AttributeError::KeyNotFound("pwm".to_string()))?
                     .try_into()?;
                 motor.a = Some(
                     v.get("a")
-                        .ok_or(AttributeError::KeyNotFound("a".to_string()))?
+                        .ok_or_else(|| AttributeError::KeyNotFound("a".to_string()))?
                         .try_into()?,
                 );
                 motor.b = Some(
                     v.get("b")
-                        .ok_or(AttributeError::KeyNotFound("b".to_string()))?
+                        .ok_or_else(|| AttributeError::KeyNotFound("b".to_string()))?
                         .try_into()?,
                 );
             }
