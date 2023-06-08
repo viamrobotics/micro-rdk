@@ -11,6 +11,7 @@ include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 #[cfg(all(not(feature = "qemu"), feature = "camera"))]
 use crate::camera::Esp32Camera;
 use anyhow::bail;
+use esp_idf_hal::gpio::IOPin;
 use esp_idf_hal::prelude::Peripherals;
 #[cfg(feature = "qemu")]
 use esp_idf_svc::eth::*;
@@ -56,8 +57,8 @@ fn main() -> anyhow::Result<()> {
         use micro_rdk::esp32::analog::Esp32AnalogReader;
         use micro_rdk::esp32::base::Esp32WheelBase;
         use micro_rdk::esp32::board::EspBoard;
+        use micro_rdk::esp32::i2c::{Esp32I2C, Esp32I2cConfig};
         use micro_rdk::esp32::motor::ABMotorEsp32;
-        use micro_rdk::esp32::i2c::{Esp32I2cConfig, Esp32I2C};
         #[cfg(feature = "camera")]
         let camera = {
             Esp32Camera::new();
@@ -85,7 +86,7 @@ fn main() -> anyhow::Result<()> {
             chan2,
         );
 
-        let pins = vec![PinDriver::output(periph.pins.gpio15.downgrade_output())?];
+        let pins = vec![PinDriver::input_output(periph.pins.gpio15.downgrade())?];
         let adc1 = Rc::new(RefCell::new(AdcDriver::new(
             periph.adc1,
             &Config::new().calibration(true),
@@ -96,8 +97,8 @@ fn main() -> anyhow::Result<()> {
         let chan: AdcChannelDriver<_, Atten11dB<adc::ADC1>> =
             AdcChannelDriver::new(periph.pins.gpio35)?;
         let r2 = Esp32AnalogReader::new("A2".to_string(), chan, adc1.clone());
-        let i2c_conf = Esp32I2cConfig { 
-            name: "i2c0", 
+        let i2c_conf = Esp32I2cConfig {
+            name: "i2c0",
             bus: "i2c0",
             baudrate_hz: 1000000,
             timeout_ns: 0,

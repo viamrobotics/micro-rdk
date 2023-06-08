@@ -1,3 +1,43 @@
+//! Base structs and methods for supported motors.
+//!
+//! # Creating a `PwmDirMotorEsp32` Motor
+//!
+//! ```ignore
+//! use esp_idf_hal::ledc::{config::TimerConfig, LedcDriver, LedcTimerDriver};
+//! use micro_rdk::esp32::motor::PwmDirMotorEsp32;
+//! use esp_idf_hal::units::FromValueType;
+//!
+//! let tconf = TimerConfig::default().frequency(10.kHz().into());
+//! let timer = Arc::new(LedcTimerDriver::new(periph.ledc.channel0, &tconf)).unwrap();
+//! let pwm = LedcDriver::new(periph.ledc.channel0, timer.clone(), periph.pins.gpio15)?;
+//! let mut motor = PwmDirMotorEsp32::new(
+//!     PinDriver::output(periph.pins.gpio23)?, // DIR
+//!     pwm, // PWM
+//!     true, // dir_flip
+//! );
+//!
+//! motor.set_power(1.0).unwrap();
+//!
+//! ```
+//!
+//! # Creating a Robot with a Motor
+//! ```ignore
+//! let mut res: micro_rdk::common::robot::ResourceMap = HashMap::with_capacity(1);
+//!
+//! res.insert(
+//!     ResourceName {
+//!         namespace: "rdk".to_string(),
+//!         r#type: "component".to_string(),
+//!         subtype: "motor".to_string(),
+//!         name: "left-motor"
+//!     },
+//!     ResourceType::Motor(Arc::new(Mutex::new(motor))),
+//! );
+//!
+//! let robot_with_motor = LocalRobot(res);
+//!
+//! ```
+//!
 #![allow(dead_code)]
 use esp_idf_hal::gpio::{AnyOutputPin, Output, PinDriver};
 use esp_idf_hal::ledc::config::TimerConfig;
@@ -10,6 +50,8 @@ use crate::common::encoder::{Encoder, EncoderPositionType};
 use crate::common::motor::{Motor, MotorConfig, MotorType};
 use crate::common::registry::ComponentRegistry;
 use crate::common::status::Status;
+use crate::common::stop::Stoppable;
+use log::*;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
@@ -52,15 +94,26 @@ where
     M: Motor,
     Enc: Encoder,
 {
-    fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
-        self.motor.set_power(pct)
-    }
-
     fn get_position(&mut self) -> anyhow::Result<i32> {
         Ok(self
             .enc
             .get_position(EncoderPositionType::UNSPECIFIED)?
             .value as i32)
+    }
+
+    /// Accepts percentage as a float, e.g. `0.5` equals `50%` power.
+    fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
+        self.motor.set_power(pct)
+    }
+}
+
+impl<M, Enc> Stoppable for EncodedMotor<M, Enc>
+where
+    M: Motor,
+    Enc: Encoder,
+{
+    fn stop(&mut self) -> anyhow::Result<()> {
+        self.set_power(0.0)
     }
 }
 
@@ -161,7 +214,7 @@ where
         }
         self.pwm
             .set_duty(((max_duty as f64) * pct.abs()).floor() as u32);
-        println!("set to {:?} pct", pct);
+        debug!("set to {:?} pct", pct);
         Ok(())
     }
     fn get_position(&mut self) -> anyhow::Result<i32> {
@@ -188,14 +241,25 @@ where
     }
 }
 
+impl<A, B, PWM> Stoppable for ABMotorEsp32<A, B, PWM>
+where
+    A: OutputPin + PinExt,
+    B: OutputPin + PinExt,
+    PWM: PwmPin<Duty = u32>,
+{
+    fn stop(&mut self) -> anyhow::Result<()> {
+        self.set_power(0.0)
+    }
+}
+
 // Represents a motor using a direction pin and a PWM pin
-pub struct PWMDirMotorEsp32<DIR, PWM> {
+pub struct PwmDirMotorEsp32<DIR, PWM> {
     dir: DIR,
     pwm: PWM,
     dir_flip: bool,
 }
 
-impl<DIR, PWM> PWMDirMotorEsp32<DIR, PWM>
+impl<DIR, PWM> PwmDirMotorEsp32<DIR, PWM>
 where
     DIR: OutputPin + PinExt,
     PWM: PwmPin<Duty = u32>,
@@ -205,7 +269,7 @@ where
     }
 }
 
-impl<DIR, PWM> Motor for PWMDirMotorEsp32<DIR, PWM>
+impl<DIR, PWM> Motor for PwmDirMotorEsp32<DIR, PWM>
 where
     DIR: OutputPin + PinExt,
     PWM: PwmPin<Duty = u32>,
@@ -234,7 +298,7 @@ where
     }
 }
 
-impl<DIR, PWM> Status for PWMDirMotorEsp32<DIR, PWM>
+impl<DIR, PWM> Status for PwmDirMotorEsp32<DIR, PWM>
 where
     DIR: OutputPin + PinExt,
     PWM: PwmPin<Duty = u32>,
@@ -249,6 +313,16 @@ where
             },
         );
         Ok(Some(prost_types::Struct { fields: bt }))
+    }
+}
+
+impl<DIR, PWM> Stoppable for PwmDirMotorEsp32<DIR, PWM>
+where
+    DIR: OutputPin + PinExt,
+    PWM: PwmPin<Duty = u32>,
+{
+    fn stop(&mut self) -> anyhow::Result<()> {
+        self.set_power(0.0)
     }
 }
 

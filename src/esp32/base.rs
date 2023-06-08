@@ -2,6 +2,7 @@
 use crate::common::base::Base;
 use crate::common::motor::Motor;
 use crate::common::status::Status;
+use crate::common::stop::Stoppable;
 use crate::proto::common::v1::Vector3;
 use std::collections::BTreeMap;
 pub struct Esp32WheelBase<ML, MR> {
@@ -51,6 +52,18 @@ where
     }
 }
 
+impl<ML, MR> Stoppable for Esp32WheelBase<ML, MR>
+where
+    ML: Motor,
+    MR: Motor,
+{
+    fn stop(&mut self) -> anyhow::Result<()> {
+        self.motor_left.stop()?;
+        self.motor_right.stop()?;
+        Ok(())
+    }
+}
+
 impl<ML, MR> Base for Esp32WheelBase<ML, MR>
 where
     ML: Motor,
@@ -60,11 +73,6 @@ where
         let (l, r) = self.differential_drive(lin.y, ang.z);
         self.motor_left.set_power(l)?;
         self.motor_right.set_power(r)?;
-        Ok(())
-    }
-    fn stop(&mut self) -> anyhow::Result<()> {
-        self.motor_left.set_power(0.0)?;
-        self.motor_right.set_power(0.0)?;
         Ok(())
     }
 }
