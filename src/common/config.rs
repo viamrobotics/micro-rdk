@@ -12,8 +12,6 @@ pub enum AttributeError {
     ConversionImpossibleError,
     #[error("attribute `{0}` was not found")]
     KeyNotFound(String),
-    #[error("config has no attribute map")]
-    NoAttributeMap,
 }
 
 impl From<ParseIntError> for AttributeError {
@@ -256,9 +254,9 @@ impl Component for StaticComponentConfig {
     {
         self.attributes
             .as_ref()
-            .ok_or(AttributeError::NoAttributeMap)?
+            .ok_or(AttributeError::KeyNotFound(key.to_owned()))? // no attribute map
             .get(key)
-            .ok_or(AttributeError::KeyNotFound(key.to_owned()))?
+            .ok_or(AttributeError::KeyNotFound(key.to_owned()))? // no key in attribute map
             .try_into()
     }
 }

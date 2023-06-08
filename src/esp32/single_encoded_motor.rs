@@ -2,7 +2,6 @@ use super::single_encoder::SingleEncoderType;
 use crate::common::encoder::{
     Direction, Encoder, EncoderPositionType, EncoderSupportedRepresentations, SingleEncoder,
 };
-use crate::common::math_utils::go_for_math;
 use crate::common::motor::{Motor, MotorType};
 
 use crate::common::status::Status;
