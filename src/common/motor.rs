@@ -60,16 +60,16 @@ impl TryFrom<Kind> for MotorPinsConfig {
                     .get("pwm")
                     .ok_or(AttributeError::KeyNotFound("pwm".to_string()))?
                     .try_into()?;
-                motor.a = Some(
-                    v.get("a")
-                        .ok_or(AttributeError::KeyNotFound("a".to_string()))?
-                        .try_into()?,
-                );
-                motor.b = Some(
-                    v.get("b")
-                        .ok_or(AttributeError::KeyNotFound("b".to_string()))?
-                        .try_into()?,
-                );
+                if let Some(a) = v.get("a") {
+                    motor.a = Some(a.try_into()?);
+                } else {
+                    motor.a = None;
+                }
+                if let Some(b) = v.get("b") {
+                    motor.b = Some(b.try_into()?);
+                } else {
+                    motor.b = None;
+                }
             }
             _ => return Err(AttributeError::ConversionImpossibleError),
         }
