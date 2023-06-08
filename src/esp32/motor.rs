@@ -47,11 +47,11 @@ use super::pin::PinExt;
 use crate::common::board::BoardType;
 use crate::common::config::{Component, ConfigType};
 use crate::common::encoder::{Encoder, EncoderPositionType};
+use crate::common::math_utils::go_for_math;
 use crate::common::motor::{Motor, MotorPinsConfig, MotorType};
 use crate::common::registry::ComponentRegistry;
 use crate::common::status::Status;
 use crate::common::stop::Stoppable;
-use crate::common::math_utils::go_for_math;
 use log::*;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
@@ -78,7 +78,6 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 pub struct EncodedMotor<M, Enc> {
     motor: M,
     enc: Enc,
-    max_rpm: f64,
 }
 
 impl<M, Enc> EncodedMotor<M, Enc>
@@ -87,7 +86,7 @@ where
     Enc: Encoder,
 {
     pub fn new(motor: M, enc: Enc) -> Self {
-        Self { motor, enc , max_rpm: 1.0}
+        Self { motor, enc }
     }
 }
 
@@ -108,19 +107,7 @@ where
         self.motor.set_power(pct)
     }
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
-
-        let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions).unwrap();
-
-        assert!(revolutions >= 0.0);
-
-        if revolutions == 0.0 {
-            self.set_power(pwr)?;
-        } else {
-            self.set_power(pwr)?;
-            std::thread::sleep(dur);
-            self.stop()?;
-        }
-        Ok(())
+        self.motor.go_for(rpm, revolutions)
     }
 }
 
@@ -170,7 +157,12 @@ where
     PWM: PwmPin<Duty = u32>,
 {
     pub fn new(a: A, b: B, pwm: PWM) -> Self {
-        ABMotorEsp32 { a, b, pwm , max_rpm: 1.0}
+        ABMotorEsp32 {
+            a,
+            b,
+            pwm,
+            max_rpm: f64::default(),
+        }
     }
 
     pub(crate) fn from_config(cfg: ConfigType, _: Option<BoardType>) -> anyhow::Result<MotorType> {
@@ -239,16 +231,13 @@ where
         Ok(0)
     }
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
-        let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions).unwrap();
-
-        assert!(revolutions >= 0.0);
-
-        if revolutions == 0.0 {
-            self.set_power(pwr)?;
-        } else {
+        let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions)?;
+        if let Some(dur) = dur {
             self.set_power(pwr)?;
             std::thread::sleep(dur);
             self.stop()?;
+        } else {
+            self.set_power(pwr)?;
         }
         Ok(())
     }
@@ -298,7 +287,12 @@ where
     PWM: PwmPin<Duty = u32>,
 {
     pub fn new(dir: DIR, pwm: PWM, dir_flip: bool) -> Self {
-        Self { dir, pwm, dir_flip , max_rpm: 1.0}
+        Self {
+            dir,
+            pwm,
+            dir_flip,
+            max_rpm: f64::default(),
+        }
     }
 }
 
@@ -330,16 +324,13 @@ where
         Ok(0)
     }
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
-        let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions).unwrap();
-
-        assert!(revolutions >= 0.0);
-
-        if revolutions == 0.0 {
-            self.set_power(pwr)?;
-        } else {
+        let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions)?;
+        if let Some(dur) = dur {
             self.set_power(pwr)?;
             std::thread::sleep(dur);
             self.stop()?;
+        } else {
+            self.set_power(pwr)?;
         }
         Ok(())
     }

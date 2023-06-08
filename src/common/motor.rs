@@ -173,12 +173,12 @@ impl Motor for FakeMotor {
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
         // get_max_rpm
         let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions).unwrap();
-        if revolutions == 0.0 {
-            self.set_power(pwr)?;
-        } else {
+        if let Some(dur) = dur {
             self.set_power(pwr)?;
             std::thread::sleep(dur);
             self.stop()?;
+        } else {
+            self.set_power(pwr)?;
         }
         Ok(())
     }
