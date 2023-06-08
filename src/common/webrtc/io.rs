@@ -9,8 +9,9 @@ use std::{
 };
 
 use anyhow::bail;
+use async_channel::{RecvError, SendError};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use futures_lite::{AsyncRead, AsyncWrite, Future, FutureExt};
+use futures_lite::{future::Boxed, ready, AsyncRead, AsyncWrite, FutureExt};
 use smol::net::UdpSocket;
 
 #[derive(Debug)]
@@ -18,13 +19,31 @@ pub struct IoPkt {
     addr: SocketAddrV4,
     payload: Bytes,
 }
-#[derive(Clone)]
+unsafe impl Send for IoPktChannel {}
+unsafe impl Sync for IoPktChannel {}
+
 pub struct IoPktChannel {
     rx: smol::channel::Receiver<IoPkt>,
     transport_tx: smol::channel::Sender<IoPkt>,
     tx: smol::channel::Sender<IoPkt>,
     ip: Option<SocketAddrV4>,
+    recv_operation: Option<Boxed<Result<IoPkt, RecvError>>>,
+    send_operation: Option<Boxed<Result<(), SendError<IoPkt>>>>,
     waker: Option<Waker>,
+}
+
+impl Clone for IoPktChannel {
+    fn clone(&self) -> Self {
+        Self {
+            rx: self.rx.clone(),
+            transport_tx: self.transport_tx.clone(),
+            tx: self.tx.clone(),
+            ip: self.ip,
+            recv_operation: None,
+            send_operation: None,
+            waker: None,
+        }
+    }
 }
 
 impl AsyncRead for IoPktChannel {
@@ -33,64 +52,66 @@ impl AsyncRead for IoPktChannel {
         cx: &mut std::task::Context<'_>,
         mut buf: &mut [u8],
     ) -> Poll<std::io::Result<usize>> {
-        let mut recv = self.rx.recv();
-        let fut = Box::pin(&mut recv).poll(cx);
-        match fut {
-            Poll::Ready(ret) => match ret {
-                Ok(pkt) => {
-                    let _ = self.ip.insert(pkt.addr);
-                    if buf.len() < pkt.payload.len() {
-                        // TODO(npm) remove the panic
-                        panic!(
-                            "expected buf len {} to be more than payload {}",
-                            buf.len(),
-                            pkt.payload.len()
-                        );
-                    }
-                    let len = pkt.payload.len();
-                    buf.put(pkt.payload);
-                    Poll::Ready(Ok(len))
-                }
-                Err(e) => Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::Other, e))),
-            },
-            Poll::Pending => {
-                //TODO (npm) store revc future so that we poll it again in a not busy way
-                // might be useful to use pin project
-                cx.waker().wake_by_ref();
-                Poll::Pending
-            }
+        if self.recv_operation.is_none() {
+            let cloned = self.rx.clone();
+            let _ = self
+                .recv_operation
+                .insert(Box::pin(async move { cloned.recv().await }));
         }
+
+        let result = match ready!(self.recv_operation.as_mut().unwrap().poll(cx)) {
+            Ok(pkt) => {
+                let _ = self.ip.insert(pkt.addr);
+                if buf.len() < pkt.payload.len() {
+                    // TODO(npm) remove the panic
+                    panic!(
+                        "expected buf len {} to be more than payload {}",
+                        buf.len(),
+                        pkt.payload.len()
+                    );
+                }
+                let len = pkt.payload.len();
+                buf.put(pkt.payload);
+                Poll::Ready(Ok(len))
+            }
+            Err(e) => Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::Other, e))),
+        };
+        let _ = self.recv_operation.take();
+        result
     }
 }
 
 impl AsyncWrite for IoPktChannel {
     fn poll_write(
-        self: std::pin::Pin<&mut Self>,
+        mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
         buf: &[u8],
     ) -> std::task::Poll<std::io::Result<usize>> {
+        let ip = if let Some(ip) = self.ip.as_ref() {
+            *ip
+        } else {
+            return Poll::Ready(Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "missing ip",
+            )));
+        };
         let pkt = Bytes::copy_from_slice(buf);
-        if let Some(ip) = self.ip.as_ref() {
-            let ret = Pin::new(&mut self.transport_tx.send(IoPkt {
-                addr: *ip,
-                payload: pkt,
-            }))
-            .poll(cx);
-            match ret {
-                Poll::Ready(ret) => match ret {
-                    Ok(_) => {
-                        return Poll::Ready(Ok(buf.len()));
-                    }
-                    Err(e) => {
-                        return Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::Other, e)));
-                    }
-                },
-                Poll::Pending => {
-                    return Poll::Pending;
-                }
-            }
+        let pkt = IoPkt {
+            addr: ip,
+            payload: pkt,
+        };
+        if self.send_operation.is_none() {
+            let cloned = self.transport_tx.clone();
+            let _ = self
+                .send_operation
+                .insert(Box::pin(async move { cloned.send(pkt).await }));
         }
-        Poll::Ready(Ok(buf.len()))
+        let result = match ready!(self.send_operation.as_mut().unwrap().poll(cx)) {
+            Ok(()) => Poll::Ready(Ok(buf.len())),
+            Err(e) => Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::Other, e))),
+        };
+        let _ = self.send_operation.take();
+        result
     }
     fn poll_close(
         self: Pin<&mut Self>,
@@ -171,6 +192,8 @@ impl IoPktChannel {
             tx: txo,
             ip: None,
             waker: None,
+            recv_operation: None,
+            send_operation: None,
         }
     }
 
