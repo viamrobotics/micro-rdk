@@ -108,7 +108,7 @@ where
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
         self.motor.set_power(pct)
     }
-    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
         self.motor.go_for(rpm, revolutions)
     }
 }
@@ -163,7 +163,7 @@ where
             a,
             b,
             pwm,
-            max_rpm: f64::default(),
+            max_rpm: 200.0,
         }
     }
 
@@ -226,22 +226,19 @@ where
         }
         self.pwm
             .set_duty(((max_duty as f64) * pct.abs()).floor() as u32);
-        debug!("set to {:?} pct", pct);
+        info!("set to {:?} pct", pct);
         Ok(())
     }
     fn get_position(&mut self) -> anyhow::Result<i32> {
         Ok(0)
     }
-    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
         let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions)?;
-        if let Some(dur) = dur {
-            self.set_power(pwr)?;
-            future::block_on(async { Timer::after(dur).await });
-            self.stop()?;
-        } else {
-            self.set_power(pwr)?;
+        self.set_power(pwr)?;
+        if dur.is_some() {
+            return Ok(dur);
         }
-        Ok(())
+        Ok(None)
     }
 }
 
@@ -320,22 +317,19 @@ where
         }
         self.pwm
             .set_duty(((max_duty as f64) * pct.abs()).floor() as u32);
+        info!("set to {:?} pct", pct);
         Ok(())
     }
     fn get_position(&mut self) -> anyhow::Result<i32> {
         Ok(0)
     }
-    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
         let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions)?;
-        if let Some(dur) = dur {
-            self.set_power(pwr)?;
-            future::block_on(async { Timer::after(dur).await });
-            std::thread::sleep(dur);
-            self.stop()?;
-        } else {
-            self.set_power(pwr)?;
+        self.set_power(pwr)?;
+        if dur.is_some() {
+            return Ok(dur);
         }
-        Ok(())
+        Ok(None)
     }
 }
 

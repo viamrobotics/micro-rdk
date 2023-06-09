@@ -1,16 +1,15 @@
 #![allow(dead_code)]
 use crate::common::status::Status;
-use futures_lite::future;
 use log::*;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use super::board::BoardType;
 use super::config::{AttributeError, Component, ConfigType, Kind};
 use super::math_utils::go_for_math;
 use super::registry::ComponentRegistry;
 use super::stop::Stoppable;
-use async_io::Timer;
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
@@ -34,7 +33,7 @@ pub trait Motor: Status + Stoppable {
     /// This method will return an error if position reporting is not supported.
     /// If revolutions is 0, this will run the motor at rpm indefinitely.
     /// If revolutions != 0, this will block until the number of revolutions has been completed or another operation comes in.
-    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()>;
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>>;
 }
 
 pub(crate) type MotorType = Arc<Mutex<dyn Motor>>;
@@ -143,7 +142,7 @@ where
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
         self.get_mut().unwrap().set_power(pct)
     }
-    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
         self.get_mut().unwrap().go_for(rpm, revolutions)
     }
 }
@@ -158,7 +157,7 @@ where
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
         self.lock().unwrap().set_power(pct)
     }
-    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
         self.lock().unwrap().go_for(rpm, revolutions)
     }
 }
@@ -172,19 +171,14 @@ impl Motor for FakeMotor {
         self.power = pct;
         Ok(())
     }
-    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<()> {
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
         // get_max_rpm
         let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions).unwrap();
-        if let Some(dur) = dur {
-            self.set_power(pwr)?;
-            future::block_on(async {
-                Timer::after(dur).await;
-            });
-            self.stop()?;
-        } else {
-            self.set_power(pwr)?;
+        self.set_power(pwr)?;
+        if dur.is_some() {
+            return Ok(dur);
         }
-        Ok(())
+        Ok(None)
     }
 }
 impl Status for FakeMotor {
