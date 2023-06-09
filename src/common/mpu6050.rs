@@ -4,8 +4,7 @@ use crate::common::math_utils::Vector3;
 use crate::common::movement_sensor::{MovementSensor, MovementSensorSupportedMethods};
 
 use super::board::{Board, BoardType};
-use super::config::Kind::BoolValue;
-use super::config::{Component, ConfigType};
+use super::config::ConfigType;
 use super::i2c::I2CHandle;
 use super::movement_sensor::MovementSensorType;
 use super::registry::ComponentRegistry;
@@ -56,27 +55,21 @@ impl MPU6050 {
             ));
         }
         let board_unwrapped = board.unwrap();
-        match cfg {
-            ConfigType::Static(cfg) => {
-                let i2c_handle: I2cHandleType;
-                if let Ok(i2c_name) = cfg.get_attribute::<&'static str>("i2c_bus") {
-                    i2c_handle = board_unwrapped.get_i2c_by_name(i2c_name.to_string())?;
-                } else {
-                    return Err(anyhow::anyhow!(
-                        "i2c_bus is a required config attribute for MPU6050"
-                    ));
-                };
-                if match &cfg.attributes {
-                    None => false,
-                    Some(attrs) => match attrs.get("use_alt_i2c_address") {
-                        Some(BoolValue(value)) => *value,
-                        _ => false,
-                    },
-                } {
-                    return Ok(Arc::new(Mutex::new(MPU6050::new(i2c_handle, 105)?)));
-                }
-                Ok(Arc::new(Mutex::new(MPU6050::new(i2c_handle, 104)?)))
+        let i2c_handle: I2cHandleType;
+        if let Ok(i2c_name) = cfg.get_attribute::<&'static str>("i2c_bus") {
+            i2c_handle = board_unwrapped.get_i2c_by_name(i2c_name.to_string())?;
+        } else {
+            return Err(anyhow::anyhow!(
+                "i2c_bus is a required config attribute for MPU6050"
+            ));
+        };
+        if let Ok(use_alt_address) = cfg.get_attribute::<bool>("use_alt_i2c_address") {
+            if use_alt_address {
+                return Ok(Arc::new(Mutex::new(MPU6050::new(i2c_handle, 105)?)));
             }
+            Ok(Arc::new(Mutex::new(MPU6050::new(i2c_handle, 104)?)))
+        } else {
+            Ok(Arc::new(Mutex::new(MPU6050::new(i2c_handle, 104)?)))
         }
     }
 

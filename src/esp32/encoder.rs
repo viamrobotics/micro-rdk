@@ -20,7 +20,7 @@ use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::common::board::BoardType;
-use crate::common::config::{Component, ConfigType};
+use crate::common::config::ConfigType;
 use crate::common::encoder::{
     Encoder, EncoderPosition, EncoderPositionType, EncoderSupportedRepresentations, EncoderType,
 };
@@ -93,39 +93,35 @@ where
         cfg: ConfigType,
         _: Option<BoardType>,
     ) -> anyhow::Result<EncoderType> {
-        match cfg {
-            ConfigType::Static(cfg) => {
-                let pin_a_num = match cfg.get_attribute::<i32>("a") {
-                    Ok(num) => num,
-                    Err(_) => return Err(anyhow::anyhow!("cannot build encoder, need 'a' pin")),
-                };
-                let pin_b_num = match cfg.get_attribute::<i32>("b") {
-                    Ok(num) => num,
-                    Err(_) => return Err(anyhow::anyhow!("cannot build encoder, need 'b' pin")),
-                };
-                let a = match PinDriver::input(unsafe { AnyInputPin::new(pin_a_num) }) {
-                    Ok(a) => a,
-                    Err(err) => {
-                        return Err(anyhow::anyhow!(
-                            "cannot build encoder, could not initialize pin {:?} as pin 'a': {:?}",
-                            pin_a_num,
-                            err
-                        ))
-                    }
-                };
-                let b = match PinDriver::input(unsafe { AnyInputPin::new(pin_b_num) }) {
-                    Ok(b) => b,
-                    Err(err) => {
-                        return Err(anyhow::anyhow!(
-                            "cannot build encoder, could not initialize pin {:?} as pin 'b': {:?}",
-                            pin_b_num,
-                            err
-                        ))
-                    }
-                };
-                Ok(Arc::new(Mutex::new(Esp32Encoder::new(a, b)?)))
+        let pin_a_num = match cfg.get_attribute::<i32>("a") {
+            Ok(num) => num,
+            Err(_) => return Err(anyhow::anyhow!("cannot build encoder, need 'a' pin")),
+        };
+        let pin_b_num = match cfg.get_attribute::<i32>("b") {
+            Ok(num) => num,
+            Err(_) => return Err(anyhow::anyhow!("cannot build encoder, need 'b' pin")),
+        };
+        let a = match PinDriver::input(unsafe { AnyInputPin::new(pin_a_num) }) {
+            Ok(a) => a,
+            Err(err) => {
+                return Err(anyhow::anyhow!(
+                    "cannot build encoder, could not initialize pin {:?} as pin 'a': {:?}",
+                    pin_a_num,
+                    err
+                ))
             }
-        }
+        };
+        let b = match PinDriver::input(unsafe { AnyInputPin::new(pin_b_num) }) {
+            Ok(b) => b,
+            Err(err) => {
+                return Err(anyhow::anyhow!(
+                    "cannot build encoder, could not initialize pin {:?} as pin 'b': {:?}",
+                    pin_b_num,
+                    err
+                ))
+            }
+        };
+        Ok(Arc::new(Mutex::new(Esp32Encoder::new(a, b)?)))
     }
 
     fn start(&self) -> anyhow::Result<()> {

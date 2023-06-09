@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use super::board::BoardType;
-use super::config::{AttributeError, Component, ConfigType, Kind};
+use super::config::{AttributeError, ConfigType, Kind};
 use super::math_utils::go_for_math;
 use super::registry::ComponentRegistry;
 use super::stop::Stoppable;
@@ -115,14 +115,12 @@ impl FakeMotor {
     }
     pub(crate) fn from_config(cfg: ConfigType, _: Option<BoardType>) -> anyhow::Result<MotorType> {
         let mut motor = FakeMotor::default();
-        match cfg {
-            ConfigType::Static(cfg) => {
-                motor.pos = cfg.get_attribute::<f64>("fake_position")?;
-
-                motor.max_rpm = cfg.get_attribute::<f64>("max_rpm")?;
-            }
+        if let Ok(pos) = cfg.get_attribute::<f64>("fake_position") {
+            motor.pos = pos
         }
-
+        if let Ok(max_rpm) = cfg.get_attribute::<f64>("max_rpm") {
+            motor.max_rpm = max_rpm
+        }
         Ok(Arc::new(Mutex::new(motor)))
     }
 }

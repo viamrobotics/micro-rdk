@@ -17,6 +17,7 @@ use crate::{
     common::sensor::Sensor,
     common::status::Status,
     proto::{
+        app::v1::{ComponentConfig, ConfigResponse},
         common::{self, v1::ResourceName},
         robot,
     },
@@ -26,7 +27,7 @@ use log::*;
 use super::{
     base::BaseType,
     board::BoardType,
-    config::{Component, ConfigType, RobotConfigStatic},
+    config::{Component, ConfigType, DynamicComponentConfig, RobotConfigStatic},
     encoder::EncoderType,
     motor::MotorType,
     movement_sensor::MovementSensorType,
@@ -51,6 +52,32 @@ pub struct LocalRobot {
     resources: ResourceMap,
 }
 
+fn resource_name_from_component_cfg(cfg: &ComponentConfig) -> ResourceName {
+    ResourceName {
+        namespace: cfg.namespace.to_string(),
+        r#type: "component".to_string(),
+        subtype: cfg.r#type.to_string(),
+        name: cfg.name.to_string(),
+    }
+}
+
+// Extracts model string from the full namespace provided by incoming instances of ComponentConfig.
+// TODO: This prefix requirement was put in place due to model names sent from app being otherwise
+// auto-prefixed with "rdk:builtin". A more ideal and robust method of namespacing is preferred.
+fn get_model_without_micro_rdk_prefix(full_model: &mut String) -> anyhow::Result<String> {
+    if !full_model.starts_with("micro-rdk:builtin") {
+        anyhow::bail!(
+            "model name must be prefixed with 'micro-rdk:builtin', model name is {:?}",
+            full_model
+        );
+    }
+    let model = full_model.split_off(18);
+    if model.is_empty() {
+        anyhow::bail!("cannot use empty model name for configuring resource");
+    }
+    Ok(model)
+}
+
 impl LocalRobot {
     pub fn new(res: ResourceMap) -> Self {
         LocalRobot { resources: res }
@@ -63,7 +90,8 @@ impl LocalRobot {
             let r = components.iter().find(|x| x.get_type() == "board");
             let b = match r {
                 Some(r) => {
-                    let ctor = COMPONENT_REGISTRY.get_board_constructor(r.get_model())?;
+                    let ctor =
+                        COMPONENT_REGISTRY.get_board_constructor(r.get_model().to_string())?;
                     let b = ctor(ConfigType::Static(r));
                     if let Ok(b) = b {
                         Some(b)
@@ -75,52 +103,122 @@ impl LocalRobot {
                 None => None,
             };
             for x in components.iter() {
-                match x.get_type() {
-                    "motor" => {
-                        let ctor = COMPONENT_REGISTRY.get_motor_constructor(x.get_model())?;
-                        let m = ctor(ConfigType::Static(x), b.clone())?;
-                        robot
-                            .resources
-                            .insert(x.get_resource_name(), ResourceType::Motor(m));
-                    }
-                    "board" => {
-                        if let Some(b) = b.as_ref() {
-                            robot
-                                .resources
-                                .insert(x.get_resource_name(), ResourceType::Board(b.clone()));
-                        }
-                    }
-                    "sensor" => {
-                        let ctor = COMPONENT_REGISTRY.get_sensor_constructor(x.get_model())?;
-                        let s = ctor(ConfigType::Static(x), b.clone())?;
-                        robot
-                            .resources
-                            .insert(x.get_resource_name(), ResourceType::Sensor(s));
-                    }
-                    "movement_sensor" => {
-                        let ctor =
-                            COMPONENT_REGISTRY.get_movement_sensor_constructor(x.get_model())?;
-                        let s = ctor(ConfigType::Static(x), b.clone())?;
-                        robot
-                            .resources
-                            .insert(x.get_resource_name(), ResourceType::MovementSensor(s));
-                    }
-                    "encoder" => {
-                        let ctor = COMPONENT_REGISTRY.get_encoder_constructor(x.get_model())?;
-                        let s = ctor(ConfigType::Static(x), b.clone())?;
-                        robot
-                            .resources
-                            .insert(x.get_resource_name(), ResourceType::Encoder(s));
-                    }
-                    &_ => {
-                        log::error!("component type {} is not supported yet", x.get_type());
+                match robot.insert_resource(
+                    x.get_model().to_string(),
+                    x.get_resource_name(),
+                    ConfigType::Static(x),
+                    b.clone(),
+                ) {
+                    Ok(()) => {
                         continue;
                     }
-                }
+                    Err(err) => {
+                        log::error!("{:?}", err);
+                        continue;
+                    }
+                };
             }
         }
         Ok(robot)
     }
+
+    // Creates a robot from the response of a gRPC call to acquire the robot configuration. The individual
+    // component configs within the response are consumed and the corresponding components are generated
+    // and added to the created robot.
+    pub fn new_from_config_response(config_resp: Box<ConfigResponse>) -> anyhow::Result<Self> {
+        let mut robot = LocalRobot {
+            resources: ResourceMap::new(),
+        };
+
+        let components = &(config_resp.config.as_ref().unwrap().components);
+
+        let r = components.iter().find(|x| x.r#type == "board");
+        // Initialize the board component first
+        let b = match r {
+            Some(r) => {
+                let model = get_model_without_micro_rdk_prefix(&mut r.model.to_string())?;
+
+                let cfg: DynamicComponentConfig = match r.try_into() {
+                    Ok(cfg) => cfg,
+                    Err(err) => {
+                        anyhow::bail!("could not configure board: {:?}", err);
+                    }
+                };
+                let ctor = COMPONENT_REGISTRY.get_board_constructor(model)?;
+                let b = ctor(ConfigType::Dynamic(cfg));
+                if let Ok(b) = b {
+                    Some(b)
+                } else {
+                    log::info!("failed to build the board with {:?}", b.err().unwrap());
+                    None
+                }
+            }
+            None => None,
+        };
+        for x in components.iter() {
+            let model = get_model_without_micro_rdk_prefix(&mut x.model.to_string())?;
+            let r_name = resource_name_from_component_cfg(x);
+            let dyn_config: DynamicComponentConfig = match x.try_into() {
+                Ok(cfg) => cfg,
+                Err(err) => {
+                    log::error!("could not configure component {:?}: {:?}", x.name, err);
+                    continue;
+                }
+            };
+            match robot.insert_resource(model, r_name, ConfigType::Dynamic(dyn_config), b.clone()) {
+                Ok(()) => {
+                    continue;
+                }
+                Err(err) => {
+                    log::error!("{:?}", err);
+                    continue;
+                }
+            };
+        }
+
+        Ok(robot)
+    }
+
+    fn insert_resource(
+        &mut self,
+        model: String,
+        r_name: ResourceName,
+        cfg: ConfigType,
+        board: Option<BoardType>,
+    ) -> anyhow::Result<()> {
+        let r_type = cfg.get_type();
+        let res = match r_type {
+            "motor" => {
+                let ctor = COMPONENT_REGISTRY.get_motor_constructor(model)?;
+                ResourceType::Motor(ctor(cfg, board)?)
+            }
+            "board" => {
+                if let Some(board) = board.as_ref() {
+                    ResourceType::Board(board.clone())
+                } else {
+                    return Ok(());
+                }
+            }
+            "sensor" => {
+                let ctor = COMPONENT_REGISTRY.get_sensor_constructor(model)?;
+                ResourceType::Sensor(ctor(cfg, board)?)
+            }
+            "movement_sensor" => {
+                let ctor = COMPONENT_REGISTRY.get_movement_sensor_constructor(model)?;
+                ResourceType::MovementSensor(ctor(cfg, board)?)
+            }
+            "encoder" => {
+                let ctor = COMPONENT_REGISTRY.get_encoder_constructor(model)?;
+                ResourceType::Encoder(ctor(cfg, board)?)
+            }
+            &_ => {
+                anyhow::bail!("component type {} is not supported yet", r_type);
+            }
+        };
+        self.resources.insert(r_name, res);
+        Ok(())
+    }
+
     pub fn get_status(
         &mut self,
         mut msg: robot::v1::GetStatusRequest,
