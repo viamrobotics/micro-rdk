@@ -78,7 +78,7 @@ mod tests {
     // TODO: put real inputs and expected outcomes
 
     #[test_log::test]
-    fn test_go_for_math_none_duration() -> anyhow::Result<()>{
+    fn test_go_for_math_none_duration() -> anyhow::Result<()> {
         let max_rpm = 200.0;
         let rpm = 500.0;
         let revolutions = 0.0;
@@ -90,7 +90,7 @@ mod tests {
     }
 
     #[test_log::test]
-    fn test_go_for_math_some_duration() -> anyhow::Result<()>{
+    fn test_go_for_math_some_duration() -> anyhow::Result<()> {
         let max_rpm = 50.0;
         let rpm = 10.0;
         let revolutions = 100.0;
