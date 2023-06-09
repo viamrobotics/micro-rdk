@@ -41,15 +41,15 @@ pub(crate) fn go_for_math(
     revolutions: f64,
 ) -> anyhow::Result<(f64, Option<Duration>)> {
     /*
-	dir := rpm * revolutions / math.Abs(revolutions*rpm)
-	powerPct := math.Abs(rpm) / maxRPM * dir
-	waitDur := time.Duration(math.Abs(revolutions/rpm)*60*1000) * time.Millisecond
-	return powerPct, waitDur
+    dir := rpm * revolutions / math.Abs(revolutions*rpm)
+    powerPct := math.Abs(rpm) / maxRPM * dir
+    waitDur := time.Duration(math.Abs(revolutions/rpm)*60*1000) * time.Millisecond
+    return powerPct, waitDur
         */
     if max_rpm.is_nan() || rpm.is_nan() || revolutions.is_nan() {
         bail!("NaN in supplied input");
     }
-    
+
     let rpm = rpm.clamp(-1.0 * max_rpm, max_rpm);
 
     if revolutions == 0.0 {
@@ -86,7 +86,6 @@ mod tests {
 
     #[test_log::test]
     fn test_go_for_math_none_duration() -> anyhow::Result<()> {
-
         // taken from rdk/components/motor/gpio/basic_test.go
         let (pwr, dur) = go_for_math(200.0, 50.0, 0.0)?;
         assert_eq!(pwr, 0.25);
@@ -106,7 +105,7 @@ mod tests {
     #[test_log::test]
     fn test_go_for_math_some_duration() -> anyhow::Result<()> {
         // taken from rdk/components/motor/gpio/basic_test.go
-        
+
         let (pwr, dur) = go_for_math(100.0, 100.0, 100.0)?;
         assert_eq!(pwr, 1.0);
         assert_eq!(dur, Some(Duration::from_secs(60)));
@@ -136,5 +135,4 @@ mod tests {
         assert_eq!(dur, Some(Duration::from_secs(30)));
         Ok(())
     }
-
 }
