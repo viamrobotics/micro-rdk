@@ -251,6 +251,16 @@ pub struct WebRtcTransport {
     rx: smol::channel::Receiver<IoPkt>,
 }
 
+impl Drop for WebRtcTransport {
+    fn drop(&mut self) {
+        let _ = self.stun.tx.close();
+        let _ = self.stun.rx.close();
+        let _ = self.dtls.tx.close();
+        let _ = self.dtls.rx.close();
+        self.rx.close();
+    }
+}
+
 impl WebRtcTransport {
     pub fn new(socket: UdpSocket) -> Self {
         let (tx, rx) = smol::channel::bounded::<IoPkt>(10);
@@ -287,21 +297,32 @@ impl WebRtcTransport {
                 }
             };
             if buf.len() >= 20 && buf[0] < 2 {
-                self.stun
+                if self
+                    .stun
                     .send_pkt(IoPkt { addr, payload: buf })
                     .await
-                    .unwrap();
-            } else {
-                self.dtls
-                    .send_pkt(IoPkt { addr, payload: buf })
-                    .await
-                    .unwrap();
+                    .is_err()
+                {
+                    break;
+                }
+            } else if self
+                .dtls
+                .send_pkt(IoPkt { addr, payload: buf })
+                .await
+                .is_err()
+            {
+                break;
             }
         }
+        log::info!("bye read loop");
     }
     pub async fn write_loop(&self) {
         loop {
-            let pkt = self.rx.recv().await.unwrap();
+            let pkt = self.rx.recv().await;
+            if pkt.is_err() {
+                break;
+            }
+            let pkt = pkt.unwrap();
             match self.socket.send_to(pkt.payload.chunk(), pkt.addr).await {
                 Ok(_) => {}
                 Err(e) if e.kind() == ErrorKind::OutOfMemory => {}
@@ -310,5 +331,6 @@ impl WebRtcTransport {
                 }
             }
         }
+        log::info!("bye write loop");
     }
 }

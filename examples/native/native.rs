@@ -1,13 +1,13 @@
-#![allow(unused_imports)]
 // Generated robot config during build process
 include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 include!(concat!(env!("OUT_DIR"), "/robot_config.rs"));
 
 use log::*;
+use micro_rdk::common::app_client::AppClientConfig;
 use micro_rdk::common::config::{Kind, RobotConfigStatic, StaticComponentConfig};
 use micro_rdk::common::robot::LocalRobot;
 use micro_rdk::common::robot::ResourceType;
-use micro_rdk::native::server::{CloudConfig, NativeServer};
+use micro_rdk::native::entry::serve_web;
 use micro_rdk::native::tls::NativeTlsServerConfig;
 use micro_rdk::proto::common::v1::ResourceName;
 use std::cell::RefCell;
@@ -15,17 +15,12 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::Mutex;
-
 fn main() -> anyhow::Result<()> {
     simple_logger::SimpleLogger::new()
-        .with_level(LevelFilter::Debug)
+        .with_level(LevelFilter::Info)
         .init()
         .unwrap();
-    // tracing_subscriber::fmt()
-    //     // enable everything
-    //     .with_max_level(tracing::Level::TRACE)
-    //     // sets this to be the default, global collector for this application.
-    //     .init();
+
     let robot = {
         use micro_rdk::common::analog::FakeAnalogReader;
         use micro_rdk::common::base::FakeBase;
@@ -114,9 +109,10 @@ fn main() -> anyhow::Result<()> {
         let key = include_bytes!(concat!(env!("OUT_DIR"), "/key.key"));
         NativeTlsServerConfig::new(cert.to_vec(), key.to_vec())
     };
-    let mut cloud_cfg = CloudConfig::new(ROBOT_NAME, LOCAL_FQDN, FQDN, ROBOT_ID, ROBOT_SECRET);
-    cloud_cfg.set_tls_config(cfg);
-    let esp32_srv = NativeServer::new(robot, cloud_cfg);
-    esp32_srv.start(ip)?;
+
+    let app_config = AppClientConfig::new("".to_string(), "".to_string(), ip, "".to_owned());
+
+    serve_web(app_config, cfg, Some(robot), ip);
+
     Ok(())
 }

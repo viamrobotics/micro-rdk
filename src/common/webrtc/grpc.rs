@@ -114,7 +114,7 @@ where
         hdr: &RequestHeaders,
     ) -> Result<(Status, Option<Instant>), WebRtcError> {
         let method = &hdr.method;
-        log::debug!("processing req {:?}", method);
+        log::info!("processing req {:?}", method);
         let ret = if let Some(pkt) = msg.packet_message.as_ref() {
             if method.contains("Stream") {
                 match self.service.server_stream_rpc(method, &pkt.data) {

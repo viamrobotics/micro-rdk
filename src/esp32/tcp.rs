@@ -1,8 +1,11 @@
+use crate::common::conn::server::{AsyncableTcpListener, Http2Connector, OwnedListener};
 use crate::esp32::tls::{Esp32Tls, Esp32TlsStream};
-use futures_lite::io;
+use futures_lite::{io, Future};
 use log::*;
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
+use std::fmt::Debug;
 use std::io::{Read, Write};
+use std::sync::Arc;
 use std::{
     marker::PhantomData,
     net::{Shutdown, TcpListener, TcpStream},
@@ -12,7 +15,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 /// Struct to listen for incoming TCP connections
 pub struct Esp32Listener {
-    listener: TcpListener,
+    listener: Arc<TcpListener>,
     #[allow(dead_code)]
     addr: SockAddr,
     _marker: PhantomData<*const ()>,
@@ -27,8 +30,9 @@ impl Esp32Listener {
         socket.set_nodelay(true)?;
         socket.bind(&addr)?;
         socket.listen(128)?;
+        socket.set_nonblocking(true)?;
         Ok(Self {
-            listener: socket.into(),
+            listener: Arc::new(socket.into()),
             addr,
             _marker: PhantomData,
             tls,
@@ -38,7 +42,8 @@ impl Esp32Listener {
     /// Accept the next incoming connection. Will block until a connection is established
     pub fn accept(&mut self) -> anyhow::Result<Esp32Stream> {
         let (conn, _) = self.listener.accept()?;
-        conn.set_nonblocking(true).expect("cannot set nodelay");
+        conn.set_nonblocking(true)
+            .expect("cannot set tcp port in non-blocking mode");
         let stream = match &mut self.tls {
             Some(tls) => {
                 info!("opening TLS ctx");
@@ -49,6 +54,72 @@ impl Esp32Listener {
             None => Esp32Stream::LocalPlain(conn),
         };
         Ok(stream)
+    }
+}
+
+pub struct Esp32AsyncListener {
+    inner: Arc<TcpListener>,
+    tls: Option<Box<Esp32Tls>>,
+}
+
+impl Future for Esp32AsyncListener {
+    type Output = std::io::Result<Esp32TlsConnector>;
+    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let stream = self.inner.accept();
+        match stream {
+            Ok(s) => {
+                let s = Esp32TlsConnector {
+                    tls: self.tls.clone(),
+                    inner: s.0,
+                };
+                Poll::Ready(Ok(s))
+            }
+            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                cx.waker().wake_by_ref();
+                Poll::Pending
+            }
+            Err(e) => Poll::Ready(Err(e)),
+        }
+    }
+}
+
+pub struct Esp32TlsConnector {
+    tls: Option<Box<Esp32Tls>>,
+    inner: TcpStream,
+}
+
+impl Debug for Esp32TlsConnector {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Esp32TlsConnector")
+            .field("inner", &self.inner)
+            .field("tls", &self.tls.is_some())
+            .finish()
+    }
+}
+
+impl Http2Connector for Esp32TlsConnector {
+    type Stream = Esp32Stream;
+    fn accept(&mut self) -> std::io::Result<Self::Stream> {
+        match &mut self.tls {
+            Some(tls) => tls
+                .open_ssl_context(Some(self.inner.try_clone().unwrap()))
+                .map(|s| Esp32Stream::TLSStream(Box::new(s)))
+                .map_err(|e| std::io::Error::new(io::ErrorKind::Other, e)),
+            None => Ok(Esp32Stream::LocalPlain(self.inner.try_clone().unwrap())),
+        }
+    }
+}
+
+impl AsyncableTcpListener<Esp32Stream> for Esp32Listener {
+    type Output = Esp32TlsConnector;
+    fn as_async_listerner(&self) -> crate::common::conn::server::OwnedListener<Self::Output> {
+        let listener = Esp32AsyncListener {
+            inner: self.listener.clone(),
+            tls: self.tls.clone(),
+        };
+        OwnedListener {
+            inner: Box::pin(listener),
+        }
     }
 }
 

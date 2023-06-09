@@ -224,7 +224,9 @@ impl ICEAgent {
             let req = self.next_stun_request();
             if let Some(req) = req {
                 if let Ok(msg) = self.make_stun_request(req.0) {
-                    self.transport.send_to(msg.into(), req.1).await.unwrap();
+                    if self.transport.send_to(msg.into(), req.1).await.is_err() {
+                        break;
+                    }
                 }
             }
             let mut buf = BytesMut::with_capacity(256);
@@ -249,7 +251,9 @@ impl ICEAgent {
                     MessageClass::Request => {
                         log::debug!("processing a stun request");
                         if let Ok(msg) = self.process_stun_request(&decoded, &addr) {
-                            self.transport.send_to(msg.into(), addr).await.unwrap();
+                            if self.transport.send_to(msg.into(), addr).await.is_err() {
+                                break;
+                            }
                         }
                     }
                     MessageClass::SuccessResponse => {

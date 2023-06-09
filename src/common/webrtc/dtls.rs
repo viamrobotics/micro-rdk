@@ -10,3 +10,8 @@ pub trait DtlsConnector {
     fn accept(self) -> Self::Future;
     fn set_transport(&mut self, transport: IoPktChannel);
 }
+
+pub trait DtlsBuilder {
+    type Output: DtlsConnector;
+    fn make(&self) -> anyhow::Result<Self::Output>;
+}

@@ -9,7 +9,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::common::webrtc::{certificate::Certificate, dtls::DtlsConnector, io::IoPktChannel};
+use crate::common::webrtc::{
+    certificate::Certificate,
+    dtls::{DtlsBuilder, DtlsConnector},
+    io::IoPktChannel,
+};
 
 use core::ffi::CStr;
 use esp_idf_sys::{
@@ -357,6 +361,23 @@ impl From<i32> for SSLError {
         } else {
             SSLError::SSLOtherError(value)
         }
+    }
+}
+
+pub struct Esp32DtlsBuilder<C: Certificate> {
+    cert: Rc<C>,
+}
+
+impl<C: Certificate> Esp32DtlsBuilder<C> {
+    pub fn new(cert: Rc<C>) -> Self {
+        Self { cert }
+    }
+}
+
+impl<C: Certificate> DtlsBuilder for Esp32DtlsBuilder<C> {
+    type Output = Esp32Dtls<C>;
+    fn make(&self) -> anyhow::Result<Self::Output> {
+        Esp32Dtls::new(self.cert.clone()).map_err(|e| anyhow::anyhow!("Ssl error {:?}", e))
     }
 }
 

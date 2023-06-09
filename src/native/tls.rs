@@ -10,6 +10,7 @@ use rustls::{
 };
 
 /// structure to store tls configuration
+#[derive(Clone)]
 pub struct NativeTls {
     server_config: Option<NativeTlsServerConfig>,
 }
@@ -25,7 +26,7 @@ pub struct NativeTlsStream {
     stream: Box<NativeTlsStreamRole>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct NativeTlsServerConfig {
     srv_cert: Vec<u8>,
     srv_key: Vec<u8>,
@@ -56,7 +57,21 @@ impl NativeTls {
     }
 }
 
+impl TlsClientConnector for NativeTls {
+    type Stream = NativeStream;
+    fn connect(&mut self) -> Result<Self::Stream, crate::common::conn::server::ServerError> {
+        Ok(NativeStream::TLSStream(Box::new(
+            self.open_ssl_context(None)
+                .map_err(|e| ServerError::Other(e.into()))?,
+        )))
+    }
+}
+
 use rustls::KeyLog;
+
+use crate::common::conn::server::{ServerError, TlsClientConnector};
+
+use super::tcp::NativeStream;
 
 struct Key {}
 impl KeyLog for Key {
@@ -166,6 +181,6 @@ impl Write for NativeTlsStream {
 
 impl Drop for NativeTlsStream {
     fn drop(&mut self) {
-        log::debug!("dropping the tls stream");
+        log::info!("dropping the tls stream");
     }
 }
