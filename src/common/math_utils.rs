@@ -3,10 +3,6 @@ use crate::proto::common;
 use anyhow::bail;
 use std::time::Duration;
 
-pub enum MathUtilError {
-    No,
-}
-
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Vector3 {
     pub x: f64,
@@ -81,8 +77,6 @@ mod tests {
         let rev_nan = go_for_math(max_rpm, rpm, f64::NAN);
         assert!(rev_nan.is_err());
     }
-
-    // TODO: put real inputs and expected outcomes
 
     #[test_log::test]
     fn test_go_for_math_none_duration() -> anyhow::Result<()> {

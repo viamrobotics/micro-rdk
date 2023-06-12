@@ -173,12 +173,9 @@ impl Motor for FakeMotor {
     }
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
         // get_max_rpm
-        let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions).unwrap();
+        let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions)?;
         self.set_power(pwr)?;
-        if dur.is_some() {
-            return Ok(dur);
-        }
-        Ok(None)
+        Ok(dur)
     }
 }
 impl Status for FakeMotor {

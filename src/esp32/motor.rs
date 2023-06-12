@@ -157,13 +157,8 @@ where
     B: OutputPin + PinExt,
     PWM: PwmPin<Duty = u32>,
 {
-    pub fn new(a: A, b: B, pwm: PWM) -> Self {
-        ABMotorEsp32 {
-            a,
-            b,
-            pwm,
-            max_rpm: 200.0,
-        }
+    pub fn new(a: A, b: B, pwm: PWM, max_rpm: f64) -> Self {
+        ABMotorEsp32 { a, b, pwm, max_rpm }
     }
 
     pub(crate) fn from_config(cfg: ConfigType, _: Option<BoardType>) -> anyhow::Result<MotorType> {
@@ -184,10 +179,12 @@ where
                             PwmChannel::C1(c) => LedcDriver::new(c, timer, pwm_pin)?,
                             PwmChannel::C2(c) => LedcDriver::new(c, timer, pwm_pin)?,
                         };
+                        let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm")?;
                         return Ok(Arc::new(Mutex::new(ABMotorEsp32::new(
                             PinDriver::output(unsafe { AnyOutputPin::new(pins.a.unwrap()) })?,
                             PinDriver::output(unsafe { AnyOutputPin::new(pins.b.unwrap()) })?,
                             chan,
+                            max_rpm,
                         ))));
                     }
                 }
@@ -225,7 +222,7 @@ where
         }
         self.pwm
             .set_duty(((max_duty as f64) * pct.abs()).floor() as u32);
-        info!("set to {:?} pct", pct);
+        debug!("set to {:?} pct", pct);
         Ok(())
     }
     fn get_position(&mut self) -> anyhow::Result<i32> {
@@ -284,12 +281,12 @@ where
     DIR: OutputPin + PinExt,
     PWM: PwmPin<Duty = u32>,
 {
-    pub fn new(dir: DIR, pwm: PWM, dir_flip: bool) -> Self {
+    pub fn new(dir: DIR, pwm: PWM, dir_flip: bool, max_rpm: f64) -> Self {
         Self {
             dir,
             pwm,
             dir_flip,
-            max_rpm: f64::default(),
+            max_rpm,
         }
     }
 }
@@ -316,7 +313,7 @@ where
         }
         self.pwm
             .set_duty(((max_duty as f64) * pct.abs()).floor() as u32);
-        info!("set to {:?} pct", pct);
+        debug!("set to {:?} pct", pct);
         Ok(())
     }
     fn get_position(&mut self) -> anyhow::Result<i32> {
