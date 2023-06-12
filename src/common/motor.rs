@@ -110,7 +110,7 @@ impl FakeMotor {
         Self {
             pos: 10.0,
             power: 0.0,
-            max_rpm: 0.0,
+            max_rpm: 100.0,
         }
     }
     pub(crate) fn from_config(cfg: ConfigType, _: Option<BoardType>) -> anyhow::Result<MotorType> {
