@@ -74,16 +74,19 @@ fn main() -> anyhow::Result<()> {
         let tconf = TimerConfig::default().frequency(10.kHz().into());
         let timer = Arc::new(ledc::LedcTimerDriver::new(periph.ledc.timer0, &tconf).unwrap());
         let chan = ledc::LedcDriver::new(periph.ledc.channel0, timer.clone(), periph.pins.gpio14)?;
+        let max_rpm = 100.0;
         let m1 = ABMotorEsp32::new(
             PinDriver::output(periph.pins.gpio33)?,
             PinDriver::output(periph.pins.gpio32)?,
             chan,
+            max_rpm,
         );
         let chan2 = ledc::LedcDriver::new(periph.ledc.channel2, timer.clone(), periph.pins.gpio2)?;
         let m2 = ABMotorEsp32::new(
             PinDriver::output(periph.pins.gpio13)?,
             PinDriver::output(periph.pins.gpio12)?,
             chan2,
+            max_rpm,
         );
 
         let pins = vec![PinDriver::input_output(periph.pins.gpio15.downgrade())?];
