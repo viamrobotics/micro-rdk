@@ -300,7 +300,7 @@ where
         Err(GrpcError::RpcUnimplemented)
     }
 
-    fn motor_go_for(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn motor_go_for(&mut self, _message: &[u8]) -> Result<(), GrpcError> {
         // TODO: internal go_for can't wait without blocking executor, must be waited from here.
         // requires refactoring this function (and its callers) to be async
         /*
