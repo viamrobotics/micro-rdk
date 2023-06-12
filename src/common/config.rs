@@ -1,24 +1,25 @@
 #![allow(dead_code)]
-
-#[derive(Debug, Eq, PartialEq)]
-pub enum AttributeError {
-    ParseNumError,
-    ConversionImpossibleError,
-    KeyNotFound,
-}
-
-use std::{
-    collections::BTreeMap,
-    num::{ParseFloatError, ParseIntError},
-};
-
 use crate::proto::common::v1::ResourceName;
+use std::collections::BTreeMap;
+use std::num::{ParseFloatError, ParseIntError};
+use thiserror::Error;
+
+#[derive(Error, Debug, Eq, PartialEq)]
+pub enum AttributeError {
+    #[error("failed to parse number")]
+    ParseNumError,
+    #[error("value not possible")]
+    ConversionImpossibleError,
+    #[error("attribute `{0}` was not found")]
+    KeyNotFound(String),
+}
 
 impl From<ParseIntError> for AttributeError {
     fn from(_: ParseIntError) -> AttributeError {
         AttributeError::ParseNumError
     }
 }
+
 impl From<ParseFloatError> for AttributeError {
     fn from(_: ParseFloatError) -> AttributeError {
         AttributeError::ParseNumError
@@ -251,12 +252,12 @@ impl Component for StaticComponentConfig {
         T: std::convert::TryFrom<Kind, Error = AttributeError>
             + std::convert::TryFrom<&'a Kind, Error = AttributeError>,
     {
-        if let Some(v) = self.attributes.as_ref() {
-            if let Some(v) = v.get(key) {
-                return v.try_into();
-            }
-        }
-        Err(AttributeError::KeyNotFound)
+        self.attributes
+            .as_ref()
+            .ok_or_else(|| AttributeError::KeyNotFound(key.to_owned()))? // no attribute map
+            .get(key)
+            .ok_or_else(|| AttributeError::KeyNotFound(key.to_owned()))? // no key in attribute map
+            .try_into()
     }
 }
 
@@ -330,7 +331,10 @@ mod tests {
         let val = PMR.components.unwrap()[1].get_attribute::<u32>("nope");
 
         assert_eq!(val.as_ref().ok(), None);
-        assert_eq!(val.err().unwrap(), AttributeError::KeyNotFound);
+        assert_eq!(
+            val.err().unwrap(),
+            AttributeError::KeyNotFound("nope".to_string())
+        );
 
         let val = PMR.components.unwrap()[0].get_attribute::<u32>("pins");
 

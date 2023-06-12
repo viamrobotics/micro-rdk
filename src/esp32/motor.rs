@@ -47,13 +47,15 @@ use super::pin::PinExt;
 use crate::common::board::BoardType;
 use crate::common::config::{Component, ConfigType};
 use crate::common::encoder::{Encoder, EncoderPositionType};
-use crate::common::motor::{Motor, MotorConfig, MotorType};
+use crate::common::math_utils::go_for_math;
+use crate::common::motor::{Motor, MotorPinsConfig, MotorType};
 use crate::common::registry::ComponentRegistry;
 use crate::common::status::Status;
 use crate::common::stop::Stoppable;
 use log::*;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::PwmPin;
@@ -105,6 +107,9 @@ where
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
         self.motor.set_power(pct)
     }
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
+        self.motor.go_for(rpm, revolutions)
+    }
 }
 
 impl<M, Enc> Stoppable for EncodedMotor<M, Enc>
@@ -143,6 +148,7 @@ pub struct ABMotorEsp32<A, B, PWM> {
     a: A,
     b: B,
     pwm: PWM,
+    max_rpm: f64,
 }
 
 impl<A, B, PWM> ABMotorEsp32<A, B, PWM>
@@ -151,14 +157,14 @@ where
     B: OutputPin + PinExt,
     PWM: PwmPin<Duty = u32>,
 {
-    pub fn new(a: A, b: B, pwm: PWM) -> Self {
-        ABMotorEsp32 { a, b, pwm }
+    pub fn new(a: A, b: B, pwm: PWM, max_rpm: f64) -> Self {
+        ABMotorEsp32 { a, b, pwm, max_rpm }
     }
 
     pub(crate) fn from_config(cfg: ConfigType, _: Option<BoardType>) -> anyhow::Result<MotorType> {
         match cfg {
             ConfigType::Static(cfg) => {
-                if let Ok(pins) = cfg.get_attribute::<MotorConfig>("pins") {
+                if let Ok(pins) = cfg.get_attribute::<MotorPinsConfig>("pins") {
                     if pins.a.is_some() && pins.b.is_some() {
                         use esp_idf_hal::units::FromValueType;
                         let pwm_tconf = TimerConfig::default().frequency(10.kHz().into());
@@ -173,10 +179,12 @@ where
                             PwmChannel::C1(c) => LedcDriver::new(c, timer, pwm_pin)?,
                             PwmChannel::C2(c) => LedcDriver::new(c, timer, pwm_pin)?,
                         };
+                        let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm")?;
                         return Ok(Arc::new(Mutex::new(ABMotorEsp32::new(
                             PinDriver::output(unsafe { AnyOutputPin::new(pins.a.unwrap()) })?,
                             PinDriver::output(unsafe { AnyOutputPin::new(pins.b.unwrap()) })?,
                             chan,
+                            max_rpm,
                         ))));
                     }
                 }
@@ -220,6 +228,14 @@ where
     fn get_position(&mut self) -> anyhow::Result<i32> {
         Ok(0)
     }
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
+        let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions)?;
+        self.set_power(pwr)?;
+        if dur.is_some() {
+            return Ok(dur);
+        }
+        Ok(None)
+    }
 }
 
 impl<A, B, PWM> Status for ABMotorEsp32<A, B, PWM>
@@ -257,6 +273,7 @@ pub struct PwmDirMotorEsp32<DIR, PWM> {
     dir: DIR,
     pwm: PWM,
     dir_flip: bool,
+    max_rpm: f64,
 }
 
 impl<DIR, PWM> PwmDirMotorEsp32<DIR, PWM>
@@ -264,8 +281,13 @@ where
     DIR: OutputPin + PinExt,
     PWM: PwmPin<Duty = u32>,
 {
-    pub fn new(dir: DIR, pwm: PWM, dir_flip: bool) -> Self {
-        Self { dir, pwm, dir_flip }
+    pub fn new(dir: DIR, pwm: PWM, dir_flip: bool, max_rpm: f64) -> Self {
+        Self {
+            dir,
+            pwm,
+            dir_flip,
+            max_rpm,
+        }
     }
 }
 
@@ -291,10 +313,19 @@ where
         }
         self.pwm
             .set_duty(((max_duty as f64) * pct.abs()).floor() as u32);
+        debug!("set to {:?} pct", pct);
         Ok(())
     }
     fn get_position(&mut self) -> anyhow::Result<i32> {
         Ok(0)
+    }
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
+        let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions)?;
+        self.set_power(pwr)?;
+        if dur.is_some() {
+            return Ok(dur);
+        }
+        Ok(None)
     }
 }
 

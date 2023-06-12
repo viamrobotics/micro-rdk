@@ -301,6 +301,25 @@ where
     }
 
     fn motor_go_for(&mut self, _message: &[u8]) -> Result<(), GrpcError> {
+        // TODO: internal go_for can't wait without blocking executor, must be waited from here.
+        // requires refactoring this function (and its callers) to be async
+        /*
+        let req = component::motor::v1::GoForRequest::decode(message)
+            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+        let motor = match self.robot.lock().unwrap().get_motor_by_name(req.name) {
+            Some(m) => m,
+            None => return Err(GrpcError::RpcUnavailable),
+        };
+        let mut motor = motor.lock().unwrap();
+
+        if let Some(dur) =  motor.go_for(req.rpm, req.revolutions).map_err(|_| GrpcError::RpcInternal)? {
+            // async wait for duration
+        }
+        motor.lock().unwrap();
+
+        let resp = component::motor::v1::GoForResponse {};
+        self.encode_message(resp)
+        */
         Err(GrpcError::RpcUnimplemented)
     }
 

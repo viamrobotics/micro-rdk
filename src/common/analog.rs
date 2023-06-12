@@ -47,10 +47,10 @@ impl TryFrom<Kind> for AnalogReaderConfig {
         match value {
             Kind::StructValueStatic(v) => {
                 if !v.contains_key("name") {
-                    return Err(AttributeError::KeyNotFound);
+                    return Err(AttributeError::KeyNotFound("name".to_string()));
                 }
                 if !v.contains_key("pin") {
-                    return Err(AttributeError::KeyNotFound);
+                    return Err(AttributeError::KeyNotFound("pin".to_string()));
                 }
                 let name = v.get("name").unwrap().try_into()?;
                 let pin: i32 = v.get("pin").unwrap().try_into()?;
@@ -67,10 +67,10 @@ impl TryFrom<&Kind> for AnalogReaderConfig {
         match value {
             Kind::StructValueStatic(v) => {
                 if !v.contains_key("name") {
-                    return Err(AttributeError::KeyNotFound);
+                    return Err(AttributeError::KeyNotFound("name".to_string()));
                 }
                 if !v.contains_key("pin") {
-                    return Err(AttributeError::KeyNotFound);
+                    return Err(AttributeError::KeyNotFound("pin".to_string()));
                 }
                 let name = v.get("name").unwrap().try_into()?;
                 let pin: i32 = v.get("pin").unwrap().try_into()?;

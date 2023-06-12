@@ -74,12 +74,14 @@ fn main() -> anyhow::Result<()> {
         use micro_rdk::esp32::motor::ABMotorEsp32;
         let tconf = TimerConfig::default().frequency(10.kHz().into());
         let timer = Arc::new(ledc::LedcTimerDriver::new(periph.ledc.timer0, &tconf).unwrap());
+        let max_rpm = 100.0;
         let chan =
             ledc::LedcDriver::new(periph.ledc.channel0, timer.clone(), periph.pins.gpio14).unwrap();
         let m1 = ABMotorEsp32::new(
             PinDriver::output(periph.pins.gpio33).unwrap(),
             PinDriver::output(periph.pins.gpio32).unwrap(),
             chan,
+            max_rpm,
         );
         let motor = Arc::new(Mutex::new(m1));
         let pins = vec![PinDriver::output(periph.pins.gpio15.downgrade_output()).unwrap()];

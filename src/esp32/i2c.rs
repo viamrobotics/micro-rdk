@@ -36,11 +36,11 @@ impl TryFrom<Kind> for Esp32I2cConfig {
         match value {
             Kind::StructValueStatic(v) => {
                 if !v.contains_key("name") {
-                    return Err(AttributeError::KeyNotFound);
+                    return Err(AttributeError::KeyNotFound("name".to_string()));
                 }
                 let name = v.get("name").unwrap().try_into()?;
                 if !v.contains_key("bus") {
-                    return Err(AttributeError::KeyNotFound);
+                    return Err(AttributeError::KeyNotFound("bus".to_string()));
                 }
                 let bus = v.get("bus").unwrap().try_into()?;
                 let mut data_pin = 11;
@@ -79,11 +79,11 @@ impl TryFrom<&Kind> for Esp32I2cConfig {
         match value {
             Kind::StructValueStatic(v) => {
                 if !v.contains_key("name") {
-                    return Err(AttributeError::KeyNotFound);
+                    return Err(AttributeError::KeyNotFound("name".to_string()));
                 }
                 let name = v.get("name").unwrap().try_into()?;
                 if !v.contains_key("bus") {
-                    return Err(AttributeError::KeyNotFound);
+                    return Err(AttributeError::KeyNotFound("bus".to_string()));
                 }
                 let bus = v.get("bus").unwrap().try_into()?;
                 let mut data_pin = 11;

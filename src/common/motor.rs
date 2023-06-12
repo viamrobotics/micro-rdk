@@ -3,9 +3,11 @@ use crate::common::status::Status;
 use log::*;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use super::board::BoardType;
 use super::config::{AttributeError, Component, ConfigType, Kind};
+use super::math_utils::go_for_math;
 use super::registry::ComponentRegistry;
 use super::stop::Stoppable;
 
@@ -19,14 +21,25 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 }
 
 pub trait Motor: Status + Stoppable {
+    /// Sets the percentage of the motor's total power that should be employed.
+    /// expressed a value between `-1.0` and `1.0` where negative values indicate a backwards
+    /// direction and positive values a forward direction.
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()>;
+    /// Reports the position of the robot's motor relative to its zero position.
+    /// This method will return an error if position reporting is not supported.
     fn get_position(&mut self) -> anyhow::Result<i32>;
+    /// Instructs the motor to turn at a specified speed, which is expressed in RPM,
+    /// for a specified number of rotations relative to its starting position.
+    /// This method will return an error if position reporting is not supported.
+    /// If revolutions is 0, this will run the motor at rpm indefinitely.
+    /// If revolutions != 0, this will block until the number of revolutions has been completed or another operation comes in.
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>>;
 }
 
 pub(crate) type MotorType = Arc<Mutex<dyn Motor>>;
 
 #[derive(Debug, Default)]
-pub(crate) struct MotorConfig {
+pub(crate) struct MotorPinsConfig {
     pub(crate) a: Option<i32>,
     pub(crate) b: Option<i32>,
     pub(crate) pwm: i32,
@@ -35,23 +48,28 @@ pub(crate) struct MotorConfig {
 pub struct FakeMotor {
     pos: f64,
     power: f64,
+    max_rpm: f64,
 }
 
-impl TryFrom<Kind> for MotorConfig {
+impl TryFrom<Kind> for MotorPinsConfig {
     type Error = AttributeError;
     fn try_from(value: Kind) -> Result<Self, Self::Error> {
-        let mut motor = MotorConfig::default();
+        let mut motor = MotorPinsConfig::default();
         match value {
             Kind::StructValueStatic(v) => {
-                if !v.contains_key("pwm") {
-                    return Err(AttributeError::KeyNotFound);
+                motor.pwm = v
+                    .get("pwm")
+                    .ok_or_else(|| AttributeError::KeyNotFound("pwm".to_string()))?
+                    .try_into()?;
+                if let Some(a) = v.get("a") {
+                    motor.a = Some(a.try_into()?);
+                } else {
+                    motor.a = None;
                 }
-                motor.pwm = v.get("pwm").unwrap().try_into()?;
-                if v.contains_key("a") {
-                    motor.a = Some(v.get("a").unwrap().try_into()?);
-                }
-                if v.contains_key("b") {
-                    motor.b = Some(v.get("b").unwrap().try_into()?);
+                if let Some(b) = v.get("b") {
+                    motor.b = Some(b.try_into()?);
+                } else {
+                    motor.b = None;
                 }
             }
             _ => return Err(AttributeError::ConversionImpossibleError),
@@ -60,22 +78,26 @@ impl TryFrom<Kind> for MotorConfig {
     }
 }
 
-impl TryFrom<&Kind> for MotorConfig {
+impl TryFrom<&Kind> for MotorPinsConfig {
     type Error = AttributeError;
     fn try_from(value: &Kind) -> Result<Self, Self::Error> {
-        let mut motor = MotorConfig::default();
+        let mut motor = MotorPinsConfig::default();
         match value {
             Kind::StructValueStatic(v) => {
-                if !v.contains_key("pwm") {
-                    return Err(AttributeError::KeyNotFound);
-                }
-                motor.pwm = v.get("pwm").unwrap().try_into()?;
-                if v.contains_key("a") {
-                    motor.a = Some(v.get("a").unwrap().try_into()?);
-                }
-                if v.contains_key("b") {
-                    motor.b = Some(v.get("b").unwrap().try_into()?);
-                }
+                motor.pwm = v
+                    .get("pwm")
+                    .ok_or_else(|| AttributeError::KeyNotFound("pwm".to_string()))?
+                    .try_into()?;
+                motor.a = Some(
+                    v.get("a")
+                        .ok_or_else(|| AttributeError::KeyNotFound("a".to_string()))?
+                        .try_into()?,
+                );
+                motor.b = Some(
+                    v.get("b")
+                        .ok_or_else(|| AttributeError::KeyNotFound("b".to_string()))?
+                        .try_into()?,
+                );
             }
             _ => return Err(AttributeError::ConversionImpossibleError),
         }
@@ -88,18 +110,20 @@ impl FakeMotor {
         Self {
             pos: 10.0,
             power: 0.0,
+            max_rpm: 100.0,
         }
     }
     pub(crate) fn from_config(cfg: ConfigType, _: Option<BoardType>) -> anyhow::Result<MotorType> {
+        let mut motor = FakeMotor::default();
         match cfg {
             ConfigType::Static(cfg) => {
-                if let Ok(pos) = cfg.get_attribute::<f64>("fake_position") {
-                    return Ok(Arc::new(Mutex::new(FakeMotor { pos, power: 0.0 })));
-                }
-            }
-        };
+                motor.pos = cfg.get_attribute::<f64>("fake_position")?;
 
-        Ok(Arc::new(Mutex::new(FakeMotor::new())))
+                motor.max_rpm = cfg.get_attribute::<f64>("max_rpm")?;
+            }
+        }
+
+        Ok(Arc::new(Mutex::new(motor)))
     }
 }
 impl Default for FakeMotor {
@@ -118,6 +142,9 @@ where
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
         self.get_mut().unwrap().set_power(pct)
     }
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
+        self.get_mut().unwrap().go_for(rpm, revolutions)
+    }
 }
 
 impl<A> Motor for Arc<Mutex<A>>
@@ -130,6 +157,9 @@ where
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
         self.lock().unwrap().set_power(pct)
     }
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
+        self.lock().unwrap().go_for(rpm, revolutions)
+    }
 }
 
 impl Motor for FakeMotor {
@@ -140,6 +170,12 @@ impl Motor for FakeMotor {
         debug!("setting power to {}", pct);
         self.power = pct;
         Ok(())
+    }
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
+        // get_max_rpm
+        let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions)?;
+        self.set_power(pwr)?;
+        Ok(dur)
     }
 }
 impl Status for FakeMotor {
@@ -173,7 +209,7 @@ impl Stoppable for FakeMotor {
 #[cfg(test)]
 mod tests {
     use crate::common::config::{Component, Kind, RobotConfigStatic, StaticComponentConfig};
-    use crate::common::motor::MotorConfig;
+    use crate::common::motor::{ConfigType, FakeMotor, MotorPinsConfig};
     #[test_log::test]
     fn test_motor_config() -> anyhow::Result<()> {
         #[allow(clippy::redundant_static_lifetimes, dead_code)]
@@ -183,13 +219,22 @@ mod tests {
                 namespace: "rdk",
                 r#type: "motor",
                 model: "gpio",
-                attributes: Some(
-                    phf::phf_map! {"max_rpm" => Kind::NumberValue(10000f64),"board" => Kind::StringValueStatic("board"),"pins" => Kind::StructValueStatic(phf::phf_map!{"a" => Kind::StringValueStatic("11"),"pwm" => Kind::StringValueStatic("13"),"b" => Kind::StringValueStatic("12")})},
-                ),
+                attributes: Some(phf::phf_map! {
+                    "max_rpm" => Kind::NumberValue(10000f64),
+                    "fake_position" => Kind::NumberValue(10f64),
+                    "board" => Kind::StringValueStatic("board"),
+                    "pins" => Kind::StructValueStatic(
+                        phf::phf_map!{
+                            "a" => Kind::StringValueStatic("11"),
+                            "b" => Kind::StringValueStatic("12"),
+                            "pwm" => Kind::StringValueStatic("13"),
+                        }
+                    )
+                }),
             }]),
         });
         let val = STATIC_ROBOT_CONFIG.unwrap().components.unwrap()[0]
-            .get_attribute::<MotorConfig>("pins");
+            .get_attribute::<MotorPinsConfig>("pins");
         assert!(&val.is_ok());
 
         let val = val.unwrap();
@@ -199,6 +244,10 @@ mod tests {
         assert!(val.b.is_some());
         assert_eq!(val.b.unwrap(), 12);
         assert_eq!(val.pwm, 13);
+
+        let static_conf = ConfigType::Static(&STATIC_ROBOT_CONFIG.unwrap().components.unwrap()[0]);
+        assert!(FakeMotor::from_config(static_conf, None).is_ok());
+
         Ok(())
     }
 }

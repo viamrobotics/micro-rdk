@@ -7,6 +7,7 @@ use crate::common::motor::{Motor, MotorType};
 use crate::common::status::Status;
 use crate::common::stop::Stoppable;
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 pub struct SingleEncodedMotor {
     encoder: SingleEncoderType,
@@ -59,6 +60,9 @@ impl Motor for SingleEncodedMotor {
         };
         let pos = self.encoder.get_position(pos_type)?;
         Ok(pos.value as i32)
+    }
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
+        self.motor.go_for(rpm, revolutions)
     }
 }
 

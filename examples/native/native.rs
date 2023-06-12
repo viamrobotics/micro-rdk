@@ -32,9 +32,9 @@ fn main() -> anyhow::Result<()> {
         use micro_rdk::common::board::FakeBoard;
         #[cfg(feature = "camera")]
         use micro_rdk::common::camera::FakeCamera;
+        use micro_rdk::common::encoder::FakeEncoder;
         use micro_rdk::common::motor::FakeMotor;
         use micro_rdk::common::movement_sensor::FakeMovementSensor;
-        use micro_rdk::common::encoder::FakeEncoder;
         let motor = Arc::new(Mutex::new(FakeMotor::new()));
         let base = Arc::new(Mutex::new(FakeBase::new()));
         let board = Arc::new(Mutex::new(FakeBoard::new(vec![
