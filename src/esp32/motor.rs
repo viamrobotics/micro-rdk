@@ -52,11 +52,10 @@ use crate::common::motor::{Motor, MotorPinsConfig, MotorType};
 use crate::common::registry::ComponentRegistry;
 use crate::common::status::Status;
 use crate::common::stop::Stoppable;
-use async_io::Timer;
-use futures_lite::future;
 use log::*;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::PwmPin;
