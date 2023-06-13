@@ -7,7 +7,6 @@ use crate::proto::component::encoder::v1::GetPropertiesResponse;
 use crate::proto::component::encoder::v1::PositionType;
 
 use super::board::BoardType;
-use super::config::Component;
 use super::config::ConfigType;
 use super::registry::ComponentRegistry;
 use super::status::Status;
@@ -139,15 +138,11 @@ impl FakeIncrementalEncoder {
         cfg: ConfigType,
         _: Option<BoardType>,
     ) -> anyhow::Result<EncoderType> {
-        match cfg {
-            ConfigType::Static(cfg) => {
-                let mut enc: FakeIncrementalEncoder = Default::default();
-                if let Ok(fake_ticks) = cfg.get_attribute::<f32>("fake_ticks") {
-                    enc.ticks = fake_ticks;
-                }
-                Ok(Arc::new(Mutex::new(enc)))
-            }
+        let mut enc: FakeIncrementalEncoder = Default::default();
+        if let Ok(fake_ticks) = cfg.get_attribute::<f32>("fake_ticks") {
+            enc.ticks = fake_ticks;
         }
+        Ok(Arc::new(Mutex::new(enc)))
     }
 }
 
@@ -205,18 +200,14 @@ impl FakeEncoder {
         cfg: ConfigType,
         _: Option<BoardType>,
     ) -> anyhow::Result<EncoderType> {
-        match cfg {
-            ConfigType::Static(cfg) => {
-                let mut enc: FakeEncoder = Default::default();
-                if let Ok(fake_deg) = cfg.get_attribute::<f32>("fake_deg") {
-                    enc.angle_degrees = fake_deg;
-                }
-                if let Ok(ticks_per_rotation) = cfg.get_attribute::<u32>("ticks_per_rotation") {
-                    enc.ticks_per_rotation = ticks_per_rotation
-                }
-                Ok(Arc::new(Mutex::new(enc)))
-            }
+        let mut enc: FakeEncoder = Default::default();
+        if let Ok(ticks_per_rotation) = cfg.get_attribute::<u32>("ticks_per_rotation") {
+            enc.ticks_per_rotation = ticks_per_rotation;
         }
+        if let Ok(fake_deg) = cfg.get_attribute::<f32>("fake_deg") {
+            enc.angle_degrees = fake_deg;
+        }
+        Ok(Arc::new(Mutex::new(enc)))
     }
 }
 

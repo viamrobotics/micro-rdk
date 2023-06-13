@@ -45,7 +45,7 @@ use esp_idf_hal::ledc::{LedcDriver, LedcTimerDriver, CHANNEL0, CHANNEL1, CHANNEL
 
 use super::pin::PinExt;
 use crate::common::board::BoardType;
-use crate::common::config::{Component, ConfigType};
+use crate::common::config::ConfigType;
 use crate::common::encoder::{Encoder, EncoderPositionType};
 use crate::common::math_utils::go_for_math;
 use crate::common::motor::{Motor, MotorPinsConfig, MotorType};
@@ -162,32 +162,26 @@ where
     }
 
     pub(crate) fn from_config(cfg: ConfigType, _: Option<BoardType>) -> anyhow::Result<MotorType> {
-        match cfg {
-            ConfigType::Static(cfg) => {
-                if let Ok(pins) = cfg.get_attribute::<MotorPinsConfig>("pins") {
-                    if pins.a.is_some() && pins.b.is_some() {
-                        use esp_idf_hal::units::FromValueType;
-                        let pwm_tconf = TimerConfig::default().frequency(10.kHz().into());
-                        let timer = LedcTimerDriver::new(
-                            unsafe { esp_idf_hal::ledc::TIMER0::new() },
-                            &pwm_tconf,
-                        )?;
-                        let pwm_pin = unsafe { AnyOutputPin::new(pins.pwm) };
-                        let chan = PWMCHANNELS.lock().unwrap().take_next_channel()?;
-                        let chan = match chan {
-                            PwmChannel::C0(c) => LedcDriver::new(c, timer, pwm_pin)?,
-                            PwmChannel::C1(c) => LedcDriver::new(c, timer, pwm_pin)?,
-                            PwmChannel::C2(c) => LedcDriver::new(c, timer, pwm_pin)?,
-                        };
-                        let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm")?;
-                        return Ok(Arc::new(Mutex::new(ABMotorEsp32::new(
-                            PinDriver::output(unsafe { AnyOutputPin::new(pins.a.unwrap()) })?,
-                            PinDriver::output(unsafe { AnyOutputPin::new(pins.b.unwrap()) })?,
-                            chan,
-                            max_rpm,
-                        ))));
-                    }
-                }
+        if let Ok(pins) = cfg.get_attribute::<MotorPinsConfig>("pins") {
+            if pins.a.is_some() && pins.b.is_some() {
+                use esp_idf_hal::units::FromValueType;
+                let pwm_tconf = TimerConfig::default().frequency(10.kHz().into());
+                let timer =
+                    LedcTimerDriver::new(unsafe { esp_idf_hal::ledc::TIMER0::new() }, &pwm_tconf)?;
+                let pwm_pin = unsafe { AnyOutputPin::new(pins.pwm) };
+                let chan = PWMCHANNELS.lock().unwrap().take_next_channel()?;
+                let chan = match chan {
+                    PwmChannel::C0(c) => LedcDriver::new(c, timer, pwm_pin)?,
+                    PwmChannel::C1(c) => LedcDriver::new(c, timer, pwm_pin)?,
+                    PwmChannel::C2(c) => LedcDriver::new(c, timer, pwm_pin)?,
+                };
+                let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm")?;
+                return Ok(Arc::new(Mutex::new(ABMotorEsp32::new(
+                    PinDriver::output(unsafe { AnyOutputPin::new(pins.a.unwrap()) })?,
+                    PinDriver::output(unsafe { AnyOutputPin::new(pins.b.unwrap()) })?,
+                    chan,
+                    max_rpm,
+                ))));
             }
         }
         Err(anyhow::anyhow!("cannot build motor"))

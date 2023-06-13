@@ -18,7 +18,7 @@ ifeq "$(ESPFLASHVERSION)" "1"
 endif
 
 build:
-	cd examples && cargo build  --example esp32 --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort
+	cd examples && cargo build  --example esp32_webrtc_with_config --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort
 
 build-native:
 	cd examples && cargo build  --example native
@@ -44,7 +44,7 @@ endif
 	cd examples && $(QEMU_ESP32_XTENSA)/qemu-system-xtensa -nographic -machine esp32 -gdb tcp::3334 -nic user,model=open_eth,hostfwd=udp::-:61205 -drive file=target/xtensa-esp32-espidf/debug/debug.bin,if=mtd,format=raw -S
 
 upload: cargo-ver
-	cd examples && cargo espflash flash --monitor --partition-table esp32/partitions.csv --baud 460800 -f 80M --use-stub --example esp32_webrtc --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
+	cd examples && cargo espflash flash --monitor --partition-table esp32/partitions.csv --baud 460800 -f 80M --use-stub --example esp32_webrtc_with_config --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
 
 test:
 	cargo test --lib --features native

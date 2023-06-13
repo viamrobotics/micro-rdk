@@ -47,7 +47,7 @@ pub struct Esp32SingleEncoder {
 impl Esp32SingleEncoder {
     pub fn new(encoder_pin: impl InputPin + PinExt, dir_flip: bool) -> anyhow::Result<Self> {
         let unit = get_unit()?;
-        println!("unit received: {:?}", unit);
+        log::debug!("pulse counter unit received in single encoder: {:?}", unit);
         let pcnt = Box::new(PulseStorage {
             acc: Arc::new(AtomicI32::new(0)),
             unit,

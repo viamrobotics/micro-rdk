@@ -30,14 +30,14 @@ pub trait I2CHandle {
 pub type I2cHandleType = Arc<Mutex<dyn I2CHandle + Send>>;
 
 #[derive(Debug)]
-pub(crate) struct FakeI2cConfig {
-    pub(crate) name: &'static str,
+pub(crate) struct FakeI2cConfig<'a> {
+    pub(crate) name: &'a str,
     pub(crate) value_1: u8,
     pub(crate) value_2: u8,
     pub(crate) value_3: u8,
 }
 
-impl TryFrom<Kind> for FakeI2cConfig {
+impl<'a> TryFrom<Kind> for FakeI2cConfig<'a> {
     type Error = AttributeError;
     fn try_from(value: Kind) -> Result<Self, Self::Error> {
         match value {
@@ -70,7 +70,7 @@ impl TryFrom<Kind> for FakeI2cConfig {
     }
 }
 
-impl TryFrom<&Kind> for FakeI2cConfig {
+impl<'a> TryFrom<&Kind> for FakeI2cConfig<'a> {
     type Error = AttributeError;
     fn try_from(value: &Kind) -> Result<Self, Self::Error> {
         match value {

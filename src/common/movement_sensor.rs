@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 use super::board::BoardType;
-use super::config::Component;
 use super::config::ConfigType;
 use super::math_utils::Vector3;
 use super::registry::ComponentRegistry;
@@ -108,36 +107,32 @@ impl FakeMovementSensor {
         cfg: ConfigType,
         _: Option<BoardType>,
     ) -> anyhow::Result<MovementSensorType> {
-        match cfg {
-            ConfigType::Static(cfg) => {
-                let mut fake_pos: GeoPosition = Default::default();
-                if let Ok(fake_lat) = cfg.get_attribute::<f64>("fake_lat") {
-                    fake_pos.lat = fake_lat
-                }
-                if let Ok(fake_lon) = cfg.get_attribute::<f64>("fake_lon") {
-                    fake_pos.lon = fake_lon
-                }
-                if let Ok(fake_alt) = cfg.get_attribute::<f32>("fake_alt") {
-                    fake_pos.alt = fake_alt
-                }
-
-                let mut lin_acc: Vector3 = Default::default();
-                if let Ok(x) = cfg.get_attribute::<f64>("lin_acc_x") {
-                    lin_acc.x = x
-                }
-                if let Ok(y) = cfg.get_attribute::<f64>("lin_acc_y") {
-                    lin_acc.y = y
-                }
-                if let Ok(z) = cfg.get_attribute::<f64>("lin_acc_z") {
-                    lin_acc.z = z
-                }
-
-                Ok(Arc::new(Mutex::new(FakeMovementSensor {
-                    pos: fake_pos,
-                    linear_acc: lin_acc,
-                })))
-            }
+        let mut fake_pos: GeoPosition = Default::default();
+        if let Ok(fake_lat) = cfg.get_attribute::<f64>("fake_lat") {
+            fake_pos.lat = fake_lat
         }
+        if let Ok(fake_lon) = cfg.get_attribute::<f64>("fake_lon") {
+            fake_pos.lon = fake_lon
+        }
+        if let Ok(fake_alt) = cfg.get_attribute::<f32>("fake_alt") {
+            fake_pos.alt = fake_alt
+        }
+
+        let mut lin_acc: Vector3 = Default::default();
+        if let Ok(x) = cfg.get_attribute::<f64>("lin_acc_x") {
+            lin_acc.x = x
+        }
+        if let Ok(y) = cfg.get_attribute::<f64>("lin_acc_y") {
+            lin_acc.y = y
+        }
+        if let Ok(z) = cfg.get_attribute::<f64>("lin_acc_z") {
+            lin_acc.z = z
+        }
+
+        Ok(Arc::new(Mutex::new(FakeMovementSensor {
+            pos: fake_pos,
+            linear_acc: lin_acc,
+        })))
     }
 }
 

@@ -81,7 +81,9 @@ name = "esp32_webrtc"
 path = "esp32/esp32_webrtc.rs"
 
 [[example]]
+name = "esp32_webrtc_with_config"
+path = "esp32/esp32_webrtc_with_config.rs"
+
+[[example]]
 name = "esp32_static"
 path = "esp32/esp32_static.rs"
-
-

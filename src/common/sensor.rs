@@ -6,7 +6,6 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use super::board::BoardType;
-use super::config::Component;
 use super::config::ConfigType;
 use super::registry::ComponentRegistry;
 
@@ -58,12 +57,8 @@ impl FakeSensor {
         }
     }
     pub(crate) fn from_config(cfg: ConfigType, _: Option<BoardType>) -> anyhow::Result<SensorType> {
-        match cfg {
-            ConfigType::Static(cfg) => {
-                if let Ok(val) = cfg.get_attribute::<f64>("fake_value") {
-                    return Ok(Arc::new(Mutex::new(FakeSensor { fake_reading: val })));
-                }
-            }
+        if let Ok(val) = cfg.get_attribute::<f64>("fake_value") {
+            return Ok(Arc::new(Mutex::new(FakeSensor { fake_reading: val })));
         }
         Ok(Arc::new(Mutex::new(FakeSensor::new())))
     }

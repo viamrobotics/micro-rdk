@@ -118,7 +118,7 @@ impl<'a> AppClientBuilder<'a> {
             ip: self.config.ip,
         })
     }
-    fn get_jwt_token(&mut self) -> Result<String, AppClientError> {
+    pub fn get_jwt_token(&mut self) -> Result<String, AppClientError> {
         let r = self
             .grpc_client
             .build_request("/proto.rpc.v1.AuthService/Authenticate", None, "")
@@ -145,7 +145,7 @@ impl<'a> AppClientBuilder<'a> {
         Ok(format!("Bearer {}", r.access_token))
     }
 
-    fn read_config(&mut self, jwt: &str) -> Result<Box<ConfigResponse>, AppClientError> {
+    pub fn read_config(&mut self, jwt: &str) -> Result<Box<ConfigResponse>, AppClientError> {
         let r = self
             .grpc_client
             .build_request("/viam.app.v1.RobotService/Config", Some(jwt), "")

@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use crate::proto::common::v1::ResourceName;
+use crate::proto::{app::v1::ComponentConfig, common::v1::ResourceName};
 use std::collections::BTreeMap;
 use std::num::{ParseFloatError, ParseIntError};
 use thiserror::Error;
@@ -134,6 +134,7 @@ where
     fn try_from(value: &Kind) -> Result<Self, Self::Error> {
         match value {
             Kind::ListValueStatic(v) => v.iter().map(|v| v.try_into()).collect(),
+            Kind::VecValue(v) => v.iter().map(|v| v.try_into()).collect(),
             _ => Err(AttributeError::ConversionImpossibleError),
         }
     }
@@ -147,6 +148,7 @@ where
     fn try_from(value: Kind) -> Result<Self, Self::Error> {
         match value {
             Kind::ListValueStatic(v) => v.iter().map(|v| v.try_into()).collect(),
+            Kind::VecValue(v) => v.iter().map(|v| v.try_into()).collect(),
             _ => Err(AttributeError::ConversionImpossibleError),
         }
     }
@@ -172,6 +174,46 @@ impl TryFrom<&Kind> for &str {
     }
 }
 
+impl TryFrom<Kind> for String {
+    type Error = AttributeError;
+    fn try_from(value: Kind) -> Result<Self, Self::Error> {
+        match value {
+            Kind::StringValue(v) => Ok(v),
+            _ => Err(AttributeError::ConversionImpossibleError),
+        }
+    }
+}
+
+impl TryFrom<&Kind> for String {
+    type Error = AttributeError;
+    fn try_from(value: &Kind) -> Result<Self, Self::Error> {
+        match value {
+            Kind::StringValue(v) => Ok(v.to_string()),
+            _ => Err(AttributeError::ConversionImpossibleError),
+        }
+    }
+}
+
+impl TryFrom<Kind> for bool {
+    type Error = AttributeError;
+    fn try_from(value: Kind) -> Result<Self, Self::Error> {
+        match value {
+            Kind::BoolValue(v) => Ok(v),
+            _ => Err(AttributeError::ConversionImpossibleError),
+        }
+    }
+}
+
+impl TryFrom<&Kind> for bool {
+    type Error = AttributeError;
+    fn try_from(value: &Kind) -> Result<Self, Self::Error> {
+        match value {
+            Kind::BoolValue(v) => Ok(*v),
+            _ => Err(AttributeError::ConversionImpossibleError),
+        }
+    }
+}
+
 impl TryFrom<&Kind> for Kind {
     type Error = AttributeError;
     fn try_from(value: &Kind) -> Result<Self, Self::Error> {
@@ -181,6 +223,14 @@ impl TryFrom<&Kind> for Kind {
             Kind::StringValueStatic(v) => Ok(Kind::StringValueStatic(v)),
             Kind::NumberValue(v) => Ok(Kind::NumberValue(*v)),
             Kind::ListValueStatic(v) => Ok(Kind::ListValueStatic(v)),
+            Kind::VecValue(v) => {
+                let mut v_copy = vec![];
+                for k in v.iter() {
+                    v_copy.push(k.try_into()?);
+                }
+                Ok(Kind::VecValue(v_copy))
+            }
+            Kind::StringValue(v) => Ok(Kind::StringValue(v.to_string())),
             _ => Err(AttributeError::ConversionImpossibleError),
         }
     }
@@ -191,9 +241,91 @@ pub enum Kind {
     NullValue(i32),
     NumberValue(f64),
     StringValueStatic(&'static str),
+    StringValue(String),
     BoolValue(bool),
     StructValueStatic(phf::map::Map<&'static str, Kind>),
     ListValueStatic(&'static [Kind]),
+    VecValue(Vec<Kind>),
+    StructValue(BTreeMap<String, Kind>),
+}
+
+impl TryFrom<prost_types::value::Kind> for Kind {
+    type Error = AttributeError;
+    fn try_from(value: prost_types::value::Kind) -> Result<Self, Self::Error> {
+        match value {
+            prost_types::value::Kind::BoolValue(v) => Ok(Kind::BoolValue(v)),
+            prost_types::value::Kind::NullValue(v) => Ok(Kind::NullValue(v)),
+            prost_types::value::Kind::StringValue(v) => Ok(Kind::StringValue(v)),
+            prost_types::value::Kind::NumberValue(v) => Ok(Kind::NumberValue(v)),
+            prost_types::value::Kind::StructValue(v) => {
+                let mut attr_map = BTreeMap::new();
+                let attrs = &v.fields;
+                for (k, val) in attrs.iter() {
+                    let k_copy = k.to_string();
+                    match &val.kind {
+                        Some(unwrapped) => {
+                            attr_map.insert(k_copy, unwrapped.try_into()?);
+                        }
+                        None => continue,
+                    };
+                }
+                Ok(Kind::StructValue(attr_map))
+            }
+            prost_types::value::Kind::ListValue(v) => {
+                let try_mapped: Result<Vec<Kind>, AttributeError> = v
+                    .values
+                    .iter()
+                    .map(|val| match &val.kind {
+                        None => Ok::<Kind, AttributeError>(Kind::NullValue(0)),
+                        Some(unwrapped) => Ok(Kind::try_from(unwrapped)?),
+                    })
+                    .collect();
+                let mapped = try_mapped?;
+                Ok(Kind::VecValue(mapped))
+            }
+        }
+    }
+}
+
+impl TryFrom<&prost_types::value::Kind> for Kind {
+    type Error = AttributeError;
+    fn try_from(value: &prost_types::value::Kind) -> Result<Self, Self::Error> {
+        match value {
+            prost_types::value::Kind::BoolValue(v) => Ok(Kind::BoolValue(*v)),
+            prost_types::value::Kind::NullValue(v) => Ok(Kind::NullValue(*v)),
+            prost_types::value::Kind::StringValue(v) => {
+                let v_copy = v.to_string();
+                Ok(Kind::StringValue(v_copy))
+            }
+            prost_types::value::Kind::NumberValue(v) => Ok(Kind::NumberValue(*v)),
+            prost_types::value::Kind::StructValue(v) => {
+                let mut attr_map = BTreeMap::new();
+                let attrs = &v.fields;
+                for (k, val) in attrs.iter() {
+                    match &val.kind {
+                        Some(unwrapped) => {
+                            let s = k.to_string();
+                            attr_map.insert(s, unwrapped.try_into()?);
+                        }
+                        None => continue,
+                    };
+                }
+                Ok(Kind::StructValue(attr_map))
+            }
+            prost_types::value::Kind::ListValue(v) => {
+                let try_mapped: Result<Vec<Kind>, AttributeError> = v
+                    .values
+                    .iter()
+                    .map(|val| match &val.kind {
+                        None => Ok::<Kind, AttributeError>(Kind::NullValue(0)),
+                        Some(unwrapped) => Ok(Kind::try_from(unwrapped)?),
+                    })
+                    .collect();
+                let mapped = try_mapped?;
+                Ok(Kind::VecValue(mapped))
+            }
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -205,9 +337,64 @@ pub struct StaticComponentConfig {
     pub attributes: Option<phf::map::Map<&'static str, Kind>>,
 }
 
+#[derive(Debug, Default)]
+pub struct DynamicComponentConfig {
+    pub name: String,
+    pub namespace: String,
+    pub r#type: String,
+    pub model: String,
+    pub attributes: Option<BTreeMap<String, Kind>>,
+}
+
+impl TryFrom<&ComponentConfig> for DynamicComponentConfig {
+    type Error = AttributeError;
+    fn try_from(value: &ComponentConfig) -> Result<Self, Self::Error> {
+        let mut attrs_opt: Option<BTreeMap<String, Kind>> = None;
+        if let Some(cfg_attrs) = value.attributes.as_ref() {
+            let mut attrs = BTreeMap::new();
+            for (k, v) in cfg_attrs.fields.iter() {
+                let val: Kind = match &v.kind {
+                    None => return Err(AttributeError::KeyNotFound(k.to_string())),
+                    Some(inner_v) => inner_v.try_into()?,
+                };
+                let key = k.to_string();
+                attrs.insert(key, val);
+            }
+            attrs_opt = Some(attrs);
+        }
+        Ok(Self {
+            name: value.name.to_string(),
+            namespace: value.namespace.to_string(),
+            r#type: value.r#type.to_string(),
+            model: value.model.to_string(),
+            attributes: attrs_opt,
+        })
+    }
+}
+
 #[derive(Debug)]
-pub enum ConfigType<'a> {
-    Static(&'a StaticComponentConfig),
+pub enum ConfigType {
+    Static(&'static StaticComponentConfig),
+    Dynamic(DynamicComponentConfig),
+}
+
+impl ConfigType {
+    pub fn get_attribute<T>(&self, key: &str) -> Result<T, AttributeError>
+    where
+        for<'a> T: std::convert::TryFrom<Kind, Error = AttributeError>
+            + std::convert::TryFrom<&'a Kind, Error = AttributeError>,
+    {
+        match self {
+            Self::Static(cfg) => cfg.get_attribute::<T>(key),
+            Self::Dynamic(cfg) => cfg.get_attribute::<T>(key),
+        }
+    }
+    pub fn get_type(&self) -> &str {
+        match self {
+            Self::Static(cfg) => cfg.get_type(),
+            Self::Dynamic(cfg) => cfg.get_type(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -258,6 +445,38 @@ impl Component for StaticComponentConfig {
             .get(key)
             .ok_or_else(|| AttributeError::KeyNotFound(key.to_owned()))? // no key in attribute map
             .try_into()
+    }
+}
+
+impl Component for DynamicComponentConfig {
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
+    fn get_model(&self) -> &str {
+        &self.model
+    }
+
+    fn get_namespace(&self) -> &str {
+        &self.namespace
+    }
+
+    fn get_type(&self) -> &str {
+        &self.r#type
+    }
+
+    fn get_attribute<'a, T>(&'a self, key: &str) -> Result<T, AttributeError>
+    where
+        T: std::convert::TryFrom<Kind, Error = AttributeError>
+            + std::convert::TryFrom<&'a Kind, Error = AttributeError>,
+    {
+        if let Some(v) = self.attributes.as_ref() {
+            let key_string = key.to_owned();
+            if let Some(v) = v.get(&key_string) {
+                return v.try_into();
+            }
+        }
+        Err(AttributeError::KeyNotFound(key.to_string()))
     }
 }
 

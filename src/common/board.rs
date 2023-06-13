@@ -12,7 +12,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use super::analog::FakeAnalogReader;
-use super::config::{Component, ConfigType};
+use super::config::ConfigType;
 use super::i2c::FakeI2CHandle;
 use super::i2c::FakeI2cConfig;
 use super::i2c::I2CHandle;
@@ -60,43 +60,36 @@ impl FakeBoard {
         FakeBoard { analogs, i2cs }
     }
     pub(crate) fn from_config(cfg: ConfigType) -> anyhow::Result<BoardType> {
-        match cfg {
-            ConfigType::Static(cfg) => {
-                let analogs = if let Ok(analog_confs) =
-                    cfg.get_attribute::<BTreeMap<&'static str, f64>>("analogs")
-                {
-                    analog_confs
-                        .iter()
-                        .map(|(k, v)| {
-                            let a: Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>> =
-                                Rc::new(RefCell::new(FakeAnalogReader::new(
-                                    k.to_string(),
-                                    *v as u16,
-                                )));
-                            a
-                        })
-                        .collect()
-                } else {
-                    vec![]
-                };
+        let analogs = if let Ok(analog_confs) = cfg.get_attribute::<BTreeMap<&str, f64>>("analogs")
+        {
+            analog_confs
+                .iter()
+                .map(|(k, v)| {
+                    let a: Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>> = Rc::new(
+                        RefCell::new(FakeAnalogReader::new(k.to_string(), *v as u16)),
+                    );
+                    a
+                })
+                .collect()
+        } else {
+            vec![]
+        };
 
-                let i2cs = if let Ok(i2c_confs) = cfg.get_attribute::<Vec<FakeI2cConfig>>("i2cs") {
-                    let name_to_i2c = i2c_confs.iter().map(|v| {
-                        let name = v.name.to_string();
-                        let value: [u8; 3] = [v.value_1, v.value_2, v.value_3];
-                        (
-                            name.to_string(),
-                            Arc::new(Mutex::new(FakeI2CHandle::new_with_value(name, value))),
-                        )
-                    });
-                    HashMap::from_iter(name_to_i2c)
-                } else {
-                    HashMap::new()
-                };
+        let i2cs = if let Ok(i2c_confs) = cfg.get_attribute::<Vec<FakeI2cConfig>>("i2cs") {
+            let name_to_i2c = i2c_confs.iter().map(|v| {
+                let name = v.name.to_string();
+                let value: [u8; 3] = [v.value_1, v.value_2, v.value_3];
+                (
+                    name.to_string(),
+                    Arc::new(Mutex::new(FakeI2CHandle::new_with_value(name, value))),
+                )
+            });
+            HashMap::from_iter(name_to_i2c)
+        } else {
+            HashMap::new()
+        };
 
-                Ok(Arc::new(Mutex::new(FakeBoard { analogs, i2cs })))
-            }
-        }
+        Ok(Arc::new(Mutex::new(FakeBoard { analogs, i2cs })))
     }
 }
 
