@@ -249,6 +249,24 @@ pub enum Kind {
     StructValue(BTreeMap<String, Kind>),
 }
 
+impl Kind {
+    pub fn get(&self, key: &str) -> Result<Option<&Kind>, AttributeError> {
+        match self {
+            Self::StructValueStatic(v) => Ok(v.get(key)),
+            Self::StructValue(v) => Ok(v.get(key)),
+            _ => Err(AttributeError::KeyNotFound(key.to_string())),
+        }
+    }
+
+    pub fn contains_key(&self, key: &str) -> Result<bool, AttributeError> {
+        match self {
+            Self::StructValueStatic(v) => Ok(v.contains_key(key)),
+            Self::StructValue(v) => Ok(v.contains_key(key)),
+            _ => Err(AttributeError::KeyNotFound(key.to_string())),
+        }
+    }
+}
+
 impl TryFrom<prost_types::value::Kind> for Kind {
     type Error = AttributeError;
     fn try_from(value: prost_types::value::Kind) -> Result<Self, Self::Error> {
