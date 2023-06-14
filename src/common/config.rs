@@ -254,7 +254,7 @@ impl Kind {
         match self {
             Self::StructValueStatic(v) => Ok(v.get(key)),
             Self::StructValue(v) => Ok(v.get(key)),
-            _ => Err(AttributeError::ConversionImpossibleError),
+            _ => Err(AttributeError::KeyNotFound(key.to_string())),
         }
     }
 
@@ -262,7 +262,7 @@ impl Kind {
         match self {
             Self::StructValueStatic(v) => Ok(v.contains_key(key)),
             Self::StructValue(v) => Ok(v.contains_key(key)),
-            _ => Err(AttributeError::ConversionImpossibleError),
+            _ => Err(AttributeError::KeyNotFound(key.to_string())),
         }
     }
 }
