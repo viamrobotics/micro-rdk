@@ -25,7 +25,7 @@ socket2 = { git = "https://github.com/npmenard/socket2.git" }
 webrtc = {git = " https://github.com/webrtc-rs/webrtc"}
 
 [target.'cfg(not(target_os = "espidf"))'.dependencies]
-micro-rdk = { path = "../", features = ["native"], default-features = false }
+micro-rdk = { git = "https://github.com/viamrobotics/micro-rdk.git", features = ["native"], default-features = false }
 simple_logger = "2.3.0"
 local-ip-address = { version = "0.4.9" }
 log = "0.4"
@@ -35,9 +35,9 @@ anyhow = { version = "1", features = ["backtrace"] }
 [target.'cfg(target_os="espidf")'.dependencies]
 esp-idf-sys = { version = "0.32.1", features = ["binstart"] }
 anyhow = {version = "1", features = ["backtrace"]}
-micro-rdk = { path = "../", default-features = false, features = ["esp32"] }
+micro-rdk = { git = "https://github.com/viamrobotics/micro-rdk.git", default-features = false, features = ["esp32"] }
 embedded-svc = "0.24"
-esp-idf-svc = { version = "0.45.0" }
+esp-idf-svc = { version = "0.45.0", features = ["experimental"] }
 esp-idf-hal = "0.40.1"
 embedded-hal = { version = "0.2.7", features = ["unproven"]}
 log = "0.4"
@@ -48,6 +48,9 @@ futures-lite = "1.12.0"
 
 [dependencies]
 phf = { version = "0.11", features = ["macros"] }
+reqwless = "0.5.0"
+serde = "1.0.145"
+serde_json = "1.0.97"
 
 
 [build-dependencies]

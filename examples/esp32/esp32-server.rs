@@ -28,6 +28,19 @@ use std::time::Duration;
 #[cfg(not(feature = "qemu"))]
 use esp_idf_svc::wifi::EspWifi;
 
+// webhook
+use embedded_svc::{
+    http::{client::Client as HttpClient, Method, Status},
+    io::{Read, Write},
+    utils::io,
+};
+#[derive(Deserialize, Debug)]
+struct Response {
+    response: String,
+}
+
+use esp_idf_svc::http::client::{Configuration, EspHttpConnection};
+
 use esp_idf_hal::prelude::Peripherals;
 use micro_rdk::esp32::entry::serve_web;
 use micro_rdk::esp32::tls::Esp32TlsServerConfig;
