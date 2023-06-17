@@ -6,6 +6,8 @@ use log::*;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
+pub static COMPONENT_NAME: &str = "base";
+
 pub trait Base: Status + Stoppable {
     fn set_power(&mut self, lin: &Vector3, ang: &Vector3) -> anyhow::Result<()>;
 }

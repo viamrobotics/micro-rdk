@@ -216,6 +216,7 @@ impl LocalRobot {
                 "encoder" => crate::common::encoder::COMPONENT_NAME,
                 "movement_sensor" => crate::common::movement_sensor::COMPONENT_NAME,
                 "sensor" => crate::common::sensor::COMPONENT_NAME,
+                "base" => crate::common::base::COMPONENT_NAME,
                 &_ => {
                     anyhow::bail!(
                         "component type {} is not supported yet",
@@ -343,6 +344,10 @@ impl LocalRobot {
             "encoder" => {
                 let ctor = COMPONENT_REGISTRY.get_encoder_constructor(model)?;
                 ResourceType::Encoder(ctor(cfg, deps)?)
+            }
+            "base" => {
+                let ctor = COMPONENT_REGISTRY.get_base_constructor(model)?;
+                ResourceType::Base(ctor(cfg, deps)?)
             }
             &_ => {
                 anyhow::bail!("component type {} is not supported yet", r_type);
