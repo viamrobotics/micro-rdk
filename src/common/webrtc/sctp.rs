@@ -39,13 +39,13 @@ pub struct Channel {
 }
 
 impl Channel {
-    pub async fn write(&self, buf: &[u8]) {
+    pub async fn write(&self, buf: &[u8]) -> std::io::Result<()> {
         let bytes = Bytes::copy_from_slice(buf);
 
         self.tx_event
             .send(SctpEvent::OutgoingStreamData((self.tx_stream_id, bytes)))
             .await
-            .unwrap();
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
     }
 }
 
@@ -184,8 +184,10 @@ where
                         if r.is_err() {
                             return SctpEvent::Disconnect;
                         }
-
                         let len = r.unwrap();
+                        if len == 0 {
+                            return SctpEvent::Disconnect;
+                        }
                         let buf = Bytes::copy_from_slice(&buf[..len]);
                         let from = "127.0.0.1:5000".parse().unwrap();
                         SctpEvent::IncomingData((from, buf))

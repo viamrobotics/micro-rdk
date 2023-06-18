@@ -2,6 +2,7 @@
 use crate::common::app_client::{AppClientBuilder, AppClientConfig};
 use crate::common::conn::server::{ViamServerBuilder, WebRtcConfiguration};
 use crate::common::robot::LocalRobot;
+use crate::esp32::utils;
 use crate::{
     common::grpc_client::GrpcClient, esp32::exec::Esp32Executor, esp32::tcp::Esp32Stream,
     esp32::tls::Esp32Tls,
@@ -24,6 +25,8 @@ pub fn serve_web(
     _ip: Ipv4Addr,
     webrtc_certificate: WebRtcCertificate,
 ) {
+    utils::esp32_print_heap_internal_summary!();
+    utils::esp32_print_stack_high_watermark!();
     let robot = Arc::new(Mutex::new(robot.unwrap()));
 
     let mut client_connector = Esp32Tls::new_client();
@@ -44,6 +47,8 @@ pub fn serve_web(
         client.get_config().unwrap()
     };
 
+    utils::esp32_print_heap_internal_summary!();
+    utils::esp32_print_stack_high_watermark!();
     let address: SocketAddr = "0.0.0.0:12346".parse().unwrap();
     let tls = Box::new(Esp32Tls::new_server(&tls_server_config));
     let tls_listener = Esp32Listener::new(address.into(), Some(tls)).unwrap();
@@ -60,12 +65,14 @@ pub fn serve_web(
         exec.clone(),
         app_config,
     ));
-
+    utils::esp32_print_heap_internal_summary!();
+    utils::esp32_print_stack_high_watermark!();
     let mut srv = Box::new(
         ViamServerBuilder::new(mdns, tls_listener, webrtc, cloned_exec, 12346)
             .build(&robot_cfg)
             .unwrap(),
     );
-
+    utils::esp32_print_heap_internal_summary!();
+    utils::esp32_print_stack_high_watermark!();
     srv.serve_forever(robot);
 }

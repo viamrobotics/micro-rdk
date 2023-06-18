@@ -204,6 +204,7 @@ impl Esp32TlsStream {
                         **tls_context,
                     )) {
                         log::error!("can't create TLS context ''{}''", err);
+                        esp_tls_conn_destroy(**tls_context);
                         Err(anyhow::anyhow!(err))
                     } else {
                         Ok(Self {

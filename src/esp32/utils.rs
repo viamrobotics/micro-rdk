@@ -57,3 +57,5 @@ macro_rules! esp32_print_stack_high_watermark {
         }
     };
 }
+
+pub(crate) use esp32_print_stack_high_watermark;

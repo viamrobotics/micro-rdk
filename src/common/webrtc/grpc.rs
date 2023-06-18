@@ -103,7 +103,7 @@ where
         response
             .encode(&mut self.buffer)
             .map_err(WebRtcError::GprcEncodeError)?;
-        self.channel.write(&self.buffer[..len]).await;
+        self.channel.write(&self.buffer[..len]).await?;
         self.buffer.unsplit(b);
         Ok(())
     }

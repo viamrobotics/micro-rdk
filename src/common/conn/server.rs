@@ -272,37 +272,54 @@ where
                 log::error!("error {} while listening", e);
                 continue;
             }
-            match connection.unwrap() {
-                IncomingConnection::Http2Connection(mut c) => {
-                    log::info!("accepting over HTTP2");
-                    let srv = GrpcServer::new(robot.clone(), GrpcBody::new());
-                    let connection = c
-                        .accept()
-                        .map_err(|e| ServerError::Other(e.into()))
-                        .unwrap();
-                    let _ = Http::new()
-                        .with_executor(self.exec.clone())
-                        .http2_max_concurrent_streams(1)
-                        .serve_connection(connection, srv)
-                        .await
-                        .map_err(|e| ServerError::Other(e.into()));
-                }
+            if let Err(e) = match connection.unwrap() {
+                IncomingConnection::Http2Connection(c) => self.serve_http2(c, robot.clone()).await,
+
                 IncomingConnection::WebRtcConnection(c) => {
-                    log::info!("accecpting over WebRtc");
-                    let channel = c.open_data_channel().await.unwrap();
-                    let mut grpc = WebRtcGrpcServer::new(
-                        channel.0,
-                        GrpcServer::new(robot.clone(), WebRtcGrpcBody::default()),
-                    );
-                    loop {
-                        if let Err(e) = grpc.next_request().await {
-                            log::info!("webrtc run into error {:?}", e);
-                            break;
-                        }
-                    }
+                    self.serve_webrtc(c, robot.clone()).await
                 }
+            } {
+                log::error!("error while serving {}", e);
             }
         }
+    }
+    async fn serve_http2<U>(
+        &self,
+        mut c: U,
+        robot: Arc<Mutex<LocalRobot>>,
+    ) -> Result<(), ServerError>
+    where
+        U: Http2Connector<Stream = T>,
+    {
+        let srv = GrpcServer::new(robot.clone(), GrpcBody::new());
+        let connection = c.accept().map_err(|e| ServerError::Other(e.into()))?;
+        Http::new()
+            .with_executor(self.exec.clone())
+            .http2_max_concurrent_streams(1)
+            .serve_connection(connection, srv)
+            .await
+            .map_err(|e| ServerError::Other(e.into()))
+    }
+
+    async fn serve_webrtc(
+        &self,
+        c: WebRtcConnector<'a, CC, D::Output, Executor<'a>>,
+        robot: Arc<Mutex<LocalRobot>>,
+    ) -> Result<(), ServerError> {
+        let ret = {
+            let channel = c.open_data_channel().await.unwrap();
+            let mut grpc = WebRtcGrpcServer::new(
+                channel.0,
+                GrpcServer::new(robot.clone(), WebRtcGrpcBody::default()),
+            );
+            loop {
+                if let Err(e) = grpc.next_request().await {
+                    break Err(ServerError::Other(e.into()));
+                }
+            }
+        };
+        let _ = smol::Timer::after(std::time::Duration::from_millis(100)).await;
+        ret
     }
 }
 #[derive(Debug)]
@@ -373,7 +390,9 @@ where
         let mut api = {
             let mut api = self.webrtc_api;
             let _app = self.app_client;
-            api.answer().await.unwrap();
+            api.answer()
+                .await
+                .map_err(|e| ServerError::Other(e.into()))?;
             api.run_ice_until_connected()
                 .await
                 .map_err(|e| ServerError::Other(e.into()))?;

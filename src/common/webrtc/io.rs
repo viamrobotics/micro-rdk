@@ -56,7 +56,7 @@ impl AsyncRead for IoPktChannel {
             let cloned = self.rx.clone();
             let _ = self
                 .recv_operation
-                .insert(Box::pin(async move { cloned.recv().await }));
+                .replace(Box::pin(async move { cloned.recv().await }));
         }
 
         let result = match ready!(self.recv_operation.as_mut().unwrap().poll(cx)) {
@@ -104,7 +104,7 @@ impl AsyncWrite for IoPktChannel {
             let cloned = self.transport_tx.clone();
             let _ = self
                 .send_operation
-                .insert(Box::pin(async move { cloned.send(pkt).await }));
+                .replace(Box::pin(async move { cloned.send(pkt).await }));
         }
         let result = match ready!(self.send_operation.as_mut().unwrap().poll(cx)) {
             Ok(()) => Poll::Ready(Ok(buf.len())),
@@ -249,6 +249,8 @@ pub struct WebRtcTransport {
     stun: IoPktChannel,
     dtls: IoPktChannel,
     rx: smol::channel::Receiver<IoPkt>,
+    _tx_closer: smol::channel::Sender<()>,
+    rx_closer: smol::channel::Receiver<()>,
 }
 
 impl Drop for WebRtcTransport {
@@ -257,6 +259,8 @@ impl Drop for WebRtcTransport {
         let _ = self.stun.rx.close();
         let _ = self.dtls.tx.close();
         let _ = self.dtls.rx.close();
+        let _ = self._tx_closer.close();
+        let _ = self.rx_closer.close();
         self.rx.close();
     }
 }
@@ -264,11 +268,14 @@ impl Drop for WebRtcTransport {
 impl WebRtcTransport {
     pub fn new(socket: UdpSocket) -> Self {
         let (tx, rx) = smol::channel::bounded::<IoPkt>(10);
+        let (_tx_closer, rx_closer) = smol::channel::bounded::<()>(1);
         Self {
             socket,
             stun: IoPktChannel::new(tx.clone()),
             dtls: IoPktChannel::new(tx),
             rx,
+            rx_closer,
+            _tx_closer,
         }
     }
 
@@ -281,14 +288,22 @@ impl WebRtcTransport {
     pub async fn read_loop(&self) {
         loop {
             let mut buf = [0; 1500];
-            let (len, addr) = self.socket.recv_from(&mut buf).await.unwrap();
+            let r = futures_lite::future::or(self.socket.recv_from(&mut buf), async {
+                let _ = self.rx_closer.recv().await;
+                Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))
+            })
+            .await;
+            if r.is_err() {
+                break;
+            }
+            let (len, addr) = r.unwrap();
             // TODO(npm) this is bad should be changed
             let buf = Bytes::copy_from_slice(&buf[..len]);
             log::debug!(
                 "Packet recived b0 {:02X?} len {:?} from {:?}",
                 buf[0],
                 buf.len(),
-                addr
+                addr,
             );
             let addr = match addr {
                 SocketAddr::V4(addr) => addr,

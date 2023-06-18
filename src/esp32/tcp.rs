@@ -70,7 +70,7 @@ impl Future for Esp32AsyncListener {
             Ok(s) => {
                 let s = Esp32TlsConnector {
                     tls: self.tls.clone(),
-                    inner: s.0,
+                    inner: Some(s.0),
                 };
                 Poll::Ready(Ok(s))
             }
@@ -85,7 +85,7 @@ impl Future for Esp32AsyncListener {
 
 pub struct Esp32TlsConnector {
     tls: Option<Box<Esp32Tls>>,
-    inner: TcpStream,
+    inner: Option<TcpStream>,
 }
 
 impl Debug for Esp32TlsConnector {
@@ -102,10 +102,10 @@ impl Http2Connector for Esp32TlsConnector {
     fn accept(&mut self) -> std::io::Result<Self::Stream> {
         match &mut self.tls {
             Some(tls) => tls
-                .open_ssl_context(Some(self.inner.try_clone().unwrap()))
+                .open_ssl_context(Some(self.inner.take().unwrap()))
                 .map(|s| Esp32Stream::TLSStream(Box::new(s)))
                 .map_err(|e| std::io::Error::new(io::ErrorKind::Other, e)),
-            None => Ok(Esp32Stream::LocalPlain(self.inner.try_clone().unwrap())),
+            None => Ok(Esp32Stream::LocalPlain(self.inner.take().unwrap())),
         }
     }
 }
