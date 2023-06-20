@@ -182,7 +182,7 @@ fn main() -> anyhow::Result<()> {
     let robot_name = cloud_cfg.local_fqdn.split('.').next().unwrap_or("");
     let local_fqdn = cloud_cfg.local_fqdn.replace('.', "-");
     let fqdn = cloud_cfg.fqdn.replace('.', "-");
-    let location_secret = cloud_cfg.location_secrets.first().unwrap_or("");
+    // let location_secret = cloud_cfg.location_secrets.first().unwrap_or("");
     let sig_addr = cloud_cfg.signaling_address;
 
     let out_dir = std::env::var_os("OUT_DIR").unwrap();
@@ -215,14 +215,6 @@ fn main() -> anyhow::Result<()> {
         const_declaration!(
             #[allow(clippy::redundant_static_lifetimes, dead_code)]
             ROBOT_NAME = robot_name
-        ),
-        const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            ROBOT_LOCATION_SECRET = location_secret.as_str()
-        ),
-        const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            ROBOT_SIG_ADDRESS = location_secret.as_str()
         ),
         const_declaration!(
             #[allow(clippy::redundant_static_lifetimes, dead_code)]

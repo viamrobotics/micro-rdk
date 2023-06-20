@@ -10,7 +10,7 @@ include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 #[cfg(feature = "qemu")]
 use esp_idf_svc::eth::{EspEth, EthWait};
 use esp_idf_svc::eventloop::EspSystemEventLoop;
-use esp_idf_svc::netif::{EspNetif, EspNetifWait};
+use esp_idf_svc::netif::EspNetif;
 use esp_idf_sys as _;
 
 use anyhow::bail;
@@ -36,7 +36,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 #[cfg(not(feature = "qemu"))]
-use esp_idf_svc::wifi::EspWifi;
+use esp_idf_svc::wifi::{EspWifi, BlockingWifi};
 
 // webhook
 use embedded_svc::{
@@ -88,11 +88,13 @@ fn main() -> anyhow::Result<()> {
     };
 
     // webhook
-    let mut client = HttpClient::wrap(EspHttpConnection::new(&Configuration {
+    let mut connection = EspHttpConnection::new(&Configuration {
         use_global_ca_store: true,
         crt_bundle_attach: Some(esp_idf_sys::esp_crt_bundle_attach),
         ..Default::default()
-    })?);
+    })?;
+    let mut client = HttpClient::wrap(connection);
+
     get_request(&mut client).unwrap();
 
     let cfg = AppClientConfig::new(ROBOT_SECRET.to_owned(), ROBOT_ID.to_owned(), ip);
@@ -185,9 +187,8 @@ fn start_wifi(
     sl_stack: EspSystemEventLoop,
 ) -> anyhow::Result<Box<EspWifi<'static>>> {
     use embedded_svc::wifi::{ClientConfiguration, Wifi};
-    use esp_idf_svc::wifi::WifiWait;
 
-    let mut wifi = Box::new(EspWifi::new(modem, sl_stack.clone(), None)?);
+    let mut wifi = Box::new(BlockingWifi::wrap(EspWifi::new(modem, sl_stack.clone(), None)?, sl_stack)?);
 
     info!("scanning");
     let aps = wifi.scan()?;
@@ -209,21 +210,26 @@ fn start_wifi(
 
     wifi.start()?;
 
-    if !WifiWait::new(&sl_stack)?
-        .wait_with_timeout(Duration::from_secs(20), || wifi.is_started().unwrap())
+    if !wifi.ip_wait_while(
+            || wifi.is_started(),
+        Some(Duration::from_secs(20)),
+
+    )
     {
         bail!("couldn't start wifi")
     }
 
     wifi.connect()?;
 
-    if !EspNetifWait::new::<EspNetif>(wifi.sta_netif(), &sl_stack)?.wait_with_timeout(
-        Duration::from_secs(20),
+    if !wifi.ip_wait_while(
         || {
-            wifi.is_connected().unwrap()
-                && wifi.sta_netif().get_ip_info().unwrap().ip != Ipv4Addr::new(0, 0, 0, 0)
+            Ok(wifi.is_connected().unwrap()
+                && wifi.sta_netif().get_ip_info().unwrap().ip != Ipv4Addr::new(0, 0, 0, 0))
         },
-    ) {
+        Some(Duration::from_secs(20)),
+
+    )
+     {
         bail!("wifi couldn't connect")
     }
 
