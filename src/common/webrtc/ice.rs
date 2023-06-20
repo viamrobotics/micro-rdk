@@ -52,7 +52,7 @@ impl ICECredentials {
     }
 }
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug, Eq)]
 pub enum IceError {
     #[error("candidate channel closed")]
     IceCandidateChannelClosed,
@@ -85,6 +85,12 @@ pub struct ICEAgent {
     remote_credentials: ICECredentials,
     state: ICEAgentState,
     local_ip: Ipv4Addr,
+}
+
+impl Drop for ICEAgent {
+    fn drop(&mut self) {
+        let _ = self.remote_candidates_chan.close();
+    }
 }
 
 #[derive(Eq, Debug, PartialEq)]

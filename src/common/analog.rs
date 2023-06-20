@@ -108,7 +108,7 @@ mod tests {
 
         let val = val.unwrap();
 
-        assert_eq!(*&val.len() as u32, 2);
+        assert_eq!(val.len() as u32, 2);
 
         assert_eq!(val[0].name, "string");
         assert_eq!(val[1].name, "string");

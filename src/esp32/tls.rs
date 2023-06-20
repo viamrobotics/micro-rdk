@@ -33,7 +33,7 @@ pub struct Esp32Tls {
 
 impl TlsClientConnector for Esp32Tls {
     type Stream = Esp32Stream;
-    fn connect(&mut self) -> Result<Self::Stream, crate::common::conn::server::ServerError> {
+    fn connect(&mut self) -> Result<Self::Stream, ServerError> {
         Ok(Esp32Stream::TLSStream(Box::new(
             self.open_ssl_context(None)
                 .map_err(|e| ServerError::Other(e.into()))?,

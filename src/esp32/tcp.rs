@@ -112,7 +112,7 @@ impl Http2Connector for Esp32TlsConnector {
 
 impl AsyncableTcpListener<Esp32Stream> for Esp32Listener {
     type Output = Esp32TlsConnector;
-    fn as_async_listerner(&self) -> crate::common::conn::server::OwnedListener<Self::Output> {
+    fn as_async_listener(&self) -> OwnedListener<Self::Output> {
         let listener = Esp32AsyncListener {
             inner: self.listener.clone(),
             tls: self.tls.clone(),

@@ -329,7 +329,6 @@ impl WebRtcTransport {
                 break;
             }
         }
-        log::info!("bye read loop");
     }
     pub async fn write_loop(&self) {
         loop {
@@ -346,6 +345,5 @@ impl WebRtcTransport {
                 }
             }
         }
-        log::info!("bye write loop");
     }
 }

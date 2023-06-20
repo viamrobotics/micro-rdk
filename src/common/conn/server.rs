@@ -201,7 +201,7 @@ impl<T> Future for OwnedListener<T> {
 
 pub trait AsyncableTcpListener<T> {
     type Output: Debug + Http2Connector<Stream = T>;
-    fn as_async_listerner(&self) -> OwnedListener<Self::Output>;
+    fn as_async_listener(&self) -> OwnedListener<Self::Output>;
 }
 
 impl<L, T> HttpListener<L, T>
@@ -215,7 +215,7 @@ where
         }
     }
     fn next_conn(&self) -> OwnedListener<L::Output> {
-        self.listener.as_async_listerner()
+        self.listener.as_async_listener()
     }
 }
 
@@ -307,7 +307,11 @@ where
         robot: Arc<Mutex<LocalRobot>>,
     ) -> Result<(), ServerError> {
         let ret = {
-            let channel = c.open_data_channel().await.unwrap();
+            let channel = c
+                .open_data_channel()
+                .await
+                .map_err(|e| ServerError::Other(e.into()))?;
+
             let mut grpc = WebRtcGrpcServer::new(
                 channel.0,
                 GrpcServer::new(robot.clone(), WebRtcGrpcBody::default()),

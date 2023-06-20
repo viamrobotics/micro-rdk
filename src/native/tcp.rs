@@ -45,7 +45,7 @@ impl NativeListener {
 
 impl AsyncableTcpListener<NativeStream> for NativeListener {
     type Output = NativeTlsConnector;
-    fn as_async_listerner(&self) -> crate::common::conn::server::OwnedListener<Self::Output> {
+    fn as_async_listener(&self) -> OwnedListener<Self::Output> {
         let nat = Async::new(self.listener.try_clone().unwrap()).unwrap();
         let inner = NativeIncoming {
             inner: Box::pin(async move { nat.accept().await }),

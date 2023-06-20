@@ -59,7 +59,7 @@ impl NativeTls {
 
 impl TlsClientConnector for NativeTls {
     type Stream = NativeStream;
-    fn connect(&mut self) -> Result<Self::Stream, crate::common::conn::server::ServerError> {
+    fn connect(&mut self) -> Result<Self::Stream, ServerError> {
         Ok(NativeStream::TLSStream(Box::new(
             self.open_ssl_context(None)
                 .map_err(|e| ServerError::Other(e.into()))?,
