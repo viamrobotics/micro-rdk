@@ -63,3 +63,6 @@ format:
 
 doc:
 	cargo doc --no-default-features --features esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
+
+size:
+	find . -name "esp-build.map" -exec ${IDF_PATH}/tools/idf_size.py {} \;

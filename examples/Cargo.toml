@@ -21,6 +21,7 @@ esp-idf-sys = {git = "https://github.com/npmenard/esp-idf-sys.git"}
 polling = { git = "https://github.com/esp-rs-compat/polling" }
 smol = { git = "https://github.com/esp-rs-compat/smol" }
 socket2 = { git = "https://github.com/npmenard/socket2.git" }
+webrtc = {git = " https://github.com/webrtc-rs/webrtc"}
 
 [target.'cfg(not(target_os = "espidf"))'.dev-dependencies]
 micro-rdk = { path = "../", features = ["native"], default-features = false }
@@ -60,7 +61,7 @@ serde = { version="1.0.145",features=["derive"] }
 serde_json = "1.0.86"
 tokio = { version = "1", features = ["full"] }
 viam = { version = ">=0.0.7", git = "https://github.com/viamrobotics/viam-rust-sdk.git" }
-viam-rust-utils = "0.0.6"
+viam-rust-utils = "0.0.21"
 rcgen =  "0.10.0"
 ring = "0.16"
 

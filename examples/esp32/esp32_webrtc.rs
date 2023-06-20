@@ -44,7 +44,7 @@ fn main() -> anyhow::Result<()> {
     let periph = Peripherals::take().unwrap();
 
     #[cfg(feature = "qemu")]
-    let robot = {
+    let _robot = {
         use micro_rdk::common::board::FakeBoard;
         let board = Arc::new(Mutex::new(FakeBoard::new(vec![])));
         let mut res: ResourceMap = HashMap::with_capacity(1);
@@ -60,7 +60,7 @@ fn main() -> anyhow::Result<()> {
         LocalRobot::new(res)
     };
     #[cfg(not(feature = "qemu"))]
-    let robot = {
+    let _robot = {
         use esp_idf_hal::gpio::IOPin;
         //use esp_idf_hal::gpio::OutputPin;
         use esp_idf_hal::gpio::PinDriver;
@@ -150,37 +150,12 @@ fn main() -> anyhow::Result<()> {
         )
     };
 
-    serve_web(cfg, tls_cfg, Some(robot), ip, webrtc_certificate);
+    serve_web(cfg, tls_cfg, None, ip, webrtc_certificate);
     Ok(())
 }
 
 #[cfg(feature = "qemu")]
 fn eth_configure(
-    sl_stack: &EspSystemEventLoop,
-    mut eth: Box<EspEth<'static>>,
-) -> anyhow::Result<Box<EspEth<'static>>> {
-    eth.start()?;
-
-    if !EthWait::new(eth.driver(), sl_stack)?
-        .wait_with_timeout(Duration::from_secs(30), || eth.is_started().unwrap())
-    {
-        bail!("couldn't start eth driver")
-    }
-
-    if !EspNetifWait::new::<EspNetif>(eth.netif(), sl_stack)?
-        .wait_with_timeout(Duration::from_secs(20), || {
-            eth.netif().get_ip_info().unwrap().ip != Ipv4Addr::new(0, 0, 0, 0)
-        })
-    {
-        bail!("didn't get an ip")
-    }
-    let ip_info = eth.netif().get_ip_info()?;
-    info!("ETH IP {:?}", ip_info);
-    Ok(eth)
-}
-
-#[cfg(feature = "qemu")]
-fn start_ethernet(
     sl_stack: &EspSystemEventLoop,
     mut eth: Box<EspEth<'static>>,
 ) -> anyhow::Result<Box<EspEth<'static>>> {
