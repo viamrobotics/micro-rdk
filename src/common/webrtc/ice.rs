@@ -52,7 +52,7 @@ impl ICECredentials {
     }
 }
 
-#[derive(Error, Debug, Eq)]
+#[derive(Error, Debug, PartialEq, Eq)]
 pub enum IceError {
     #[error("candidate channel closed")]
     IceCandidateChannelClosed,
