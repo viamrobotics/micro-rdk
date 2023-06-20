@@ -4,7 +4,7 @@ include!(concat!(env!("OUT_DIR"), "/robot_config.rs"));
 
 use log::*;
 use micro_rdk::common::app_client::AppClientConfig;
-use micro_rdk::common::config::{Kind, RobotConfigStatic, StaticComponentConfig};
+use micro_rdk::common::config::RobotConfigStatic;
 use micro_rdk::common::robot::LocalRobot;
 use micro_rdk::common::robot::ResourceType;
 use micro_rdk::native::entry::serve_web;

@@ -72,30 +72,26 @@ pub fn serve_web(
 mod tests {
     use crate::common::app_client::{AppClientBuilder, AppClientConfig};
     use crate::common::board::FakeBoard;
-    use crate::common::conn::server::{
-        HttpListener, ViamServer, ViamServerBuilder, WebRtcConfiguration,
-    };
     use crate::common::grpc::GrpcServer;
     use crate::common::grpc_client::GrpcClient;
     use crate::common::robot::{LocalRobot, ResourceMap, ResourceType};
-    use crate::common::webrtc::exec::WebRtcExecutor;
     use crate::common::webrtc::grpc::{WebRtcGrpcBody, WebRtcGrpcServer};
     use crate::native::certificate::WebRtcCertificate;
-    use crate::native::conn::mdns::NativeMdns;
-    use crate::native::dtls::{Dtls, NativeDtls};
+
+    use crate::native::dtls::Dtls;
     use crate::native::exec::NativeExecutor;
-    use crate::native::tcp::{NativeListener, NativeStream};
-    use crate::native::tls::{NativeTls, NativeTlsServerConfig};
+    use crate::native::tcp::NativeStream;
+    use crate::native::tls::NativeTls;
 
     use crate::proto::common::v1::ResourceName;
     use crate::proto::rpc::examples::echo::v1::{EchoBiDiRequest, EchoBiDiResponse};
 
     use futures_lite::future::block_on;
-    use futures_lite::{FutureExt, StreamExt};
+    use futures_lite::StreamExt;
     use local_ip_address::local_ip;
 
     use std::collections::HashMap;
-    use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream};
+    use std::net::{IpAddr, Ipv4Addr, TcpStream};
 
     use std::rc::Rc;
     use std::sync::{Arc, Mutex};
@@ -118,10 +114,14 @@ mod tests {
 
         assert!(grpc_client.is_ok());
 
-        let grpc_client = grpc_client.unwrap();
+        let grpc_client = Box::new(grpc_client.unwrap());
 
-        let config =
-            AppClientConfig::new("".to_string(), "".to_string(), Ipv4Addr::new(0, 0, 0, 0));
+        let config = AppClientConfig::new(
+            "".to_string(),
+            "".to_string(),
+            Ipv4Addr::new(0, 0, 0, 0),
+            "".to_owned(),
+        );
 
         let builder = AppClientBuilder::new(grpc_client, config);
 
@@ -147,13 +147,20 @@ mod tests {
             "",
         )?;
 
-        let (mut sender_half, mut recv_half) = grpc_client
-            .send_request_bidi::<EchoBiDiRequest, EchoBiDiResponse>(
-                r,
-                Some(EchoBiDiRequest {
-                    message: "1".to_string(),
-                }),
-            )?;
+        let conn = block_on(executor.run(async {
+            grpc_client
+                .send_request_bidi::<EchoBiDiRequest, EchoBiDiResponse>(
+                    r,
+                    Some(EchoBiDiRequest {
+                        message: "1".to_string(),
+                    }),
+                )
+                .await
+        }));
+
+        assert!(conn.is_ok());
+
+        let (mut sender_half, mut recv_half) = conn.unwrap();
 
         let (p, mut recv_half) = block_on(executor.run(async {
             let p = recv_half.next().await.unwrap().message;
@@ -194,76 +201,12 @@ mod tests {
 
     #[test_log::test]
     #[ignore]
-    fn test_new_server_flow() {
-        let our_ip = match local_ip().unwrap() {
-            IpAddr::V4(v4) => v4,
-            _ => panic!("didn't get an ipv4"),
-        };
-        let cfg = AppClientConfig::new("".to_string(), "".to_string(), our_ip);
-
-        let executor = NativeExecutor::new();
-        let tls = NativeTls::new_client();
-        let mdns = NativeMdns::new("".to_owned(), our_ip).unwrap();
-
-        let cfg2 = NativeTlsServerConfig::default();
-        let s_tls = Box::new(NativeTls::new_server(cfg2));
-        let address: SocketAddr = "0.0.0.0:12348".parse().unwrap();
-        let address2: SocketAddr = "0.0.0.0:12347".parse().unwrap();
-
-        let robot = {
-            let board = Arc::new(Mutex::new(FakeBoard::new(vec![])));
-            let mut res: ResourceMap = HashMap::with_capacity(1);
-            res.insert(
-                ResourceName {
-                    namespace: "rdk".to_string(),
-                    r#type: "component".to_string(),
-                    subtype: "board".to_string(),
-                    name: "b".to_string(),
-                },
-                ResourceType::Board(board),
-            );
-            Arc::new(Mutex::new(LocalRobot::new(res)))
-        };
-
-        // block_on(async move {
-        //     let cert = Rc::new(WebRtcCertificate::new().unwrap());
-        //     let listener = NativeListener::new(address.into(), Some(s_tls)).unwrap();
-        //     let dtls = DtlsBuilderA::new(cert.clone());
-        //     // let listener2 = NativeListener::new(address2.into(), None).unwrap();
-        //     //let inc = listener.incomming();
-        //     //let inc2 = listener2.incomming();
-        //     //let inc3 = futures_lite::stream::pending::<&i32>();
-        //     let executor = NativeExecutor::new();
-        //     let cloned = executor.clone();
-        //     let r = WebRtcConnector::new(cert.clone(), dtls, tls, cloned, cfg);
-        //     //let mut srv = ServerListener::new(inc, inc3, executor);
-        //     let l3 = Http2Listener3::new(listener);
-        //     let l1 = Http2SrvText::new(l3, r, executor.clone());
-        //     futures_lite::future::block_on(executor.run(l1.server_forever()));
-
-        //srv.serve_forever(robot).await;
-        // let srv = ServerBuilder::new(
-        //     mdns,
-        //     inc,
-        //     tls,
-        //     executor.clone(),
-        //     12345,
-        //     "https://app.viam.com:443",
-        //     cfg,
-        // );
-        // let mut p = srv.build().unwrap();
-        // p.serve_forever::<NativeStream>(robot).await.unwrap();
-        // });
-    }
-    // async fn run_inner_test()
-    #[test_log::test]
-    #[ignore]
     fn test_webrtc_signaling() -> anyhow::Result<()> {
         let our_ip = match local_ip()? {
             IpAddr::V4(v4) => v4,
             _ => panic!("didn't get an ipv4"),
         };
-        let cfg = AppClientConfig::new("".to_string(), "".to_string(), our_ip);
+        let cfg = AppClientConfig::new("".to_string(), "".to_string(), our_ip, "".to_owned());
 
         let robot = {
             let board = Arc::new(Mutex::new(FakeBoard::new(vec![])));
@@ -287,7 +230,11 @@ mod tests {
             let tls = Box::new(NativeTls::new_client());
             let conn = tls.open_ssl_context(None)?;
             let conn = NativeStream::TLSStream(Box::new(conn));
-            let grpc_client = GrpcClient::new(conn, executor.clone(), "https://app.viam.com:443")?;
+            let grpc_client = Box::new(GrpcClient::new(
+                conn,
+                executor.clone(),
+                "https://app.viam.com:443",
+            )?);
             let mut app_client = AppClientBuilder::new(grpc_client, cfg).build()?;
 
             let cert = Rc::new(WebRtcCertificate::new()?);

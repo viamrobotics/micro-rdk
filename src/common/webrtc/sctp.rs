@@ -508,7 +508,7 @@ mod tests {
             assert!(read.is_ok());
 
             let read = read.unwrap();
-            channel.write(&buf[..read]).await;
+            assert!(channel.write(&buf[..read]).await.is_ok());
         }
     }
 
@@ -540,7 +540,7 @@ mod tests {
         assert!(channel.is_ok());
         let mut channel = channel.unwrap();
 
-        channel.write(b"hello").await;
+        assert!(channel.write(b"hello").await.is_ok());
 
         {
             let mut buf = [0; 8192];
@@ -553,7 +553,7 @@ mod tests {
             assert_eq!(b"hello", &buf[..read]);
         }
 
-        channel.write(b"hello world").await;
+        assert!(channel.write(b"hello world").await.is_ok());
 
         {
             let mut buf = [0; 8192];
@@ -568,7 +568,7 @@ mod tests {
 
         let random_bytes: Vec<u8> = (0..4096).map(|_| rand::random::<u8>()).collect();
 
-        channel.write(&random_bytes).await;
+        assert!(channel.write(&random_bytes).await.is_ok());
         {
             let mut buf = [0; 8192];
             let read = channel.read(&mut buf).await;
