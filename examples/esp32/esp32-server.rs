@@ -7,23 +7,37 @@ const PASS: &str = env!("MICRO_RDK_WIFI_PASSWORD");
 
 include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
-#[allow(dead_code)]
-#[cfg(feature = "qemu")]
-use esp_idf_svc::eth::*;
-#[cfg(feature = "qemu")]
-use esp_idf_svc::eth::{EspEth, EthWait};
+#[cfg(not(feature = "qemu"))]
+use {
+    esp_idf_svc::wifi::{BlockingWifi, EspWifi},
+    esp_idf_sys as _,
+    esp_idf_sys::esp_wifi_set_ps,
+};
+
+// webhook
+use embedded_svc::{
+    http::{client::Client as HttpClient, Method, Status},
+    io::{Read, Write},
+    utils::io,
+    wifi::{ClientConfiguration, Wifi},
+};
+
+use esp_idf_svc::{
+    eth::EspEth,
+    http::client::{Configuration, EspHttpConnection},
+    netif::EspNetif, // EspNetifWait
+    //wifi::WifiWait,
+};
+
 use esp_idf_svc::eventloop::EspSystemEventLoop;
-use esp_idf_svc::netif::{EspNetif, EspNetifWait};
-use esp_idf_sys as _;
 
 use anyhow::bail;
-#[cfg(not(feature = "qemu"))]
-use esp_idf_sys::esp_wifi_set_ps;
 use log::*;
 use micro_rdk::common::app_client::AppClientConfig;
 use micro_rdk::esp32::certificate::WebRtcCertificate;
 use std::net::Ipv4Addr;
 use std::time::Duration;
+//use futures_lite::future::block_on;
 
 #[cfg(not(feature = "qemu"))]
 use esp_idf_svc::wifi::EspWifi;
@@ -50,7 +64,7 @@ fn main() -> anyhow::Result<()> {
 
     esp_idf_svc::log::EspLogger::initialize_default();
     let sys_loop_stack = EspSystemEventLoop::take().unwrap();
-    let periph = Peripherals::take().unwrap();
+    let periph = esp_idf_hal::prelude::Peripherals::take().unwrap();
 
     #[cfg(feature = "qemu")]
     let robot = {
@@ -102,11 +116,11 @@ fn main() -> anyhow::Result<()> {
         (wifi.sta_netif().get_ip_info()?.ip, wifi)
     };
 
+    use micro_rdk::common::app_client::AppClientConfig;
     let cfg = AppClientConfig::new(
         ROBOT_SECRET.to_owned(),
         ROBOT_ID.to_owned(),
         ip,
-        "".to_owned(),
     );
     let webrtc_certificate =
         WebRtcCertificate::new(ROBOT_DTLS_CERT, ROBOT_DTLS_KEY_PAIR, ROBOT_DTLS_CERT_FP);
@@ -156,9 +170,6 @@ fn start_wifi(
     modem: impl esp_idf_hal::peripheral::Peripheral<P = esp_idf_hal::modem::Modem> + 'static,
     sl_stack: EspSystemEventLoop,
 ) -> anyhow::Result<Box<EspWifi<'static>>> {
-    use embedded_svc::wifi::{ClientConfiguration, Wifi};
-    use esp_idf_svc::wifi::WifiWait;
-
     let mut wifi = Box::new(EspWifi::new(modem, sl_stack.clone(), None)?);
 
     info!("scanning");
@@ -181,15 +192,18 @@ fn start_wifi(
 
     wifi.start()?;
 
+    /*   // refactor to use updated api
     if !WifiWait::new(&sl_stack)?
         .wait_with_timeout(Duration::from_secs(20), || wifi.is_started().unwrap())
     {
         bail!("couldn't start wifi")
     }
+        */
 
     wifi.connect()?;
 
-    if !EspNetifWait::new::<EspNetif>(wifi.sta_netif(), &sl_stack)?.wait_with_timeout(
+    /*   // refactor to use updated api
+    if !EspNetifWait::new::<EspNetif>(wifi.sta_netif(), &sl_stack)?.wait_with_timeout( 
         Duration::from_secs(20),
         || {
             wifi.is_connected().unwrap()
@@ -198,6 +212,7 @@ fn start_wifi(
     ) {
         bail!("wifi couldn't connect")
     }
+        */
 
     let ip_info = wifi.sta_netif().get_ip_info()?;
 
@@ -206,4 +221,64 @@ fn start_wifi(
     esp_idf_sys::esp!(unsafe { esp_wifi_set_ps(esp_idf_sys::wifi_ps_type_t_WIFI_PS_NONE) })?;
 
     Ok(wifi)
+}
+#[derive(Deserialize, Debug)]
+struct Response {
+    response: String,
+}
+
+/// Send a HTTP GET request.
+fn get_request(client: &mut HttpClient<EspHttpConnection>) -> anyhow::Result<()> {
+    // Prepare headers and URL
+    //let content_length_header = format!("{}", payload.len());
+
+    let payload = json!({
+        /*
+        "location": "<ROBOT LOCATION>",
+        "secret": "<ROBOT SECRET>",
+        "target": "<COMPONENT BOARD NAME>",
+        "pin": pin-no
+        */
+        "delete": "this"
+    })
+    .to_string();
+    let payload = payload.as_bytes();
+    // Prepare headers and URL
+    let content_length_header = format!("{}", payload.len());
+    let headers = [
+        ("accept", "text/plain"),
+        ("content-type", "application/json"),
+        ("connection", "close"),
+        ("content-length", &*content_length_header),
+    ];
+    let url = "https://restless-shape-1762.fly.dev/esp";
+
+    // Send request
+    //let mut request = client.get(&url, &headers)?;
+    let mut request = client.request(Method::Get, &url, &headers)?;
+    request.write_all(payload)?;
+    request.flush()?;
+    info!("-> GET {}", url);
+    let mut response = request.submit()?;
+
+    // Process response
+    let status = response.status();
+    info!("<- {}", status);
+    let (_headers, mut body) = response.split();
+    let mut buf = [0u8; 4096];
+    let bytes_read = io::try_read_full(&mut body, &mut buf).map_err(|e| e.0)?;
+    info!("Read {} bytes", bytes_read);
+    let response: Response = serde_json::from_slice(&buf[0..bytes_read])?;
+    info!("Response body: {:?} bytes", response);
+
+    // Drain the remaining response bytes
+    while body.read(&mut buf)? > 0 {}
+
+    //let bytes_read = io::try_read_full(&mut body, &mut buf).map_err(|e| e.0)?;
+    //info!("Read {} bytes", bytes_read);
+
+    // Drain the remaining response bytes
+    //while body.read(&mut buf)? > 0 {}
+
+    Ok(())
 }
