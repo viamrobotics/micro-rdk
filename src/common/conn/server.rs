@@ -25,6 +25,7 @@ use futures_lite::{
     ready, Future,
 };
 use hyper::server::conn::Http;
+use smol_timeout::TimeoutExt;
 use std::{
     error::Error,
     fmt::Debug,
@@ -47,6 +48,8 @@ type Executor<'a> = Esp32Executor<'a>;
 pub enum ServerError {
     #[error("couldn't open ssl connection")]
     ServerErrorOpenSslConnection,
+    #[error("timeout while connecting")]
+    ServerConnectionTimeout,
     #[error(transparent)]
     Other(#[from] Box<dyn Error + Send + Sync>),
 }
@@ -398,8 +401,11 @@ where
                 .await
                 .map_err(|e| ServerError::Other(e.into()))?;
             api.run_ice_until_connected()
+                .timeout(std::time::Duration::from_secs(2))
                 .await
+                .ok_or(ServerError::ServerConnectionTimeout)?
                 .map_err(|e| ServerError::Other(e.into()))?;
+
             api
         };
         let c = api
