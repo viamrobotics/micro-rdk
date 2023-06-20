@@ -121,6 +121,7 @@ fn main() -> anyhow::Result<()> {
         ROBOT_SECRET.to_owned(),
         ROBOT_ID.to_owned(),
         ip,
+        "".to_string()
     );
     let webrtc_certificate =
         WebRtcCertificate::new(ROBOT_DTLS_CERT, ROBOT_DTLS_KEY_PAIR, ROBOT_DTLS_CERT_FP);
