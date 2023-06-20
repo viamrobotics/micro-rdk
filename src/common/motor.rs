@@ -54,54 +54,48 @@ pub struct FakeMotor {
 impl TryFrom<Kind> for MotorPinsConfig {
     type Error = AttributeError;
     fn try_from(value: Kind) -> Result<Self, Self::Error> {
-        let mut motor = MotorPinsConfig::default();
-        match value {
-            Kind::StructValueStatic(v) => {
-                motor.pwm = v
-                    .get("pwm")
-                    .ok_or_else(|| AttributeError::KeyNotFound("pwm".to_string()))?
-                    .try_into()?;
-                if let Some(a) = v.get("a") {
-                    motor.a = Some(a.try_into()?);
-                } else {
-                    motor.a = None;
-                }
-                if let Some(b) = v.get("b") {
-                    motor.b = Some(b.try_into()?);
-                } else {
-                    motor.b = None;
-                }
-            }
-            _ => return Err(AttributeError::ConversionImpossibleError),
-        }
-        Ok(motor)
+        Ok(MotorPinsConfig {
+            a: Some(
+                value
+                    .get("a")?
+                    .ok_or_else(|| AttributeError::KeyNotFound("a".to_string()))?
+                    .try_into()?,
+            ),
+            b: Some(
+                value
+                    .get("b")?
+                    .ok_or_else(|| AttributeError::KeyNotFound("b".to_string()))?
+                    .try_into()?,
+            ),
+            pwm: value
+                .get("pwm")?
+                .ok_or_else(|| AttributeError::KeyNotFound("pwm".to_string()))?
+                .try_into()?,
+        })
     }
 }
 
 impl TryFrom<&Kind> for MotorPinsConfig {
     type Error = AttributeError;
     fn try_from(value: &Kind) -> Result<Self, Self::Error> {
-        let mut motor = MotorPinsConfig::default();
-        match value {
-            Kind::StructValueStatic(v) => {
-                motor.pwm = v
-                    .get("pwm")
-                    .ok_or_else(|| AttributeError::KeyNotFound("pwm".to_string()))?
-                    .try_into()?;
-                motor.a = Some(
-                    v.get("a")
-                        .ok_or_else(|| AttributeError::KeyNotFound("a".to_string()))?
-                        .try_into()?,
-                );
-                motor.b = Some(
-                    v.get("b")
-                        .ok_or_else(|| AttributeError::KeyNotFound("b".to_string()))?
-                        .try_into()?,
-                );
-            }
-            _ => return Err(AttributeError::ConversionImpossibleError),
-        }
-        Ok(motor)
+        Ok(MotorPinsConfig {
+            a: Some(
+                value
+                    .get("a")?
+                    .ok_or_else(|| AttributeError::KeyNotFound("a".to_string()))?
+                    .try_into()?,
+            ),
+            b: Some(
+                value
+                    .get("b")?
+                    .ok_or_else(|| AttributeError::KeyNotFound("b".to_string()))?
+                    .try_into()?,
+            ),
+            pwm: value
+                .get("pwm")?
+                .ok_or_else(|| AttributeError::KeyNotFound("pwm".to_string()))?
+                .try_into()?,
+        })
     }
 }
 

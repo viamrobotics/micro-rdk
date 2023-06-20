@@ -44,40 +44,30 @@ pub(crate) struct AnalogReaderConfig {
 impl TryFrom<Kind> for AnalogReaderConfig {
     type Error = AttributeError;
     fn try_from(value: Kind) -> Result<Self, Self::Error> {
-        match value {
-            Kind::StructValueStatic(v) => {
-                if !v.contains_key("name") {
-                    return Err(AttributeError::KeyNotFound("name".to_string()));
-                }
-                if !v.contains_key("pin") {
-                    return Err(AttributeError::KeyNotFound("pin".to_string()));
-                }
-                let name = v.get("name").unwrap().try_into()?;
-                let pin: i32 = v.get("pin").unwrap().try_into()?;
-                Ok(Self { name, pin })
-            }
-            _ => Err(AttributeError::ConversionImpossibleError),
+        if !value.contains_key("name")? {
+            return Err(AttributeError::KeyNotFound("name".to_string()));
         }
+        if !value.contains_key("pin")? {
+            return Err(AttributeError::KeyNotFound("pin".to_string()));
+        }
+        let name = value.get("name")?.unwrap().try_into()?;
+        let pin: i32 = value.get("pin")?.unwrap().try_into()?;
+        Ok(Self { name, pin })
     }
 }
 
 impl TryFrom<&Kind> for AnalogReaderConfig {
     type Error = AttributeError;
     fn try_from(value: &Kind) -> Result<Self, Self::Error> {
-        match value {
-            Kind::StructValueStatic(v) => {
-                if !v.contains_key("name") {
-                    return Err(AttributeError::KeyNotFound("name".to_string()));
-                }
-                if !v.contains_key("pin") {
-                    return Err(AttributeError::KeyNotFound("pin".to_string()));
-                }
-                let name = v.get("name").unwrap().try_into()?;
-                let pin: i32 = v.get("pin").unwrap().try_into()?;
-                Ok(Self { name, pin })
-            }
-            _ => Err(AttributeError::ConversionImpossibleError),
+        if !value.contains_key("name")? {
+            return Err(AttributeError::KeyNotFound("name".to_string()));
         }
+        if !value.contains_key("pin")? {
+            return Err(AttributeError::KeyNotFound("pin".to_string()));
+        }
+        let name = value.get("name")?.unwrap().try_into()?;
+        let pin: i32 = value.get("pin")?.unwrap().try_into()?;
+        Ok(Self { name, pin })
     }
 }
 
