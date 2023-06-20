@@ -125,7 +125,7 @@ impl LocalRobot {
     // Creates a robot from the response of a gRPC call to acquire the robot configuration. The individual
     // component configs within the response are consumed and the corresponding components are generated
     // and added to the created robot.
-    pub fn new_from_config_response(config_resp: &Box<ConfigResponse>) -> anyhow::Result<Self> {
+    pub fn new_from_config_response(config_resp: &ConfigResponse) -> anyhow::Result<Self> {
         let mut robot = LocalRobot {
             resources: ResourceMap::new(),
         };
