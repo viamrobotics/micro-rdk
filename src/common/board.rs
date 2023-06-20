@@ -19,6 +19,8 @@ use super::i2c::I2CHandle;
 use super::i2c::I2cHandleType;
 use super::registry::ComponentRegistry;
 
+pub static COMPONENT_NAME: &str = "board";
+
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
         .register_board("fake", &FakeBoard::from_config)

@@ -27,25 +27,86 @@ pub enum RegistryError {
     ModelNotFound(String),
     #[error("RegistryError : model '{0}' already exists")]
     ModelAlreadyRegistered(&'static str),
+    #[error("RegistryError: model '{0}' dependency getter already registered")]
+    ModelDependencyFuncRegistered(&'static str),
+    #[error("RegistryError: dependencies unsupported for component type '{0}'")]
+    ComponentTypeNotInDependencies(&'static str),
+    #[error("RegistryError: model '{0}' not found in dependencies under component type '{1}'")]
+    ModelNotFoundInDependencies(String, &'static str),
 }
 
 use std::collections::BTreeMap as Map;
 
+use crate::proto::common::v1::ResourceName;
+
 use super::{
     board::BoardType, config::ConfigType, encoder::EncoderType, motor::MotorType,
-    movement_sensor::MovementSensorType, sensor::SensorType,
+    movement_sensor::MovementSensorType, robot::Resource, sensor::SensorType,
 };
 
-type MotorConstructor = dyn Fn(ConfigType, Option<BoardType>) -> anyhow::Result<MotorType>;
+pub fn get_board_from_dependencies(deps: Vec<Dependency>) -> Option<BoardType> {
+    for Dependency(_, dep) in deps {
+        match dep {
+            Resource::Board(b) => return Some(b.clone()),
+            _ => continue,
+        }
+    }
+    None
+}
 
-type SensorConstructor = dyn Fn(ConfigType, Option<BoardType>) -> anyhow::Result<SensorType>;
+// ResourceKey is an identifier for a component to be registered to a robot. The
+// first element is a string representing the component type (arm, motor, etc.)
+// and the second element is its name.
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub struct ResourceKey(pub &'static str, pub String);
 
-type MovementSensorConstructor =
-    dyn Fn(ConfigType, Option<BoardType>) -> anyhow::Result<MovementSensorType>;
+impl ResourceKey {
+    pub fn new(model: &str, name: String) -> Result<Self, anyhow::Error> {
+        let model_str = match model {
+            "motor" => crate::common::motor::COMPONENT_NAME,
+            "board" => crate::common::board::COMPONENT_NAME,
+            "encoder" => crate::common::encoder::COMPONENT_NAME,
+            "movement_sensor" => crate::common::movement_sensor::COMPONENT_NAME,
+            "sensor" => crate::common::sensor::COMPONENT_NAME,
+            &_ => {
+                anyhow::bail!("component type {} is not supported yet", model.to_string());
+            }
+        };
+        Ok(Self(model_str, name))
+    }
+}
+
+impl TryFrom<ResourceName> for ResourceKey {
+    type Error = anyhow::Error;
+    fn try_from(value: ResourceName) -> Result<Self, Self::Error> {
+        let comp_type: &str = &value.subtype;
+        let comp_name = match comp_type {
+            "motor" => crate::common::motor::COMPONENT_NAME,
+            "sensor" => crate::common::sensor::COMPONENT_NAME,
+            "movement_sensor" => crate::common::movement_sensor::COMPONENT_NAME,
+            "encoder" => crate::common::encoder::COMPONENT_NAME,
+            _ => {
+                anyhow::bail!("component type {} is not supported yet", comp_type);
+            }
+        };
+        Ok(Self(comp_name, value.name))
+    }
+}
+
+pub struct Dependency(pub ResourceKey, pub Resource);
 
 type BoardConstructor = dyn Fn(ConfigType) -> anyhow::Result<BoardType>;
 
-type EncoderConstructor = dyn Fn(ConfigType, Option<BoardType>) -> anyhow::Result<EncoderType>;
+type MotorConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<MotorType>;
+
+type SensorConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<SensorType>;
+
+type MovementSensorConstructor =
+    dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<MovementSensorType>;
+
+type EncoderConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<EncoderType>;
+
+type DependenciesFromConfig = dyn Fn(ConfigType) -> Vec<ResourceKey>;
 
 pub(crate) struct ComponentRegistry {
     motors: Map<&'static str, &'static MotorConstructor>,
@@ -53,18 +114,25 @@ pub(crate) struct ComponentRegistry {
     sensor: Map<&'static str, &'static SensorConstructor>,
     movement_sensors: Map<&'static str, &'static MovementSensorConstructor>,
     encoders: Map<&'static str, &'static EncoderConstructor>,
+    dependencies: Map<&'static str, Map<&'static str, &'static DependenciesFromConfig>>,
 }
 
 unsafe impl Sync for ComponentRegistry {}
 
 impl ComponentRegistry {
     pub(crate) fn new() -> Self {
+        let mut dependency_func_map = Map::new();
+        dependency_func_map.insert(crate::common::motor::COMPONENT_NAME, Map::new());
+        dependency_func_map.insert(crate::common::movement_sensor::COMPONENT_NAME, Map::new());
+        dependency_func_map.insert(crate::common::encoder::COMPONENT_NAME, Map::new());
+        dependency_func_map.insert(crate::common::sensor::COMPONENT_NAME, Map::new());
         Self {
             motors: Map::new(),
             board: Map::new(),
             sensor: Map::new(),
             movement_sensors: Map::new(),
             encoders: Map::new(),
+            dependencies: dependency_func_map,
         }
     }
     pub(crate) fn register_motor(
@@ -125,6 +193,46 @@ impl ComponentRegistry {
         }
         let _ = self.encoders.insert(model, constructor);
         Ok(())
+    }
+
+    pub(crate) fn register_dependency_getter(
+        &mut self,
+        component_type: &'static str,
+        model: &'static str,
+        getter: &'static DependenciesFromConfig,
+    ) -> Result<(), RegistryError> {
+        if !self.dependencies.contains_key(component_type) {
+            return Err(RegistryError::ComponentTypeNotInDependencies(
+                component_type,
+            ));
+        }
+        let comp_deps = self.dependencies.get_mut(component_type).unwrap();
+        if comp_deps.contains_key(model) {
+            return Err(RegistryError::ModelDependencyFuncRegistered(model));
+        }
+        let _ = comp_deps.insert(model, getter);
+        Ok(())
+    }
+
+    pub(crate) fn get_dependency_function(
+        &self,
+        component_type: &'static str,
+        model: String,
+    ) -> Result<&'static DependenciesFromConfig, RegistryError> {
+        let model_name: &str = &model;
+        if !self.dependencies.contains_key(component_type) {
+            return Err(RegistryError::ComponentTypeNotInDependencies(
+                component_type,
+            ));
+        }
+        let comp_deps = self.dependencies.get(component_type).unwrap();
+        if let Some(func) = comp_deps.get(model_name) {
+            return Ok(*func);
+        }
+        Err(RegistryError::ModelNotFoundInDependencies(
+            model,
+            component_type,
+        ))
     }
 
     pub(crate) fn get_board_constructor(
@@ -242,7 +350,7 @@ mod tests {
         let ctor = registry.get_motor_constructor("fake2".to_string());
         assert!(ctor.is_ok());
 
-        let ret = ctor.unwrap()(ConfigType::Static(&EMPTY_CONFIG), None);
+        let ret = ctor.unwrap()(ConfigType::Static(&EMPTY_CONFIG), Vec::new());
 
         assert!(ret.is_err());
         assert_eq!(format!("{}", ret.err().unwrap()), "not implemented");

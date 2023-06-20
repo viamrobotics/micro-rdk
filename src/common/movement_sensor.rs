@@ -1,14 +1,15 @@
 #![allow(dead_code)]
-use super::board::BoardType;
 use super::config::ConfigType;
 use super::math_utils::Vector3;
-use super::registry::ComponentRegistry;
+use super::registry::{ComponentRegistry, Dependency};
 use super::status::Status;
 use crate::proto::common::v1::GeoPoint;
 use crate::proto::component::movement_sensor;
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
+
+pub static COMPONENT_NAME: &str = "movement_sensor";
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
@@ -105,7 +106,7 @@ impl FakeMovementSensor {
     }
     pub(crate) fn from_config(
         cfg: ConfigType,
-        _: Option<BoardType>,
+        _: Vec<Dependency>,
     ) -> anyhow::Result<MovementSensorType> {
         let mut fake_pos: GeoPosition = Default::default();
         if let Ok(fake_lat) = cfg.get_attribute::<f64>("fake_lat") {

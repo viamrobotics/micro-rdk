@@ -44,12 +44,14 @@ use esp_idf_hal::ledc::config::TimerConfig;
 use esp_idf_hal::ledc::{LedcDriver, LedcTimerDriver, CHANNEL0, CHANNEL1, CHANNEL2};
 
 use super::pin::PinExt;
-use crate::common::board::BoardType;
 use crate::common::config::ConfigType;
-use crate::common::encoder::{Encoder, EncoderPositionType};
+use crate::common::encoder::{
+    Encoder, EncoderPositionType, EncoderType, COMPONENT_NAME as EncoderCompName,
+};
 use crate::common::math_utils::go_for_math;
-use crate::common::motor::{Motor, MotorPinsConfig, MotorType};
-use crate::common::registry::ComponentRegistry;
+use crate::common::motor::{Motor, MotorPinsConfig, MotorType, COMPONENT_NAME as MotorCompName};
+use crate::common::registry::{ComponentRegistry, Dependency, ResourceKey};
+use crate::common::robot::Resource;
 use crate::common::status::Status;
 use crate::common::stop::Stoppable;
 use log::*;
@@ -62,18 +64,52 @@ use embedded_hal::PwmPin;
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
-        .register_motor(
+        .register_motor("gpio", &gpio_motor_from_config)
+        .is_err()
+    {
+        log::error!("gpio model is already registered")
+    }
+    if registry
+        .register_dependency_getter(
+            MotorCompName,
             "gpio",
             &ABMotorEsp32::<
                 PinDriver<'_, AnyOutputPin, Output>,
                 PinDriver<'_, AnyOutputPin, Output>,
                 LedcDriver<'_>,
-            >::from_config,
+            >::dependencies_from_config,
         )
         .is_err()
     {
-        log::error!("gpio model is already registered")
+        log::error!("failed to register dependency getter for gpio model")
     }
+}
+
+// Generates a motor or an encoded motor depending on whether an encoder has been added as
+// a dependency from the config. TODO: Add support for initializing PwmDirMotorEsp32.
+pub fn gpio_motor_from_config(cfg: ConfigType, deps: Vec<Dependency>) -> anyhow::Result<MotorType> {
+    let motor = ABMotorEsp32::<
+        PinDriver<'_, AnyOutputPin, Output>,
+        PinDriver<'_, AnyOutputPin, Output>,
+        LedcDriver<'_>,
+    >::from_config(cfg)?;
+    let mut enc: Option<EncoderType> = None;
+    for Dependency(_, dep) in deps {
+        match dep {
+            Resource::Encoder(found_enc) => {
+                enc = Some(found_enc.clone());
+                break;
+            }
+            _ => {
+                continue;
+            }
+        };
+    }
+    if let Some(enc) = enc {
+        let enc_motor = EncodedMotor::new(motor, enc.clone());
+        return Ok(Arc::new(Mutex::new(enc_motor)));
+    }
+    Ok(motor)
 }
 
 pub struct EncodedMotor<M, Enc> {
@@ -161,7 +197,16 @@ where
         ABMotorEsp32 { a, b, pwm, max_rpm }
     }
 
-    pub(crate) fn from_config(cfg: ConfigType, _: Option<BoardType>) -> anyhow::Result<MotorType> {
+    pub(crate) fn dependencies_from_config(cfg: ConfigType) -> Vec<ResourceKey> {
+        let mut r_keys = Vec::new();
+        if let Ok(enc_name) = cfg.get_attribute::<String>("encoder") {
+            let r_key = ResourceKey(EncoderCompName, enc_name);
+            r_keys.push(r_key)
+        }
+        r_keys
+    }
+
+    pub(crate) fn from_config(cfg: ConfigType) -> anyhow::Result<MotorType> {
         if let Ok(pins) = cfg.get_attribute::<MotorPinsConfig>("pins") {
             if pins.a.is_some() && pins.b.is_some() {
                 use esp_idf_hal::units::FromValueType;
