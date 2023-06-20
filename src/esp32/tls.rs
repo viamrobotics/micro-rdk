@@ -16,11 +16,29 @@ use std::{
     os::{raw::c_char, unix::prelude::AsRawFd},
 };
 
+use crate::common::conn::server::{ServerError, TlsClientConnector};
+
+use super::tcp::Esp32Stream;
+
+unsafe impl Sync for Esp32Tls {}
+unsafe impl Send for Esp32Tls {}
+
 /// structure to store tls configuration
+#[derive(Clone)]
 pub struct Esp32Tls {
     #[allow(dead_code)]
     alpn_ptr: Vec<*const c_char>,
     tls_cfg: Either<Box<esp_tls_cfg_server>, Box<esp_tls_cfg>>,
+}
+
+impl TlsClientConnector for Esp32Tls {
+    type Stream = Esp32Stream;
+    fn connect(&mut self) -> Result<Self::Stream, ServerError> {
+        Ok(Esp32Stream::TLSStream(Box::new(
+            self.open_ssl_context(None)
+                .map_err(|e| ServerError::Other(e.into()))?,
+        )))
+    }
 }
 
 /// TCP like stream for encrypted communication over TLS
@@ -186,6 +204,7 @@ impl Esp32TlsStream {
                         **tls_context,
                     )) {
                         log::error!("can't create TLS context ''{}''", err);
+                        esp_tls_conn_destroy(**tls_context);
                         Err(anyhow::anyhow!(err))
                     } else {
                         Ok(Self {
@@ -225,6 +244,7 @@ impl Esp32TlsStream {
 
 impl Drop for Esp32TlsStream {
     fn drop(&mut self) {
+        log::error!("dropping the tls stream");
         if let Some(err) = EspError::from(unsafe { esp_tls_conn_destroy(**self.tls_context) }) {
             log::error!("error while dropping the tls connection '{}'", err);
         }

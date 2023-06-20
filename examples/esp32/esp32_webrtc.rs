@@ -19,19 +19,13 @@ use esp_idf_sys as _;
 use anyhow::bail;
 #[cfg(not(feature = "qemu"))]
 use esp_idf_sys::esp_wifi_set_ps;
-use futures_lite::future::block_on;
 use log::*;
-use micro_rdk::common::app_client::{AppClientBuilder, AppClientConfig};
-use micro_rdk::common::grpc::GrpcServer;
+use micro_rdk::common::app_client::AppClientConfig;
 use micro_rdk::common::robot::{LocalRobot, ResourceMap, ResourceType};
-use micro_rdk::common::webrtc::grpc::{WebRtcGrpcBody, WebRtcGrpcServer};
 use micro_rdk::esp32::certificate::WebRtcCertificate;
-use micro_rdk::esp32::dtls::Esp32Dtls;
-use micro_rdk::esp32::exec::Esp32Executor;
 use micro_rdk::proto::common::v1::ResourceName;
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -39,7 +33,8 @@ use std::time::Duration;
 use esp_idf_svc::wifi::EspWifi;
 
 use esp_idf_hal::prelude::Peripherals;
-use esp_idf_hal::gpio::IOPin;
+use micro_rdk::esp32::entry::serve_web;
+use micro_rdk::esp32::tls::Esp32TlsServerConfig;
 
 fn main() -> anyhow::Result<()> {
     esp_idf_sys::link_patches();
@@ -49,7 +44,7 @@ fn main() -> anyhow::Result<()> {
     let periph = Peripherals::take().unwrap();
 
     #[cfg(feature = "qemu")]
-    let robot = {
+    let _robot = {
         use micro_rdk::common::board::FakeBoard;
         let board = Arc::new(Mutex::new(FakeBoard::new(vec![])));
         let mut res: ResourceMap = HashMap::with_capacity(1);
@@ -62,41 +57,40 @@ fn main() -> anyhow::Result<()> {
             },
             ResourceType::Board(board),
         );
-        Arc::new(Mutex::new(LocalRobot::new(res)))
+        LocalRobot::new(res)
     };
     #[cfg(not(feature = "qemu"))]
-    let robot = {
-        use esp_idf_hal::gpio::OutputPin;
+    let _robot = {
+        use esp_idf_hal::gpio::IOPin;
+        //use esp_idf_hal::gpio::OutputPin;
         use esp_idf_hal::gpio::PinDriver;
-        use esp_idf_hal::ledc;
-        use esp_idf_hal::ledc::config::TimerConfig;
-        use esp_idf_hal::units::FromValueType;
+        //use esp_idf_hal::ledc;
+        //use esp_idf_hal::ledc::config::TimerConfig;
+        //use esp_idf_hal::units::FromValueType;
         use micro_rdk::esp32::board::EspBoard;
-        use micro_rdk::esp32::motor::ABMotorEsp32;
-        let tconf = TimerConfig::default().frequency(10.kHz().into());
-        let timer = Arc::new(ledc::LedcTimerDriver::new(periph.ledc.timer0, &tconf).unwrap());
-        let max_rpm = 100.0;
-        let chan =
-            ledc::LedcDriver::new(periph.ledc.channel0, timer.clone(), periph.pins.gpio14).unwrap();
-        let m1 = ABMotorEsp32::new(
-            PinDriver::output(periph.pins.gpio33).unwrap(),
-            PinDriver::output(periph.pins.gpio32).unwrap(),
-            chan,
-            max_rpm,
-        );
-        let motor = Arc::new(Mutex::new(m1));
-        let pins = vec![PinDriver::input_output(periph.pins.gpio15.downgrade())?];
+        //use micro_rdk::esp32::motor::ABMotorEsp32;
+        //let tconf = TimerConfig::default().frequency(10.kHz().into());
+        // let timer = Arc::new(ledc::LedcTimerDriver::new(periph.ledc.timer0, &tconf).unwrap());
+        // let chan =
+        //     ledc::LedcDriver::new(periph.ledc.channel0, timer.clone(), periph.pins.gpio14).unwrap();
+        // let m1 = ABMotorEsp32::new(\
+        //     PinDriver::output(periph.pins.gpio33).unwrap(),
+        //     PinDriver::output(periph.pins.gpio32).unwrap(),
+        //     chan,
+        // );
+        //let motor = Arc::new(Mutex::new(m1));
+        let pins = vec![PinDriver::input_output(periph.pins.gpio33.downgrade()).unwrap()];
         let b = EspBoard::new(pins, vec![], HashMap::new());
-        let mut res: ResourceMap = HashMap::with_capacity(2);
-        res.insert(
-            ResourceName {
-                namespace: "rdk".to_string(),
-                r#type: "component".to_string(),
-                subtype: "motor".to_string(),
-                name: "m1".to_string(),
-            },
-            ResourceType::Motor(motor),
-        );
+        let mut res: ResourceMap = HashMap::with_capacity(1);
+        // res.insert(
+        //     ResourceName {
+        //         namespace: "rdk".to_string(),
+        //         r#type: "component".to_string(),
+        //         subtype: "motor".to_string(),
+        //         name: "m1".to_string(),
+        //     },
+        //     ResourceType::Motor(motor),
+        // );
         res.insert(
             ResourceName {
                 namespace: "rdk".to_string(),
@@ -106,7 +100,7 @@ fn main() -> anyhow::Result<()> {
             },
             ResourceType::Board(Arc::new(Mutex::new(b))),
         );
-        Arc::new(Mutex::new(LocalRobot::new(res)))
+        LocalRobot::new(res)
     };
 
     #[cfg(feature = "qemu")]
@@ -135,50 +129,29 @@ fn main() -> anyhow::Result<()> {
         let wifi = start_wifi(periph.modem, sys_loop_stack)?;
         (wifi.sta_netif().get_ip_info()?.ip, wifi)
     };
-    let cfg = AppClientConfig::new(ROBOT_SECRET.to_owned(), ROBOT_ID.to_owned(), ip);
-    run_server(robot, cfg);
-    Ok(())
-}
 
-fn run_server(robot: Arc<Mutex<LocalRobot>>, cfg: AppClientConfig) {
-    use micro_rdk::common::grpc_client::GrpcClient;
-    use micro_rdk::esp32::tcp::Esp32Stream;
-    use micro_rdk::esp32::tls::Esp32Tls;
-    log::info!("Starting WebRtc ");
-    let executor = Esp32Executor::new();
-    let mut webrtc = {
-        let mut tls = Box::new(Esp32Tls::new_client());
-        let conn = tls.open_ssl_context(None).unwrap();
-        let conn = Esp32Stream::TLSStream(Box::new(conn));
+    let cfg = AppClientConfig::new(
+        ROBOT_SECRET.to_owned(),
+        ROBOT_ID.to_owned(),
+        ip,
+        "".to_owned(),
+    );
+    let webrtc_certificate =
+        WebRtcCertificate::new(ROBOT_DTLS_CERT, ROBOT_DTLS_KEY_PAIR, ROBOT_DTLS_CERT_FP);
 
-        let grpc_client =
-            GrpcClient::new(conn, executor.clone(), "https://app.viam.com:443").unwrap();
-        let mut app_client = AppClientBuilder::new(grpc_client, cfg).build().unwrap();
-
-        let webrtc_certificate = Rc::new(WebRtcCertificate::new(
-            ROBOT_DTLS_CERT,
-            ROBOT_DTLS_KEY_PAIR,
-            ROBOT_DTLS_CERT_FP,
-        ));
-
-        let dtls = Esp32Dtls::new(webrtc_certificate.clone()).unwrap();
-
-        let webrtc = app_client
-            .connect_webrtc(webrtc_certificate, executor.clone(), dtls)
-            .unwrap();
-
-        drop(app_client);
-        webrtc
+    let tls_cfg = {
+        let cert = include_bytes!(concat!(env!("OUT_DIR"), "/ca.crt"));
+        let key = include_bytes!(concat!(env!("OUT_DIR"), "/key.key"));
+        Esp32TlsServerConfig::new(
+            cert.as_ptr(),
+            cert.len() as u32,
+            key.as_ptr(),
+            key.len() as u32,
+        )
     };
-    let channel = block_on(executor.run(async { webrtc.open_data_channel().await })).unwrap();
-    log::info!("channel opened {:?}", channel);
 
-    let mut webrtc_grpc =
-        WebRtcGrpcServer::new(channel, GrpcServer::new(robot, WebRtcGrpcBody::default()));
-
-    loop {
-        block_on(executor.run(async { webrtc_grpc.next_request().await })).unwrap();
-    }
+    serve_web(cfg, tls_cfg, None, ip, webrtc_certificate);
+    Ok(())
 }
 
 #[cfg(feature = "qemu")]

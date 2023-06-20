@@ -139,7 +139,6 @@ pub struct GrpcClient<'a> {
 
 impl<'a> Drop for GrpcClient<'a> {
     fn drop(&mut self) {
-        log::debug!("client is dropping");
         if let Some(task) = self.http2_task.take() {
             //(TODO(RSDK-3061)) avoid blocking on if possible
             block_on(self.executor.run(async {
@@ -155,14 +154,15 @@ impl<'a> GrpcClient<'a> {
         T: AsyncRead + AsyncWrite + Unpin + 'a,
     {
         let (http2_connection, conn) = block_on(executor.run(async {
-            h2::client::Builder::new()
+            let builder = h2::client::Builder::new()
                 .initial_connection_window_size(4096)
                 .initial_window_size(4096)
                 .max_concurrent_reset_streams(1)
                 .max_concurrent_streams(1)
-                .handshake(io)
-                .await
-        }))?;
+                .handshake(io);
+            let conn = builder.await.unwrap();
+            (conn.0, Box::new(conn.1))
+        }));
 
         let http2_task = executor.spawn(async move {
             if let Err(e) = conn.await {
@@ -201,7 +201,7 @@ impl<'a> GrpcClient<'a> {
             .map_err(|e| anyhow::anyhow!("cannot build request {}", e))
     }
 
-    pub(crate) fn send_request_bidi<R, P>(
+    pub(crate) async fn send_request_bidi<R, P>(
         &mut self,
         r: Request<()>,
         message: Option<R>, // we shouldn't need this to get server headers when initiating a
@@ -225,7 +225,7 @@ impl<'a> GrpcClient<'a> {
             r.send_empty_body()?
         }
 
-        let (part, body) = block_on(self.executor.run(async { response.await }))?.into_parts();
+        let (part, body) = response.await?.into_parts();
 
         if part.status != status::StatusCode::OK {
             log::error!("received status code {}", part.status.to_string());

@@ -93,7 +93,7 @@ where
             stream: None,
             headers: None,
             streams: HashMap::new(),
-            buffer: BytesMut::zeroed(1300),
+            buffer: BytesMut::zeroed(1650),
         }
     }
     async fn send_response(&mut self, response: webrtc::v1::Response) -> Result<(), WebRtcError> {
@@ -103,7 +103,7 @@ where
         response
             .encode(&mut self.buffer)
             .map_err(WebRtcError::GprcEncodeError)?;
-        self.channel.write(&self.buffer[..len]).await;
+        self.channel.write(&self.buffer[..len]).await?;
         self.buffer.unsplit(b);
         Ok(())
     }

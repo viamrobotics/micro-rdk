@@ -3,7 +3,6 @@ use std::{
     collections::{HashMap, VecDeque},
     fmt::Debug,
     net::SocketAddr,
-    pin::Pin,
     sync::{Arc, Mutex},
     task::{Poll, Waker},
     time::Instant,
@@ -12,13 +11,11 @@ use std::{
 use async_channel::Sender;
 use bytes::Bytes;
 
-use futures_lite::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, Future};
+use futures_lite::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use sctp_proto::{
     Association, AssociationHandle, Chunks, ClientConfig, DatagramEvent, Endpoint, EndpointConfig,
     Event, Payload, ServerConfig, StreamEvent, StreamId, Transmit,
 };
-
-use super::exec::WebRtcExecutor;
 
 //#[derive(Clone)]
 struct SctpStream {
@@ -42,13 +39,13 @@ pub struct Channel {
 }
 
 impl Channel {
-    pub async fn write(&self, buf: &[u8]) {
+    pub async fn write(&self, buf: &[u8]) -> std::io::Result<()> {
         let bytes = Bytes::copy_from_slice(buf);
 
         self.tx_event
             .send(SctpEvent::OutgoingStreamData((self.tx_stream_id, bytes)))
             .await
-            .unwrap();
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
     }
 }
 
@@ -81,7 +78,7 @@ enum SctpEvent {
     Disconnect,
 }
 
-pub struct SctpProto<E, S> {
+pub struct SctpProto<S> {
     endpoint: Endpoint,
     transport: S,
     association: Option<Association>,
@@ -89,19 +86,17 @@ pub struct SctpProto<E, S> {
     state: SctpState,
     sctp_event_rx: async_channel::Receiver<SctpEvent>,
     sctp_event_tx: async_channel::Sender<SctpEvent>,
-    executor: E,
     channels: HashMap<ChannelId, Channel>,
     channels_rx: Sender<Channel>,
 }
 
-unsafe impl<S, E> Send for SctpProto<E, S> {}
+unsafe impl<S> Send for SctpProto<S> {}
 
-impl<E, S> SctpProto<E, S>
+impl<S> SctpProto<S>
 where
-    E: WebRtcExecutor<Pin<Box<dyn Future<Output = ()> + Send>>>,
-    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    S: AsyncRead + AsyncWrite + Unpin + Send,
 {
-    pub fn new(transport: S, executor: E, channel_send: Sender<Channel>) -> Self {
+    pub fn new(transport: S, channel_send: Sender<Channel>) -> Self {
         let endpoint_cfg = EndpointConfig::new();
         let endpoint = Endpoint::new(Arc::new(endpoint_cfg), None);
 
@@ -115,7 +110,6 @@ where
             state: SctpState::UnInit,
             sctp_event_rx,
             sctp_event_tx,
-            executor,
             channels: HashMap::new(),
             channels_rx: channel_send,
         }
@@ -187,7 +181,13 @@ where
                 futures_lite::future::or(
                     async {
                         let r = self.transport.read(&mut buf).await;
+                        if r.is_err() {
+                            return SctpEvent::Disconnect;
+                        }
                         let len = r.unwrap();
+                        if len == 0 {
+                            return SctpEvent::Disconnect;
+                        }
                         let buf = Bytes::copy_from_slice(&buf[..len]);
                         let from = "127.0.0.1:5000".parse().unwrap();
                         SctpEvent::IncomingData((from, buf))
@@ -484,7 +484,7 @@ mod tests {
         );
 
         let (c_tx, c_rx) = async_channel::unbounded();
-        let mut srv = SctpProto::new(socket, exec.clone(), c_tx);
+        let mut srv = SctpProto::new(socket, c_tx);
 
         let conn = srv.listen().await;
 
@@ -508,7 +508,7 @@ mod tests {
             assert!(read.is_ok());
 
             let read = read.unwrap();
-            channel.write(&buf[..read]).await;
+            assert!(channel.write(&buf[..read]).await.is_ok());
         }
     }
 
@@ -524,7 +524,7 @@ mod tests {
         );
 
         let (c_tx, c_rx) = async_channel::unbounded();
-        let mut client = SctpProto::new(socket, exec.clone(), c_tx);
+        let mut client = SctpProto::new(socket, c_tx);
 
         let ret = client.connect("127.0.0.1:63332".parse().unwrap()).await;
 
@@ -540,7 +540,7 @@ mod tests {
         assert!(channel.is_ok());
         let mut channel = channel.unwrap();
 
-        channel.write(b"hello").await;
+        assert!(channel.write(b"hello").await.is_ok());
 
         {
             let mut buf = [0; 8192];
@@ -553,7 +553,7 @@ mod tests {
             assert_eq!(b"hello", &buf[..read]);
         }
 
-        channel.write(b"hello world").await;
+        assert!(channel.write(b"hello world").await.is_ok());
 
         {
             let mut buf = [0; 8192];
@@ -568,7 +568,7 @@ mod tests {
 
         let random_bytes: Vec<u8> = (0..4096).map(|_| rand::random::<u8>()).collect();
 
-        channel.write(&random_bytes).await;
+        assert!(channel.write(&random_bytes).await.is_ok());
         {
             let mut buf = [0; 8192];
             let read = channel.read(&mut buf).await;

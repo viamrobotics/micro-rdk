@@ -1,8 +1,15 @@
+use crate::common::conn::server::{AsyncableTcpListener, Http2Connector, OwnedListener};
 use crate::native::tls::{NativeTls, NativeTlsStream};
-use futures_lite::io;
-use log::*;
+use async_io::Async;
+use futures_lite::future::FutureExt;
+
+use futures_lite::{ready, Future};
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
-use std::io::{Read, Write};
+use std::fmt::Debug;
+use std::io::{self, Read, Write};
+use std::net::SocketAddr;
+use std::pin::Pin;
+
 use std::{
     marker::PhantomData,
     net::{Shutdown, TcpListener, TcpStream},
@@ -34,37 +41,65 @@ impl NativeListener {
             tls,
         })
     }
+}
 
-    /// Accept the next incoming connection. Will block until a connection is established
-    pub fn accept(&mut self) -> anyhow::Result<NativeStream> {
-        let (conn, _) = self.listener.accept()?;
-        conn.set_nonblocking(true).expect("cannot set nodelay");
-        let stream = match &mut self.tls {
-            Some(tls) => {
-                info!("opening TLS ctx");
-                let stream = tls.open_ssl_context(Some(conn))?;
-                info!("handshake done");
-                NativeStream::TLSStream(Box::new(stream))
-            }
-            None => NativeStream::LocalPlain(conn),
+impl AsyncableTcpListener<NativeStream> for NativeListener {
+    type Output = NativeTlsConnector;
+    fn as_async_listener(&self) -> OwnedListener<Self::Output> {
+        let nat = Async::new(self.listener.try_clone().unwrap()).unwrap();
+        let inner = NativeIncoming {
+            inner: Box::pin(async move { nat.accept().await }),
+            tls: self.tls.clone(),
         };
-        Ok(stream)
+        OwnedListener {
+            inner: Box::pin(inner),
+        }
     }
 }
 
-/// Trait helper for hyper based server
-impl hyper::server::accept::Accept for NativeListener {
-    type Conn = NativeStream;
-    type Error = io::Error;
-    fn poll_accept(
-        self: std::pin::Pin<&mut Self>,
-        _: &mut Context,
-    ) -> std::task::Poll<Option<Result<Self::Conn, Self::Error>>> {
-        let (stream, peer) = self.listener.accept()?;
-        info!("Connected to {:?}", peer);
-        stream.set_nonblocking(true).expect("cannot set nodelay");
-        let stream = NativeStream::LocalPlain(stream);
-        Poll::Ready(Some(Ok(stream)))
+pub struct NativeIncoming {
+    tls: Option<Box<NativeTls>>,
+    inner: futures_lite::future::Boxed<io::Result<(Async<TcpStream>, SocketAddr)>>,
+}
+
+impl Future for NativeIncoming {
+    type Output = io::Result<NativeTlsConnector>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let r = match ready!(self.inner.poll(cx)) {
+            Ok(r) => NativeTlsConnector {
+                inner: r.0.into_inner().unwrap(),
+                tls: self.tls.clone(),
+            },
+            Err(e) => return Poll::Ready(Err(e)),
+        };
+        Poll::Ready(Ok(r))
+    }
+}
+
+pub struct NativeTlsConnector {
+    tls: Option<Box<NativeTls>>,
+    inner: TcpStream,
+}
+
+impl Debug for NativeTlsConnector {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NativeTlsConnector")
+            .field("inner", &self.inner)
+            .field("tls", &self.tls.is_some())
+            .finish()
+    }
+}
+
+impl Http2Connector for NativeTlsConnector {
+    type Stream = NativeStream;
+    fn accept(&mut self) -> std::io::Result<Self::Stream> {
+        match self.tls.as_ref() {
+            Some(tls) => tls
+                .open_ssl_context(Some(self.inner.try_clone().unwrap()))
+                .map(|s| NativeStream::TLSStream(Box::new(s)))
+                .map_err(|e| io::Error::new(io::ErrorKind::Other, e)),
+            None => Ok(NativeStream::LocalPlain(self.inner.try_clone().unwrap())),
+        }
     }
 }
 

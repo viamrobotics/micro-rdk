@@ -9,22 +9,27 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::common::webrtc::{certificate::Certificate, dtls::DtlsConnector, io::IoPktChannel};
+use crate::common::webrtc::{
+    certificate::Certificate,
+    dtls::{DtlsBuilder, DtlsConnector},
+    io::IoPktChannel,
+};
 
 use core::ffi::CStr;
 use esp_idf_sys::{
-    mbedtls_ctr_drbg_context, mbedtls_ctr_drbg_init, mbedtls_ctr_drbg_random,
-    mbedtls_ctr_drbg_seed, mbedtls_entropy_context, mbedtls_entropy_func, mbedtls_entropy_init,
-    mbedtls_pk_context, mbedtls_pk_init, mbedtls_pk_parse_key, mbedtls_ssl_conf_ca_chain,
-    mbedtls_ssl_conf_dbg, mbedtls_ssl_conf_dtls_cookies,
-    mbedtls_ssl_conf_dtls_srtp_protection_profiles, mbedtls_ssl_conf_own_cert,
-    mbedtls_ssl_conf_rng, mbedtls_ssl_config, mbedtls_ssl_config_defaults, mbedtls_ssl_config_init,
-    mbedtls_ssl_context, mbedtls_ssl_handshake, mbedtls_ssl_init, mbedtls_ssl_read,
-    mbedtls_ssl_set_bio, mbedtls_ssl_set_timer_cb, mbedtls_ssl_setup, mbedtls_ssl_write,
-    mbedtls_x509_crt, mbedtls_x509_crt_init, mbedtls_x509_crt_parse_der,
-    MBEDTLS_ERR_NET_RECV_FAILED, MBEDTLS_ERR_NET_SEND_FAILED, MBEDTLS_ERR_SSL_WANT_READ,
-    MBEDTLS_ERR_SSL_WANT_WRITE, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_PRESET_DEFAULT,
-    MBEDTLS_SSL_TRANSPORT_DATAGRAM,
+    mbedtls_ctr_drbg_context, mbedtls_ctr_drbg_free, mbedtls_ctr_drbg_init,
+    mbedtls_ctr_drbg_random, mbedtls_ctr_drbg_seed, mbedtls_entropy_context, mbedtls_entropy_free,
+    mbedtls_entropy_func, mbedtls_entropy_init, mbedtls_pk_context, mbedtls_pk_free,
+    mbedtls_pk_init, mbedtls_pk_parse_key, mbedtls_ssl_conf_ca_chain, mbedtls_ssl_conf_dbg,
+    mbedtls_ssl_conf_dtls_cookies, mbedtls_ssl_conf_dtls_srtp_protection_profiles,
+    mbedtls_ssl_conf_own_cert, mbedtls_ssl_conf_rng, mbedtls_ssl_config,
+    mbedtls_ssl_config_defaults, mbedtls_ssl_config_free, mbedtls_ssl_config_init,
+    mbedtls_ssl_context, mbedtls_ssl_free, mbedtls_ssl_handshake, mbedtls_ssl_init,
+    mbedtls_ssl_read, mbedtls_ssl_set_bio, mbedtls_ssl_set_timer_cb, mbedtls_ssl_setup,
+    mbedtls_ssl_write, mbedtls_x509_crt, mbedtls_x509_crt_free, mbedtls_x509_crt_init,
+    mbedtls_x509_crt_parse_der, MBEDTLS_ERR_NET_RECV_FAILED, MBEDTLS_ERR_NET_SEND_FAILED,
+    MBEDTLS_ERR_SSL_WANT_READ, MBEDTLS_ERR_SSL_WANT_WRITE, MBEDTLS_SSL_IS_SERVER,
+    MBEDTLS_SSL_PRESET_DEFAULT, MBEDTLS_SSL_TRANSPORT_DATAGRAM,
 };
 use futures_lite::{AsyncRead, AsyncWrite, Future};
 use log::{log, Level};
@@ -192,6 +197,20 @@ pub(crate) struct SSLContext {
     strp_profiles: Box<[MbedTlsStrpProfile]>,
 }
 
+impl Drop for SSLContext {
+    fn drop(&mut self) {
+        log::info!("dropping dtls context");
+        unsafe {
+            mbedtls_ctr_drbg_free(self.drbg_ctx.as_mut());
+            mbedtls_entropy_free(self.dtls_entropy.as_mut());
+            mbedtls_pk_free(self.pk_ctx.as_mut());
+            mbedtls_x509_crt_free(self.x509.as_mut());
+            mbedtls_ssl_config_free(self.ssl_config.as_mut());
+            mbedtls_ssl_free(self.ssl_ctx.as_mut());
+        }
+    }
+}
+
 impl SSLContext {
     fn init<S: Certificate>(&mut self, certificate: Rc<S>) -> Result<(), SSLError> {
         log::debug!("initializing DTLS context");
@@ -328,6 +347,7 @@ pub struct Esp32Dtls<C> {
     transport: Option<IoPktChannel>,
     certificate: Rc<C>,
 }
+
 #[derive(Error, Debug)]
 pub enum SSLError {
     #[error("couldn't parse certificate")]
@@ -357,6 +377,23 @@ impl From<i32> for SSLError {
         } else {
             SSLError::SSLOtherError(value)
         }
+    }
+}
+
+pub struct Esp32DtlsBuilder<C: Certificate> {
+    cert: Rc<C>,
+}
+
+impl<C: Certificate> Esp32DtlsBuilder<C> {
+    pub fn new(cert: Rc<C>) -> Self {
+        Self { cert }
+    }
+}
+
+impl<C: Certificate> DtlsBuilder for Esp32DtlsBuilder<C> {
+    type Output = Esp32Dtls<C>;
+    fn make(&self) -> anyhow::Result<Self::Output> {
+        Esp32Dtls::new(self.cert.clone()).map_err(|e| anyhow::anyhow!("Ssl error {:?}", e))
     }
 }
 

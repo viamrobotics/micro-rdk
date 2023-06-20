@@ -2,7 +2,6 @@
 use std::{
     fmt::Debug,
     io::{self, Cursor},
-    marker::PhantomData,
     net::Ipv4Addr,
     pin::Pin,
     rc::Rc,
@@ -78,6 +77,12 @@ pub(crate) struct WebRtcSignalingChannel {
     signaling_tx: GrpcMessageSender<AnswerResponse>,
     signaling_rx: GrpcMessageStream<AnswerRequest>,
     engine: general_purpose::GeneralPurpose,
+}
+
+impl Drop for WebRtcSignalingChannel {
+    fn drop(&mut self) {
+        log::error!("dropping signaling");
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -247,7 +252,7 @@ type Executor<'a> = NativeExecutor<'a>;
 #[cfg(feature = "esp32")]
 type Executor<'a> = Esp32Executor<'a>;
 
-pub struct WebRtcApi<'a, S, D, E> {
+pub struct WebRtcApi<S, D, E> {
     executor: E,
     signaling: Option<WebRtcSignalingChannel>,
     uuid: Option<String>,
@@ -257,14 +262,19 @@ pub struct WebRtcApi<'a, S, D, E> {
     remote_creds: Option<ICECredentials>,
     local_ip: Ipv4Addr,
     dtls: Option<D>,
-    marker: PhantomData<&'a E>,
 }
 
-impl<'a, C, D, E> WebRtcApi<'a, C, D, E>
+impl<C, D, E> Drop for WebRtcApi<C, D, E> {
+    fn drop(&mut self) {
+        log::info!("Dropping api");
+    }
+}
+
+impl<'a, C, D, E> WebRtcApi<C, D, E>
 where
     C: Certificate,
     D: DtlsConnector,
-    E: WebRtcExecutor<Pin<Box<dyn Future<Output = ()> + Send>>> + Clone + 'static,
+    E: WebRtcExecutor<Pin<Box<dyn Future<Output = ()> + Send>>> + Clone + 'a,
 {
     pub(crate) fn new(
         executor: E,
@@ -296,7 +306,6 @@ where
             local_creds: Default::default(),
             local_ip,
             dtls: Some(dtls),
-            marker: PhantomData,
         }
     }
 
@@ -353,6 +362,7 @@ where
                             "received error while gathering remote candidates continuing anyway {:?}",
                             e
                         );
+                        return Err(e);
                     }
                 }
             }
@@ -378,7 +388,7 @@ where
         if let Ok(dtls_stream) = dtls.accept().await {
             let (c_tx, c_rx) = async_channel::unbounded();
 
-            let mut sctp = Box::new(SctpProto::new(dtls_stream, self.executor.clone(), c_tx));
+            let mut sctp = Box::new(SctpProto::new(dtls_stream, c_tx));
             sctp.listen().await.unwrap();
             self.executor.execute(Box::pin(async move {
                 sctp.run().await;

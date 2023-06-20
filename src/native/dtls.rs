@@ -17,7 +17,7 @@ use openssl::ssl::{
 };
 
 use crate::common::webrtc::certificate::Certificate;
-use crate::common::webrtc::dtls::DtlsConnector;
+use crate::common::webrtc::dtls::{DtlsBuilder, DtlsConnector};
 use crate::common::webrtc::io::IoPktChannel;
 
 fn dtls_log_session_key(_: &SslRef, line: &str) {
@@ -35,9 +35,25 @@ fn dtls_log_session_key(_: &SslRef, line: &str) {
     }
 }
 
+pub struct NativeDtls<C: Certificate> {
+    cert: Rc<C>,
+}
+
+impl<C: Certificate> NativeDtls<C> {
+    pub fn new(cert: Rc<C>) -> Self {
+        Self { cert }
+    }
+}
+
 pub struct Dtls {
     pub context: SslContext,
     transport: Option<IoPktChannel>,
+}
+
+impl Drop for Dtls {
+    fn drop(&mut self) {
+        log::info!("dropped dtls");
+    }
 }
 
 pub fn unix_time() -> i64 {
@@ -106,5 +122,12 @@ impl DtlsConnector for Dtls {
     }
     fn set_transport(&mut self, transport: IoPktChannel) {
         let _ = self.transport.insert(transport);
+    }
+}
+
+impl<C: Certificate> DtlsBuilder for NativeDtls<C> {
+    type Output = Dtls;
+    fn make(&self) -> anyhow::Result<Self::Output> {
+        Dtls::new(self.cert.clone())
     }
 }

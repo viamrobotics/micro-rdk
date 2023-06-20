@@ -31,6 +31,10 @@ pub mod common {
         pub mod io;
         pub mod sctp;
     }
+    pub mod conn {
+        pub mod mdns;
+        pub mod server;
+    }
 }
 
 #[cfg(feature = "esp32")]
@@ -49,11 +53,14 @@ pub mod esp32 {
     pub mod motor;
     pub mod pin;
     pub mod pulse_counter;
-    pub mod server;
     pub mod single_encoded_motor;
     pub mod single_encoder;
     pub mod tcp;
     pub mod tls;
+    pub mod utils;
+    pub mod conn {
+        pub mod mdns;
+    }
 }
 
 #[cfg(feature = "native")]
@@ -62,9 +69,11 @@ pub mod native {
     pub mod dtls;
     pub mod entry;
     pub mod exec;
-    pub mod server;
     pub mod tcp;
     pub mod tls;
+    pub mod conn {
+        pub mod mdns;
+    }
 }
 
 pub mod google {

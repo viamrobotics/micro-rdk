@@ -2,39 +2,70 @@
 use crate::{
     common::{
         app_client::{AppClientBuilder, AppClientConfig},
+        conn::server::{ViamServerBuilder, WebRtcConfiguration},
         grpc_client::GrpcClient,
+        robot::LocalRobot,
     },
     native::exec::NativeExecutor,
     native::tcp::NativeStream,
     native::tls::NativeTls,
 };
-use anyhow::Result;
-use std::thread::{self, JoinHandle};
+use std::{
+    net::{Ipv4Addr, SocketAddr},
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
 
-/// start the robot client
-pub fn start(ip: AppClientConfig) -> Result<JoinHandle<()>> {
-    let handle = thread::spawn(|| client_entry(ip));
-    Ok(handle)
-}
+use super::{
+    certificate::WebRtcCertificate, conn::mdns::NativeMdns, dtls::NativeDtls, tcp::NativeListener,
+    tls::NativeTlsServerConfig,
+};
 
-/// client main loop
-fn clientloop(config: AppClientConfig) -> Result<()> {
-    let tls = Box::new(NativeTls::new_client());
-    let conn = tls.open_ssl_context(None)?;
-    let conn = NativeStream::TLSStream(Box::new(conn));
-    let executor = NativeExecutor::new();
+pub fn serve_web(
+    app_config: AppClientConfig,
+    tls_server_config: NativeTlsServerConfig,
+    robot: Option<LocalRobot>,
+    ip: Ipv4Addr,
+) {
+    let robot = Arc::new(Mutex::new(robot.unwrap()));
 
-    let grpc_client = GrpcClient::new(conn, executor, "https://app.viam.com:443")?;
+    let client_connector = NativeTls::new_client();
+    let exec = NativeExecutor::new();
+    let mdns = NativeMdns::new("".to_owned(), ip).unwrap();
 
-    let _app_client = AppClientBuilder::new(grpc_client, config).build()?;
+    let robot_cfg = {
+        let cloned_exec = exec.clone();
+        let conn = client_connector.open_ssl_context(None).unwrap();
+        let conn = NativeStream::TLSStream(Box::new(conn));
+        let grpc_client = GrpcClient::new(conn, cloned_exec, "https://app.viam.com:443").unwrap();
+        let builder = AppClientBuilder::new(Box::new(grpc_client), app_config.clone());
 
-    Ok(())
-}
+        let mut client = builder.build().unwrap();
+        client.get_config().unwrap()
+    };
 
-fn client_entry(config: AppClientConfig) {
-    if let Some(err) = clientloop(config).err() {
-        log::error!("client returned with error {}", err);
-    }
+    let address: SocketAddr = "0.0.0.0:12346".parse().unwrap();
+    let tls = Box::new(NativeTls::new_server(tls_server_config));
+    let tls_listener = NativeListener::new(address.into(), Some(tls)).unwrap();
+
+    let webrtc_certificate = Rc::new(WebRtcCertificate::new().unwrap());
+    let dtls = NativeDtls::new(webrtc_certificate.clone());
+
+    let cloned_exec = exec.clone();
+
+    let webrtc = Box::new(WebRtcConfiguration::new(
+        webrtc_certificate,
+        dtls,
+        client_connector,
+        exec.clone(),
+        app_config,
+    ));
+
+    let mut srv = ViamServerBuilder::new(mdns, tls_listener, webrtc, cloned_exec, 12346)
+        .build(&robot_cfg)
+        .unwrap();
+
+    srv.serve_forever(robot);
 }
 
 #[cfg(test)]
@@ -46,6 +77,7 @@ mod tests {
     use crate::common::robot::{LocalRobot, ResourceMap, ResourceType};
     use crate::common::webrtc::grpc::{WebRtcGrpcBody, WebRtcGrpcServer};
     use crate::native::certificate::WebRtcCertificate;
+
     use crate::native::dtls::Dtls;
     use crate::native::exec::NativeExecutor;
     use crate::native::tcp::NativeStream;
@@ -82,10 +114,14 @@ mod tests {
 
         assert!(grpc_client.is_ok());
 
-        let grpc_client = grpc_client.unwrap();
+        let grpc_client = Box::new(grpc_client.unwrap());
 
-        let config =
-            AppClientConfig::new("".to_string(), "".to_string(), Ipv4Addr::new(0, 0, 0, 0));
+        let config = AppClientConfig::new(
+            "".to_string(),
+            "".to_string(),
+            Ipv4Addr::new(0, 0, 0, 0),
+            "".to_owned(),
+        );
 
         let builder = AppClientBuilder::new(grpc_client, config);
 
@@ -111,13 +147,20 @@ mod tests {
             "",
         )?;
 
-        let (mut sender_half, mut recv_half) = grpc_client
-            .send_request_bidi::<EchoBiDiRequest, EchoBiDiResponse>(
-                r,
-                Some(EchoBiDiRequest {
-                    message: "1".to_string(),
-                }),
-            )?;
+        let conn = block_on(executor.run(async {
+            grpc_client
+                .send_request_bidi::<EchoBiDiRequest, EchoBiDiResponse>(
+                    r,
+                    Some(EchoBiDiRequest {
+                        message: "1".to_string(),
+                    }),
+                )
+                .await
+        }));
+
+        assert!(conn.is_ok());
+
+        let (mut sender_half, mut recv_half) = conn.unwrap();
 
         let (p, mut recv_half) = block_on(executor.run(async {
             let p = recv_half.next().await.unwrap().message;
@@ -163,7 +206,7 @@ mod tests {
             IpAddr::V4(v4) => v4,
             _ => panic!("didn't get an ipv4"),
         };
-        let cfg = AppClientConfig::new("".to_string(), "".to_string(), our_ip);
+        let cfg = AppClientConfig::new("".to_string(), "".to_string(), our_ip, "".to_owned());
 
         let robot = {
             let board = Arc::new(Mutex::new(FakeBoard::new(vec![])));
@@ -187,7 +230,11 @@ mod tests {
             let tls = Box::new(NativeTls::new_client());
             let conn = tls.open_ssl_context(None)?;
             let conn = NativeStream::TLSStream(Box::new(conn));
-            let grpc_client = GrpcClient::new(conn, executor.clone(), "https://app.viam.com:443")?;
+            let grpc_client = Box::new(GrpcClient::new(
+                conn,
+                executor.clone(),
+                "https://app.viam.com:443",
+            )?);
             let mut app_client = AppClientBuilder::new(grpc_client, cfg).build()?;
 
             let cert = Rc::new(WebRtcCertificate::new()?);

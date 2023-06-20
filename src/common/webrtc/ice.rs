@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs},
+    pin::Pin,
     sync::{atomic::AtomicBool, Arc},
     time::{Duration, Instant},
 };
@@ -8,7 +9,9 @@ use std::{
 use anyhow::bail;
 use bytecodec::{DecodeExt, EncodeExt};
 use bytes::{Bytes, BytesMut};
+use thiserror::Error;
 
+use futures_lite::Future;
 use rand::{
     distributions::{Alphanumeric, DistString},
     thread_rng,
@@ -49,6 +52,19 @@ impl ICECredentials {
     }
 }
 
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum IceError {
+    #[error("candidate channel closed")]
+    IceCandidateChannelClosed,
+    #[error("ice transport closed")]
+    IceTransportClosed,
+}
+
+enum IceEvent {
+    CandidateReceived(Candidate),
+    StunPacketReceived((usize, SocketAddrV4)),
+}
+
 /// ICE Agent implementation for micro-RDK, the goal is to keep it lightweight. Therefore it doesn't
 /// implement the full RFC5245
 /// Notable omissions:
@@ -69,6 +85,12 @@ pub struct ICEAgent {
     remote_credentials: ICECredentials,
     state: ICEAgentState,
     local_ip: Ipv4Addr,
+}
+
+impl Drop for ICEAgent {
+    fn drop(&mut self) {
+        let _ = self.remote_candidates_chan.close();
+    }
 }
 
 #[derive(Eq, Debug, PartialEq)]
@@ -191,20 +213,7 @@ impl ICEAgent {
     pub async fn run(&mut self, done: Arc<AtomicBool>) {
         log::debug!("Running ICE Agent");
 
-        loop {
-            if let Ok(c) = self.remote_candidates_chan.try_recv() {
-                log::debug!("Remote candidate found making pairs");
-                self.remote_candidates.push(c);
-                self.form_pairs(self.remote_candidates.len() - 1);
-                for pair in &self.candidate_pairs {
-                    log::debug!(
-                        "Pair list is {:?} -> {:?} ",
-                        self.local_candidates[pair.local].address(),
-                        self.remote_candidates[pair.remote].address()
-                    )
-                }
-            }
-
+        let error = loop {
             for pair in &mut self.candidate_pairs {
                 pair.update_pair_status();
                 // TODO(npm) check for nomination flag before we are actually connected
@@ -224,52 +233,96 @@ impl ICEAgent {
             let req = self.next_stun_request();
             if let Some(req) = req {
                 if let Ok(msg) = self.make_stun_request(req.0) {
-                    self.transport.send_to(msg.into(), req.1).await.unwrap();
+                    if self.transport.send_to(msg.into(), req.1).await.is_err() {
+                        break IceError::IceTransportClosed;
+                    }
                 }
             }
+
             let mut buf = BytesMut::with_capacity(256);
-            while let Some(Ok((_len, addr))) = self
-                .transport
-                .recv_from(&mut buf)
-                .timeout(Duration::from_millis(35))
-                .await
-            {
-                let mut decoder = stun_codec::MessageDecoder::<IceAttribute>::new();
-                let decoded = match decoder.decode_from_bytes(&buf).unwrap() {
-                    Ok(e) => e,
-                    Err(e) => {
-                        log::error!("dropping stun msg {:?}", e);
-                        buf.clear();
-                        continue;
-                    }
+            let f1: Pin<Box<dyn Future<Output = Result<IceEvent, IceError>> + Send>> =
+                if !self.remote_candidates_chan.is_closed() {
+                    Box::pin(async {
+                        self.remote_candidates_chan
+                            .recv()
+                            .await
+                            .map(IceEvent::CandidateReceived)
+                            .map_err(|_| IceError::IceCandidateChannelClosed)
+                    })
+                } else {
+                    Box::pin(futures_lite::future::pending())
                 };
-                buf.clear();
+            let f2 = Box::pin(async {
+                self.transport
+                    .recv_from(&mut buf)
+                    .await
+                    .map(IceEvent::StunPacketReceived)
+                    .map_err(|_| IceError::IceTransportClosed)
+            });
 
-                match decoded.class() {
-                    MessageClass::Request => {
-                        log::debug!("processing a stun request");
-                        if let Ok(msg) = self.process_stun_request(&decoded, &addr) {
-                            self.transport.send_to(msg.into(), addr).await.unwrap();
-                        }
+            let event = match futures_lite::future::or(f1, f2).await {
+                Ok(r) => r,
+                Err(e) if e == IceError::IceCandidateChannelClosed => {
+                    continue;
+                }
+                Err(e) => {
+                    break e;
+                }
+            };
+            match event {
+                IceEvent::CandidateReceived(c) => {
+                    self.remote_candidates.push(c);
+                    self.form_pairs(self.remote_candidates.len() - 1);
+                    for pair in &self.candidate_pairs {
+                        log::debug!(
+                            "Pair list is {:?} -> {:?} ",
+                            self.local_candidates[pair.local].address(),
+                            self.remote_candidates[pair.remote].address()
+                        )
                     }
-                    MessageClass::SuccessResponse => {
-                        if let Err(e) = self.process_stun_response(Instant::now(), decoded) {
-                            // could be caused by multiple response for one request
-                            log::error!("unable to properly process stun response {:?}", e);
+                }
+                IceEvent::StunPacketReceived((_len, addr)) => {
+                    let mut decoder = stun_codec::MessageDecoder::<IceAttribute>::new();
+                    let decoded = match decoder.decode_from_bytes(&buf).unwrap() {
+                        Ok(e) => e,
+                        Err(e) => {
+                            log::error!("dropping stun msg {:?}", e);
+                            buf.clear();
+                            continue;
                         }
-                    }
+                    };
+                    buf.clear();
 
-                    MessageClass::ErrorResponse => {
-                        //TODO(RSDK-3064)
-                        log::error!("received a stun error");
-                    }
-                    MessageClass::Indication => {
-                        //TODO(RSDK-3064)
-                        log::error!("received a stun indication")
+                    match decoded.class() {
+                        MessageClass::Request => {
+                            log::debug!("processing a stun request");
+                            if let Ok(msg) = self.process_stun_request(&decoded, &addr) {
+                                if self.transport.send_to(msg.into(), addr).await.is_err() {
+                                    break IceError::IceTransportClosed;
+                                }
+                            }
+                        }
+                        MessageClass::SuccessResponse => {
+                            if let Err(e) = self.process_stun_response(Instant::now(), decoded) {
+                                // could be caused by multiple response for one request
+                                log::error!("unable to properly process stun response {:?}", e);
+                            }
+                        }
+
+                        MessageClass::ErrorResponse => {
+                            //TODO(RSDK-3064)
+                            log::error!("received a stun error");
+                        }
+                        MessageClass::Indication => {
+                            //TODO(RSDK-3064)
+                            log::error!("received a stun indication")
+                        }
                     }
                 }
             }
-        }
+        };
+
+        log::error!("closing ice agent with error {:?}", error);
     }
 
     /// next_stun_request finds the next suitable pair to do a connection check on

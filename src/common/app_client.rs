@@ -37,11 +37,12 @@ pub enum AppClientError {
     AppWebRtcError(#[from] WebRtcError),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AppClientConfig {
     robot_id: String,
     robot_secret: String,
     ip: Ipv4Addr,
+    rpc_host: String,
 }
 
 impl Default for AppClientConfig {
@@ -50,22 +51,33 @@ impl Default for AppClientConfig {
             robot_id: "".to_owned(),
             robot_secret: "".to_owned(),
             ip: Ipv4Addr::new(0, 0, 0, 0),
+            rpc_host: "".to_owned(),
         }
     }
 }
 
 impl AppClientConfig {
-    pub fn new(robot_secret: String, robot_id: String, ip: Ipv4Addr) -> Self {
+    pub fn new(robot_secret: String, robot_id: String, ip: Ipv4Addr, rpc_host: String) -> Self {
         AppClientConfig {
             robot_id,
             robot_secret,
             ip,
+            rpc_host,
         }
+    }
+    pub fn get_robot_id(&self) -> String {
+        self.robot_id.clone()
+    }
+    pub fn get_ip(&self) -> Ipv4Addr {
+        self.ip
+    }
+    pub fn set_rpc_host(&mut self, rpc_host: String) {
+        self.rpc_host = rpc_host
     }
 }
 
 pub struct AppClientBuilder<'a> {
-    grpc_client: GrpcClient<'a>,
+    grpc_client: Box<GrpcClient<'a>>,
     config: AppClientConfig,
 }
 
@@ -87,7 +99,7 @@ where
 
 impl<'a> AppClientBuilder<'a> {
     /// Create a new AppClientBuilder
-    pub fn new(grpc_client: GrpcClient<'a>, config: AppClientConfig) -> Self {
+    pub fn new(grpc_client: Box<GrpcClient<'a>>, config: AppClientConfig) -> Self {
         Self {
             grpc_client,
             config,
@@ -98,24 +110,11 @@ impl<'a> AppClientBuilder<'a> {
     pub fn build(mut self) -> Result<AppClient<'a>, AppClientError> {
         let jwt = self.get_jwt_token()?;
 
-        let config = self.read_config(&jwt)?;
-
-        let rpc_host = config
-            .config
-            .as_ref()
-            .unwrap()
-            .cloud
-            .as_ref()
-            .unwrap()
-            .fqdn
-            .clone();
-
         Ok(AppClient {
             grpc_client: self.grpc_client,
             jwt,
-            robot_config: config,
-            rpc_host,
             ip: self.config.ip,
+            config: self.config,
         })
     }
     pub fn get_jwt_token(&mut self) -> Result<String, AppClientError> {
@@ -144,17 +143,48 @@ impl<'a> AppClientBuilder<'a> {
         let r = AuthenticateResponse::decode(r).map_err(AppClientError::AppDecodeError)?;
         Ok(format!("Bearer {}", r.access_token))
     }
+}
 
-    pub fn read_config(&mut self, jwt: &str) -> Result<Box<ConfigResponse>, AppClientError> {
+pub struct AppClient<'a> {
+    config: AppClientConfig,
+    jwt: String,
+    grpc_client: Box<GrpcClient<'a>>,
+    ip: Ipv4Addr,
+}
+
+pub(crate) struct AppSignaling(
+    pub(crate) GrpcMessageSender<AnswerResponse>,
+    pub(crate) GrpcMessageStream<AnswerRequest>,
+);
+
+impl<'a> AppClient<'a> {
+    pub(crate) async fn connect_signaling(&mut self) -> Result<AppSignaling, AppClientError> {
         let r = self
             .grpc_client
-            .build_request("/viam.app.v1.RobotService/Config", Some(jwt), "")
+            .build_request(
+                "/proto.rpc.webrtc.v1.SignalingService/Answer",
+                Some(&self.jwt),
+                &self.config.rpc_host,
+            )
+            .map_err(AppClientError::AppOtherError)?;
+
+        let (tx, rx) = self
+            .grpc_client
+            .send_request_bidi::<AnswerResponse, AnswerRequest>(r, None)
+            .await
+            .map_err(AppClientError::AppOtherError)?;
+        Ok(AppSignaling(tx, rx))
+    }
+    pub fn get_config(&mut self) -> Result<Box<ConfigResponse>, AppClientError> {
+        let r = self
+            .grpc_client
+            .build_request("/viam.app.v1.RobotService/Config", Some(&self.jwt), "")
             .map_err(AppClientError::AppOtherError)?;
 
         let agent = AgentInfo {
             os: "esp32".to_string(),
             host: "esp32".to_string(),
-            ips: vec![self.config.ip.to_string()],
+            ips: vec![self.ip.to_string()],
             version: "0.0.2".to_string(),
             git_revision: "".to_string(),
         };
@@ -170,54 +200,39 @@ impl<'a> AppClientBuilder<'a> {
 
         Ok(Box::new(ConfigResponse::decode(r)?))
     }
-}
-
-pub struct AppClient<'a> {
-    // Potentially consider leak to make it a static reference for the lifetime of the program?
-    robot_config: Box<ConfigResponse>,
-    jwt: String,
-    grpc_client: GrpcClient<'a>,
-    rpc_host: String,
-    ip: Ipv4Addr,
-}
-
-pub(crate) struct AppSignaling(
-    pub(crate) GrpcMessageSender<AnswerResponse>,
-    pub(crate) GrpcMessageStream<AnswerRequest>,
-);
-
-impl<'a> AppClient<'a> {
-    pub(crate) fn connect_signaling(&mut self) -> Result<AppSignaling, AppClientError> {
-        let r = self
-            .grpc_client
-            .build_request(
-                "/proto.rpc.webrtc.v1.SignalingService/Answer",
-                Some(&self.jwt),
-                &self.rpc_host,
-            )
-            .map_err(AppClientError::AppOtherError)?;
-
-        let (tx, rx) = self
-            .grpc_client
-            .send_request_bidi::<AnswerResponse, AnswerRequest>(r, None)
-            .map_err(AppClientError::AppOtherError)?;
-        Ok(AppSignaling(tx, rx))
-    }
-    pub(crate) fn get_config(self) -> Box<ConfigResponse> {
-        self.robot_config
+    pub async fn connect_webrtc2<E, D, C>(
+        &mut self,
+        cert: Rc<C>,
+        exec: E,
+        dtls: D,
+    ) -> Result<WebRtcApi<C, D, E>, AppClientError>
+    where
+        E: WebRtcExecutor<Pin<Box<dyn Future<Output = ()> + Send>>> + Clone + 'a,
+        D: DtlsConnector,
+        C: Certificate,
+    {
+        let signaling = self.connect_signaling().await?;
+        Ok(WebRtcApi::new(
+            exec,
+            signaling.0,
+            signaling.1,
+            cert,
+            self.ip,
+            dtls,
+        ))
     }
     pub fn connect_webrtc<E, D, C>(
         &mut self,
         cert: Rc<C>,
         exec: E,
         dtls: D,
-    ) -> Result<WebRtcApi<'a, C, D, E>, AppClientError>
+    ) -> Result<WebRtcApi<C, D, E>, AppClientError>
     where
         E: WebRtcExecutor<Pin<Box<dyn Future<Output = ()> + Send>>> + Clone + 'static,
         D: DtlsConnector,
         C: Certificate,
     {
-        let signaling = self.connect_signaling()?;
+        let signaling = exec.block_on(async { self.connect_signaling().await.unwrap() });
 
         let cloned_exec = exec.clone();
 
@@ -232,5 +247,11 @@ impl<'a> AppClient<'a> {
             .map_err(AppClientError::AppWebRtcError)?;
 
         Ok(webrtc)
+    }
+}
+
+impl<'a> Drop for AppClient<'a> {
+    fn drop(&mut self) {
+        log::debug!("dropping AppClient")
     }
 }
