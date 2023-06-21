@@ -1,4 +1,3 @@
-#![allow(unused)]
 #[allow(dead_code)]
 #[cfg(not(feature = "qemu"))]
 const SSID: &str = env!("MICRO_RDK_WIFI_SSID");
@@ -6,33 +5,32 @@ const SSID: &str = env!("MICRO_RDK_WIFI_SSID");
 #[cfg(not(feature = "qemu"))]
 const PASS: &str = env!("MICRO_RDK_WIFI_PASSWORD");
 
-// Generated robot config during build process
 include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
-include!(concat!(env!("OUT_DIR"), "/robot_config.rs"));
 
-#[cfg(all(not(feature = "qemu"), feature = "camera"))]
-use crate::camera::Esp32Camera;
-
-use anyhow::bail;
-
-use esp_idf_hal::prelude::Peripherals;
+#[allow(dead_code)]
 #[cfg(feature = "qemu")]
 use esp_idf_svc::eth::*;
 #[cfg(feature = "qemu")]
 use esp_idf_svc::eth::{EspEth, EthWait};
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::netif::{EspNetif, EspNetifWait};
-#[cfg(not(feature = "qemu"))]
-use esp_idf_svc::wifi::EspWifi;
-use esp_idf_sys as _; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
+use esp_idf_sys as _;
+
+use anyhow::bail;
 #[cfg(not(feature = "qemu"))]
 use esp_idf_sys::esp_wifi_set_ps;
 use log::*;
-use micro_rdk::common::config::{Kind, RobotConfigStatic, StaticComponentConfig};
-use micro_rdk::common::robot::LocalRobot;
-use micro_rdk::esp32::server::{CloudConfig, Esp32Server};
-use micro_rdk::esp32::tls::Esp32TlsServerConfig;
+use micro_rdk::common::app_client::AppClientConfig;
+use micro_rdk::esp32::certificate::WebRtcCertificate;
+use std::net::Ipv4Addr;
 use std::time::Duration;
+
+#[cfg(not(feature = "qemu"))]
+use esp_idf_svc::wifi::EspWifi;
+
+use esp_idf_hal::prelude::Peripherals;
+use micro_rdk::esp32::entry::serve_web;
+use micro_rdk::esp32::tls::Esp32TlsServerConfig;
 
 fn main() -> anyhow::Result<()> {
     esp_idf_sys::link_patches();
@@ -41,18 +39,31 @@ fn main() -> anyhow::Result<()> {
     let sys_loop_stack = EspSystemEventLoop::take().unwrap();
     let periph = Peripherals::take().unwrap();
 
-    let robot = LocalRobot::new_from_static(&STATIC_ROBOT_CONFIG.unwrap());
-    if robot.is_err() {
-        log::info!(
-            "failure to build rebot woth {:?}",
-            robot.as_ref().err().unwrap()
+    #[cfg(feature = "qemu")]
+    let robot = {
+        use micro_rdk::common::board::FakeBoard;
+        use micro_rdk::common::robot::{LocalRobot, ResourceMap, ResourceType};
+        use micro_rdk::proto::common::v1::ResourceName;
+        use std::collections::HashMap;
+        use std::sync::{Arc, Mutex};
+        let board = Arc::new(Mutex::new(FakeBoard::new(vec![])));
+        let mut res: ResourceMap = HashMap::with_capacity(1);
+        res.insert(
+            ResourceName {
+                namespace: "rdk".to_string(),
+                r#type: "component".to_string(),
+                subtype: "board".to_string(),
+                name: "b".to_string(),
+            },
+            ResourceType::Board(board),
         );
-    }
-    let robot = robot.unwrap();
+        Some(LocalRobot::new(res))
+    };
+    #[cfg(not(feature = "qemu"))]
+    let robot = None;
 
     #[cfg(feature = "qemu")]
     let (ip, _eth) = {
-        use std::net::Ipv4Addr;
         info!("creating eth object");
         let eth = eth_configure(
             &sys_loop_stack,
@@ -61,7 +72,7 @@ fn main() -> anyhow::Result<()> {
                 sys_loop_stack.clone(),
             )?)?),
         )?;
-        (Ipv4Addr::new(0, 0, 0, 0), eth)
+        (Ipv4Addr::new(10, 1, 12, 187), eth)
     };
     {
         esp_idf_sys::esp!(unsafe {
@@ -78,7 +89,16 @@ fn main() -> anyhow::Result<()> {
         (wifi.sta_netif().get_ip_info()?.ip, wifi)
     };
 
-    let cfg = {
+    let cfg = AppClientConfig::new(
+        ROBOT_SECRET.to_owned(),
+        ROBOT_ID.to_owned(),
+        ip,
+        "".to_owned(),
+    );
+    let webrtc_certificate =
+        WebRtcCertificate::new(ROBOT_DTLS_CERT, ROBOT_DTLS_KEY_PAIR, ROBOT_DTLS_CERT_FP);
+
+    let tls_cfg = {
         let cert = include_bytes!(concat!(env!("OUT_DIR"), "/ca.crt"));
         let key = include_bytes!(concat!(env!("OUT_DIR"), "/key.key"));
         Esp32TlsServerConfig::new(
@@ -89,10 +109,7 @@ fn main() -> anyhow::Result<()> {
         )
     };
 
-    let mut cloud_cfg = CloudConfig::new(ROBOT_NAME, LOCAL_FQDN, FQDN, ROBOT_ID, ROBOT_SECRET);
-    cloud_cfg.set_tls_config(cfg);
-    let esp32_srv = Esp32Server::new(robot, cloud_cfg);
-    esp32_srv.start(ip)?;
+    serve_web(cfg, tls_cfg, robot, ip, webrtc_certificate);
     Ok(())
 }
 
@@ -101,8 +118,6 @@ fn eth_configure(
     sl_stack: &EspSystemEventLoop,
     mut eth: Box<EspEth<'static>>,
 ) -> anyhow::Result<Box<EspEth<'static>>> {
-    use std::net::Ipv4Addr;
-
     eth.start()?;
 
     if !EthWait::new(eth.driver(), sl_stack)?
@@ -130,7 +145,6 @@ fn start_wifi(
 ) -> anyhow::Result<Box<EspWifi<'static>>> {
     use embedded_svc::wifi::{ClientConfiguration, Wifi};
     use esp_idf_svc::wifi::WifiWait;
-    use std::net::Ipv4Addr;
 
     let mut wifi = Box::new(EspWifi::new(modem, sl_stack.clone(), None)?);
 
@@ -150,7 +164,7 @@ fn start_wifi(
         channel,
         ..Default::default()
     };
-    wifi.set_configuration(&embedded_svc::wifi::Configuration::Client(client_config))?; //&Configuration::Client(client_config)
+    wifi.set_configuration(&embedded_svc::wifi::Configuration::Client(client_config))?;
 
     wifi.start()?;
 
