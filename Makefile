@@ -18,16 +18,16 @@ ifeq "$(ESPFLASHVERSION)" "1"
 endif
 
 build:
-	cd examples && cargo build  --bin esp32-server --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort
+	cd examples && cargo build  --example esp32_webrtc --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort
 
 build-native:
-	cd examples && cargo build  --bin native-server
+	cd examples && cargo build  --example native
 
 native:
-	cd examples && cargo run  --bin native-server
+	cd examples && cargo run  --example native
 
 build-qemu:
-	cd examples && cargo build  --bin esp32-server  --features qemu --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort && cargo espflash save-image --features qemu --merge --chip esp32 target/xtensa-esp32-espidf/debug/debug.bin -T esp32/partitions.csv -s 4M  --bin esp32-server --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
+	cd examples && cargo build  --example esp32_webrtc  --features qemu --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort && cargo espflash save-image --features qemu --merge --chip esp32 target/xtensa-esp32-espidf/debug/debug.bin -T esp32/partitions.csv -s 4M  --example esp32_webrtc --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
 
 
 sim-local: cargo-ver build-qemu
@@ -47,7 +47,7 @@ endif
 	cd examples && $(QEMU_ESP32_XTENSA)/qemu-system-xtensa -nographic -machine esp32 -gdb tcp::3334 -nic user,model=open_eth,hostfwd=udp::-:61205 -drive file=target/xtensa-esp32-espidf/debug/debug.bin,if=mtd,format=raw -S
 
 upload: cargo-ver
-	cd examples && cargo espflash flash --monitor --partition-table esp32/partitions.csv --baud 460800 -f 80M --use-stub --bin esp32-server --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
+	cd examples && cargo espflash flash --monitor --partition-table esp32/partitions.csv --baud 460800 -f 80M --use-stub --example esp32_webrtc --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
 
 test:
 	cargo test --lib --features native

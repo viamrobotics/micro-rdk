@@ -23,7 +23,7 @@ smol = { git = "https://github.com/esp-rs-compat/smol" }
 socket2 = { git = "https://github.com/npmenard/socket2.git" }
 webrtc = {git = " https://github.com/webrtc-rs/webrtc"}
 
-[target.'cfg(not(target_os = "espidf"))'.dependencies]
+[target.'cfg(not(target_os = "espidf"))'.dev-dependencies]
 micro-rdk = { path = "../", features = ["native"], default-features = false }
 simple_logger = "2.3.0"
 local-ip-address = { version = "0.4.9" }
@@ -31,8 +31,7 @@ log = "0.4"
 anyhow = { version = "1", features = ["backtrace"] }
 
 
-[target.'cfg(target_os="espidf")'.dependencies]
-esp-idf-sys = { version = "0.32.1", features = ["binstart"] }
+[target.'cfg(target_os="espidf")'.dev-dependencies]
 anyhow = {version = "1", features = ["backtrace"]}
 micro-rdk = { path = "../", default-features = false, features = ["esp32"] }
 embedded-svc = "0.24"
@@ -44,6 +43,8 @@ async-channel = "1.8.0"
 smol = "1.2"
 futures-lite = "1.12.0"
 
+[target.'cfg(target_os="espidf")'.dependencies]
+esp-idf-sys = { version = "0.32.1", features = ["binstart"] }
 
 [dependencies]
 phf = { version = "0.11", features = ["macros"] }
@@ -64,11 +65,26 @@ viam-rust-utils = "0.0.21"
 rcgen =  "0.10.0"
 ring = "0.16"
 
-[[bin]]
-name = "native-server"
-path = "native/native-server.rs"
+[[example]]
+name = "native"
+path = "native/native.rs"
 
-[[bin]]
-name = "esp32-server"
-path = "esp32/esp32-server.rs"
+[[example]]
+name = "esp32"
+path = "esp32/esp32.rs"
 
+[[example]]
+name = "esp32_sctp"
+path = "esp32/esp32_sctp.rs"
+
+[[example]]
+name = "esp32_webrtc"
+path = "esp32/esp32_webrtc.rs"
+
+[[example]]
+name = "esp32_webrtc_with_config"
+path = "esp32/esp32_webrtc_with_config.rs"
+
+[[example]]
+name = "esp32_static"
+path = "esp32/esp32_static.rs"
