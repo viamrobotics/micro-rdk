@@ -199,7 +199,6 @@ pub(crate) struct SSLContext {
 
 impl Drop for SSLContext {
     fn drop(&mut self) {
-        log::info!("dropping dtls context");
         unsafe {
             mbedtls_ctr_drbg_free(self.drbg_ctx.as_mut());
             mbedtls_entropy_free(self.dtls_entropy.as_mut());
