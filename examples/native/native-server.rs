@@ -1,10 +1,8 @@
 // Generated robot config during build process
 include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
-include!(concat!(env!("OUT_DIR"), "/robot_config.rs"));
 
 use log::*;
 use micro_rdk::common::app_client::AppClientConfig;
-use micro_rdk::common::config::RobotConfigStatic;
 use micro_rdk::common::robot::LocalRobot;
 use micro_rdk::common::robot::ResourceType;
 use micro_rdk::native::entry::serve_web;
@@ -110,7 +108,12 @@ fn main() -> anyhow::Result<()> {
         NativeTlsServerConfig::new(cert.to_vec(), key.to_vec())
     };
 
-    let app_config = AppClientConfig::new("".to_string(), "".to_string(), ip, "".to_owned());
+    let app_config = AppClientConfig::new(
+        ROBOT_SECRET.to_owned(),
+        ROBOT_ID.to_owned(),
+        ip,
+        "".to_owned(),
+    );
 
     serve_web(app_config, cfg, Some(robot), ip);
 
