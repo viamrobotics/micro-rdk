@@ -209,7 +209,7 @@ impl WebRtcSignalingChannel {
                     match stage {
                         answer_request::Stage::Update(c) => {
                             if let Some(c) = c.candidate {
-                                log::error!("received candidaate {}", c.candidate);
+                                log::debug!("received candidate {}", c.candidate);
                                 let c = c.candidate.try_into().ok();
                                 return Ok(c);
                             } else {
@@ -262,12 +262,6 @@ pub struct WebRtcApi<S, D, E> {
     remote_creds: Option<ICECredentials>,
     local_ip: Ipv4Addr,
     dtls: Option<D>,
-}
-
-impl<C, D, E> Drop for WebRtcApi<C, D, E> {
-    fn drop(&mut self) {
-        log::info!("Dropping api");
-    }
 }
 
 impl<'a, C, D, E> WebRtcApi<C, D, E>

@@ -36,10 +36,14 @@ pub struct Channel {
     tx_event: Sender<SctpEvent>,
     tx_stream_id: StreamId,
     rx_channel: Arc<Mutex<SctpStream>>,
+    closed: Arc<Mutex<bool>>,
 }
 
 impl Channel {
     pub async fn write(&self, buf: &[u8]) -> std::io::Result<()> {
+        if *self.closed.lock().unwrap() {
+            return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof));
+        }
         let bytes = Bytes::copy_from_slice(buf);
 
         self.tx_event
@@ -55,6 +59,9 @@ impl AsyncRead for Channel {
         cx: &mut std::task::Context<'_>,
         buf: &mut [u8],
     ) -> Poll<std::io::Result<usize>> {
+        if *self.closed.lock().unwrap() {
+            return Poll::Ready(Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof)));
+        }
         let mut rx_stream = self.rx_channel.lock().unwrap();
         if !rx_stream.data.is_empty() {
             let chunk = rx_stream.data.pop_front().unwrap();
@@ -229,10 +236,17 @@ where
                     }
                 }
                 SctpEvent::Disconnect => {
-                    log::debug!("disconnected");
                     if let Some(assoc) = self.association.as_mut() {
                         let _ = assoc.close();
                     }
+                    for channel in &self.channels {
+                        *channel.1.closed.lock().unwrap() = true;
+                        if let Some(waker) = &channel.1.rx_channel.lock().unwrap().waker {
+                            waker.wake_by_ref();
+                        }
+                    }
+                    let _ = self.sctp_event_tx.close();
+                    let _ = self.sctp_event_rx.close();
                     break;
                 }
             };
@@ -258,6 +272,7 @@ where
                                             data: VecDeque::new(),
                                             waker: None,
                                         })),
+                                        closed: Arc::new(Mutex::new(false)),
                                     };
                                     self.channels.insert(ChannelId(0), c.clone());
                                     self.channels_rx.send(c).await.unwrap();
