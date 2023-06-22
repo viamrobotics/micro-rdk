@@ -22,10 +22,10 @@ qemu = []
 polling = { git = "https://github.com/esp-rs-compat/polling" }
 smol = { git = "https://github.com/esp-rs-compat/smol" }
 socket2 = { git = "https://github.com/npmenard/socket2.git" }
-webrtc = {git = " https://github.com/webrtc-rs/webrtc"}
+# webrtc = {git = " https://github.com/webrtc-rs/webrtc"}
 
 [target.'cfg(not(target_os = "espidf"))'.dependencies]
-micro-rdk = { git = "https://github.com/viamrobotics/micro-rdk.git", features = ["native"], default-features = false }
+micro-rdk = { path = "../", features = ["native"], default-features = false }
 simple_logger = "2.3.0"
 local-ip-address = { version = "0.4.9" }
 log = "0.4"
@@ -37,7 +37,7 @@ esp-idf-sys = { version = "0.33.1", features = ["binstart"] }
 anyhow = {version = "1", features = ["backtrace"]}
 embedded-svc = "0.25.1"
 embedded-hal = { version = "0.2.7", features = ["unproven"]}
-micro-rdk = { git = "https://github.com/mattjperez/micro-rdk.git", branch = "RSDK-3605-webhook", default-features = false, features = ["esp32"] }
+micro-rdk = { path = "../", default-features = false, features = ["esp32"] }
 esp-idf-svc = { version = "0.46.0", features = ["experimental"] }
 esp-idf-hal = "0.41.1"
 log = "0.4"
