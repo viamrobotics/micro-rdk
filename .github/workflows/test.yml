@@ -31,24 +31,24 @@ jobs:
         
     - name: Clippy Native
       run: |
-        bash -lc 'make clippy-native'
+        bash -c 'make clippy-native'
 
     - name: Clippy esp32
       run: |
-        sudo -u testbot bash -lc 'export MICRO_RDK_WIFI_PASSWORD=0 && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && make clippy-esp32'
+        bash -c 'export MICRO_RDK_WIFI_PASSWORD=0 && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && make clippy-esp32'
         
     - name: Format
       run: |
-        sudo -u testbot bash -lc 'make format'
+        bash -c 'make format'
         
     - name: Build ESP32
       run: |
-        sudo -u testbot bash -lc 'export MICRO_RDK_WIFI_PASSWORD=0 && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && cd examples && cd ../ && make build-esp32-bin'
+        bash -c 'export MICRO_RDK_WIFI_PASSWORD=0 && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && cd examples && cd ../ && make build-esp32-bin'
         
     - name: Build Native
       run: |
-        sudo -u testbot bash -lc 'make build-native'
+        bash -c 'make build-native'
         
     - name: Test
       run: |
-        sudo -u testbot bash -lc 'make test'
+        bash -c 'make test'
