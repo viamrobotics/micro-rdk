@@ -35,7 +35,7 @@ jobs:
 
     - name: Clippy esp32
       run: |
-        bash -c 'export MICRO_RDK_WIFI_PASSWORD=0 && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && make clippy-esp32'
+        bash -c 'git config --global --add safe.directory /opt/esp/esp-idf && export MICRO_RDK_WIFI_PASSWORD=0 && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && make clippy-esp32'
         
     - name: Format
       run: |

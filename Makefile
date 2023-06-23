@@ -60,6 +60,7 @@ clippy-esp32:
 
 format:
 	cargo fmt --all -- --check
+	cd examples && cargo fmt --all -- --check
 
 doc:
 	cargo doc --no-default-features --features esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
