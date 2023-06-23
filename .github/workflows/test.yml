@@ -31,7 +31,7 @@ jobs:
         
     - name: Clippy Native
       run: |
-        sudo -u testbot bash -lc 'make clippy-native'
+        bash -lc 'make clippy-native'
 
     - name: Clippy esp32
       run: |
