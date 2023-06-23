@@ -11,7 +11,7 @@ jobs:
     name: Build and Test
     runs-on: [x64, qemu-host]
     container:
-      image: ghcr.io/viamrobotics/micro-rdk-canon:latest
+      image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
     timeout-minutes: 10
 
     steps:
@@ -44,7 +44,7 @@ jobs:
         
     - name: Build ESP32
       run: |
-        sudo -u testbot bash -lc 'export MICRO_RDK_WIFI_PASSWORD=0 && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && cd examples && cd ../ && make build'
+        sudo -u testbot bash -lc 'export MICRO_RDK_WIFI_PASSWORD=0 && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && cd examples && cd ../ && make build-esp32-bin'
         
     - name: Build Native
       run: |

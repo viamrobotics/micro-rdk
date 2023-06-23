@@ -66,3 +66,9 @@ doc:
 
 size:
 	find . -name "esp-build.map" -exec ${IDF_PATH}/tools/idf_size.py {} \;
+
+build-esp32-bin:
+	cd examples && cargo espflash save-image --merge --chip esp32 target/esp32-server.bin -T esp32/partitions.csv -s 4M  --bin esp32-server --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort
+upload-esp32-bin: build-esp32-bin
+	
+	
