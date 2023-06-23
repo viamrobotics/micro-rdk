@@ -5,11 +5,16 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use super::board::BoardType;
 use super::config::{AttributeError, ConfigType, Kind};
+use super::encoder::{
+    Encoder, EncoderPositionType, EncoderType, COMPONENT_NAME as EncoderCompName,
+};
 use super::math_utils::go_for_math;
-use super::registry::ComponentRegistry;
+use super::registry::{ComponentRegistry, Dependency, ResourceKey};
+use super::robot::Resource;
 use super::stop::Stoppable;
+
+pub static COMPONENT_NAME: &str = "motor";
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
@@ -17,6 +22,22 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
         .is_err()
     {
         log::error!("fake type is already registered");
+    }
+    if registry
+        .register_motor("fake_with_dep", &FakeMotorWithDependency::from_config)
+        .is_err()
+    {
+        log::error!("fake_with_dep type is already registered");
+    }
+    if registry
+        .register_dependency_getter(
+            COMPONENT_NAME,
+            "fake_with_dep",
+            &FakeMotorWithDependency::dependencies_from_config,
+        )
+        .is_err()
+    {
+        log::error!("fake_with_dep type dependency function is already registered");
     }
 }
 
@@ -107,7 +128,7 @@ impl FakeMotor {
             max_rpm: 100.0,
         }
     }
-    pub(crate) fn from_config(cfg: ConfigType, _: Option<BoardType>) -> anyhow::Result<MotorType> {
+    pub(crate) fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<MotorType> {
         let mut motor = FakeMotor::default();
         if let Ok(pos) = cfg.get_attribute::<f64>("fake_position") {
             motor.pos = pos
@@ -198,6 +219,72 @@ impl Stoppable for FakeMotor {
     }
 }
 
+pub struct FakeMotorWithDependency {
+    encoder: Option<EncoderType>,
+}
+
+impl FakeMotorWithDependency {
+    pub fn new(encoder: EncoderType) -> Self {
+        Self {
+            encoder: Some(encoder),
+        }
+    }
+
+    pub(crate) fn dependencies_from_config(cfg: ConfigType) -> Vec<ResourceKey> {
+        let mut r_keys = Vec::new();
+        if let Ok(enc_name) = cfg.get_attribute::<String>("encoder") {
+            let r_key = ResourceKey(EncoderCompName, enc_name);
+            r_keys.push(r_key)
+        }
+        r_keys
+    }
+
+    pub(crate) fn from_config(_: ConfigType, deps: Vec<Dependency>) -> anyhow::Result<MotorType> {
+        let mut enc: Option<EncoderType> = None;
+        for Dependency(_, dep) in deps {
+            match dep {
+                Resource::Encoder(found_enc) => {
+                    enc = Some(found_enc.clone());
+                    break;
+                }
+                _ => {
+                    continue;
+                }
+            };
+        }
+        Ok(Arc::new(Mutex::new(Self { encoder: enc })))
+    }
+}
+
+impl Motor for FakeMotorWithDependency {
+    fn get_position(&mut self) -> anyhow::Result<i32> {
+        match &self.encoder {
+            Some(enc) => Ok(enc.get_position(EncoderPositionType::DEGREES)?.value as i32),
+            None => Ok(0),
+        }
+    }
+    fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
+        debug!("setting power to {}", pct);
+        Ok(())
+    }
+    fn go_for(&mut self, _: f64, _: f64) -> anyhow::Result<Option<Duration>> {
+        anyhow::bail!("go_for unimplemented")
+    }
+}
+
+impl Status for FakeMotorWithDependency {
+    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
+        let bt = BTreeMap::new();
+        Ok(Some(prost_types::Struct { fields: bt }))
+    }
+}
+
+impl Stoppable for FakeMotorWithDependency {
+    fn stop(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::common::config::{Component, Kind, RobotConfigStatic, StaticComponentConfig};
@@ -238,7 +325,7 @@ mod tests {
         assert_eq!(val.pwm, 13);
 
         let static_conf = ConfigType::Static(&STATIC_ROBOT_CONFIG.unwrap().components.unwrap()[0]);
-        assert!(FakeMotor::from_config(static_conf, None).is_ok());
+        assert!(FakeMotor::from_config(static_conf, Vec::new()).is_ok());
 
         Ok(())
     }

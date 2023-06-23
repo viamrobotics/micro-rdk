@@ -19,12 +19,11 @@ use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::{Arc, Mutex};
 
-use crate::common::board::BoardType;
 use crate::common::config::ConfigType;
 use crate::common::encoder::{
     Encoder, EncoderPosition, EncoderPositionType, EncoderSupportedRepresentations, EncoderType,
 };
-use crate::common::registry::ComponentRegistry;
+use crate::common::registry::{ComponentRegistry, Dependency};
 use crate::common::status::Status;
 
 use embedded_hal::digital::v2::InputPin;
@@ -89,10 +88,7 @@ where
         Ok(enc)
     }
 
-    pub(crate) fn from_config(
-        cfg: ConfigType,
-        _: Option<BoardType>,
-    ) -> anyhow::Result<EncoderType> {
+    pub(crate) fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<EncoderType> {
         let pin_a_num = match cfg.get_attribute::<i32>("a") {
             Ok(num) => num,
             Err(_) => return Err(anyhow::anyhow!("cannot build encoder, need 'a' pin")),

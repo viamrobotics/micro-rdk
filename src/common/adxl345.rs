@@ -3,11 +3,11 @@ use crate::common::i2c::I2cHandleType;
 use crate::common::math_utils::Vector3;
 use crate::common::movement_sensor::{MovementSensor, MovementSensorSupportedMethods};
 
-use super::board::{Board, BoardType};
+use super::board::Board;
 use super::config::ConfigType;
 use super::i2c::I2CHandle;
 use super::movement_sensor::MovementSensorType;
-use super::registry::ComponentRegistry;
+use super::registry::{get_board_from_dependencies, ComponentRegistry, Dependency};
 use super::status::Status;
 
 use std::collections::BTreeMap;
@@ -47,8 +47,9 @@ impl ADXL345 {
     #[allow(dead_code)]
     pub(crate) fn from_config(
         cfg: ConfigType,
-        board: Option<BoardType>,
+        dependencies: Vec<Dependency>,
     ) -> anyhow::Result<MovementSensorType> {
+        let board = get_board_from_dependencies(dependencies);
         if board.is_none() {
             return Err(anyhow::anyhow!(
                 "actual board is required to be passed to configure ADXL-345"

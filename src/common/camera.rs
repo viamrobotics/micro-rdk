@@ -5,6 +5,8 @@ use crate::proto::component::camera;
 use bytes::{Bytes, BytesMut};
 use prost::Message;
 
+pub static COMPONENT_NAME: &str = "camera";
+
 pub trait Camera {
     fn get_frame(&mut self, buffer: BytesMut) -> anyhow::Result<BytesMut>;
 }

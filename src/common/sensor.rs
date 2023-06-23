@@ -5,9 +5,10 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use super::board::BoardType;
 use super::config::ConfigType;
-use super::registry::ComponentRegistry;
+use super::registry::{ComponentRegistry, Dependency};
+
+pub static COMPONENT_NAME: &str = "sensor";
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
@@ -56,7 +57,7 @@ impl FakeSensor {
             fake_reading: 42.42,
         }
     }
-    pub(crate) fn from_config(cfg: ConfigType, _: Option<BoardType>) -> anyhow::Result<SensorType> {
+    pub(crate) fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<SensorType> {
         if let Ok(val) = cfg.get_attribute::<f64>("fake_value") {
             return Ok(Arc::new(Mutex::new(FakeSensor { fake_reading: val })));
         }

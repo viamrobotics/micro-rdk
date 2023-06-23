@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
 };
 
@@ -31,10 +31,11 @@ use super::{
     encoder::EncoderType,
     motor::MotorType,
     movement_sensor::MovementSensorType,
-    registry::COMPONENT_REGISTRY,
+    registry::{get_board_from_dependencies, Dependency, ResourceKey, COMPONENT_REGISTRY},
     sensor::SensorType,
 };
 
+#[derive(Clone)]
 pub enum ResourceType {
     Motor(MotorType),
     Board(BoardType),
@@ -87,9 +88,14 @@ impl LocalRobot {
             resources: ResourceMap::new(),
         };
         if let Some(components) = cfg.components.as_ref() {
+            let mut b_r_key: Option<ResourceKey> = None;
             let r = components.iter().find(|x| x.get_type() == "board");
             let b = match r {
                 Some(r) => {
+                    b_r_key = Some(ResourceKey::new(
+                        crate::common::board::COMPONENT_NAME,
+                        r.name.to_string(),
+                    )?);
                     let ctor =
                         COMPONENT_REGISTRY.get_board_constructor(r.get_model().to_string())?;
                     let b = ctor(ConfigType::Static(r));
@@ -103,11 +109,18 @@ impl LocalRobot {
                 None => None,
             };
             for x in components.iter() {
+                let mut deps = Vec::new();
+                if let Some(b) = b.as_ref() {
+                    if let Some(b_r_key) = b_r_key.as_ref() {
+                        let dep = Dependency(b_r_key.clone(), Resource::Board(b.clone()));
+                        deps.push(dep);
+                    }
+                }
                 match robot.insert_resource(
                     x.get_model().to_string(),
                     x.get_resource_name(),
                     ConfigType::Static(x),
-                    b.clone(),
+                    deps,
                 ) {
                     Ok(()) => {
                         continue;
@@ -118,7 +131,7 @@ impl LocalRobot {
                     }
                 };
             }
-        }
+        };
         Ok(robot)
     }
 
@@ -130,14 +143,18 @@ impl LocalRobot {
             resources: ResourceMap::new(),
         };
 
-        let components = &(config_resp.config.as_ref().unwrap().components);
+        let components = &config_resp.config.as_ref().unwrap().components;
 
         let r = components.iter().find(|x| x.r#type == "board");
         // Initialize the board component first
+        let mut b_r_key: Option<ResourceKey> = None;
         let b = match r {
             Some(r) => {
                 let model = get_model_without_micro_rdk_prefix(&mut r.model.to_string())?;
-
+                b_r_key = Some(ResourceKey::new(
+                    crate::common::board::COMPONENT_NAME,
+                    r.name.to_string(),
+                )?);
                 let cfg: DynamicComponentConfig = match r.try_into() {
                     Ok(cfg) => cfg,
                     Err(err) => {
@@ -155,28 +172,144 @@ impl LocalRobot {
             }
             None => None,
         };
-        for x in components.iter() {
-            let model = get_model_without_micro_rdk_prefix(&mut x.model.to_string())?;
-            let r_name = resource_name_from_component_cfg(x);
-            let dyn_config: DynamicComponentConfig = match x.try_into() {
-                Ok(cfg) => cfg,
-                Err(err) => {
-                    log::error!("could not configure component {:?}: {:?}", x.name, err);
-                    continue;
-                }
-            };
-            match robot.insert_resource(model, r_name, ConfigType::Dynamic(dyn_config), b.clone()) {
-                Ok(()) => {
-                    continue;
-                }
-                Err(err) => {
-                    log::error!("{:?}", err);
-                    continue;
-                }
-            };
-        }
+
+        let mut components_queue: Vec<&ComponentConfig> = components.iter().collect();
+
+        robot.insert_resources(&mut components_queue, b, b_r_key)?;
 
         Ok(robot)
+    }
+
+    // Inserts components in order of dependency. If a component's dependencies are not satisfied it is
+    // temporarily skipped and sent to the end of the queue. This process repeats until all the components
+    // are added (or a max number of iterations are reached, indicating a configuration error). We have not
+    // selected the most time-efficient algorithm for solving this problem in order to minimize memory usage
+    fn insert_resources(
+        &mut self,
+        components: &mut Vec<&ComponentConfig>,
+        b: Option<BoardType>,
+        b_r_key: Option<ResourceKey>,
+    ) -> anyhow::Result<()> {
+        let mut inserted_resources = HashSet::<ResourceKey>::new();
+        inserted_resources.try_reserve(components.len())?;
+
+        let mut num_iterations = 0;
+        let max_iterations = components.len() * 2;
+        while !components.is_empty() && num_iterations < max_iterations {
+            let comp_cfg = components.remove(0);
+            let r_name = resource_name_from_component_cfg(comp_cfg);
+            let model = get_model_without_micro_rdk_prefix(&mut comp_cfg.model.to_string())?;
+            let dyn_config: DynamicComponentConfig = match comp_cfg.try_into() {
+                Ok(cfg) => cfg,
+                Err(err) => {
+                    log::error!(
+                        "could not configure component {:?}: {:?}",
+                        comp_cfg.name,
+                        err
+                    );
+                    continue;
+                }
+            };
+            let c_type_static = match dyn_config.get_type() {
+                "motor" => crate::common::motor::COMPONENT_NAME,
+                "board" => crate::common::board::COMPONENT_NAME,
+                "encoder" => crate::common::encoder::COMPONENT_NAME,
+                "movement_sensor" => crate::common::movement_sensor::COMPONENT_NAME,
+                "sensor" => crate::common::sensor::COMPONENT_NAME,
+                &_ => {
+                    anyhow::bail!(
+                        "component type {} is not supported yet",
+                        dyn_config.get_type()
+                    );
+                }
+            };
+            let r_key = ResourceKey::new(c_type_static, r_name.name.to_string())?;
+
+            if !inserted_resources.contains(&r_key) {
+                match COMPONENT_REGISTRY.get_dependency_function(c_type_static, model.to_string()) {
+                    Ok(deps_getter) => {
+                        let dep_keys = deps_getter(ConfigType::Dynamic(dyn_config));
+                        if dep_keys.iter().all(|x| inserted_resources.contains(x)) {
+                            let deps_res: Result<Vec<Dependency>, anyhow::Error> = dep_keys
+                                .iter()
+                                .map(|dep_key| {
+                                    let dep_r_name = ResourceName {
+                                        namespace: r_name.namespace.to_string(),
+                                        r#type: r_name.r#type.to_string(),
+                                        subtype: dep_key.0.to_string(),
+                                        name: dep_key.1.to_string(),
+                                    };
+                                    let res = match self.resources.get(&dep_r_name) {
+                                        Some(r) => r.clone(),
+                                        None => anyhow::bail!("dependency not created yet"),
+                                    };
+                                    let dep_key_copy =
+                                        ResourceKey(dep_key.0, dep_key.1.to_string());
+                                    Ok(Dependency(dep_key_copy, res))
+                                })
+                                .collect();
+                            let mut deps = deps_res?;
+                            if let Some(b) = b.as_ref() {
+                                if let Some(b_r_key) = b_r_key.as_ref() {
+                                    let dep =
+                                        Dependency(b_r_key.clone(), Resource::Board(b.clone()));
+                                    deps.push(dep);
+                                }
+                            }
+                            match self.insert_resource(
+                                model.to_string(),
+                                r_name,
+                                ConfigType::Dynamic(comp_cfg.try_into()?),
+                                deps,
+                            ) {
+                                Ok(()) => {}
+                                Err(err) => {
+                                    log::error!("{:?}", err);
+                                    continue;
+                                }
+                            };
+                            inserted_resources.insert(r_key);
+                        } else {
+                            let model = model.to_string();
+                            log::debug!("skipping {model} for now...");
+                            components.push(comp_cfg)
+                        }
+                    }
+                    Err(_) => {
+                        let mut deps = Vec::new();
+                        if let Some(b) = b.as_ref() {
+                            if let Some(b_r_key) = b_r_key.as_ref() {
+                                let dep = Dependency(b_r_key.clone(), Resource::Board(b.clone()));
+                                deps.push(dep);
+                            }
+                        }
+                        match self.insert_resource(
+                            model.to_string(),
+                            r_name,
+                            ConfigType::Dynamic(comp_cfg.try_into()?),
+                            deps,
+                        ) {
+                            Ok(()) => {}
+                            Err(err) => {
+                                log::error!("{:?}", err);
+                                continue;
+                            }
+                        };
+                        inserted_resources.insert(r_key);
+                    }
+                };
+            }
+            num_iterations += 1;
+        }
+        if !components.is_empty() {
+            log::error!(
+                "Some components not created because their dependencies were never met.
+                Check your config for missing components or circular dependencies.
+                Uncreated component configs: {:?}",
+                components
+            );
+        }
+        Ok(())
     }
 
     fn insert_resource(
@@ -184,32 +317,32 @@ impl LocalRobot {
         model: String,
         r_name: ResourceName,
         cfg: ConfigType,
-        board: Option<BoardType>,
+        deps: Vec<Dependency>,
     ) -> anyhow::Result<()> {
         let r_type = cfg.get_type();
         let res = match r_type {
             "motor" => {
                 let ctor = COMPONENT_REGISTRY.get_motor_constructor(model)?;
-                ResourceType::Motor(ctor(cfg, board)?)
+                ResourceType::Motor(ctor(cfg, deps)?)
             }
             "board" => {
-                if let Some(board) = board.as_ref() {
-                    ResourceType::Board(board.clone())
-                } else {
-                    return Ok(());
-                }
+                let board = get_board_from_dependencies(deps);
+                ResourceType::Board(match board {
+                    Some(b) => b.clone(),
+                    None => return Ok(()),
+                })
             }
             "sensor" => {
                 let ctor = COMPONENT_REGISTRY.get_sensor_constructor(model)?;
-                ResourceType::Sensor(ctor(cfg, board)?)
+                ResourceType::Sensor(ctor(cfg, deps)?)
             }
             "movement_sensor" => {
                 let ctor = COMPONENT_REGISTRY.get_movement_sensor_constructor(model)?;
-                ResourceType::MovementSensor(ctor(cfg, board)?)
+                ResourceType::MovementSensor(ctor(cfg, deps)?)
             }
             "encoder" => {
                 let ctor = COMPONENT_REGISTRY.get_encoder_constructor(model)?;
-                ResourceType::Encoder(ctor(cfg, board)?)
+                ResourceType::Encoder(ctor(cfg, deps)?)
             }
             &_ => {
                 anyhow::bail!("component type {} is not supported yet", r_type);
@@ -440,14 +573,18 @@ impl LocalRobot {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use crate::common::board::Board;
     use crate::common::config::{Kind, RobotConfigStatic, StaticComponentConfig};
     use crate::common::encoder::{Encoder, EncoderPositionType};
     use crate::common::i2c::I2CHandle;
     use crate::common::motor::Motor;
     use crate::common::movement_sensor::MovementSensor;
-    use crate::common::robot::LocalRobot;
+    use crate::common::robot::{LocalRobot, ResourceMap};
     use crate::common::sensor::Sensor;
+    use crate::proto::app::v1::ComponentConfig;
+    use prost_types::Struct;
 
     #[test_log::test]
     fn test_robot_from_static() {
@@ -699,5 +836,203 @@ mod tests {
             .unwrap()
             .get_position(EncoderPositionType::DEGREES);
         assert!(pos_deg.is_err());
+    }
+
+    #[test_log::test]
+    fn test_insert_resources() {
+        let mut component_cfgs = Vec::new();
+
+        let comp = ComponentConfig {
+            name: "enc1".to_string(),
+            model: "micro-rdk:builtin:fake".to_string(),
+            r#type: "encoder".to_string(),
+            namespace: "rdk".to_string(),
+            frame: None,
+            depends_on: Vec::new(),
+            service_configs: Vec::new(),
+            api: "blah".to_string(),
+            attributes: Some(Struct {
+                fields: BTreeMap::from([(
+                    "fake_deg".to_string(),
+                    prost_types::Value {
+                        kind: Some(prost_types::value::Kind::NumberValue(90.0)),
+                    },
+                )]),
+            }),
+        };
+        component_cfgs.push(&comp);
+
+        let comp2 = ComponentConfig {
+            name: "m1".to_string(),
+            model: "micro-rdk:builtin:fake_with_dep".to_string(),
+            r#type: "motor".to_string(),
+            namespace: "rdk".to_string(),
+            frame: None,
+            depends_on: Vec::new(),
+            service_configs: Vec::new(),
+            api: "blah".to_string(),
+            attributes: Some(Struct {
+                fields: BTreeMap::from([(
+                    "encoder".to_string(),
+                    prost_types::Value {
+                        kind: Some(prost_types::value::Kind::StringValue("enc1".to_string())),
+                    },
+                )]),
+            }),
+        };
+        component_cfgs.push(&comp2);
+
+        let comp3: ComponentConfig = ComponentConfig {
+            name: "m2".to_string(),
+            model: "micro-rdk:builtin:fake_with_dep".to_string(),
+            r#type: "motor".to_string(),
+            namespace: "rdk".to_string(),
+            frame: None,
+            depends_on: Vec::new(),
+            service_configs: Vec::new(),
+            api: "blah".to_string(),
+            attributes: Some(Struct {
+                fields: BTreeMap::from([(
+                    "encoder".to_string(),
+                    prost_types::Value {
+                        kind: Some(prost_types::value::Kind::StringValue("enc2".to_string())),
+                    },
+                )]),
+            }),
+        };
+        component_cfgs.push(&comp3);
+
+        let comp4 = ComponentConfig {
+            name: "enc2".to_string(),
+            model: "micro-rdk:builtin:fake".to_string(),
+            r#type: "encoder".to_string(),
+            namespace: "rdk".to_string(),
+            frame: None,
+            depends_on: Vec::new(),
+            service_configs: Vec::new(),
+            api: "blah".to_string(),
+            attributes: Some(Struct {
+                fields: BTreeMap::from([(
+                    "fake_deg".to_string(),
+                    prost_types::Value {
+                        kind: Some(prost_types::value::Kind::NumberValue(180.0)),
+                    },
+                )]),
+            }),
+        };
+        component_cfgs.push(&comp4);
+
+        let mut robot = LocalRobot {
+            resources: ResourceMap::new(),
+        };
+
+        assert!(robot
+            .insert_resources(&mut component_cfgs, None, None)
+            .is_ok());
+
+        let m1 = robot.get_motor_by_name("m1".to_string());
+
+        assert!(m1.is_some());
+
+        let position = m1.unwrap().get_position();
+
+        assert!(position.is_ok());
+
+        assert_eq!(position.ok().unwrap(), 90);
+
+        let m2 = robot.get_motor_by_name("m2".to_string());
+
+        assert!(m2.is_some());
+
+        let position = m2.unwrap().get_position();
+
+        assert!(position.is_ok());
+
+        assert_eq!(position.ok().unwrap(), 180);
+    }
+
+    #[test_log::test]
+    fn test_insert_resources_unmet_dependency() {
+        let mut component_cfgs = Vec::new();
+
+        let comp2 = ComponentConfig {
+            name: "m1".to_string(),
+            model: "micro-rdk:builtin:fake_with_dep".to_string(),
+            r#type: "motor".to_string(),
+            namespace: "rdk".to_string(),
+            frame: None,
+            depends_on: Vec::new(),
+            service_configs: Vec::new(),
+            api: "blah".to_string(),
+            attributes: Some(Struct {
+                fields: BTreeMap::from([(
+                    "encoder".to_string(),
+                    prost_types::Value {
+                        kind: Some(prost_types::value::Kind::StringValue("enc1".to_string())),
+                    },
+                )]),
+            }),
+        };
+        component_cfgs.push(&comp2);
+
+        let comp3: ComponentConfig = ComponentConfig {
+            name: "m2".to_string(),
+            model: "micro-rdk:builtin:fake_with_dep".to_string(),
+            r#type: "motor".to_string(),
+            namespace: "rdk".to_string(),
+            frame: None,
+            depends_on: Vec::new(),
+            service_configs: Vec::new(),
+            api: "blah".to_string(),
+            attributes: Some(Struct {
+                fields: BTreeMap::from([(
+                    "encoder".to_string(),
+                    prost_types::Value {
+                        kind: Some(prost_types::value::Kind::StringValue("enc2".to_string())),
+                    },
+                )]),
+            }),
+        };
+        component_cfgs.push(&comp3);
+
+        let comp4 = ComponentConfig {
+            name: "enc2".to_string(),
+            model: "micro-rdk:builtin:fake".to_string(),
+            r#type: "encoder".to_string(),
+            namespace: "rdk".to_string(),
+            frame: None,
+            depends_on: Vec::new(),
+            service_configs: Vec::new(),
+            api: "blah".to_string(),
+            attributes: Some(Struct {
+                fields: BTreeMap::from([(
+                    "fake_deg".to_string(),
+                    prost_types::Value {
+                        kind: Some(prost_types::value::Kind::NumberValue(180.0)),
+                    },
+                )]),
+            }),
+        };
+        component_cfgs.push(&comp4);
+
+        let mut robot = LocalRobot {
+            resources: ResourceMap::new(),
+        };
+
+        assert!(robot
+            .insert_resources(&mut component_cfgs, None, None)
+            .is_ok());
+
+        let m1 = robot.get_motor_by_name("m1".to_string());
+
+        assert!(m1.is_none());
+
+        let m2 = robot.get_motor_by_name("m2".to_string());
+
+        assert!(m2.is_some());
+
+        let enc = robot.get_encoder_by_name("enc2".to_string());
+
+        assert!(enc.is_some());
     }
 }

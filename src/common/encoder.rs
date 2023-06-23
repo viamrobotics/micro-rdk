@@ -6,10 +6,11 @@ use crate::proto::component::encoder::v1::GetPositionResponse;
 use crate::proto::component::encoder::v1::GetPropertiesResponse;
 use crate::proto::component::encoder::v1::PositionType;
 
-use super::board::BoardType;
 use super::config::ConfigType;
-use super::registry::ComponentRegistry;
+use super::registry::{ComponentRegistry, Dependency};
 use super::status::Status;
+
+pub static COMPONENT_NAME: &str = "encoder";
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
@@ -134,10 +135,7 @@ impl FakeIncrementalEncoder {
     pub fn new() -> Self {
         Self { ticks: 0.0 }
     }
-    pub(crate) fn from_config(
-        cfg: ConfigType,
-        _: Option<BoardType>,
-    ) -> anyhow::Result<EncoderType> {
+    pub(crate) fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<EncoderType> {
         let mut enc: FakeIncrementalEncoder = Default::default();
         if let Ok(fake_ticks) = cfg.get_attribute::<f32>("fake_ticks") {
             enc.ticks = fake_ticks;
@@ -196,10 +194,7 @@ impl FakeEncoder {
         }
     }
 
-    pub(crate) fn from_config(
-        cfg: ConfigType,
-        _: Option<BoardType>,
-    ) -> anyhow::Result<EncoderType> {
+    pub(crate) fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<EncoderType> {
         let mut enc: FakeEncoder = Default::default();
         if let Ok(ticks_per_rotation) = cfg.get_attribute::<u32>("ticks_per_rotation") {
             enc.ticks_per_rotation = ticks_per_rotation;
