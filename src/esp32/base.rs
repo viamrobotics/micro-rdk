@@ -32,7 +32,7 @@ where
         t += std::f64::consts::FRAC_PI_4;
         let l = (r * t.cos()) * std::f64::consts::SQRT_2;
         let r = (r * t.sin()) * std::f64::consts::SQRT_2;
-        (l.max(-1.0).min(1.0), r.max(-1.0).min(1.0))
+        (l.clamp(-1.0, 1.0), r.clamp(-1.0, 1.0))
     }
 }
 impl<ML, MR> Status for Esp32WheelBase<ML, MR>
