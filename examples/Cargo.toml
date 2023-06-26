@@ -18,11 +18,10 @@ opt-level = "z"
 qemu = []
 
 [patch.crates-io]
-#esp-idf-sys = {git = "https://github.com/npmenard/esp-idf-sys.git"}
+esp-idf-sys = {git = "https://github.com/npmenard/esp-idf-sys.git"}
 polling = { git = "https://github.com/esp-rs-compat/polling" }
 smol = { git = "https://github.com/esp-rs-compat/smol" }
 socket2 = { git = "https://github.com/npmenard/socket2.git" }
-# webrtc = {git = " https://github.com/webrtc-rs/webrtc"}
 
 [target.'cfg(not(target_os = "espidf"))'.dependencies]
 micro-rdk = { path = "../", features = ["native"], default-features = false }

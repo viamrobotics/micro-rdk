@@ -8,70 +8,50 @@ const PASS: &str = env!("MICRO_RDK_WIFI_PASSWORD");
 include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
 use log::*;
-#[allow(unused_imports)]
-use std::{
-    collections::HashMap,
-    net::Ipv4Addr,
-    time::Duration,
-    sync::{Arc, Mutex},
-};
 
-// micro-rdk
-#[allow(unused_imports)]
-use micro_rdk::common::{
-    app_client::AppClientConfig,
-    robot::{LocalRobot, ResourceMap, ResourceType},
-    board::FakeBoard,
-};
-#[allow(unused_imports)]
-use micro_rdk::proto::common::v1::ResourceName;
-
-#[allow(unused_imports)]
-use micro_rdk::esp32::{
-    certificate::WebRtcCertificate, dtls::Esp32Dtls, entry::serve_web, exec::Esp32Executor,
-    tcp::Esp32Stream, tls::Esp32Tls, tls::Esp32TlsServerConfig,
-};
-
-/* webhook
-use embedded_svc::{
-    http::{client::Client as HttpClient, Method, Status},
-    io::{Read, Write},
-    utils::io,
-};
-*/
-
-// esp_idf_svc
-
-#[allow(unused_imports)]
-use esp_idf_svc::{
-    eventloop::EspSystemEventLoop,
-    eth::{EspEth, EthDriver},
-    http::client::{Configuration, EspHttpConnection},
-    netif::{EspNetif, NetifStatus, AsyncNetif}, // EspNetifWait
-    timer::EspTimerService,
-                     //wifi::WifiWait,
-};
-use esp_idf_hal::prelude::Peripherals;
-
-#[cfg(not(feature = "qemu"))]
-use {
-    esp_idf_svc::{
-        wifi::{AsyncWifi, EspWifi},
-    },
-    esp_idf_sys::esp_wifi_set_ps,
-    esp_idf_sys as _,
+use esp_idf_svc::eventloop::EspSystemEventLoop;
+use micro_rdk::{
+    common::app_client::AppClientConfig,
+    esp32::{certificate::WebRtcCertificate, entry::serve_web, tls::Esp32TlsServerConfig},
 };
 
 #[cfg(feature = "qemu")]
-use embedded_svc::ipv4::{ClientSettings, ClientConfiguration, Subnet, Mask};
+use {
+    embedded_svc::ipv4::{ClientConfiguration, ClientSettings, Mask, Subnet},
+    esp_idf_svc::netif::{BlockingNetif, EspNetif},
+    micro_rdk::{
+        common::{
+            board::FakeBoard,
+            robot::{LocalRobot, ResourceMap, ResourceType},
+        },
+        proto::common::v1::ResourceName,
+    },
+    std::{
+        collections::HashMap,
+        sync::{Arc, Mutex},
+        time::Duration,
+        net::Ipv4Addr,
+    },
+};
 
+#[cfg(not(feature = "qemu"))]
+use {
+    embedded_svc::wifi::{
+        AuthMethod, ClientConfiguration as WifiClientConfiguration,
+        Configuration as WifiConfiguration,
+    },
+    esp_idf_svc::wifi::{BlockingWifi, EspWifi},
+    esp_idf_sys as _,
+    esp_idf_sys::esp_wifi_set_ps,
+};
 
 fn main() -> anyhow::Result<()> {
     esp_idf_sys::link_patches();
 
     esp_idf_svc::log::EspLogger::initialize_default();
     let sys_loop_stack = EspSystemEventLoop::take().unwrap();
-    let periph = Peripherals::take().unwrap();
+    #[cfg(not(feature = "qemu"))]
+    let periph = esp_idf_hal::prelude::Peripherals::take().unwrap();
 
     #[cfg(feature = "qemu")]
     let robot = {
@@ -91,33 +71,28 @@ fn main() -> anyhow::Result<()> {
     #[cfg(not(feature = "qemu"))]
     let robot = None;
 
-
     #[cfg(feature = "qemu")]
-    let (ip, _blocking_eth) = {
+    let (ip, _block_eth) = {
         info!("creating eth object");
 
-        let ip =  Ipv4Addr::new(10, 1, 12, 187);
-        let ip_configuration = embedded_svc::ipv4::Configuration::Client(ClientConfiguration::Fixed(ClientSettings{
-            ip,
-            subnet: Subnet {
-                gateway: Ipv4Addr::new(10, 1, 12, 1),
-                mask: Mask(24),
+        let ip = Ipv4Addr::new(10, 1, 12, 187);
+        let ip_configuration =
+            embedded_svc::ipv4::Configuration::Client(ClientConfiguration::Fixed(ClientSettings {
+                ip,
+                subnet: Subnet {
+                    gateway: Ipv4Addr::new(10, 1, 12, 1),
+                    mask: Mask(24),
                 },
-            ..Default::default()
-        }));
+                ..Default::default()
+            }));
 
         let mut eth_config = esp_idf_svc::netif::NetifConfiguration::eth_default_client();
         // netif_config.custom_mac = Some(periph.mac.into_ref()); // need to get a reference to [u8:6]
         eth_config.ip_configuration = ip_configuration;
 
         let netif = esp_idf_svc::netif::EspNetif::new_with_conf(&eth_config)?;
-        let timer = EspTimerService::new()?;
-        // check eth
-        let (ip, eth) = eth_configure(
-    &sys_loop_stack, 
-    netif,
-        )?;
-        (ip, Box::new(eth))
+        let (ip, block_eth) = eth_configure(&sys_loop_stack, netif)?;
+        (ip, block_eth)
     };
 
     {
@@ -139,7 +114,7 @@ fn main() -> anyhow::Result<()> {
         ROBOT_SECRET.to_owned(),
         ROBOT_ID.to_owned(),
         ip,
-        "".to_string(),
+        "".to_owned(),
     );
     let webrtc_certificate =
         WebRtcCertificate::new(ROBOT_DTLS_CERT, ROBOT_DTLS_KEY_PAIR, ROBOT_DTLS_CERT_FP);
@@ -163,38 +138,29 @@ fn main() -> anyhow::Result<()> {
 fn eth_configure(
     sl_stack: &EspSystemEventLoop,
     eth: EspNetif,
-) -> anyhow::Result<(Ipv4Addr, AsyncNetif<EspNetif>)> {
-    use futures_lite::future::block_on;
-
-    let timer = EspTimerService::new()?;
+) -> anyhow::Result<(Ipv4Addr, Box<BlockingNetif<EspNetif>>)> {
     let ip_info = eth.get_ip_info()?;
-    let async_eth = AsyncNetif::wrap(eth, sl_stack.clone(), timer);
+    let block_eth = BlockingNetif::wrap(eth, sl_stack.clone());
 
-    block_on( async {
-        async_eth.ip_wait_while(
-                || Ok(async_eth.is_up().unwrap()), 
-                Some(Duration::from_secs(20)))
-            .await
-            .expect("ethernet couldn't connect");
-    });
+    block_eth
+        .ip_wait_while(
+            || Ok(block_eth.is_up().unwrap()),
+            Some(Duration::from_secs(20)),
+        )
+        .expect("ethernet couldn't connect");
 
     info!("ETH IP {:?}", ip_info.ip);
-    Ok((ip_info.ip, async_eth))
+    Ok((ip_info.ip, Box::new(block_eth)))
 }
 
 #[cfg(not(feature = "qemu"))]
 fn start_wifi(
     modem: impl esp_idf_hal::peripheral::Peripheral<P = esp_idf_hal::modem::Modem> + 'static,
     sl_stack: EspSystemEventLoop,
-) -> anyhow::Result<Box<AsyncWifi<EspWifi<'static>>>> {
-    use futures_lite::future::block_on;
-    use esp_idf_svc::wifi::config::{ScanConfig,ScanType};
-    use embedded_svc::wifi::{AuthMethod, ClientConfiguration, Configuration};
-
-    let timer = EspTimerService::new()?;
+) -> anyhow::Result<Box<BlockingWifi<EspWifi<'static>>>> {
     let nvs = esp_idf_svc::nvs::EspDefaultNvsPartition::take()?;
-    let mut wifi = AsyncWifi::wrap(EspWifi::new(modem, sl_stack.clone(), Some(nvs))?, sl_stack, timer)?;
-    let wifi_configuration: Configuration = Configuration::Client(ClientConfiguration {
+    let mut wifi = BlockingWifi::wrap(EspWifi::new(modem, sl_stack.clone(), Some(nvs))?, sl_stack)?;
+    let wifi_configuration = WifiConfiguration::Client(WifiClientConfiguration {
         ssid: SSID.into(),
         bssid: None,
         auth_method: AuthMethod::WPA2Personal,
@@ -204,19 +170,15 @@ fn start_wifi(
 
     wifi.set_configuration(&wifi_configuration)?;
 
-    block_on( async {
-    wifi.start().await.unwrap();
+    wifi.start().unwrap();
     info!("Wifi started");
 
-    wifi.connect().await.unwrap();
+    wifi.connect().unwrap();
     info!("Wifi connected");
 
-    wifi.wait_netif_up().await.unwrap();
+    wifi.wait_netif_up().unwrap();
     info!("Wifi netif up");
-
-    });
 
     esp_idf_sys::esp!(unsafe { esp_wifi_set_ps(esp_idf_sys::wifi_ps_type_t_WIFI_PS_NONE) })?;
     Ok(Box::new(wifi))
 }
-

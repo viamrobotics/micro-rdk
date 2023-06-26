@@ -13,7 +13,7 @@ rust-version = "1.66"
 crate-type = ["lib"]
 
 [patch.crates-io]
-#esp-idf-sys = {git = "https://github.com/npmenard/esp-idf-sys.git"}
+esp-idf-sys = {git = "https://github.com/npmenard/esp-idf-sys.git"}
 polling = { git = "https://github.com/esp-rs-compat/polling" }
 smol = { git = "https://github.com/esp-rs-compat/smol" }
 socket2 = { git = "https://github.com/npmenard/socket2.git" }
@@ -71,6 +71,7 @@ openssl = {version = "0.10.50",  optional = true }
 async-std-openssl = {version = "0.6.3", optional = true }
 thiserror = "1.0.40"
 pin-project-lite = "0.2.9"
+secrecy = "0.8.0"
 
 [build-dependencies]
 anyhow = "1"
