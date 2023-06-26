@@ -39,7 +39,7 @@ use {
         AuthMethod, ClientConfiguration as WifiClientConfiguration,
         Configuration as WifiConfiguration,
     },
-    esp_idf_hal::prelude::{Peripheral, Peripherals},
+    esp_idf_hal::{peripheral::Peripheral, prelude::Peripherals},
     esp_idf_svc::wifi::{BlockingWifi, EspWifi},
     esp_idf_sys as _,
     esp_idf_sys::esp_wifi_set_ps,
