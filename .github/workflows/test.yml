@@ -44,6 +44,11 @@ jobs:
     - name: Build ESP32
       run: |
         bash -c 'export MICRO_RDK_WIFI_PASSWORD=0 && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && cd examples && cd ../ && make build-esp32-bin'
+
+    - name: Build ESP32
+      run: |
+        bash -c 'export MICRO_RDK_WIFI_PASSWORD=0 && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && cd examples && cd ../ && make build-qemu'
+
         
     - name: Build Native
       run: |
