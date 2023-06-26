@@ -67,7 +67,7 @@ unsafe extern "C" fn mbedtls_net_write<S: Write>(
 ) -> c_int {
     let state = state::<S>(ctx);
 
-    let buf = std::slice::from_raw_parts(buf as *const _, len as usize);
+    let buf = std::slice::from_raw_parts(buf as *const _, len);
 
     match state.stream.write(buf) {
         Ok(len) => len as c_int,
@@ -88,7 +88,7 @@ unsafe extern "C" fn mbedtls_net_read<S: Read>(
 ) -> c_int {
     let state = state::<S>(ctx);
 
-    let buf = std::slice::from_raw_parts_mut(buf as *mut _, len as usize);
+    let buf = std::slice::from_raw_parts_mut(buf as *mut _, len);
 
     match state.stream.read(buf) {
         Ok(len) => len as c_int,
@@ -401,7 +401,7 @@ where
     C: Certificate,
 {
     pub fn new(certificate: Rc<C>) -> Result<Self, SSLError> {
-        let context = Box::new(SSLContext::default());
+        let context = Box::<SSLContext>::default();
         Ok(Self {
             context,
             transport: None,
@@ -481,8 +481,7 @@ where
         // There might be leftover dtls records mbedtls_ssl_check_pending would tell us if anything is left
         // however subsequent call to ssl_read until WouldBlock is returned by the io should exhaust remaining records
         let ret: i32 =
-            unsafe { mbedtls_ssl_read(self.context.ssl_ctx.as_mut(), buf.as_mut_ptr(), len) }
-                as i32;
+            unsafe { mbedtls_ssl_read(self.context.ssl_ctx.as_mut(), buf.as_mut_ptr(), len) };
 
         if ret >= 0 {
             Ok(ret as usize)
@@ -503,7 +502,7 @@ where
         // the network layer (eg a call returned WouldBlock)
         // partial write are dealt with in an higher level call
         let ret: i32 =
-            unsafe { mbedtls_ssl_write(self.context.ssl_ctx.as_mut(), buf.as_ptr(), len) } as i32;
+            unsafe { mbedtls_ssl_write(self.context.ssl_ctx.as_mut(), buf.as_ptr(), len) };
 
         // if  MBEDTLS_ERR_SSL_BAD_INPUT_DATA is returned, mbedtls_ssl_get_max_out_record_payload() should be used to query
         // the active maximum fragment length
