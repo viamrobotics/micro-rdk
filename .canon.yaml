@@ -1,0 +1,7 @@
+viam-micro-rdk:
+    image_amd64: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
+    image_arm64: ghcr.io/viamrobotics/micro-rdk-dev-env:arm64
+    minimum_date: 2023-03-06T00:15:26.271839721-05:00
+    update_interval: 168h0m0s
+    user: testbot
+    group: testbot
