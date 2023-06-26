@@ -182,8 +182,6 @@ fn main() -> anyhow::Result<()> {
     let robot_name = cloud_cfg.local_fqdn.split('.').next().unwrap_or("");
     let local_fqdn = cloud_cfg.local_fqdn.replace('.', "-");
     let fqdn = cloud_cfg.fqdn.replace('.', "-");
-    // let location_secret = cloud_cfg.location_secrets.first().unwrap_or("");
-    //let sig_addr = cloud_cfg.signaling_address;
 
     let out_dir = std::env::var_os("OUT_DIR").unwrap();
     let dest_path = std::path::Path::new(&out_dir).join("ca.crt");

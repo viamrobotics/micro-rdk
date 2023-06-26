@@ -17,7 +17,6 @@ use micro_rdk::{
 
 #[cfg(feature = "qemu")]
 use {
-    embedded_svc::ipv4::{ClientConfiguration, ClientSettings, Mask, Subnet},
     esp_idf_svc::netif::{BlockingNetif, EspNetif},
     micro_rdk::{
         common::{
@@ -28,9 +27,9 @@ use {
     },
     std::{
         collections::HashMap,
+        net::Ipv4Addr,
         sync::{Arc, Mutex},
         time::Duration,
-        net::Ipv4Addr,
     },
 };
 
@@ -40,6 +39,7 @@ use {
         AuthMethod, ClientConfiguration as WifiClientConfiguration,
         Configuration as WifiConfiguration,
     },
+    esp_idf_hal::prelude::{Peripheral, Peripherals},
     esp_idf_svc::wifi::{BlockingWifi, EspWifi},
     esp_idf_sys as _,
     esp_idf_sys::esp_wifi_set_ps,
@@ -50,8 +50,9 @@ fn main() -> anyhow::Result<()> {
 
     esp_idf_svc::log::EspLogger::initialize_default();
     let sys_loop_stack = EspSystemEventLoop::take().unwrap();
+
     #[cfg(not(feature = "qemu"))]
-    let periph = esp_idf_hal::prelude::Peripherals::take().unwrap();
+    let periph = Peripherals::take().unwrap();
 
     #[cfg(feature = "qemu")]
     let robot = {
@@ -74,22 +75,7 @@ fn main() -> anyhow::Result<()> {
     #[cfg(feature = "qemu")]
     let (ip, _block_eth) = {
         info!("creating eth object");
-
-        let ip = Ipv4Addr::new(10, 1, 12, 187);
-        let ip_configuration =
-            embedded_svc::ipv4::Configuration::Client(ClientConfiguration::Fixed(ClientSettings {
-                ip,
-                subnet: Subnet {
-                    gateway: Ipv4Addr::new(10, 1, 12, 1),
-                    mask: Mask(24),
-                },
-                ..Default::default()
-            }));
-
-        let mut eth_config = esp_idf_svc::netif::NetifConfiguration::eth_default_client();
-        // netif_config.custom_mac = Some(periph.mac.into_ref()); // need to get a reference to [u8:6]
-        eth_config.ip_configuration = ip_configuration;
-
+        let eth_config = esp_idf_svc::netif::NetifConfiguration::eth_default_client();
         let netif = esp_idf_svc::netif::EspNetif::new_with_conf(&eth_config)?;
         let (ip, block_eth) = eth_configure(&sys_loop_stack, netif)?;
         (ip, block_eth)
@@ -155,7 +141,7 @@ fn eth_configure(
 
 #[cfg(not(feature = "qemu"))]
 fn start_wifi(
-    modem: impl esp_idf_hal::peripheral::Peripheral<P = esp_idf_hal::modem::Modem> + 'static,
+    modem: impl Peripheral<P = esp_idf_hal::modem::Modem> + 'static,
     sl_stack: EspSystemEventLoop,
 ) -> anyhow::Result<Box<BlockingWifi<EspWifi<'static>>>> {
     let nvs = esp_idf_svc::nvs::EspDefaultNvsPartition::take()?;
