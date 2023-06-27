@@ -61,7 +61,7 @@ pub fn serve_web(
 
         let cloned_exec = exec.clone();
 
-        let _ = handle_webhook(&*robot_cfg);
+        let _ = handle_webhook(&robot_cfg);
 
         let webrtc = Box::new(WebRtcConfiguration::new(
             webrtc_certificate,
@@ -96,7 +96,6 @@ use esp_idf_svc::http::client::{Configuration as HttpConfiguration, EspHttpConne
 use log::*;
 use serde_json::json;
 fn handle_webhook(robot_cfg: &ConfigResponse) -> anyhow::Result<()> {
-    // webhook logic
     let robot_cfg = robot_cfg.clone();
     let components = &robot_cfg.config.as_ref().unwrap().components; // component config
     let cloud = robot_cfg.config.as_ref().unwrap().cloud.as_ref().unwrap(); //cloud config
@@ -107,17 +106,14 @@ fn handle_webhook(robot_cfg: &ConfigResponse) -> anyhow::Result<()> {
         .unwrap()
         .try_into()?;
 
-    // if no webhook, return
     if let Ok(webhook) = board_cfg.get_attribute::<String>("webhook") {
         let secret = board_cfg.get_attribute::<String>("webhook-secret").unwrap_or("".to_string());
-        let url = webhook.to_string();
         let payload = json!({
             "location": fqdn,
             "secret": secret,
             "board": board_cfg.name,
         })
         .to_string();
-        info!("fqdn: {}", payload);
 
         let mut client = HttpClient::wrap(EspHttpConnection::new(&HttpConfiguration {
             crt_bundle_attach: Some(esp_idf_sys::esp_crt_bundle_attach),
@@ -131,10 +127,10 @@ fn handle_webhook(robot_cfg: &ConfigResponse) -> anyhow::Result<()> {
             ("connection", "close"),
             ("content-length", &format!("{}", payload.len())),
         ];
-        let mut request = client.request(Method::Get, &url, &headers)?;
+        let mut request = client.request(Method::Get, &webhook, &headers)?;
         request.write_all(payload)?;
         request.flush()?;
-        info!("-> GET {}", url);
+        info!("-> GET {}", webhook);
         let response = request.submit()?;
         info!("<- {}", response.status());
     }
