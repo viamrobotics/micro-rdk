@@ -273,12 +273,12 @@ impl Read for Esp32TlsStream {
                 e @ (ESP_TLS_ERR_SSL_WANT_READ | ESP_TLS_ERR_SSL_WANT_WRITE) => {
                     Err(std::io::Error::new(
                         std::io::ErrorKind::WouldBlock,
-                        format!("would block cause '{}'", e),
+                        format!("would block cause '{e}'"),
                     ))
                 }
                 e => Err(std::io::Error::new(
                     std::io::ErrorKind::Other,
-                    format!("tls write failed reason '{}'", e),
+                    format!("tls write failed reason '{e}'"),
                 )),
             },
         }
@@ -301,12 +301,12 @@ impl Write for Esp32TlsStream {
                 e @ (ESP_TLS_ERR_SSL_WANT_READ | ESP_TLS_ERR_SSL_WANT_WRITE) => {
                     Err(std::io::Error::new(
                         std::io::ErrorKind::WouldBlock,
-                        format!("would block cause '{}'", e),
+                        format!("would block cause '{e}'"),
                     ))
                 }
                 e => Err(std::io::Error::new(
                     std::io::ErrorKind::Other,
-                    format!("tls write failed reason '{}'", e),
+                    format!("tls write failed reason '{e}'"),
                 )),
             },
             n => Ok(n as usize),

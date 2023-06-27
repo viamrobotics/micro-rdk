@@ -250,7 +250,7 @@ impl Board for EspBoard {
             .pins
             .iter()
             .find(|p| p.pin() == pin)
-            .context(format!("pin {} not registered on board", pin))?;
+            .context(format!("pin {pin} not registered on board"))?;
         Ok(pin.is_high())
     }
     fn get_board_status(&self) -> anyhow::Result<common::v1::BoardStatus> {
