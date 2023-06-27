@@ -43,7 +43,7 @@ impl TlsClientConnector for Esp32Tls {
 
 /// TCP like stream for encrypted communication over TLS
 pub struct Esp32TlsStream {
-    tls_context: ManuallyDrop<Box<*mut esp_tls_t>>,
+    tls_context: ManuallyDrop<*mut esp_tls_t>,
     socket: Option<TcpStream>, // may store the raw socket
 }
 
@@ -75,7 +75,7 @@ impl Debug for Esp32TlsStream {
         f.debug_struct("Esp32TlsStream")
             .field(
                 "tls",
-                match unsafe { (*(**self.tls_context)).conn_state } {
+                match unsafe { (*(*self.tls_context)).conn_state } {
                     ESP_TLS_INIT => &"Tls initializing",
                     ESP_TLS_CONNECTING => &"Tls connecting",
                     ESP_TLS_HANDSHAKE => &"Tls handshake",
@@ -193,7 +193,7 @@ impl Esp32TlsStream {
         if p.is_null() {
             return Err(anyhow::anyhow!("failed to allocate TLS struct"));
         }
-        let tls_context = ManuallyDrop::new(Box::new(p));
+        let tls_context = ManuallyDrop::new(p);
         match tls_cfg {
             Either::Left(tls_cfg) => {
                 let fd = socket.as_ref().unwrap().as_raw_fd();
@@ -201,10 +201,10 @@ impl Esp32TlsStream {
                     if let Some(err) = EspError::from(esp_tls_server_session_create(
                         &mut **tls_cfg,
                         fd,
-                        **tls_context,
+                        *tls_context,
                     )) {
                         log::error!("can't create TLS context ''{}''", err);
-                        esp_tls_conn_destroy(**tls_context);
+                        esp_tls_conn_destroy(*tls_context);
                         Err(anyhow::anyhow!(err))
                     } else {
                         Ok(Self {
@@ -221,7 +221,7 @@ impl Esp32TlsStream {
                         APP_VIAM_HOSTNAME.len() as i32,
                         443, // HTTPS port
                         &**tls_cfg,
-                        **tls_context,
+                        *tls_context,
                     )
                 } {
                     -1 => Err(anyhow::anyhow!(
@@ -245,7 +245,7 @@ impl Esp32TlsStream {
 impl Drop for Esp32TlsStream {
     fn drop(&mut self) {
         log::error!("dropping the tls stream");
-        if let Some(err) = EspError::from(unsafe { esp_tls_conn_destroy(**self.tls_context) }) {
+        if let Some(err) = EspError::from(unsafe { esp_tls_conn_destroy(*self.tls_context) }) {
             log::error!("error while dropping the tls connection '{}'", err);
         }
     }
@@ -253,7 +253,7 @@ impl Drop for Esp32TlsStream {
 
 impl Read for Esp32TlsStream {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let read_fn = match unsafe { self.tls_context.read().read } {
+        let read_fn = match unsafe { self.tls_context.read_unaligned().read } {
             Some(f) => f,
             None => {
                 return Err(std::io::Error::new(
@@ -262,8 +262,7 @@ impl Read for Esp32TlsStream {
                 ))
             }
         };
-        match unsafe { read_fn(**self.tls_context, buf.as_mut_ptr() as *mut i8, buf.len()) as i32 }
-        {
+        match unsafe { read_fn(*self.tls_context, buf.as_mut_ptr() as *mut i8, buf.len()) as i32 } {
             n @ 1_i32..=i32::MAX => Ok(n as usize),
             0 => Err(std::io::Error::new(
                 std::io::ErrorKind::NotConnected,
@@ -287,7 +286,7 @@ impl Read for Esp32TlsStream {
 
 impl Write for Esp32TlsStream {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let write_fn = match unsafe { self.tls_context.read().write } {
+        let write_fn = match unsafe { self.tls_context.read_unaligned().write } {
             Some(f) => f,
             None => {
                 return Err(std::io::Error::new(
@@ -296,7 +295,7 @@ impl Write for Esp32TlsStream {
                 ))
             }
         };
-        match unsafe { write_fn(**self.tls_context, buf.as_ptr() as *mut i8, buf.len()) as i32 } {
+        match unsafe { write_fn(*self.tls_context, buf.as_ptr() as *mut i8, buf.len()) as i32 } {
             n @ i32::MIN..=-1 => match n {
                 e @ (ESP_TLS_ERR_SSL_WANT_READ | ESP_TLS_ERR_SSL_WANT_WRITE) => {
                     Err(std::io::Error::new(
