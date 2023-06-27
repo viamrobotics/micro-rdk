@@ -22,14 +22,14 @@ use esp_idf_sys::{
     mbedtls_entropy_func, mbedtls_entropy_init, mbedtls_pk_context, mbedtls_pk_free,
     mbedtls_pk_init, mbedtls_pk_parse_key, mbedtls_ssl_conf_ca_chain, mbedtls_ssl_conf_dbg,
     mbedtls_ssl_conf_dtls_cookies, mbedtls_ssl_conf_dtls_srtp_protection_profiles,
-    mbedtls_ssl_conf_own_cert, mbedtls_ssl_conf_rng, mbedtls_ssl_config,
-    mbedtls_ssl_config_defaults, mbedtls_ssl_config_free, mbedtls_ssl_config_init,
-    mbedtls_ssl_context, mbedtls_ssl_free, mbedtls_ssl_handshake, mbedtls_ssl_init,
-    mbedtls_ssl_read, mbedtls_ssl_set_bio, mbedtls_ssl_set_timer_cb, mbedtls_ssl_setup,
-    mbedtls_ssl_write, mbedtls_x509_crt, mbedtls_x509_crt_free, mbedtls_x509_crt_init,
-    mbedtls_x509_crt_parse_der, MBEDTLS_ERR_NET_RECV_FAILED, MBEDTLS_ERR_NET_SEND_FAILED,
-    MBEDTLS_ERR_SSL_WANT_READ, MBEDTLS_ERR_SSL_WANT_WRITE, MBEDTLS_SSL_IS_SERVER,
-    MBEDTLS_SSL_PRESET_DEFAULT, MBEDTLS_SSL_TRANSPORT_DATAGRAM,
+    mbedtls_ssl_conf_handshake_timeout, mbedtls_ssl_conf_own_cert, mbedtls_ssl_conf_rng,
+    mbedtls_ssl_config, mbedtls_ssl_config_defaults, mbedtls_ssl_config_free,
+    mbedtls_ssl_config_init, mbedtls_ssl_context, mbedtls_ssl_free, mbedtls_ssl_handshake,
+    mbedtls_ssl_init, mbedtls_ssl_read, mbedtls_ssl_set_bio, mbedtls_ssl_set_timer_cb,
+    mbedtls_ssl_setup, mbedtls_ssl_write, mbedtls_x509_crt, mbedtls_x509_crt_free,
+    mbedtls_x509_crt_init, mbedtls_x509_crt_parse_der, MBEDTLS_ERR_NET_RECV_FAILED,
+    MBEDTLS_ERR_NET_SEND_FAILED, MBEDTLS_ERR_SSL_WANT_READ, MBEDTLS_ERR_SSL_WANT_WRITE,
+    MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_PRESET_DEFAULT, MBEDTLS_SSL_TRANSPORT_DATAGRAM,
 };
 use futures_lite::{AsyncRead, AsyncWrite, Future};
 use log::{log, Level};
@@ -269,7 +269,9 @@ impl SSLContext {
         if ret != 0 {
             return Err(SSLError::SSLConfigFailure(ret));
         }
+
         unsafe {
+            mbedtls_ssl_conf_handshake_timeout(self.ssl_config.as_mut(), 1200, 10000);
             mbedtls_ssl_conf_rng(
                 self.ssl_config.as_mut(),
                 Some(mbedtls_ctr_drbg_random),
@@ -663,13 +665,17 @@ where
     }
 
     pub fn poll_accept(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), SSLError>> {
-        self.save_context(cx, |s| match s.handshake() {
+        let r = self.save_context(cx, |s| match s.handshake() {
             Ok(_) => Poll::Ready(Ok(())),
             Err(e) => match e {
                 SSLError::SSLWantsRead | SSLError::SSLWantsWrite => Poll::Pending,
                 _ => Poll::Ready(Err(e)),
             },
-        })
+        });
+        if r.is_pending() {
+            cx.waker().wake_by_ref();
+        }
+        r
     }
     pub async fn accept(mut self: Pin<&mut Self>) -> Result<(), SSLError> {
         futures_lite::future::poll_fn(|cx| self.as_mut().poll_accept(cx)).await
