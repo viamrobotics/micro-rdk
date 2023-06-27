@@ -30,7 +30,7 @@ where
         self.driver
             .borrow_mut()
             .read(&mut self.channel)
-            .map_err(|e| anyhow::anyhow!(format!("error while reading analog reader {}", e)))
+            .map_err(|e| anyhow::anyhow!(format!("error while reading analog reader {e}")))
     }
     fn inner_name(&self) -> String {
         self.name.clone()
