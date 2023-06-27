@@ -74,6 +74,9 @@ impl AppClientConfig {
     pub fn set_rpc_host(&mut self, rpc_host: String) {
         self.rpc_host = rpc_host
     }
+    pub fn get_robot_secret(&mut self) -> &str {
+        &self.robot_secret
+    }
 }
 
 pub struct AppClientBuilder<'a> {

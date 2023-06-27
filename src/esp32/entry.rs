@@ -61,6 +61,8 @@ pub fn serve_web(
 
         let cloned_exec = exec.clone();
 
+        let _ = handle_webhook(&*robot_cfg);
+
         let webrtc = Box::new(WebRtcConfiguration::new(
             webrtc_certificate,
             dtls,
@@ -78,5 +80,63 @@ pub fn serve_web(
             robot,
         )
     };
+
     srv.serve_forever(robot);
+}
+
+use crate::common::config::Component;
+use crate::common::config::DynamicComponentConfig;
+use crate::proto::app::v1::ConfigResponse;
+use embedded_svc::{
+    http::{client::Client as HttpClient, Method},
+    io::Write,
+    //utils::io,
+};
+use esp_idf_svc::http::client::{Configuration as HttpConfiguration, EspHttpConnection};
+use log::*;
+use serde_json::json;
+fn handle_webhook(robot_cfg: &ConfigResponse) -> anyhow::Result<()> {
+    // webhook logic
+    let robot_cfg = robot_cfg.clone();
+    let components = &robot_cfg.config.as_ref().unwrap().components; // component config
+    let cloud = robot_cfg.config.as_ref().unwrap().cloud.as_ref().unwrap(); //cloud config
+    let fqdn = &cloud.fqdn; // robot's url
+    let board_cfg: DynamicComponentConfig = components
+        .iter()
+        .find(|x| x.r#type == "board")
+        .unwrap()
+        .try_into()?;
+
+    // if no webhook, return
+    if let Ok(webhook) = board_cfg.get_attribute::<String>("webhook") {
+        let secret = board_cfg.get_attribute::<String>("webhook-secret").unwrap_or("".to_string());
+        let url = webhook.to_string();
+        let payload = json!({
+            "location": fqdn,
+            "secret": secret,
+            "board": board_cfg.name,
+        })
+        .to_string();
+        info!("fqdn: {}", payload);
+
+        let mut client = HttpClient::wrap(EspHttpConnection::new(&HttpConfiguration {
+            crt_bundle_attach: Some(esp_idf_sys::esp_crt_bundle_attach),
+            ..Default::default()
+        })?);
+
+        let payload = payload.as_bytes();
+        let headers = [
+            ("accept", "text/plain"),
+            ("content-type", "application/json"),
+            ("connection", "close"),
+            ("content-length", &format!("{}", payload.len())),
+        ];
+        let mut request = client.request(Method::Get, &url, &headers)?;
+        request.write_all(payload)?;
+        request.flush()?;
+        info!("-> GET {}", url);
+        let response = request.submit()?;
+        info!("<- {}", response.status());
+    }
+    Ok(())
 }
