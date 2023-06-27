@@ -81,4 +81,3 @@ pub fn serve_web(
 
     srv.serve_forever(robot);
 }
-
