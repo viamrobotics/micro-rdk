@@ -3,4 +3,4 @@
 nvs,      data, nvs, 0x9000    ,        0x8000,
 phy_init, data, phy, 0x11000    ,        0x1000,
 #reserved, data, undefined,0x12000,0x4e000
-factory,  app,  factory, 0x60000,       0x3F0000,
+factory,  app,  factory, 0x40000,       0x3C0000,
