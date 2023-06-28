@@ -41,8 +41,10 @@ pub enum WebhookError {
     NoWebhookSecret,
     #[error("error in config: {0}")]
     ConfigError(String),
-    #[error("webhook failed to send request")]
+    #[error("failed to send request")]
     RequestError,
+    #[error("did not receive successful response")]
+    ResponseError,
     #[error("{0}")]
     Other(String),
 }
@@ -61,19 +63,19 @@ impl Webhook {
     pub fn from_robot_config(config: RobotConfig) -> Result<Self, WebhookError> {
         let components = config.components;
         let cloud = config.cloud.as_ref().ok_or_else(|| {
-            WebhookError::ConfigError("board config does not have cloud config".to_string())
+            WebhookError::ConfigError("robot config does not have cloud config".to_string())
         })?;
         let fqdn = cloud.fqdn.clone();
         let board_cfg: DynamicComponentConfig = components
             .iter()
             .find(|x| x.r#type == "board")
             .ok_or_else(|| {
-                WebhookError::ConfigError("board component not found in config".to_string())
+                WebhookError::ConfigError("board component not found in robot config".to_string())
             })?
             .try_into()
             .map_err(|_| {
                 WebhookError::ConfigError(
-                    "could not convert board to DynamicComponentConfig".to_string(),
+                    "could not convert board config to DynamicComponentConfig".to_string(),
                 )
             })?;
 
@@ -122,7 +124,7 @@ impl Webhook {
 
         request
             .submit()
-            .map_err(|_| WebhookError::RequestError)?;
+            .map_err(|_| WebhookError::ResponseError)?;
         Ok(())
     }
 }
