@@ -3,12 +3,15 @@ use embedded_hal::digital::v2::InputPin;
 use super::pin::PinExt;
 use super::pulse_counter::{get_unit, isr_install, isr_installed, isr_remove_unit};
 
+use crate::common::config::{AttributeError, ConfigType};
 use crate::common::encoder::{
     Direction, Encoder, EncoderPosition, EncoderPositionType, EncoderSupportedRepresentations,
-    SingleEncoder,
+    EncoderType, SingleEncoder,
 };
+use crate::common::registry::{ComponentRegistry, Dependency};
 
 use core::ffi::{c_short, c_ulong};
+use esp_idf_hal::gpio::{AnyInputPin, PinDriver};
 use esp_idf_sys as espsys;
 use espsys::pcnt_channel_edge_action_t_PCNT_CHANNEL_EDGE_ACTION_DECREASE as pcnt_count_dec;
 use espsys::pcnt_channel_edge_action_t_PCNT_CHANNEL_EDGE_ACTION_INCREASE as pcnt_count_inc;
@@ -24,6 +27,15 @@ use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::common::status::Status;
+
+pub(crate) fn register_models(registry: &mut ComponentRegistry) {
+    if registry
+        .register_encoder("single", &Esp32SingleEncoder::from_config)
+        .is_err()
+    {
+        log::error!("single model is already registered")
+    }
+}
 
 // TODO: Make configurable?
 const MAX_GLITCH_MICROSEC: u16 = 1;
@@ -75,6 +87,36 @@ impl Esp32SingleEncoder {
         enc.setup_pcnt()?;
         enc.start()?;
         Ok(enc)
+    }
+
+    pub fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<EncoderType> {
+        let pin_num = cfg.get_attribute::<i32>("pin").map_err(|err| {
+            anyhow::anyhow!(
+                "cannot build single encoder from config, could not parse pin: {:?}",
+                err
+            )
+        })?;
+        let pin = PinDriver::input(unsafe { AnyInputPin::new(pin_num) }).map_err(|err| {
+            anyhow::anyhow!(
+                "cannot build single encoder, could not initialize pin {:?}: {:?}",
+                pin_num,
+                err
+            )
+        })?;
+        let dir_flip = match cfg.get_attribute::<bool>("dir_flip") {
+            Ok(flip) => flip,
+            Err(err) => {
+                match err {
+                    AttributeError::KeyNotFound(_) => false,
+                    _ => {
+                        return Err(anyhow::anyhow!("cannot build single encoder from config, could not parse dir_flip: {:?}", err));
+                    }
+                }
+            }
+        };
+        Ok(Arc::new(Mutex::new(Esp32SingleEncoder::new(
+            pin, dir_flip,
+        )?)))
     }
 
     pub fn start(&self) -> anyhow::Result<()> {

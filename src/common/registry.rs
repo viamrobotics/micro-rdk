@@ -17,6 +17,10 @@ lazy_static::lazy_static! {
         crate::esp32::motor::register_models(&mut r);
         #[cfg(esp32)]
         crate::esp32::encoder::register_models(&mut r);
+        #[cfg(esp32)]
+        crate::esp32::single_encoder::register_models(&mut r);
+        #[cfg(esp32)]
+        crate::esp32::base::register_models(&mut r);
         r
     };
 }
@@ -40,7 +44,7 @@ use std::collections::BTreeMap as Map;
 use crate::proto::common::v1::ResourceName;
 
 use super::{
-    board::BoardType, config::ConfigType, encoder::EncoderType, motor::MotorType,
+    base::BaseType, board::BoardType, config::ConfigType, encoder::EncoderType, motor::MotorType,
     movement_sensor::MovementSensorType, robot::Resource, sensor::SensorType,
 };
 
@@ -68,6 +72,7 @@ impl ResourceKey {
             "encoder" => crate::common::encoder::COMPONENT_NAME,
             "movement_sensor" => crate::common::movement_sensor::COMPONENT_NAME,
             "sensor" => crate::common::sensor::COMPONENT_NAME,
+            "base" => crate::common::base::COMPONENT_NAME,
             &_ => {
                 anyhow::bail!("component type {} is not supported yet", model.to_string());
             }
@@ -85,6 +90,7 @@ impl TryFrom<ResourceName> for ResourceKey {
             "sensor" => crate::common::sensor::COMPONENT_NAME,
             "movement_sensor" => crate::common::movement_sensor::COMPONENT_NAME,
             "encoder" => crate::common::encoder::COMPONENT_NAME,
+            "base" => crate::common::base::COMPONENT_NAME,
             _ => {
                 anyhow::bail!("component type {} is not supported yet", comp_type);
             }
@@ -106,6 +112,8 @@ type MovementSensorConstructor =
 
 type EncoderConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<EncoderType>;
 
+type BaseConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<BaseType>;
+
 type DependenciesFromConfig = dyn Fn(ConfigType) -> Vec<ResourceKey>;
 
 pub(crate) struct ComponentRegistry {
@@ -114,6 +122,7 @@ pub(crate) struct ComponentRegistry {
     sensor: Map<&'static str, &'static SensorConstructor>,
     movement_sensors: Map<&'static str, &'static MovementSensorConstructor>,
     encoders: Map<&'static str, &'static EncoderConstructor>,
+    bases: Map<&'static str, &'static BaseConstructor>,
     dependencies: Map<&'static str, Map<&'static str, &'static DependenciesFromConfig>>,
 }
 
@@ -126,12 +135,14 @@ impl ComponentRegistry {
         dependency_func_map.insert(crate::common::movement_sensor::COMPONENT_NAME, Map::new());
         dependency_func_map.insert(crate::common::encoder::COMPONENT_NAME, Map::new());
         dependency_func_map.insert(crate::common::sensor::COMPONENT_NAME, Map::new());
+        dependency_func_map.insert(crate::common::base::COMPONENT_NAME, Map::new());
         Self {
             motors: Map::new(),
             board: Map::new(),
             sensor: Map::new(),
             movement_sensors: Map::new(),
             encoders: Map::new(),
+            bases: Map::new(),
             dependencies: dependency_func_map,
         }
     }
@@ -192,6 +203,18 @@ impl ComponentRegistry {
             return Err(RegistryError::ModelAlreadyRegistered(model));
         }
         let _ = self.encoders.insert(model, constructor);
+        Ok(())
+    }
+
+    pub(crate) fn register_base(
+        &mut self,
+        model: &'static str,
+        constructor: &'static BaseConstructor,
+    ) -> Result<(), RegistryError> {
+        if self.bases.contains_key(model) {
+            return Err(RegistryError::ModelAlreadyRegistered(model));
+        }
+        let _ = self.bases.insert(model, constructor);
         Ok(())
     }
 
@@ -285,6 +308,17 @@ impl ComponentRegistry {
     ) -> Result<&'static EncoderConstructor, RegistryError> {
         let model_name: &str = &model;
         if let Some(ctor) = self.encoders.get(model_name) {
+            return Ok(*ctor);
+        }
+        Err(RegistryError::ModelNotFound(model))
+    }
+
+    pub(crate) fn get_base_constructor(
+        &self,
+        model: String,
+    ) -> Result<&'static BaseConstructor, RegistryError> {
+        let model_name: &str = &model;
+        if let Some(ctor) = self.bases.get(model_name) {
             return Ok(*ctor);
         }
         Err(RegistryError::ModelNotFound(model))
