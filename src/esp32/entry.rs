@@ -77,11 +77,11 @@ pub fn serve_web(
                     .unwrap(),
             ),
             robot,
-            robot_cfg,
+            robot_cfg.as_ref().config.as_ref().unwrap().clone(),
         )
     };
 
-    let _ = handle_webhook(*robot_cfg); // TODO: add retry logic
+    let _ = handle_webhook(robot_cfg); // TODO: add retry logic
 
     srv.serve_forever(robot);
 }
