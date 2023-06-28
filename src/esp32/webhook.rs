@@ -7,7 +7,7 @@ use embedded_svc::{
         client::{Client as HttpClient, Connection},
         Method,
     },
-    io::{self, Write},
+    io::Write,
 };
 use esp_idf_svc::http::client::{Configuration as HttpConfiguration, EspHttpConnection};
 use log::*;
@@ -122,9 +122,7 @@ impl Webhook {
 
         request.flush().map_err(|_| WebhookError::RequestError)?;
 
-        request
-            .submit()
-            .map_err(|_| WebhookError::ResponseError)?;
+        request.submit().map_err(|_| WebhookError::ResponseError)?;
         Ok(())
     }
 }

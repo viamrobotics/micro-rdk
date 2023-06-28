@@ -81,7 +81,10 @@ pub fn serve_web(
         )
     };
 
-    let _ = handle_webhook(robot_cfg); // TODO: add retry logic
+    let r = handle_webhook(robot_cfg); // TODO: add retry logic
+    if r.is_err() {
+        log::error!("{:?}", r);
+    }
 
     srv.serve_forever(robot);
 }
