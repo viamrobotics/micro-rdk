@@ -29,19 +29,23 @@ pub fn handle_webhook(config: ConfigResponse) -> Result<(), WebhookError> {
     let config = config
         .config
         .as_ref()
-        .ok_or_else(|| WebhookError::ConfigError(format!("board does not have config")))?;
+        .ok_or_else(|| WebhookError::ConfigError("board does not have config".to_string()))?;
     let components = &config.components; // component config
     let cloud = config.cloud.as_ref().ok_or_else(|| {
-        WebhookError::ConfigError(format!("board config does not have cloud config"))
-    })?; //cloud config
+        WebhookError::ConfigError("board config does not have cloud config".to_string())
+    })?;
     let fqdn = &cloud.fqdn; // robot's url
     let board_cfg: DynamicComponentConfig = components
         .iter()
         .find(|x| x.r#type == "board")
-        .ok_or_else(|| WebhookError::ConfigError(format!("board component not found in config")))?
+        .ok_or_else(|| {
+            WebhookError::ConfigError("board component not found in config".to_string())
+        })?
         .try_into()
         .map_err(|_| {
-            WebhookError::ConfigError(format!("could not convert board to DynamicComponentConfig"))
+            WebhookError::ConfigError(
+                "could not convert board to DynamicComponentConfig".to_string(),
+            )
         })?;
 
     let webhook = board_cfg
@@ -77,7 +81,7 @@ pub fn handle_webhook(config: ConfigResponse) -> Result<(), WebhookError> {
         .map_err(|e| WebhookError::RequestError(e.to_string()))?;
     request
         .write_all(payload)
-        .map_err(|_| WebhookError::RequestError(format!("failed to write payload")))?;
+        .map_err(|_| WebhookError::RequestError("failed to write payload".to_string()))?;
     request
         .flush()
         .map_err(|e| WebhookError::RequestError(e.to_string()))?;
