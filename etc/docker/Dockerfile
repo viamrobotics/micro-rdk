@@ -8,7 +8,7 @@ RUN cargo install ldproxy --root /usr/
 
 FROM debian:bullseye
 
-ARG RUST_VERSION=1.66.0
+ARG RUST_VERSION=1.67.0
 
 ENV DEBIAN_FRONTEND noninteractive
 ENV DEBCONF_NOWARNINGS="yes"

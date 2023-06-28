@@ -78,5 +78,6 @@ pub fn serve_web(
             robot,
         )
     };
+
     srv.serve_forever(robot);
 }
