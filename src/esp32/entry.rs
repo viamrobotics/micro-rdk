@@ -16,6 +16,7 @@ use super::conn::mdns::Esp32Mdns;
 use super::dtls::Esp32DtlsBuilder;
 use super::tcp::Esp32Listener;
 use super::tls::Esp32TlsServerConfig;
+use super::webhook::handle_webhook;
 
 pub fn serve_web(
     app_config: AppClientConfig,
@@ -24,7 +25,7 @@ pub fn serve_web(
     _ip: Ipv4Addr,
     webrtc_certificate: WebRtcCertificate,
 ) {
-    let (mut srv, robot) = {
+    let (mut srv, robot, robot_cfg) = {
         let mut client_connector = Esp32Tls::new_client();
         let exec = Esp32Executor::new();
         let mdns = Esp32Mdns::new("".to_string()).unwrap();
@@ -76,8 +77,11 @@ pub fn serve_web(
                     .unwrap(),
             ),
             robot,
+            robot_cfg,
         )
     };
+
+    let _ = handle_webhook(*robot_cfg); // TODO: add retry logic
 
     srv.serve_forever(robot);
 }
