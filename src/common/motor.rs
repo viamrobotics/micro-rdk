@@ -130,15 +130,13 @@ impl TryFrom<Kind> for MotorPinsConfig {
                 }
             },
         };
-        Ok(MotorPinsConfig {
-            a,
-            b,
-            dir,
-            pwm: value
-                .get("pwm")?
-                .ok_or_else(|| AttributeError::KeyNotFound("pwm".to_string()))?
-                .try_into()?,
-        })
+
+        let pwm = value
+            .get("pwm")?
+            .ok_or_else(|| AttributeError::KeyNotFound("pwm".to_string()))?
+            .try_into()?;
+
+        Ok(Self { a, b, dir, pwm })
     }
 }
 
@@ -184,15 +182,12 @@ impl TryFrom<&Kind> for MotorPinsConfig {
             },
         };
 
-        Ok(MotorPinsConfig {
-            a,
-            b,
-            dir,
-            pwm: value
-                .get("pwm")?
-                .ok_or_else(|| AttributeError::KeyNotFound("pwm".to_string()))?
-                .try_into()?,
-        })
+        let pwm = value
+            .get("pwm")?
+            .ok_or_else(|| AttributeError::KeyNotFound("pwm".to_string()))?
+            .try_into()?;
+
+        Ok(Self { a, b, dir, pwm })
     }
 }
 

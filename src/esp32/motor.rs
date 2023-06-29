@@ -210,7 +210,7 @@ where
     PWM: PwmPin<Duty = u32>,
 {
     pub fn new(a: A, b: B, pwm: PWM, max_rpm: f64, dir_flip: bool) -> Self {
-        ABMotorEsp32 {
+        Self {
             a,
             b,
             pwm,
@@ -243,12 +243,8 @@ where
                     PwmChannel::C2(c) => LedcDriver::new(c, timer, pwm_pin)?,
                 };
                 let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm")?;
-                let dir_flip: bool = if let Ok(dir_flip) = cfg.get_attribute::<bool>("dir_flip") {
-                    dir_flip
-                } else {
-                    false
-                };
-                return Ok(Arc::new(Mutex::new(ABMotorEsp32::new(
+                let dir_flip: bool = cfg.get_attribute::<bool>("dir_flip").unwrap_or_default();
+                return Ok(Arc::new(Mutex::new(Self::new(
                     PinDriver::output(unsafe { AnyOutputPin::new(pins.a.unwrap()) })?,
                     PinDriver::output(unsafe { AnyOutputPin::new(pins.b.unwrap()) })?,
                     chan,
@@ -374,12 +370,8 @@ where
                     PwmChannel::C2(c) => LedcDriver::new(c, timer, pwm_pin)?,
                 };
                 let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm")?;
-                let dir_flip: bool = if let Ok(dir_flip) = cfg.get_attribute::<bool>("dir_flip") {
-                    dir_flip
-                } else {
-                    false
-                };
-                return Ok(Arc::new(Mutex::new(PwmDirectionMotorEsp32::new(
+                let dir_flip: bool = cfg.get_attribute::<bool>("dir_flip").unwrap_or_default();
+                return Ok(Arc::new(Mutex::new(Self::new(
                     PinDriver::output(unsafe { AnyOutputPin::new(pins.dir.unwrap()) })?,
                     chan,
                     dir_flip,
