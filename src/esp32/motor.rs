@@ -244,7 +244,7 @@ where
                 };
                 let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm")?;
                 let dir_flip: bool = cfg.get_attribute::<bool>("dir_flip").unwrap_or_default();
-                return Ok(Arc::new(Mutex::new(Self::new(
+                return Ok(Arc::new(Mutex::new(ABMotorEsp32::new(
                     PinDriver::output(unsafe { AnyOutputPin::new(pins.a.unwrap()) })?,
                     PinDriver::output(unsafe { AnyOutputPin::new(pins.b.unwrap()) })?,
                     chan,
@@ -371,7 +371,7 @@ where
                 };
                 let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm")?;
                 let dir_flip: bool = cfg.get_attribute::<bool>("dir_flip").unwrap_or_default();
-                return Ok(Arc::new(Mutex::new(Self::new(
+                return Ok(Arc::new(Mutex::new(PwmDirectionMotorEsp32::new(
                     PinDriver::output(unsafe { AnyOutputPin::new(pins.dir.unwrap()) })?,
                     chan,
                     dir_flip,
