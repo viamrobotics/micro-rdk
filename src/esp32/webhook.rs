@@ -128,10 +128,7 @@ impl Webhook {
         })
         .to_string()
     }
-    pub fn send<C: Connection>(
-        &self,
-        client: &mut HttpClient<C>,
-    ) -> Result<(), WebhookError> {
+    pub fn send<C: Connection>(&self, client: &mut HttpClient<C>) -> Result<(), WebhookError> {
         for _ in 0..self.num_retries {
             match self.send_request(client) {
                 Ok(_) => {
