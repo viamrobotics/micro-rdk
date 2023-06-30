@@ -244,13 +244,13 @@ where
                 };
                 let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm")?;
                 let dir_flip: bool = cfg.get_attribute::<bool>("dir_flip").unwrap_or_default();
-                return Ok(Arc::new(Mutex::new(ABMotorEsp32::new(
-                    PinDriver::output(unsafe { AnyOutputPin::new(pins.a.unwrap()) })?,
-                    PinDriver::output(unsafe { AnyOutputPin::new(pins.b.unwrap()) })?,
-                    chan,
+                return Ok(Arc::new(Mutex::new(Self {
+                    a: PinDriver::output(unsafe { AnyOutputPin::new(pins.a.unwrap()) })?,
+                    b: PinDriver::output(unsafe { AnyOutputPin::new(pins.b.unwrap()) })?,
+                    pwm: chan,
                     max_rpm,
                     dir_flip,
-                ))));
+                })));
             }
         }
         Err(anyhow::anyhow!("cannot build motor"))
@@ -371,12 +371,12 @@ where
                 };
                 let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm")?;
                 let dir_flip: bool = cfg.get_attribute::<bool>("dir_flip").unwrap_or_default();
-                return Ok(Arc::new(Mutex::new(PwmDirectionMotorEsp32::new(
-                    PinDriver::output(unsafe { AnyOutputPin::new(pins.dir.unwrap()) })?,
-                    chan,
+                return Ok(Arc::new(Mutex::new(Self {
+                    dir: PinDriver::output(unsafe { AnyOutputPin::new(pins.dir.unwrap()) })?,
+                    pwm: chan,
                     dir_flip,
                     max_rpm,
-                ))));
+                })));
             }
         }
         Err(anyhow::anyhow!("cannot build motor"))
