@@ -200,54 +200,6 @@ impl<'a> AppClient<'a> {
 
         Ok(Box::new(ConfigResponse::decode(r)?))
     }
-    pub async fn connect_webrtc2<E, D, C>(
-        &mut self,
-        cert: Rc<C>,
-        exec: E,
-        dtls: D,
-    ) -> Result<WebRtcApi<C, D, E>, AppClientError>
-    where
-        E: WebRtcExecutor<Pin<Box<dyn Future<Output = ()> + Send>>> + Clone + 'a,
-        D: DtlsConnector,
-        C: Certificate,
-    {
-        let signaling = self.connect_signaling().await?;
-        Ok(WebRtcApi::new(
-            exec,
-            signaling.0,
-            signaling.1,
-            cert,
-            self.ip,
-            dtls,
-        ))
-    }
-    pub fn connect_webrtc<E, D, C>(
-        &mut self,
-        cert: Rc<C>,
-        exec: E,
-        dtls: D,
-    ) -> Result<WebRtcApi<C, D, E>, AppClientError>
-    where
-        E: WebRtcExecutor<Pin<Box<dyn Future<Output = ()> + Send>>> + Clone + 'static,
-        D: DtlsConnector,
-        C: Certificate,
-    {
-        let signaling = exec.block_on(async { self.connect_signaling().await.unwrap() });
-
-        let cloned_exec = exec.clone();
-
-        let mut webrtc = WebRtcApi::new(exec, signaling.0, signaling.1, cert, self.ip, dtls);
-
-        cloned_exec
-            .block_on(async { webrtc.answer().await })
-            .map_err(AppClientError::AppWebRtcError)?;
-
-        cloned_exec
-            .block_on(async { webrtc.run_ice_until_connected().await })
-            .map_err(AppClientError::AppWebRtcError)?;
-
-        Ok(webrtc)
-    }
 }
 
 impl<'a> Drop for AppClient<'a> {
