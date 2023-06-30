@@ -59,11 +59,28 @@ pub trait Motor: Status + Stoppable {
 
 pub(crate) type MotorType = Arc<Mutex<dyn Motor>>;
 
+#[derive(Debug)]
+pub enum MotorPinType {
+    PwmAB,
+    PwmDirection,
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct MotorPinsConfig {
     pub(crate) a: Option<i32>,
     pub(crate) b: Option<i32>,
+    pub(crate) dir: Option<i32>,
     pub(crate) pwm: i32,
+}
+
+impl MotorPinsConfig {
+    pub fn detect_motor_type(&self) -> anyhow::Result<MotorPinType> {
+        match self {
+            x if (x.a.is_some() && x.b.is_some()) => Ok(MotorPinType::PwmAB),
+            x if x.dir.is_some() => Ok(MotorPinType::PwmDirection),
+            _ => Err(anyhow::anyhow!("invalid pin parameters for motor")),
+        }
+    }
 }
 
 pub struct FakeMotor {
@@ -75,48 +92,102 @@ pub struct FakeMotor {
 impl TryFrom<Kind> for MotorPinsConfig {
     type Error = AttributeError;
     fn try_from(value: Kind) -> Result<Self, Self::Error> {
-        Ok(MotorPinsConfig {
-            a: Some(
-                value
-                    .get("a")?
-                    .ok_or_else(|| AttributeError::KeyNotFound("a".to_string()))?
-                    .try_into()?,
-            ),
-            b: Some(
-                value
-                    .get("b")?
-                    .ok_or_else(|| AttributeError::KeyNotFound("b".to_string()))?
-                    .try_into()?,
-            ),
-            pwm: value
-                .get("pwm")?
-                .ok_or_else(|| AttributeError::KeyNotFound("pwm".to_string()))?
-                .try_into()?,
-        })
+        let a = match value.get("a") {
+            Ok(opt) => match opt {
+                Some(val) => Some(val.try_into()?),
+                None => None,
+            },
+            Err(err) => match err {
+                AttributeError::KeyNotFound(_) => None,
+                _ => {
+                    return Err(err);
+                }
+            },
+        };
+
+        let b = match value.get("b") {
+            Ok(opt) => match opt {
+                Some(val) => Some(val.try_into()?),
+                None => None,
+            },
+            Err(err) => match err {
+                AttributeError::KeyNotFound(_) => None,
+                _ => {
+                    return Err(err);
+                }
+            },
+        };
+
+        let dir = match value.get("dir") {
+            Ok(opt) => match opt {
+                Some(val) => Some(val.try_into()?),
+                None => None,
+            },
+            Err(err) => match err {
+                AttributeError::KeyNotFound(_) => None,
+                _ => {
+                    return Err(err);
+                }
+            },
+        };
+
+        let pwm = value
+            .get("pwm")?
+            .ok_or_else(|| AttributeError::KeyNotFound("pwm".to_string()))?
+            .try_into()?;
+
+        Ok(Self { a, b, dir, pwm })
     }
 }
 
 impl TryFrom<&Kind> for MotorPinsConfig {
     type Error = AttributeError;
     fn try_from(value: &Kind) -> Result<Self, Self::Error> {
-        Ok(MotorPinsConfig {
-            a: Some(
-                value
-                    .get("a")?
-                    .ok_or_else(|| AttributeError::KeyNotFound("a".to_string()))?
-                    .try_into()?,
-            ),
-            b: Some(
-                value
-                    .get("b")?
-                    .ok_or_else(|| AttributeError::KeyNotFound("b".to_string()))?
-                    .try_into()?,
-            ),
-            pwm: value
-                .get("pwm")?
-                .ok_or_else(|| AttributeError::KeyNotFound("pwm".to_string()))?
-                .try_into()?,
-        })
+        let a = match value.get("a") {
+            Ok(opt) => match opt {
+                Some(val) => Some(val.try_into()?),
+                None => None,
+            },
+            Err(err) => match err {
+                AttributeError::KeyNotFound(_) => None,
+                _ => {
+                    return Err(err);
+                }
+            },
+        };
+
+        let b = match value.get("b") {
+            Ok(opt) => match opt {
+                Some(val) => Some(val.try_into()?),
+                None => None,
+            },
+            Err(err) => match err {
+                AttributeError::KeyNotFound(_) => None,
+                _ => {
+                    return Err(err);
+                }
+            },
+        };
+
+        let dir = match value.get("dir") {
+            Ok(opt) => match opt {
+                Some(val) => Some(val.try_into()?),
+                None => None,
+            },
+            Err(err) => match err {
+                AttributeError::KeyNotFound(_) => None,
+                _ => {
+                    return Err(err);
+                }
+            },
+        };
+
+        let pwm = value
+            .get("pwm")?
+            .ok_or_else(|| AttributeError::KeyNotFound("pwm".to_string()))?
+            .try_into()?;
+
+        Ok(Self { a, b, dir, pwm })
     }
 }
 
@@ -288,7 +359,7 @@ impl Stoppable for FakeMotorWithDependency {
 #[cfg(test)]
 mod tests {
     use crate::common::config::{Component, Kind, RobotConfigStatic, StaticComponentConfig};
-    use crate::common::motor::{ConfigType, FakeMotor, MotorPinsConfig};
+    use crate::common::motor::{ConfigType, FakeMotor, MotorPinType, MotorPinsConfig};
     #[test_log::test]
     fn test_motor_config() -> anyhow::Result<()> {
         #[allow(clippy::redundant_static_lifetimes, dead_code)]
@@ -307,11 +378,13 @@ mod tests {
                             "a" => Kind::StringValueStatic("11"),
                             "b" => Kind::StringValueStatic("12"),
                             "pwm" => Kind::StringValueStatic("13"),
+                            "dir"=> Kind::StringValueStatic("14")
                         }
                     )
                 }),
             }]),
         });
+
         let val = STATIC_ROBOT_CONFIG.unwrap().components.unwrap()[0]
             .get_attribute::<MotorPinsConfig>("pins");
         assert!(&val.is_ok());
@@ -323,10 +396,92 @@ mod tests {
         assert!(val.b.is_some());
         assert_eq!(val.b.unwrap(), 12);
         assert_eq!(val.pwm, 13);
+        assert!(val.dir.is_some());
+        assert_eq!(val.dir.unwrap(), 14);
 
         let static_conf = ConfigType::Static(&STATIC_ROBOT_CONFIG.unwrap().components.unwrap()[0]);
         assert!(FakeMotor::from_config(static_conf, Vec::new()).is_ok());
 
         Ok(())
+    }
+
+    #[test_log::test]
+    fn test_detect_motor_type_from_cfg() {
+        #[allow(clippy::redundant_static_lifetimes, dead_code)]
+        const STATIC_ROBOT_CONFIG: Option<RobotConfigStatic> = Some(RobotConfigStatic {
+            components: Some(&[
+                StaticComponentConfig {
+                    name: "motor",
+                    namespace: "rdk",
+                    r#type: "motor",
+                    model: "gpio",
+                    attributes: Some(phf::phf_map! {
+                        "max_rpm" => Kind::NumberValue(10000f64),
+                        "fake_position" => Kind::NumberValue(10f64),
+                        "board" => Kind::StringValueStatic("board"),
+                        "pins" => Kind::StructValueStatic(
+                            phf::phf_map!{
+                                "a" => Kind::StringValueStatic("11"),
+                                "b" => Kind::StringValueStatic("12"),
+                                "pwm" => Kind::StringValueStatic("13"),
+                            }
+                        )
+                    }),
+                },
+                StaticComponentConfig {
+                    name: "motor2",
+                    namespace: "rdk",
+                    r#type: "motor",
+                    model: "gpio",
+                    attributes: Some(phf::phf_map! {
+                        "max_rpm" => Kind::NumberValue(10000f64),
+                        "fake_position" => Kind::NumberValue(10f64),
+                        "board" => Kind::StringValueStatic("board"),
+                        "pins" => Kind::StructValueStatic(
+                            phf::phf_map!{
+                                "dir" => Kind::StringValueStatic("11"),
+                                "pwm" => Kind::StringValueStatic("13"),
+                            }
+                        )
+                    }),
+                },
+                StaticComponentConfig {
+                    name: "bad_motor",
+                    namespace: "rdk",
+                    r#type: "motor",
+                    model: "gpio",
+                    attributes: Some(phf::phf_map! {
+                        "max_rpm" => Kind::NumberValue(10000f64),
+                        "fake_position" => Kind::NumberValue(10f64),
+                        "board" => Kind::StringValueStatic("board"),
+                        "pins" => Kind::StructValueStatic(
+                            phf::phf_map!{
+                                "pwm" => Kind::StringValueStatic("13"),
+                            }
+                        )
+                    }),
+                },
+            ]),
+        });
+
+        let static_cfg = ConfigType::Static(&STATIC_ROBOT_CONFIG.unwrap().components.unwrap()[0]);
+        let pin_cfg_result = static_cfg.get_attribute::<MotorPinsConfig>("pins");
+        assert!(pin_cfg_result.is_ok());
+        let motor_type = pin_cfg_result.unwrap().detect_motor_type();
+        assert!(motor_type.is_ok());
+        assert!(matches!(motor_type.unwrap(), MotorPinType::PwmAB));
+
+        let static_cfg_2 = ConfigType::Static(&STATIC_ROBOT_CONFIG.unwrap().components.unwrap()[1]);
+        let pin_cfg_result_2 = static_cfg_2.get_attribute::<MotorPinsConfig>("pins");
+        assert!(pin_cfg_result_2.is_ok());
+        let motor_type_2 = pin_cfg_result_2.unwrap().detect_motor_type();
+        assert!(motor_type_2.is_ok());
+        assert!(matches!(motor_type_2.unwrap(), MotorPinType::PwmDirection));
+
+        let static_cfg_3 = ConfigType::Static(&STATIC_ROBOT_CONFIG.unwrap().components.unwrap()[2]);
+        let pin_cfg_result_3 = static_cfg_3.get_attribute::<MotorPinsConfig>("pins");
+        assert!(pin_cfg_result_3.is_ok());
+        let motor_type_3 = pin_cfg_result_3.unwrap().detect_motor_type();
+        assert!(motor_type_3.is_err());
     }
 }
