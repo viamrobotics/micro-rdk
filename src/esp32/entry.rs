@@ -18,7 +18,7 @@ use super::tcp::Esp32Listener;
 use super::tls::Esp32TlsServerConfig;
 use super::webhook::Webhook;
 
-use embedded_svc::http::client::{Client as HttpClient};
+use embedded_svc::http::client::Client as HttpClient;
 use esp_idf_svc::http::client::{Configuration as HttpConfiguration, EspHttpConnection};
 
 pub fn serve_web(

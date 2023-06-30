@@ -62,8 +62,10 @@ impl Webhook {
         let cloud = config.cloud.as_ref().ok_or_else(|| {
             WebhookError::ConfigError("robot config does not have cloud config".to_string())
         })?;
-        let mut webhook = Self::default();
-        webhook.fqdn = cloud.fqdn.clone();
+        let mut webhook = Self {
+            fqdn: cloud.fqdn.clone(),
+            ..Default::default()
+        };
 
         let board_cfg: DynamicComponentConfig = {
             let board = components.iter().find(|x| x.r#type == "board");
@@ -126,8 +128,8 @@ impl Webhook {
         })
         .to_string()
     }
-    pub fn send<'a, C: Connection>(
-        &'a self,
+    pub fn send<C: Connection>(
+        &self,
         client: &mut HttpClient<C>,
     ) -> Result<(), WebhookError> {
         for _ in 0..self.num_retries {
