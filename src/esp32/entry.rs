@@ -25,12 +25,12 @@ pub fn serve_web(
     _ip: Ipv4Addr,
     webrtc_certificate: WebRtcCertificate,
 ) {
-    let (mut srv, robot, robot_cfg) = {
+    let (mut srv, robot) = {
         let mut client_connector = Esp32Tls::new_client();
         let exec = Esp32Executor::new();
         let mdns = Esp32Mdns::new("".to_string()).unwrap();
 
-        let robot_cfg = {
+        let cfg_response = {
             let cloned_exec = exec.clone();
             let conn = client_connector.open_ssl_context(None).unwrap();
             let conn = Esp32Stream::TLSStream(Box::new(conn));
@@ -48,7 +48,7 @@ pub fn serve_web(
             Some(r) => Arc::new(Mutex::new(r)),
             None => {
                 log::info!("building robot from config");
-                let r = LocalRobot::new_from_config_response(&robot_cfg).unwrap();
+                let r = LocalRobot::new_from_config_response(&cfg_response).unwrap();
                 Arc::new(Mutex::new(r))
             }
         };
@@ -70,21 +70,22 @@ pub fn serve_web(
             app_config,
         ));
 
+        let robot_cfg = cfg_response.as_ref().config.as_ref().unwrap();
+
+        let r = handle_webhook(robot_cfg);
+        if r.is_err() {
+            log::error!("webhook error: {:?}", r);
+        }
+
         (
             Box::new(
                 ViamServerBuilder::new(mdns, tls_listener, webrtc, cloned_exec, 12346)
-                    .build(&robot_cfg)
+                    .build(&cfg_response)
                     .unwrap(),
             ),
             robot,
-            robot_cfg.as_ref().config.as_ref().unwrap().clone(),
         )
     };
-
-    let r = handle_webhook(robot_cfg); // TODO: add retry logic
-    if r.is_err() {
-        log::error!("{:?}", r);
-    }
 
     srv.serve_forever(robot);
 }
