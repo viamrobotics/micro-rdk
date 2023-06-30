@@ -186,7 +186,7 @@ impl Webhook {
 
         request
             .submit()
-            .map_err(|e| WebhookError::RequestError(format! {"{:?}", e}))?;
+            .map_err(|e| WebhookError::RequestError(format!{"{:?}", e}))?;
         Ok(())
     }
 }
