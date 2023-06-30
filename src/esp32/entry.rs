@@ -16,7 +16,10 @@ use super::conn::mdns::Esp32Mdns;
 use super::dtls::Esp32DtlsBuilder;
 use super::tcp::Esp32Listener;
 use super::tls::Esp32TlsServerConfig;
-use super::webhook::handle_webhook;
+use super::webhook::Webhook;
+
+use embedded_svc::http::client::{Client as HttpClient, Connection};
+use esp_idf_svc::http::client::{Configuration as HttpConfiguration, EspHttpConnection};
 
 pub fn serve_web(
     app_config: AppClientConfig,
@@ -72,9 +75,19 @@ pub fn serve_web(
 
         let robot_cfg = cfg_response.as_ref().config.as_ref().unwrap();
 
-        let r = handle_webhook(robot_cfg);
-        if r.is_err() {
-            log::error!("webhook error: {:?}", r);
+        if let Ok(webhook) = Webhook::from_robot_config(robot_cfg) {
+            if webhook.has_endpoint() {
+                // only make a client if a webhook url is present
+                let mut client = HttpClient::wrap(
+                    EspHttpConnection::new(&HttpConfiguration {
+                        crt_bundle_attach: Some(esp_idf_sys::esp_crt_bundle_attach),
+                        ..Default::default()
+                    })
+                    .unwrap(),
+                );
+
+                let _ = webhook.send(&mut client);
+            }
         }
 
         (

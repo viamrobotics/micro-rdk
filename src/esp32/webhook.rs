@@ -8,43 +8,10 @@ use embedded_svc::{
     },
     io::Write,
 };
-use esp_idf_svc::http::client::{Configuration as HttpConfiguration, EspHttpConnection};
 use log::*;
 use serde_json::json;
 use thiserror::Error;
 use url::{ParseError, Url};
-
-/// Checks the board config for a `webhook` and `webhook-secret` attribute, sending a GET
-/// request with credentials for an SDK to make a connection.
-pub fn handle_webhook(config: &RobotConfig) -> Result<(), WebhookError> {
-    // get Webhook Struct
-    let webhook = Webhook::from_robot_config(config)?;
-
-    if webhook.endpoint.is_some() {
-        let mut client = HttpClient::wrap(
-            EspHttpConnection::new(&HttpConfiguration {
-                crt_bundle_attach: Some(esp_idf_sys::esp_crt_bundle_attach),
-                ..Default::default()
-            })
-            .map_err(|e| WebhookError::Other(e.to_string()))?,
-        );
-
-        for _ in 0..webhook.num_retries {
-            match webhook.send_request(&mut client) {
-                Ok(_) => {
-                    debug!("webhook request succeeded");
-                    break;
-                }
-                Err(_) => {
-                    error!("webhook request failed");
-                    continue;
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
 
 #[derive(Debug)]
 pub enum WebhookResult {
@@ -67,7 +34,7 @@ pub enum WebhookError {
     Other(String),
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Webhook {
     /// Fully qualified domain name (or URL) of the robot
     fqdn: String,
@@ -78,13 +45,18 @@ pub struct Webhook {
     num_retries: u8,
 }
 
-impl Webhook {
-    pub fn default() -> Self {
+impl Default for Webhook {
+    fn default() -> Self {
         Self {
+            fqdn: String::default(),
+            endpoint: None,
+            secret: None,
             num_retries: 3,
-            ..Default::default()
         }
     }
+}
+
+impl Webhook {
     pub fn from_robot_config(config: &RobotConfig) -> Result<Self, WebhookError> {
         let components = &config.components;
         let cloud = config.cloud.as_ref().ok_or_else(|| {
@@ -144,12 +116,33 @@ impl Webhook {
             num_retries,
         }
     }
+    pub fn has_endpoint(&self) -> bool {
+        self.endpoint.is_some()
+    }
     pub fn payload(&self) -> String {
         json!({
             "location": self.fqdn,
             "secret": self.secret,
         })
         .to_string()
+    }
+    pub fn send<'a, C: Connection>(
+        &'a self,
+        client: &mut HttpClient<C>,
+    ) -> Result<(), WebhookError> {
+        for _ in 0..self.num_retries {
+            match self.send_request(client) {
+                Ok(_) => {
+                    debug!("webhook request succeeded");
+                    break;
+                }
+                Err(_) => {
+                    error!("webhook request failed");
+                    continue;
+                }
+            }
+        }
+        Ok(())
     }
     pub fn send_request<'a, C: Connection>(
         &'a self,
