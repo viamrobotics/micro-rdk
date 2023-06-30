@@ -103,14 +103,14 @@ impl Webhook {
             board
                 .unwrap()
                 .try_into()
-                .map_err(|e| WebhookError::AttributeError(e))?
+                .map_err(WebhookError::AttributeError)?
         };
 
         webhook.endpoint = {
             if let Ok(url) = board_cfg.get_attribute::<String>("webhook") {
                 Some(
                     Url::parse(&url)
-                        .map_err(|e| WebhookError::InvalidEndpoint(e))?
+                        .map_err(WebhookError::InvalidEndpoint)?
                         .into(),
                 )
             } else {
@@ -120,7 +120,7 @@ impl Webhook {
 
         webhook.secret = board_cfg
             .get_attribute::<String>("webhook-secret")
-            .map_err(|e| WebhookError::AttributeError(e))
+            .map_err(WebhookError::AttributeError)
             .ok();
 
         Ok(webhook)
@@ -174,19 +174,19 @@ impl Webhook {
         let url = self.endpoint.clone().unwrap();
         let mut request = client
             .request(Method::Get, &url, &headers)
-            .map_err(|e| WebhookError::RequestError(format!("{:?}", e)))?;
+            .map_err(|e| WebhookError::RequestError(format!("{e:?}")))?;
 
         request
             .write_all(payload)
-            .map_err(|e| WebhookError::RequestError(format!("{:?}", e)))?;
+            .map_err(|e| WebhookError::RequestError(format!("{e:?}")))?;
 
         request
             .flush()
-            .map_err(|e| WebhookError::RequestError(format!("{:?}", e)))?;
+            .map_err(|e| WebhookError::RequestError(format!("{e:?}")))?;
 
         request
             .submit()
-            .map_err(|e| WebhookError::RequestError(format!{"{:?}", e}))?;
+            .map_err(|e| WebhookError::RequestError(format!("{e:?}")))?;
         Ok(())
     }
 }
