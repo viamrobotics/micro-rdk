@@ -58,6 +58,7 @@ pub mod esp32 {
     pub mod tcp;
     pub mod tls;
     pub mod utils;
+    pub mod webhook;
     pub mod conn {
         pub mod mdns;
     }

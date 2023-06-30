@@ -72,6 +72,7 @@ openssl = {version = "0.10.50",  optional = true }
 async-std-openssl = {version = "0.6.3", optional = true }
 thiserror = "1.0.40"
 pin-project-lite = "0.2.9"
+url = "2.4.0"
 
 [build-dependencies]
 anyhow = "1"
