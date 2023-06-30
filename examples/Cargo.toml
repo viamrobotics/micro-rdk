@@ -22,6 +22,7 @@ esp-idf-sys = {git = "https://github.com/npmenard/esp-idf-sys.git"}
 polling = { git = "https://github.com/esp-rs-compat/polling" }
 smol = { git = "https://github.com/esp-rs-compat/smol" }
 socket2 = { git = "https://github.com/npmenard/socket2.git" }
+async-io = {git = "https://github.com/npmenard/async-io.git"}
 
 [target.'cfg(not(target_os = "espidf"))'.dependencies]
 micro-rdk = { path = "../", features = ["native"], default-features = false }

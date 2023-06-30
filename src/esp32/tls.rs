@@ -269,11 +269,8 @@ impl Read for Esp32TlsStream {
                 "tls read connection closed",
             )),
             n @ i32::MIN..=-1 => match n {
-                e @ (ESP_TLS_ERR_SSL_WANT_READ | ESP_TLS_ERR_SSL_WANT_WRITE) => {
-                    Err(std::io::Error::new(
-                        std::io::ErrorKind::WouldBlock,
-                        format!("would block cause '{e}'"),
-                    ))
+                _e @ (ESP_TLS_ERR_SSL_WANT_READ | ESP_TLS_ERR_SSL_WANT_WRITE) => {
+                    Err(std::io::Error::from(std::io::ErrorKind::WouldBlock))
                 }
                 e => Err(std::io::Error::new(
                     std::io::ErrorKind::Other,

@@ -397,20 +397,22 @@ where
         let mut api = {
             let mut api = self.webrtc_api;
             let _app = self.app_client;
-            api.answer()
+            let answer = api
+                .answer()
                 .await
                 .map_err(|e| ServerError::Other(e.into()))?;
-            api.run_ice_until_connected()
+            api.run_ice_until_connected(answer)
                 .timeout(std::time::Duration::from_secs(2))
                 .await
                 .ok_or(ServerError::ServerConnectionTimeout)?
                 .map_err(|e| ServerError::Other(e.into()))?;
-
             api
         };
         let c = api
             .open_data_channel()
+            .timeout(std::time::Duration::from_secs(2))
             .await
+            .ok_or(ServerError::ServerConnectionTimeout)?
             .map_err(|e| ServerError::Other(e.into()))?;
         Ok((c, api))
     }

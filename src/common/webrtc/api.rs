@@ -303,7 +303,7 @@ where
         }
     }
 
-    pub async fn run_ice_until_connected(&mut self) -> Result<(), WebRtcError> {
+    pub async fn run_ice_until_connected(&mut self, answer: WebRtcSdp) -> Result<(), WebRtcError> {
         let (tx, rx) = smol::channel::bounded(1);
 
         //(TODO(RSDK-3060)) implement ICEError
@@ -319,6 +319,11 @@ where
         log::info!("gathering local candidates");
         ice_agent.local_candidates().await.unwrap();
 
+        self.signaling
+            .as_mut()
+            .ok_or(WebRtcError::SignalingDisconnected())?
+            .send_sdp_answer(answer)
+            .await?;
         for c in &ice_agent.local_candidates {
             log::debug!("sending local candidates {:?}", c);
             self.signaling
@@ -342,20 +347,18 @@ where
                 .as_mut()
                 .ok_or(WebRtcError::SignalingDisconnected())?
                 .next_remote_candidate()
-                .timeout(Duration::from_millis(250))
+                .timeout(Duration::from_millis(50))
                 .await
             {
                 match candidate {
                     Ok(candidate) => {
                         if let Some(c) = candidate {
+                            log::debug!("received candidate : {}", &c);
                             tx.send(c).await.unwrap();
                         }
                     }
                     Err(e) => {
-                        log::error!(
-                            "received error while gathering remote candidates continuing anyway {:?}",
-                            e
-                        );
+                        // TODO(RSDK-3854)
                         return Err(e);
                     }
                 }
@@ -393,7 +396,7 @@ where
         Err(WebRtcError::DataChannelOpenError())
     }
 
-    pub async fn answer(&mut self) -> Result<(), WebRtcError> {
+    pub async fn answer(&mut self) -> Result<WebRtcSdp, WebRtcError> {
         let offer = self
             .signaling
             .as_mut()
@@ -468,13 +471,6 @@ where
 
         let answer = answer.with_media(media);
 
-        let answer = WebRtcSdp::new(answer, self.uuid.as_ref().unwrap().clone());
-        log::debug!("sending answer {:?}", &answer);
-        self.signaling
-            .as_mut()
-            .ok_or(WebRtcError::SignalingDisconnected())?
-            .send_sdp_answer(answer)
-            .await?;
-        Ok(())
+        Ok(WebRtcSdp::new(answer, self.uuid.as_ref().unwrap().clone()))
     }
 }
