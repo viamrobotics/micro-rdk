@@ -35,6 +35,8 @@ use super::{
     sensor::SensorType,
 };
 
+static NAMESPACE_PREFIX: &str = "rdk:builtin:";
+
 #[derive(Clone)]
 pub enum ResourceType {
     Motor(MotorType),
@@ -64,15 +66,15 @@ fn resource_name_from_component_cfg(cfg: &ComponentConfig) -> ResourceName {
 
 // Extracts model string from the full namespace provided by incoming instances of ComponentConfig.
 // TODO: This prefix requirement was put in place due to model names sent from app being otherwise
-// auto-prefixed with "rdk:builtin". A more ideal and robust method of namespacing is preferred.
-fn get_model_without_micro_rdk_prefix(full_model: &mut String) -> anyhow::Result<String> {
-    if !full_model.starts_with("micro-rdk:builtin") {
+// prefixed with "rdk:builtin:". A more ideal and robust method of namespacing is preferred.
+fn get_model_without_namespace_prefix(full_model: &mut String) -> anyhow::Result<String> {
+    if !full_model.starts_with(NAMESPACE_PREFIX) {
         anyhow::bail!(
-            "model name must be prefixed with 'micro-rdk:builtin', model name is {:?}",
+            "model name must be prefixed with 'rdk:builtin:', model name is {:?}",
             full_model
         );
     }
-    let model = full_model.split_off(18);
+    let model = full_model.split_off(NAMESPACE_PREFIX.len());
     if model.is_empty() {
         anyhow::bail!("cannot use empty model name for configuring resource");
     }
@@ -145,28 +147,28 @@ impl LocalRobot {
 
         let components = &config_resp.config.as_ref().unwrap().components;
 
-        let r = components.iter().find(|x| x.r#type == "board");
+        let board_config = components.iter().find(|x| x.r#type == "board");
         // Initialize the board component first
-        let mut b_r_key: Option<ResourceKey> = None;
-        let b = match r {
-            Some(r) => {
-                let model = get_model_without_micro_rdk_prefix(&mut r.model.to_string())?;
-                b_r_key = Some(ResourceKey::new(
+        let mut board_resource_key: Option<ResourceKey> = None;
+        let board = match board_config {
+            Some(config) => {
+                let model = get_model_without_namespace_prefix(&mut config.model.to_string())?;
+                board_resource_key = Some(ResourceKey::new(
                     crate::common::board::COMPONENT_NAME,
-                    r.name.to_string(),
+                    config.name.to_string(),
                 )?);
-                let cfg: DynamicComponentConfig = match r.try_into() {
+                let cfg: DynamicComponentConfig = match config.try_into() {
                     Ok(cfg) => cfg,
                     Err(err) => {
                         anyhow::bail!("could not configure board: {:?}", err);
                     }
                 };
-                let ctor = COMPONENT_REGISTRY.get_board_constructor(model)?;
-                let b = ctor(ConfigType::Dynamic(cfg));
-                if let Ok(b) = b {
-                    Some(b)
+                let constructor = COMPONENT_REGISTRY.get_board_constructor(model)?;
+                let board = constructor(ConfigType::Dynamic(cfg));
+                if let Ok(board) = board {
+                    Some(board)
                 } else {
-                    log::info!("failed to build the board with {:?}", b.err().unwrap());
+                    log::info!("failed to build the board with {:?}", board.err().unwrap());
                     None
                 }
             }
@@ -175,7 +177,7 @@ impl LocalRobot {
 
         let mut components_queue: Vec<&ComponentConfig> = components.iter().collect();
 
-        robot.insert_resources(&mut components_queue, b, b_r_key)?;
+        robot.insert_resources(&mut components_queue, board, board_resource_key)?;
 
         Ok(robot)
     }
@@ -187,8 +189,8 @@ impl LocalRobot {
     fn insert_resources(
         &mut self,
         components: &mut Vec<&ComponentConfig>,
-        b: Option<BoardType>,
-        b_r_key: Option<ResourceKey>,
+        board: Option<BoardType>,
+        board_resource_key: Option<ResourceKey>,
     ) -> anyhow::Result<()> {
         let mut inserted_resources = HashSet::<ResourceKey>::new();
         inserted_resources.try_reserve(components.len())?;
@@ -197,8 +199,8 @@ impl LocalRobot {
         let max_iterations = components.len() * 2;
         while !components.is_empty() && num_iterations < max_iterations {
             let comp_cfg = components.remove(0);
-            let r_name = resource_name_from_component_cfg(comp_cfg);
-            let model = get_model_without_micro_rdk_prefix(&mut comp_cfg.model.to_string())?;
+            let resource_name = resource_name_from_component_cfg(comp_cfg);
+            let model = get_model_without_namespace_prefix(&mut comp_cfg.model.to_string())?;
             let dyn_config: DynamicComponentConfig = match comp_cfg.try_into() {
                 Ok(cfg) => cfg,
                 Err(err) => {
@@ -224,44 +226,49 @@ impl LocalRobot {
                     );
                 }
             };
-            let r_key = ResourceKey::new(c_type_static, r_name.name.to_string())?;
+            let resource_key = ResourceKey::new(c_type_static, resource_name.name.to_string())?;
 
-            if !inserted_resources.contains(&r_key) {
+            if !inserted_resources.contains(&resource_key) {
                 match COMPONENT_REGISTRY.get_dependency_function(c_type_static, model.to_string()) {
-                    Ok(deps_getter) => {
-                        let dep_keys = deps_getter(ConfigType::Dynamic(dyn_config));
-                        if dep_keys.iter().all(|x| inserted_resources.contains(x)) {
-                            let deps_res: Result<Vec<Dependency>, anyhow::Error> = dep_keys
-                                .iter()
-                                .map(|dep_key| {
-                                    let dep_r_name = ResourceName {
-                                        namespace: r_name.namespace.to_string(),
-                                        r#type: r_name.r#type.to_string(),
-                                        subtype: dep_key.0.to_string(),
-                                        name: dep_key.1.to_string(),
-                                    };
-                                    let res = match self.resources.get(&dep_r_name) {
-                                        Some(r) => r.clone(),
-                                        None => anyhow::bail!("dependency not created yet"),
-                                    };
-                                    let dep_key_copy =
-                                        ResourceKey(dep_key.0, dep_key.1.to_string());
-                                    Ok(Dependency(dep_key_copy, res))
-                                })
-                                .collect();
-                            let mut deps = deps_res?;
-                            if let Some(b) = b.as_ref() {
-                                if let Some(b_r_key) = b_r_key.as_ref() {
+                    Ok(dependency_getter) => {
+                        let dependency_resource_keys =
+                            dependency_getter(ConfigType::Dynamic(dyn_config));
+                        if dependency_resource_keys
+                            .iter()
+                            .all(|x| inserted_resources.contains(x))
+                        {
+                            let dependencies_result: Result<Vec<Dependency>, anyhow::Error> =
+                                dependency_resource_keys
+                                    .iter()
+                                    .map(|dep_key| {
+                                        let dep_r_name = ResourceName {
+                                            namespace: resource_name.namespace.to_string(),
+                                            r#type: resource_name.r#type.to_string(),
+                                            subtype: dep_key.0.to_string(),
+                                            name: dep_key.1.to_string(),
+                                        };
+                                        let res = match self.resources.get(&dep_r_name) {
+                                            Some(r) => r.clone(),
+                                            None => anyhow::bail!("dependency not created yet"),
+                                        };
+                                        let dep_key_copy =
+                                            ResourceKey(dep_key.0, dep_key.1.to_string());
+                                        Ok(Dependency(dep_key_copy, res))
+                                    })
+                                    .collect();
+                            let mut dependencies = dependencies_result?;
+                            if let Some(b) = board.as_ref() {
+                                if let Some(b_r_key) = board_resource_key.as_ref() {
                                     let dep =
                                         Dependency(b_r_key.clone(), Resource::Board(b.clone()));
-                                    deps.push(dep);
+                                    dependencies.push(dep);
                                 }
                             }
                             match self.insert_resource(
                                 model.to_string(),
-                                r_name,
+                                resource_name,
                                 ConfigType::Dynamic(comp_cfg.try_into()?),
-                                deps,
+                                dependencies,
                             ) {
                                 Ok(()) => {}
                                 Err(err) => {
@@ -269,7 +276,7 @@ impl LocalRobot {
                                     continue;
                                 }
                             };
-                            inserted_resources.insert(r_key);
+                            inserted_resources.insert(resource_key);
                         } else {
                             let model = model.to_string();
                             log::debug!("skipping {model} for now...");
@@ -277,18 +284,18 @@ impl LocalRobot {
                         }
                     }
                     Err(_) => {
-                        let mut deps = Vec::new();
-                        if let Some(b) = b.as_ref() {
-                            if let Some(b_r_key) = b_r_key.as_ref() {
+                        let mut dependencies = Vec::new();
+                        if let Some(b) = board.as_ref() {
+                            if let Some(b_r_key) = board_resource_key.as_ref() {
                                 let dep = Dependency(b_r_key.clone(), Resource::Board(b.clone()));
-                                deps.push(dep);
+                                dependencies.push(dep);
                             }
                         }
                         match self.insert_resource(
                             model.to_string(),
-                            r_name,
+                            resource_name,
                             ConfigType::Dynamic(comp_cfg.try_into()?),
-                            deps,
+                            dependencies,
                         ) {
                             Ok(()) => {}
                             Err(err) => {
@@ -296,7 +303,7 @@ impl LocalRobot {
                                 continue;
                             }
                         };
-                        inserted_resources.insert(r_key);
+                        inserted_resources.insert(resource_key);
                     }
                 };
             }
@@ -849,7 +856,7 @@ mod tests {
 
         let comp = ComponentConfig {
             name: "enc1".to_string(),
-            model: "micro-rdk:builtin:fake".to_string(),
+            model: "rdk:builtin:fake".to_string(),
             r#type: "encoder".to_string(),
             namespace: "rdk".to_string(),
             frame: None,
@@ -869,7 +876,7 @@ mod tests {
 
         let comp2 = ComponentConfig {
             name: "m1".to_string(),
-            model: "micro-rdk:builtin:fake_with_dep".to_string(),
+            model: "rdk:builtin:fake_with_dep".to_string(),
             r#type: "motor".to_string(),
             namespace: "rdk".to_string(),
             frame: None,
@@ -889,7 +896,7 @@ mod tests {
 
         let comp3: ComponentConfig = ComponentConfig {
             name: "m2".to_string(),
-            model: "micro-rdk:builtin:fake_with_dep".to_string(),
+            model: "rdk:builtin:fake_with_dep".to_string(),
             r#type: "motor".to_string(),
             namespace: "rdk".to_string(),
             frame: None,
@@ -909,7 +916,7 @@ mod tests {
 
         let comp4 = ComponentConfig {
             name: "enc2".to_string(),
-            model: "micro-rdk:builtin:fake".to_string(),
+            model: "rdk:builtin:fake".to_string(),
             r#type: "encoder".to_string(),
             namespace: "rdk".to_string(),
             frame: None,
@@ -962,7 +969,7 @@ mod tests {
 
         let comp2 = ComponentConfig {
             name: "m1".to_string(),
-            model: "micro-rdk:builtin:fake_with_dep".to_string(),
+            model: "rdk:builtin:fake_with_dep".to_string(),
             r#type: "motor".to_string(),
             namespace: "rdk".to_string(),
             frame: None,
@@ -982,7 +989,7 @@ mod tests {
 
         let comp3: ComponentConfig = ComponentConfig {
             name: "m2".to_string(),
-            model: "micro-rdk:builtin:fake_with_dep".to_string(),
+            model: "rdk:builtin:fake_with_dep".to_string(),
             r#type: "motor".to_string(),
             namespace: "rdk".to_string(),
             frame: None,
@@ -1002,7 +1009,7 @@ mod tests {
 
         let comp4 = ComponentConfig {
             name: "enc2".to_string(),
-            model: "micro-rdk:builtin:fake".to_string(),
+            model: "rdk:builtin:fake".to_string(),
             r#type: "encoder".to_string(),
             namespace: "rdk".to_string(),
             frame: None,

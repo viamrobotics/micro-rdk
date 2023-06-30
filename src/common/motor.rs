@@ -104,7 +104,6 @@ impl TryFrom<Kind> for MotorPinsConfig {
                 }
             },
         };
-
         let b = match value.get("b") {
             Ok(opt) => match opt {
                 Some(val) => Some(val.try_into()?),
@@ -117,7 +116,6 @@ impl TryFrom<Kind> for MotorPinsConfig {
                 }
             },
         };
-
         let dir = match value.get("dir") {
             Ok(opt) => match opt {
                 Some(val) => Some(val.try_into()?),
@@ -130,12 +128,10 @@ impl TryFrom<Kind> for MotorPinsConfig {
                 }
             },
         };
-
         let pwm = value
             .get("pwm")?
             .ok_or_else(|| AttributeError::KeyNotFound("pwm".to_string()))?
             .try_into()?;
-
         Ok(Self { a, b, dir, pwm })
     }
 }
@@ -155,7 +151,6 @@ impl TryFrom<&Kind> for MotorPinsConfig {
                 }
             },
         };
-
         let b = match value.get("b") {
             Ok(opt) => match opt {
                 Some(val) => Some(val.try_into()?),
@@ -168,7 +163,6 @@ impl TryFrom<&Kind> for MotorPinsConfig {
                 }
             },
         };
-
         let dir = match value.get("dir") {
             Ok(opt) => match opt {
                 Some(val) => Some(val.try_into()?),
@@ -181,12 +175,10 @@ impl TryFrom<&Kind> for MotorPinsConfig {
                 }
             },
         };
-
         let pwm = value
             .get("pwm")?
             .ok_or_else(|| AttributeError::KeyNotFound("pwm".to_string()))?
             .try_into()?;
-
         Ok(Self { a, b, dir, pwm })
     }
 }
