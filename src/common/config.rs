@@ -39,6 +39,7 @@ macro_rules! primitives
                       Kind::NumberValue(v) => Ok(v as $t),
                       Kind::BoolValue(v) => Ok(v as $t),
                       Kind::StringValueStatic(v) => Ok(v.parse::<$t>()?),
+                      Kind::StringValue(v) => Ok(v.parse::<$t>()?),
                       _ => Err(AttributeError::ConversionImpossibleError),
                   }
               }
@@ -52,6 +53,7 @@ macro_rules! primitives
                       Kind::NumberValue(v) => Ok(*v as $t),
                       Kind::BoolValue(v) => Ok(*v as $t),
                       Kind::StringValueStatic(v) => Ok(v.parse::<$t>()?),
+                      Kind::StringValue(v) => Ok(v.parse::<$t>()?),
                       _ => Err(AttributeError::ConversionImpossibleError),
                   }
               }
@@ -73,6 +75,7 @@ macro_rules! floats
                       Kind::NullValue(v) => Ok(v as $t),
                       Kind::NumberValue(v) => Ok(v as $t),
                       Kind::StringValueStatic(v) => Ok(v.parse::<$t>()?),
+                      Kind::StringValue(v) => Ok(v.parse::<$t>()?),
                       _ => Err(AttributeError::ConversionImpossibleError),
                   }
               }
@@ -85,6 +88,7 @@ macro_rules! floats
                       Kind::NullValue(v) => Ok(*v as $t),
                       Kind::NumberValue(v) => Ok(*v as $t),
                       Kind::StringValueStatic(v) => Ok(v.parse::<$t>()?),
+                      Kind::StringValue(v) => Ok(v.parse::<$t>()?),
                       _ => Err(AttributeError::ConversionImpossibleError),
                   }
               }
