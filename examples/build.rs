@@ -248,7 +248,7 @@ fn main() -> anyhow::Result<()> {
         ),
     ]
     .join("\n");
-    fs::write(&dest_path, robot_decl).unwrap();
+    fs::write(dest_path, robot_decl).unwrap();
 
     let components_config = robot_cfg
         .components
