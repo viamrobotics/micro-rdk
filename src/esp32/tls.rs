@@ -48,22 +48,15 @@ pub struct Esp32TlsStream {
 }
 
 pub struct Esp32TlsServerConfig {
-    srv_cert: *const u8,
-    srv_cert_len: u32,
+    srv_cert: &'static [&'static [u8]],
     srv_key: *const u8,
     srv_key_len: u32,
 }
 
 impl Esp32TlsServerConfig {
-    pub fn new(
-        srv_cert: *const u8,
-        srv_cert_len: u32,
-        srv_key: *const u8,
-        srv_key_len: u32,
-    ) -> Self {
+    pub fn new(srv_cert: &'static [&'static [u8]], srv_key: *const u8, srv_key_len: u32) -> Self {
         Esp32TlsServerConfig {
             srv_cert,
-            srv_cert_len,
             srv_key,
             srv_key_len,
         }
@@ -141,20 +134,19 @@ impl Esp32Tls {
     /// Creates a TLS object ready to accept connection or connect to a server
     pub fn new_server(cfg: &Esp32TlsServerConfig) -> Self {
         let mut alpn_ptr: Vec<_> = vec![ALPN_PROTOCOLS.as_ptr() as *const i8, std::ptr::null()];
-        let ca_cert = include_bytes!("../../certs/isrgrootx1.pem");
         let tls_cfg_srv = Box::new(esp_tls_cfg_server {
             alpn_protos: alpn_ptr.as_mut_ptr(),
             __bindgen_anon_1: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_1 {
-                cacert_buf: ca_cert.as_ptr(),
+                cacert_buf: cfg.srv_cert[1].as_ptr(),
             },
             __bindgen_anon_2: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_2 {
-                cacert_bytes: ca_cert.len() as u32,
+                cacert_bytes: cfg.srv_cert[1].len() as u32,
             },
             __bindgen_anon_3: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_3 {
-                servercert_buf: cfg.srv_cert,
+                servercert_buf: cfg.srv_cert[0].as_ptr(),
             },
             __bindgen_anon_4: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_4 {
-                servercert_bytes: cfg.srv_cert_len,
+                servercert_bytes: cfg.srv_cert[0].len() as u32,
             },
             __bindgen_anon_5: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_5 {
                 serverkey_buf: cfg.srv_key,
