@@ -196,7 +196,7 @@ fn main() -> anyhow::Result<()> {
         .map(|s| s.unwrap().1.to_vec())
         .collect::<Vec<Vec<u8>>>()
         .pop()
-        .unwrap();
+        .unwrap_or_default();
     let key = der::Document::from_pem(&cfg.cloud.tls_private_key).unwrap();
 
     let out_dir = env::var_os("OUT_DIR").unwrap();

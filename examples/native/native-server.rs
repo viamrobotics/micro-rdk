@@ -105,7 +105,7 @@ fn main() -> anyhow::Result<()> {
     let cfg = {
         let cert = ROBOT_SRV_PEM_CHAIN;
         let key = ROBOT_SRV_DER_KEY;
-        NativeTlsServerConfig::new(cert.as_bytes().to_vec(), key.to_vec())
+        NativeTlsServerConfig::new(cert.to_vec(), key.to_vec())
     };
 
     let app_config = AppClientConfig::new(
