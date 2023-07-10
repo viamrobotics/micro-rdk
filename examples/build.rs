@@ -197,7 +197,8 @@ fn main() -> anyhow::Result<()> {
         .collect::<Vec<Vec<u8>>>()
         .pop()
         .unwrap_or_default();
-    let key = der::Document::from_pem(&cfg.cloud.tls_private_key).unwrap();
+    let key = der::Document::from_pem(&cfg.cloud.tls_private_key)
+        .map_or(vec![], |k| k.1.as_bytes().to_vec());
 
     let out_dir = env::var_os("OUT_DIR").unwrap();
     let dest_path = Path::new(&out_dir).join("robot_secret.rs");
@@ -244,7 +245,7 @@ fn main() -> anyhow::Result<()> {
         ),
         const_declaration!(
             #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            ROBOT_SRV_DER_KEY = key.1.as_bytes()
+            ROBOT_SRV_DER_KEY = key
         ),
     ]
     .join("\n");
