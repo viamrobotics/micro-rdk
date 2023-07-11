@@ -296,12 +296,20 @@ where
     {
         let srv = GrpcServer::new(robot.clone(), GrpcBody::new());
         let connection = c.accept().map_err(|e| ServerError::Other(e.into()))?;
-        Http::new()
-            .with_executor(self.exec.clone())
-            .http2_max_concurrent_streams(1)
-            .serve_connection(connection, srv)
-            .await
-            .map_err(|e| ServerError::Other(e.into()))
+
+        let r = Box::new(
+            Http::new()
+                .with_executor(self.exec.clone())
+                .http2_only(true)
+                .http2_initial_stream_window_size(2048)
+                .http2_initial_connection_window_size(2048)
+                .http2_max_send_buf_size(4096)
+                .http2_max_concurrent_streams(1)
+                .serve_connection(connection, srv),
+        )
+        .await
+        .map_err(|e| ServerError::Other(e.into()));
+        r
     }
 
     async fn serve_webrtc(

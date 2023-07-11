@@ -100,6 +100,7 @@ impl Debug for Esp32TlsConnector {
 impl Http2Connector for Esp32TlsConnector {
     type Stream = Esp32Stream;
     fn accept(&mut self) -> std::io::Result<Self::Stream> {
+        self.inner.as_ref().unwrap().set_nonblocking(true).unwrap();
         match &mut self.tls {
             Some(tls) => tls
                 .open_ssl_context(Some(self.inner.take().unwrap()))
