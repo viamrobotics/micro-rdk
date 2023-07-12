@@ -70,7 +70,7 @@ pub fn serve_web(
 
 #[cfg(test)]
 mod tests {
-    use crate::common::app_client::{AppClientBuilder, AppClientConfig};
+    use crate::common::app_client::{encode_request, AppClientBuilder, AppClientConfig};
 
     use crate::common::grpc_client::GrpcClient;
 
@@ -79,9 +79,11 @@ mod tests {
     use crate::native::tls::NativeTls;
 
     use crate::proto::rpc::examples::echo::v1::{EchoBiDiRequest, EchoBiDiResponse};
+    use crate::proto::rpc::v1::{AuthenticateRequest, AuthenticateResponse, Credentials};
 
     use futures_lite::future::block_on;
     use futures_lite::StreamExt;
+    use prost::Message;
 
     use std::net::{Ipv4Addr, TcpStream};
 
@@ -124,15 +126,34 @@ mod tests {
     #[test_log::test]
     #[ignore]
     fn test_client_bidi() -> anyhow::Result<()> {
-        let socket = TcpStream::connect("127.0.0.1:8080").unwrap();
+        let socket = TcpStream::connect("localhost:7888").unwrap();
         socket.set_nonblocking(true)?;
         let conn = NativeStream::LocalPlain(socket);
         let executor = NativeExecutor::new();
         let mut grpc_client = GrpcClient::new(conn, executor.clone(), "http://localhost")?;
 
+        let r = grpc_client.build_request("/proto.rpc.v1.AuthService/Authenticate", None, "")?;
+
+        let cred = Credentials {
+            r#type: "robot-secret".to_owned(),
+            payload: "some-secret".to_owned(),
+        };
+
+        let req = AuthenticateRequest {
+            entity: "some entity".to_owned(),
+            credentials: Some(cred),
+        };
+
+        let body = encode_request(req)?;
+
+        let mut r = grpc_client.send_request(r, body)?;
+        let r = r.split_off(5);
+        let r = AuthenticateResponse::decode(r).unwrap();
+        let jwt = format!("Bearer {}", r.access_token);
+
         let r = grpc_client.build_request(
             "/proto.rpc.examples.echo.v1.EchoService/EchoBiDi",
-            None,
+            Some(&jwt),
             "",
         )?;
 

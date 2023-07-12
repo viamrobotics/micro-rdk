@@ -81,7 +81,7 @@ pub struct AppClientBuilder<'a> {
     config: AppClientConfig,
 }
 
-fn encode_request<T>(req: T) -> Result<Bytes, AppClientError>
+pub(crate) fn encode_request<T>(req: T) -> Result<Bytes, AppClientError>
 where
     T: Message,
 {
