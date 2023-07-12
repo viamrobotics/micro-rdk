@@ -1,4 +1,5 @@
 // @generated
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPosesRequest {
     /// Name of the pose tracker
@@ -13,6 +14,7 @@ pub struct GetPosesRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPosesResponse {
     /// Mapping of each body name to the pose representing the center of the body.

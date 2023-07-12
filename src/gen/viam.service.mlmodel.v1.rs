@@ -1,4 +1,5 @@
 // @generated
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct InferRequest {
     /// name of the model service
@@ -8,24 +9,28 @@ pub struct InferRequest {
     #[prost(message, optional, tag="2")]
     pub input_data: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct InferResponse {
     /// this is a struct of output arrays/tensors as specified in the metadata
     #[prost(message, optional, tag="2")]
     pub output_data: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MetadataRequest {
     /// name of the model service
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MetadataResponse {
     /// this is the metadata associated with the ML model
     #[prost(message, optional, tag="1")]
     pub metadata: ::core::option::Option<Metadata>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Metadata {
     /// name of the model
@@ -44,6 +49,7 @@ pub struct Metadata {
     #[prost(message, repeated, tag="5")]
     pub output_info: ::prost::alloc::vec::Vec<TensorInfo>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TensorInfo {
     /// name of the data in the array/tensor
@@ -65,6 +71,7 @@ pub struct TensorInfo {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct File {
     /// name of the file, with file extension
@@ -96,6 +103,15 @@ impl LabelType {
             LabelType::Unspecified => "LABEL_TYPE_UNSPECIFIED",
             LabelType::TensorValue => "LABEL_TYPE_TENSOR_VALUE",
             LabelType::TensorAxis => "LABEL_TYPE_TENSOR_AXIS",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "LABEL_TYPE_UNSPECIFIED" => Some(Self::Unspecified),
+            "LABEL_TYPE_TENSOR_VALUE" => Some(Self::TensorValue),
+            "LABEL_TYPE_TENSOR_AXIS" => Some(Self::TensorAxis),
+            _ => None,
         }
     }
 }

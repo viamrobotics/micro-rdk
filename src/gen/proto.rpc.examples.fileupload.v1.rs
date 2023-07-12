@@ -1,4 +1,5 @@
 // @generated
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct UploadFileRequest {
     #[prost(oneof="upload_file_request::Data", tags="1, 2")]
@@ -6,7 +7,8 @@ pub struct UploadFileRequest {
 }
 /// Nested message and enum types in `UploadFileRequest`.
 pub mod upload_file_request {
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    #[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Data {
         #[prost(string, tag="1")]
         Name(::prost::alloc::string::String),
@@ -14,6 +16,7 @@ pub mod upload_file_request {
         ChunkData(::prost::alloc::vec::Vec<u8>),
     }
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct UploadFileResponse {
     #[prost(string, tag="1")]

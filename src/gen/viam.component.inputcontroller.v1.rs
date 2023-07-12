@@ -1,4 +1,5 @@
 // @generated
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetControlsRequest {
     /// Name of an input controller
@@ -8,6 +9,7 @@ pub struct GetControlsRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetControlsResponse {
     /// Returns a list of all the controls (buttons and axes) that are
@@ -15,6 +17,7 @@ pub struct GetControlsResponse {
     #[prost(string, repeated, tag="1")]
     pub controls: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetEventsRequest {
     /// Name of an input controller
@@ -24,6 +27,7 @@ pub struct GetEventsRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetEventsResponse {
     /// Returns a list of the most recent event for each control on a given InputController. Effectively provides the current "state" of all
@@ -31,6 +35,7 @@ pub struct GetEventsResponse {
     #[prost(message, repeated, tag="1")]
     pub events: ::prost::alloc::vec::Vec<Event>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TriggerEventRequest {
     /// Name of an input controller
@@ -43,9 +48,11 @@ pub struct TriggerEventRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TriggerEventResponse {
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Event {
     /// Timestamp of event
@@ -61,6 +68,7 @@ pub struct Event {
     #[prost(double, tag="4")]
     pub value: f64,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StreamEventsRequest {
     /// Name of an input controller
@@ -75,7 +83,8 @@ pub struct StreamEventsRequest {
 }
 /// Nested message and enum types in `StreamEventsRequest`.
 pub mod stream_events_request {
-    #[derive(Clone, PartialEq, ::prost::Message)]
+    #[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
     pub struct Events {
         /// Name of a control (button or axis)
         #[prost(string, tag="1")]
@@ -89,12 +98,14 @@ pub mod stream_events_request {
         pub cancelled_events: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     }
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StreamEventsResponse {
     /// Event for a controller
     #[prost(message, optional, tag="1")]
     pub event: ::core::option::Option<Event>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Status {
     #[prost(message, repeated, tag="1")]

@@ -1,4 +1,5 @@
 // @generated
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SetPowerRequest {
     /// Name of a motor
@@ -11,9 +12,11 @@ pub struct SetPowerRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SetPowerResponse {
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GoForRequest {
     /// Name of a motor
@@ -29,9 +32,11 @@ pub struct GoForRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GoForResponse {
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GoToRequest {
     /// Name of a motor
@@ -47,9 +52,11 @@ pub struct GoToRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GoToResponse {
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ResetZeroPositionRequest {
     /// Name of a motor
@@ -62,9 +69,11 @@ pub struct ResetZeroPositionRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ResetZeroPositionResponse {
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPositionRequest {
     /// Name of a motor
@@ -74,12 +83,14 @@ pub struct GetPositionRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPositionResponse {
     /// Current position of the motor relative to its home
     #[prost(double, tag="1")]
     pub position: f64,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StopRequest {
     /// Name of a motor
@@ -89,9 +100,11 @@ pub struct StopRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StopResponse {
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct IsPoweredRequest {
     /// Name of a motor
@@ -101,6 +114,7 @@ pub struct IsPoweredRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct IsPoweredResponse {
     /// Returns true if the motor is on
@@ -112,6 +126,7 @@ pub struct IsPoweredResponse {
     #[prost(double, tag="2")]
     pub power_pct: f64,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPropertiesRequest {
     /// Name of a motor
@@ -121,12 +136,14 @@ pub struct GetPropertiesRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPropertiesResponse {
     /// Returns true if the motor supports reporting its position
     #[prost(bool, tag="1")]
     pub position_reporting: bool,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Status {
     /// Returns true if the motor is powered
@@ -139,11 +156,13 @@ pub struct Status {
     #[prost(bool, tag="4")]
     pub is_moving: bool,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct IsMovingRequest {
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct IsMovingResponse {
     #[prost(bool, tag="1")]

@@ -1,4 +1,5 @@
 // @generated
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPositionRequest {
     /// Name of encoder
@@ -15,6 +16,7 @@ pub struct GetPositionRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPositionResponse {
     #[prost(float, tag="1")]
@@ -22,6 +24,7 @@ pub struct GetPositionResponse {
     #[prost(enumeration="PositionType", tag="2")]
     pub position_type: i32,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ResetPositionRequest {
     /// Name of an encoder
@@ -31,9 +34,11 @@ pub struct ResetPositionRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ResetPositionResponse {
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPropertiesRequest {
     /// Name of the encoder
@@ -43,6 +48,7 @@ pub struct GetPropertiesRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPropertiesResponse {
     #[prost(bool, tag="1")]
@@ -71,6 +77,15 @@ impl PositionType {
             PositionType::Unspecified => "POSITION_TYPE_UNSPECIFIED",
             PositionType::TicksCount => "POSITION_TYPE_TICKS_COUNT",
             PositionType::AngleDegrees => "POSITION_TYPE_ANGLE_DEGREES",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "POSITION_TYPE_UNSPECIFIED" => Some(Self::Unspecified),
+            "POSITION_TYPE_TICKS_COUNT" => Some(Self::TicksCount),
+            "POSITION_TYPE_ANGLE_DEGREES" => Some(Self::AngleDegrees),
+            _ => None,
         }
     }
 }

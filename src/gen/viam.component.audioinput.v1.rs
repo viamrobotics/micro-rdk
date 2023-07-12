@@ -1,4 +1,5 @@
 // @generated
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RecordRequest {
     /// Name of an audio input
@@ -7,6 +8,7 @@ pub struct RecordRequest {
     #[prost(message, optional, tag="2")]
     pub duration: ::core::option::Option<::prost_types::Duration>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AudioChunkInfo {
     /// Actual sample encoding format of the response
@@ -17,6 +19,7 @@ pub struct AudioChunkInfo {
     #[prost(int64, tag="3")]
     pub sampling_rate: i64,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AudioChunk {
     /// Data is PCM data that is organized according to the sample format
@@ -28,6 +31,7 @@ pub struct AudioChunk {
     #[prost(uint32, tag="2")]
     pub length: u32,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ChunksRequest {
     /// Name of an audio input
@@ -37,6 +41,7 @@ pub struct ChunksRequest {
     #[prost(enumeration="SampleFormat", tag="2")]
     pub sample_format: i32,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ChunksResponse {
     #[prost(oneof="chunks_response::Type", tags="1, 2")]
@@ -44,7 +49,8 @@ pub struct ChunksResponse {
 }
 /// Nested message and enum types in `ChunksResponse`.
 pub mod chunks_response {
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    #[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Type {
         #[prost(message, tag="1")]
         Info(super::AudioChunkInfo),
@@ -52,12 +58,14 @@ pub mod chunks_response {
         Chunk(super::AudioChunk),
     }
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PropertiesRequest {
     /// Name of an audio input
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PropertiesResponse {
     #[prost(uint32, tag="1")]
@@ -92,6 +100,15 @@ impl SampleFormat {
             SampleFormat::Unspecified => "SAMPLE_FORMAT_UNSPECIFIED",
             SampleFormat::Int16Interleaved => "SAMPLE_FORMAT_INT16_INTERLEAVED",
             SampleFormat::Float32Interleaved => "SAMPLE_FORMAT_FLOAT32_INTERLEAVED",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "SAMPLE_FORMAT_UNSPECIFIED" => Some(Self::Unspecified),
+            "SAMPLE_FORMAT_INT16_INTERLEAVED" => Some(Self::Int16Interleaved),
+            "SAMPLE_FORMAT_FLOAT32_INTERLEAVED" => Some(Self::Float32Interleaved),
+            _ => None,
         }
     }
 }

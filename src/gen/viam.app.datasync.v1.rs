@@ -1,4 +1,5 @@
 // @generated
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DataCaptureUploadRequest {
     #[prost(message, optional, tag="1")]
@@ -6,9 +7,13 @@ pub struct DataCaptureUploadRequest {
     #[prost(message, repeated, tag="2")]
     pub sensor_contents: ::prost::alloc::vec::Vec<SensorData>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DataCaptureUploadResponse {
+    #[prost(string, tag="1")]
+    pub file_id: ::prost::alloc::string::String,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FileUploadRequest {
     #[prost(oneof="file_upload_request::UploadPacket", tags="1, 2")]
@@ -16,7 +21,8 @@ pub struct FileUploadRequest {
 }
 /// Nested message and enum types in `FileUploadRequest`.
 pub mod file_upload_request {
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    #[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum UploadPacket {
         #[prost(message, tag="1")]
         Metadata(super::UploadMetadata),
@@ -24,9 +30,13 @@ pub mod file_upload_request {
         FileContents(super::FileData),
     }
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FileUploadResponse {
+    #[prost(string, tag="1")]
+    pub file_id: ::prost::alloc::string::String,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SensorMetadata {
     #[prost(message, optional, tag="1")]
@@ -34,6 +44,7 @@ pub struct SensorMetadata {
     #[prost(message, optional, tag="2")]
     pub time_received: ::core::option::Option<::prost_types::Timestamp>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SensorData {
     #[prost(message, optional, tag="1")]
@@ -43,7 +54,8 @@ pub struct SensorData {
 }
 /// Nested message and enum types in `SensorData`.
 pub mod sensor_data {
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    #[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Data {
         #[prost(message, tag="2")]
         Struct(::prost_types::Struct),
@@ -51,11 +63,13 @@ pub mod sensor_data {
         Binary(::prost::alloc::vec::Vec<u8>),
     }
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FileData {
     #[prost(bytes="vec", tag="1")]
     pub data: ::prost::alloc::vec::Vec<u8>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct UploadMetadata {
     #[prost(string, tag="1")]
@@ -64,8 +78,6 @@ pub struct UploadMetadata {
     pub component_type: ::prost::alloc::string::String,
     #[prost(string, tag="3")]
     pub component_name: ::prost::alloc::string::String,
-    #[prost(string, tag="4")]
-    pub component_model: ::prost::alloc::string::String,
     #[prost(string, tag="5")]
     pub method_name: ::prost::alloc::string::String,
     #[prost(enumeration="DataType", tag="6")]
@@ -78,9 +90,8 @@ pub struct UploadMetadata {
     pub file_extension: ::prost::alloc::string::String,
     #[prost(string, repeated, tag="10")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    #[prost(string, tag="11")]
-    pub session_id: ::prost::alloc::string::String,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CaptureInterval {
     #[prost(message, optional, tag="1")]
@@ -88,14 +99,13 @@ pub struct CaptureInterval {
     #[prost(message, optional, tag="2")]
     pub end: ::core::option::Option<::prost_types::Timestamp>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DataCaptureMetadata {
     #[prost(string, tag="1")]
     pub component_type: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
     pub component_name: ::prost::alloc::string::String,
-    #[prost(string, tag="3")]
-    pub component_model: ::prost::alloc::string::String,
     #[prost(string, tag="4")]
     pub method_name: ::prost::alloc::string::String,
     #[prost(enumeration="DataType", tag="5")]
@@ -106,90 +116,6 @@ pub struct DataCaptureMetadata {
     pub file_extension: ::prost::alloc::string::String,
     #[prost(string, repeated, tag="8")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    #[prost(string, tag="9")]
-    pub session_id: ::prost::alloc::string::String,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct TabularCapture {
-    #[prost(message, optional, tag="1")]
-    pub interval: ::core::option::Option<CaptureInterval>,
-    #[prost(string, tag="2")]
-    pub org_id: ::prost::alloc::string::String,
-    #[prost(string, tag="3")]
-    pub robot_id: ::prost::alloc::string::String,
-    #[prost(string, tag="4")]
-    pub part_id: ::prost::alloc::string::String,
-    #[prost(string, tag="5")]
-    pub location_id: ::prost::alloc::string::String,
-    #[prost(string, tag="6")]
-    pub component_name: ::prost::alloc::string::String,
-    #[prost(string, tag="7")]
-    pub component_type: ::prost::alloc::string::String,
-    #[prost(string, tag="8")]
-    pub component_model: ::prost::alloc::string::String,
-    #[prost(string, tag="9")]
-    pub method_name: ::prost::alloc::string::String,
-    #[prost(string, tag="10")]
-    pub blob_path: ::prost::alloc::string::String,
-    #[prost(string, repeated, tag="11")]
-    pub column_names: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    #[prost(map="string, message", tag="12")]
-    pub method_parameters: ::std::collections::HashMap<::prost::alloc::string::String, ::prost_types::Any>,
-    #[prost(string, tag="13")]
-    pub file_id: ::prost::alloc::string::String,
-    #[prost(string, repeated, tag="14")]
-    pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    #[prost(int32, tag="15")]
-    pub message_count: i32,
-    #[prost(int64, tag="16")]
-    pub file_size_bytes: i64,
-    #[prost(string, tag="17")]
-    pub session_id: ::prost::alloc::string::String,
-    #[prost(string, tag="18")]
-    pub mime_type: ::prost::alloc::string::String,
-    #[prost(string, tag="19")]
-    pub id: ::prost::alloc::string::String,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct BinaryCapture {
-    #[prost(message, optional, tag="1")]
-    pub interval: ::core::option::Option<CaptureInterval>,
-    #[prost(string, tag="2")]
-    pub org_id: ::prost::alloc::string::String,
-    #[prost(string, tag="3")]
-    pub robot_id: ::prost::alloc::string::String,
-    #[prost(string, tag="4")]
-    pub part_id: ::prost::alloc::string::String,
-    #[prost(string, tag="5")]
-    pub location_id: ::prost::alloc::string::String,
-    #[prost(string, tag="6")]
-    pub component_name: ::prost::alloc::string::String,
-    #[prost(string, tag="7")]
-    pub component_type: ::prost::alloc::string::String,
-    #[prost(string, tag="8")]
-    pub component_model: ::prost::alloc::string::String,
-    #[prost(string, tag="9")]
-    pub method_name: ::prost::alloc::string::String,
-    #[prost(string, tag="10")]
-    pub blob_path: ::prost::alloc::string::String,
-    #[prost(map="string, message", tag="11")]
-    pub method_parameters: ::std::collections::HashMap<::prost::alloc::string::String, ::prost_types::Any>,
-    #[prost(string, tag="12")]
-    pub file_id: ::prost::alloc::string::String,
-    #[prost(string, repeated, tag="13")]
-    pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    #[prost(int64, tag="14")]
-    pub file_size_bytes: i64,
-    #[prost(string, tag="15")]
-    pub session_id: ::prost::alloc::string::String,
-    #[prost(string, tag="16")]
-    pub mime_type: ::prost::alloc::string::String,
-    #[prost(string, tag="17")]
-    pub file_name: ::prost::alloc::string::String,
-    #[prost(string, tag="18")]
-    pub file_ext: ::prost::alloc::string::String,
-    #[prost(string, tag="19")]
-    pub id: ::prost::alloc::string::String,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -210,6 +136,16 @@ impl DataType {
             DataType::BinarySensor => "DATA_TYPE_BINARY_SENSOR",
             DataType::TabularSensor => "DATA_TYPE_TABULAR_SENSOR",
             DataType::File => "DATA_TYPE_FILE",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "DATA_TYPE_UNSPECIFIED" => Some(Self::Unspecified),
+            "DATA_TYPE_BINARY_SENSOR" => Some(Self::BinarySensor),
+            "DATA_TYPE_TABULAR_SENSOR" => Some(Self::TabularSensor),
+            "DATA_TYPE_FILE" => Some(Self::File),
+            _ => None,
         }
     }
 }

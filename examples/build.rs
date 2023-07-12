@@ -338,6 +338,7 @@ async fn read_cloud_config(config: &mut Config) -> anyhow::Result<RobotConfig> {
         ips: vec![local_ip().unwrap().to_string()],
         version: "0.0.1".to_string(),
         git_revision: "".to_string(),
+        platform: Some("esp32-build".to_string()),
     };
     let cfg_req = ConfigRequest {
         agent_info: Some(agent),

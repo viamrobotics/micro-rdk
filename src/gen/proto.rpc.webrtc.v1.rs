@@ -1,6 +1,7 @@
 // @generated
 /// A PacketMessage is used to packetize large messages (> 64KiB) to be able to safely
 /// transmit over WebRTC data channels.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PacketMessage {
     #[prost(bytes="bytes", tag="1")]
@@ -10,6 +11,7 @@ pub struct PacketMessage {
 }
 /// A Stream represents an instance of a gRPC stream between
 /// a client and a server.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Stream {
     #[prost(uint64, tag="1")]
@@ -19,6 +21,7 @@ pub struct Stream {
 /// associated with a stream where the client assigns the stream
 /// identifier. Servers will drop frames where the stream identifier
 /// has no association (if a non-header frames are sent).
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Request {
     #[prost(message, optional, tag="1")]
@@ -28,7 +31,8 @@ pub struct Request {
 }
 /// Nested message and enum types in `Request`.
 pub mod request {
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    #[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Type {
         #[prost(message, tag="2")]
         Headers(super::RequestHeaders),
@@ -39,6 +43,7 @@ pub mod request {
     }
 }
 /// RequestHeaders describe the unary or streaming call to make.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RequestHeaders {
     #[prost(string, tag="1")]
@@ -50,6 +55,7 @@ pub struct RequestHeaders {
 }
 /// A RequestMessage contains individual gRPC messages and a potential
 /// end-of-stream (EOS) marker.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RequestMessage {
     #[prost(bool, tag="1")]
@@ -63,6 +69,7 @@ pub struct RequestMessage {
 /// associated with a stream where the client assigns the stream
 /// identifier. Clients will drop frames where the stream identifier
 /// has no association.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Response {
     #[prost(message, optional, tag="1")]
@@ -72,7 +79,8 @@ pub struct Response {
 }
 /// Nested message and enum types in `Response`.
 pub mod response {
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    #[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Type {
         #[prost(message, tag="2")]
         Headers(super::ResponseHeaders),
@@ -84,18 +92,21 @@ pub mod response {
 }
 /// ResponseHeaders contain custom metadata that are sent to the client
 /// before any message or trailers (unless only trailers are sent).
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ResponseHeaders {
     #[prost(message, optional, tag="1")]
     pub metadata: ::core::option::Option<Metadata>,
 }
 /// ResponseMessage contains the data of a response to a call.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ResponseMessage {
     #[prost(message, optional, tag="1")]
     pub packet_message: ::core::option::Option<PacketMessage>,
 }
 /// ResponseTrailers contain the status of a response and any custom metadata.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ResponseTrailers {
     #[prost(message, optional, tag="1")]
@@ -104,6 +115,7 @@ pub struct ResponseTrailers {
     pub metadata: ::core::option::Option<Metadata>,
 }
 /// Strings are a series of values.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Strings {
     #[prost(string, repeated, tag="1")]
@@ -111,6 +123,7 @@ pub struct Strings {
 }
 /// Metadata is for custom key values provided by a client or server
 /// during a stream.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Metadata {
     #[prost(map="string, message", tag="1")]
@@ -118,6 +131,7 @@ pub struct Metadata {
 }
 /// ICECandidate represents an ICE candidate.
 /// From <https://github.com/pion/webrtc/blob/5f6baf73255598a7b4a7c9400bb0381acc9aa3dc/icecandidateinit.go>
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct IceCandidate {
     #[prost(string, tag="1")]
@@ -130,6 +144,7 @@ pub struct IceCandidate {
     pub username_fragment: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// CallRequest is the SDP offer that the controlling side is making.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CallRequest {
     #[prost(string, tag="1")]
@@ -142,6 +157,7 @@ pub struct CallRequest {
 }
 /// CallResponseInitStage is the first and a one time stage that represents
 /// the initial response to starting a call.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CallResponseInitStage {
     #[prost(string, tag="1")]
@@ -149,12 +165,14 @@ pub struct CallResponseInitStage {
 }
 /// CallResponseUpdateStage is multiply used to trickle in ICE candidates from
 /// the controlled (answering) side.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CallResponseUpdateStage {
     #[prost(message, optional, tag="1")]
     pub candidate: ::core::option::Option<IceCandidate>,
 }
 /// CallResponse is the SDP answer that the controlled side responds with.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CallResponse {
     #[prost(string, tag="1")]
@@ -164,7 +182,8 @@ pub struct CallResponse {
 }
 /// Nested message and enum types in `CallResponse`.
 pub mod call_response {
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    #[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Stage {
         #[prost(message, tag="2")]
         Init(super::CallResponseInitStage),
@@ -173,6 +192,7 @@ pub mod call_response {
     }
 }
 /// CallUpdateRequest updates the call with additional info to the controlled side.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CallUpdateRequest {
     #[prost(string, tag="1")]
@@ -182,7 +202,8 @@ pub struct CallUpdateRequest {
 }
 /// Nested message and enum types in `CallUpdateRequest`.
 pub mod call_update_request {
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    #[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Update {
         #[prost(message, tag="2")]
         Candidate(super::IceCandidate),
@@ -193,10 +214,12 @@ pub mod call_update_request {
     }
 }
 /// CallUpdateResponse contains nothing in response to a call update.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CallUpdateResponse {
 }
 /// ICEServer describes an ICE server.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct IceServer {
     #[prost(string, repeated, tag="1")]
@@ -207,6 +230,7 @@ pub struct IceServer {
     pub credential: ::prost::alloc::string::String,
 }
 /// WebRTCConfig represents parts of a WebRTC config.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct WebRtcConfig {
     #[prost(message, repeated, tag="1")]
@@ -218,6 +242,7 @@ pub struct WebRtcConfig {
 }
 /// AnswerRequestInitStage is the first and a one time stage that represents the
 /// callers initial SDP request to the controlled (answerer) side.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AnswerRequestInitStage {
     #[prost(string, tag="1")]
@@ -229,16 +254,19 @@ pub struct AnswerRequestInitStage {
 }
 /// AnswerRequestUpdateStage is multiply used to trickle in ICE candidates to
 /// the controlled (answerer) side.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AnswerRequestUpdateStage {
     #[prost(message, optional, tag="1")]
     pub candidate: ::core::option::Option<IceCandidate>,
 }
 /// AnswerRequestDoneStage indicates the controller is done responding with candidates.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AnswerRequestDoneStage {
 }
 /// AnswerRequestErrorStage indicates the exchange has failed with an error.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AnswerRequestErrorStage {
     #[prost(message, optional, tag="1")]
@@ -246,6 +274,7 @@ pub struct AnswerRequestErrorStage {
 }
 /// AnswerRequest is the SDP offer that the controlling side is making via the answering
 /// stream.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AnswerRequest {
     #[prost(string, tag="1")]
@@ -255,7 +284,8 @@ pub struct AnswerRequest {
 }
 /// Nested message and enum types in `AnswerRequest`.
 pub mod answer_request {
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    #[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Stage {
         #[prost(message, tag="2")]
         Init(super::AnswerRequestInitStage),
@@ -271,6 +301,7 @@ pub mod answer_request {
 }
 /// AnswerResponseInitStage is the first and a one time stage that represents the
 /// answerers initial SDP response to the controlling side.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AnswerResponseInitStage {
     #[prost(string, tag="1")]
@@ -278,22 +309,26 @@ pub struct AnswerResponseInitStage {
 }
 /// AnswerResponseUpdateStage is multiply used to trickle in ICE candidates to
 /// the controlling side.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AnswerResponseUpdateStage {
     #[prost(message, optional, tag="1")]
     pub candidate: ::core::option::Option<IceCandidate>,
 }
 /// AnswerResponseDoneStage indicates the answerer is done responding with candidates.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AnswerResponseDoneStage {
 }
 /// AnswerResponseErrorStage indicates the exchange has failed with an error.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AnswerResponseErrorStage {
     #[prost(message, optional, tag="1")]
     pub status: ::core::option::Option<super::super::super::super::google::rpc::Status>,
 }
 /// AnswerResponse is the SDP answer that an answerer responds with.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AnswerResponse {
     #[prost(string, tag="1")]
@@ -303,7 +338,8 @@ pub struct AnswerResponse {
 }
 /// Nested message and enum types in `AnswerResponse`.
 pub mod answer_response {
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    #[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Stage {
         #[prost(message, tag="2")]
         Init(super::AnswerResponseInitStage),
@@ -319,11 +355,13 @@ pub mod answer_response {
 }
 /// OptionalWebRTCConfigRequest is the request for getting an optional WebRTC config
 /// to use for the peer connection.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionalWebRtcConfigRequest {
 }
 /// OptionalWebRTCConfigResponse contains the optional WebRTC config
 /// to use for the peer connection.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionalWebRtcConfigResponse {
     #[prost(message, optional, tag="1")]
