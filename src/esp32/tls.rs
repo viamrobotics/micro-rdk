@@ -137,12 +137,14 @@ impl Esp32Tls {
         let tls_cfg_srv = Box::new(esp_tls_cfg_server {
             alpn_protos: alpn_ptr.as_mut_ptr(),
             __bindgen_anon_1: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_1 {
+                // This is the root LE certificate in the DER format
                 cacert_buf: cfg.srv_cert[1].as_ptr(),
             },
             __bindgen_anon_2: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_2 {
                 cacert_bytes: cfg.srv_cert[1].len() as u32,
             },
             __bindgen_anon_3: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_3 {
+                // This is the server certificates in the PEM format
                 servercert_buf: cfg.srv_cert[0].as_ptr(),
             },
             __bindgen_anon_4: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_4 {
