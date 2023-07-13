@@ -107,7 +107,7 @@ RUN echo "PATH=$PATH" >> ~/.bash_profile && \
 
 USER root
 
-RUN apt-get install make build-essential -y && apt-get autoremove -y && \
+RUN apt-get install make build-essential pkg-config -y && apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /qemu/qemu/build/qemu-system-xtensa /usr/bin
