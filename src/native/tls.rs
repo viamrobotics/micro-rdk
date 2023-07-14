@@ -98,22 +98,13 @@ impl NativeTlsStream {
                     .iter()
                     .map(|c| rustls::Certificate(c.clone()))
                     .collect();
-            let cert_key =
-                match rustls_pemfile::read_one(&mut BufReader::new(tls_cfg.srv_key.as_slice()))
-                    .expect("cannot parse private key pem file")
-                {
-                    Some(rustls_pemfile::Item::RSAKey(key)) => rustls::PrivateKey(key),
-                    Some(rustls_pemfile::Item::PKCS8Key(key)) => rustls::PrivateKey(key),
-                    Some(rustls_pemfile::Item::ECKey(key)) => rustls::PrivateKey(key),
-                    None => return Err(anyhow::anyhow!("private key couldn't be parsed")),
-                    _ => return Err(anyhow::anyhow!("unexpected private key type")),
-                };
+
             let mut cfg = ServerConfig::builder()
                 .with_safe_default_cipher_suites()
                 .with_safe_default_kx_groups()
                 .with_protocol_versions(&[&rustls::version::TLS12])?
                 .with_no_client_auth()
-                .with_single_cert(cert_chain, cert_key)?;
+                .with_single_cert(cert_chain, rustls::PrivateKey(tls_cfg.srv_key.clone()))?;
             cfg.alpn_protocols = vec!["h2".as_bytes().to_vec()];
             let mut conn = ServerConnection::new(Arc::new(cfg))?;
             let mut socket = socket.unwrap();

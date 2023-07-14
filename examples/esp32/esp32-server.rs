@@ -17,7 +17,6 @@ use micro_rdk::{
 
 #[cfg(feature = "qemu")]
 use {
-    esp_idf_svc::netif::{BlockingNetif, EspNetif},
     micro_rdk::{
         common::{
             board::FakeBoard,
@@ -29,7 +28,6 @@ use {
         collections::HashMap,
         net::Ipv4Addr,
         sync::{Arc, Mutex},
-        time::Duration,
     },
 };
 
@@ -72,15 +70,6 @@ fn main() -> anyhow::Result<()> {
     #[cfg(not(feature = "qemu"))]
     let robot = None;
 
-    #[cfg(feature = "qemu")]
-    let (ip, _block_eth) = {
-        info!("creating eth object");
-        let eth_config = esp_idf_svc::netif::NetifConfiguration::eth_default_client();
-        let netif = esp_idf_svc::netif::EspNetif::new_with_conf(&eth_config)?;
-        let (ip, block_eth) = eth_configure(&sys_loop_stack, netif)?;
-        (ip, block_eth)
-    };
-
     {
         esp_idf_sys::esp!(unsafe {
             esp_idf_sys::esp_vfs_eventfd_register(&esp_idf_sys::esp_vfs_eventfd_config_t {
@@ -88,6 +77,22 @@ fn main() -> anyhow::Result<()> {
             })
         })?;
     }
+
+    #[cfg(feature = "qemu")]
+    let (ip, _block_eth) = {
+        use esp_idf_hal::prelude::Peripherals;
+        info!("creating eth object");
+        let mut eth = Box::new(esp_idf_svc::eth::EspEth::wrap(
+            esp_idf_svc::eth::EthDriver::new_openeth(
+                Peripherals::take().unwrap().mac,
+                sys_loop_stack.clone(),
+            )
+            .unwrap(),
+        )?);
+        let _ = eth_configure(&sys_loop_stack, &mut eth)?;
+        let ip = Ipv4Addr::new(10, 1, 12, 187);
+        (ip, eth)
+    };
 
     #[allow(clippy::redundant_clone)]
     #[cfg(not(feature = "qemu"))]
@@ -106,14 +111,9 @@ fn main() -> anyhow::Result<()> {
         WebRtcCertificate::new(ROBOT_DTLS_CERT, ROBOT_DTLS_KEY_PAIR, ROBOT_DTLS_CERT_FP);
 
     let tls_cfg = {
-        let cert = include_bytes!(concat!(env!("OUT_DIR"), "/ca.crt"));
-        let key = include_bytes!(concat!(env!("OUT_DIR"), "/key.key"));
-        Esp32TlsServerConfig::new(
-            cert.as_ptr(),
-            cert.len() as u32,
-            key.as_ptr(),
-            key.len() as u32,
-        )
+        let cert = &[ROBOT_SRV_PEM_CHAIN, ROBOT_SRV_PEM_CA];
+        let key = ROBOT_SRV_DER_KEY;
+        Esp32TlsServerConfig::new(cert, key.as_ptr(), key.len() as u32)
     };
 
     serve_web(cfg, tls_cfg, robot, ip, webrtc_certificate);
@@ -121,22 +121,16 @@ fn main() -> anyhow::Result<()> {
 }
 
 #[cfg(feature = "qemu")]
-fn eth_configure(
+fn eth_configure<'d, T>(
     sl_stack: &EspSystemEventLoop,
-    eth: EspNetif,
-) -> anyhow::Result<(Ipv4Addr, Box<BlockingNetif<EspNetif>>)> {
-    let ip_info = eth.get_ip_info()?;
-    let block_eth = BlockingNetif::wrap(eth, sl_stack.clone());
-
-    block_eth
-        .ip_wait_while(
-            || Ok(block_eth.is_up().unwrap()),
-            Some(Duration::from_secs(20)),
-        )
-        .expect("ethernet couldn't connect");
+    eth: &mut esp_idf_svc::eth::EspEth<'d, T>,
+) -> anyhow::Result<Ipv4Addr> {
+    let mut eth = esp_idf_svc::eth::BlockingEth::wrap(eth, sl_stack.clone())?;
+    eth.start()?;
+    let ip_info = eth.eth().netif().get_ip_info()?;
 
     info!("ETH IP {:?}", ip_info.ip);
-    Ok((ip_info.ip, Box::new(block_eth)))
+    Ok(ip_info.ip)
 }
 
 #[cfg(not(feature = "qemu"))]

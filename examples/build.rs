@@ -183,13 +183,22 @@ fn main() -> anyhow::Result<()> {
     let local_fqdn = cloud_cfg.local_fqdn.replace('.', "-");
     let fqdn = cloud_cfg.fqdn.replace('.', "-");
 
-    let out_dir = std::env::var_os("OUT_DIR").unwrap();
-    let dest_path = std::path::Path::new(&out_dir).join("ca.crt");
-    let ca_cert = String::from(&cfg.cloud.tls_certificate) + "\0";
-    std::fs::write(dest_path, ca_cert)?;
-    let dest_path = std::path::Path::new(&out_dir).join("key.key");
-    let key = String::from(&cfg.cloud.tls_private_key) + "\0";
-    std::fs::write(dest_path, key)?;
+    let mut certs = cfg
+        .cloud
+        .tls_certificate
+        .split_inclusive("----END CERTIFICATE-----");
+    let mut srv_cert = (&mut certs).take(2).collect::<String>();
+    srv_cert.push('\0');
+    let ca_cert = certs
+        .take(1)
+        .map(der::Document::from_pem)
+        .filter(|s| s.is_ok())
+        .map(|s| s.unwrap().1.to_vec())
+        .collect::<Vec<Vec<u8>>>()
+        .pop()
+        .unwrap_or_default();
+    let key = der::Document::from_pem(&cfg.cloud.tls_private_key)
+        .map_or(vec![], |k| k.1.as_bytes().to_vec());
 
     let out_dir = env::var_os("OUT_DIR").unwrap();
     let dest_path = Path::new(&out_dir).join("robot_secret.rs");
@@ -226,9 +235,21 @@ fn main() -> anyhow::Result<()> {
             #[allow(clippy::redundant_static_lifetimes, dead_code)]
             ROBOT_DTLS_CERT_FP = fp
         ),
+        const_declaration!(
+            #[allow(clippy::redundant_static_lifetimes, dead_code)]
+            ROBOT_SRV_PEM_CHAIN = srv_cert.as_bytes()
+        ),
+        const_declaration!(
+            #[allow(clippy::redundant_static_lifetimes, dead_code)]
+            ROBOT_SRV_PEM_CA = ca_cert
+        ),
+        const_declaration!(
+            #[allow(clippy::redundant_static_lifetimes, dead_code)]
+            ROBOT_SRV_DER_KEY = key
+        ),
     ]
     .join("\n");
-    fs::write(&dest_path, robot_decl).unwrap();
+    fs::write(dest_path, robot_decl).unwrap();
 
     let components_config = robot_cfg
         .components
