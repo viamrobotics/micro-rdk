@@ -183,6 +183,7 @@ impl TryFrom<Kind> for String {
     fn try_from(value: Kind) -> Result<Self, Self::Error> {
         match value {
             Kind::StringValue(v) => Ok(v),
+            Kind::StringValueStatic(v) => Ok(v.to_owned()),
             _ => Err(AttributeError::ConversionImpossibleError),
         }
     }
@@ -193,6 +194,7 @@ impl TryFrom<&Kind> for String {
     fn try_from(value: &Kind) -> Result<Self, Self::Error> {
         match value {
             Kind::StringValue(v) => Ok(v.to_string()),
+            Kind::StringValueStatic(v) => Ok((*v).to_owned()),
             _ => Err(AttributeError::ConversionImpossibleError),
         }
     }
