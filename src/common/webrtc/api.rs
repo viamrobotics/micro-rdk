@@ -394,10 +394,10 @@ where
             self.executor.execute(Box::pin(async move {
                 sctp.run().await;
             }));
-            return Ok(c_rx
+            return c_rx
                 .recv()
                 .await
-                .map_err(|_| WebRtcError::DataChannelOpenError())?);
+                .map_err(|_| WebRtcError::DataChannelOpenError());
         }
 
         Err(WebRtcError::DataChannelOpenError())
