@@ -1,9 +1,21 @@
-FROM rust:1.70.0-buster AS builder
-RUN apt update && apt-get install -y --no-install-recommends libudev-dev
+FROM rust:1.70.0-bullseye AS builder
+RUN apt update && apt-get install -y --no-install-recommends git libudev-dev make bzip2 gcc libgcrypt20 libgcrypt20-dev  ninja-build libudev-dev sudo wget git flex bison gperf ccache libffi-dev libssl-dev dfu-util libusb-1.0-0 cmake pkg-config libglib2.0-dev libpixman-1-dev software-properties-common openssh-client libslirp-dev
 
-RUN cargo install cargo-espflash@2.0.0-rc.1 --root /usr/
-RUN cargo install espup --root /usr/
-RUN cargo install ldproxy --root /usr/
+RUN cargo install cargo-binstall
+RUN cargo binstall cargo-espflash@2.0.0-rc.1 --install-path /usr/ -y
+RUN cargo binstall espup --install-path /usr/ -y
+RUN cargo install ldproxy --root /usr/ 
+
+
+WORKDIR /qemu
+RUN git clone --depth 1 --branch esp-develop https://github.com/espressif/qemu
+RUN cd qemu && mkdir build && cd build && ../configure --target-list=xtensa-softmmu  --enable-gcrypt --enable-slirp \
+    --disable-sanitizers  --disable-strip --disable-user \
+    --disable-capstone --disable-vnc --disable-sdl --disable-gtk && ninja qemu-system-xtensa
+
+WORKDIR /esp
+
+RUN git clone --depth 1 -b v4.4.4 --single-branch --recurse-submodules --shallow-submodules https://github.com/npmenard/esp-idf
 
 
 FROM debian:bullseye
@@ -20,13 +32,13 @@ ENV RUSTUP_HOME=/opt/rust/rustup \
     IDF_TOOLS_PATH=/opt/esp/toolchain \
     RUST_VERSION=$RUST_VERSION
 
+RUN apt update && apt dist-upgrade -y
 
 RUN echo "deb http://deb.debian.org/debian bullseye-backports main" >> /etc/apt/sources.list.d/backports.list
 
-RUN apt update && apt dist-upgrade -y
+RUN apt update 
 
-
-RUN apt-get install -y --no-install-recommends make bzip2 gcc libgcrypt20 libgcrypt20-dev  ninja-build libudev-dev sudo wget git flex bison gperf python3 python3-venv ccache libffi-dev libssl-dev dfu-util libusb-1.0-0 python3-pip cmake pkg-config libglib2.0-dev libpixman-1-dev software-properties-common openssh-client && \
+RUN apt-get install -y --no-install-recommends git wget flex bison gperf python3 python3-pip python3-venv cmake ninja-build ccache libffi-dev libssl-dev dfu-util libusb-1.0-0 openssh-client software-properties-common sudo && \
     apt-add-repository 'deb http://deb.debian.org/debian bullseye-backports main' && \
     apt update && \
     apt-get install -y --no-install-recommends cmake/bullseye-backports && \
@@ -52,18 +64,12 @@ RUN RUST_VERSION=$RUST_VERSION \
     rm rustup-init; \
     chmod -R a+w $RUSTUP_HOME $CARGO_HOME
 
-COPY --from=builder /usr/bin/cargo-espflash /usr/bin
+COPY --from=builder /usr/cargo-espflash /usr/bin
 COPY --from=builder /usr/bin/ldproxy /usr/bin
-COPY --from=builder /usr/bin/espup /usr/bin
+COPY --from=builder /usr/espup /usr/bin
    
 WORKDIR /host/
 
-#RUN git clone --depth 1 --branch v4.1.0 https://github.com/espressif/qemu
-
-#RUN cd qemu && mkdir build && cd build && ../configure --target-list=xtensa-softmmu     --enable-gcrypt \
-#   --enable-debug --enable-sanitizers  --disable-strip --disable-user \
-#    --disable-capstone --disable-vnc --disable-sdl --disable-gtk && make -j$(nproc) && make install
-#RUN rm -rf /src
 
 RUN useradd -s /bin/bash -m testbot && \
     echo 'testbot ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers && \
@@ -76,9 +82,9 @@ RUN sudo chown -R testbot:testbot $CARGO_HOME &&\
 USER testbot
 
 RUN sudo mkdir -p $ESP_ROOT &&\
-    sudo chown -R testbot:testbot $ESP_ROOT &&\
-    cd  $ESP_ROOT &&\
-    git clone --depth 1 -b v4.4.4 --single-branch --recurse-submodules --shallow-submodules https://github.com/npmenard/esp-idf
+    sudo chown -R testbot:testbot $ESP_ROOT
+
+COPY --from=builder /esp $ESP_ROOT/
 
 RUN sudo chmod -R a+rwx $ESP_ROOT
 
@@ -101,7 +107,8 @@ RUN echo "PATH=$PATH" >> ~/.bash_profile && \
 
 USER root
 
-RUN apt-get autoremove -y && \
+RUN apt-get install make build-essential pkg-config -y && apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
+COPY --from=builder /qemu/qemu/build/qemu-system-xtensa /usr/bin
 
