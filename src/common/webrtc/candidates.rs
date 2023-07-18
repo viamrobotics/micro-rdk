@@ -366,7 +366,7 @@ impl CandidatePair {
             CandidatePairState::InProgress | CandidatePairState::Succeeded => {
                 if let Some(req) = self.current_binding_request.as_mut() {
                     // Retry while pair is InProgress, Ta is set a 500ms.
-                    if now - req.req_time < Duration::from_millis(500) {
+                    if now - req.req_time < Duration::from_millis(250) {
                         return None;
                     } else {
                         self.binding_req_sent += 1;
@@ -391,7 +391,7 @@ impl CandidatePair {
     pub fn update_pair_status(&mut self) {
         if self.state != CandidatePairState::Failed
             && self.binding_req_sent > self.binding_req_recv
-            && self.binding_req_sent - self.binding_req_recv > 20
+            && self.binding_req_sent - self.binding_req_recv > 50
         {
             // after 20 failed attempts mark the pair as failed
             self.state = CandidatePairState::Failed;

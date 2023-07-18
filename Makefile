@@ -35,7 +35,7 @@ ifndef QEMU_ESP32_XTENSA
 	$(error QEMU_ESP32_XTENSA is not set)
 endif
 	pkill qemu || true
-	cd examples && $(QEMU_ESP32_XTENSA)/qemu-system-xtensa -nographic -machine esp32 -gdb tcp::3334 -nic user,model=open_eth,hostfwd=udp::-:61205,hostfwd=tcp:127.0.0.1:12346-:12346 -drive file=target/xtensa-esp32-espidf/debug/debug.bin,if=mtd,format=raw
+	cd examples && $(QEMU_ESP32_XTENSA)/qemu-system-xtensa -nographic -machine esp32 -gdb tcp::3334 -nic user,model=open_eth,hostfwd=udp::-:61205,hostfwd=tcp::12346-:12346 -drive file=target/xtensa-esp32-espidf/debug/debug.bin,if=mtd,format=raw
 
 # debug-local is identical to sim-local, except the `-S` at the end means "wait until a debugger is
 # attached before starting."

@@ -357,10 +357,6 @@ impl ICEAgent {
             if local.candidate_type == CandidateType::ServerReflexive {
                 continue;
             }
-            if let CandidateType::Relay = remote.candidate_type {
-                log::info!("Skipping remote relay as we don't support them yet");
-                return;
-            }
 
             let pair = match CandidatePair::new(local, remote, local_idx, remote_idx) {
                 Err(e) => {

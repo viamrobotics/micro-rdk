@@ -103,8 +103,8 @@ fn main() -> anyhow::Result<()> {
     };
 
     let cfg = {
-        let cert = include_bytes!(concat!(env!("OUT_DIR"), "/ca.crt"));
-        let key = include_bytes!(concat!(env!("OUT_DIR"), "/key.key"));
+        let cert = ROBOT_SRV_PEM_CHAIN;
+        let key = ROBOT_SRV_DER_KEY;
         NativeTlsServerConfig::new(cert.to_vec(), key.to_vec())
     };
 
