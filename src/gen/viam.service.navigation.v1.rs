@@ -97,6 +97,26 @@ pub struct RemoveWaypointRequest {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RemoveWaypointResponse {
 }
+/// GetObstacles will return the geopoint location and geometry of all
+/// known obstacles on the navigation map. Obstacles that are detected
+/// through the vision service will only be returned if this endpoint is called
+/// when the robot is sensing the obstacle
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetObstaclesRequest {
+    #[prost(string, tag="1")]
+    pub name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetObstaclesResponse {
+    /// List of all known geometries
+    #[prost(message, repeated, tag="1")]
+    pub obstacles: ::prost::alloc::vec::Vec<super::super::super::common::v1::GeoObstacle>,
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum Mode {

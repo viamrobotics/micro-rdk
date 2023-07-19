@@ -231,6 +231,16 @@ pub struct ActuatorStatus {
     #[prost(bool, tag="1")]
     pub is_moving: bool,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ResponseMetadata {
+    /// captured_at is the time at which the resource as close as physically possible, captured
+    /// the data in the response.
+    /// Note: If correlating between other resources, be sure that the means
+    /// of measuring the capture are similar enough such that comparison can be made between them.
+    #[prost(message, optional, tag="1")]
+    pub captured_at: ::core::option::Option<::prost_types::Timestamp>,
+}
 /// DoCommandRequest represents a generic DoCommand input
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

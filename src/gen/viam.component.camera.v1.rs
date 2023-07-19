@@ -21,6 +21,36 @@ pub struct GetImageResponse {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetImagesRequest {
+    /// Name of a camera
+    #[prost(string, tag="1")]
+    pub name: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetImagesResponse {
+    /// list of images returned from the camera system
+    #[prost(message, repeated, tag="1")]
+    pub images: ::prost::alloc::vec::Vec<Image>,
+    /// contains timestamp data
+    #[prost(message, optional, tag="84260")]
+    pub response_metadata: ::core::option::Option<super::super::super::common::v1::ResponseMetadata>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Image {
+    /// the name of the sensor where the image came from
+    #[prost(string, tag="1")]
+    pub source_name: ::prost::alloc::string::String,
+    /// format of the response image bytes
+    #[prost(enumeration="Format", tag="2")]
+    pub format: i32,
+    /// image in bytes
+    #[prost(bytes="bytes", tag="3")]
+    pub image: ::prost::bytes::Bytes,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RenderFrameRequest {
     /// Name of a camera
     #[prost(string, tag="1")]
@@ -137,5 +167,40 @@ pub struct DistortionParameters {
     pub model: ::prost::alloc::string::String,
     #[prost(double, repeated, tag="2")]
     pub parameters: ::prost::alloc::vec::Vec<f64>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum Format {
+    Unspecified = 0,
+    RawRgba = 1,
+    RawDepth = 2,
+    Jpeg = 3,
+    Png = 4,
+}
+impl Format {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Format::Unspecified => "FORMAT_UNSPECIFIED",
+            Format::RawRgba => "FORMAT_RAW_RGBA",
+            Format::RawDepth => "FORMAT_RAW_DEPTH",
+            Format::Jpeg => "FORMAT_JPEG",
+            Format::Png => "FORMAT_PNG",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "FORMAT_UNSPECIFIED" => Some(Self::Unspecified),
+            "FORMAT_RAW_RGBA" => Some(Self::RawRgba),
+            "FORMAT_RAW_DEPTH" => Some(Self::RawDepth),
+            "FORMAT_JPEG" => Some(Self::Jpeg),
+            "FORMAT_PNG" => Some(Self::Png),
+            _ => None,
+        }
+    }
 }
 // @@protoc_insertion_point(module)

@@ -208,6 +208,24 @@ pub struct CreateOrganizationInviteResponse {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UpdateOrganizationInviteAuthorizationsRequest {
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub email: ::prost::alloc::string::String,
+    #[prost(message, repeated, tag="3")]
+    pub add_authorizations: ::prost::alloc::vec::Vec<Authorization>,
+    #[prost(message, repeated, tag="4")]
+    pub remove_authorizations: ::prost::alloc::vec::Vec<Authorization>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UpdateOrganizationInviteAuthorizationsResponse {
+    #[prost(message, optional, tag="1")]
+    pub invite: ::core::option::Option<OrganizationInvite>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DeleteOrganizationInviteRequest {
     #[prost(string, tag="1")]
     pub organization_id: ::prost::alloc::string::String,
