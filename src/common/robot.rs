@@ -98,8 +98,7 @@ impl LocalRobot {
                         crate::common::board::COMPONENT_NAME,
                         r.name.to_string(),
                     )?);
-                    let ctor =
-                        COMPONENT_REGISTRY.get_board_constructor(r.get_model().to_string())?;
+                    let ctor = COMPONENT_REGISTRY.get_board_constructor(r.get_model())?;
                     let b = ctor(ConfigType::Static(r));
                     if let Ok(b) = b {
                         Some(b)
@@ -163,7 +162,7 @@ impl LocalRobot {
                         anyhow::bail!("could not configure board: {:?}", err);
                     }
                 };
-                let constructor = COMPONENT_REGISTRY.get_board_constructor(model)?;
+                let constructor = COMPONENT_REGISTRY.get_board_constructor(&model)?;
                 let board = constructor(ConfigType::Dynamic(cfg));
                 if let Ok(board) = board {
                     Some(board)
@@ -229,7 +228,7 @@ impl LocalRobot {
             let resource_key = ResourceKey::new(c_type_static, resource_name.name.to_string())?;
 
             if !inserted_resources.contains(&resource_key) {
-                match COMPONENT_REGISTRY.get_dependency_function(c_type_static, model.to_string()) {
+                match COMPONENT_REGISTRY.get_dependency_function(c_type_static, &model) {
                     Ok(dependency_getter) => {
                         let dependency_resource_keys =
                             dependency_getter(ConfigType::Dynamic(dyn_config));
@@ -330,7 +329,7 @@ impl LocalRobot {
         let r_type = cfg.get_type();
         let res = match r_type {
             "motor" => {
-                let ctor = COMPONENT_REGISTRY.get_motor_constructor(model)?;
+                let ctor = COMPONENT_REGISTRY.get_motor_constructor(&model)?;
                 ResourceType::Motor(ctor(cfg, deps)?)
             }
             "board" => {
@@ -341,19 +340,19 @@ impl LocalRobot {
                 })
             }
             "sensor" => {
-                let ctor = COMPONENT_REGISTRY.get_sensor_constructor(model)?;
+                let ctor = COMPONENT_REGISTRY.get_sensor_constructor(&model)?;
                 ResourceType::Sensor(ctor(cfg, deps)?)
             }
             "movement_sensor" => {
-                let ctor = COMPONENT_REGISTRY.get_movement_sensor_constructor(model)?;
+                let ctor = COMPONENT_REGISTRY.get_movement_sensor_constructor(&model)?;
                 ResourceType::MovementSensor(ctor(cfg, deps)?)
             }
             "encoder" => {
-                let ctor = COMPONENT_REGISTRY.get_encoder_constructor(model)?;
+                let ctor = COMPONENT_REGISTRY.get_encoder_constructor(&model)?;
                 ResourceType::Encoder(ctor(cfg, deps)?)
             }
             "base" => {
-                let ctor = COMPONENT_REGISTRY.get_base_constructor(model)?;
+                let ctor = COMPONENT_REGISTRY.get_base_constructor(&model)?;
                 ResourceType::Base(ctor(cfg, deps)?)
             }
             &_ => {

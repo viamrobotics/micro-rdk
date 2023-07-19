@@ -10,7 +10,9 @@ use crate::proto::common::v1::Vector3;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-pub(crate) fn register_models(registry: &mut ComponentRegistry) {
+pub(crate) fn register_models<'model: 'dep, 'ctor, 'dep>(
+    registry: &mut ComponentRegistry<'model, 'ctor, 'dep>,
+) {
     if registry
         .register_base(
             "esp32_wheeled_base",

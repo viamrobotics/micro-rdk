@@ -21,7 +21,9 @@ use super::registry::ComponentRegistry;
 
 pub static COMPONENT_NAME: &str = "board";
 
-pub(crate) fn register_models(registry: &mut ComponentRegistry) {
+pub(crate) fn register_models<'model: 'dep, 'ctor, 'dep>(
+    registry: &mut ComponentRegistry<'model, 'ctor, 'dep>,
+) {
     if registry
         .register_board("fake", &FakeBoard::from_config)
         .is_err()

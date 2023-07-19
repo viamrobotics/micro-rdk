@@ -10,7 +10,9 @@ use super::registry::{ComponentRegistry, Dependency};
 
 pub static COMPONENT_NAME: &str = "sensor";
 
-pub(crate) fn register_models(registry: &mut ComponentRegistry) {
+pub(crate) fn register_models<'model: 'dep, 'ctor, 'dep>(
+    registry: &mut ComponentRegistry<'model, 'ctor, 'dep>,
+) {
     if registry
         .register_sensor("fake", &FakeSensor::from_config)
         .is_err()

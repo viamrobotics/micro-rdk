@@ -12,7 +12,9 @@ use super::status::Status;
 
 pub static COMPONENT_NAME: &str = "encoder";
 
-pub(crate) fn register_models(registry: &mut ComponentRegistry) {
+pub(crate) fn register_models<'model: 'dep, 'ctor, 'dep>(
+    registry: &mut ComponentRegistry<'model, 'ctor, 'dep>,
+) {
     if registry
         .register_encoder("fake", &FakeEncoder::from_config)
         .is_err()

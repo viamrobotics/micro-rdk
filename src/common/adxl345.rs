@@ -17,7 +17,9 @@ use std::sync::{Arc, Mutex};
 // This module represents an implementation of the MPU-6050 gyroscope/accelerometer
 // as a Movement Sensor component
 
-pub(crate) fn register_models(registry: &mut ComponentRegistry) {
+pub(crate) fn register_models<'model: 'dep, 'ctor, 'dep>(
+    registry: &mut ComponentRegistry<'model, 'ctor, 'dep>,
+) {
     if registry
         .register_movement_sensor("accel-adxl345", &ADXL345::from_config)
         .is_err()

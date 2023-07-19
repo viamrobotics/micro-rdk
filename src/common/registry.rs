@@ -2,7 +2,7 @@
 use thiserror::Error;
 
 lazy_static::lazy_static! {
-    pub(crate) static ref COMPONENT_REGISTRY: ComponentRegistry = {
+    pub(crate) static ref COMPONENT_REGISTRY: ComponentRegistry<'static, 'static, 'static> = {
         let mut r = ComponentRegistry::new();
         crate::common::board::register_models(&mut r);
         crate::common::encoder::register_models(&mut r);
@@ -30,13 +30,13 @@ pub enum RegistryError {
     #[error("RegistryError : Model '{0}' not found")]
     ModelNotFound(String),
     #[error("RegistryError : model '{0}' already exists")]
-    ModelAlreadyRegistered(&'static str),
+    ModelAlreadyRegistered(String),
     #[error("RegistryError: model '{0}' dependency getter already registered")]
-    ModelDependencyFuncRegistered(&'static str),
+    ModelDependencyFuncRegistered(String),
     #[error("RegistryError: dependencies unsupported for component type '{0}'")]
-    ComponentTypeNotInDependencies(&'static str),
+    ComponentTypeNotInDependencies(String),
     #[error("RegistryError: model '{0}' not found in dependencies under component type '{1}'")]
-    ModelNotFoundInDependencies(String, &'static str),
+    ModelNotFoundInDependencies(String, String),
 }
 
 use std::collections::BTreeMap as Map;
@@ -124,19 +124,19 @@ type BaseConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<Bas
 type DependenciesFromConfig = dyn Fn(ConfigType) -> Vec<ResourceKey>;
 
 /// Holds mappings for all of a Robot's Components and their dependency mappings
-pub struct ComponentRegistry {
-    motors: Map<&'static str, &'static MotorConstructor>,
-    board: Map<&'static str, &'static BoardConstructor>,
-    sensor: Map<&'static str, &'static SensorConstructor>,
-    movement_sensors: Map<&'static str, &'static MovementSensorConstructor>,
-    encoders: Map<&'static str, &'static EncoderConstructor>,
-    bases: Map<&'static str, &'static BaseConstructor>,
-    dependencies: Map<&'static str, Map<&'static str, &'static DependenciesFromConfig>>,
+pub struct ComponentRegistry<'model, 'ctor, 'dep> {
+    motors: Map<&'model str, &'ctor MotorConstructor>,
+    board: Map<&'model str, &'ctor BoardConstructor>,
+    sensor: Map<&'model str, &'ctor SensorConstructor>,
+    movement_sensors: Map<&'model str, &'ctor MovementSensorConstructor>,
+    encoders: Map<&'model str, &'ctor EncoderConstructor>,
+    bases: Map<&'model str, &'ctor BaseConstructor>,
+    dependencies: Map<&'dep str, Map<&'dep str, &'dep DependenciesFromConfig>>,
 }
 
-unsafe impl Sync for ComponentRegistry {}
+unsafe impl<'model, 'ctor, 'dep> Sync for ComponentRegistry<'model, 'ctor, 'dep> {}
 
-impl ComponentRegistry {
+impl<'model: 'dep, 'ctor, 'dep> ComponentRegistry<'model, 'ctor, 'dep> {
     pub fn new() -> Self {
         let mut dependency_func_map = Map::new();
         dependency_func_map.insert(crate::common::motor::COMPONENT_NAME, Map::new());
@@ -156,23 +156,23 @@ impl ComponentRegistry {
     }
     pub fn register_motor(
         &mut self,
-        model: &'static str,
-        constructor: &'static MotorConstructor,
+        model: &'model str,
+        constructor: &'ctor MotorConstructor,
     ) -> Result<(), RegistryError> {
         if self.motors.contains_key(model) {
-            return Err(RegistryError::ModelAlreadyRegistered(model));
+            return Err(RegistryError::ModelAlreadyRegistered(model.to_string()));
         }
-        let _ = self.motors.insert(model, constructor);
+        let _ = self.motors.insert(&model, constructor);
         Ok(())
     }
 
     pub fn register_sensor(
         &mut self,
-        model: &str,
-        constructor: &SensorConstructor,
+        model: &'model str,
+        constructor: &'ctor SensorConstructor,
     ) -> Result<(), RegistryError> {
         if self.sensor.contains_key(model) {
-            return Err(RegistryError::ModelAlreadyRegistered(model));
+            return Err(RegistryError::ModelAlreadyRegistered(model.to_string()));
         }
         let _ = self.sensor.insert(model, constructor);
         Ok(())
@@ -180,11 +180,11 @@ impl ComponentRegistry {
 
     pub fn register_movement_sensor(
         &mut self,
-        model: &str,
-        constructor: &MovementSensorConstructor,
+        model: &'model str,
+        constructor: &'ctor MovementSensorConstructor,
     ) -> Result<(), RegistryError> {
         if self.movement_sensors.contains_key(model) {
-            return Err(RegistryError::ModelAlreadyRegistered(model));
+            return Err(RegistryError::ModelAlreadyRegistered(model.to_string()));
         }
         let _ = self.movement_sensors.insert(model, constructor);
         Ok(())
@@ -192,11 +192,11 @@ impl ComponentRegistry {
 
     pub fn register_board(
         &mut self,
-        model: &str,
-        constructor: &BoardConstructor,
+        model: &'model str,
+        constructor: &'ctor BoardConstructor,
     ) -> Result<(), RegistryError> {
         if self.board.contains_key(model) {
-            return Err(RegistryError::ModelAlreadyRegistered(model));
+            return Err(RegistryError::ModelAlreadyRegistered(model.to_string()));
         }
         let _ = self.board.insert(model, constructor);
         Ok(())
@@ -204,11 +204,11 @@ impl ComponentRegistry {
 
     pub fn register_encoder(
         &mut self,
-        model: &str,
-        constructor: &EncoderConstructor,
+        model: &'model str,
+        constructor: &'ctor EncoderConstructor,
     ) -> Result<(), RegistryError> {
         if self.encoders.contains_key(model) {
-            return Err(RegistryError::ModelAlreadyRegistered(model));
+            return Err(RegistryError::ModelAlreadyRegistered(model.to_string()));
         }
         let _ = self.encoders.insert(model, constructor);
         Ok(())
@@ -216,11 +216,11 @@ impl ComponentRegistry {
 
     pub fn register_base(
         &mut self,
-        model: &str,
-        constructor: &BaseConstructor,
+        model: &'model str,
+        constructor: &'ctor BaseConstructor,
     ) -> Result<(), RegistryError> {
         if self.bases.contains_key(model) {
-            return Err(RegistryError::ModelAlreadyRegistered(model));
+            return Err(RegistryError::ModelAlreadyRegistered(model.to_string()));
         }
         let _ = self.bases.insert(model, constructor);
         Ok(())
@@ -228,18 +228,20 @@ impl ComponentRegistry {
 
     pub fn register_dependency_getter(
         &mut self,
-        component_type: &str,
-        model: &str,
-        getter: &DependenciesFromConfig,
+        component_type: &'ctor str,
+        model: &'model str,
+        getter: &'dep DependenciesFromConfig,
     ) -> Result<(), RegistryError> {
         if !self.dependencies.contains_key(component_type) {
             return Err(RegistryError::ComponentTypeNotInDependencies(
-                component_type,
+                component_type.to_string(),
             ));
         }
         let comp_deps = self.dependencies.get_mut(component_type).unwrap();
         if comp_deps.contains_key(model) {
-            return Err(RegistryError::ModelDependencyFuncRegistered(model));
+            return Err(RegistryError::ModelDependencyFuncRegistered(
+                model.to_string(),
+            ));
         }
         let _ = comp_deps.insert(model, getter);
         Ok(())
@@ -248,88 +250,81 @@ impl ComponentRegistry {
     pub(crate) fn get_dependency_function(
         &self,
         component_type: &str,
-        model: String,
+        model: &'model str,
     ) -> Result<&DependenciesFromConfig, RegistryError> {
-        let model_name: &str = &model;
         if !self.dependencies.contains_key(component_type) {
             return Err(RegistryError::ComponentTypeNotInDependencies(
-                component_type,
+                component_type.to_string(),
             ));
         }
         let comp_deps = self.dependencies.get(component_type).unwrap();
-        if let Some(func) = comp_deps.get(model_name) {
+        if let Some(func) = comp_deps.get(model) {
             return Ok(*func);
         }
         Err(RegistryError::ModelNotFoundInDependencies(
-            model,
-            component_type,
+            model.to_string(),
+            component_type.to_string(),
         ))
     }
 
     pub(crate) fn get_board_constructor(
         &self,
-        model: String,
+        model: &'model str,
     ) -> Result<&BoardConstructor, RegistryError> {
-        let model_name: &str = &model;
-        if let Some(ctor) = self.board.get(model_name) {
+        if let Some(ctor) = self.board.get(model) {
             return Ok(*ctor);
         }
-        Err(RegistryError::ModelNotFound(model))
+        Err(RegistryError::ModelNotFound(model.to_string()))
     }
 
     pub(crate) fn get_motor_constructor(
         &self,
-        model: String,
+        model: &'model str,
     ) -> Result<&MotorConstructor, RegistryError> {
-        let model_name: &str = &model;
-        if let Some(ctor) = self.motors.get(model_name) {
+        if let Some(ctor) = self.motors.get(model) {
             return Ok(*ctor);
         }
-        Err(RegistryError::ModelNotFound(model))
+        Err(RegistryError::ModelNotFound(model.to_string()))
     }
 
     pub(crate) fn get_sensor_constructor(
         &self,
-        model: String,
+        model: &'model str,
     ) -> Result<&SensorConstructor, RegistryError> {
-        let model_name: &str = &model;
-        if let Some(ctor) = self.sensor.get(model_name) {
+        if let Some(ctor) = self.sensor.get(model) {
             return Ok(*ctor);
         }
-        Err(RegistryError::ModelNotFound(model))
+        Err(RegistryError::ModelNotFound(model.to_string()))
     }
 
     pub(crate) fn get_movement_sensor_constructor(
         &self,
-        model: String,
+        model: &'model str,
     ) -> Result<&MovementSensorConstructor, RegistryError> {
-        let model_name: &str = &model;
-        if let Some(ctor) = self.movement_sensors.get(model_name) {
+        if let Some(ctor) = self.movement_sensors.get(model) {
             return Ok(*ctor);
         }
-        Err(RegistryError::ModelNotFound(model))
+        Err(RegistryError::ModelNotFound(model.to_string()))
     }
 
     pub(crate) fn get_encoder_constructor(
         &self,
-        model: String,
+        model: &'model str,
     ) -> Result<&EncoderConstructor, RegistryError> {
-        let model_name: &str = &model;
-        if let Some(ctor) = self.encoders.get(model_name) {
+        if let Some(ctor) = self.encoders.get(model) {
             return Ok(*ctor);
         }
-        Err(RegistryError::ModelNotFound(model))
+        Err(RegistryError::ModelNotFound(model.to_string()))
     }
 
     pub(crate) fn get_base_constructor(
         &self,
-        model: String,
+        model: &'model str,
     ) -> Result<&BaseConstructor, RegistryError> {
-        let model_name: &str = &model;
-        if let Some(ctor) = self.bases.get(model_name) {
+        if let Some(ctor) = self.bases.get(model) {
             return Ok(*ctor);
         }
-        Err(RegistryError::ModelNotFound(model))
+        Err(RegistryError::ModelNotFound(model.to_string()))
     }
 }
 
@@ -349,10 +344,7 @@ mod tests {
 
         let ctor = registry.get_motor_constructor("fake".to_string());
         assert!(ctor.is_err());
-        assert_eq!(
-            ctor.err().unwrap(),
-            RegistryError::ModelNotFound("fake".to_string())
-        );
+        assert_eq!(ctor.err().unwrap(), RegistryError::ModelNotFound("fake"));
         common::motor::register_models(&mut registry);
 
         let ctor = registry.get_motor_constructor("fake".to_string());
@@ -362,7 +354,7 @@ mod tests {
         assert!(ret.is_err());
         assert_eq!(
             ret.err().unwrap(),
-            RegistryError::ModelAlreadyRegistered("fake")
+            RegistryError::ModelAlreadyRegistered("fake".to_string())
         );
 
         let ret = registry.register_motor("fake2", &|_, _| Err(anyhow::anyhow!("not implemented")));
@@ -370,10 +362,7 @@ mod tests {
 
         let ctor = registry.get_board_constructor("fake".to_string());
         assert!(ctor.is_err());
-        assert_eq!(
-            ctor.err().unwrap(),
-            RegistryError::ModelNotFound("fake".to_string())
-        );
+        assert_eq!(ctor.err().unwrap(), RegistryError::ModelNotFound("fake"));
         common::board::register_models(&mut registry);
 
         let ctor = registry.get_board_constructor("fake".to_string());
@@ -383,7 +372,7 @@ mod tests {
         assert!(ret.is_err());
         assert_eq!(
             ret.err().unwrap(),
-            RegistryError::ModelAlreadyRegistered("fake")
+            RegistryError::ModelAlreadyRegistered("fake".to_string())
         );
 
         let ret = registry.register_board("fake2", &|_| Err(anyhow::anyhow!("not implemented")));

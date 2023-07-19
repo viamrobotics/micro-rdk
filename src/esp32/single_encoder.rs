@@ -28,7 +28,9 @@ use std::sync::{Arc, Mutex};
 
 use crate::common::status::Status;
 
-pub(crate) fn register_models(registry: &mut ComponentRegistry) {
+pub(crate) fn register_models<'model: 'dep, 'ctor, 'dep>(
+    registry: &mut ComponentRegistry<'model, 'ctor, 'dep>,
+) {
     if registry
         .register_encoder("single", &Esp32SingleEncoder::from_config)
         .is_err()

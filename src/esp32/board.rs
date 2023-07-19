@@ -26,7 +26,9 @@ use std::time::Duration;
 use super::analog::Esp32AnalogReader;
 use super::i2c::{Esp32I2C, Esp32I2cConfig};
 
-pub(crate) fn register_models(registry: &mut ComponentRegistry) {
+pub(crate) fn register_models<'model: 'dep, 'ctor, 'dep>(
+    registry: &mut ComponentRegistry<'model, 'ctor, 'dep>,
+) {
     if registry
         .register_board("esp32", &EspBoard::from_config)
         .is_err()

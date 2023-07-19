@@ -64,7 +64,9 @@ use std::time::Duration;
 use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::PwmPin;
 
-pub(crate) fn register_models(registry: &mut ComponentRegistry) {
+pub(crate) fn register_models<'model: 'dep, 'ctor, 'dep>(
+    registry: &mut ComponentRegistry<'model, 'ctor, 'dep>,
+) {
     if registry
         .register_motor("gpio", &gpio_motor_from_config)
         .is_err()

@@ -28,7 +28,9 @@ use crate::common::status::Status;
 
 use embedded_hal::digital::v2::InputPin;
 
-pub(crate) fn register_models(registry: &mut ComponentRegistry) {
+pub(crate) fn register_models<'model: 'dep, 'ctor, 'dep>(
+    registry: &mut ComponentRegistry<'model, 'ctor, 'dep>,
+) {
     if registry
         .register_encoder(
             "incremental",
