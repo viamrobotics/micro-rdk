@@ -101,22 +101,30 @@ impl TryFrom<ResourceName> for ResourceKey {
 
 pub struct Dependency(pub ResourceKey, pub Resource);
 
+/// Fn that returns a BoardType, Arc<Mutex<dyn Board>>
 type BoardConstructor = dyn Fn(ConfigType) -> anyhow::Result<BoardType>;
 
+/// Fn that returns a MotorType, Arc<Mutex<dyn Motor>>
 type MotorConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<MotorType>;
 
+/// Fn that returns a SensorType, Arc<Mutex<dyn Sensor>
 type SensorConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<SensorType>;
 
+/// Fn that returns a MovementSensorType, Arc<Mutex<dyn MovementSensor>
 type MovementSensorConstructor =
     dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<MovementSensorType>;
 
+/// Fn that returns an EncoderType, Arc<Mutex<dyn Encoder>
 type EncoderConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<EncoderType>;
 
+/// Fn that returns an BaseType, Arc<Mutex<dyn Base>
 type BaseConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<BaseType>;
 
+/// Fn that returns an Vec of ResourceKeys, ('static str, String)
 type DependenciesFromConfig = dyn Fn(ConfigType) -> Vec<ResourceKey>;
 
-pub(crate) struct ComponentRegistry {
+/// Holds mappings for all of a Robot's Components and their dependency mappings
+pub struct ComponentRegistry {
     motors: Map<&'static str, &'static MotorConstructor>,
     board: Map<&'static str, &'static BoardConstructor>,
     sensor: Map<&'static str, &'static SensorConstructor>,
@@ -129,7 +137,7 @@ pub(crate) struct ComponentRegistry {
 unsafe impl Sync for ComponentRegistry {}
 
 impl ComponentRegistry {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         let mut dependency_func_map = Map::new();
         dependency_func_map.insert(crate::common::motor::COMPONENT_NAME, Map::new());
         dependency_func_map.insert(crate::common::movement_sensor::COMPONENT_NAME, Map::new());
@@ -146,7 +154,7 @@ impl ComponentRegistry {
             dependencies: dependency_func_map,
         }
     }
-    pub(crate) fn register_motor(
+    pub fn register_motor(
         &mut self,
         model: &'static str,
         constructor: &'static MotorConstructor,
@@ -158,10 +166,10 @@ impl ComponentRegistry {
         Ok(())
     }
 
-    pub(crate) fn register_sensor(
+    pub fn register_sensor(
         &mut self,
-        model: &'static str,
-        constructor: &'static SensorConstructor,
+        model: &str,
+        constructor: &SensorConstructor,
     ) -> Result<(), RegistryError> {
         if self.sensor.contains_key(model) {
             return Err(RegistryError::ModelAlreadyRegistered(model));
@@ -170,10 +178,10 @@ impl ComponentRegistry {
         Ok(())
     }
 
-    pub(crate) fn register_movement_sensor(
+    pub fn register_movement_sensor(
         &mut self,
-        model: &'static str,
-        constructor: &'static MovementSensorConstructor,
+        model: &str,
+        constructor: &MovementSensorConstructor,
     ) -> Result<(), RegistryError> {
         if self.movement_sensors.contains_key(model) {
             return Err(RegistryError::ModelAlreadyRegistered(model));
@@ -182,10 +190,10 @@ impl ComponentRegistry {
         Ok(())
     }
 
-    pub(crate) fn register_board(
+    pub fn register_board(
         &mut self,
-        model: &'static str,
-        constructor: &'static BoardConstructor,
+        model: &str,
+        constructor: &BoardConstructor,
     ) -> Result<(), RegistryError> {
         if self.board.contains_key(model) {
             return Err(RegistryError::ModelAlreadyRegistered(model));
@@ -194,10 +202,10 @@ impl ComponentRegistry {
         Ok(())
     }
 
-    pub(crate) fn register_encoder(
+    pub fn register_encoder(
         &mut self,
-        model: &'static str,
-        constructor: &'static EncoderConstructor,
+        model: &str,
+        constructor: &EncoderConstructor,
     ) -> Result<(), RegistryError> {
         if self.encoders.contains_key(model) {
             return Err(RegistryError::ModelAlreadyRegistered(model));
@@ -206,10 +214,10 @@ impl ComponentRegistry {
         Ok(())
     }
 
-    pub(crate) fn register_base(
+    pub fn register_base(
         &mut self,
-        model: &'static str,
-        constructor: &'static BaseConstructor,
+        model: &str,
+        constructor: &BaseConstructor,
     ) -> Result<(), RegistryError> {
         if self.bases.contains_key(model) {
             return Err(RegistryError::ModelAlreadyRegistered(model));
@@ -218,11 +226,11 @@ impl ComponentRegistry {
         Ok(())
     }
 
-    pub(crate) fn register_dependency_getter(
+    pub fn register_dependency_getter(
         &mut self,
-        component_type: &'static str,
-        model: &'static str,
-        getter: &'static DependenciesFromConfig,
+        component_type: &str,
+        model: &str,
+        getter: &DependenciesFromConfig,
     ) -> Result<(), RegistryError> {
         if !self.dependencies.contains_key(component_type) {
             return Err(RegistryError::ComponentTypeNotInDependencies(
@@ -239,9 +247,9 @@ impl ComponentRegistry {
 
     pub(crate) fn get_dependency_function(
         &self,
-        component_type: &'static str,
+        component_type: &str,
         model: String,
-    ) -> Result<&'static DependenciesFromConfig, RegistryError> {
+    ) -> Result<&DependenciesFromConfig, RegistryError> {
         let model_name: &str = &model;
         if !self.dependencies.contains_key(component_type) {
             return Err(RegistryError::ComponentTypeNotInDependencies(
@@ -261,7 +269,7 @@ impl ComponentRegistry {
     pub(crate) fn get_board_constructor(
         &self,
         model: String,
-    ) -> Result<&'static BoardConstructor, RegistryError> {
+    ) -> Result<&BoardConstructor, RegistryError> {
         let model_name: &str = &model;
         if let Some(ctor) = self.board.get(model_name) {
             return Ok(*ctor);
@@ -272,7 +280,7 @@ impl ComponentRegistry {
     pub(crate) fn get_motor_constructor(
         &self,
         model: String,
-    ) -> Result<&'static MotorConstructor, RegistryError> {
+    ) -> Result<&MotorConstructor, RegistryError> {
         let model_name: &str = &model;
         if let Some(ctor) = self.motors.get(model_name) {
             return Ok(*ctor);
@@ -283,7 +291,7 @@ impl ComponentRegistry {
     pub(crate) fn get_sensor_constructor(
         &self,
         model: String,
-    ) -> Result<&'static SensorConstructor, RegistryError> {
+    ) -> Result<&SensorConstructor, RegistryError> {
         let model_name: &str = &model;
         if let Some(ctor) = self.sensor.get(model_name) {
             return Ok(*ctor);
@@ -294,7 +302,7 @@ impl ComponentRegistry {
     pub(crate) fn get_movement_sensor_constructor(
         &self,
         model: String,
-    ) -> Result<&'static MovementSensorConstructor, RegistryError> {
+    ) -> Result<&MovementSensorConstructor, RegistryError> {
         let model_name: &str = &model;
         if let Some(ctor) = self.movement_sensors.get(model_name) {
             return Ok(*ctor);
@@ -305,7 +313,7 @@ impl ComponentRegistry {
     pub(crate) fn get_encoder_constructor(
         &self,
         model: String,
-    ) -> Result<&'static EncoderConstructor, RegistryError> {
+    ) -> Result<&EncoderConstructor, RegistryError> {
         let model_name: &str = &model;
         if let Some(ctor) = self.encoders.get(model_name) {
             return Ok(*ctor);
@@ -316,7 +324,7 @@ impl ComponentRegistry {
     pub(crate) fn get_base_constructor(
         &self,
         model: String,
-    ) -> Result<&'static BaseConstructor, RegistryError> {
+    ) -> Result<&BaseConstructor, RegistryError> {
         let model_name: &str = &model;
         if let Some(ctor) = self.bases.get(model_name) {
             return Ok(*ctor);
