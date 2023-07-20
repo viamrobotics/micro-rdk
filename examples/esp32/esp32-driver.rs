@@ -16,23 +16,6 @@ use micro_rdk::{
     esp32::{certificate::WebRtcCertificate, entry::serve_web, tls::Esp32TlsServerConfig},
 };
 
-#[cfg(feature = "qemu")]
-use {
-    esp_idf_svc::netif::{BlockingNetif, EspNetif},
-    micro_rdk::{
-        common::{
-            board::FakeBoard,
-            robot::{LocalRobot, ResourceMap, ResourceType},
-        },
-        proto::common::v1::ResourceName,
-    },
-    std::{
-        collections::HashMap,
-        net::Ipv4Addr,
-        sync::{Arc, Mutex},
-        time::Duration,
-    },
-};
 
 #[cfg(not(feature = "qemu"))]
 use {
@@ -45,6 +28,78 @@ use {
     esp_idf_sys as _,
     esp_idf_sys::esp_wifi_set_ps,
 };
+use micro_rdk::common::registry::Dependency;
+use micro_rdk::common::config::ConfigType;
+use micro_rdk::common::motor::MotorType;
+use micro_rdk::common::motor::Motor;
+
+use std::{sync::{Arc, Mutex}, time::Duration};
+
+struct MyMotor {
+    pos: f64,
+    power: f64,
+    max_rpm: f64,
+}
+
+
+impl MyMotor {
+    fn new() -> Self {
+        Self {
+        pos: 10.0,
+        power: 0.0,
+        max_rpm: 100.0
+
+        }
+    }
+
+    fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<MotorType> {
+        let mut motor = MyMotor::new();
+        if let Ok(pos) = cfg.get_attribute::<f64>("my_position") {
+            motor.pos = pos;
+        }
+        if let Ok(max_rpm) = cfg.get_attribute::<f64>("my_max_rpm") {
+            motor.max_rpm = max_rpm;
+        }
+        Ok(Arc::new(Mutex::new(motor)))
+    }
+}
+
+impl Motor for MyMotor {
+    fn set_power(&mut self, _pct: f64) -> anyhow::Result<()> {
+        Ok(())
+    }
+    fn get_position(&mut self) -> anyhow::Result<i32> {
+        Ok(0)
+    }
+    fn go_for(&mut self, _rpm: f64, _revolutions: f64) -> anyhow::Result<Option<Duration>> {
+        Ok(None)
+    }
+}
+
+impl micro_rdk::common::status::Status for MyMotor {
+    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
+        Ok(None)
+    }
+
+}
+
+impl micro_rdk::common::stop::Stoppable for MyMotor {
+    fn stop(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+}
+
+fn register_my_model<'model: 'dep, 'ctor, 'dep>(
+    registry: &mut ComponentRegistry<'model, 'ctor, 'dep>,
+) {
+    if registry
+        .register_motor("my_gpio", &MyMotor::from_config)
+        .is_err()
+    {
+        log::error!("gpio model is already registered")
+    }
+}
 
 fn main() -> anyhow::Result<()> {
     esp_idf_sys::link_patches();
@@ -55,35 +110,6 @@ fn main() -> anyhow::Result<()> {
     #[cfg(not(feature = "qemu"))]
     let periph = Peripherals::take().unwrap();
 
-    /*
-    #[cfg(feature = "qemu")]
-    let robot = {
-        let board = Arc::new(Mutex::new(FakeBoard::new(vec![])));
-        let mut res: ResourceMap = HashMap::with_capacity(1);
-        res.insert(
-            ResourceName {
-                namespace: "rdk".to_string(),
-                r#type: "component".to_string(),
-                subtype: "board".to_string(),
-                name: "b".to_string(),
-            },
-            ResourceType::Board(board),
-        );
-        Some(LocalRobot::new(res))
-    };
-    #[cfg(not(feature = "qemu"))]
-    let robot = None;
-    */
-
-    #[cfg(feature = "qemu")]
-    let (ip, _block_eth) = {
-        info!("creating eth object");
-        let eth_config = esp_idf_svc::netif::NetifConfiguration::eth_default_client();
-        let netif = esp_idf_svc::netif::EspNetif::new_with_conf(&eth_config)?;
-        let (ip, block_eth) = eth_configure(&sys_loop_stack, netif)?;
-        (ip, block_eth)
-    };
-
     {
         esp_idf_sys::esp!(unsafe {
             esp_idf_sys::esp_vfs_eventfd_register(&esp_idf_sys::esp_vfs_eventfd_config_t {
@@ -92,8 +118,6 @@ fn main() -> anyhow::Result<()> {
         })?;
     }
 
-    #[allow(clippy::redundant_clone)]
-    #[cfg(not(feature = "qemu"))]
     let (ip, _wifi) = {
         let wifi = start_wifi(periph.modem, sys_loop_stack)?;
         (wifi.wifi().sta_netif().get_ip_info()?.ip, wifi)
@@ -119,30 +143,13 @@ fn main() -> anyhow::Result<()> {
         )
     };
 
-    serve_web(cfg, tls_cfg, ComponentRegistry::default(), ip, webrtc_certificate);
+    let mut registry = ComponentRegistry::default();
+    register_my_model(&mut registry);
+
+    serve_web(cfg, tls_cfg, registry, ip, webrtc_certificate);
     Ok(())
 }
 
-#[cfg(feature = "qemu")]
-fn eth_configure(
-    sl_stack: &EspSystemEventLoop,
-    eth: EspNetif,
-) -> anyhow::Result<(Ipv4Addr, Box<BlockingNetif<EspNetif>>)> {
-    let ip_info = eth.get_ip_info()?;
-    let block_eth = BlockingNetif::wrap(eth, sl_stack.clone());
-
-    block_eth
-        .ip_wait_while(
-            || Ok(block_eth.is_up().unwrap()),
-            Some(Duration::from_secs(20)),
-        )
-        .expect("ethernet couldn't connect");
-
-    info!("ETH IP {:?}", ip_info.ip);
-    Ok((ip_info.ip, Box::new(block_eth)))
-}
-
-#[cfg(not(feature = "qemu"))]
 fn start_wifi(
     modem: impl Peripheral<P = esp_idf_hal::modem::Modem> + 'static,
     sl_stack: EspSystemEventLoop,

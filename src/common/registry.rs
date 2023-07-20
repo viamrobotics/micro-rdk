@@ -1,30 +1,6 @@
 #![allow(dead_code)]
 use thiserror::Error;
 
-lazy_static::lazy_static! {
-    pub(crate) static ref COMPONENT_REGISTRY: ComponentRegistry<'static, 'static, 'static> = {
-        let mut r = ComponentRegistry::new();
-        crate::common::board::register_models(&mut r);
-        crate::common::encoder::register_models(&mut r);
-        crate::common::motor::register_models(&mut r);
-        crate::common::sensor::register_models(&mut r);
-        crate::common::movement_sensor::register_models(&mut r);
-        crate::common::mpu6050::register_models(&mut r);
-        crate::common::adxl345::register_models(&mut r);
-        #[cfg(esp32)]
-        crate::esp32::board::register_models(&mut r);
-        #[cfg(esp32)]
-        crate::esp32::motor::register_models(&mut r);
-        #[cfg(esp32)]
-        crate::esp32::encoder::register_models(&mut r);
-        #[cfg(esp32)]
-        crate::esp32::single_encoder::register_models(&mut r);
-        #[cfg(esp32)]
-        crate::esp32::base::register_models(&mut r);
-        r
-    };
-}
-
 #[derive(Debug, Error, Eq, PartialEq)]
 pub enum RegistryError {
     #[error("RegistryError : Model '{0}' not found")]
@@ -154,6 +130,27 @@ impl<'model: 'dep, 'ctor, 'dep> ComponentRegistry<'model, 'ctor, 'dep> {
             dependencies: dependency_func_map,
         }
     }
+    pub fn default() -> Self {
+        let mut r = Self::new();
+        crate::common::board::register_models(&mut r);
+        crate::common::encoder::register_models(&mut r);
+        crate::common::motor::register_models(&mut r);
+        crate::common::sensor::register_models(&mut r);
+        crate::common::movement_sensor::register_models(&mut r);
+        crate::common::mpu6050::register_models(&mut r);
+        crate::common::adxl345::register_models(&mut r);
+        #[cfg(esp32)]
+        crate::esp32::board::register_models(&mut r);
+        #[cfg(esp32)]
+        crate::esp32::motor::register_models(&mut r);
+        #[cfg(esp32)]
+        crate::esp32::encoder::register_models(&mut r);
+        #[cfg(esp32)]
+        crate::esp32::single_encoder::register_models(&mut r);
+        #[cfg(esp32)]
+        crate::esp32::base::register_models(&mut r);
+        r
+    }
     pub fn register_motor(
         &mut self,
         model: &'model str,
@@ -228,7 +225,7 @@ impl<'model: 'dep, 'ctor, 'dep> ComponentRegistry<'model, 'ctor, 'dep> {
 
     pub fn register_dependency_getter(
         &mut self,
-        component_type: &'ctor str,
+        component_type: &'model str,
         model: &'model str,
         getter: &'dep DependenciesFromConfig,
     ) -> Result<(), RegistryError> {
@@ -332,7 +329,7 @@ impl<'model: 'dep, 'ctor, 'dep> ComponentRegistry<'model, 'ctor, 'dep> {
 mod tests {
     use crate::common;
     use crate::common::config::{ConfigType, StaticComponentConfig};
-    use crate::common::registry::{ComponentRegistry, RegistryError, COMPONENT_REGISTRY};
+    use crate::common::registry::{ComponentRegistry, RegistryError};
 
     lazy_static::lazy_static! {
         static ref EMPTY_CONFIG: StaticComponentConfig = StaticComponentConfig::default();
@@ -399,10 +396,11 @@ mod tests {
 
     #[test_log::test]
     fn test_lazy_init() {
-        let ctor = COMPONENT_REGISTRY.get_motor_constructor("fake".to_string());
+        let registry = ComponentRegistry::default();
+        let ctor = registry.get_motor_constructor("fake".to_string());
         assert!(ctor.is_ok());
 
-        let ctor = COMPONENT_REGISTRY.get_board_constructor("fake".to_string());
+        let ctor = registry.get_board_constructor("fake".to_string());
         assert!(ctor.is_ok());
     }
 }

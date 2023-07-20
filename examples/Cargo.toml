@@ -51,6 +51,7 @@ phf = { version = "0.11", features = ["macros"] }
 reqwless = "0.5.0"
 serde = "1.0.145"
 serde_json = "1.0.97"
+prost-types = "0.11.1"
 
 
 [build-dependencies]
@@ -76,3 +77,6 @@ path = "native/native-server.rs"
 name = "esp32-server"
 path = "esp32/esp32-server.rs"
 
+[[bin]]
+name = "esp32-driver"
+path = "esp32/esp32-driver.rs"

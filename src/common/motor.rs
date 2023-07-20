@@ -59,7 +59,7 @@ pub trait Motor: Status + Stoppable {
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>>;
 }
 
-pub(crate) type MotorType = Arc<Mutex<dyn Motor>>;
+pub type MotorType = Arc<Mutex<dyn Motor>>;
 
 #[derive(Debug)]
 pub enum MotorPinType {

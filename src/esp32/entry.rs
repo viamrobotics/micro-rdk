@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 use crate::common::app_client::{AppClientBuilder, AppClientConfig};
 use crate::common::conn::server::{ViamServerBuilder, WebRtcConfiguration};
+use crate::common::registry::ComponentRegistry;
 use crate::common::robot::LocalRobot;
 use crate::{
     common::grpc_client::GrpcClient, esp32::exec::Esp32Executor, esp32::tcp::Esp32Stream,
@@ -24,7 +25,7 @@ use esp_idf_svc::http::client::{Configuration as HttpConfiguration, EspHttpConne
 pub fn serve_web(
     app_config: AppClientConfig,
     tls_server_config: Esp32TlsServerConfig,
-    robot: Option<LocalRobot>,
+    registry: ComponentRegistry,
     _ip: Ipv4Addr,
     webrtc_certificate: WebRtcCertificate,
 ) {
@@ -47,13 +48,10 @@ pub fn serve_web(
             client.get_config().unwrap()
         };
 
-        let robot = match robot {
-            Some(r) => Arc::new(Mutex::new(r)),
-            None => {
-                log::info!("building robot from config");
-                let r = LocalRobot::new_from_config_response(&cfg_response).unwrap();
-                Arc::new(Mutex::new(r))
-            }
+        let robot = {
+            log::info!("building robot from config");
+            let r = LocalRobot::new_from_config_response(&cfg_response, registry).unwrap();
+            Arc::new(Mutex::new(r))
         };
 
         let address: SocketAddr = "0.0.0.0:12346".parse().unwrap();
