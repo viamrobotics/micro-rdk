@@ -60,7 +60,7 @@ impl From<GeoPosition> for movement_sensor::v1::GetPositionResponse {
         };
         movement_sensor::v1::GetPositionResponse {
             coordinate: Some(pt),
-            altitude_mm: pos.alt,
+            altitude_m: pos.alt,
         }
     }
 }

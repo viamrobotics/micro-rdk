@@ -187,6 +187,7 @@ impl<'a> AppClient<'a> {
             ips: vec![self.ip.to_string()],
             version: "0.0.2".to_string(),
             git_revision: "".to_string(),
+            platform: Some("esp32".to_string()),
         };
 
         let req = ConfigRequest {

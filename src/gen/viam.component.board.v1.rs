@@ -1,4 +1,5 @@
 // @generated
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StatusRequest {
     #[prost(string, tag="1")]
@@ -7,11 +8,13 @@ pub struct StatusRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StatusResponse {
     #[prost(message, optional, tag="1")]
     pub status: ::core::option::Option<super::super::super::common::v1::BoardStatus>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SetGpioRequest {
     #[prost(string, tag="1")]
@@ -24,9 +27,11 @@ pub struct SetGpioRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SetGpioResponse {
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetGpioRequest {
     #[prost(string, tag="1")]
@@ -37,11 +42,13 @@ pub struct GetGpioRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetGpioResponse {
     #[prost(bool, tag="1")]
     pub high: bool,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PwmRequest {
     #[prost(string, tag="1")]
@@ -52,12 +59,14 @@ pub struct PwmRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PwmResponse {
     /// 0-1
     #[prost(double, tag="1")]
     pub duty_cycle_pct: f64,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SetPwmRequest {
     #[prost(string, tag="1")]
@@ -71,9 +80,11 @@ pub struct SetPwmRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SetPwmResponse {
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PwmFrequencyRequest {
     #[prost(string, tag="1")]
@@ -84,11 +95,13 @@ pub struct PwmFrequencyRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PwmFrequencyResponse {
     #[prost(uint64, tag="1")]
     pub frequency_hz: u64,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SetPwmFrequencyRequest {
     #[prost(string, tag="1")]
@@ -101,11 +114,13 @@ pub struct SetPwmFrequencyRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SetPwmFrequencyResponse {
 }
 // Analog Reader
 
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReadAnalogReaderRequest {
     #[prost(string, tag="1")]
@@ -116,6 +131,7 @@ pub struct ReadAnalogReaderRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReadAnalogReaderResponse {
     #[prost(int32, tag="1")]
@@ -123,6 +139,7 @@ pub struct ReadAnalogReaderResponse {
 }
 // Digital Interrupt
 
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetDigitalInterruptValueRequest {
     #[prost(string, tag="1")]
@@ -133,11 +150,13 @@ pub struct GetDigitalInterruptValueRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetDigitalInterruptValueResponse {
     #[prost(int64, tag="1")]
     pub value: i64,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SetPowerModeRequest {
     /// name of board
@@ -153,6 +172,7 @@ pub struct SetPowerModeRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SetPowerModeResponse {
 }
@@ -175,6 +195,15 @@ impl PowerMode {
             PowerMode::Unspecified => "POWER_MODE_UNSPECIFIED",
             PowerMode::Normal => "POWER_MODE_NORMAL",
             PowerMode::OfflineDeep => "POWER_MODE_OFFLINE_DEEP",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "POWER_MODE_UNSPECIFIED" => Some(Self::Unspecified),
+            "POWER_MODE_NORMAL" => Some(Self::Normal),
+            "POWER_MODE_OFFLINE_DEEP" => Some(Self::OfflineDeep),
+            _ => None,
         }
     }
 }

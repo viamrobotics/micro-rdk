@@ -1,4 +1,5 @@
 // @generated
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Credentials {
     /// type is the type of credentials being used.
@@ -9,6 +10,7 @@ pub struct Credentials {
     pub payload: ::prost::alloc::string::String,
 }
 /// An AuthenticateRequest contains the credentials used to authenticate.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AuthenticateRequest {
     #[prost(string, tag="1")]
@@ -17,6 +19,7 @@ pub struct AuthenticateRequest {
     pub credentials: ::core::option::Option<Credentials>,
 }
 /// An AuthenticateResponse is returned after successful authentication.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AuthenticateResponse {
     /// access_token is a JWT where only the expiration should be deemed
@@ -27,12 +30,14 @@ pub struct AuthenticateResponse {
     pub access_token: ::prost::alloc::string::String,
 }
 /// An AuthenticateToRequest contains the entity to authenticate to.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AuthenticateToRequest {
     #[prost(string, tag="1")]
     pub entity: ::prost::alloc::string::String,
 }
 /// An AuthenticateResponse is returned after successful authentication.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AuthenticateToResponse {
     /// access_token is a JWT where only the expiration should be deemed
