@@ -1,4 +1,10 @@
 // @generated
+/// DataRequest encapsulates the filter for the data, a limit on the maximum results returned,
+/// a last string associated with the last returned document, and the sorting order by time.
+/// last is returned in the responses TabularDataByFilterResponse and BinaryDataByFilterResponse
+/// from the API calls TabularDataByFilter and BinaryDataByFilter, respectively.
+/// We can then use the last string from the previous API calls in the subsequent request
+/// to get the next set of ordered documents.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DataRequest {
@@ -11,6 +17,11 @@ pub struct DataRequest {
     #[prost(enumeration="Order", tag="4")]
     pub sort_order: i32,
 }
+/// Filter defines the fields over which we can filter data using a logic AND.
+/// For example, if component_type and robot_id are specified, only data from that `robot_id` of
+/// type `component_type` is returned. However, we logical OR over the specified tags and bounding
+/// box labels, such that if component_type, robot_id, tagA, tagB are specified,
+/// we return data from that `robot_id` of type `component_type` with `tagA` or `tagB`.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Filter {
@@ -38,15 +49,17 @@ pub struct Filter {
     pub interval: ::core::option::Option<CaptureInterval>,
     #[prost(message, optional, tag="14")]
     pub tags_filter: ::core::option::Option<TagsFilter>,
+    /// bbox_labels are used to match documents with the specified bounding box labels (using logical OR)
     #[prost(string, repeated, tag="15")]
     pub bbox_labels: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
+/// TagsFilter defines the type of filtering and, if applicable, over which tags to perform a logical OR.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TagsFilter {
     #[prost(enumeration="TagsFilterType", tag="1")]
     pub r#type: i32,
-    /// Tags are used to match documents if `type` is UNSPECIFIED or MATCH_BY_ORG
+    /// Tags are used to match documents if `type` is UNSPECIFIED or MATCH_BY_OR
     #[prost(string, repeated, tag="2")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
@@ -413,6 +426,7 @@ pub struct BoundingBoxLabelsByFilterResponse {
     #[prost(string, repeated, tag="1")]
     pub labels: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
+/// Order specifies the order in which data is returned.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum Order {
