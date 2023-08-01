@@ -607,6 +607,7 @@ mod tests {
     use crate::common::i2c::I2CHandle;
     use crate::common::motor::Motor;
     use crate::common::movement_sensor::MovementSensor;
+    use crate::common::registry::ComponentRegistry;
     use crate::common::robot::{LocalRobot, ResourceMap};
     use crate::common::sensor::Sensor;
     use crate::proto::app::v1::ComponentConfig;
@@ -867,6 +868,7 @@ mod tests {
     #[test_log::test]
     fn test_insert_resources() {
         let mut component_cfgs = Vec::new();
+        let mut registry = ComponentRegistry::default();
 
         let comp = ComponentConfig {
             name: "enc1".to_string(),
@@ -953,7 +955,7 @@ mod tests {
         };
 
         assert!(robot
-            .insert_resources(&mut component_cfgs, None, None)
+            .insert_resources(&mut component_cfgs, None, None, registry)
             .is_ok());
 
         let m1 = robot.get_motor_by_name("m1".to_string());
