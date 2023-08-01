@@ -109,7 +109,8 @@ pub struct ComponentRegistry {
 // # Safety
 //
 // A component registry is only initialized and mutated once throughout a single runtime.
-unsafe impl Sync for ComponentRegistry {}
+// It can then be read by
+//unsafe impl Sync for ComponentRegistry {}
 
 impl Default for ComponentRegistry {
     fn default() -> Self {
@@ -338,10 +339,8 @@ mod tests {
     use crate::common::config::{ConfigType, StaticComponentConfig};
     use crate::common::registry::{ComponentRegistry, RegistryError};
 
-    lazy_static::lazy_static! {
-        static ref TEST_REGISTRY: ComponentRegistry = ComponentRegistry::default();
-        static ref EMPTY_CONFIG: StaticComponentConfig = StaticComponentConfig::default();
-    }
+    static ref TEST_REGISTRY: ComponentRegistry = ComponentRegistry::default();
+    static ref EMPTY_CONFIG: StaticComponentConfig = StaticComponentConfig::default();
 
     #[test_log::test]
     fn test_registry() -> anyhow::Result<()> {
