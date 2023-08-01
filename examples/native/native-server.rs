@@ -2,17 +2,21 @@
 include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
 use log::*;
-use micro_rdk::common::app_client::AppClientConfig;
-use micro_rdk::common::robot::{Initializer, LocalRobot};
-use micro_rdk::common::robot::ResourceType;
-use micro_rdk::native::entry::serve_web;
-use micro_rdk::native::tls::NativeTlsServerConfig;
-use micro_rdk::proto::common::v1::ResourceName;
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::rc::Rc;
-use std::sync::Arc;
-use std::sync::Mutex;
+use micro_rdk::{
+    common::{
+        app_client::AppClientConfig,
+        robot::{Initializer, LocalRobot, ResourceType},
+    },
+    native::{entry::serve_web, tls::NativeTlsServerConfig},
+    proto::common::v1::ResourceName,
+};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
+
 fn main() -> anyhow::Result<()> {
     simple_logger::SimpleLogger::new()
         .with_level(LevelFilter::Info)

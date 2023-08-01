@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 
 pub static COMPONENT_NAME: &str = "movement_sensor";
 
-pub(crate) fn register_models(registry: &mut ComponentRegistry) {
+pub fn register_models(registry: &mut ComponentRegistry) {
     if registry
         .register_movement_sensor("fake", &FakeMovementSensor::from_config)
         .is_err()
@@ -76,7 +76,7 @@ pub trait MovementSensor: Status {
     fn get_properties(&self) -> MovementSensorSupportedMethods;
 }
 
-pub(crate) type MovementSensorType = Arc<Mutex<dyn MovementSensor>>;
+pub type MovementSensorType = Arc<Mutex<dyn MovementSensor>>;
 
 pub struct FakeMovementSensor {
     pos: GeoPosition,
@@ -104,7 +104,7 @@ impl FakeMovementSensor {
             },
         }
     }
-    pub(crate) fn from_config(
+    pub fn from_config(
         cfg: ConfigType,
         _: Vec<Dependency>,
     ) -> anyhow::Result<MovementSensorType> {

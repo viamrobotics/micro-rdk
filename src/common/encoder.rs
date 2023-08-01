@@ -12,7 +12,7 @@ use super::status::Status;
 
 pub static COMPONENT_NAME: &str = "encoder";
 
-pub(crate) fn register_models(registry: &mut ComponentRegistry) {
+pub fn register_models(registry: &mut ComponentRegistry) {
     if registry
         .register_encoder("fake", &FakeEncoder::from_config)
         .is_err()
@@ -135,7 +135,7 @@ impl FakeIncrementalEncoder {
     pub fn new() -> Self {
         Self { ticks: 0.0 }
     }
-    pub(crate) fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<EncoderType> {
+    pub fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<EncoderType> {
         let mut enc: FakeIncrementalEncoder = Default::default();
         if let Ok(fake_ticks) = cfg.get_attribute::<f32>("fake_ticks") {
             enc.ticks = fake_ticks;
@@ -194,7 +194,7 @@ impl FakeEncoder {
         }
     }
 
-    pub(crate) fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<EncoderType> {
+    pub fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<EncoderType> {
         let mut enc: FakeEncoder = Default::default();
         if let Ok(ticks_per_rotation) = cfg.get_attribute::<u32>("ticks_per_rotation") {
             enc.ticks_per_rotation = ticks_per_rotation;

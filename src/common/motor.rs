@@ -16,7 +16,7 @@ use super::stop::Stoppable;
 
 pub static COMPONENT_NAME: &str = "motor";
 
-pub(crate) fn register_models(registry: &mut ComponentRegistry) {
+pub fn register_models(registry: &mut ComponentRegistry) {
     if registry
         .register_motor("fake", &FakeMotor::from_config)
         .is_err()
@@ -57,7 +57,7 @@ pub trait Motor: Status + Stoppable {
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>>;
 }
 
-pub(crate) type MotorType = Arc<Mutex<dyn Motor>>;
+pub type MotorType = Arc<Mutex<dyn Motor>>;
 
 #[derive(Debug)]
 pub enum MotorPinType {
@@ -66,7 +66,7 @@ pub enum MotorPinType {
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct MotorPinsConfig {
+pub struct MotorPinsConfig {
     pub(crate) a: Option<i32>,
     pub(crate) b: Option<i32>,
     pub(crate) dir: Option<i32>,
@@ -191,7 +191,7 @@ impl FakeMotor {
             max_rpm: 100.0,
         }
     }
-    pub(crate) fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<MotorType> {
+    pub fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<MotorType> {
         let mut motor = FakeMotor::default();
         if let Ok(pos) = cfg.get_attribute::<f64>("fake_position") {
             motor.pos = pos
@@ -293,7 +293,7 @@ impl FakeMotorWithDependency {
         }
     }
 
-    pub(crate) fn dependencies_from_config(cfg: ConfigType) -> Vec<ResourceKey> {
+    pub fn dependencies_from_config(cfg: ConfigType) -> Vec<ResourceKey> {
         let mut r_keys = Vec::new();
         if let Ok(enc_name) = cfg.get_attribute::<String>("encoder") {
             let r_key = ResourceKey(EncoderCompName, enc_name);
@@ -302,7 +302,7 @@ impl FakeMotorWithDependency {
         r_keys
     }
 
-    pub(crate) fn from_config(_: ConfigType, deps: Vec<Dependency>) -> anyhow::Result<MotorType> {
+    pub fn from_config(_: ConfigType, deps: Vec<Dependency>) -> anyhow::Result<MotorType> {
         let mut enc: Option<EncoderType> = None;
         for Dependency(_, dep) in deps {
             match dep {
