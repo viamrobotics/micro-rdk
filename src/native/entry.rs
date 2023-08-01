@@ -5,7 +5,6 @@ use crate::{
         conn::server::{ViamServerBuilder, WebRtcConfiguration},
         grpc_client::GrpcClient,
         robot::{Initializer, LocalRobot},
-        registry::ComponentRegistry,
     },
     native::exec::NativeExecutor,
     native::tcp::NativeStream,
@@ -27,7 +26,6 @@ pub fn serve_web(
     tls_server_config: NativeTlsServerConfig,
     initializer: Initializer,
     ip: Ipv4Addr,
-    registry: Option<ComponentRegistry>,
 ) {
     let client_connector = NativeTls::new_client();
     let exec = NativeExecutor::new();

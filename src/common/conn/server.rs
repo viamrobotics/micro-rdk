@@ -297,7 +297,8 @@ where
         let srv = GrpcServer::new(robot.clone(), GrpcBody::new());
         let connection = c.accept().map_err(|e| ServerError::Other(e.into()))?;
 
-        let r = Box::new(
+        // boxed to conserve stack
+        Box::new(
             Http::new()
                 .with_executor(self.exec.clone())
                 .http2_only(true)
@@ -308,8 +309,7 @@ where
                 .serve_connection(connection, srv),
         )
         .await
-        .map_err(|e| ServerError::Other(e.into()));
-        r
+        .map_err(|e| ServerError::Other(e.into()))
     }
 
     async fn serve_webrtc(
