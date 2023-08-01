@@ -33,7 +33,6 @@ use {
 
 #[cfg(not(feature = "qemu"))]
 use {
-    micro_rdk::common::registry::ComponentRegistry,
     embedded_svc::wifi::{
         AuthMethod, ClientConfiguration as WifiClientConfiguration,
         Configuration as WifiConfiguration,
@@ -42,6 +41,7 @@ use {
     esp_idf_svc::wifi::{BlockingWifi, EspWifi},
     esp_idf_sys as _,
     esp_idf_sys::esp_wifi_set_ps,
+    micro_rdk::common::registry::ComponentRegistry,
 };
 
 fn main() -> anyhow::Result<()> {
