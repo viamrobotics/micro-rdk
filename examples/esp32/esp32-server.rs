@@ -11,7 +11,7 @@ use log::*;
 
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use micro_rdk::{
-    common::{app_client::AppClientConfig, registry::ComponentRegistry robot::Initializer},
+    common::{app_client::AppClientConfig, registry::ComponentRegistry, robot::Initializer},
     esp32::{certificate::WebRtcCertificate, entry::serve_web, tls::Esp32TlsServerConfig},
 };
 
