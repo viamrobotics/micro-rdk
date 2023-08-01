@@ -5,6 +5,7 @@ use crate::{
         conn::server::{ViamServerBuilder, WebRtcConfiguration},
         grpc_client::GrpcClient,
         robot::{Initializer, LocalRobot},
+        registry::ComponentRegistry,
     },
     native::exec::NativeExecutor,
     native::tcp::NativeStream,
