@@ -982,6 +982,7 @@ mod tests {
     #[test_log::test]
     fn test_insert_resources_unmet_dependency() {
         let mut component_cfgs = Vec::new();
+        let mut registry = ComponentRegistry::default();
 
         let comp2 = ComponentConfig {
             name: "m1".to_string(),
@@ -1048,7 +1049,7 @@ mod tests {
         };
 
         assert!(robot
-            .insert_resources(&mut component_cfgs, None, None)
+            .insert_resources(&mut component_cfgs, None, None, registry)
             .is_ok());
 
         let m1 = robot.get_motor_by_name("m1".to_string());
