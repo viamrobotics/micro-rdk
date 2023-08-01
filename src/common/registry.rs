@@ -339,8 +339,8 @@ mod tests {
     use crate::common::config::{ConfigType, StaticComponentConfig};
     use crate::common::registry::{ComponentRegistry, RegistryError};
 
-    static ref TEST_REGISTRY: ComponentRegistry = ComponentRegistry::default();
-    static ref EMPTY_CONFIG: StaticComponentConfig = StaticComponentConfig::default();
+    static TEST_REGISTRY: ComponentRegistry = ComponentRegistry::default();
+    static EMPTY_CONFIG: StaticComponentConfig = StaticComponentConfig::default();
 
     #[test_log::test]
     fn test_registry() -> anyhow::Result<()> {
