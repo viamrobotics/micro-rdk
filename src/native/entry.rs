@@ -4,7 +4,7 @@ use crate::{
         app_client::{AppClientBuilder, AppClientConfig},
         conn::server::{ViamServerBuilder, WebRtcConfiguration},
         grpc_client::GrpcClient,
-        robot::LocalRobot,
+        robot::{Initializer, LocalRobot},
     },
     native::exec::NativeExecutor,
     native::tcp::NativeStream,
@@ -24,16 +24,15 @@ use super::{
 pub fn serve_web(
     app_config: AppClientConfig,
     tls_server_config: NativeTlsServerConfig,
-    robot: Option<LocalRobot>,
+    initializer: Initializer,
     ip: Ipv4Addr,
+    registry: Option<ComponentRegistry>,
 ) {
-    let robot = Arc::new(Mutex::new(robot.unwrap()));
-
     let client_connector = NativeTls::new_client();
     let exec = NativeExecutor::new();
     let mdns = NativeMdns::new("".to_owned(), ip).unwrap();
 
-    let robot_cfg = {
+    let cfg_response = {
         let cloned_exec = exec.clone();
         let conn = client_connector.open_ssl_context(None).unwrap();
         let conn = NativeStream::TLSStream(Box::new(conn));
@@ -42,6 +41,15 @@ pub fn serve_web(
 
         let mut client = builder.build().unwrap();
         client.get_config().unwrap()
+    };
+
+    let robot = match initializer {
+        Initializer::WithRobot(robot) => Arc::new(Mutex::new(robot)),
+        Initializer::WithRegistry(registry) => {
+            log::info!("building robot from config");
+            let r = LocalRobot::new_from_config_response(&cfg_response, registry).unwrap();
+            Arc::new(Mutex::new(r))
+        }
     };
 
     let address: SocketAddr = "0.0.0.0:12346".parse().unwrap();
@@ -62,7 +70,7 @@ pub fn serve_web(
     ));
 
     let mut srv = ViamServerBuilder::new(mdns, tls_listener, webrtc, cloned_exec, 12346)
-        .build(&robot_cfg)
+        .build(&cfg_response)
         .unwrap();
 
     srv.serve_forever(robot);

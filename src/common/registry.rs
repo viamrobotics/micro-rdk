@@ -1,29 +1,12 @@
 #![allow(dead_code)]
+use std::collections::BTreeMap as Map;
 use thiserror::Error;
 
-lazy_static::lazy_static! {
-    pub(crate) static ref COMPONENT_REGISTRY: ComponentRegistry = {
-        let mut r = ComponentRegistry::new();
-        crate::common::board::register_models(&mut r);
-        crate::common::encoder::register_models(&mut r);
-        crate::common::motor::register_models(&mut r);
-        crate::common::sensor::register_models(&mut r);
-        crate::common::movement_sensor::register_models(&mut r);
-        crate::common::mpu6050::register_models(&mut r);
-        crate::common::adxl345::register_models(&mut r);
-        #[cfg(esp32)]
-        crate::esp32::board::register_models(&mut r);
-        #[cfg(esp32)]
-        crate::esp32::motor::register_models(&mut r);
-        #[cfg(esp32)]
-        crate::esp32::encoder::register_models(&mut r);
-        #[cfg(esp32)]
-        crate::esp32::single_encoder::register_models(&mut r);
-        #[cfg(esp32)]
-        crate::esp32::base::register_models(&mut r);
-        r
-    };
-}
+use super::{
+    base::BaseType, board::BoardType, config::ConfigType, encoder::EncoderType, motor::MotorType,
+    movement_sensor::MovementSensorType, robot::Resource, sensor::SensorType,
+};
+use crate::proto::common::v1::ResourceName;
 
 #[derive(Debug, Error, Eq, PartialEq)]
 pub enum RegistryError {
@@ -38,15 +21,6 @@ pub enum RegistryError {
     #[error("RegistryError: model '{0}' not found in dependencies under component type '{1}'")]
     ModelNotFoundInDependencies(String, &'static str),
 }
-
-use std::collections::BTreeMap as Map;
-
-use crate::proto::common::v1::ResourceName;
-
-use super::{
-    base::BaseType, board::BoardType, config::ConfigType, encoder::EncoderType, motor::MotorType,
-    movement_sensor::MovementSensorType, robot::Resource, sensor::SensorType,
-};
 
 pub fn get_board_from_dependencies(deps: Vec<Dependency>) -> Option<BoardType> {
     for Dependency(_, dep) in deps {
@@ -101,22 +75,28 @@ impl TryFrom<ResourceName> for ResourceKey {
 
 pub struct Dependency(pub ResourceKey, pub Resource);
 
+/// Fn that returns a `BoardType`, `Arc<Mutex<dyn Board>>`
 type BoardConstructor = dyn Fn(ConfigType) -> anyhow::Result<BoardType>;
 
+/// Fn that returns a `MotorType`, `Arc<Mutex<dyn Motor>>`
 type MotorConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<MotorType>;
 
+/// Fn that returns a `SensorType`, `Arc<Mutex<dyn Sensor>>`
 type SensorConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<SensorType>;
 
+/// Fn that returns a `MovementSensorType`, `Arc<Mutex<dyn MovementSensor>>`
 type MovementSensorConstructor =
     dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<MovementSensorType>;
 
+/// Fn that returns an `EncoderType`, `Arc<Mutex<dyn Encoder>>`
 type EncoderConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<EncoderType>;
 
+/// Fn that returns an `BaseType`, `Arc<Mutex<dyn Base>>`
 type BaseConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<BaseType>;
 
 type DependenciesFromConfig = dyn Fn(ConfigType) -> Vec<ResourceKey>;
 
-pub(crate) struct ComponentRegistry {
+pub struct ComponentRegistry {
     motors: Map<&'static str, &'static MotorConstructor>,
     board: Map<&'static str, &'static BoardConstructor>,
     sensor: Map<&'static str, &'static SensorConstructor>,
@@ -126,10 +106,38 @@ pub(crate) struct ComponentRegistry {
     dependencies: Map<&'static str, Map<&'static str, &'static DependenciesFromConfig>>,
 }
 
-unsafe impl Sync for ComponentRegistry {}
+// # Safety
+//
+// A component registry is only initialized and mutated once throughout a single runtime.
+// It can then be read by
+//unsafe impl Sync for ComponentRegistry {}
+
+impl Default for ComponentRegistry {
+    fn default() -> Self {
+        let mut r = Self::new();
+        crate::common::board::register_models(&mut r);
+        crate::common::encoder::register_models(&mut r);
+        crate::common::motor::register_models(&mut r);
+        crate::common::sensor::register_models(&mut r);
+        crate::common::movement_sensor::register_models(&mut r);
+        crate::common::mpu6050::register_models(&mut r);
+        crate::common::adxl345::register_models(&mut r);
+        #[cfg(esp32)]
+        crate::esp32::board::register_models(&mut r);
+        #[cfg(esp32)]
+        crate::esp32::motor::register_models(&mut r);
+        #[cfg(esp32)]
+        crate::esp32::encoder::register_models(&mut r);
+        #[cfg(esp32)]
+        crate::esp32::single_encoder::register_models(&mut r);
+        #[cfg(esp32)]
+        crate::esp32::base::register_models(&mut r);
+        r
+    }
+}
 
 impl ComponentRegistry {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         let mut dependency_func_map = Map::new();
         dependency_func_map.insert(crate::common::motor::COMPONENT_NAME, Map::new());
         dependency_func_map.insert(crate::common::movement_sensor::COMPONENT_NAME, Map::new());
@@ -146,7 +154,7 @@ impl ComponentRegistry {
             dependencies: dependency_func_map,
         }
     }
-    pub(crate) fn register_motor(
+    pub fn register_motor(
         &mut self,
         model: &'static str,
         constructor: &'static MotorConstructor,
@@ -158,7 +166,7 @@ impl ComponentRegistry {
         Ok(())
     }
 
-    pub(crate) fn register_sensor(
+    pub fn register_sensor(
         &mut self,
         model: &'static str,
         constructor: &'static SensorConstructor,
@@ -170,7 +178,7 @@ impl ComponentRegistry {
         Ok(())
     }
 
-    pub(crate) fn register_movement_sensor(
+    pub fn register_movement_sensor(
         &mut self,
         model: &'static str,
         constructor: &'static MovementSensorConstructor,
@@ -182,7 +190,7 @@ impl ComponentRegistry {
         Ok(())
     }
 
-    pub(crate) fn register_board(
+    pub fn register_board(
         &mut self,
         model: &'static str,
         constructor: &'static BoardConstructor,
@@ -194,7 +202,7 @@ impl ComponentRegistry {
         Ok(())
     }
 
-    pub(crate) fn register_encoder(
+    pub fn register_encoder(
         &mut self,
         model: &'static str,
         constructor: &'static EncoderConstructor,
@@ -206,7 +214,7 @@ impl ComponentRegistry {
         Ok(())
     }
 
-    pub(crate) fn register_base(
+    pub fn register_base(
         &mut self,
         model: &'static str,
         constructor: &'static BaseConstructor,
@@ -218,7 +226,7 @@ impl ComponentRegistry {
         Ok(())
     }
 
-    pub(crate) fn register_dependency_getter(
+    pub fn register_dependency_getter(
         &mut self,
         component_type: &'static str,
         model: &'static str,
@@ -329,9 +337,10 @@ impl ComponentRegistry {
 mod tests {
     use crate::common;
     use crate::common::config::{ConfigType, StaticComponentConfig};
-    use crate::common::registry::{ComponentRegistry, RegistryError, COMPONENT_REGISTRY};
+    use crate::common::registry::{ComponentRegistry, RegistryError};
 
     lazy_static::lazy_static! {
+        static ref TEST_REGISTRY: ComponentRegistry = ComponentRegistry::default();
         static ref EMPTY_CONFIG: StaticComponentConfig = StaticComponentConfig::default();
     }
 
@@ -402,10 +411,10 @@ mod tests {
 
     #[test_log::test]
     fn test_lazy_init() {
-        let ctor = COMPONENT_REGISTRY.get_motor_constructor("fake".to_string());
+        let ctor = TEST_REGISTRY.get_motor_constructor("fake".to_string());
         assert!(ctor.is_ok());
 
-        let ctor = COMPONENT_REGISTRY.get_board_constructor("fake".to_string());
+        let ctor = TEST_REGISTRY.get_board_constructor("fake".to_string());
         assert!(ctor.is_ok());
     }
 }

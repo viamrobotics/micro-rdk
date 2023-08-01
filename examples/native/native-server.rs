@@ -3,7 +3,7 @@ include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
 use log::*;
 use micro_rdk::common::app_client::AppClientConfig;
-use micro_rdk::common::robot::LocalRobot;
+use micro_rdk::common::robot::{Initializer, LocalRobot};
 use micro_rdk::common::robot::ResourceType;
 use micro_rdk::native::entry::serve_web;
 use micro_rdk::native::tls::NativeTlsServerConfig;
@@ -19,7 +19,7 @@ fn main() -> anyhow::Result<()> {
         .init()
         .unwrap();
 
-    let robot = {
+    let initializer = {
         use micro_rdk::common::analog::FakeAnalogReader;
         use micro_rdk::common::base::FakeBase;
         use micro_rdk::common::board::FakeBoard;
@@ -94,7 +94,7 @@ fn main() -> anyhow::Result<()> {
             },
             ResourceType::Camera(camera),
         );
-        LocalRobot::new(res)
+        Initializer::WithRobot(LocalRobot::new(res))
     };
 
     let ip = match local_ip_address::local_ip().unwrap() {
@@ -115,7 +115,7 @@ fn main() -> anyhow::Result<()> {
         "".to_owned(),
     );
 
-    serve_web(app_config, cfg, Some(robot), ip);
+    serve_web(app_config, cfg, initializer, ip);
 
     Ok(())
 }

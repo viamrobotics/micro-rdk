@@ -11,7 +11,7 @@ use log::*;
 
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use micro_rdk::{
-    common::app_client::AppClientConfig,
+    common::{registry::ComponentRegistry, app_client::AppClientConfig, robot::Initializer},
     esp32::{certificate::WebRtcCertificate, entry::serve_web, tls::Esp32TlsServerConfig},
 };
 
@@ -53,7 +53,7 @@ fn main() -> anyhow::Result<()> {
     let periph = Peripherals::take().unwrap();
 
     #[cfg(feature = "qemu")]
-    let robot = {
+    let initializer = {
         let board = Arc::new(Mutex::new(FakeBoard::new(vec![])));
         let mut res: ResourceMap = HashMap::with_capacity(1);
         res.insert(
@@ -65,10 +65,10 @@ fn main() -> anyhow::Result<()> {
             },
             ResourceType::Board(board),
         );
-        Some(LocalRobot::new(res))
+        Initializer::WithRobot(LocalRobot::new(res))
     };
     #[cfg(not(feature = "qemu"))]
-    let robot = None;
+    let initializer = Initializer::WithRegistry(ComponentRegistry::default());
 
     {
         esp_idf_sys::esp!(unsafe {
@@ -116,7 +116,7 @@ fn main() -> anyhow::Result<()> {
         Esp32TlsServerConfig::new(cert, key.as_ptr(), key.len() as u32)
     };
 
-    serve_web(cfg, tls_cfg, robot, ip, webrtc_certificate);
+    serve_web(cfg, tls_cfg, initializer, ip, webrtc_certificate);
     Ok(())
 }
 

@@ -31,11 +31,16 @@ use super::{
     encoder::EncoderType,
     motor::MotorType,
     movement_sensor::MovementSensorType,
-    registry::{get_board_from_dependencies, Dependency, ResourceKey, COMPONENT_REGISTRY},
+    registry::{get_board_from_dependencies, ComponentRegistry, Dependency, ResourceKey},
     sensor::SensorType,
 };
 
 static NAMESPACE_PREFIX: &str = "rdk:builtin:";
+
+pub enum Initializer {
+    WithRobot(LocalRobot),
+    WithRegistry(ComponentRegistry),
+}
 
 #[derive(Clone)]
 pub enum ResourceType {
@@ -89,6 +94,7 @@ impl LocalRobot {
         let mut robot = LocalRobot {
             resources: ResourceMap::new(),
         };
+        let mut registry = ComponentRegistry::default();
         if let Some(components) = cfg.components.as_ref() {
             let mut b_r_key: Option<ResourceKey> = None;
             let r = components.iter().find(|x| x.get_type() == "board");
@@ -98,8 +104,7 @@ impl LocalRobot {
                         crate::common::board::COMPONENT_NAME,
                         r.name.to_string(),
                     )?);
-                    let ctor =
-                        COMPONENT_REGISTRY.get_board_constructor(r.get_model().to_string())?;
+                    let ctor = registry.get_board_constructor(r.get_model().to_string())?;
                     let b = ctor(ConfigType::Static(r));
                     if let Ok(b) = b {
                         Some(b)
@@ -123,6 +128,7 @@ impl LocalRobot {
                     x.get_resource_name(),
                     ConfigType::Static(x),
                     deps,
+                    &mut registry,
                 ) {
                     Ok(()) => {
                         continue;
@@ -140,7 +146,7 @@ impl LocalRobot {
     // Creates a robot from the response of a gRPC call to acquire the robot configuration. The individual
     // component configs within the response are consumed and the corresponding components are generated
     // and added to the created robot.
-    pub fn new_from_config_response(config_resp: &ConfigResponse) -> anyhow::Result<Self> {
+    pub fn new_from_config_response(config_resp: &ConfigResponse, registry: ComponentRegistry) -> anyhow::Result<Self> {
         let mut robot = LocalRobot {
             resources: ResourceMap::new(),
         };
@@ -163,7 +169,7 @@ impl LocalRobot {
                         anyhow::bail!("could not configure board: {:?}", err);
                     }
                 };
-                let constructor = COMPONENT_REGISTRY.get_board_constructor(model)?;
+                let constructor = registry.get_board_constructor(model)?;
                 let board = constructor(ConfigType::Dynamic(cfg));
                 if let Ok(board) = board {
                     Some(board)
@@ -177,7 +183,7 @@ impl LocalRobot {
 
         let mut components_queue: Vec<&ComponentConfig> = components.iter().collect();
 
-        robot.insert_resources(&mut components_queue, board, board_resource_key)?;
+        robot.insert_resources(&mut components_queue, board, board_resource_key, registry)?;
 
         Ok(robot)
     }
@@ -191,7 +197,9 @@ impl LocalRobot {
         components: &mut Vec<&ComponentConfig>,
         board: Option<BoardType>,
         board_resource_key: Option<ResourceKey>,
+        registry: ComponentRegistry,
     ) -> anyhow::Result<()> {
+        let mut registry = registry;
         let mut inserted_resources = HashSet::<ResourceKey>::new();
         inserted_resources.try_reserve(components.len())?;
 
@@ -229,7 +237,7 @@ impl LocalRobot {
             let resource_key = ResourceKey::new(c_type_static, resource_name.name.to_string())?;
 
             if !inserted_resources.contains(&resource_key) {
-                match COMPONENT_REGISTRY.get_dependency_function(c_type_static, model.to_string()) {
+                match registry.get_dependency_function(c_type_static, model.to_string()) {
                     Ok(dependency_getter) => {
                         let dependency_resource_keys =
                             dependency_getter(ConfigType::Dynamic(dyn_config));
@@ -269,6 +277,7 @@ impl LocalRobot {
                                 resource_name,
                                 ConfigType::Dynamic(comp_cfg.try_into()?),
                                 dependencies,
+                                &mut registry,
                             ) {
                                 Ok(()) => {}
                                 Err(err) => {
@@ -296,6 +305,7 @@ impl LocalRobot {
                             resource_name,
                             ConfigType::Dynamic(comp_cfg.try_into()?),
                             dependencies,
+                            &mut registry,
                         ) {
                             Ok(()) => {}
                             Err(err) => {
@@ -326,11 +336,12 @@ impl LocalRobot {
         r_name: ResourceName,
         cfg: ConfigType,
         deps: Vec<Dependency>,
+        registry: &mut ComponentRegistry,
     ) -> anyhow::Result<()> {
         let r_type = cfg.get_type();
         let res = match r_type {
             "motor" => {
-                let ctor = COMPONENT_REGISTRY.get_motor_constructor(model)?;
+                let ctor = registry.get_motor_constructor(model)?;
                 ResourceType::Motor(ctor(cfg, deps)?)
             }
             "board" => {
@@ -341,19 +352,19 @@ impl LocalRobot {
                 })
             }
             "sensor" => {
-                let ctor = COMPONENT_REGISTRY.get_sensor_constructor(model)?;
+                let ctor = registry.get_sensor_constructor(model)?;
                 ResourceType::Sensor(ctor(cfg, deps)?)
             }
             "movement_sensor" => {
-                let ctor = COMPONENT_REGISTRY.get_movement_sensor_constructor(model)?;
+                let ctor = registry.get_movement_sensor_constructor(model)?;
                 ResourceType::MovementSensor(ctor(cfg, deps)?)
             }
             "encoder" => {
-                let ctor = COMPONENT_REGISTRY.get_encoder_constructor(model)?;
+                let ctor = registry.get_encoder_constructor(model)?;
                 ResourceType::Encoder(ctor(cfg, deps)?)
             }
             "base" => {
-                let ctor = COMPONENT_REGISTRY.get_base_constructor(model)?;
+                let ctor = registry.get_base_constructor(model)?;
                 ResourceType::Base(ctor(cfg, deps)?)
             }
             &_ => {
