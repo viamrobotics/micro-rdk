@@ -104,10 +104,7 @@ impl FakeMovementSensor {
             },
         }
     }
-    pub fn from_config(
-        cfg: ConfigType,
-        _: Vec<Dependency>,
-    ) -> anyhow::Result<MovementSensorType> {
+    pub fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<MovementSensorType> {
         let mut fake_pos: GeoPosition = Default::default();
         if let Ok(fake_lat) = cfg.get_attribute::<f64>("fake_lat") {
             fake_pos.lat = fake_lat
