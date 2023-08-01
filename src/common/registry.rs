@@ -109,8 +109,7 @@ pub struct ComponentRegistry {
 // # Safety
 //
 // A component registry is only initialized and mutated once throughout a single runtime.
-// It can then be read by
-//unsafe impl Sync for ComponentRegistry {}
+unsafe impl Sync for ComponentRegistry {}
 
 impl Default for ComponentRegistry {
     fn default() -> Self {
