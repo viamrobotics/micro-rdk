@@ -954,7 +954,12 @@ mod tests {
         };
 
         assert!(robot
-            .insert_resources(&mut component_cfgs, None, None, ComponentRegistry::default())
+            .insert_resources(
+                &mut component_cfgs,
+                None,
+                None,
+                ComponentRegistry::default()
+            )
             .is_ok());
 
         let m1 = robot.get_motor_by_name("m1".to_string());
@@ -1047,7 +1052,12 @@ mod tests {
         };
 
         assert!(robot
-            .insert_resources(&mut component_cfgs, None, None, ComponentRegistry::default())
+            .insert_resources(
+                &mut component_cfgs,
+                None,
+                None,
+                ComponentRegistry::default()
+            )
             .is_ok());
 
         let m1 = robot.get_motor_by_name("m1".to_string());
