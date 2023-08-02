@@ -392,20 +392,20 @@ mod tests {
         use crate::proto::app::v1::{ComponentConfig, ConfigResponse, RobotConfig};
         let components = vec![
             ComponentConfig {
-            name: "board".to_string(),
-            namespace: "rdk".to_string(),
-            r#type: "board".to_string(),
-            model: "rdk:builtin:fake".to_string(),
-            attributes: None,
-            ..Default::default()
+                name: "board".to_string(),
+                namespace: "rdk".to_string(),
+                r#type: "board".to_string(),
+                model: "rdk:builtin:fake".to_string(),
+                attributes: None,
+                ..Default::default()
             },
             ComponentConfig {
-            name: "test_sensor".to_string(),
-            namespace: "rdk".to_string(),
-            r#type: "sensor".to_string(),
-            model: "rdk:builtin:test_sensor".to_string(),
-            attributes: None,
-            ..Default::default()
+                name: "test_sensor".to_string(),
+                namespace: "rdk".to_string(),
+                r#type: "sensor".to_string(),
+                model: "rdk:builtin:test_sensor".to_string(),
+                attributes: None,
+                ..Default::default()
             },
         ];
 
@@ -442,7 +442,8 @@ mod tests {
 
         // make Test Base
         let test_base = robot
-            .get_sensor_by_name("test_sensor".to_string()).expect("could not find test_sensor");
+            .get_sensor_by_name("test_sensor".to_string())
+            .expect("could not find test_sensor");
         let r = test_base
             .lock()
             .unwrap()
