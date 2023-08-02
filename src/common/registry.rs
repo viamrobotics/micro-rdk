@@ -327,12 +327,138 @@ impl ComponentRegistry {
 
 #[cfg(test)]
 mod tests {
-    use crate::common;
-    use crate::common::config::{ConfigType, StaticComponentConfig};
-    use crate::common::registry::{ComponentRegistry, RegistryError};
+    use prost_types::value::Kind;
+
+    use crate::common::{
+        self,
+        config::{ConfigType, StaticComponentConfig},
+        registry::{ComponentRegistry, Dependency, RegistryError},
+        robot::LocalRobot,
+        sensor::{
+            GenericReadingsResult, Sensor, SensorResult, SensorT, SensorType, TypedReadingsResult,
+        },
+        status::Status,
+    };
+    use std::collections::BTreeMap;
+    use std::sync::{Arc, Mutex};
 
     lazy_static::lazy_static! {
         static ref EMPTY_CONFIG: StaticComponentConfig = StaticComponentConfig::default();
+    }
+
+    pub struct TestSensor {}
+
+    impl TestSensor {
+        pub fn new() -> Self {
+            Self {}
+        }
+        pub fn from_config(_cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<SensorType> {
+            Ok(Arc::new(Mutex::new(Self {})))
+        }
+    }
+    impl Default for TestSensor {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    impl Sensor for TestSensor {
+        fn get_generic_readings(&self) -> anyhow::Result<GenericReadingsResult> {
+            Ok(self
+                .get_readings()?
+                .into_iter()
+                .map(|v| (v.0, SensorResult::<f64> { value: v.1 }.into()))
+                .collect())
+        }
+    }
+
+    impl SensorT<f64> for TestSensor {
+        fn get_readings(&self) -> anyhow::Result<TypedReadingsResult<f64>> {
+            let mut x = std::collections::HashMap::new();
+            x.insert("test_sensor".to_string(), 42.0);
+            Ok(x)
+        }
+    }
+
+    impl Status for TestSensor {
+        fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
+            Ok(Some(prost_types::Struct {
+                fields: BTreeMap::new(),
+            }))
+        }
+    }
+    #[test_log::test]
+    fn test_driver() -> anyhow::Result<()> {
+        use crate::proto::app::v1::{ComponentConfig, ConfigResponse, RobotConfig};
+        let components = vec![
+            ComponentConfig {
+            name: "board".to_string(),
+            namespace: "rdk".to_string(),
+            r#type: "board".to_string(),
+            model: "rdk:builtin:fake".to_string(),
+            attributes: None,
+            ..Default::default()
+            },
+            ComponentConfig {
+            name: "test_sensor".to_string(),
+            namespace: "rdk".to_string(),
+            r#type: "sensor".to_string(),
+            model: "rdk:builtin:test_sensor".to_string(),
+            attributes: None,
+            ..Default::default()
+            },
+        ];
+
+        let config: Option<RobotConfig> = Some(RobotConfig {
+            components,
+            ..Default::default()
+        });
+        let cfg_resp = ConfigResponse { config };
+        let mut registry = ComponentRegistry::new();
+
+        // should not be registered yet
+        let ctor = registry.get_sensor_constructor("test_sensor".to_string());
+        assert!(ctor.is_err());
+        assert_eq!(
+            ctor.err().unwrap(),
+            RegistryError::ModelNotFound("test_sensor".to_string())
+        );
+
+        common::board::register_models(&mut registry);
+        let ctor = registry.get_board_constructor("fake".to_string());
+        assert!(ctor.is_ok());
+
+        // registering
+        assert!(registry
+            .register_sensor("test_sensor", &TestSensor::from_config)
+            .is_ok());
+
+        // check ctor
+        let ctor = registry.get_sensor_constructor("test_sensor".to_string());
+        assert!(ctor.is_ok());
+
+        // make robot
+        let robot = LocalRobot::new_from_config_response(&cfg_resp, registry)?;
+
+        // make Test Base
+        let test_base = robot
+            .get_sensor_by_name("test_sensor".to_string()).expect("could not find test_sensor");
+        let r = test_base
+            .lock()
+            .unwrap()
+            .get_generic_readings()
+            .unwrap()
+            .get("test_sensor")
+            .expect("could not get reading")
+            .clone();
+        assert_eq!(
+            r,
+            prost_types::Value {
+                kind: Some(Kind::NumberValue(42.0))
+            }
+        );
+
+        Ok(())
     }
 
     #[test_log::test]
