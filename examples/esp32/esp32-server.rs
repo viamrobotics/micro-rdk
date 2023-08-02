@@ -54,7 +54,7 @@ fn main() -> anyhow::Result<()> {
     let periph = Peripherals::take().unwrap();
 
     #[cfg(feature = "qemu")]
-    let srv_config = {
+    let repr = {
         let board = Arc::new(Mutex::new(FakeBoard::new(vec![])));
         let mut res: ResourceMap = HashMap::with_capacity(1);
         res.insert(
@@ -69,7 +69,7 @@ fn main() -> anyhow::Result<()> {
         RobotRepresentation::WithRobot(LocalRobot::new(res))
     };
     #[cfg(not(feature = "qemu"))]
-    let srv_cfg = RobotRepresentation::WithRegistry(ComponentRegistry::default());
+    let repr = RobotRepresentation::WithRegistry(ComponentRegistry::default());
 
     {
         esp_idf_sys::esp!(unsafe {
@@ -117,7 +117,7 @@ fn main() -> anyhow::Result<()> {
         Esp32TlsServerConfig::new(cert, key.as_ptr(), key.len() as u32)
     };
 
-    serve_web(cfg, tls_cfg, srv_cfg, ip, webrtc_certificate);
+    serve_web(cfg, tls_cfg, repr, ip, webrtc_certificate);
     Ok(())
 }
 
