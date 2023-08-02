@@ -5,7 +5,8 @@ use log::*;
 use micro_rdk::{
     common::{
         app_client::AppClientConfig,
-        robot::{Initializer, LocalRobot, ResourceType},
+        entry::RobotRepresentation,
+        robot::{LocalRobot, ResourceType},
     },
     native::{entry::serve_web, tls::NativeTlsServerConfig},
     proto::common::v1::ResourceName,
@@ -23,7 +24,7 @@ fn main() -> anyhow::Result<()> {
         .init()
         .unwrap();
 
-    let initializer = {
+    let repr = {
         use micro_rdk::common::analog::FakeAnalogReader;
         use micro_rdk::common::base::FakeBase;
         use micro_rdk::common::board::FakeBoard;
@@ -98,7 +99,7 @@ fn main() -> anyhow::Result<()> {
             },
             ResourceType::Camera(camera),
         );
-        Initializer::WithRobot(LocalRobot::new(res))
+        RobotRepresentation::WithRobot(LocalRobot::new(res))
     };
 
     let ip = match local_ip_address::local_ip().unwrap() {
@@ -119,7 +120,7 @@ fn main() -> anyhow::Result<()> {
         "".to_owned(),
     );
 
-    serve_web(app_config, cfg, initializer, ip);
+    serve_web(app_config, cfg, repr, ip);
 
     Ok(())
 }

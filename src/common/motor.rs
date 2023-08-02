@@ -191,7 +191,7 @@ impl FakeMotor {
             max_rpm: 100.0,
         }
     }
-    pub fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<MotorType> {
+    pub(crate) fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<MotorType> {
         let mut motor = FakeMotor::default();
         if let Ok(pos) = cfg.get_attribute::<f64>("fake_position") {
             motor.pos = pos

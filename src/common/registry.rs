@@ -106,12 +106,6 @@ pub struct ComponentRegistry {
     dependencies: Map<&'static str, Map<&'static str, &'static DependenciesFromConfig>>,
 }
 
-// # Safety
-//
-// A component registry is only initialized and mutated once throughout a single runtime.
-// It can then be read by
-unsafe impl Sync for ComponentRegistry {}
-
 impl Default for ComponentRegistry {
     fn default() -> Self {
         let mut r = Self::new();
@@ -123,15 +117,13 @@ impl Default for ComponentRegistry {
         crate::common::mpu6050::register_models(&mut r);
         crate::common::adxl345::register_models(&mut r);
         #[cfg(esp32)]
-        crate::esp32::board::register_models(&mut r);
-        #[cfg(esp32)]
-        crate::esp32::motor::register_models(&mut r);
-        #[cfg(esp32)]
-        crate::esp32::encoder::register_models(&mut r);
-        #[cfg(esp32)]
-        crate::esp32::single_encoder::register_models(&mut r);
-        #[cfg(esp32)]
-        crate::esp32::base::register_models(&mut r);
+        {
+            crate::esp32::board::register_models(&mut r);
+            crate::esp32::motor::register_models(&mut r);
+            crate::esp32::encoder::register_models(&mut r);
+            crate::esp32::single_encoder::register_models(&mut r);
+            crate::esp32::base::register_models(&mut r);
+        }
         r
     }
 }
@@ -340,7 +332,6 @@ mod tests {
     use crate::common::registry::{ComponentRegistry, RegistryError};
 
     lazy_static::lazy_static! {
-        static ref TEST_REGISTRY: ComponentRegistry = ComponentRegistry::default();
         static ref EMPTY_CONFIG: StaticComponentConfig = StaticComponentConfig::default();
     }
 
@@ -407,14 +398,5 @@ mod tests {
         assert_eq!(format!("{}", ret.err().unwrap()), "not implemented");
 
         Ok(())
-    }
-
-    #[test_log::test]
-    fn test_lazy_init() {
-        let ctor = TEST_REGISTRY.get_motor_constructor("fake".to_string());
-        assert!(ctor.is_ok());
-
-        let ctor = TEST_REGISTRY.get_board_constructor("fake".to_string());
-        assert!(ctor.is_ok());
     }
 }

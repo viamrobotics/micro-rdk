@@ -297,7 +297,6 @@ where
         let srv = GrpcServer::new(robot.clone(), GrpcBody::new());
         let connection = c.accept().map_err(|e| ServerError::Other(e.into()))?;
 
-        // boxed to conserve stack
         Box::new(
             Http::new()
                 .with_executor(self.exec.clone())

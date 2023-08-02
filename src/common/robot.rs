@@ -37,11 +37,6 @@ use super::{
 
 static NAMESPACE_PREFIX: &str = "rdk:builtin:";
 
-pub enum Initializer {
-    WithRobot(LocalRobot),
-    WithRegistry(ComponentRegistry),
-}
-
 #[derive(Clone)]
 pub enum ResourceType {
     Motor(MotorType),

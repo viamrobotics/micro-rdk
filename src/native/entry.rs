@@ -3,8 +3,9 @@ use crate::{
     common::{
         app_client::{AppClientBuilder, AppClientConfig},
         conn::server::{ViamServerBuilder, WebRtcConfiguration},
+        entry::RobotRepresentation,
         grpc_client::GrpcClient,
-        robot::{Initializer, LocalRobot},
+        robot::LocalRobot,
     },
     native::exec::NativeExecutor,
     native::tcp::NativeStream,
@@ -24,7 +25,7 @@ use super::{
 pub fn serve_web(
     app_config: AppClientConfig,
     tls_server_config: NativeTlsServerConfig,
-    initializer: Initializer,
+    repr: RobotRepresentation,
     ip: Ipv4Addr,
 ) {
     let client_connector = NativeTls::new_client();
@@ -42,9 +43,9 @@ pub fn serve_web(
         client.get_config().unwrap()
     };
 
-    let robot = match initializer {
-        Initializer::WithRobot(robot) => Arc::new(Mutex::new(robot)),
-        Initializer::WithRegistry(registry) => {
+    let robot = match repr {
+        RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
+        RobotRepresentation::WithRegistry(registry) => {
             log::info!("building robot from config");
             let r = LocalRobot::new_from_config_response(&cfg_response, registry).unwrap();
             Arc::new(Mutex::new(r))
