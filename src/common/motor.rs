@@ -16,7 +16,7 @@ use super::stop::Stoppable;
 
 pub static COMPONENT_NAME: &str = "motor";
 
-pub fn register_models(registry: &mut ComponentRegistry) {
+pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
         .register_motor("fake", &FakeMotor::from_config)
         .is_err()
@@ -293,7 +293,7 @@ impl FakeMotorWithDependency {
         }
     }
 
-    pub fn dependencies_from_config(cfg: ConfigType) -> Vec<ResourceKey> {
+    pub(crate) fn dependencies_from_config(cfg: ConfigType) -> Vec<ResourceKey> {
         let mut r_keys = Vec::new();
         if let Ok(enc_name) = cfg.get_attribute::<String>("encoder") {
             let r_key = ResourceKey(EncoderCompName, enc_name);
@@ -302,7 +302,7 @@ impl FakeMotorWithDependency {
         r_keys
     }
 
-    pub fn from_config(_: ConfigType, deps: Vec<Dependency>) -> anyhow::Result<MotorType> {
+    pub(crate) fn from_config(_: ConfigType, deps: Vec<Dependency>) -> anyhow::Result<MotorType> {
         let mut enc: Option<EncoderType> = None;
         for Dependency(_, dep) in deps {
             match dep {

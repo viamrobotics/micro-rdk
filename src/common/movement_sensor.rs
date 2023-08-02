@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 
 pub static COMPONENT_NAME: &str = "movement_sensor";
 
-pub fn register_models(registry: &mut ComponentRegistry) {
+pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
         .register_movement_sensor("fake", &FakeMovementSensor::from_config)
         .is_err()
@@ -104,7 +104,10 @@ impl FakeMovementSensor {
             },
         }
     }
-    pub fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<MovementSensorType> {
+    pub(crate) fn from_config(
+        cfg: ConfigType,
+        _: Vec<Dependency>,
+    ) -> anyhow::Result<MovementSensorType> {
         let mut fake_pos: GeoPosition = Default::default();
         if let Ok(fake_lat) = cfg.get_attribute::<f64>("fake_lat") {
             fake_pos.lat = fake_lat

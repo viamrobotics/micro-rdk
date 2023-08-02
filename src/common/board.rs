@@ -21,7 +21,7 @@ use super::registry::ComponentRegistry;
 
 pub static COMPONENT_NAME: &str = "board";
 
-pub fn register_models(registry: &mut ComponentRegistry) {
+pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
         .register_board("fake", &FakeBoard::from_config)
         .is_err()
@@ -61,7 +61,7 @@ impl FakeBoard {
         i2cs.insert(i2c1.name(), i2c1);
         FakeBoard { analogs, i2cs }
     }
-    pub fn from_config(cfg: ConfigType) -> anyhow::Result<BoardType> {
+    pub(crate) fn from_config(cfg: ConfigType) -> anyhow::Result<BoardType> {
         let analogs = if let Ok(analog_confs) = cfg.get_attribute::<BTreeMap<&str, f64>>("analogs")
         {
             analog_confs

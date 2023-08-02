@@ -10,7 +10,7 @@ use super::registry::{ComponentRegistry, Dependency};
 
 pub static COMPONENT_NAME: &str = "sensor";
 
-pub fn register_models(registry: &mut ComponentRegistry) {
+pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
         .register_sensor("fake", &FakeSensor::from_config)
         .is_err()
@@ -57,7 +57,7 @@ impl FakeSensor {
             fake_reading: 42.42,
         }
     }
-    pub fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<SensorType> {
+    pub(crate) fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<SensorType> {
         if let Ok(val) = cfg.get_attribute::<f64>("fake_value") {
             return Ok(Arc::new(Mutex::new(FakeSensor { fake_reading: val })));
         }
