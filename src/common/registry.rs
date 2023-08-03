@@ -413,10 +413,11 @@ mod tests {
             components,
             ..Default::default()
         });
+
         let cfg_resp = ConfigResponse { config };
         let mut registry = ComponentRegistry::new();
 
-        // should not be registered yet
+        // sensor should not be registered yet
         let ctor = registry.get_sensor_constructor("test_sensor".to_string());
         assert!(ctor.is_err());
         assert_eq!(
@@ -424,11 +425,12 @@ mod tests {
             RegistryError::ModelNotFound("test_sensor".to_string())
         );
 
+        // register fake board
         common::board::register_models(&mut registry);
         let ctor = registry.get_board_constructor("fake".to_string());
         assert!(ctor.is_ok());
 
-        // registering
+        // register test sensor
         assert!(registry
             .register_sensor("test_sensor", &TestSensor::from_config)
             .is_ok());
@@ -440,11 +442,11 @@ mod tests {
         // make robot
         let robot = LocalRobot::new_from_config_response(&cfg_resp, registry)?;
 
-        // make Test Base
-        let test_base = robot
+        // get test value from sensor
+        let test_sensor = robot
             .get_sensor_by_name("test_sensor".to_string())
             .expect("could not find test_sensor");
-        let r = test_base
+        let r = test_sensor
             .lock()
             .unwrap()
             .get_generic_readings()
