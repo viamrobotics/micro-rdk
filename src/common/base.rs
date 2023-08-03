@@ -12,7 +12,7 @@ pub trait Base: Status + Stoppable {
     fn set_power(&mut self, lin: &Vector3, ang: &Vector3) -> anyhow::Result<()>;
 }
 
-pub(crate) type BaseType = Arc<Mutex<dyn Base>>;
+pub type BaseType = Arc<Mutex<dyn Base>>;
 
 pub struct FakeBase {}
 

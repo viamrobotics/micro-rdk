@@ -76,7 +76,7 @@ pub trait MovementSensor: Status {
     fn get_properties(&self) -> MovementSensorSupportedMethods;
 }
 
-pub(crate) type MovementSensorType = Arc<Mutex<dyn MovementSensor>>;
+pub type MovementSensorType = Arc<Mutex<dyn MovementSensor>>;
 
 pub struct FakeMovementSensor {
     pos: GeoPosition,

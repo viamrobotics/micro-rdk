@@ -11,7 +11,7 @@ use log::*;
 
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use micro_rdk::{
-    common::app_client::AppClientConfig,
+    common::{app_client::AppClientConfig, entry::RobotRepresentation},
     esp32::{certificate::WebRtcCertificate, entry::serve_web, tls::Esp32TlsServerConfig},
 };
 
@@ -41,6 +41,7 @@ use {
     esp_idf_svc::wifi::{BlockingWifi, EspWifi},
     esp_idf_sys as _,
     esp_idf_sys::esp_wifi_set_ps,
+    micro_rdk::common::registry::ComponentRegistry,
 };
 
 fn main() -> anyhow::Result<()> {
@@ -53,7 +54,7 @@ fn main() -> anyhow::Result<()> {
     let periph = Peripherals::take().unwrap();
 
     #[cfg(feature = "qemu")]
-    let robot = {
+    let repr = {
         let board = Arc::new(Mutex::new(FakeBoard::new(vec![])));
         let mut res: ResourceMap = HashMap::with_capacity(1);
         res.insert(
@@ -65,10 +66,10 @@ fn main() -> anyhow::Result<()> {
             },
             ResourceType::Board(board),
         );
-        Some(LocalRobot::new(res))
+        RobotRepresentation::WithRobot(LocalRobot::new(res))
     };
     #[cfg(not(feature = "qemu"))]
-    let robot = None;
+    let repr = RobotRepresentation::WithRegistry(ComponentRegistry::default());
 
     {
         esp_idf_sys::esp!(unsafe {
@@ -116,7 +117,7 @@ fn main() -> anyhow::Result<()> {
         Esp32TlsServerConfig::new(cert, key.as_ptr(), key.len() as u32)
     };
 
-    serve_web(cfg, tls_cfg, robot, ip, webrtc_certificate);
+    serve_web(cfg, tls_cfg, repr, ip, webrtc_certificate);
     Ok(())
 }
 

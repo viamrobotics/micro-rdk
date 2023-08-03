@@ -7,6 +7,7 @@ pub mod common {
     pub mod camera;
     pub mod config;
     pub mod encoder;
+    pub mod entry;
     pub mod grpc;
     pub mod grpc_client;
     pub mod i2c;

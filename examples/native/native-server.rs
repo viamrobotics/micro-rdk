@@ -2,24 +2,29 @@
 include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
 use log::*;
-use micro_rdk::common::app_client::AppClientConfig;
-use micro_rdk::common::robot::LocalRobot;
-use micro_rdk::common::robot::ResourceType;
-use micro_rdk::native::entry::serve_web;
-use micro_rdk::native::tls::NativeTlsServerConfig;
-use micro_rdk::proto::common::v1::ResourceName;
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::rc::Rc;
-use std::sync::Arc;
-use std::sync::Mutex;
+use micro_rdk::{
+    common::{
+        app_client::AppClientConfig,
+        entry::RobotRepresentation,
+        robot::{LocalRobot, ResourceType},
+    },
+    native::{entry::serve_web, tls::NativeTlsServerConfig},
+    proto::common::v1::ResourceName,
+};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
+
 fn main() -> anyhow::Result<()> {
     simple_logger::SimpleLogger::new()
         .with_level(LevelFilter::Info)
         .init()
         .unwrap();
 
-    let robot = {
+    let repr = {
         use micro_rdk::common::analog::FakeAnalogReader;
         use micro_rdk::common::base::FakeBase;
         use micro_rdk::common::board::FakeBoard;
@@ -94,7 +99,7 @@ fn main() -> anyhow::Result<()> {
             },
             ResourceType::Camera(camera),
         );
-        LocalRobot::new(res)
+        RobotRepresentation::WithRobot(LocalRobot::new(res))
     };
 
     let ip = match local_ip_address::local_ip().unwrap() {
@@ -115,7 +120,7 @@ fn main() -> anyhow::Result<()> {
         "".to_owned(),
     );
 
-    serve_web(app_config, cfg, Some(robot), ip);
+    serve_web(app_config, cfg, repr, ip);
 
     Ok(())
 }

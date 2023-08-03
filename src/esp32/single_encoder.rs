@@ -89,7 +89,7 @@ impl Esp32SingleEncoder {
         Ok(enc)
     }
 
-    pub fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<EncoderType> {
+    pub(crate) fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<EncoderType> {
         let pin_num = cfg.get_attribute::<i32>("pin").map_err(|err| {
             anyhow::anyhow!(
                 "cannot build single encoder from config, could not parse pin: {:?}",
