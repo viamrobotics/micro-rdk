@@ -228,7 +228,7 @@ impl<'a> GrpcClient<'a> {
         let (part, body) = response.await?.into_parts();
 
         if part.status != status::StatusCode::OK {
-            log::error!("received status code {}", part.status.to_string());
+            anyhow::bail!("http error {}", part.status.as_u16())
         }
         let p: GrpcMessageStream<P> = GrpcMessageStream::new(body);
 
