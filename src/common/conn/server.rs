@@ -417,7 +417,7 @@ where
         };
         let c = api
             .open_data_channel()
-            .timeout(std::time::Duration::from_secs(2))
+            .timeout(std::time::Duration::from_secs(6))
             .await
             .ok_or(ServerError::ServerConnectionTimeout)?
             .map_err(|e| ServerError::Other(e.into()))?;

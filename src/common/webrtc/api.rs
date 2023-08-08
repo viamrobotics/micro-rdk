@@ -368,10 +368,6 @@ where
                 }
             }
         }
-        self.signaling
-            .as_mut()
-            .ok_or(WebRtcError::SignalingDisconnected())?
-            .send_done(self.uuid.take().unwrap())?;
         let _ = self.signaling.take();
         Ok(())
     }
