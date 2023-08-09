@@ -11,7 +11,8 @@ rust-version = "1.67"
 
 [workspace]
 members = [
-    "micro-rdk-installer"
+    "micro-rdk-installer",
+    "examples"
 ]
 
 [lib]
