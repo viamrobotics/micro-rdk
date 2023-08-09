@@ -47,7 +47,7 @@ endif
 	cd examples && $(QEMU_ESP32_XTENSA)/qemu-system-xtensa -nographic -machine esp32 -gdb tcp::3334 -nic user,model=open_eth,hostfwd=udp::-:61205 -drive file=target/xtensa-esp32-espidf/debug/debug.bin,if=mtd,format=raw -S
 
 upload: cargo-ver
-	cd examples && cargo espflash flash --monitor --partition-table esp32/partitions.csv --baud 460800 -f 80M --use-stub --bin esp32-server --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
+	cd examples && cargo espflash flash --monitor --partition-table esp32/partitions.csv --baud 460800 -f 80M --use-stub --bin esp32-server --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort 
 
 test:
 	cargo test --lib --features native

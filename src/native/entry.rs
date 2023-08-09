@@ -61,7 +61,9 @@ pub fn serve_web(
         app_config,
     ));
 
-    let mut srv = ViamServerBuilder::new(mdns, tls_listener, webrtc, cloned_exec, 12346)
+    let mut srv = ViamServerBuilder::new(mdns, cloned_exec)
+        .with_http2(tls_listener, 12346)
+        .with_webrtc(webrtc)
         .build(&robot_cfg)
         .unwrap();
 

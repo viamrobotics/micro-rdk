@@ -92,7 +92,8 @@ pub fn serve_web(
 
         (
             Box::new(
-                ViamServerBuilder::new(mdns, tls_listener, webrtc, cloned_exec, 12346)
+                ViamServerBuilder::new(mdns, cloned_exec)
+                    .with_webrtc(webrtc)
                     .build(&cfg_response)
                     .unwrap(),
             ),
