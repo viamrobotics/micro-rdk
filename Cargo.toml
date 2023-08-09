@@ -12,6 +12,8 @@ rust-version = "1.67"
 [workspace]
 members = [
     "micro-rdk-installer",
+]
+exclude = [
     "examples"
 ]
 
