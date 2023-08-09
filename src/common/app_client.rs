@@ -81,7 +81,7 @@ pub struct AppClientBuilder<'a> {
     config: AppClientConfig,
 }
 
-fn encode_request<T>(req: T) -> Result<Bytes, AppClientError>
+pub(crate) fn encode_request<T>(req: T) -> Result<Bytes, AppClientError>
 where
     T: Message,
 {
@@ -187,6 +187,7 @@ impl<'a> AppClient<'a> {
             ips: vec![self.ip.to_string()],
             version: "0.0.2".to_string(),
             git_revision: "".to_string(),
+            platform: Some("esp32".to_string()),
         };
 
         let req = ConfigRequest {

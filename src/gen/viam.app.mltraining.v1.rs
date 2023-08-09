@@ -1,4 +1,5 @@
 // @generated
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SubmitTrainingJobRequest {
     #[prost(message, optional, tag="1")]
@@ -14,21 +15,25 @@ pub struct SubmitTrainingJobRequest {
     #[prost(string, repeated, tag="6")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SubmitTrainingJobResponse {
     #[prost(string, tag="1")]
     pub id: ::prost::alloc::string::String,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetTrainingJobRequest {
     #[prost(string, tag="1")]
     pub id: ::prost::alloc::string::String,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetTrainingJobResponse {
     #[prost(message, optional, tag="1")]
     pub metadata: ::core::option::Option<TrainingJobMetadata>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListTrainingJobsRequest {
     #[prost(string, tag="1")]
@@ -36,11 +41,13 @@ pub struct ListTrainingJobsRequest {
     #[prost(enumeration="TrainingStatus", tag="2")]
     pub status: i32,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListTrainingJobsResponse {
     #[prost(message, repeated, tag="1")]
     pub jobs: ::prost::alloc::vec::Vec<TrainingJobMetadata>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TrainingJobMetadata {
     #[prost(message, optional, tag="1")]
@@ -57,12 +64,16 @@ pub struct TrainingJobMetadata {
     pub user_email: ::prost::alloc::string::String,
     #[prost(string, tag="7")]
     pub id: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="8")]
+    pub error_status: ::core::option::Option<super::super::super::super::google::rpc::Status>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CancelTrainingJobRequest {
     #[prost(string, tag="1")]
     pub id: ::prost::alloc::string::String,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CancelTrainingJobResponse {
 }
@@ -87,6 +98,16 @@ impl ModelType {
             ModelType::ObjectDetection => "MODEL_TYPE_OBJECT_DETECTION",
         }
     }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "MODEL_TYPE_UNSPECIFIED" => Some(Self::Unspecified),
+            "MODEL_TYPE_SINGLE_LABEL_CLASSIFICATION" => Some(Self::SingleLabelClassification),
+            "MODEL_TYPE_MULTI_LABEL_CLASSIFICATION" => Some(Self::MultiLabelClassification),
+            "MODEL_TYPE_OBJECT_DETECTION" => Some(Self::ObjectDetection),
+            _ => None,
+        }
+    }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -97,6 +118,7 @@ pub enum TrainingStatus {
     Completed = 3,
     Failed = 4,
     Canceled = 5,
+    Canceling = 6,
 }
 impl TrainingStatus {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -111,6 +133,20 @@ impl TrainingStatus {
             TrainingStatus::Completed => "TRAINING_STATUS_COMPLETED",
             TrainingStatus::Failed => "TRAINING_STATUS_FAILED",
             TrainingStatus::Canceled => "TRAINING_STATUS_CANCELED",
+            TrainingStatus::Canceling => "TRAINING_STATUS_CANCELING",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "TRAINING_STATUS_UNSPECIFIED" => Some(Self::Unspecified),
+            "TRAINING_STATUS_PENDING" => Some(Self::Pending),
+            "TRAINING_STATUS_IN_PROGRESS" => Some(Self::InProgress),
+            "TRAINING_STATUS_COMPLETED" => Some(Self::Completed),
+            "TRAINING_STATUS_FAILED" => Some(Self::Failed),
+            "TRAINING_STATUS_CANCELED" => Some(Self::Canceled),
+            "TRAINING_STATUS_CANCELING" => Some(Self::Canceling),
+            _ => None,
         }
     }
 }

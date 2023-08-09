@@ -36,7 +36,7 @@ pub trait AnalogReader<Word> {
 }
 
 pub(crate) struct AnalogReaderConfig {
-    pub(crate) name: &'static str,
+    pub(crate) name: String,
     pub(crate) pin: i32,
 }
 

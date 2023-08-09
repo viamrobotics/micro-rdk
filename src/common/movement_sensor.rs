@@ -60,7 +60,7 @@ impl From<GeoPosition> for movement_sensor::v1::GetPositionResponse {
         };
         movement_sensor::v1::GetPositionResponse {
             coordinate: Some(pt),
-            altitude_mm: pos.alt,
+            altitude_m: pos.alt,
         }
     }
 }
@@ -76,7 +76,7 @@ pub trait MovementSensor: Status {
     fn get_properties(&self) -> MovementSensorSupportedMethods;
 }
 
-pub(crate) type MovementSensorType = Arc<Mutex<dyn MovementSensor>>;
+pub type MovementSensorType = Arc<Mutex<dyn MovementSensor>>;
 
 pub struct FakeMovementSensor {
     pos: GeoPosition,

@@ -1,5 +1,6 @@
 // @generated
 /// Moves any component on the robot to a specified destination which can be from the reference frame of any other component on the robot.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MoveRequest {
     /// Name of the motion service
@@ -22,11 +23,13 @@ pub struct MoveRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MoveResponse {
     #[prost(bool, tag="1")]
     pub success: bool,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MoveOnMapRequest {
     /// Name of the motion service
@@ -45,11 +48,50 @@ pub struct MoveOnMapRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MoveOnMapResponse {
     #[prost(bool, tag="1")]
     pub success: bool,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MoveOnGlobeRequest {
+    /// Name of the motion service
+    #[prost(string, tag="1")]
+    pub name: ::prost::alloc::string::String,
+    /// Destination, encoded as a GeoPoint
+    #[prost(message, optional, tag="2")]
+    pub destination: ::core::option::Option<super::super::super::common::v1::GeoPoint>,
+    /// Optional compass heading to achieve at the destination, in degrees [0-360)
+    #[prost(double, optional, tag="3")]
+    pub heading: ::core::option::Option<f64>,
+    /// Component on the robot to move to the specified destination
+    #[prost(message, optional, tag="4")]
+    pub component_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
+    /// Name of the movement sensor which will be used to check robot location
+    #[prost(message, optional, tag="5")]
+    pub movement_sensor_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
+    /// Obstacles to be considered for motion planning
+    #[prost(message, repeated, tag="6")]
+    pub obstacles: ::prost::alloc::vec::Vec<super::super::super::common::v1::GeoObstacle>,
+    /// Optional linear velocity to target when moving
+    #[prost(float, optional, tag="7")]
+    pub linear_meters_per_sec: ::core::option::Option<f32>,
+    /// Optional angular velocity to target when turning
+    #[prost(float, optional, tag="8")]
+    pub angular_deg_per_sec: ::core::option::Option<f32>,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<::prost_types::Struct>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MoveOnGlobeResponse {
+    #[prost(bool, tag="1")]
+    pub success: bool,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MoveSingleComponentRequest {
     #[prost(string, tag="1")]
@@ -64,11 +106,13 @@ pub struct MoveSingleComponentRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MoveSingleComponentResponse {
     #[prost(bool, tag="1")]
     pub success: bool,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPoseRequest {
     #[prost(string, tag="1")]
@@ -89,12 +133,14 @@ pub struct GetPoseRequest {
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<::prost_types::Struct>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPoseResponse {
     #[prost(message, optional, tag="1")]
     pub pose: ::core::option::Option<super::super::super::common::v1::PoseInFrame>,
 }
 /// Constraints specifies all enumerated constraints to be passed to Viam's motion planning, along with any optional parameters
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Constraints {
     /// Typed message for a specific constraint
@@ -107,6 +153,7 @@ pub struct Constraints {
     pub collision_specification: ::prost::alloc::vec::Vec<CollisionSpecification>,
 }
 /// LinearConstraint specifies that the component being moved should move linearly relative to its goal. It does not constrain the motion of components other than the `component_name` specified in motion.Move
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct LinearConstraint {
     /// Max linear deviation from straight-line between start and goal, in mm.
@@ -117,6 +164,7 @@ pub struct LinearConstraint {
     pub orientation_tolerance_degs: ::core::option::Option<f32>,
 }
 /// OrientationConstraint specifies that the component being moved will not deviate its orientation beyond some threshold relative to the goal. It does not constrain the motion of components other than the `component_name` specified in motion.Move
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OrientationConstraint {
     /// Max allowable orientation deviation, in degrees, while on the shortest path between start / goal states
@@ -124,6 +172,7 @@ pub struct OrientationConstraint {
     pub orientation_tolerance_degs: ::core::option::Option<f32>,
 }
 /// CollisionSpecification is used to selectively apply obstacle avoidance to specific parts of the robot
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CollisionSpecification {
     /// Pairs of frame which should be allowed to collide with one another
@@ -132,7 +181,8 @@ pub struct CollisionSpecification {
 }
 /// Nested message and enum types in `CollisionSpecification`.
 pub mod collision_specification {
-    #[derive(Clone, PartialEq, ::prost::Message)]
+    #[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
     pub struct AllowedFrameCollisions {
         #[prost(string, tag="1")]
         pub frame1: ::prost::alloc::string::String,

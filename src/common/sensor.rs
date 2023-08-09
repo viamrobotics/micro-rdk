@@ -28,7 +28,7 @@ pub trait Sensor: Status {
     fn get_generic_readings(&self) -> anyhow::Result<GenericReadingsResult>;
 }
 
-pub(crate) type SensorType = Arc<Mutex<dyn Sensor>>;
+pub type SensorType = Arc<Mutex<dyn Sensor>>;
 
 pub trait SensorT<T>: Sensor {
     fn get_readings(&self) -> anyhow::Result<TypedReadingsResult<T>>;

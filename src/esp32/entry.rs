@@ -1,22 +1,28 @@
 #![allow(dead_code)]
-use crate::common::app_client::{AppClientBuilder, AppClientConfig};
-use crate::common::conn::server::{ViamServerBuilder, WebRtcConfiguration};
-use crate::common::robot::LocalRobot;
-use crate::{
-    common::grpc_client::GrpcClient, esp32::exec::Esp32Executor, esp32::tcp::Esp32Stream,
-    esp32::tls::Esp32Tls,
+
+use std::{
+    net::{Ipv4Addr, SocketAddr},
+    rc::Rc,
+    sync::{Arc, Mutex},
 };
 
-use std::net::{Ipv4Addr, SocketAddr};
-use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use crate::common::{
+    app_client::{AppClientBuilder, AppClientConfig},
+    conn::server::{ViamServerBuilder, WebRtcConfiguration},
+    entry::RobotRepresentation,
+    grpc_client::GrpcClient,
+    robot::LocalRobot,
+};
 
-use super::certificate::WebRtcCertificate;
-use super::conn::mdns::Esp32Mdns;
-use super::dtls::Esp32DtlsBuilder;
-use super::tcp::Esp32Listener;
-use super::tls::Esp32TlsServerConfig;
-use super::webhook::Webhook;
+use super::{
+    certificate::WebRtcCertificate,
+    conn::mdns::Esp32Mdns,
+    dtls::Esp32DtlsBuilder,
+    exec::Esp32Executor,
+    tcp::{Esp32Listener, Esp32Stream},
+    tls::{Esp32Tls, Esp32TlsServerConfig},
+    webhook::Webhook,
+};
 
 use embedded_svc::http::client::Client as HttpClient;
 use esp_idf_svc::http::client::{Configuration as HttpConfiguration, EspHttpConnection};
@@ -24,7 +30,7 @@ use esp_idf_svc::http::client::{Configuration as HttpConfiguration, EspHttpConne
 pub fn serve_web(
     app_config: AppClientConfig,
     tls_server_config: Esp32TlsServerConfig,
-    robot: Option<LocalRobot>,
+    repr: RobotRepresentation,
     _ip: Ipv4Addr,
     webrtc_certificate: WebRtcCertificate,
 ) {
@@ -47,11 +53,11 @@ pub fn serve_web(
             client.get_config().unwrap()
         };
 
-        let robot = match robot {
-            Some(r) => Arc::new(Mutex::new(r)),
-            None => {
+        let robot = match repr {
+            RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
+            RobotRepresentation::WithRegistry(registry) => {
                 log::info!("building robot from config");
-                let r = LocalRobot::new_from_config_response(&cfg_response).unwrap();
+                let r = LocalRobot::new_from_config_response(&cfg_response, registry).unwrap();
                 Arc::new(Mutex::new(r))
             }
         };

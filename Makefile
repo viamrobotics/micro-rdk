@@ -35,7 +35,7 @@ ifndef QEMU_ESP32_XTENSA
 	$(error QEMU_ESP32_XTENSA is not set)
 endif
 	pkill qemu || true
-	cd examples && $(QEMU_ESP32_XTENSA)/qemu-system-xtensa -nographic -machine esp32 -gdb tcp::3334 -nic user,model=open_eth,hostfwd=udp::-:61205,hostfwd=tcp:127.0.0.1:12346-:12346 -drive file=target/xtensa-esp32-espidf/debug/debug.bin,if=mtd,format=raw
+	cd examples && $(QEMU_ESP32_XTENSA)/qemu-system-xtensa -nographic -machine esp32 -gdb tcp::3334 -nic user,model=open_eth,hostfwd=udp::-:61205,hostfwd=tcp::12346-:12346 -drive file=target/xtensa-esp32-espidf/debug/debug.bin,if=mtd,format=raw
 
 # debug-local is identical to sim-local, except the `-S` at the end means "wait until a debugger is
 # attached before starting."
@@ -69,4 +69,11 @@ size:
 	find . -name "esp-build.map" -exec ${IDF_PATH}/tools/idf_size.py {} \;
 
 build-esp32-bin:
-	cd examples && cargo espflash save-image --merge --chip esp32 target/esp32-server.bin -T esp32/partitions.csv -s 4M  --bin esp32-server --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort
+	cd examples && cargo espflash save-image --merge --chip esp32 target/esp32-server.bin -T esp32/partitions.csv -s 4M  --bin esp32-server --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort --release
+
+flash-esp32-bin:
+ifneq (,$(wildcard ./examples/target/esp32-server.bin))
+	espflash write-bin 0x0 ./examples/target/esp32-server.bin -b 460800  && sleep 2 && espflash monitor
+else
+	$(error esp32-server.bin not found, run build-esp32-bin first)
+endif

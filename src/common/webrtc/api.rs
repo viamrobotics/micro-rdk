@@ -335,6 +335,10 @@ where
                     self.uuid.as_ref().unwrap().clone(),
                 )?;
         }
+        self.signaling
+            .as_mut()
+            .ok_or(WebRtcError::SignalingDisconnected())?
+            .send_done(self.uuid.as_ref().unwrap().clone())?;
         let sync = Arc::new(AtomicBool::new(false));
         let sync_clone = sync.clone();
         self.executor.execute(Box::pin(async move {
@@ -364,10 +368,6 @@ where
                 }
             }
         }
-        self.signaling
-            .as_mut()
-            .ok_or(WebRtcError::SignalingDisconnected())?
-            .send_done(self.uuid.take().unwrap())?;
         let _ = self.signaling.take();
         Ok(())
     }
@@ -390,7 +390,10 @@ where
             self.executor.execute(Box::pin(async move {
                 sctp.run().await;
             }));
-            return Ok(c_rx.recv().await.unwrap());
+            return c_rx
+                .recv()
+                .await
+                .map_err(|_| WebRtcError::DataChannelOpenError());
         }
 
         Err(WebRtcError::DataChannelOpenError())

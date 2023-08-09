@@ -50,7 +50,7 @@ pub trait Board: Status {
     fn get_i2c_by_name(&self, name: String) -> anyhow::Result<I2cHandleType>;
 }
 
-pub(crate) type BoardType = Arc<Mutex<dyn Board>>;
+pub type BoardType = Arc<Mutex<dyn Board>>;
 
 impl FakeBoard {
     pub fn new(analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>) -> Self {

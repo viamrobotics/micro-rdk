@@ -3,6 +3,7 @@ use crate::{
     common::{
         app_client::{AppClientBuilder, AppClientConfig},
         conn::server::{ViamServerBuilder, WebRtcConfiguration},
+        entry::RobotRepresentation,
         grpc_client::GrpcClient,
         robot::LocalRobot,
     },
@@ -24,16 +25,14 @@ use super::{
 pub fn serve_web(
     app_config: AppClientConfig,
     tls_server_config: NativeTlsServerConfig,
-    robot: Option<LocalRobot>,
+    repr: RobotRepresentation,
     ip: Ipv4Addr,
 ) {
-    let robot = Arc::new(Mutex::new(robot.unwrap()));
-
     let client_connector = NativeTls::new_client();
     let exec = NativeExecutor::new();
     let mdns = NativeMdns::new("".to_owned(), ip).unwrap();
 
-    let robot_cfg = {
+    let cfg_response = {
         let cloned_exec = exec.clone();
         let conn = client_connector.open_ssl_context(None).unwrap();
         let conn = NativeStream::TLSStream(Box::new(conn));
@@ -42,6 +41,15 @@ pub fn serve_web(
 
         let mut client = builder.build().unwrap();
         client.get_config().unwrap()
+    };
+
+    let robot = match repr {
+        RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
+        RobotRepresentation::WithRegistry(registry) => {
+            log::info!("building robot from config");
+            let r = LocalRobot::new_from_config_response(&cfg_response, registry).unwrap();
+            Arc::new(Mutex::new(r))
+        }
     };
 
     let address: SocketAddr = "0.0.0.0:12346".parse().unwrap();
@@ -64,7 +72,7 @@ pub fn serve_web(
     let mut srv = ViamServerBuilder::new(mdns, cloned_exec)
         .with_http2(tls_listener, 12346)
         .with_webrtc(webrtc)
-        .build(&robot_cfg)
+        .build(&cfg_response)
         .unwrap();
 
     srv.serve_forever(robot);
@@ -72,7 +80,7 @@ pub fn serve_web(
 
 #[cfg(test)]
 mod tests {
-    use crate::common::app_client::{AppClientBuilder, AppClientConfig};
+    use crate::common::app_client::{encode_request, AppClientBuilder, AppClientConfig};
 
     use crate::common::grpc_client::GrpcClient;
 
@@ -81,9 +89,11 @@ mod tests {
     use crate::native::tls::NativeTls;
 
     use crate::proto::rpc::examples::echo::v1::{EchoBiDiRequest, EchoBiDiResponse};
+    use crate::proto::rpc::v1::{AuthenticateRequest, AuthenticateResponse, Credentials};
 
     use futures_lite::future::block_on;
     use futures_lite::StreamExt;
+    use prost::Message;
 
     use std::net::{Ipv4Addr, TcpStream};
 
@@ -126,15 +136,34 @@ mod tests {
     #[test_log::test]
     #[ignore]
     fn test_client_bidi() -> anyhow::Result<()> {
-        let socket = TcpStream::connect("127.0.0.1:8080").unwrap();
+        let socket = TcpStream::connect("localhost:7888").unwrap();
         socket.set_nonblocking(true)?;
         let conn = NativeStream::LocalPlain(socket);
         let executor = NativeExecutor::new();
         let mut grpc_client = GrpcClient::new(conn, executor.clone(), "http://localhost")?;
 
+        let r = grpc_client.build_request("/proto.rpc.v1.AuthService/Authenticate", None, "")?;
+
+        let cred = Credentials {
+            r#type: "robot-secret".to_owned(),
+            payload: "some-secret".to_owned(),
+        };
+
+        let req = AuthenticateRequest {
+            entity: "some entity".to_owned(),
+            credentials: Some(cred),
+        };
+
+        let body = encode_request(req)?;
+
+        let mut r = grpc_client.send_request(r, body)?;
+        let r = r.split_off(5);
+        let r = AuthenticateResponse::decode(r).unwrap();
+        let jwt = format!("Bearer {}", r.access_token);
+
         let r = grpc_client.build_request(
             "/proto.rpc.examples.echo.v1.EchoService/EchoBiDi",
-            None,
+            Some(&jwt),
             "",
         )?;
 

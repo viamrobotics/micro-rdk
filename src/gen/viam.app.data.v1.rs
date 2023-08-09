@@ -1,12 +1,11 @@
 // @generated
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Result {
-    #[prost(enumeration="Status", tag="1")]
-    pub status: i32,
-    /// message is an aggregated error message string
-    #[prost(string, tag="2")]
-    pub message: ::prost::alloc::string::String,
-}
+/// DataRequest encapsulates the filter for the data, a limit on the maximum results returned,
+/// a last string associated with the last returned document, and the sorting order by time.
+/// last is returned in the responses TabularDataByFilterResponse and BinaryDataByFilterResponse
+/// from the API calls TabularDataByFilter and BinaryDataByFilter, respectively.
+/// We can then use the last string from the previous API calls in the subsequent request
+/// to get the next set of ordered documents.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DataRequest {
     #[prost(message, optional, tag="1")]
@@ -18,14 +17,18 @@ pub struct DataRequest {
     #[prost(enumeration="Order", tag="4")]
     pub sort_order: i32,
 }
+/// Filter defines the fields over which we can filter data using a logic AND.
+/// For example, if component_type and robot_id are specified, only data from that `robot_id` of
+/// type `component_type` is returned. However, we logical OR over the specified tags and bounding
+/// box labels, such that if component_type, robot_id, tagA, tagB are specified,
+/// we return data from that `robot_id` of type `component_type` with `tagA` or `tagB`.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Filter {
     #[prost(string, tag="1")]
     pub component_name: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
     pub component_type: ::prost::alloc::string::String,
-    #[prost(string, tag="3")]
-    pub component_model: ::prost::alloc::string::String,
     #[prost(string, tag="4")]
     pub method: ::prost::alloc::string::String,
     #[prost(string, tag="6")]
@@ -39,32 +42,33 @@ pub struct Filter {
     #[prost(string, repeated, tag="10")]
     pub location_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(string, repeated, tag="11")]
-    pub org_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    pub organization_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(string, repeated, tag="12")]
     pub mime_type: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(message, optional, tag="13")]
     pub interval: ::core::option::Option<CaptureInterval>,
     #[prost(message, optional, tag="14")]
     pub tags_filter: ::core::option::Option<TagsFilter>,
+    /// bbox_labels are used to match documents with the specified bounding box labels (using logical OR)
     #[prost(string, repeated, tag="15")]
     pub bbox_labels: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    #[deprecated]
-    #[prost(string, repeated, tag="5")]
-    pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
+/// TagsFilter defines the type of filtering and, if applicable, over which tags to perform a logical OR.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TagsFilter {
     #[prost(enumeration="TagsFilterType", tag="1")]
     pub r#type: i32,
-    /// Tags are used to match documents if `type` is UNSPECIFIED or MATCH_BY_ORG
+    /// Tags are used to match documents if `type` is UNSPECIFIED or MATCH_BY_OR
     #[prost(string, repeated, tag="2")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 /// CaptureMetadata contains information on the settings used for the data capture
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CaptureMetadata {
     #[prost(string, tag="1")]
-    pub org_id: ::prost::alloc::string::String,
+    pub organization_id: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
     pub location_id: ::prost::alloc::string::String,
     #[prost(string, tag="3")]
@@ -77,8 +81,6 @@ pub struct CaptureMetadata {
     pub part_id: ::prost::alloc::string::String,
     #[prost(string, tag="7")]
     pub component_type: ::prost::alloc::string::String,
-    #[prost(string, tag="8")]
-    pub component_model: ::prost::alloc::string::String,
     #[prost(string, tag="9")]
     pub component_name: ::prost::alloc::string::String,
     #[prost(string, tag="10")]
@@ -91,6 +93,7 @@ pub struct CaptureMetadata {
     pub mime_type: ::prost::alloc::string::String,
 }
 /// CaptureInterval describes the start and end time of the capture in this file
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CaptureInterval {
     #[prost(message, optional, tag="1")]
@@ -99,6 +102,7 @@ pub struct CaptureInterval {
     pub end: ::core::option::Option<::prost_types::Timestamp>,
 }
 /// TabularDataByFilterRequest requests tabular data based on filter values
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TabularDataByFilterRequest {
     #[prost(message, optional, tag="1")]
@@ -107,30 +111,33 @@ pub struct TabularDataByFilterRequest {
     pub count_only: bool,
 }
 /// TabularDataByFilterResponse provides the data and metadata of tabular data
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TabularDataByFilterResponse {
     #[prost(message, repeated, tag="1")]
     pub metadata: ::prost::alloc::vec::Vec<CaptureMetadata>,
     #[prost(message, repeated, tag="2")]
     pub data: ::prost::alloc::vec::Vec<TabularData>,
-    #[prost(int64, tag="3")]
-    pub count: i64,
+    #[prost(uint64, tag="3")]
+    pub count: u64,
     #[prost(string, tag="4")]
     pub last: ::prost::alloc::string::String,
     #[prost(uint64, tag="5")]
     pub total_size_bytes: u64,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TabularData {
     #[prost(message, optional, tag="1")]
     pub data: ::core::option::Option<::prost_types::Struct>,
-    #[prost(int32, tag="2")]
-    pub metadata_index: i32,
+    #[prost(uint32, tag="2")]
+    pub metadata_index: u32,
     #[prost(message, optional, tag="3")]
     pub time_requested: ::core::option::Option<::prost_types::Timestamp>,
     #[prost(message, optional, tag="4")]
     pub time_received: ::core::option::Option<::prost_types::Timestamp>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BinaryData {
     #[prost(bytes="vec", tag="1")]
@@ -139,6 +146,7 @@ pub struct BinaryData {
     pub metadata: ::core::option::Option<BinaryMetadata>,
 }
 /// BinaryDataByFilterRequest requests the data and metadata of binary (image + file) data when a filter is provided
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BinaryDataByFilterRequest {
     #[prost(message, optional, tag="1")]
@@ -149,6 +157,7 @@ pub struct BinaryDataByFilterRequest {
     pub count_only: bool,
 }
 /// BinaryDataByFilterResponse provides the data and metadata of binary (image + file) data when a filter is provided
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BinaryDataByFilterResponse {
     #[prost(message, repeated, tag="1")]
@@ -157,17 +166,34 @@ pub struct BinaryDataByFilterResponse {
     pub count: u64,
     #[prost(string, tag="3")]
     pub last: ::prost::alloc::string::String,
+    #[prost(uint64, tag="4")]
+    pub total_size_bytes: u64,
 }
-/// BinaryDataByFilterRequest requests the data and metadata of binary (image + file) data by file ids
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BinaryId {
+    #[prost(string, tag="1")]
+    pub file_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub organization_id: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub location_id: ::prost::alloc::string::String,
+}
+/// BinaryDataByFilterRequest requests the data and metadata of binary (image + file) data by binary ids
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BinaryDataByIDsRequest {
-    #[prost(string, repeated, tag="1")]
-    pub file_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    /// by default
     #[prost(bool, tag="2")]
     pub include_binary: bool,
+    #[prost(message, repeated, tag="3")]
+    pub binary_ids: ::prost::alloc::vec::Vec<BinaryId>,
+    /// Replaced by binary_ids
+    #[deprecated]
+    #[prost(string, repeated, tag="1")]
+    pub file_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 /// BinaryDataByIDsResponse provides the data and metadata of binary (image + file) data when a filter is provided
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BinaryDataByIDsResponse {
     #[prost(message, repeated, tag="1")]
@@ -177,27 +203,30 @@ pub struct BinaryDataByIDsResponse {
 }
 /// BoundingBox represents a labeled bounding box on an image.
 /// x and y values are normalized ratios between 0 and 1.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BoundingBox {
     #[prost(string, tag="1")]
     pub id: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
     pub label: ::prost::alloc::string::String,
-    #[prost(float, tag="3")]
-    pub x_min_normalized: f32,
-    #[prost(float, tag="4")]
-    pub y_min_normalized: f32,
-    #[prost(float, tag="5")]
-    pub x_max_normalized: f32,
-    #[prost(float, tag="6")]
-    pub y_max_normalized: f32,
+    #[prost(double, tag="3")]
+    pub x_min_normalized: f64,
+    #[prost(double, tag="4")]
+    pub y_min_normalized: f64,
+    #[prost(double, tag="5")]
+    pub x_max_normalized: f64,
+    #[prost(double, tag="6")]
+    pub y_max_normalized: f64,
 }
 /// Annotations are data annotations used for machine learning.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Annotations {
     #[prost(message, repeated, tag="1")]
     pub bboxes: ::prost::alloc::vec::Vec<BoundingBox>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BinaryMetadata {
     #[prost(string, tag="1")]
@@ -218,59 +247,70 @@ pub struct BinaryMetadata {
     pub annotations: ::core::option::Option<Annotations>,
 }
 /// DeleteTabularDataByFilterRequest deletes the data and metadata of tabular data when a filter is provided
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DeleteTabularDataByFilterRequest {
     #[prost(message, optional, tag="1")]
     pub filter: ::core::option::Option<Filter>,
 }
 /// DeleteBinaryDataByFilterResponse returns the number of tabular datapoints deleted when a filter is provided
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DeleteTabularDataByFilterResponse {
     #[prost(uint64, tag="1")]
     pub deleted_count: u64,
-    #[prost(message, optional, tag="2")]
-    pub result: ::core::option::Option<Result>,
 }
 /// DeleteBinaryDataByFilterRequest deletes the data and metadata of binary data when a filter is provided
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DeleteBinaryDataByFilterRequest {
     #[prost(message, optional, tag="1")]
     pub filter: ::core::option::Option<Filter>,
 }
 /// DeleteBinaryDataByFilterResponse returns the number of binary files deleted when a filter is provided
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DeleteBinaryDataByFilterResponse {
     #[prost(uint64, tag="1")]
     pub deleted_count: u64,
-    #[prost(message, optional, tag="2")]
-    pub result: ::core::option::Option<Result>,
 }
-/// DeleteBinaryDataByIDsRequest deletes the data and metadata of binary data when file ids are provided
+/// DeleteBinaryDataByIDsRequest deletes the data and metadata of binary data when binary ids are provided
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DeleteBinaryDataByIDsRequest {
+    #[prost(message, repeated, tag="2")]
+    pub binary_ids: ::prost::alloc::vec::Vec<BinaryId>,
+    /// Replaced by binary_ids
+    #[deprecated]
     #[prost(string, repeated, tag="1")]
     pub file_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
-/// DeleteBinaryDataByIDsResponse returns the number of binary files deleted when file ids are provided
+/// DeleteBinaryDataByIDsResponse returns the number of binary files deleted when binary ids are provided
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DeleteBinaryDataByIDsResponse {
     #[prost(uint64, tag="1")]
     pub deleted_count: u64,
-    #[prost(message, optional, tag="2")]
-    pub result: ::core::option::Option<Result>,
 }
-/// AddTagsToBinaryDataByFileIDsRequest requests adding all specified tags to each of the files when file IDs are provided
+/// AddTagsToBinaryDataByIDsRequest requests adding all specified tags to each of the files when binary ids are provided
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AddTagsToBinaryDataByFileIDsRequest {
-    #[prost(string, repeated, tag="1")]
-    pub file_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+pub struct AddTagsToBinaryDataByIDsRequest {
+    #[prost(message, repeated, tag="3")]
+    pub binary_ids: ::prost::alloc::vec::Vec<BinaryId>,
     #[prost(string, repeated, tag="2")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// Replaced by binary_ids
+    #[deprecated]
+    #[prost(string, repeated, tag="1")]
+    pub file_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AddTagsToBinaryDataByFileIDsResponse {
+pub struct AddTagsToBinaryDataByIDsResponse {
 }
 /// AddTagsToBinaryDataByFilterRequest requests adding all specified tags to each of the files when a filter is provided
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AddTagsToBinaryDataByFilterRequest {
     #[prost(message, optional, tag="1")]
@@ -278,24 +318,32 @@ pub struct AddTagsToBinaryDataByFilterRequest {
     #[prost(string, repeated, tag="2")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AddTagsToBinaryDataByFilterResponse {
 }
-/// RemoveTagsFromBinaryDataByFileIDsRequest requests removing the given tags value from each file when file IDs are provided
+/// RemoveTagsFromBinaryDataByIDsRequest requests removing the given tags value from each file when binary ids are provided
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RemoveTagsFromBinaryDataByFileIDsRequest {
-    #[prost(string, repeated, tag="1")]
-    pub file_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+pub struct RemoveTagsFromBinaryDataByIDsRequest {
+    #[prost(message, repeated, tag="3")]
+    pub binary_ids: ::prost::alloc::vec::Vec<BinaryId>,
     #[prost(string, repeated, tag="2")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// Replaced by binary_ids
+    #[deprecated]
+    #[prost(string, repeated, tag="1")]
+    pub file_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
-/// RemoveTagsFromBinaryDataByFileIDsResponse returns the number of binary files which had tags removed
+/// RemoveTagsFromBinaryDataByIDsResponse returns the number of binary files which had tags removed
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RemoveTagsFromBinaryDataByFileIDsResponse {
+pub struct RemoveTagsFromBinaryDataByIDsResponse {
     #[prost(uint64, tag="1")]
     pub deleted_count: u64,
 }
 /// RemoveTagsFromBinaryDataByFilterRequest requests removing the given tags value from each file when a filter is provided
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RemoveTagsFromBinaryDataByFilterRequest {
     #[prost(message, optional, tag="1")]
@@ -304,63 +352,81 @@ pub struct RemoveTagsFromBinaryDataByFilterRequest {
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 /// RemoveTagsFromBinaryDataByFilterResponse returns the number of binary files which had tags removed
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RemoveTagsFromBinaryDataByFilterResponse {
     #[prost(uint64, tag="1")]
     pub deleted_count: u64,
 }
 /// TagsByFilterRequest requests the unique tags from data based on given filter
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TagsByFilterRequest {
     #[prost(message, optional, tag="1")]
     pub filter: ::core::option::Option<Filter>,
 }
 /// TagsByFilterResponse returns the unique tags from data based on given filter
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TagsByFilterResponse {
     #[prost(string, repeated, tag="1")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AddBoundingBoxToImageByIdRequest {
-    #[prost(string, tag="1")]
-    pub file_id: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="7")]
+    pub binary_id: ::core::option::Option<BinaryId>,
     #[prost(string, tag="2")]
     pub label: ::prost::alloc::string::String,
-    #[prost(float, tag="3")]
-    pub x_min_normalized: f32,
-    #[prost(float, tag="4")]
-    pub y_min_normalized: f32,
-    #[prost(float, tag="5")]
-    pub x_max_normalized: f32,
-    #[prost(float, tag="6")]
-    pub y_max_normalized: f32,
+    #[prost(double, tag="3")]
+    pub x_min_normalized: f64,
+    #[prost(double, tag="4")]
+    pub y_min_normalized: f64,
+    #[prost(double, tag="5")]
+    pub x_max_normalized: f64,
+    #[prost(double, tag="6")]
+    pub y_max_normalized: f64,
+    /// Replaced by binary_id
+    #[deprecated]
+    #[prost(string, tag="1")]
+    pub file_id: ::prost::alloc::string::String,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AddBoundingBoxToImageByIdResponse {
     #[prost(string, tag="1")]
     pub bbox_id: ::prost::alloc::string::String,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RemoveBoundingBoxFromImageByIdRequest {
-    #[prost(string, tag="1")]
-    pub file_id: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="3")]
+    pub binary_id: ::core::option::Option<BinaryId>,
     #[prost(string, tag="2")]
     pub bbox_id: ::prost::alloc::string::String,
+    /// Replaced by binary_id
+    #[deprecated]
+    #[prost(string, tag="1")]
+    pub file_id: ::prost::alloc::string::String,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RemoveBoundingBoxFromImageByIdResponse {
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BoundingBoxLabelsByFilterRequest {
     #[prost(message, optional, tag="1")]
     pub filter: ::core::option::Option<Filter>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BoundingBoxLabelsByFilterResponse {
     #[prost(string, repeated, tag="1")]
     pub labels: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
+/// Order specifies the order in which data is returned.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum Order {
@@ -380,24 +446,13 @@ impl Order {
             Order::Ascending => "ORDER_ASCENDING",
         }
     }
-}
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
-#[repr(i32)]
-pub enum Status {
-    Unspecified = 0,
-    PartialSuccess = 1,
-    Success = 2,
-}
-impl Status {
-    /// String value of the enum field names used in the ProtoBuf definition.
-    ///
-    /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
-        match self {
-            Status::Unspecified => "STATUS_UNSPECIFIED",
-            Status::PartialSuccess => "STATUS_PARTIAL_SUCCESS",
-            Status::Success => "STATUS_SUCCESS",
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "ORDER_UNSPECIFIED" => Some(Self::Unspecified),
+            "ORDER_DESCENDING" => Some(Self::Descending),
+            "ORDER_ASCENDING" => Some(Self::Ascending),
+            _ => None,
         }
     }
 }
@@ -424,6 +479,16 @@ impl TagsFilterType {
             TagsFilterType::MatchByOr => "TAGS_FILTER_TYPE_MATCH_BY_OR",
             TagsFilterType::Tagged => "TAGS_FILTER_TYPE_TAGGED",
             TagsFilterType::Untagged => "TAGS_FILTER_TYPE_UNTAGGED",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "TAGS_FILTER_TYPE_UNSPECIFIED" => Some(Self::Unspecified),
+            "TAGS_FILTER_TYPE_MATCH_BY_OR" => Some(Self::MatchByOr),
+            "TAGS_FILTER_TYPE_TAGGED" => Some(Self::Tagged),
+            "TAGS_FILTER_TYPE_UNTAGGED" => Some(Self::Untagged),
+            _ => None,
         }
     }
 }
