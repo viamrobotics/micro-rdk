@@ -14,10 +14,10 @@ To test this functionality, download a json
 file representing the robot's app config from the Setup tab of the robot part's page on app.viam.com and then
 run the following command from within this subdirectory:
 ```
-cargo run -- create-nvs-partition --app-config=<path to config json> --file-dest=<destination path for resulting binary>
+cargo run -- create-nvs-partition --app-config=<path to config json> --output=<destination path for resulting binary>
 ```
 
 Alternatively you can build the binary (with `cargo build`) and run it in a similar fashion:
 ```
-./micro-rdk-installer create-nvs-partition --app-config=<path to config json> --file-dest=<destination path for resulting binary>
+./micro-rdk-installer create-nvs-partition --app-config=<path to config json> --output=<destination path for resulting binary>
 ```
