@@ -5,16 +5,17 @@ use clap::{arg, command, Args, Parser, Subcommand};
 use micro_rdk_installer::nvs::data::{ViamFlashStorageData, WifiCredentials};
 use micro_rdk_installer::nvs::partition::{NVSPartition, NVSPartitionData};
 use micro_rdk_installer::nvs::request::populate_nvs_storage_from_app;
-use serde::{Deserialize, Serialize};
+use secrecy::{Secret, ExposeSecret};
+use serde::Deserialize;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 struct AppCloudConfig {
     r#id: String,
     app_address: String,
-    secret: String,
+    secret: Secret<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 struct AppConfig {
     cloud: AppCloudConfig,
 }
@@ -67,7 +68,7 @@ fn create_nvs_partition_binary(config_path: String) -> anyhow::Result<Vec<u8>> {
     let app_config: AppConfig = serde_json::from_str(&config_str)?;
     storage_data.robot_credentials.robot_id = Some(app_config.cloud.r#id.to_string());
     storage_data.robot_credentials.app_address = Some(app_config.cloud.app_address.to_string());
-    storage_data.robot_credentials.robot_secret = Some(app_config.cloud.secret.to_string());
+    storage_data.robot_credentials.robot_secret = Some(app_config.cloud.secret.expose_secret().to_string());
     let wifi_cred = request_wifi()?;
     storage_data.wifi = Some(wifi_cred);
     populate_nvs_storage_from_app(&mut storage_data)?;
