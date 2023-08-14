@@ -19,8 +19,8 @@ pub fn populate_nvs_storage_from_app(
 ) -> anyhow::Result<()> {
     populate_dtls_certificate(storage_data)?;
     let rt = Runtime::new()?;
-    rt.block_on(read_cloud_config(storage_data))?;
-    rt.block_on(read_certificates(storage_data))?;
+    rt.block_on(store_robot_name_and_fqdn_from_cloud(storage_data))?;
+    rt.block_on(store_certificates_from_cloud(storage_data))?;
     Ok(())
 }
 
@@ -39,8 +39,8 @@ fn populate_dtls_certificate(storage_data: &mut ViamFlashStorageData) -> anyhow:
 
     param.key_pair = Some(kp);
 
-    let cert = rcgen::Certificate::from_params(param).unwrap();
-    let cert_der = cert.serialize_der().unwrap();
+    let cert = rcgen::Certificate::from_params(param)?;
+    let cert_der = cert.serialize_der()?;
     let fp = ring::digest::digest(&ring::digest::SHA256, &cert_der)
         .as_ref()
         .iter()
@@ -53,7 +53,9 @@ fn populate_dtls_certificate(storage_data: &mut ViamFlashStorageData) -> anyhow:
     Ok(())
 }
 
-async fn read_cloud_config(storage_data: &mut ViamFlashStorageData) -> anyhow::Result<()> {
+async fn store_robot_name_and_fqdn_from_cloud(
+    storage_data: &mut ViamFlashStorageData,
+) -> anyhow::Result<()> {
     // requires storage data to have already been populated with this
     // information from the robot's app config json
     let robot_id = storage_data.get_robot_id()?;
@@ -68,7 +70,7 @@ async fn read_cloud_config(storage_data: &mut ViamFlashStorageData) -> anyhow::R
     let agent = AgentInfo {
         os: "esp32-flash-util".to_string(),
         host: gethostname::gethostname().to_str().unwrap().to_string(),
-        ips: vec![local_ip().unwrap().to_string()],
+        ips: vec![local_ip()?.to_string()],
         version: "0.0.1".to_string(),
         git_revision: "".to_string(),
         platform: Some("esp32-flash-util".to_string()),
@@ -103,7 +105,9 @@ async fn read_cloud_config(storage_data: &mut ViamFlashStorageData) -> anyhow::R
     Ok(())
 }
 
-async fn read_certificates(storage_data: &mut ViamFlashStorageData) -> anyhow::Result<()> {
+async fn store_certificates_from_cloud(
+    storage_data: &mut ViamFlashStorageData,
+) -> anyhow::Result<()> {
     let robot_id = storage_data.get_robot_id()?;
     let robot_secret = storage_data.get_robot_secret()?;
     let app_address = storage_data.get_app_address()?;

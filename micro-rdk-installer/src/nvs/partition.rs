@@ -4,7 +4,9 @@ use crc32fast::Hasher;
 
 use super::data::ViamFlashStorageData;
 
+const VIAM_NAMESPACE: &str = "VIAM_NS";
 const MAX_BLOB_SIZE: usize = 4000;
+const NAMESPACE_FORMAT: u8 = 0x01;
 const BLOB_DATA_FORMAT: u8 = 0x42;
 const STRING_VALUE_FORMAT: u8 = 0x21;
 const BLOB_IDX_FORMAT: u8 = 0x48;
@@ -71,6 +73,20 @@ impl TryFrom<ViamFlashStorageData> for NVSPartition {
     }
 }
 
+fn write_key_into_entry_header(header: &mut Vec<u8>, key: String) -> anyhow::Result<()> {
+    if header.len() < 32 {
+        anyhow::bail!("encountered header of improper length when trying to set key")
+    }
+    let key_bytes = key.to_string().into_bytes();
+    // the key section of an entry header is 16 bytes long and unused positions in the
+    // 16 byte vector must have 0 for a value
+    let empty_key_arr = std::iter::repeat(0x00).take(16).collect::<Vec<u8>>();
+    let _ = header.splice(8..24, empty_key_arr);
+    let key_end = key_bytes.len() + 8;
+    let _ = header.splice(8..key_end, key_bytes);
+    Ok(())
+}
+
 pub struct NVSEntry {
     pub header: Vec<u8>,
     pub data: Vec<u8>,
@@ -83,7 +99,7 @@ impl NVSEntry {
         header.copy_from_slice(&self.header);
         header[24..32].copy_from_slice(&[0xFF; 8]);
         header[1] = BLOB_IDX_FORMAT;
-        header[2] = 1;
+        header[2] = 1; // entry_count = 1
         header[3] = DEFAULT_BLOB_CHUNK_IDX;
         let data_len_bytes = (data_len as u32).to_le_bytes();
         header[24..28].copy_from_slice(&data_len_bytes);
@@ -135,11 +151,7 @@ impl TryFrom<&NVSKeyValuePair> for NVSEntry {
         header[2] = data_entry_count + 1;
         header[3] = DEFAULT_BLOB_CHUNK_IDX;
         // write key
-        let key_bytes = pair.key.to_string().into_bytes();
-        let key_arr = std::iter::repeat(0x00).take(16).collect::<Vec<u8>>();
-        let _ = header.splice(8..24, key_arr);
-        let key_end = key_bytes.len() + 8;
-        let _ = header.splice(8..key_end, key_bytes);
+        write_key_into_entry_header(&mut header, pair.key.to_string())?;
         // write crc
         header[1] = format;
         let value_len_bytes = u16::try_from(value_len)?.to_le_bytes();
@@ -177,7 +189,7 @@ impl NVSPage {
         let bitmap_array = [255; 32];
         Self {
             data,
-            current_position: 64,
+            current_position: 64, // the page header is 32 bytes and the next 32 are reserved
             bitmap_array,
             entry_num: 0,
         }
@@ -187,17 +199,13 @@ impl NVSPage {
         self.data.len() - self.current_position
     }
 
-    pub fn write_namespace(&mut self) -> anyhow::Result<()> {
+    pub fn write_namespace_entry(&mut self) -> anyhow::Result<()> {
         let mut header = std::iter::repeat(0xFF).take(32).collect::<Vec<u8>>();
         header[0] = 0;
-        header[2] = 0x01;
+        header[2] = 0x01; // entry_count = 1
         header[3] = 0xFF;
-        let key_bytes = "VIAM_NS".to_string().into_bytes();
-        let key_arr = std::iter::repeat(0x00).take(16).collect::<Vec<u8>>();
-        let _ = header.splice(8..24, key_arr);
-        let key_end = key_bytes.len() + 8;
-        let _ = header.splice(8..key_end, key_bytes);
-        header[1] = 0x01;
+        write_key_into_entry_header(&mut header, VIAM_NAMESPACE.to_string())?;
+        header[1] = NAMESPACE_FORMAT;
         header[24] = 0x01;
         set_header_crc(&mut header);
         self.write_misc_data(&header, 1)
@@ -377,12 +385,12 @@ impl NVSPartitionData {
 
     fn write_namespace(&mut self) -> anyhow::Result<()> {
         let current_section = &mut self.sections[self.current_section];
-        match current_section.write_namespace() {
+        match current_section.write_namespace_entry() {
             Ok(()) => Ok(()),
             Err(_) => {
                 self.start_new_section()?;
                 let current_section = &mut self.sections[self.current_section];
-                current_section.write_namespace()
+                current_section.write_namespace_entry()
             }
         }
     }
