@@ -26,7 +26,6 @@ const DEFAULT_BLOB_CHUNK_IDX: u8 = 0xFF;
 /// More information on the structure of NVS and its API can be found in Espressif's online documentation
 /// (https://docs.espressif.com/projects/esp-idf/en/release-v4.4/esp32/api-reference/storage/nvs_flash.html)
 
-
 // computes the checksum of the contents of the header and stores it at index 4
 // as a 32-bit integer (see the link above for more information)
 fn set_header_crc(header: &mut Vec<u8>) {
@@ -202,10 +201,10 @@ impl NVSPage {
         let mut header = std::iter::repeat(0xFF).take(32).collect::<Vec<u8>>();
         header[0] = 0;
         header[2] = 0x01; // entry_count = 1
-        header[3] = 0xFF;
+        header[3] = DEFAULT_BLOB_CHUNK_IDX;
         write_key_into_entry_header(&mut header, VIAM_NAMESPACE.to_string())?;
         header[1] = NAMESPACE_FORMAT;
-        header[24] = 0x01;
+        header[24] = 0x01; // indicates the data is encoded as a u8, the data here is the namespace index
         set_header_crc(&mut header);
         self.write_misc_data(&header, 1)
     }
