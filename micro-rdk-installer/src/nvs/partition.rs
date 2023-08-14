@@ -49,6 +49,16 @@ fn pad_data(data: &mut Vec<u8>, data_entry_count: usize) {
 
 pub struct NVSPartition {
     pub entries: Vec<NVSEntry>,
+    pub size: usize,
+}
+
+impl NVSPartition {
+    pub fn from_storage_data(data: ViamFlashStorageData, size: usize) -> anyhow::Result<Self> {
+        Ok(Self {
+            entries: data.to_entries(0)?,
+            size,
+        })
+    }
 }
 
 impl TryFrom<ViamFlashStorageData> for NVSPartition {
@@ -56,6 +66,7 @@ impl TryFrom<ViamFlashStorageData> for NVSPartition {
     fn try_from(value: ViamFlashStorageData) -> Result<Self, Self::Error> {
         Ok(Self {
             entries: value.to_entries(0)?,
+            size: 32768,
         })
     }
 }
@@ -203,8 +214,8 @@ impl NVSPage {
         let write_len = header.len() + entry_data.len();
         let remaining_space = self.get_remaining_space();
         if write_len > (remaining_space) {
-            println!("tried to write {:?} bytes", write_len);
-            println!("actual space: {:?}", remaining_space);
+            log::error!("tried to write {:?} bytes", write_len);
+            log::error!("actual space: {:?}", remaining_space);
             anyhow::bail!("not enough space left in current section, make new one")
         }
         let entry_data_pos = self.current_position + header.len();
@@ -263,21 +274,28 @@ impl NVSPage {
 pub struct NVSPartitionData {
     sections: VecDeque<NVSPage>,
     current_section: usize,
+    size: usize,
 }
 
 impl NVSPartitionData {
-    fn new() -> Self {
+    fn new(size: usize) -> Self {
         Self {
             sections: vec![NVSPage::new(0)].into(),
             current_section: 0,
+            size,
         }
     }
 
-    pub fn start_new_section(&mut self) {
+    pub fn start_new_section(&mut self) -> anyhow::Result<()> {
+        let max_sections = self.size / 4096 - 1;
+        if self.current_section == max_sections - 1 {
+            anyhow::bail!("data overflow, increase size for NVS partition and try again")
+        }
         self.sections[self.current_section].close();
         self.current_section += 1;
         self.sections
             .push_back(NVSPage::new(self.current_section as u32));
+        Ok(())
     }
 
     pub fn write_string_entry(&mut self, entry: &mut NVSEntry) -> anyhow::Result<()> {
@@ -288,7 +306,7 @@ impl NVSPartitionData {
         let projected_total_entries =
             current_section.entry_num + entry.data_entry_count as usize + 1;
         if ((header.len() + data_len) > curr_size) || (projected_total_entries > 126) {
-            self.start_new_section();
+            self.start_new_section()?;
             current_section = &mut self.sections[self.current_section];
         }
         let mut hasher = Hasher::new_with_initial(0xFFFFFFFF);
@@ -315,7 +333,7 @@ impl NVSPartitionData {
         let header = &mut std::iter::repeat(0xFF).take(32).collect::<Vec<u8>>();
         header.copy_from_slice(&entry.header);
         if header.len() > curr_size {
-            self.start_new_section();
+            self.start_new_section()?;
             current_section = &mut self.sections[self.current_section];
             curr_size = current_section.get_remaining_space();
         }
@@ -342,7 +360,7 @@ impl NVSPartitionData {
                 data.len() == 0,
             )?;
             if data.len() != 0 {
-                self.start_new_section();
+                self.start_new_section()?;
                 current_section = &mut self.sections[self.current_section];
                 curr_size = current_section.get_remaining_space() - header.len();
             }
@@ -350,7 +368,7 @@ impl NVSPartitionData {
         }
         let last_header = entry.get_blob_index_entry(chunk_num, data_len_u32);
         if last_header.len() > current_section.get_remaining_space() {
-            self.start_new_section();
+            self.start_new_section()?;
             current_section = &mut self.sections[self.current_section];
         }
         current_section.write_misc_data(&last_header, 1)?;
@@ -362,7 +380,7 @@ impl NVSPartitionData {
         match current_section.write_namespace() {
             Ok(()) => Ok(()),
             Err(_) => {
-                self.start_new_section();
+                self.start_new_section()?;
                 let current_section = &mut self.sections[self.current_section];
                 current_section.write_namespace()
             }
@@ -371,14 +389,17 @@ impl NVSPartitionData {
 
     pub fn to_bytes(&mut self) -> Vec<u8> {
         let mut res = vec![];
-        let total_sections = 32768 / 4096 - 1;
+        let total_sections = self.size / 4096 - 1;
         let empty_sections = total_sections - self.sections.len();
         for _ in 0..empty_sections {
-            self.start_new_section();
+            match self.start_new_section() {
+                Ok(_) => {}
+                Err(_) => unreachable!(),
+            };
         }
         self.sections[self.current_section].close();
         let num_sections = self.sections.len();
-        println!("num sections: {:?}", num_sections);
+        log::info!("Writing {:?} NVS pages", num_sections);
         for _ in 0..num_sections {
             let section = self.sections.pop_front().unwrap();
             res.append(&mut section.data.to_vec());
@@ -392,11 +413,11 @@ impl NVSPartitionData {
 impl TryFrom<&mut NVSPartition> for NVSPartitionData {
     type Error = anyhow::Error;
     fn try_from(value: &mut NVSPartition) -> Result<Self, Self::Error> {
-        let mut nvs_inst = Self::new();
+        let mut nvs_inst = Self::new(value.size);
         nvs_inst.write_namespace()?;
         let total_entries = value.entries.len();
         for (i, entry) in value.entries.iter_mut().enumerate() {
-            println!("writing entry {:?} of {:?}...", i + 1, total_entries);
+            log::info!("writing entry {:?} of {:?}...", i + 1, total_entries);
             if entry.header[1] == STRING_VALUE_FORMAT {
                 nvs_inst.write_string_entry(entry)?
             } else {
