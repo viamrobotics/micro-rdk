@@ -6,6 +6,7 @@ pub mod common {
     pub mod board;
     pub mod camera;
     pub mod config;
+    pub mod digital_interrupt;
     pub mod encoder;
     pub mod entry;
     pub mod grpc;

@@ -2921,6 +2921,7 @@ dependencies = [
  "local-ip-address",
  "log 0.4.19",
  "mdns-sd",
+ "once_cell",
  "openssl",
  "phf",
  "pin-project-lite 0.2.11",

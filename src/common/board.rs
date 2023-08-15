@@ -48,6 +48,11 @@ pub trait Board: Status {
         duration: Option<Duration>,
     ) -> anyhow::Result<()>;
     fn get_i2c_by_name(&self, name: String) -> anyhow::Result<I2cHandleType>;
+    /// Return the amount of detected interrupt events on a pin. Should error if the
+    /// pin has not been configured as an interrupt
+    fn get_digital_interrupt_value(&self, _pin: i32) -> anyhow::Result<u32> {
+        anyhow::bail!("this board does not support digital interrupts")
+    }
 }
 
 pub type BoardType = Arc<Mutex<dyn Board>>;
@@ -219,5 +224,9 @@ where
 
     fn get_i2c_by_name(&self, name: String) -> anyhow::Result<I2cHandleType> {
         self.lock().unwrap().get_i2c_by_name(name)
+    }
+
+    fn get_digital_interrupt_value(&self, pin: i32) -> anyhow::Result<u32> {
+        self.lock().unwrap().get_digital_interrupt_value(pin)
     }
 }
