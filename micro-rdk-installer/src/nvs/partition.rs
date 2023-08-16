@@ -1,3 +1,4 @@
+use super::super::error::Error;
 use std::collections::VecDeque;
 
 use crc32fast::Hasher;
@@ -53,7 +54,7 @@ pub struct NVSPartition {
 }
 
 impl NVSPartition {
-    pub fn from_storage_data(data: ViamFlashStorageData, size: usize) -> anyhow::Result<Self> {
+    pub fn from_storage_data(data: ViamFlashStorageData, size: usize) -> Result<Self, Error> {
         Ok(Self {
             entries: data.to_entries(0)?,
             size,
@@ -62,7 +63,7 @@ impl NVSPartition {
 }
 
 impl TryFrom<ViamFlashStorageData> for NVSPartition {
-    type Error = anyhow::Error;
+    type Error = Error;
     fn try_from(value: ViamFlashStorageData) -> Result<Self, Self::Error> {
         Ok(Self {
             entries: value.to_entries(0)?,
@@ -71,9 +72,11 @@ impl TryFrom<ViamFlashStorageData> for NVSPartition {
     }
 }
 
-fn write_key_into_entry_header(header: &mut Vec<u8>, key: String) -> anyhow::Result<()> {
+fn write_key_into_entry_header(header: &mut Vec<u8>, key: String) -> Result<(), Error> {
     if header.len() < 32 {
-        anyhow::bail!("encountered header of improper length when trying to set key")
+        return Err(Error::NVSDataProcessingError(
+            "encountered header of improper length when trying to set key".to_string(),
+        ));
     }
     let key_bytes = key.to_string().into_bytes();
     // the key section of an entry header is 16 bytes long and unused positions in the
@@ -120,7 +123,7 @@ pub struct NVSKeyValuePair {
 }
 
 impl TryFrom<&NVSKeyValuePair> for NVSEntry {
-    type Error = anyhow::Error;
+    type Error = Error;
     fn try_from(pair: &NVSKeyValuePair) -> Result<Self, Self::Error> {
         let format: u8;
         let data = match &pair.value {
@@ -137,7 +140,9 @@ impl TryFrom<&NVSKeyValuePair> for NVSEntry {
         };
         let value_len = data.len();
         if value_len > MAX_BLOB_SIZE {
-            anyhow::bail!("value too big to pack")
+            return Err(Error::NVSDataProcessingError(
+                "value too big to pack".to_string(),
+            ));
         }
 
         let mut header = std::iter::repeat(0xFF).take(32).collect::<Vec<u8>>();
@@ -145,14 +150,17 @@ impl TryFrom<&NVSKeyValuePair> for NVSEntry {
         header[0] = pair.namespace_idx + 1;
         // write entry count
         let rounded_size: usize = (value_len + 31) & !31;
-        let data_entry_count = u8::try_from(rounded_size / 32)?;
+        let data_entry_count = u8::try_from(rounded_size / 32)
+            .map_err(|err| Self::Error::NVSDataProcessingError(err.to_string()))?;
         header[2] = data_entry_count + 1;
         header[3] = DEFAULT_BLOB_CHUNK_IDX;
         // write key
         write_key_into_entry_header(&mut header, pair.key.to_string())?;
         // write crc
         header[1] = format;
-        let value_len_bytes = u16::try_from(value_len)?.to_le_bytes();
+        let value_len_bytes = u16::try_from(value_len)
+            .map_err(|err| Self::Error::NVSDataProcessingError(err.to_string()))?
+            .to_le_bytes();
         let _ = header.splice(24..26, value_len_bytes);
         Ok(NVSEntry {
             header,
@@ -197,7 +205,7 @@ impl NVSPage {
         self.data.len() - self.current_position
     }
 
-    pub fn write_namespace_entry(&mut self) -> anyhow::Result<()> {
+    pub fn write_namespace_entry(&mut self) -> Result<(), Error> {
         let mut header = std::iter::repeat(0xFF).take(32).collect::<Vec<u8>>();
         header[0] = 0;
         header[2] = 0x01; // entry_count = 1
@@ -216,13 +224,15 @@ impl NVSPage {
         chunk_num: u8,
         data_entry_count: u8,
         pad: bool,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), Error> {
         let write_len = header.len() + entry_data.len();
         let remaining_space = self.get_remaining_space();
         if write_len > (remaining_space) {
             log::error!("tried to write {:?} bytes", write_len);
             log::error!("actual space: {:?}", remaining_space);
-            anyhow::bail!("not enough space left in current section, make new one")
+            return Err(Error::NVSDataProcessingError(
+                "not enough space left in current section, make new one".to_string(),
+            ));
         }
         let entry_data_pos = self.current_position + header.len();
         let mut edited_header = std::iter::repeat(0xFF).take(32).collect::<Vec<u8>>();
@@ -259,10 +269,12 @@ impl NVSPage {
         }
     }
 
-    pub fn write_misc_data(&mut self, data: &Vec<u8>, data_entry_count: u8) -> anyhow::Result<()> {
+    pub fn write_misc_data(&mut self, data: &Vec<u8>, data_entry_count: u8) -> Result<(), Error> {
         let write_len = data.len();
         if write_len > 4096 - self.current_position {
-            anyhow::bail!("not enough space left in current section, make new one")
+            return Err(Error::NVSDataProcessingError(
+                "not enough space left in current section, make new one".to_string(),
+            ));
         }
         let end_idx = self.current_position + write_len;
         self.data[self.current_position..end_idx].clone_from_slice(data);
@@ -292,10 +304,12 @@ impl NVSPartitionData {
         }
     }
 
-    pub fn start_new_section(&mut self) -> anyhow::Result<()> {
+    pub fn start_new_section(&mut self) -> Result<(), Error> {
         let max_sections = self.size / 4096 - 1;
         if self.current_section == max_sections - 1 {
-            anyhow::bail!("data overflow, increase size for NVS partition and try again")
+            return Err(Error::NVSDataProcessingError(
+                "data overflow, increase size for NVS partition and try again".to_string(),
+            ));
         }
         self.sections[self.current_section].close();
         self.current_section += 1;
@@ -304,7 +318,7 @@ impl NVSPartitionData {
         Ok(())
     }
 
-    pub fn write_string_entry(&mut self, entry: &mut NVSEntry) -> anyhow::Result<()> {
+    pub fn write_string_entry(&mut self, entry: &mut NVSEntry) -> Result<(), Error> {
         let mut current_section = &mut self.sections[self.current_section];
         let curr_size = current_section.get_remaining_space();
         let header = &mut entry.header;
@@ -333,7 +347,7 @@ impl NVSPartitionData {
         Ok(())
     }
 
-    pub fn write_binary_entry(&mut self, entry: &mut NVSEntry) -> anyhow::Result<()> {
+    pub fn write_binary_entry(&mut self, entry: &mut NVSEntry) -> Result<(), Error> {
         let mut current_section = &mut self.sections[self.current_section];
         let mut curr_size = current_section.get_remaining_space();
         let header = &mut std::iter::repeat(0xFF).take(32).collect::<Vec<u8>>();
@@ -381,7 +395,7 @@ impl NVSPartitionData {
         Ok(())
     }
 
-    fn write_namespace(&mut self) -> anyhow::Result<()> {
+    fn write_namespace(&mut self) -> Result<(), Error> {
         let current_section = &mut self.sections[self.current_section];
         match current_section.write_namespace_entry() {
             Ok(()) => Ok(()),
@@ -417,7 +431,7 @@ impl NVSPartitionData {
 }
 
 impl TryFrom<&mut NVSPartition> for NVSPartitionData {
-    type Error = anyhow::Error;
+    type Error = Error;
     fn try_from(value: &mut NVSPartition) -> Result<Self, Self::Error> {
         let mut nvs_inst = Self::new(value.size);
         nvs_inst.write_namespace()?;

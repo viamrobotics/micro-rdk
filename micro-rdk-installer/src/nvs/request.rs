@@ -1,3 +1,4 @@
+use super::super::error::Error;
 use super::data::ViamFlashStorageData;
 
 use rcgen::{date_time_ymd, CertificateParams, DistinguishedName};
@@ -14,17 +15,15 @@ This module contains the logic for acquiring the security credentials for a robo
 the Viam App and preparing for flash storage
 */
 
-pub fn populate_nvs_storage_from_app(
-    storage_data: &mut ViamFlashStorageData,
-) -> anyhow::Result<()> {
+pub fn populate_nvs_storage_from_app(storage_data: &mut ViamFlashStorageData) -> Result<(), Error> {
     populate_dtls_certificate(storage_data)?;
-    let rt = Runtime::new()?;
+    let rt = Runtime::new().map_err(Error::AsyncError)?;
     rt.block_on(store_robot_name_and_fqdn_from_cloud(storage_data))?;
     rt.block_on(store_certificates_from_cloud(storage_data))?;
     Ok(())
 }
 
-fn populate_dtls_certificate(storage_data: &mut ViamFlashStorageData) -> anyhow::Result<()> {
+fn populate_dtls_certificate(storage_data: &mut ViamFlashStorageData) -> Result<(), Error> {
     let mut param: CertificateParams = CertificateParams::new(vec!["esp32".to_string()]);
     param.not_before = date_time_ymd(2021, 5, 19);
     param.not_after = date_time_ymd(4096, 1, 1);
@@ -55,7 +54,7 @@ fn populate_dtls_certificate(storage_data: &mut ViamFlashStorageData) -> anyhow:
 
 async fn store_robot_name_and_fqdn_from_cloud(
     storage_data: &mut ViamFlashStorageData,
-) -> anyhow::Result<()> {
+) -> Result<(), Error> {
     // requires storage data to have already been populated with this
     // information from the robot's app config json
     let robot_id = storage_data.get_robot_id()?;
@@ -70,7 +69,9 @@ async fn store_robot_name_and_fqdn_from_cloud(
     let agent = AgentInfo {
         os: "esp32-flash-util".to_string(),
         host: gethostname::gethostname().to_str().unwrap().to_string(),
-        ips: vec![local_ip()?.to_string()],
+        ips: vec![local_ip()
+            .map_err(|err| Error::ConfigRequestError(err.to_string()))?
+            .to_string()],
         version: "0.0.1".to_string(),
         git_revision: "".to_string(),
         platform: Some("esp32-flash-util".to_string()),
@@ -84,12 +85,17 @@ async fn store_robot_name_and_fqdn_from_cloud(
         .with_credentials(creds)
         .disable_webrtc()
         .connect()
-        .await?;
+        .await
+        .map_err(|err| Error::ConfigRequestError(err.to_string()))?;
     let mut app_service = RobotServiceClient::new(dial);
-    let cfg = app_service.config(cfg_req).await?.into_inner();
+    let cfg = app_service
+        .config(cfg_req)
+        .await
+        .map_err(|err| Error::ConfigRequestError(err.to_string()))?
+        .into_inner();
     let robot_config = cfg
         .config
-        .ok_or(anyhow::Error::msg("no config for robot"))?;
+        .ok_or(Error::ConfigRequestError("no config for robot".to_string()))?;
     let cloud_cfg = robot_config.cloud.unwrap_or_default();
     storage_data.robot_credentials.robot_name = Some(
         cloud_cfg
@@ -107,7 +113,7 @@ async fn store_robot_name_and_fqdn_from_cloud(
 
 async fn store_certificates_from_cloud(
     storage_data: &mut ViamFlashStorageData,
-) -> anyhow::Result<()> {
+) -> Result<(), Error> {
     let robot_id = storage_data.get_robot_id()?;
     let robot_secret = storage_data.get_robot_secret()?;
     let app_address = storage_data.get_app_address()?;
@@ -125,9 +131,14 @@ async fn store_certificates_from_cloud(
         .with_credentials(creds)
         .disable_webrtc()
         .connect()
-        .await?;
+        .await
+        .map_err(|err| Error::CertificateRequestError(err.to_string()))?;
     let mut app_service = RobotServiceClient::new(dial);
-    let certs = app_service.certificate(cert_req).await?.into_inner();
+    let certs = app_service
+        .certificate(cert_req)
+        .await
+        .map_err(|err| Error::CertificateRequestError(err.to_string()))?
+        .into_inner();
     let tls_cert = &certs
         .tls_certificate
         .split_inclusive("----END CERTIFICATE-----");

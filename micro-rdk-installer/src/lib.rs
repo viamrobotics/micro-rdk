@@ -3,3 +3,4 @@ pub mod nvs {
     pub mod partition;
     pub mod request;
 }
+pub mod error;

@@ -1,3 +1,4 @@
+use super::super::error::Error;
 use super::partition::{NVSEntry, NVSKeyValuePair, NVSValue};
 
 #[derive(Clone, Default, Debug)]
@@ -28,8 +29,11 @@ pub struct ViamFlashStorageData {
 }
 
 impl ViamFlashStorageData {
-    fn to_nvs_key_value_pairs(&self, namespace_idx: u8) -> anyhow::Result<[NVSKeyValuePair; 13]> {
-        let wifi_cred = self.wifi.clone().ok_or(anyhow::Error::msg("no wifi"))?;
+    fn to_nvs_key_value_pairs(&self, namespace_idx: u8) -> Result<[NVSKeyValuePair; 13], Error> {
+        let wifi_cred = self
+            .wifi
+            .clone()
+            .ok_or(Error::NVSDataProcessingError("no wifi".to_string()))?;
         Ok([
             NVSKeyValuePair {
                 key: "WIFI_SSID".to_string(),
@@ -43,32 +47,23 @@ impl ViamFlashStorageData {
             },
             NVSKeyValuePair {
                 key: "ROBOT_ID".to_string(),
-                value: NVSValue::String(
-                    self.robot_credentials
-                        .robot_id
-                        .clone()
-                        .ok_or(anyhow::Error::msg("robot_id missing"))?,
-                ),
+                value: NVSValue::String(self.robot_credentials.robot_id.clone().ok_or(
+                    Error::NVSDataProcessingError("robot_id missing".to_string()),
+                )?),
                 namespace_idx: namespace_idx,
             },
             NVSKeyValuePair {
                 key: "ROBOT_SECRET".to_string(),
-                value: NVSValue::String(
-                    self.robot_credentials
-                        .robot_secret
-                        .clone()
-                        .ok_or(anyhow::Error::msg("robot_secret missing"))?,
-                ),
+                value: NVSValue::String(self.robot_credentials.robot_secret.clone().ok_or(
+                    Error::NVSDataProcessingError("robot_secret missing".to_string()),
+                )?),
                 namespace_idx: namespace_idx,
             },
             NVSKeyValuePair {
                 key: "LOCAL_FQDN".to_string(),
-                value: NVSValue::String(
-                    self.robot_credentials
-                        .local_fqdn
-                        .clone()
-                        .ok_or(anyhow::Error::msg("local_fqdn missing"))?,
-                ),
+                value: NVSValue::String(self.robot_credentials.local_fqdn.clone().ok_or(
+                    Error::NVSDataProcessingError("local_fqdn missing".to_string()),
+                )?),
                 namespace_idx: namespace_idx,
             },
             NVSKeyValuePair {
@@ -77,18 +72,15 @@ impl ViamFlashStorageData {
                     self.robot_credentials
                         .fqdn
                         .clone()
-                        .ok_or(anyhow::Error::msg("fqdn missing"))?,
+                        .ok_or(Error::NVSDataProcessingError("fqdn missing".to_string()))?,
                 ),
                 namespace_idx: namespace_idx,
             },
             NVSKeyValuePair {
                 key: "ROBOT_NAME".to_string(),
-                value: NVSValue::String(
-                    self.robot_credentials
-                        .robot_name
-                        .clone()
-                        .ok_or(anyhow::Error::msg("robot_name missing"))?,
-                ),
+                value: NVSValue::String(self.robot_credentials.robot_name.clone().ok_or(
+                    Error::NVSDataProcessingError("robot_name missing".to_string()),
+                )?),
                 namespace_idx: namespace_idx,
             },
             NVSKeyValuePair {
@@ -97,7 +89,9 @@ impl ViamFlashStorageData {
                     self.robot_credentials
                         .robot_dtls_certificate_fp
                         .clone()
-                        .ok_or(anyhow::Error::msg("robot_dtls_certificate_fp missing"))?,
+                        .ok_or(Error::NVSDataProcessingError(
+                            "robot_dtls_certificate_fp missing".to_string(),
+                        ))?,
                 ),
                 namespace_idx: namespace_idx,
             },
@@ -107,7 +101,7 @@ impl ViamFlashStorageData {
                     self.robot_credentials
                         .der_key
                         .clone()
-                        .ok_or(anyhow::Error::msg("der_key missing"))?,
+                        .ok_or(Error::NVSDataProcessingError("der_key missing".to_string()))?,
                 ),
                 namespace_idx: namespace_idx,
             },
@@ -117,28 +111,22 @@ impl ViamFlashStorageData {
                     self.robot_credentials
                         .ca_crt
                         .clone()
-                        .ok_or(anyhow::Error::msg("ca_crt missing"))?,
+                        .ok_or(Error::NVSDataProcessingError("ca_crt missing".to_string()))?,
                 ),
                 namespace_idx: namespace_idx,
             },
             NVSKeyValuePair {
                 key: "APP_ADDRESS".to_string(),
-                value: NVSValue::String(
-                    self.robot_credentials
-                        .app_address
-                        .clone()
-                        .ok_or(anyhow::Error::msg("app_address missing"))?,
-                ),
+                value: NVSValue::String(self.robot_credentials.app_address.clone().ok_or(
+                    Error::NVSDataProcessingError("app_address missing".to_string()),
+                )?),
                 namespace_idx: namespace_idx,
             },
             NVSKeyValuePair {
                 key: "ROBOT_DTLS_KEY_PAIR".to_string(),
-                value: NVSValue::Bytes(
-                    self.robot_credentials
-                        .robot_dtls_key_pair
-                        .clone()
-                        .ok_or(anyhow::Error::msg("robot_dtls_key_pair missing"))?,
-                ),
+                value: NVSValue::Bytes(self.robot_credentials.robot_dtls_key_pair.clone().ok_or(
+                    Error::NVSDataProcessingError("robot_dtls_key_pair missing".to_string()),
+                )?),
                 namespace_idx: namespace_idx,
             },
             NVSKeyValuePair {
@@ -147,38 +135,40 @@ impl ViamFlashStorageData {
                     self.robot_credentials
                         .robot_dtls_certificate
                         .clone()
-                        .ok_or(anyhow::Error::msg("robot_dtls_certificate missing"))?,
+                        .ok_or(Error::NVSDataProcessingError(
+                            "robot_dtls_certificate missing".to_string(),
+                        ))?,
                 ),
                 namespace_idx: namespace_idx,
             },
         ])
     }
 
-    pub fn to_entries(&self, namespace_idx: u8) -> anyhow::Result<Vec<NVSEntry>> {
+    pub fn to_entries(&self, namespace_idx: u8) -> Result<Vec<NVSEntry>, Error> {
         self.to_nvs_key_value_pairs(namespace_idx)?
             .iter()
             .map(|p| p.try_into())
             .collect()
     }
 
-    pub fn get_robot_id(&self) -> anyhow::Result<String> {
+    pub fn get_robot_id(&self) -> Result<String, Error> {
         self.robot_credentials
             .robot_id
             .clone()
-            .ok_or(anyhow::Error::msg("robot_id not set"))
+            .ok_or(Error::MissingConfigInfo("robot_id not set".to_string()))
     }
 
-    pub fn get_robot_secret(&self) -> anyhow::Result<String> {
+    pub fn get_robot_secret(&self) -> Result<String, Error> {
         self.robot_credentials
             .robot_secret
             .clone()
-            .ok_or(anyhow::Error::msg("robot_secret not set"))
+            .ok_or(Error::MissingConfigInfo("robot_secret not set".to_string()))
     }
 
-    pub fn get_app_address(&self) -> anyhow::Result<String> {
+    pub fn get_app_address(&self) -> Result<String, Error> {
         self.robot_credentials
             .app_address
             .clone()
-            .ok_or(anyhow::Error::msg("app address not set"))
+            .ok_or(Error::MissingConfigInfo("app address not set".to_string()))
     }
 }

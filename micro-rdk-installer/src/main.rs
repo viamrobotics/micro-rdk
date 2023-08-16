@@ -1,9 +1,10 @@
 use std::fs::{self, File};
-use std::io::{stdin, stdout, Write};
+use std::io::Write;
 
 use clap::{arg, command, Args, Parser, Subcommand};
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Input, Password};
+use micro_rdk_installer::error::Error;
 use micro_rdk_installer::nvs::data::{ViamFlashStorageData, WifiCredentials};
 use micro_rdk_installer::nvs::partition::{NVSPartition, NVSPartitionData};
 use micro_rdk_installer::nvs::request::populate_nvs_storage_from_app;
@@ -54,26 +55,30 @@ struct Cli {
     command: Option<Commands>,
 }
 
-fn request_wifi() -> anyhow::Result<WifiCredentials> {
+fn request_wifi() -> Result<WifiCredentials, Error> {
     let ssid: String = Input::with_theme(&ColorfulTheme::default())
         .with_prompt("Please enter WiFi SSID")
-        .interact_text()?;
+        .interact_text()
+        .map_err(Error::WifiCredentialsError)?;
     let password: String = Password::with_theme(&ColorfulTheme::default())
         .with_prompt("Please enter WiFi Password")
-        .validate_with(|input: &String| -> anyhow::Result<()> {
+        .validate_with(|input: &String| -> Result<(), Error> {
             if input.len() > 64 {
-                anyhow::bail!("password length limited to 64 characters or less")
+                return Err(Error::WifiPasswordTooLongError(
+                    "password length limited to 64 characters or less".to_string(),
+                ));
             }
             Ok(())
         })
-        .interact()?;
+        .interact()
+        .map_err(Error::WifiCredentialsError)?;
 
     Ok(WifiCredentials { ssid, password })
 }
 
-fn create_nvs_partition_binary(config_path: String, size: usize) -> anyhow::Result<Vec<u8>> {
+fn create_nvs_partition_binary(config_path: String, size: usize) -> Result<Vec<u8>, Error> {
     let mut storage_data = ViamFlashStorageData::default();
-    let config_str = fs::read_to_string(config_path)?;
+    let config_str = fs::read_to_string(config_path).map_err(Error::FileError)?;
     let app_config: AppConfig = serde_json::from_str(&config_str)?;
     storage_data.robot_credentials.robot_id = Some(app_config.cloud.r#id.to_string());
     storage_data.robot_credentials.app_address = Some(app_config.cloud.app_address.to_string());
@@ -86,25 +91,28 @@ fn create_nvs_partition_binary(config_path: String, size: usize) -> anyhow::Resu
     Ok(NVSPartitionData::try_from(part)?.to_bytes())
 }
 
-fn main() -> Result<(), anyhow::Error> {
+fn main() -> Result<(), Error> {
     let cli = Cli::parse();
     match &cli.command {
         Some(Commands::WriteBinary(_)) => {
-            anyhow::bail!("binary write not yet supported")
+            return Err(Error::UnimplementedError(
+                "binary write not yet supported".to_string(),
+            ))
         }
         Some(Commands::WriteFlash(_)) => {
-            anyhow::bail!("writing to flash not yet supported")
+            return Err(Error::UnimplementedError(
+                "writing to flash not yet supported".to_string(),
+            ))
         }
         Some(Commands::CreateNvsPartition(args)) => {
-            let mut file = File::create(args.file_name.to_string())?;
+            let mut file = File::create(args.file_name.to_string()).map_err(Error::FileError)?;
             file.write_all(&create_nvs_partition_binary(
                 args.config.to_string(),
                 args.size,
-            )?)?;
+            )?)
+            .map_err(Error::FileError)?;
         }
-        None => {
-            anyhow::bail!("command required")
-        }
+        None => return Err(Error::NoCommandError),
     };
     Ok(())
 }
