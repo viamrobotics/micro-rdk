@@ -35,7 +35,7 @@ fn set_header_crc(header: &mut Vec<u8>) {
     crc_data[4..28].clone_from_slice(&header[8..32]);
     let mut hasher = Hasher::new_with_initial(0xFFFFFFFF);
     hasher.update(&crc_data);
-    let checksum = hasher.finalize() & 0xFFFFFFFF;
+    let checksum = hasher.finalize();
     let _ = header.splice(4..8, checksum.to_le_bytes());
 }
 
@@ -78,7 +78,7 @@ fn write_key_into_entry_header(header: &mut Vec<u8>, key: String) -> Result<(), 
             "encountered header of improper length when trying to set key".to_string(),
         ));
     }
-    let key_bytes = key.to_string().into_bytes();
+    let key_bytes = key.into_bytes();
     // the key section of an entry header is 16 bytes long and unused positions in the
     // 16 byte vector must have 0 for a value
     let empty_key_arr = std::iter::repeat(0x00).take(16).collect::<Vec<u8>>();
@@ -102,9 +102,9 @@ impl NVSEntry {
         header[1] = BLOB_IDX_FORMAT;
         header[2] = 1; // entry_count = 1
         header[3] = DEFAULT_BLOB_CHUNK_IDX;
-        let data_len_bytes = (data_len as u32).to_le_bytes();
+        let data_len_bytes = data_len.to_le_bytes();
         header[24..28].copy_from_slice(&data_len_bytes);
-        header[28] = num_chunks as u8;
+        header[28] = num_chunks;
         header[29] = 0;
         set_header_crc(&mut header);
         header
@@ -181,7 +181,7 @@ impl NVSPage {
     pub fn new(section_number: u32) -> Self {
         let mut data = [0xFF; 4096];
         let mut header = [0xFF; 32];
-        let active_state = (0xFFFFFFFE as u32).to_le_bytes();
+        let active_state = 0xFFFFFFFE_u32.to_le_bytes();
         header[0..4].clone_from_slice(&active_state);
         let section_number_bytes = section_number.to_le_bytes();
         header[4..8].clone_from_slice(&section_number_bytes);
@@ -189,7 +189,7 @@ impl NVSPage {
         let mut hasher = Hasher::new_with_initial(0xFFFFFFFF);
         hasher.update(&header[4..28]);
         let checksum = hasher.finalize();
-        let crc = (checksum & 0xFFFFFFFF).to_le_bytes();
+        let crc = checksum.to_le_bytes();
         header[28..32].clone_from_slice(&crc);
         data[0..32].clone_from_slice(&header);
         let bitmap_array = [255; 32];
@@ -236,13 +236,13 @@ impl NVSPage {
         }
         let entry_data_pos = self.current_position + header.len();
         let mut edited_header = std::iter::repeat(0xFF).take(32).collect::<Vec<u8>>();
-        edited_header.copy_from_slice(&header);
-        edited_header[3] = chunk_num as u8;
+        edited_header.copy_from_slice(header);
+        edited_header[3] = chunk_num;
         let data_len_bytes = (entry_data.len() as u16).to_le_bytes();
         edited_header[24..26].copy_from_slice(&data_len_bytes);
         let mut hasher = Hasher::new_with_initial(0xFFFFFFFF);
-        hasher.update(&entry_data);
-        let crc_checksum = (hasher.finalize() & 0xFFFFFFFF).to_le_bytes();
+        hasher.update(entry_data);
+        let crc_checksum = hasher.finalize().to_le_bytes();
         let _ = edited_header.splice(28..32, crc_checksum);
         set_header_crc(&mut edited_header);
         self.data[self.current_position..entry_data_pos].clone_from_slice(&edited_header);
@@ -284,7 +284,7 @@ impl NVSPage {
     }
 
     pub fn close(&mut self) {
-        let closed_state = (0xFFFFFFFC as u32).to_le_bytes();
+        let closed_state = 0xFFFFFFFC_u32.to_le_bytes();
         self.data[0..4].clone_from_slice(&closed_state);
     }
 }
@@ -332,7 +332,7 @@ impl NVSPartitionData {
         let mut hasher = Hasher::new_with_initial(0xFFFFFFFF);
         hasher.update(&entry.data);
         let checksum = hasher.finalize();
-        let crc = (checksum & 0xFFFFFFFF).to_le_bytes();
+        let crc = checksum.to_le_bytes();
         header[28..32].clone_from_slice(&crc);
         set_header_crc(header);
         current_section.write_misc_data(header, 1)?;
@@ -361,7 +361,7 @@ impl NVSPartitionData {
         let data = &mut entry.data;
         let mut data_len_u32 = 0;
         let mut chunk_num: u8 = 0;
-        while data.len() > 0 {
+        while !data.is_empty() {
             let split_idx = match data.len() < curr_size {
                 true => data.len(),
                 false => curr_size,
@@ -377,9 +377,9 @@ impl NVSPartitionData {
                 &mut to_write,
                 chunk_num,
                 data_entry_count,
-                data.len() == 0,
+                data.is_empty()
             )?;
-            if data.len() != 0 {
+            if !data.is_empty() {
                 self.start_new_section()?;
                 current_section = &mut self.sections[self.current_section];
                 curr_size = current_section.get_remaining_space() - header.len();

@@ -43,7 +43,7 @@ fn populate_dtls_certificate(storage_data: &mut ViamFlashStorageData) -> Result<
     let fp = ring::digest::digest(&ring::digest::SHA256, &cert_der)
         .as_ref()
         .iter()
-        .map(|b| format!("{:02X}", b))
+        .map(|b| format!("{b:02X}"))
         .collect::<Vec<String>>()
         .join(":");
     let fp = String::from("sha-256") + " " + &fp;
@@ -106,8 +106,8 @@ async fn store_robot_name_and_fqdn_from_cloud(
             .to_string(),
     );
     storage_data.robot_credentials.local_fqdn =
-        Some(cloud_cfg.local_fqdn.replace('.', "-").to_string());
-    storage_data.robot_credentials.fqdn = Some(cloud_cfg.fqdn.replace('.', "-").to_string());
+        Some(cloud_cfg.local_fqdn.replace('.', "-"));
+    storage_data.robot_credentials.fqdn = Some(cloud_cfg.fqdn.replace('.', "-"));
     Ok(())
 }
 
@@ -156,6 +156,6 @@ async fn store_certificates_from_cloud(
     let tls_private_key: &str = &certs.tls_private_key;
     let key = der::Document::from_pem(tls_private_key).map_or(vec![], |k| k.1.as_bytes().to_vec());
     storage_data.robot_credentials.ca_crt = Some(ca_cert.clone());
-    storage_data.robot_credentials.der_key = Some(key.clone());
+    storage_data.robot_credentials.der_key = Some(key);
     Ok(())
 }

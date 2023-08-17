@@ -8,7 +8,7 @@ use micro_rdk_installer::error::Error;
 use micro_rdk_installer::nvs::data::{ViamFlashStorageData, WifiCredentials};
 use micro_rdk_installer::nvs::partition::{NVSPartition, NVSPartitionData};
 use micro_rdk_installer::nvs::request::populate_nvs_storage_from_app;
-use secrecy::{ExposeSecret, Secret};
+use secrecy::Secret;
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
@@ -60,7 +60,7 @@ fn request_wifi() -> Result<WifiCredentials, Error> {
         .with_prompt("Please enter WiFi SSID")
         .interact_text()
         .map_err(Error::WifiCredentialsError)?;
-    let password: String = Password::with_theme(&ColorfulTheme::default())
+    let password: Secret<String> = Secret::new(Password::with_theme(&ColorfulTheme::default())
         .with_prompt("Please enter WiFi Password")
         .validate_with(|input: &String| -> Result<(), Error> {
             if input.len() > 64 {
@@ -71,7 +71,7 @@ fn request_wifi() -> Result<WifiCredentials, Error> {
             Ok(())
         })
         .interact()
-        .map_err(Error::WifiCredentialsError)?;
+        .map_err(Error::WifiCredentialsError)?);
 
     Ok(WifiCredentials { ssid, password })
 }
@@ -83,7 +83,7 @@ fn create_nvs_partition_binary(config_path: String, size: usize) -> Result<Vec<u
     storage_data.robot_credentials.robot_id = Some(app_config.cloud.r#id.to_string());
     storage_data.robot_credentials.app_address = Some(app_config.cloud.app_address.to_string());
     storage_data.robot_credentials.robot_secret =
-        Some(app_config.cloud.secret.expose_secret().to_string());
+        Some(app_config.cloud.secret);
     let wifi_cred = request_wifi()?;
     storage_data.wifi = Some(wifi_cred);
     populate_nvs_storage_from_app(&mut storage_data)?;
@@ -105,7 +105,7 @@ fn main() -> Result<(), Error> {
             ))
         }
         Some(Commands::CreateNvsPartition(args)) => {
-            let mut file = File::create(args.file_name.to_string()).map_err(Error::FileError)?;
+            let mut file = File::create(&args.file_name).map_err(Error::FileError)?;
             file.write_all(&create_nvs_partition_binary(
                 args.config.to_string(),
                 args.size,
