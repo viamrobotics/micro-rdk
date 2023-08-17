@@ -1,4 +1,4 @@
-use secrecy::{Secret, ExposeSecret};
+use secrecy::{ExposeSecret, Secret};
 
 use super::super::error::Error;
 use super::partition::{NVSEntry, NVSKeyValuePair, NVSValue};
@@ -11,7 +11,10 @@ pub struct WifiCredentials {
 
 impl Default for WifiCredentials {
     fn default() -> Self {
-        Self { ssid: "".to_string(), password: Secret::new("".to_string()) }
+        Self {
+            ssid: "".to_string(),
+            password: Secret::new("".to_string()),
+        }
     }
 }
 
@@ -62,9 +65,16 @@ impl ViamFlashStorageData {
             },
             NVSKeyValuePair {
                 key: "ROBOT_SECRET".to_string(),
-                value: NVSValue::String(self.robot_credentials.robot_secret.clone().ok_or(
-                    Error::NVSDataProcessingError("robot_secret missing".to_string()),
-                )?.expose_secret().to_string()),
+                value: NVSValue::String(
+                    self.robot_credentials
+                        .robot_secret
+                        .clone()
+                        .ok_or(Error::NVSDataProcessingError(
+                            "robot_secret missing".to_string(),
+                        ))?
+                        .expose_secret()
+                        .to_string(),
+                ),
                 namespace_idx,
             },
             NVSKeyValuePair {
@@ -167,11 +177,13 @@ impl ViamFlashStorageData {
     }
 
     pub fn get_robot_secret(&self) -> Result<String, Error> {
-        Ok(self.robot_credentials
+        Ok(self
+            .robot_credentials
             .robot_secret
             .clone()
             .ok_or(Error::MissingConfigInfo("robot_secret not set".to_string()))?
-            .expose_secret().to_string())
+            .expose_secret()
+            .to_string())
     }
 
     pub fn get_app_address(&self) -> Result<String, Error> {

@@ -105,8 +105,7 @@ async fn store_robot_name_and_fqdn_from_cloud(
             .unwrap_or("")
             .to_string(),
     );
-    storage_data.robot_credentials.local_fqdn =
-        Some(cloud_cfg.local_fqdn.replace('.', "-"));
+    storage_data.robot_credentials.local_fqdn = Some(cloud_cfg.local_fqdn.replace('.', "-"));
     storage_data.robot_credentials.fqdn = Some(cloud_cfg.fqdn.replace('.', "-"));
     Ok(())
 }

@@ -60,18 +60,20 @@ fn request_wifi() -> Result<WifiCredentials, Error> {
         .with_prompt("Please enter WiFi SSID")
         .interact_text()
         .map_err(Error::WifiCredentialsError)?;
-    let password: Secret<String> = Secret::new(Password::with_theme(&ColorfulTheme::default())
-        .with_prompt("Please enter WiFi Password")
-        .validate_with(|input: &String| -> Result<(), Error> {
-            if input.len() > 64 {
-                return Err(Error::WifiPasswordTooLongError(
-                    "password length limited to 64 characters or less".to_string(),
-                ));
-            }
-            Ok(())
-        })
-        .interact()
-        .map_err(Error::WifiCredentialsError)?);
+    let password: Secret<String> = Secret::new(
+        Password::with_theme(&ColorfulTheme::default())
+            .with_prompt("Please enter WiFi Password")
+            .validate_with(|input: &String| -> Result<(), Error> {
+                if input.len() > 64 {
+                    return Err(Error::WifiPasswordTooLongError(
+                        "password length limited to 64 characters or less".to_string(),
+                    ));
+                }
+                Ok(())
+            })
+            .interact()
+            .map_err(Error::WifiCredentialsError)?,
+    );
 
     Ok(WifiCredentials { ssid, password })
 }
@@ -82,8 +84,7 @@ fn create_nvs_partition_binary(config_path: String, size: usize) -> Result<Vec<u
     let app_config: AppConfig = serde_json::from_str(&config_str)?;
     storage_data.robot_credentials.robot_id = Some(app_config.cloud.r#id.to_string());
     storage_data.robot_credentials.app_address = Some(app_config.cloud.app_address.to_string());
-    storage_data.robot_credentials.robot_secret =
-        Some(app_config.cloud.secret);
+    storage_data.robot_credentials.robot_secret = Some(app_config.cloud.secret);
     let wifi_cred = request_wifi()?;
     storage_data.wifi = Some(wifi_cred);
     populate_nvs_storage_from_app(&mut storage_data)?;

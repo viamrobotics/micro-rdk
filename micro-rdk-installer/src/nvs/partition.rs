@@ -377,7 +377,7 @@ impl NVSPartitionData {
                 &mut to_write,
                 chunk_num,
                 data_entry_count,
-                data.is_empty()
+                data.is_empty(),
             )?;
             if !data.is_empty() {
                 self.start_new_section()?;
