@@ -77,3 +77,6 @@ path = "native/native-server.rs"
 name = "esp32-server"
 path = "esp32/esp32-server.rs"
 
+[[bin]]
+name = "esp32-server-with-cred"
+path = "esp32-with-cred/esp32-server-with-cred.rs"

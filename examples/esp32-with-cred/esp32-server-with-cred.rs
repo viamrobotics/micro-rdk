@@ -1,12 +1,3 @@
-#[allow(dead_code)]
-#[cfg(not(feature = "qemu"))]
-const SSID: &str = env!("MICRO_RDK_WIFI_SSID");
-#[allow(dead_code)]
-#[cfg(not(feature = "qemu"))]
-const PASS: &str = env!("MICRO_RDK_WIFI_PASSWORD");
-
-include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
-
 use log::*;
 
 use esp_idf_svc::eventloop::EspSystemEventLoop;
@@ -38,13 +29,70 @@ use {
         Configuration as WifiConfiguration,
     },
     esp_idf_hal::{peripheral::Peripheral, prelude::Peripherals},
+    esp_idf_svc::nvs::{EspDefaultNvs, EspDefaultNvsPartition, EspNvs},
     esp_idf_svc::wifi::{BlockingWifi, EspWifi},
     esp_idf_sys as _,
     esp_idf_sys::esp_wifi_set_ps,
     micro_rdk::common::registry::ComponentRegistry,
 };
 
+const VIAM_NVS_NAMESPACE: &str = "VIAM_NS";
+
+#[cfg(not(feature = "qemu"))]
+fn get_str_from_nvs(viam_nvs: &EspDefaultNvs, key: &str) -> anyhow::Result<String> {
+    let mut buffer_ref = [0_u8; 4000];
+    Ok(viam_nvs
+        .get_str(key, &mut buffer_ref)?
+        .unwrap()
+        .trim_matches(char::from(0))
+        .to_string())
+}
+
+#[cfg(not(feature = "qemu"))]
+fn get_blob_from_nvs(viam_nvs: &EspDefaultNvs, key: &str) -> anyhow::Result<Vec<u8>> {
+    let mut buffer_ref = [0_u8; 4000];
+    Ok(viam_nvs.get_blob(key, &mut buffer_ref)?.unwrap().to_vec())
+}
+
+#[cfg(not(feature = "qemu"))]
+struct NvsStaticVars {
+    wifi_ssid: String,
+    wifi_pwd: String,
+    robot_secret: String,
+    robot_id: String,
+    robot_dtls_cert: Vec<u8>,
+    robot_dtls_key_pair: Vec<u8>,
+    robot_dtls_cert_fp: String,
+    robot_srv_pem_chain: Vec<u8>,
+    robot_srv_pem_ca: Vec<u8>,
+    robot_srv_der_key: Vec<u8>,
+}
+
+impl NvsStaticVars {
+    fn new() -> anyhow::Result<NvsStaticVars> {
+        let nvs = EspDefaultNvsPartition::take()?;
+        info!("get namespace...");
+        let viam_nvs = EspNvs::new(nvs.clone(), VIAM_NVS_NAMESPACE, true)?;
+        info!("loading creds...");
+        let res = Ok(NvsStaticVars {
+            wifi_ssid: get_str_from_nvs(&viam_nvs, "WIFI_SSID")?,
+            wifi_pwd: get_str_from_nvs(&viam_nvs, "WIFI_PASSWORD")?,
+            robot_secret: get_str_from_nvs(&viam_nvs, "ROBOT_SECRET")?,
+            robot_id: get_str_from_nvs(&viam_nvs, "ROBOT_ID")?,
+            robot_dtls_cert: get_blob_from_nvs(&viam_nvs, "ROBOT_DTLS_CERT")?,
+            robot_dtls_key_pair: get_blob_from_nvs(&viam_nvs, "DTLS_KEY_PAIR")?,
+            robot_dtls_cert_fp: get_str_from_nvs(&viam_nvs, "DTLS_CERT_FP")?,
+            robot_srv_pem_chain: get_blob_from_nvs(&viam_nvs, "SRV_PEM_CHAIN")?,
+            robot_srv_pem_ca: get_blob_from_nvs(&viam_nvs, "CA_CRT")?,
+            robot_srv_der_key: get_blob_from_nvs(&viam_nvs, "SRV_DER_KEY")?,
+        });
+        std::mem::drop(viam_nvs);
+        res
+    }
+}
+
 fn main() -> anyhow::Result<()> {
+    std::env::set_var("RUST_BACKTRACE", "1");
     esp_idf_sys::link_patches();
 
     esp_idf_svc::log::EspLogger::initialize_default();
@@ -95,30 +143,34 @@ fn main() -> anyhow::Result<()> {
         (ip, eth)
     };
 
+    #[cfg(not(feature = "qemu"))]
+    info!("load vars...");
+    let nvs_vars = NvsStaticVars::new()?;
+
+    info!("starting wifi...");
     #[allow(clippy::redundant_clone)]
     #[cfg(not(feature = "qemu"))]
     let (ip, _wifi) = {
-        let wifi = start_wifi(periph.modem, sys_loop_stack)?;
+        let wifi = start_wifi(
+            periph.modem,
+            sys_loop_stack,
+            &nvs_vars.wifi_ssid,
+            &nvs_vars.wifi_pwd,
+        )?;
         (wifi.wifi().sta_netif().get_ip_info()?.ip, wifi)
     };
 
-    let cfg = AppClientConfig::new(
-        ROBOT_SECRET.to_owned(),
-        ROBOT_ID.to_owned(),
-        ip,
-        "".to_owned(),
-    );
     let webrtc_certificate = WebRtcCertificate::new(
-        ROBOT_DTLS_CERT.to_vec(),
-        ROBOT_DTLS_KEY_PAIR.to_vec(),
-        ROBOT_DTLS_CERT_FP,
+        nvs_vars.robot_dtls_cert,
+        nvs_vars.robot_dtls_key_pair,
+        &nvs_vars.robot_dtls_cert_fp,
     );
 
-    let tls_cfg = {
-        let cert = [ROBOT_SRV_PEM_CHAIN.to_vec(), ROBOT_SRV_PEM_CA.to_vec()];
-        let key = ROBOT_SRV_DER_KEY;
-        Esp32TlsServerConfig::new(cert, key.as_ptr(), key.len() as u32)
-    };
+    let cert: [Vec<u8>; 2] = [nvs_vars.robot_srv_pem_chain, nvs_vars.robot_srv_pem_ca];
+    let key = nvs_vars.robot_srv_der_key;
+    let tls_cfg = Esp32TlsServerConfig::new(cert, key.as_ptr(), key.len() as u32);
+
+    let cfg = AppClientConfig::new(nvs_vars.robot_secret, nvs_vars.robot_id, ip, "".to_owned());
 
     serve_web(cfg, tls_cfg, repr, ip, webrtc_certificate);
     Ok(())
@@ -141,17 +193,24 @@ fn eth_configure<'d, T>(
 fn start_wifi(
     modem: impl Peripheral<P = esp_idf_hal::modem::Modem> + 'static,
     sl_stack: EspSystemEventLoop,
+    ssid: &str,
+    password: &str,
 ) -> anyhow::Result<Box<BlockingWifi<EspWifi<'static>>>> {
-    let nvs = esp_idf_svc::nvs::EspDefaultNvsPartition::take()?;
-    let mut wifi = BlockingWifi::wrap(EspWifi::new(modem, sl_stack.clone(), Some(nvs))?, sl_stack)?;
+    let nvs = EspDefaultNvsPartition::take()?;
+    let mut wifi = BlockingWifi::wrap(
+        EspWifi::new(modem, sl_stack.clone(), Some(nvs.clone()))?,
+        sl_stack,
+    )?;
+    let ssid_heapless = ssid.into();
+    let password_heapless = password.into();
     let wifi_configuration = WifiConfiguration::Client(WifiClientConfiguration {
-        ssid: SSID.into(),
+        ssid: ssid_heapless,
         bssid: None,
         auth_method: AuthMethod::WPA2Personal,
-        password: PASS.into(),
+        password: password_heapless,
         channel: None,
     });
-
+    debug!("setting wifi configuration...");
     wifi.set_configuration(&wifi_configuration)?;
 
     wifi.start().unwrap();

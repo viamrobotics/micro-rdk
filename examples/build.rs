@@ -143,136 +143,145 @@ pub struct Cloud {
 
 fn main() -> anyhow::Result<()> {
     println!("cargo:rerun-if-changed=viam.json");
+    let use_nvs = match env::var("USE_NVS") {
+        Ok(val) => (val == "true") || (val == "True"),
+        Err(_) => false,
+    };
     if env::var("TARGET").unwrap() == "xtensa-esp32-espidf" {
         if std::env::var_os("IDF_PATH").is_none() {
             return Err(anyhow::anyhow!(
                 "You need to run IDF's export.sh before building"
             ));
         }
-        if std::env::var_os("MICRO_RDK_WIFI_SSID").is_none() {
-            std::env::set_var("MICRO_RDK_WIFI_SSID", "Viam-2G");
-            println!("cargo:rustc-env=MICRO_RDK_WIFI_SSID=Viam-2G");
-        }
-        if std::env::var_os("MICRO_RDK_WIFI_PASSWORD").is_none() {
-            return Err(anyhow::anyhow!(
-                "please set the password for WiFi {}",
-                std::env::var_os("MICRO_RDK_WIFI_PASSWORD")
-                    .unwrap()
-                    .to_str()
-                    .unwrap()
-            ));
+        if !use_nvs {
+            if std::env::var_os("MICRO_RDK_WIFI_SSID").is_none() {
+                std::env::set_var("MICRO_RDK_WIFI_SSID", "Viam-2G");
+                println!("cargo:rustc-env=MICRO_RDK_WIFI_SSID=Viam-2G");
+            }
+            if std::env::var_os("MICRO_RDK_WIFI_PASSWORD").is_none() {
+                return Err(anyhow::anyhow!(
+                    "please set the password for WiFi {}",
+                    std::env::var_os("MICRO_RDK_WIFI_PASSWORD")
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
+                ));
+            }
         }
         embuild::build::LinkArgs::output_propagated("ESP_IDF")?;
     }
 
-    let (cert_der, kp_der, fp) = generate_dtls_certificate()?;
+    if !use_nvs {
+        let (cert_der, kp_der, fp) = generate_dtls_certificate()?;
 
-    let (robot_cfg, cfg) = if let Ok(content) = std::fs::read_to_string("viam.json") {
-        let mut cfg: Config = serde_json::from_str(content.as_str()).map_err(anyhow::Error::msg)?;
+        let (robot_cfg, cfg) = if let Ok(content) = std::fs::read_to_string("viam.json") {
+            let mut cfg: Config =
+                serde_json::from_str(content.as_str()).map_err(anyhow::Error::msg)?;
 
-        let rt = Runtime::new()?;
-        let robot_cfg = rt.block_on(read_cloud_config(&mut cfg))?;
-        rt.block_on(read_certificates(&mut cfg))?;
-        (robot_cfg, cfg)
-    } else {
-        (RobotConfig::default(), Config::default())
-    };
+            let rt = Runtime::new()?;
+            let robot_cfg = rt.block_on(read_cloud_config(&mut cfg))?;
+            rt.block_on(read_certificates(&mut cfg))?;
+            (robot_cfg, cfg)
+        } else {
+            (RobotConfig::default(), Config::default())
+        };
 
-    let cloud_cfg = robot_cfg.cloud.unwrap_or_default();
-    let robot_name = cloud_cfg.local_fqdn.split('.').next().unwrap_or("");
-    let local_fqdn = cloud_cfg.local_fqdn.replace('.', "-");
-    let fqdn = cloud_cfg.fqdn.replace('.', "-");
+        let cloud_cfg = robot_cfg.cloud.unwrap_or_default();
+        let robot_name = cloud_cfg.local_fqdn.split('.').next().unwrap_or("");
+        let local_fqdn = cloud_cfg.local_fqdn.replace('.', "-");
+        let fqdn = cloud_cfg.fqdn.replace('.', "-");
 
-    let mut certs = cfg
-        .cloud
-        .tls_certificate
-        .split_inclusive("----END CERTIFICATE-----");
-    let mut srv_cert = (&mut certs).take(2).collect::<String>();
-    srv_cert.push('\0');
-    let ca_cert = certs
-        .take(1)
-        .map(der::Document::from_pem)
-        .filter(|s| s.is_ok())
-        .map(|s| s.unwrap().1.to_vec())
-        .collect::<Vec<Vec<u8>>>()
-        .pop()
-        .unwrap_or_default();
-    let key = der::Document::from_pem(&cfg.cloud.tls_private_key)
-        .map_or(vec![], |k| k.1.as_bytes().to_vec());
+        let mut certs = cfg
+            .cloud
+            .tls_certificate
+            .split_inclusive("----END CERTIFICATE-----");
+        let mut srv_cert = (&mut certs).take(2).collect::<String>();
+        srv_cert.push('\0');
+        let ca_cert = certs
+            .take(1)
+            .map(der::Document::from_pem)
+            .filter(|s| s.is_ok())
+            .map(|s| s.unwrap().1.to_vec())
+            .collect::<Vec<Vec<u8>>>()
+            .pop()
+            .unwrap_or_default();
+        let key = der::Document::from_pem(&cfg.cloud.tls_private_key)
+            .map_or(vec![], |k| k.1.as_bytes().to_vec());
 
-    let out_dir = env::var_os("OUT_DIR").unwrap();
-    let dest_path = Path::new(&out_dir).join("robot_secret.rs");
-    let robot_decl = vec![
-        const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            ROBOT_ID = cfg.cloud.id.as_str()
-        ),
-        const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            ROBOT_SECRET = cfg.cloud.secret.as_str()
-        ),
-        const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            LOCAL_FQDN = local_fqdn.as_str()
-        ),
-        const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            FQDN = fqdn.as_str()
-        ),
-        const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            ROBOT_NAME = robot_name
-        ),
-        const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            ROBOT_DTLS_CERT = cert_der
-        ),
-        const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            ROBOT_DTLS_KEY_PAIR = kp_der
-        ),
-        const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            ROBOT_DTLS_CERT_FP = fp
-        ),
-        const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            ROBOT_SRV_PEM_CHAIN = srv_cert.as_bytes()
-        ),
-        const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            ROBOT_SRV_PEM_CA = ca_cert
-        ),
-        const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            ROBOT_SRV_DER_KEY = key
-        ),
-    ]
-    .join("\n");
-    fs::write(dest_path, robot_decl).unwrap();
+        let out_dir = env::var_os("OUT_DIR").unwrap();
+        let dest_path = Path::new(&out_dir).join("robot_secret.rs");
+        let robot_decl = vec![
+            const_declaration!(
+                #[allow(clippy::redundant_static_lifetimes, dead_code)]
+                ROBOT_ID = cfg.cloud.id.as_str()
+            ),
+            const_declaration!(
+                #[allow(clippy::redundant_static_lifetimes, dead_code)]
+                ROBOT_SECRET = cfg.cloud.secret.as_str()
+            ),
+            const_declaration!(
+                #[allow(clippy::redundant_static_lifetimes, dead_code)]
+                LOCAL_FQDN = local_fqdn.as_str()
+            ),
+            const_declaration!(
+                #[allow(clippy::redundant_static_lifetimes, dead_code)]
+                FQDN = fqdn.as_str()
+            ),
+            const_declaration!(
+                #[allow(clippy::redundant_static_lifetimes, dead_code)]
+                ROBOT_NAME = robot_name
+            ),
+            const_declaration!(
+                #[allow(clippy::redundant_static_lifetimes, dead_code)]
+                ROBOT_DTLS_CERT = cert_der
+            ),
+            const_declaration!(
+                #[allow(clippy::redundant_static_lifetimes, dead_code)]
+                ROBOT_DTLS_KEY_PAIR = kp_der
+            ),
+            const_declaration!(
+                #[allow(clippy::redundant_static_lifetimes, dead_code)]
+                ROBOT_DTLS_CERT_FP = fp
+            ),
+            const_declaration!(
+                #[allow(clippy::redundant_static_lifetimes, dead_code)]
+                ROBOT_SRV_PEM_CHAIN = srv_cert.as_bytes()
+            ),
+            const_declaration!(
+                #[allow(clippy::redundant_static_lifetimes, dead_code)]
+                ROBOT_SRV_PEM_CA = ca_cert
+            ),
+            const_declaration!(
+                #[allow(clippy::redundant_static_lifetimes, dead_code)]
+                ROBOT_SRV_DER_KEY = key
+            ),
+        ]
+        .join("\n");
+        fs::write(dest_path, robot_decl).unwrap();
 
-    let components_config = robot_cfg
-        .components
-        .into_iter()
-        .map(ComponentConfig)
-        .collect::<Vec<ComponentConfig>>();
-    let robot_config = StaticRobotConfig {
-        components: components_config,
-    };
-    let dest_path = Path::new(&out_dir).join("robot_config.rs");
-    let conf_decl = if !robot_config.components.is_empty() {
-        vec![const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            STATIC_ROBOT_CONFIG = Some(robot_config)
-        )]
-    } else {
-        vec![const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            STATIC_ROBOT_CONFIG = None::<StaticRobotConfig>
-        )]
+        let components_config = robot_cfg
+            .components
+            .into_iter()
+            .map(ComponentConfig)
+            .collect::<Vec<ComponentConfig>>();
+        let robot_config = StaticRobotConfig {
+            components: components_config,
+        };
+        let dest_path = Path::new(&out_dir).join("robot_config.rs");
+        let conf_decl = if !robot_config.components.is_empty() {
+            vec![const_declaration!(
+                #[allow(clippy::redundant_static_lifetimes, dead_code)]
+                STATIC_ROBOT_CONFIG = Some(robot_config)
+            )]
+        } else {
+            vec![const_declaration!(
+                #[allow(clippy::redundant_static_lifetimes, dead_code)]
+                STATIC_ROBOT_CONFIG = None::<StaticRobotConfig>
+            )]
+        }
+        .join("\n");
+        fs::write(&dest_path, conf_decl).unwrap();
     }
-    .join("\n");
-    fs::write(&dest_path, conf_decl).unwrap();
 
     Ok(())
 }

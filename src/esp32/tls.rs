@@ -48,13 +48,13 @@ pub struct Esp32TlsStream {
 }
 
 pub struct Esp32TlsServerConfig {
-    srv_cert: &'static [&'static [u8]],
+    srv_cert: [Vec<u8>; 2],
     srv_key: *const u8,
     srv_key_len: u32,
 }
 
 impl Esp32TlsServerConfig {
-    pub fn new(srv_cert: &'static [&'static [u8]], srv_key: *const u8, srv_key_len: u32) -> Self {
+    pub fn new(srv_cert: [Vec<u8>; 2], srv_key: *const u8, srv_key_len: u32) -> Self {
         Esp32TlsServerConfig {
             srv_cert,
             srv_key,
