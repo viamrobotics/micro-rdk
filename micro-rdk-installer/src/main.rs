@@ -1,5 +1,5 @@
-use std::fs::{self, File};
-use std::io::Write;
+use std::fs::{self, File, OpenOptions};
+use std::io::{Seek, SeekFrom, Write};
 
 use clap::{arg, command, Args, Parser, Subcommand};
 use dialoguer::theme::ColorfulTheme;
@@ -25,13 +25,26 @@ struct AppConfig {
 
 #[derive(Subcommand)]
 enum Commands {
-    WriteBinary(WriteBinary),
+    WriteCredentials(WriteCredentials),
     WriteFlash(WriteFlash),
     CreateNvsPartition(CreateNVSPartition),
 }
 
 #[derive(Args)]
-struct WriteBinary {}
+struct WriteCredentials {
+    #[arg(long = "app-config")]
+    config: String,
+    #[arg(long = "bin")]
+    binary_path: String,
+    #[arg(long = "nvs-size", default_value = "32768")]
+    size: usize,
+    // the default here represents the offset as declared in
+    // examples/esp32/partitions.csv (0x9000, here written as 36864),
+    // as that is the partition table that will be used to compile
+    // the default application binary
+    #[arg(long = "nvs-offset-address", default_value = "36864")]
+    nvs_offset: u64,
+}
 
 #[derive(Args)]
 struct WriteFlash {}
@@ -92,13 +105,39 @@ fn create_nvs_partition_binary(config_path: String, size: usize) -> Result<Vec<u
     Ok(NVSPartitionData::try_from(part)?.to_bytes())
 }
 
+fn write_credentials_to_app_binary(
+    binary_path: &str,
+    nvs_data: &[u8],
+    nvs_size: u64,
+    nvs_start_address: u64,
+) -> Result<(), Error> {
+    let mut app_file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(binary_path)
+        .map_err(Error::FileError)?;
+    let file_len = app_file.metadata().map_err(Error::FileError)?.len();
+    if (file_len - nvs_start_address) <= nvs_size {
+        return Err(Error::BinaryEditError(file_len));
+    }
+    app_file
+        .seek(SeekFrom::Start(nvs_start_address))
+        .map_err(Error::FileError)?;
+    app_file.write_all(nvs_data).map_err(Error::FileError)?;
+    Ok(())
+}
+
 fn main() -> Result<(), Error> {
     let cli = Cli::parse();
     match &cli.command {
-        Some(Commands::WriteBinary(_)) => {
-            return Err(Error::UnimplementedError(
-                "binary write not yet supported".to_string(),
-            ))
+        Some(Commands::WriteCredentials(args)) => {
+            let nvs_data = create_nvs_partition_binary(args.config.to_string(), args.size)?;
+            write_credentials_to_app_binary(
+                &args.binary_path,
+                &nvs_data,
+                args.size as u64,
+                args.nvs_offset,
+            )?;
         }
         Some(Commands::WriteFlash(_)) => {
             return Err(Error::UnimplementedError(

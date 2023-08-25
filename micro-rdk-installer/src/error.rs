@@ -7,6 +7,8 @@ pub enum Error {
     NVSDataProcessingError(String),
     #[error("File Error: {0}")]
     FileError(std::io::Error),
+    #[error("Binary Too Small, File Size: {0}")]
+    BinaryEditError(u64),
     #[error("{0}")]
     WifiPasswordTooLongError(String),
     #[error("Wifi Credentials Error: {0}")]

@@ -125,6 +125,11 @@ pub struct NVSKeyValuePair {
 impl TryFrom<&NVSKeyValuePair> for NVSEntry {
     type Error = Error;
     fn try_from(pair: &NVSKeyValuePair) -> Result<Self, Self::Error> {
+        if pair.key.len() > 16 {
+            return Err(Error::NVSDataProcessingError(
+                "NVS entry key cannot exceed 16 characters".to_string(),
+            ));
+        }
         let format: u8;
         let data = match &pair.value {
             NVSValue::String(value_str) => {

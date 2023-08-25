@@ -31,6 +31,7 @@ pub struct RobotCredentials {
     pub robot_dtls_certificate: Option<Vec<u8>>,
     pub robot_dtls_key_pair: Option<Vec<u8>>,
     pub robot_dtls_certificate_fp: Option<String>,
+    pub pem_chain: Option<Vec<u8>>,
 }
 
 #[derive(Default, Debug)]
@@ -40,7 +41,7 @@ pub struct ViamFlashStorageData {
 }
 
 impl ViamFlashStorageData {
-    fn to_nvs_key_value_pairs(&self, namespace_idx: u8) -> Result<[NVSKeyValuePair; 13], Error> {
+    fn to_nvs_key_value_pairs(&self, namespace_idx: u8) -> Result<[NVSKeyValuePair; 14], Error> {
         let wifi_cred = self
             .wifi
             .clone()
@@ -114,13 +115,20 @@ impl ViamFlashStorageData {
                 namespace_idx,
             },
             NVSKeyValuePair {
-                key: "ROBOT_SRV_DER_KEY".to_string(),
+                key: "SRV_DER_KEY".to_string(),
                 value: NVSValue::Bytes(
                     self.robot_credentials
                         .der_key
                         .clone()
                         .ok_or(Error::NVSDataProcessingError("der_key missing".to_string()))?,
                 ),
+                namespace_idx,
+            },
+            NVSKeyValuePair {
+                key: "SRV_PEM_CHAIN".to_string(),
+                value: NVSValue::Bytes(self.robot_credentials.pem_chain.clone().ok_or(
+                    Error::NVSDataProcessingError("pem_chain missing".to_string()),
+                )?),
                 namespace_idx,
             },
             NVSKeyValuePair {
@@ -141,7 +149,7 @@ impl ViamFlashStorageData {
                 namespace_idx,
             },
             NVSKeyValuePair {
-                key: "ROBOT_DTLS_KEY_PAIR".to_string(),
+                key: "DTLS_KEY_PAIR".to_string(),
                 value: NVSValue::Bytes(self.robot_credentials.robot_dtls_key_pair.clone().ok_or(
                     Error::NVSDataProcessingError("robot_dtls_key_pair missing".to_string()),
                 )?),
