@@ -156,5 +156,6 @@ async fn store_certificates_from_cloud(
     let key = der::Document::from_pem(tls_private_key).map_or(vec![], |k| k.1.as_bytes().to_vec());
     storage_data.robot_credentials.ca_crt = Some(ca_cert.clone());
     storage_data.robot_credentials.der_key = Some(key);
+    storage_data.robot_credentials.pem_chain = Some(srv_cert.as_bytes().to_vec());
     Ok(())
 }

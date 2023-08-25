@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.71"
-clap = { version = "4.3", features = ["derive"] }
+clap = { version = "4.3.23", features = ["derive"] }
 crc32fast = "1.3.2"
 der = {version = "0.7.7", features = ["pem", "alloc","zeroize"] }
 dialoguer = "0.10.4"

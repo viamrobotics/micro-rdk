@@ -59,7 +59,7 @@ clippy-esp32:
 	cargo +esp clippy  --features esp32 --no-default-features --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
 
 clippy-cli:
-	cd micro-rdk-installer && cargo clippy --no-deps
+	cd micro-rdk-installer && cargo clippy --no-default-features -- -Dwarnings
 
 format:
 	cargo fmt --all -- --check
