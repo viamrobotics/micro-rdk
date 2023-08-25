@@ -74,6 +74,9 @@ size:
 build-esp32-bin:
 	cd examples && cargo espflash save-image --merge --chip esp32 target/esp32-server.bin -T esp32/partitions.csv -s 4M  --bin esp32-server --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort --release
 
+build-esp32-with-cred-bin:
+	cd examples && cargo espflash save-image --merge --chip esp32 target/esp32-server-with-cred.bin -T esp32/partitions.csv -s 4M  --bin esp32-server-with-cred --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort --release
+
 flash-esp32-bin:
 ifneq (,$(wildcard ./examples/target/esp32-server.bin))
 	espflash write-bin 0x0 ./examples/target/esp32-server.bin -b 460800  && sleep 2 && espflash monitor
