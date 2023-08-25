@@ -7,12 +7,79 @@ on:
   push:
 
 jobs:
-  build_and_test:
-    name: Build and Test
+  changes:
+    name: Calculate changes
+    runs-on: [x64, qemu-host]
+    outputs:
+      src-esp32: ${{ steps.changes.outputs.src-esp32 }}
+      src-native: ${{ steps.changes.outputs.src-native }}
+      src-common: ${{ steps.changes.outputs.src-common }}
+      src-examples: ${{ steps.changes.outputs.src-examples }}
+      src-cli: ${{ steps.changes.outputs.src-cli }}
+    container:
+      image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
+    steps:
+    - name : Checkout main branch code
+      if: github.event_name != 'pull_request_target'
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 2
+    - name: Check out PR branch code
+      if: github.event_name == 'pull_request_target'
+      uses: actions/checkout@v3
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        fetch-depth: 2
+    - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+    - name: path filter
+      uses: dorny/paths-filter@v2
+      id: changes
+      with:
+        filters: |
+          src-esp32:
+            - 'src/esp32/**'
+          src-common:
+            - 'src/common/**'
+            - 'src/gen/**'
+          src-native:
+            - 'src/native/**'
+          src-examples:
+            - 'examples/**'
+          src-cli:
+            - 'micro-rdk-installer/**'
+
+  build_cli:
+    needs: changes
+    name: Tests, Format, Clippy Micro-RDK installer
+    if: ${{ needs.changes.outputs.src-cli == 'true'}}
     runs-on: [x64, qemu-host]
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
-    timeout-minutes: 10
+      
+    steps:
+    - name : Checkout main branch code
+      if: github.event_name != 'pull_request_target'
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 2
+    - name: Check out PR branch code
+      if: github.event_name == 'pull_request_target'
+      uses: actions/checkout@v3
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        fetch-depth: 2
+    - name: Clippy Micro-RDK Installer
+      run: |
+        bash -c 'make clippy-cli'
+
+    
+  test_and_build:
+    needs: changes
+    name: Tests, Format, Clippy Micro-Rdk
+    runs-on: [x64, qemu-host]
+    container:
+      image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
+    timeout-minutes: 20
 
     steps:
     - name : Checkout main branch code
@@ -20,44 +87,26 @@ jobs:
       uses: actions/checkout@v3
       with:
         fetch-depth: 2
-        
     - name: Check out PR branch code
       if: github.event_name == 'pull_request_target'
       uses: actions/checkout@v3
       with:
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: 2
-          
-        
-    - name: Clippy Native
-      run: |
-        bash -c 'make clippy-native'
-
-    - name: Clippy esp32
-      run: |
-        bash -c 'git config --global --add safe.directory /opt/esp/esp-idf && export MICRO_RDK_WIFI_PASSWORD=0 && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && make clippy-esp32'
-
-    - name: Clippy Micro-RDK Installer
-      run: |
-        bash -c 'make clippy-cli'
-        
     - name: Format
       run: |
-        bash -c 'make format'
-        
-    - name: Build ESP32
-      run: |
-        bash -c 'export MICRO_RDK_WIFI_PASSWORD=0 && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && cd examples && cd ../ && make build-esp32-bin'
-
-    - name: Build ESP32 for QEMU
-      run: |
-        bash -c 'export MICRO_RDK_WIFI_PASSWORD=0 && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && cd examples && cd ../ && make build-qemu'
-
-        
-    - name: Build Native
-      run: |
-        bash -c 'make build-native'
-        
+        bash -c 'make format'       
     - name: Test
       run: |
         bash -c 'make test'
+    - name: ESP32 Build & Clippy
+      if : needs.changes.outputs.src-esp32 == 'true' || needs.changes.outputs.src-common == 'true' ||  needs.changes.outputs.src-examples == 'true' 
+      run: |
+        bash -c 'git config --global --add safe.directory /opt/esp/esp-idf && export MICRO_RDK_WIFI_PASSWORD=0 && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && make clippy-esp32'
+        bash -c 'export MICRO_RDK_WIFI_PASSWORD=0 && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && cd examples && cd ../ && make build-esp32-bin'
+
+    - name: Native Build & Clippy
+      if : needs.changes.outputs.src-native == 'true' || needs.changes.outputs.src-common == 'true' || needs.changes.outputs.src-examples == 'true' 
+      run: |
+        bash -c 'make clippy-native'
+        bash -c 'make build-native'
