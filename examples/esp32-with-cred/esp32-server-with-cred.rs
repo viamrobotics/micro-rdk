@@ -1,4 +1,5 @@
 use log::*;
+use thiserror::Error;
 
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use micro_rdk::{
@@ -32,26 +33,40 @@ use {
     esp_idf_svc::nvs::{EspDefaultNvs, EspDefaultNvsPartition, EspNvs},
     esp_idf_svc::wifi::{BlockingWifi, EspWifi},
     esp_idf_sys as _,
-    esp_idf_sys::esp_wifi_set_ps,
+    esp_idf_sys::{esp_wifi_set_ps, EspError},
     micro_rdk::common::registry::ComponentRegistry,
 };
+
+#[derive(Debug, Error)]
+pub enum ServerError {
+    #[error("Error fetching NVS key: {0}")]
+    NVSKeyError(String),
+    #[error("{0}")]
+    EspError(EspError)
+}
+
+impl From<EspError> for ServerError {
+    fn from(value: EspError) -> ServerError {
+        ServerError::EspError(value)
+    }
+}
 
 const VIAM_NVS_NAMESPACE: &str = "VIAM_NS";
 
 #[cfg(not(feature = "qemu"))]
-fn get_str_from_nvs(viam_nvs: &EspDefaultNvs, key: &str) -> anyhow::Result<String> {
+fn get_str_from_nvs(viam_nvs: &EspDefaultNvs, key: &str) -> Result<String, ServerError> {
     let mut buffer_ref = [0_u8; 4000];
     Ok(viam_nvs
         .get_str(key, &mut buffer_ref)?
-        .unwrap()
+        .ok_or(ServerError::NVSKeyError(key.to_string()))?
         .trim_matches(char::from(0))
         .to_string())
 }
 
 #[cfg(not(feature = "qemu"))]
-fn get_blob_from_nvs(viam_nvs: &EspDefaultNvs, key: &str) -> anyhow::Result<Vec<u8>> {
+fn get_blob_from_nvs(viam_nvs: &EspDefaultNvs, key: &str) -> Result<Vec<u8>, ServerError> {
     let mut buffer_ref = [0_u8; 4000];
-    Ok(viam_nvs.get_blob(key, &mut buffer_ref)?.unwrap().to_vec())
+    Ok(viam_nvs.get_blob(key, &mut buffer_ref)?.ok_or(ServerError::NVSKeyError(key.to_string()))?.to_vec())
 }
 
 #[cfg(not(feature = "qemu"))]
@@ -69,7 +84,7 @@ struct NvsStaticVars {
 }
 
 impl NvsStaticVars {
-    fn new() -> anyhow::Result<NvsStaticVars> {
+    fn new() -> Result<NvsStaticVars, ServerError> {
         let nvs = EspDefaultNvsPartition::take()?;
         info!("get namespace...");
         let viam_nvs = EspNvs::new(nvs.clone(), VIAM_NVS_NAMESPACE, true)?;
@@ -90,7 +105,7 @@ impl NvsStaticVars {
     }
 }
 
-fn main() -> anyhow::Result<()> {
+fn main() -> Result<(), ServerError> {
     std::env::set_var("RUST_BACKTRACE", "1");
     esp_idf_sys::link_patches();
 
@@ -132,10 +147,9 @@ fn main() -> anyhow::Result<()> {
         info!("creating eth object");
         let mut eth = Box::new(esp_idf_svc::eth::EspEth::wrap(
             esp_idf_svc::eth::EthDriver::new_openeth(
-                Peripherals::take().unwrap().mac,
+                Peripherals::take()?.mac,
                 sys_loop_stack.clone(),
-            )
-            .unwrap(),
+            )?,
         )?);
         let _ = eth_configure(&sys_loop_stack, &mut eth)?;
         let ip = Ipv4Addr::new(10, 1, 12, 187);
@@ -180,7 +194,7 @@ fn main() -> anyhow::Result<()> {
 fn eth_configure<'d, T>(
     sl_stack: &EspSystemEventLoop,
     eth: &mut esp_idf_svc::eth::EspEth<'d, T>,
-) -> anyhow::Result<Ipv4Addr> {
+) -> Result<Ipv4Addr, ServerError> {
     let mut eth = esp_idf_svc::eth::BlockingEth::wrap(eth, sl_stack.clone())?;
     eth.start()?;
     let ip_info = eth.eth().netif().get_ip_info()?;
@@ -195,7 +209,7 @@ fn start_wifi(
     sl_stack: EspSystemEventLoop,
     ssid: &str,
     password: &str,
-) -> anyhow::Result<Box<BlockingWifi<EspWifi<'static>>>> {
+) -> Result<Box<BlockingWifi<EspWifi<'static>>>, ServerError> {
     let nvs = EspDefaultNvsPartition::take()?;
     let mut wifi = BlockingWifi::wrap(
         EspWifi::new(modem, sl_stack.clone(), Some(nvs.clone()))?,
