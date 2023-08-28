@@ -42,7 +42,9 @@ pub enum ServerError {
     #[error("Error fetching NVS key: {0}")]
     NVSKeyError(String),
     #[error("{0}")]
-    EspError(EspError)
+    EspError(EspError),
+    #[error("Error obtaining peripherals")]
+    PeripheralsError,
 }
 
 impl From<EspError> for ServerError {
@@ -66,7 +68,10 @@ fn get_str_from_nvs(viam_nvs: &EspDefaultNvs, key: &str) -> Result<String, Serve
 #[cfg(not(feature = "qemu"))]
 fn get_blob_from_nvs(viam_nvs: &EspDefaultNvs, key: &str) -> Result<Vec<u8>, ServerError> {
     let mut buffer_ref = [0_u8; 4000];
-    Ok(viam_nvs.get_blob(key, &mut buffer_ref)?.ok_or(ServerError::NVSKeyError(key.to_string()))?.to_vec())
+    Ok(viam_nvs
+        .get_blob(key, &mut buffer_ref)?
+        .ok_or(ServerError::NVSKeyError(key.to_string()))?
+        .to_vec())
 }
 
 #[cfg(not(feature = "qemu"))]
@@ -110,10 +115,10 @@ fn main() -> Result<(), ServerError> {
     esp_idf_sys::link_patches();
 
     esp_idf_svc::log::EspLogger::initialize_default();
-    let sys_loop_stack = EspSystemEventLoop::take().unwrap();
+    let sys_loop_stack = EspSystemEventLoop::take()?;
 
     #[cfg(not(feature = "qemu"))]
-    let periph = Peripherals::take().unwrap();
+    let periph = Peripherals::take().ok_or(ServerError::PeripheralsError)?;
 
     #[cfg(feature = "qemu")]
     let repr = {
@@ -147,7 +152,7 @@ fn main() -> Result<(), ServerError> {
         info!("creating eth object");
         let mut eth = Box::new(esp_idf_svc::eth::EspEth::wrap(
             esp_idf_svc::eth::EthDriver::new_openeth(
-                Peripherals::take()?.mac,
+                Peripherals::take().ok_or(ServerError::PeripheralsError).mac,
                 sys_loop_stack.clone(),
             )?,
         )?);
