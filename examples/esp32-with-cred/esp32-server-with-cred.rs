@@ -86,7 +86,6 @@ impl NvsStaticVars {
             robot_srv_pem_ca: get_blob_from_nvs(&viam_nvs, "CA_CRT")?,
             robot_srv_der_key: get_blob_from_nvs(&viam_nvs, "SRV_DER_KEY")?,
         });
-        std::mem::drop(viam_nvs);
         res
     }
 }
@@ -146,6 +145,7 @@ fn main() -> anyhow::Result<()> {
     #[cfg(not(feature = "qemu"))]
     info!("load vars...");
     let nvs_vars = NvsStaticVars::new()?;
+    info!("wifi ssid: {:?}", nvs_vars.wifi_ssid);
 
     info!("starting wifi...");
     #[allow(clippy::redundant_clone)]
@@ -213,13 +213,13 @@ fn start_wifi(
     debug!("setting wifi configuration...");
     wifi.set_configuration(&wifi_configuration)?;
 
-    wifi.start().unwrap();
+    wifi.start()?;
     info!("Wifi started");
 
-    wifi.connect().unwrap();
+    wifi.connect()?;
     info!("Wifi connected");
 
-    wifi.wait_netif_up().unwrap();
+    wifi.wait_netif_up()?;
     info!("Wifi netif up");
 
     esp_idf_sys::esp!(unsafe { esp_wifi_set_ps(esp_idf_sys::wifi_ps_type_t_WIFI_PS_NONE) })?;
