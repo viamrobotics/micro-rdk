@@ -4,8 +4,7 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use clap::{arg, command, Args, Parser, Subcommand};
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Input, Password};
-use espflash::cli::config::Config;
-use espflash::cli::{connect, monitor::monitor, ConnectArgs, EspflashProgress};
+use espflash::cli::{config::Config, connect, monitor::monitor, ConnectArgs, EspflashProgress};
 use micro_rdk_installer::error::Error;
 use micro_rdk_installer::nvs::data::{ViamFlashStorageData, WifiCredentials};
 use micro_rdk_installer::nvs::partition::{NVSPartition, NVSPartitionData};
@@ -39,7 +38,7 @@ struct WriteCredentials {
     #[arg(long = "bin")]
     binary_path: String,
     #[arg(long = "nvs-size", default_value = "32768")]
-    size: usize,
+    nvs_size: usize,
     // the default here represents the offset as declared in
     // examples/esp32/partitions.csv (0x9000, here written as 36864),
     // as that is the partition table that will be used to compile
@@ -55,7 +54,7 @@ struct WriteFlash {
     #[arg(long = "bin")]
     binary_path: String,
     #[arg(long = "nvs-size", default_value = "32768")]
-    size: usize,
+    nvs_size: usize,
     // see comment for corresponding argument in WriteCredentials
     #[arg(long = "nvs-offset-address", default_value = "36864")]
     nvs_offset: u64,
@@ -172,20 +171,20 @@ fn main() -> Result<(), Error> {
     let cli = Cli::parse();
     match &cli.command {
         Some(Commands::WriteCredentials(args)) => {
-            let nvs_data = create_nvs_partition_binary(args.config.to_string(), args.size)?;
+            let nvs_data = create_nvs_partition_binary(args.config.to_string(), args.nvs_size)?;
             write_credentials_to_app_binary(
                 &args.binary_path,
                 &nvs_data,
-                args.size as u64,
+                args.nvs_size as u64,
                 args.nvs_offset,
             )?;
         }
         Some(Commands::WriteFlash(args)) => {
-            let nvs_data = create_nvs_partition_binary(args.config.to_string(), args.size)?;
+            let nvs_data = create_nvs_partition_binary(args.config.to_string(), args.nvs_size)?;
             write_credentials_to_app_binary(
                 &args.binary_path,
                 &nvs_data,
-                args.size as u64,
+                args.nvs_size as u64,
                 args.nvs_offset,
             )?;
             flash(&args.binary_path, args.monitor)?;
