@@ -143,9 +143,15 @@ pub struct Cloud {
 
 fn main() -> anyhow::Result<()> {
     println!("cargo:rerun-if-changed=viam.json");
-    let use_nvs = match env::var("MICRO_RDK_USE_NVS") {
-        Ok(val) => (val == "true") || (val == "True"),
-        Err(_) => false,
+    let use_nvs = match env::var_os("MICRO_RDK_USE_NVS") {
+        Some(val) => {
+            let use_nvs = val.to_ascii_lowercase() == "true";
+            if !use_nvs {
+                println!("Found MICRO_RDK_USE_NVS={:?}, will not write credentials as variables to file. If this was not intended provide the value as 'true' or 'True'", val);
+            }
+            use_nvs
+        }
+        None => false,
     };
     if env::var("TARGET").unwrap() == "xtensa-esp32-espidf" {
         if std::env::var_os("IDF_PATH").is_none() {
@@ -161,7 +167,7 @@ fn main() -> anyhow::Result<()> {
             if std::env::var_os("MICRO_RDK_WIFI_PASSWORD").is_none() {
                 return Err(anyhow::anyhow!(
                     "please set the password for WiFi {}",
-                    std::env::var_os("MICRO_RDK_WIFI_PASSWORD")
+                    std::env::var_os("MICRO_RDK_WIFI_SSID")
                         .unwrap()
                         .to_str()
                         .unwrap()

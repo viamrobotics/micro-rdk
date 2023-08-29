@@ -2,6 +2,8 @@ use log::*;
 use thiserror::Error;
 
 use esp_idf_svc::eventloop::EspSystemEventLoop;
+use esp_idf_svc::nvs::{EspDefaultNvs, EspDefaultNvsPartition, EspNvs};
+use esp_idf_sys::EspError;
 use micro_rdk::{
     common::{app_client::AppClientConfig, entry::RobotRepresentation},
     esp32::{certificate::WebRtcCertificate, entry::serve_web, tls::Esp32TlsServerConfig},
@@ -30,10 +32,9 @@ use {
         Configuration as WifiConfiguration,
     },
     esp_idf_hal::{peripheral::Peripheral, prelude::Peripherals},
-    esp_idf_svc::nvs::{EspDefaultNvs, EspDefaultNvsPartition, EspNvs},
     esp_idf_svc::wifi::{BlockingWifi, EspWifi},
     esp_idf_sys as _,
-    esp_idf_sys::{esp_wifi_set_ps, EspError},
+    esp_idf_sys::esp_wifi_set_ps,
     micro_rdk::common::registry::ComponentRegistry,
 };
 
@@ -55,7 +56,6 @@ impl From<EspError> for ServerError {
 
 const VIAM_NVS_NAMESPACE: &str = "VIAM_NS";
 
-#[cfg(not(feature = "qemu"))]
 fn get_str_from_nvs(viam_nvs: &EspDefaultNvs, key: &str) -> Result<String, ServerError> {
     let mut buffer_ref = [0_u8; 4000];
     Ok(viam_nvs
@@ -65,7 +65,6 @@ fn get_str_from_nvs(viam_nvs: &EspDefaultNvs, key: &str) -> Result<String, Serve
         .to_string())
 }
 
-#[cfg(not(feature = "qemu"))]
 fn get_blob_from_nvs(viam_nvs: &EspDefaultNvs, key: &str) -> Result<Vec<u8>, ServerError> {
     let mut buffer_ref = [0_u8; 4000];
     Ok(viam_nvs
@@ -74,9 +73,10 @@ fn get_blob_from_nvs(viam_nvs: &EspDefaultNvs, key: &str) -> Result<Vec<u8>, Ser
         .to_vec())
 }
 
-#[cfg(not(feature = "qemu"))]
 struct NvsStaticVars {
+    #[cfg(not(feature = "qemu"))]
     wifi_ssid: String,
+    #[cfg(not(feature = "qemu"))]
     wifi_pwd: String,
     robot_secret: String,
     robot_id: String,
@@ -94,8 +94,10 @@ impl NvsStaticVars {
         info!("get namespace...");
         let viam_nvs = EspNvs::new(nvs.clone(), VIAM_NVS_NAMESPACE, true)?;
         info!("loading creds...");
-        let res = Ok(NvsStaticVars {
+        Ok(NvsStaticVars {
+            #[cfg(not(feature = "qemu"))]
             wifi_ssid: get_str_from_nvs(&viam_nvs, "WIFI_SSID")?,
+            #[cfg(not(feature = "qemu"))]
             wifi_pwd: get_str_from_nvs(&viam_nvs, "WIFI_PASSWORD")?,
             robot_secret: get_str_from_nvs(&viam_nvs, "ROBOT_SECRET")?,
             robot_id: get_str_from_nvs(&viam_nvs, "ROBOT_ID")?,
@@ -105,8 +107,7 @@ impl NvsStaticVars {
             robot_srv_pem_chain: get_blob_from_nvs(&viam_nvs, "SRV_PEM_CHAIN")?,
             robot_srv_pem_ca: get_blob_from_nvs(&viam_nvs, "CA_CRT")?,
             robot_srv_der_key: get_blob_from_nvs(&viam_nvs, "SRV_DER_KEY")?,
-        });
-        res
+        })
     }
 }
 
@@ -138,13 +139,12 @@ fn main() -> Result<(), ServerError> {
     #[cfg(not(feature = "qemu"))]
     let repr = RobotRepresentation::WithRegistry(ComponentRegistry::default());
 
-    {
-        esp_idf_sys::esp!(unsafe {
-            esp_idf_sys::esp_vfs_eventfd_register(&esp_idf_sys::esp_vfs_eventfd_config_t {
-                max_fds: 5,
-            })
-        })?;
-    }
+    esp_idf_sys::esp!(unsafe {
+        esp_idf_sys::esp_vfs_eventfd_register(&esp_idf_sys::esp_vfs_eventfd_config_t { max_fds: 5 })
+    })?;
+
+    info!("load vars from NVS...");
+    let nvs_vars = NvsStaticVars::new()?;
 
     #[cfg(feature = "qemu")]
     let (ip, _block_eth) = {
@@ -152,7 +152,9 @@ fn main() -> Result<(), ServerError> {
         info!("creating eth object");
         let mut eth = Box::new(esp_idf_svc::eth::EspEth::wrap(
             esp_idf_svc::eth::EthDriver::new_openeth(
-                Peripherals::take().ok_or(ServerError::PeripheralsError).mac,
+                Peripherals::take()
+                    .ok_or(ServerError::PeripheralsError)?
+                    .mac,
                 sys_loop_stack.clone(),
             )?,
         )?);
@@ -160,11 +162,6 @@ fn main() -> Result<(), ServerError> {
         let ip = Ipv4Addr::new(10, 1, 12, 187);
         (ip, eth)
     };
-
-    #[cfg(not(feature = "qemu"))]
-    info!("load vars...");
-    let nvs_vars = NvsStaticVars::new()?;
-    info!("wifi ssid: {:?}", nvs_vars.wifi_ssid);
 
     info!("starting wifi...");
     #[allow(clippy::redundant_clone)]
