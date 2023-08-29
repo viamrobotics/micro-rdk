@@ -53,7 +53,7 @@ impl ViamFlashStorageData {
                 namespace_idx,
             },
             NVSKeyValuePair {
-                key: "PASSWORD".to_string(),
+                key: "WIFI_PASSWORD".to_string(),
                 value: NVSValue::String(wifi_cred.password.expose_secret().to_string()),
                 namespace_idx,
             },
