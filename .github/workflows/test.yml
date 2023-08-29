@@ -17,7 +17,7 @@ jobs:
       src-examples: ${{ steps.changes.outputs.src-examples }}
       src-cli: ${{ steps.changes.outputs.src-cli }}
     container:
-      image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64_gautham_test
+      image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
     steps:
     - name : Checkout main branch code
       if: github.event_name != 'pull_request_target'
@@ -54,7 +54,7 @@ jobs:
     if: ${{ needs.changes.outputs.src-cli == 'true'}}
     runs-on: [x64, qemu-host]
     container:
-      image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64_gautham_test
+      image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
       
     steps:
     - name : Checkout main branch code
@@ -78,7 +78,7 @@ jobs:
     name: Tests, Format, Clippy Micro-Rdk
     runs-on: [x64, qemu-host]
     container:
-      image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64_gautham_test
+      image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
     timeout-minutes: 20
 
     steps:
