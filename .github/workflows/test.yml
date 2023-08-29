@@ -70,7 +70,6 @@ jobs:
         fetch-depth: 2
     - name: Clippy Micro-RDK Installer
       run: |
-        bash -c 'apt-get install libffi-dev libssl-dev dfu-util libusb-1.0-0'
         bash -c 'make clippy-cli'
 
     
