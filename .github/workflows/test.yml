@@ -70,7 +70,6 @@ jobs:
         fetch-depth: 2
     - name: Clippy Micro-RDK Installer
       run: |
-        bash -c 'apt-get install libudev-dev'
         bash -c 'make clippy-cli'
 
     
