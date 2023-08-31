@@ -38,7 +38,7 @@ RUN echo "deb http://deb.debian.org/debian bullseye-backports main" >> /etc/apt/
 
 RUN apt update 
 
-RUN apt-get install -y --no-install-recommends git wget flex bison gperf python3 python3-pip python3-venv cmake ninja-build ccache libffi-dev libssl-dev dfu-util libusb-1.0-0 openssh-client software-properties-common sudo && \
+RUN apt-get install -y --no-install-recommends git wget flex bison gperf python3 python3-pip python3-venv cmake ninja-build ccache libffi-dev libssl-dev libudev-dev dfu-util libusb-1.0-0 openssh-client software-properties-common sudo && \
     apt-add-repository 'deb http://deb.debian.org/debian bullseye-backports main' && \
     apt update && \
     apt-get install -y --no-install-recommends cmake/bullseye-backports && \

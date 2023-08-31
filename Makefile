@@ -1,6 +1,9 @@
 SHELL := /bin/bash
 ESPFLASHVERSION = $(shell expr `cargo espflash -V | grep ^cargo-espflash | sed 's/^.* //g' | cut -f1 -d. ` \< 2)
 
+DATE := $(shell date +%F)
+IMAGE_BASE = ghcr.io/viamrobotics/micro-rdk-dev-env
+
 buf-clean:
 	find src/gen -type f \( -iname "*.rs" \) -delete
 
@@ -83,3 +86,23 @@ ifneq (,$(wildcard ./examples/target/esp32-server.bin))
 else
 	$(error esp32-server.bin not found, run build-esp32-bin first)
 endif
+
+canon-image: canon-image-amd64 canon-image-arm64
+
+canon-image-amd64:
+	cd etc/docker && docker buildx build . --load --no-cache --platform linux/amd64 -t $(IMAGE_BASE):amd64
+
+canon-image-arm64:
+	cd etc/docker && docker buildx build . --load --no-cache --platform linux/arm64 -t $(IMAGE_BASE):arm64
+
+canon-upload: canon-upload-amd64 canon-upload-arm64
+
+canon-upload-amd64:
+	docker tag $(IMAGE_BASE):amd64 $(IMAGE_BASE):amd64_$(DATE)
+	docker push $(IMAGE_BASE):amd64
+	docker push $(IMAGE_BASE):amd64_$(DATE)
+
+canon-upload-arm64:
+	docker tag $(IMAGE_BASE):arm64 $(IMAGE_BASE):arm64_$(DATE)
+	docker push $(IMAGE_BASE):arm64
+	docker push $(IMAGE_BASE):arm64_$(DATE)
