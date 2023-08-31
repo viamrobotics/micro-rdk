@@ -35,7 +35,7 @@ enum Commands {
 struct WriteCredentials {
     #[arg(long = "app-config")]
     config: String,
-    #[arg(long = "app-binary")]
+    #[arg(long = "binary-path")]
     binary_path: String,
     #[arg(long = "nvs-size", default_value = "32768")]
     nvs_size: usize,
