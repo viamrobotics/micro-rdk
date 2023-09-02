@@ -1,5 +1,6 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
+use std::path::PathBuf;
 
 use clap::{arg, command, Args, Parser, Subcommand};
 use dialoguer::theme::ColorfulTheme;
@@ -8,9 +9,12 @@ use espflash::cli::{config::Config, connect, monitor::monitor, ConnectArgs, Espf
 use micro_rdk_installer::error::Error;
 use micro_rdk_installer::nvs::data::{ViamFlashStorageData, WifiCredentials};
 use micro_rdk_installer::nvs::partition::{NVSPartition, NVSPartitionData};
-use micro_rdk_installer::nvs::request::populate_nvs_storage_from_app;
+use micro_rdk_installer::nvs::request::{
+    download_micro_rdk_release, populate_nvs_storage_from_app,
+};
 use secrecy::Secret;
 use serde::Deserialize;
+use tokio::runtime::Runtime;
 
 #[derive(Deserialize, Debug)]
 struct AppCloudConfig {
@@ -52,14 +56,20 @@ struct WriteFlash {
     #[arg(long = "app-config")]
     config: String,
     #[arg(long = "bin")]
-    binary_path: String,
+    binary_path: Option<String>,
+    #[arg(long = "version")]
+    version: Option<String>,
     #[arg(long = "nvs-size", default_value = "32768")]
     nvs_size: usize,
     // see comment for corresponding argument in WriteCredentials
     #[arg(long = "nvs-offset-address", default_value = "36864")]
     nvs_offset: u64,
+    #[arg(long = "baud-rate")]
+    baud_rate: Option<u32>,
     #[arg(long = "monitor")]
     monitor: bool,
+    #[arg(long = "debug")]
+    debug: bool,
 }
 
 #[derive(Args)]
@@ -119,7 +129,7 @@ fn create_nvs_partition_binary(config_path: String, size: usize) -> Result<Vec<u
 }
 
 fn write_credentials_to_app_binary(
-    binary_path: &str,
+    binary_path: PathBuf,
     nvs_data: &[u8],
     nvs_size: u64,
     nvs_start_address: u64,
@@ -130,7 +140,7 @@ fn write_credentials_to_app_binary(
         .open(binary_path)
         .map_err(Error::FileError)?;
     let file_len = app_file.metadata().map_err(Error::FileError)?.len();
-    if (file_len - nvs_start_address) <= nvs_size {
+    if (nvs_start_address + nvs_size) >= file_len {
         return Err(Error::BinaryEditError(file_len));
     }
     app_file
@@ -140,9 +150,9 @@ fn write_credentials_to_app_binary(
     Ok(())
 }
 
-fn flash(binary_path: &str, should_monitor: bool) -> Result<(), Error> {
+fn flash(binary_path: PathBuf, should_monitor: bool, baud_rate: Option<u32>) -> Result<(), Error> {
     let connect_args = ConnectArgs {
-        baud: Some(460800),
+        baud: Some(baud_rate.unwrap_or(460800)),
         // let espflash auto-detect the port
         port: None,
         no_stub: false,
@@ -173,7 +183,7 @@ fn main() -> Result<(), Error> {
         Some(Commands::WriteCredentials(args)) => {
             let nvs_data = create_nvs_partition_binary(args.config.to_string(), args.nvs_size)?;
             write_credentials_to_app_binary(
-                &args.binary_path,
+                PathBuf::from(args.binary_path.clone()),
                 &nvs_data,
                 args.nvs_size as u64,
                 args.nvs_offset,
@@ -181,13 +191,24 @@ fn main() -> Result<(), Error> {
         }
         Some(Commands::WriteFlash(args)) => {
             let nvs_data = create_nvs_partition_binary(args.config.to_string(), args.nvs_size)?;
+            let tmp_dir = tempfile::Builder::new()
+                .prefix("micro-rdk-bin")
+                .tempdir()
+                .map_err(Error::FileError)?;
+            let path = match args.binary_path.clone() {
+                Some(path) => PathBuf::from(path),
+                None => {
+                    let rt = Runtime::new().map_err(Error::AsyncError)?;
+                    rt.block_on(download_micro_rdk_release(&tmp_dir, args.version.clone()))?
+                }
+            };
             write_credentials_to_app_binary(
-                &args.binary_path,
+                path.clone(),
                 &nvs_data,
                 args.nvs_size as u64,
                 args.nvs_offset,
             )?;
-            flash(&args.binary_path, args.monitor)?;
+            flash(path, args.monitor, args.baud_rate)?;
         }
         Some(Commands::CreateNvsPartition(args)) => {
             let mut file = File::create(&args.file_name).map_err(Error::FileError)?;
