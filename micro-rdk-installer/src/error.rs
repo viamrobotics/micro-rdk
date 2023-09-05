@@ -1,5 +1,6 @@
 use espflash::error::Error as EspFlashError;
 use rcgen::RcgenError;
+use reqwest::Error as RequestError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -8,6 +9,8 @@ pub enum Error {
     NVSDataProcessingError(String),
     #[error("File Error: {0}")]
     FileError(std::io::Error),
+    #[error("Binary Retrieval Error: {0}")]
+    BinaryRetrievalError(RequestError),
     #[error("Binary Too Small, File Size: {0}")]
     BinaryEditError(u64),
     #[error("Binary Too Large, File Size: {0}")]

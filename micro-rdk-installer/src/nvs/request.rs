@@ -2,6 +2,10 @@ use super::super::error::Error;
 use super::data::ViamFlashStorageData;
 
 use rcgen::{date_time_ymd, CertificateParams, DistinguishedName};
+use std::fs::File;
+use std::io::Write;
+use std::path::PathBuf;
+use tempfile::TempDir;
 
 use local_ip_address::local_ip;
 use tokio::runtime::Runtime;
@@ -14,6 +18,37 @@ use viam_rust_utils::rpc::dial::{DialOptions, RPCCredentials};
 This module contains the logic for acquiring the security credentials for a robot from
 the Viam App and preparing for flash storage
 */
+
+const RELEASES_BASE_URL: &str = "https://github.com/viamrobotics/micro-rdk/releases/";
+
+pub async fn download_micro_rdk_release(
+    tmp_dir: &TempDir,
+    version: Option<String>,
+) -> Result<PathBuf, Error> {
+    let mut release_url: String = RELEASES_BASE_URL.to_owned();
+    match version {
+        Some(version) => {
+            let rest_of_url = format!("/download/{version}/micro-rdk-esp32-server.bin");
+            release_url.push_str(&rest_of_url)
+        }
+        None => release_url.push_str("latest/download/micro-rdk-esp32-server.bin"),
+    };
+    log::info!("Downloading micro-RDK release from {:?}", release_url);
+    let fname = tmp_dir.path().join("micro-rdk-esp32-server.bin");
+    let mut dest = File::create(fname.clone()).map_err(Error::FileError)?;
+    let response = reqwest::get(release_url)
+        .await
+        .map_err(Error::BinaryRetrievalError)?;
+    response
+        .error_for_status_ref()
+        .map_err(Error::BinaryRetrievalError)?;
+    let content = response
+        .bytes()
+        .await
+        .map_err(Error::BinaryRetrievalError)?;
+    dest.write_all(&content).map_err(Error::FileError)?;
+    Ok(fname)
+}
 
 pub fn populate_nvs_storage_from_app(storage_data: &mut ViamFlashStorageData) -> Result<(), Error> {
     populate_dtls_certificate(storage_data)?;
