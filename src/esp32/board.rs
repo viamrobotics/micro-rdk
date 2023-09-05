@@ -4,6 +4,7 @@ use crate::common::analog::AnalogReaderConfig;
 use crate::common::board::Board;
 use crate::common::board::BoardType;
 use crate::common::config::ConfigType;
+use crate::common::digital_interrupt::DigitalInterruptConfig;
 use crate::common::i2c::I2cHandleType;
 use crate::common::registry::ComponentRegistry;
 use crate::common::status::Status;
@@ -16,10 +17,13 @@ use esp_idf_hal::adc::AdcChannelDriver;
 use esp_idf_hal::adc::AdcDriver;
 use esp_idf_hal::adc::Atten11dB;
 use esp_idf_hal::adc::ADC1;
-use esp_idf_hal::gpio::{AnyIOPin, InputOutput, PinDriver};
+use esp_idf_hal::gpio::{AnyIOPin, InputOutput, InterruptType, PinDriver, Pull};
+use esp_idf_sys::{esp, gpio_install_isr_service, gpio_isr_handler_add, ESP_INTR_FLAG_IRAM};
 use log::*;
+use once_cell::sync::{Lazy, OnceCell};
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -35,15 +39,118 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     }
 }
 
+fn install_gpio_isr_service() -> anyhow::Result<()> {
+    static GPIO_ISR_SERVICE_INSTALLED: Lazy<Arc<OnceCell<()>>> =
+        Lazy::new(|| Arc::new(OnceCell::new()));
+    GPIO_ISR_SERVICE_INSTALLED.get_or_try_init(|| {
+        unsafe {
+            esp!(gpio_install_isr_service(ESP_INTR_FLAG_IRAM as i32))?;
+        };
+        Ok::<(), anyhow::Error>(())
+    })?;
+    Ok(())
+}
+
+/// Esp32GPIOPin is a wrapper for a pin on ESP32 as represented in esp-idf-hal
+/// and esp-idf-sys. This exists so that all micro-RDK drivers can interact
+/// with pins through the board instance and avoid conflicting uses of pins
+/// by multiple processes
+pub struct Esp32GPIOPin {
+    pin: i32,
+    driver: PinDriver<'static, AnyIOPin, InputOutput>,
+    pull: Option<Pull>,
+    interrupt_type: Option<InterruptType>,
+    event_count: Arc<AtomicU32>,
+}
+
+impl Esp32GPIOPin {
+    pub fn new(pin: i32, pull: Option<Pull>) -> anyhow::Result<Self> {
+        let mut driver = PinDriver::input_output(unsafe { AnyIOPin::new(pin) })?;
+        if let Some(pull) = pull {
+            driver.set_pull(pull)?;
+        }
+        Ok(Self {
+            pin,
+            driver,
+            pull,
+            interrupt_type: None,
+            event_count: Arc::new(AtomicU32::new(0)),
+        })
+    }
+
+    pub fn pin(&self) -> i32 {
+        self.pin
+    }
+
+    pub fn is_high(&self) -> bool {
+        self.driver.is_high()
+    }
+
+    pub fn set_high(&mut self) -> anyhow::Result<()> {
+        self.driver
+            .set_high()
+            .map_err(|e| anyhow::anyhow!("couldn't set pin {} high {}", self.pin, e))
+    }
+
+    pub fn set_low(&mut self) -> anyhow::Result<()> {
+        self.driver
+            .set_low()
+            .map_err(|e| anyhow::anyhow!("couldn't set pin {} low {}", self.pin, e))
+    }
+
+    pub fn is_interrupt(&self) -> bool {
+        self.interrupt_type.is_some()
+    }
+
+    pub fn setup_interrupt(&mut self, intr_type: InterruptType) -> anyhow::Result<()> {
+        match &self.interrupt_type {
+            Some(existing_type) => {
+                if *existing_type == intr_type {
+                    return Ok(());
+                }
+            }
+            None => {
+                self.interrupt_type = Some(intr_type);
+            }
+        };
+        install_gpio_isr_service()?;
+        self.driver.set_interrupt_type(intr_type)?;
+        self.event_count.store(0, Ordering::Relaxed);
+        unsafe {
+            // we can't use the subscribe method on PinDriver to add the handler
+            // because it requires an FnMut with a static lifetime. A possible follow-up
+            // would be to lazily initialize a Esp32GPIOPin for every possible pin (delineated by feature)
+            // in a global state which an EspBoard instance would be able to access
+            esp!(gpio_isr_handler_add(
+                self.pin,
+                Some(Self::interrupt),
+                &mut self.event_count as *mut Arc<AtomicU32> as *mut _
+            ))?;
+        }
+        Ok(())
+    }
+
+    pub fn get_event_count(&self) -> u32 {
+        self.event_count.load(Ordering::Relaxed)
+    }
+
+    #[inline(always)]
+    #[link_section = ".iram1.intr_srv"]
+    unsafe extern "C" fn interrupt(arg: *mut core::ffi::c_void) {
+        let arg: &mut Arc<AtomicU32> = &mut *(arg as *mut _);
+        arg.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
 pub struct EspBoard {
-    pins: Vec<PinDriver<'static, AnyIOPin, InputOutput>>,
+    pins: Vec<Esp32GPIOPin>,
     analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>,
     i2cs: HashMap<String, I2cHandleType>,
 }
 
 impl EspBoard {
     pub fn new(
-        pins: Vec<PinDriver<'static, AnyIOPin, InputOutput>>,
+        pins: Vec<Esp32GPIOPin>,
         analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>,
         i2cs: HashMap<String, I2cHandleType>,
     ) -> Self {
@@ -57,7 +164,7 @@ impl EspBoard {
     /// Down the road we will need to wrap the Esp32Board in a singleton instance owning the peripherals and giving them as requested.
     /// The potential approach is described in esp32/motor.rs:383
     pub(crate) fn from_config(cfg: ConfigType) -> anyhow::Result<BoardType> {
-        let (analogs, pins, i2c_confs) = {
+        let (analogs, mut pins, i2c_confs) = {
             let analogs = if let Ok(analogs) =
                 cfg.get_attribute::<Vec<AnalogReaderConfig>>("analogs")
             {
@@ -194,7 +301,7 @@ impl EspBoard {
             let pins = if let Ok(pins) = cfg.get_attribute::<Vec<i32>>("pins") {
                 pins.iter()
                     .filter_map(|pin| {
-                        let p = PinDriver::input_output(unsafe { AnyIOPin::new(*pin) });
+                        let p = Esp32GPIOPin::new(*pin, None);
                         if let Ok(p) = p {
                             Some(p)
                         } else {
@@ -221,6 +328,22 @@ impl EspBoard {
             let i2c_wrapped: I2cHandleType = Arc::new(Mutex::new(i2c));
             i2cs.insert(name.to_string(), i2c_wrapped);
         }
+        if let Ok(interrupt_confs) =
+            cfg.get_attribute::<Vec<DigitalInterruptConfig>>("digital_interrupts")
+        {
+            for conf in interrupt_confs {
+                let p = pins.iter_mut().find(|p| p.pin() == conf.pin);
+                if let Some(p) = p {
+                    // RSDK-4763: make event type configurable
+                    // https://viam.atlassian.net/browse/RSDK-4763
+                    p.setup_interrupt(InterruptType::PosEdge)?
+                } else {
+                    let mut p = Esp32GPIOPin::new(conf.pin, None)?;
+                    p.setup_interrupt(InterruptType::PosEdge)?;
+                    pins.push(p);
+                }
+            }
+        }
         Ok(Arc::new(Mutex::new(Self {
             pins,
             analogs,
@@ -233,14 +356,16 @@ impl Board for EspBoard {
     fn set_gpio_pin_level(&mut self, pin: i32, is_high: bool) -> anyhow::Result<()> {
         let p = self.pins.iter_mut().find(|p| p.pin() == pin);
         if let Some(p) = p {
+            if p.is_interrupt() {
+                anyhow::bail!(
+                    "cannot set level for pin {:?}, it is registered as an interrupt",
+                    pin
+                )
+            }
             if is_high {
-                return p
-                    .set_high()
-                    .map_err(|e| anyhow::anyhow!("couldn't set pin {} high {}", pin, e));
+                return p.set_high();
             } else {
-                return p
-                    .set_low()
-                    .map_err(|e| anyhow::anyhow!("couldn't set pin {} low {}", pin, e));
+                return p.set_low();
             }
         }
         Err(anyhow::anyhow!("pin {} is not set as an output pin", pin))
@@ -321,6 +446,22 @@ impl Board for EspBoard {
             Some(i2c_handle) => Ok(Arc::clone(i2c_handle)),
             None => Err(anyhow::anyhow!("no i2c found with name {}", name)),
         }
+    }
+    fn get_digital_interrupt_value(&self, pin: i32) -> anyhow::Result<u32> {
+        let p = self.pins.iter().find(|p| p.pin() == pin);
+        if let Some(p) = p {
+            if !p.is_interrupt() {
+                return Err(anyhow::anyhow!(
+                    "pin {} is not configured as an interrupt",
+                    pin
+                ));
+            }
+            return Ok(p.get_event_count());
+        }
+        Err(anyhow::anyhow!(
+            "pin {} is not configured on the board instance",
+            pin
+        ))
     }
 }
 

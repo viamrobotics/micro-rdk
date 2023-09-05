@@ -14,7 +14,6 @@ crate-type = ["lib"]
 
 [patch.crates-io]
 esp-idf-sys = {git = "https://github.com/npmenard/esp-idf-sys.git"}
-polling = { git = "https://github.com/esp-rs-compat/polling" }
 smol = { git = "https://github.com/esp-rs-compat/smol" }
 socket2 = { git = "https://github.com/npmenard/socket2.git" }
 async-io = {git = "https://github.com/npmenard/async-io.git"}
@@ -73,6 +72,7 @@ async-std-openssl = {version = "0.6.3", optional = true }
 thiserror = "1.0.40"
 pin-project-lite = "0.2.9"
 url = "2.4.0"
+once_cell = "1.18.0"
 
 [build-dependencies]
 anyhow = "1"

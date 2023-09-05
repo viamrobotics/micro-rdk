@@ -191,7 +191,7 @@ where
             "/viam.component.base.v1.BaseService/MoveStraight" => self.base_move_straight(payload),
             "/viam.component.base.v1.BaseService/Spin" => self.base_spin(payload),
             "/viam.component.base.v1.BaseService/SetVelocity" => self.base_set_velocity(payload),
-            "/viam.component.board.v1.BoardService/GetDigitalinterruptValue" => {
+            "/viam.component.board.v1.BoardService/GetDigitalInterruptValue" => {
                 self.board_get_digital_interrupt_value(payload)
             }
             "/viam.component.board.v1.BoardService/GetGPIO" => self.board_get_pin(payload),
@@ -375,8 +375,23 @@ where
         self.encode_message(resp)
     }
 
-    fn board_get_digital_interrupt_value(&mut self, _message: &[u8]) -> Result<(), GrpcError> {
-        Err(GrpcError::RpcUnimplemented)
+    fn board_get_digital_interrupt_value(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+        let req = component::board::v1::GetDigitalInterruptValueRequest::decode(message)
+            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+        let board = match self.robot.lock().unwrap().get_board_by_name(req.board_name) {
+            Some(b) => b,
+            None => return Err(GrpcError::RpcUnavailable),
+        };
+        let interrupt_pin = req
+            .digital_interrupt_name
+            .parse::<i32>()
+            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+        let value = board
+            .get_digital_interrupt_value(interrupt_pin)
+            .map_err(|_| GrpcError::RpcInternal)?
+            .into();
+        let resp = component::board::v1::GetDigitalInterruptValueResponse { value };
+        self.encode_message(resp)
     }
 
     fn board_status(&mut self, message: &[u8]) -> Result<(), GrpcError> {
