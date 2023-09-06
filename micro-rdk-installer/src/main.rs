@@ -30,61 +30,85 @@ struct AppConfig {
 
 #[derive(Subcommand)]
 enum Commands {
-    WriteCredentials(WriteCredentials),
     WriteFlash(WriteFlash),
+    WriteCredentials(WriteCredentials),
     CreateNvsPartition(CreateNVSPartition),
 }
 
+/// Write Wi-Fi and robot credentials to the NVS storage portion of a pre-compiled
+/// binary running a micro-RDK server
 #[derive(Args)]
 struct WriteCredentials {
+    /// File path to the JSON config of the robot, downloaded from app.viam.com
     #[arg(long = "app-config")]
     config: String,
+    /// File path to the compiled micro-RDK binary. The portion reserved for the NVS
+    /// data partition will be edited with Wi-Fi and robot credentials
     #[arg(long = "binary-path")]
     binary_path: String,
+    /// Size of the NVS partition in bytes. The default here represents the size
+    /// declared in examples/esp32/partitions.csv (0x8000, or 32768)
     #[arg(long = "nvs-size", default_value = "32768")]
     nvs_size: usize,
-    // the default here represents the offset as declared in
-    // examples/esp32/partitions.csv (0x9000, here written as 36864),
-    // as that is the partition table that will be used to compile
-    // the default application binary
+    /// The address in the binary at which the NVS data partition begins. The default here 
+    /// represents the offset as declared in examples/esp32/partitions.csv 
+    /// (0x9000, or 36864), as that is the partition table that will be used to 
+    /// compile the default application binary
     #[arg(long = "nvs-offset-address", default_value = "36864")]
     nvs_offset: u64,
 }
 
+/// Flash a pre-compiled binary with the micro-RDK server directly to an ESP32
+/// connected to your computer via data cable
 #[derive(Args)]
 struct WriteFlash {
+    /// File path to the JSON config of the robot, downloaded from app.viam.com
     #[arg(long = "app-config")]
     config: String,
+    /// File path to the compiled micro-RDK binary. The portion reserved for the NVS
+    /// data partition will be edited with wifi and robot credentials
     #[arg(long = "bin")]
     binary_path: Option<String>,
+    /// Version of the compiled micro-RDK server to download. 
+    /// See https://github.com/viamrobotics/micro-rdk/releases for the version options
     #[arg(long = "version")]
     version: Option<String>,
+    /// Size of the NVS partition in bytes. The default here represents the size
+    /// declared in examples/esp32/partitions.csv (0x8000, or 32768)
     #[arg(long = "nvs-size", default_value = "32768")]
     nvs_size: usize,
-    // see comment for corresponding argument in WriteCredentials
+    /// The address in the binary at which the NVS data partition begins. The default here 
+    /// represents the offset as declared in examples/esp32/partitions.csv 
+    /// (0x9000, or 36864), as that is the partition table that will be used to 
+    /// compile the default application binary
     #[arg(long = "nvs-offset-address", default_value = "36864")]
     nvs_offset: u64,
     #[arg(long = "baud-rate")]
     baud_rate: Option<u32>,
+    /// This opens the serial monitor immediately after flashing. 
+    /// The micro-RDK server logs can be viewed this way
     #[arg(long = "monitor")]
-    monitor: bool,
-    #[arg(long = "debug")]
-    debug: bool,
+    monitor: bool
 }
 
+/// Generate a binary of a complete NVS data partition that conatins Wi-Fi and security 
+/// credentials for a robot
 #[derive(Args)]
 struct CreateNVSPartition {
+    // File path to the JSON config of the robot, downloaded from app.viam.com
     #[arg(long = "app-config")]
     config: String,
     #[arg(long = "output")]
     file_name: String,
+    // Size of the NVS partition in bytes. The default here represents the size
+    // declared in examples/esp32/partitions.csv (0x8000, or 32768)
     #[arg(long = "size", default_value = "32768")]
     size: usize,
 }
 
 #[derive(Parser)]
 #[command(
-    about = "A CLI that can compile a micro-RDK binary or flash a compilation of micro-RDK directly to an ESP32 provided configuration information"
+    about = "A CLI that can flash a compilation of micro-RDK directly to an ESP32 provided configuration information",
 )]
 struct Cli {
     #[command(subcommand)]
