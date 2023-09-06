@@ -35,6 +35,9 @@ Options:
 2. Follow Step 1 under the instructions for Linux (regardless of your operating system) to download the Viam app config for your robot
 3. Run: `./micro-rdk-installer write-flash --app-config=<file path to the viam.json file downloaded in previous step>`
     1. To see the micro-RDK server logs through the serial connection, add `--monitor`
+    2. If the program cannot auto-detect the serial port to which your ESP32 is connected, you may be prompted to select the correct one among a list
+
+## Common Problems
 
 ### Linux Port Permissions
 
@@ -45,6 +48,16 @@ connected and the error persists, run `sudo usermod -a -G dialout $USER` to add 
 
 When using a machine running a version of MacOS, the user will be blocked from running the executable. To fix this, **Control+Click** the binary in Finder and then, in the following two prompts select **Open**. Close whatever terminal window this opens
 and then you should be able to run the installer.
+
+### Error: FlashConnect
+
+This may occur because the serial port chosen if/when prompted is incorrect. However, if the correct port has been selected, try the following:
+
+1. Run the installer as explained above
+2. When prompted to select a serial port
+    1. Hold down the "EN" or enable button on your ESP32
+    2. With the above button held down, select the correct serial port
+    3. Still holding down the enable button, now also press and hold down the "Boot" button. Then release both buttons simultaneously.
 
 ## Testing NVS
 
