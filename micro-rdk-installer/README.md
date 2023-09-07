@@ -1,8 +1,6 @@
 # The Viam Micro-RDK Installer
 
-A CLI that allows a user to flash a build of Micro-RDK, along with
-their robot's credentials and their wifi information, directly to their esp32 without requiring
-installation of ESP-IDF, Rust, or Python.
+A CLI that allows a user to flash a build of Micro-RDK, along with their robot's credentials and their wifi information, directly to their esp32 without requiring installation of ESP-IDF, Rust, or Python.
 
 ## Build Instructions
 
@@ -31,8 +29,8 @@ Options:
 
 ### Quick use
 
-1. Find your robot part at https://app.viam.com. Then navigate to the Setup tab
-2. Follow Step 1 under the instructions for Linux (regardless of your operating system) to download the Viam app config for your robot
+1. Find your robot part at https://app.viam.com. Then navigate to the **Setup** tab
+2. Regardless of your operating system, select **Linux** and follow Step 1 to download the Viam app config for your robot
 3. Run: `./micro-rdk-installer write-flash --app-config=<file path to the viam.json file downloaded in previous step>`
     1. To see the micro-RDK server logs through the serial connection, add `--monitor`
     2. If the program cannot auto-detect the serial port to which your ESP32 is connected, you may be prompted to select the correct one among a list
@@ -46,8 +44,7 @@ connected and the error persists, run `sudo usermod -a -G dialout $USER` to add 
 
 ### MacOS Executable Permissions
 
-When using a machine running a version of MacOS, the user will be blocked from running the executable. To fix this, **Control+Click** the binary in Finder and then, in the following two prompts select **Open**. Close whatever terminal window this opens
-and then you should be able to run the installer.
+When using a machine running a version of MacOS, the user will be blocked from running the executable. To fix this, **Control+Click** the binary in Finder and then, in the following two prompts select **Open**. Close whatever terminal window this opens to be able to run the installer.
 
 ### Error: FlashConnect
 
@@ -57,7 +54,7 @@ This may occur because the serial port chosen if/when prompted is incorrect. How
 2. When prompted to select a serial port
     1. Hold down the "EN" or enable button on your ESP32
     2. With the above button held down, select the correct serial port
-    3. Still holding down the enable button, now also press and hold down the "Boot" button. Then release both buttons simultaneously.
+    3. Press and hold down the "EN" and "Boot" buttons at the same time. Then release both
 
 ## Testing NVS
 
