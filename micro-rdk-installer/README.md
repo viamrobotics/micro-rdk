@@ -5,7 +5,7 @@ A CLI that allows a user to flash a build of Micro-RDK, along with their robot's
 ## Build Instructions
 
 1. `cargo build`
-2. ELF will be in target/debug
+2. Exwecutable (`micro-rdk-installer`) will be under target/debug
 
 ## Usage
 
