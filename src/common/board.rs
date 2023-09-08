@@ -34,6 +34,8 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 pub struct FakeBoard {
     analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>,
     i2cs: HashMap<String, Arc<Mutex<FakeI2CHandle>>>,
+    pin_pwms: HashMap<i32, f64>,
+    pin_pwm_freq: HashMap<i32, u64>,
 }
 pub trait Board: Status {
     fn set_gpio_pin_level(&mut self, pin: i32, is_high: bool) -> anyhow::Result<()>;
@@ -54,6 +56,10 @@ pub trait Board: Status {
     fn get_digital_interrupt_value(&self, _pin: i32) -> anyhow::Result<u32> {
         anyhow::bail!("this board does not support digital interrupts")
     }
+    fn get_pwm_duty(&self, pin: i32) -> f64;
+    fn set_pwm_duty(&mut self, pin: i32, duty_cycle_pct: f64) -> anyhow::Result<()>;
+    fn get_pwm_frequency(&self, pin: i32) -> anyhow::Result<u64>;
+    fn set_pwm_frequency(&mut self, pin: i32, frequency_hz: u64) -> anyhow::Result<()>;
 }
 
 pub type BoardType = Arc<Mutex<dyn Board>>;
@@ -65,7 +71,12 @@ impl FakeBoard {
         i2cs.insert(i2c0.name(), i2c0);
         let i2c1 = Arc::new(Mutex::new(FakeI2CHandle::new("i2c1".to_string())));
         i2cs.insert(i2c1.name(), i2c1);
-        FakeBoard { analogs, i2cs }
+        FakeBoard {
+            analogs,
+            i2cs,
+            pin_pwms: HashMap::new(),
+            pin_pwm_freq: HashMap::new(),
+        }
     }
     pub(crate) fn from_config(cfg: ConfigType) -> anyhow::Result<BoardType> {
         let analogs = if let Ok(analog_confs) = cfg.get_attribute::<HashMap<&str, f64>>("analogs") {
@@ -96,7 +107,12 @@ impl FakeBoard {
             HashMap::new()
         };
 
-        Ok(Arc::new(Mutex::new(FakeBoard { analogs, i2cs })))
+        Ok(Arc::new(Mutex::new(FakeBoard {
+            analogs,
+            i2cs,
+            pin_pwms: HashMap::new(),
+            pin_pwm_freq: HashMap::new(),
+        })))
     }
 }
 
@@ -155,6 +171,20 @@ impl Board for FakeBoard {
         } else {
             anyhow::bail!("could not find I2C with name {}", name)
         }
+    }
+    fn get_pwm_duty(&self, pin: i32) -> f64 {
+        *self.pin_pwms.get(&pin).unwrap_or(&0.0)
+    }
+    fn set_pwm_duty(&mut self, pin: i32, duty_cycle_pct: f64) -> anyhow::Result<()> {
+        self.pin_pwms.insert(pin, duty_cycle_pct);
+        Ok(())
+    }
+    fn get_pwm_frequency(&self, pin: i32) -> anyhow::Result<u64> {
+        Ok(*self.pin_pwm_freq.get(&pin).unwrap_or(&0))
+    }
+    fn set_pwm_frequency(&mut self, pin: i32, frequency_hz: u64) -> anyhow::Result<()> {
+        self.pin_pwm_freq.insert(pin, frequency_hz);
+        Ok(())
     }
 }
 
@@ -230,5 +260,21 @@ where
 
     fn get_digital_interrupt_value(&self, pin: i32) -> anyhow::Result<u32> {
         self.lock().unwrap().get_digital_interrupt_value(pin)
+    }
+
+    fn get_pwm_duty(&self, pin: i32) -> f64 {
+        self.lock().unwrap().get_pwm_duty(pin)
+    }
+
+    fn set_pwm_duty(&mut self, pin: i32, duty_cycle_pct: f64) -> anyhow::Result<()> {
+        self.lock().unwrap().set_pwm_duty(pin, duty_cycle_pct)
+    }
+
+    fn get_pwm_frequency(&self, pin: i32) -> anyhow::Result<u64> {
+        self.lock().unwrap().get_pwm_frequency(pin)
+    }
+
+    fn set_pwm_frequency(&mut self, pin: i32, frequency_hz: u64) -> anyhow::Result<()> {
+        self.lock().unwrap().set_pwm_frequency(pin, frequency_hz)
     }
 }

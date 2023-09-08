@@ -412,12 +412,38 @@ where
         self.encode_message(status)
     }
 
-    fn board_pwm(&mut self, _message: &[u8]) -> Result<(), GrpcError> {
-        Err(GrpcError::RpcUnimplemented)
+    fn board_pwm(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+        let req = component::board::v1::PwmRequest::decode(message)
+            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+        let board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
+            Some(b) => b,
+            None => return Err(GrpcError::RpcUnavailable),
+        };
+        let pin: i32 = req
+            .pin
+            .parse::<i32>()
+            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+        let duty_cycle_pct = board.get_pwm_duty(pin);
+        let resp = component::board::v1::PwmResponse { duty_cycle_pct };
+        self.encode_message(resp)
     }
 
-    fn board_pwm_frequency(&mut self, _message: &[u8]) -> Result<(), GrpcError> {
-        Err(GrpcError::RpcUnimplemented)
+    fn board_pwm_frequency(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+        let req = component::board::v1::PwmFrequencyRequest::decode(message)
+            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+        let board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
+            Some(b) => b,
+            None => return Err(GrpcError::RpcUnavailable),
+        };
+        let pin: i32 = req
+            .pin
+            .parse::<i32>()
+            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+        let frequency_hz = board
+            .get_pwm_frequency(pin)
+            .map_err(|_| GrpcError::RpcInternal)?;
+        let resp = component::board::v1::PwmFrequencyResponse { frequency_hz };
+        self.encode_message(resp)
     }
 
     fn board_read_analog_reader(&mut self, message: &[u8]) -> Result<(), GrpcError> {
@@ -458,12 +484,34 @@ where
         self.encode_message(resp)
     }
 
-    fn board_set_pwm(&mut self, _message: &[u8]) -> Result<(), GrpcError> {
-        Err(GrpcError::RpcUnimplemented)
+    fn board_set_pwm(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+        let req = component::board::v1::SetPwmRequest::decode(message)
+            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+        let mut board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
+            Some(b) => b,
+            None => return Err(GrpcError::RpcUnavailable),
+        };
+        let pin: i32 = req.pin.parse::<i32>().unwrap();
+        board
+            .set_pwm_duty(pin, req.duty_cycle_pct)
+            .map_err(|_| GrpcError::RpcInternal)?;
+        let resp = component::board::v1::SetPwmResponse {};
+        self.encode_message(resp)
     }
 
-    fn board_set_pwm_frequency(&mut self, _message: &[u8]) -> Result<(), GrpcError> {
-        Err(GrpcError::RpcUnimplemented)
+    fn board_set_pwm_frequency(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+        let req = component::board::v1::SetPwmFrequencyRequest::decode(message)
+            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+        let mut board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
+            Some(b) => b,
+            None => return Err(GrpcError::RpcUnavailable),
+        };
+        let pin: i32 = req.pin.parse::<i32>().unwrap();
+        board
+            .set_pwm_frequency(pin, req.frequency_hz)
+            .map_err(|_| GrpcError::RpcInternal)?;
+        let resp = component::board::v1::SetPwmFrequencyResponse {};
+        self.encode_message(resp)
     }
 
     fn board_set_power_mode(&mut self, message: &[u8]) -> Result<(), GrpcError> {

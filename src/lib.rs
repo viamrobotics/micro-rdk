@@ -55,6 +55,7 @@ pub mod esp32 {
     pub mod motor;
     pub mod pin;
     pub mod pulse_counter;
+    pub mod pwm;
     pub mod single_encoded_motor;
     pub mod single_encoder;
     pub mod tcp;
