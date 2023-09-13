@@ -112,7 +112,6 @@ impl NvsStaticVars {
 }
 
 fn main() -> Result<(), ServerError> {
-    std::env::set_var("RUST_BACKTRACE", "1");
     esp_idf_sys::link_patches();
 
     esp_idf_svc::log::EspLogger::initialize_default();
