@@ -11,7 +11,7 @@ pub trait DtlsConnector {
     fn set_transport(&mut self, transport: IoPktChannel);
 }
 
-pub trait DtlsBuilder {
+pub trait DtlsCertificate {
     type Output: DtlsConnector;
     fn make(&self) -> anyhow::Result<Self::Output>;
 }

@@ -17,7 +17,7 @@ use crate::common::{
 use super::{
     certificate::WebRtcCertificate,
     conn::mdns::Esp32Mdns,
-    dtls::Esp32DtlsBuilder,
+    dtls::Esp32DtlsCertificate,
     exec::Esp32Executor,
     tcp::{Esp32Listener, Esp32Stream},
     tls::{Esp32Tls, Esp32TlsServerConfig},
@@ -67,7 +67,7 @@ pub fn serve_web(
         let tls_listener = Esp32Listener::new(address.into(), Some(tls)).unwrap();
 
         let webrtc_certificate = Rc::new(webrtc_certificate);
-        let dtls = Esp32DtlsBuilder::new(webrtc_certificate.clone());
+        let dtls = Esp32DtlsCertificate::new(webrtc_certificate.clone());
 
         let cloned_exec = exec.clone();
 
@@ -98,7 +98,8 @@ pub fn serve_web(
 
         (
             Box::new(
-                ViamServerBuilder::new(mdns, tls_listener, webrtc, cloned_exec, 12346)
+                ViamServerBuilder::new(mdns, cloned_exec)
+                    .with_webrtc(webrtc)
                     .build(&cfg_response)
                     .unwrap(),
             ),

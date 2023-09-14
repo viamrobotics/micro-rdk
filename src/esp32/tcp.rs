@@ -1,4 +1,4 @@
-use crate::common::conn::server::{AsyncableTcpListener, Http2Connector, OwnedListener};
+use crate::common::conn::server::{AsyncTcpListener, H2Connector, OwnedListener};
 use crate::esp32::tls::{Esp32Tls, Esp32TlsStream};
 use futures_lite::{io, Future};
 use log::*;
@@ -97,7 +97,7 @@ impl Debug for Esp32TlsConnector {
     }
 }
 
-impl Http2Connector for Esp32TlsConnector {
+impl H2Connector for Esp32TlsConnector {
     type Stream = Esp32Stream;
     fn accept(&mut self) -> std::io::Result<Self::Stream> {
         self.inner.as_ref().unwrap().set_nonblocking(true).unwrap();
@@ -111,7 +111,7 @@ impl Http2Connector for Esp32TlsConnector {
     }
 }
 
-impl AsyncableTcpListener<Esp32Stream> for Esp32Listener {
+impl AsyncTcpListener<Esp32Stream> for Esp32Listener {
     type Output = Esp32TlsConnector;
     fn as_async_listener(&self) -> OwnedListener<Self::Output> {
         let listener = Esp32AsyncListener {
