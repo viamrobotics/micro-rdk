@@ -69,7 +69,7 @@ fn main() -> anyhow::Result<()> {
         RobotRepresentation::WithRobot(LocalRobot::new(res))
     };
     #[cfg(not(feature = "qemu"))]
-    let repr = RobotRepresentation::WithRegistry(ComponentRegistry::default());
+    let repr = RobotRepresentation::WithRegistry(Box::new(ComponentRegistry::default()));
 
     {
         esp_idf_sys::esp!(unsafe {

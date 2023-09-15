@@ -1,9 +1,10 @@
 #![allow(dead_code)]
 use crate::common::status::Status;
 use crate::common::stop::Stoppable;
+use crate::google;
 use crate::proto::common::v1::Vector3;
 use log::*;
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 pub static COMPONENT_NAME: &str = "base";
@@ -54,14 +55,14 @@ impl Stoppable for FakeBase {
 }
 
 impl Status for FakeBase {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
-        let mut bt = BTreeMap::new();
-        bt.insert(
+    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+        let mut hm = HashMap::new();
+        hm.insert(
             "is_moving".to_string(),
-            prost_types::Value {
-                kind: Some(prost_types::value::Kind::BoolValue(false)),
+            google::protobuf::Value {
+                kind: Some(google::protobuf::value::Kind::BoolValue(false)),
             },
         );
-        Ok(Some(prost_types::Struct { fields: bt }))
+        Ok(Some(google::protobuf::Struct { fields: hm }))
     }
 }

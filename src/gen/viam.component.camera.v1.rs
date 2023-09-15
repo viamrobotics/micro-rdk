@@ -8,6 +8,9 @@ pub struct GetImageRequest {
     /// Requested MIME type of response
     #[prost(string, tag="2")]
     pub mime_type: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -58,6 +61,9 @@ pub struct RenderFrameRequest {
     /// Requested MIME type of response
     #[prost(string, tag="2")]
     pub mime_type: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -68,6 +74,9 @@ pub struct GetPointCloudRequest {
     /// Requested MIME type of response
     #[prost(string, tag="2")]
     pub mime_type: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

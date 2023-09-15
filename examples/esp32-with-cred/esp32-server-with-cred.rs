@@ -136,7 +136,7 @@ fn main() -> Result<(), ServerError> {
         RobotRepresentation::WithRobot(LocalRobot::new(res))
     };
     #[cfg(not(feature = "qemu"))]
-    let repr = RobotRepresentation::WithRegistry(ComponentRegistry::default());
+    let repr = RobotRepresentation::WithRegistry(Box::new(ComponentRegistry::default()));
 
     esp_idf_sys::esp!(unsafe {
         esp_idf_sys::esp_vfs_eventfd_register(&esp_idf_sys::esp_vfs_eventfd_config_t { max_fds: 5 })

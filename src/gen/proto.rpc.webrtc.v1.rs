@@ -51,7 +51,7 @@ pub struct RequestHeaders {
     #[prost(message, optional, tag="2")]
     pub metadata: ::core::option::Option<Metadata>,
     #[prost(message, optional, tag="3")]
-    pub timeout: ::core::option::Option<::prost_types::Duration>,
+    pub timeout: ::core::option::Option<super::super::super::super::google::protobuf::Duration>,
 }
 /// A RequestMessage contains individual gRPC messages and a potential
 /// end-of-stream (EOS) marker.
@@ -250,7 +250,7 @@ pub struct AnswerRequestInitStage {
     #[prost(message, optional, tag="2")]
     pub optional_config: ::core::option::Option<WebRtcConfig>,
     #[prost(message, optional, tag="3")]
-    pub deadline: ::core::option::Option<::prost_types::Timestamp>,
+    pub deadline: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
 }
 /// AnswerRequestUpdateStage is multiply used to trickle in ICE candidates to
 /// the controlled (answerer) side.

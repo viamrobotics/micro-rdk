@@ -56,8 +56,10 @@ use crate::common::registry::{ComponentRegistry, Dependency, ResourceKey};
 use crate::common::robot::Resource;
 use crate::common::status::Status;
 use crate::common::stop::Stoppable;
+use crate::google;
+
 use log::*;
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -178,19 +180,19 @@ where
     M: Motor,
     Enc: Encoder,
 {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
-        let mut bt = BTreeMap::new();
+    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+        let mut hm = HashMap::new();
         let pos = self
             .enc
             .get_position(EncoderPositionType::UNSPECIFIED)?
             .value as f64;
-        bt.insert(
+        hm.insert(
             "position".to_string(),
-            prost_types::Value {
-                kind: Some(prost_types::value::Kind::NumberValue(pos)),
+            google::protobuf::Value {
+                kind: Some(google::protobuf::value::Kind::NumberValue(pos)),
             },
         );
-        Ok(Some(prost_types::Struct { fields: bt }))
+        Ok(Some(google::protobuf::Struct { fields: hm }))
     }
 }
 
@@ -309,16 +311,16 @@ where
     B: OutputPin + PinExt,
     PWM: PwmPin<Duty = u32>,
 {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
-        let mut bt = BTreeMap::new();
+    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+        let mut hm = HashMap::new();
         let pos = 0.0;
-        bt.insert(
+        hm.insert(
             "position".to_string(),
-            prost_types::Value {
-                kind: Some(prost_types::value::Kind::NumberValue(pos)),
+            google::protobuf::Value {
+                kind: Some(google::protobuf::value::Kind::NumberValue(pos)),
             },
         );
-        Ok(Some(prost_types::Struct { fields: bt }))
+        Ok(Some(google::protobuf::Struct { fields: hm }))
     }
 }
 
@@ -426,16 +428,16 @@ where
     DIR: OutputPin + PinExt,
     PWM: PwmPin<Duty = u32>,
 {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
-        let mut bt = BTreeMap::new();
+    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+        let mut hm = HashMap::new();
         let pos = 0.0;
-        bt.insert(
+        hm.insert(
             "position".to_string(),
-            prost_types::Value {
-                kind: Some(prost_types::value::Kind::NumberValue(pos)),
+            google::protobuf::Value {
+                kind: Some(google::protobuf::value::Kind::NumberValue(pos)),
             },
         );
-        Ok(Some(prost_types::Struct { fields: bt }))
+        Ok(Some(google::protobuf::Struct { fields: hm }))
     }
 }
 

@@ -8,8 +8,10 @@ use crate::common::digital_interrupt::DigitalInterruptConfig;
 use crate::common::i2c::I2cHandleType;
 use crate::common::registry::ComponentRegistry;
 use crate::common::status::Status;
+use crate::google;
 use crate::proto::common;
 use crate::proto::component;
+
 use anyhow::Context;
 use core::cell::RefCell;
 use esp_idf_hal::adc::config::Config;
@@ -21,7 +23,7 @@ use esp_idf_hal::gpio::{AnyIOPin, InputOutput, InterruptType, PinDriver, Pull};
 use esp_idf_sys::{esp, gpio_install_isr_service, gpio_isr_handler_add, ESP_INTR_FLAG_IRAM};
 use log::*;
 use once_cell::sync::{Lazy, OnceCell};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
@@ -466,37 +468,39 @@ impl Board for EspBoard {
 }
 
 impl Status for EspBoard {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
-        let mut bt = BTreeMap::new();
-        let mut analogs = BTreeMap::new();
+    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+        let mut hm = HashMap::new();
+        let mut analogs = HashMap::new();
         self.analogs.iter().for_each(|a| {
             let mut borrowed = a.borrow_mut();
             analogs.insert(
                 borrowed.name(),
-                prost_types::Value {
-                    kind: Some(prost_types::value::Kind::StructValue(prost_types::Struct {
-                        fields: BTreeMap::from([(
-                            "value".to_string(),
-                            prost_types::Value {
-                                kind: Some(prost_types::value::Kind::NumberValue(
-                                    borrowed.read().unwrap_or(0).into(),
-                                )),
-                            },
-                        )]),
-                    })),
+                google::protobuf::Value {
+                    kind: Some(google::protobuf::value::Kind::StructValue(
+                        google::protobuf::Struct {
+                            fields: HashMap::from([(
+                                "value".to_string(),
+                                google::protobuf::Value {
+                                    kind: Some(google::protobuf::value::Kind::NumberValue(
+                                        borrowed.read().unwrap_or(0).into(),
+                                    )),
+                                },
+                            )]),
+                        },
+                    )),
                 },
             );
         });
         if !analogs.is_empty() {
-            bt.insert(
+            hm.insert(
                 "analogs".to_string(),
-                prost_types::Value {
-                    kind: Some(prost_types::value::Kind::StructValue(prost_types::Struct {
-                        fields: analogs,
-                    })),
+                google::protobuf::Value {
+                    kind: Some(google::protobuf::value::Kind::StructValue(
+                        google::protobuf::Struct { fields: analogs },
+                    )),
                 },
             );
         }
-        Ok(Some(prost_types::Struct { fields: bt }))
+        Ok(Some(google::protobuf::Struct { fields: hm }))
     }
 }

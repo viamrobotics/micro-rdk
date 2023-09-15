@@ -3,5 +3,5 @@ use super::robot::LocalRobot;
 
 pub enum RobotRepresentation {
     WithRobot(LocalRobot),
-    WithRegistry(ComponentRegistry),
+    WithRegistry(Box<ComponentRegistry>),
 }

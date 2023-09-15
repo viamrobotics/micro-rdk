@@ -7,7 +7,7 @@ pub struct GetControlsRequest {
     pub controller: ::prost::alloc::string::String,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -25,7 +25,7 @@ pub struct GetEventsRequest {
     pub controller: ::prost::alloc::string::String,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -46,7 +46,7 @@ pub struct TriggerEventRequest {
     pub event: ::core::option::Option<Event>,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -57,7 +57,7 @@ pub struct TriggerEventResponse {
 pub struct Event {
     /// Timestamp of event
     #[prost(message, optional, tag="1")]
-    pub time: ::core::option::Option<::prost_types::Timestamp>,
+    pub time: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
     /// An event type (eg: ButtonPress, ButtonRelease)
     #[prost(string, tag="2")]
     pub event: ::prost::alloc::string::String,
@@ -79,7 +79,7 @@ pub struct StreamEventsRequest {
     pub events: ::prost::alloc::vec::Vec<stream_events_request::Events>,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 /// Nested message and enum types in `StreamEventsRequest`.
 pub mod stream_events_request {

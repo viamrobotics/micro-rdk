@@ -1,6 +1,8 @@
 #![allow(dead_code)]
+use crate::google;
 use crate::proto::{app::v1::ComponentConfig, common::v1::ResourceName};
-use std::collections::BTreeMap;
+
+use std::collections::HashMap;
 use std::num::{ParseFloatError, ParseIntError};
 use thiserror::Error;
 
@@ -99,7 +101,7 @@ macro_rules! floats
 
 floats!(f64, f32);
 
-impl<V> TryFrom<Kind> for BTreeMap<&'static str, V>
+impl<V> TryFrom<Kind> for HashMap<&'static str, V>
 where
     V: for<'a> std::convert::TryFrom<&'a Kind, Error = AttributeError>,
 {
@@ -114,7 +116,7 @@ where
         }
     }
 }
-impl<V> TryFrom<&Kind> for BTreeMap<&'static str, V>
+impl<V> TryFrom<&Kind> for HashMap<&'static str, V>
 where
     V: for<'a> std::convert::TryFrom<&'a Kind, Error = AttributeError>,
 {
@@ -252,7 +254,7 @@ pub enum Kind {
     StructValueStatic(phf::map::Map<&'static str, Kind>),
     ListValueStatic(&'static [Kind]),
     VecValue(Vec<Kind>),
-    StructValue(BTreeMap<String, Kind>),
+    StructValue(HashMap<String, Kind>),
 }
 
 impl Kind {
@@ -273,16 +275,16 @@ impl Kind {
     }
 }
 
-impl TryFrom<prost_types::value::Kind> for Kind {
+impl TryFrom<google::protobuf::value::Kind> for Kind {
     type Error = AttributeError;
-    fn try_from(value: prost_types::value::Kind) -> Result<Self, Self::Error> {
+    fn try_from(value: google::protobuf::value::Kind) -> Result<Self, Self::Error> {
         match value {
-            prost_types::value::Kind::BoolValue(v) => Ok(Kind::BoolValue(v)),
-            prost_types::value::Kind::NullValue(v) => Ok(Kind::NullValue(v)),
-            prost_types::value::Kind::StringValue(v) => Ok(Kind::StringValue(v)),
-            prost_types::value::Kind::NumberValue(v) => Ok(Kind::NumberValue(v)),
-            prost_types::value::Kind::StructValue(v) => {
-                let mut attr_map = BTreeMap::new();
+            google::protobuf::value::Kind::BoolValue(v) => Ok(Kind::BoolValue(v)),
+            google::protobuf::value::Kind::NullValue(v) => Ok(Kind::NullValue(v)),
+            google::protobuf::value::Kind::StringValue(v) => Ok(Kind::StringValue(v)),
+            google::protobuf::value::Kind::NumberValue(v) => Ok(Kind::NumberValue(v)),
+            google::protobuf::value::Kind::StructValue(v) => {
+                let mut attr_map = HashMap::new();
                 let attrs = &v.fields;
                 for (k, val) in attrs.iter() {
                     let k_copy = k.to_string();
@@ -295,7 +297,7 @@ impl TryFrom<prost_types::value::Kind> for Kind {
                 }
                 Ok(Kind::StructValue(attr_map))
             }
-            prost_types::value::Kind::ListValue(v) => {
+            google::protobuf::value::Kind::ListValue(v) => {
                 let try_mapped: Result<Vec<Kind>, AttributeError> = v
                     .values
                     .iter()
@@ -311,19 +313,19 @@ impl TryFrom<prost_types::value::Kind> for Kind {
     }
 }
 
-impl TryFrom<&prost_types::value::Kind> for Kind {
+impl TryFrom<&google::protobuf::value::Kind> for Kind {
     type Error = AttributeError;
-    fn try_from(value: &prost_types::value::Kind) -> Result<Self, Self::Error> {
+    fn try_from(value: &google::protobuf::value::Kind) -> Result<Self, Self::Error> {
         match value {
-            prost_types::value::Kind::BoolValue(v) => Ok(Kind::BoolValue(*v)),
-            prost_types::value::Kind::NullValue(v) => Ok(Kind::NullValue(*v)),
-            prost_types::value::Kind::StringValue(v) => {
+            google::protobuf::value::Kind::BoolValue(v) => Ok(Kind::BoolValue(*v)),
+            google::protobuf::value::Kind::NullValue(v) => Ok(Kind::NullValue(*v)),
+            google::protobuf::value::Kind::StringValue(v) => {
                 let v_copy = v.to_string();
                 Ok(Kind::StringValue(v_copy))
             }
-            prost_types::value::Kind::NumberValue(v) => Ok(Kind::NumberValue(*v)),
-            prost_types::value::Kind::StructValue(v) => {
-                let mut attr_map = BTreeMap::new();
+            google::protobuf::value::Kind::NumberValue(v) => Ok(Kind::NumberValue(*v)),
+            google::protobuf::value::Kind::StructValue(v) => {
+                let mut attr_map = HashMap::new();
                 let attrs = &v.fields;
                 for (k, val) in attrs.iter() {
                     match &val.kind {
@@ -336,7 +338,7 @@ impl TryFrom<&prost_types::value::Kind> for Kind {
                 }
                 Ok(Kind::StructValue(attr_map))
             }
-            prost_types::value::Kind::ListValue(v) => {
+            google::protobuf::value::Kind::ListValue(v) => {
                 let try_mapped: Result<Vec<Kind>, AttributeError> = v
                     .values
                     .iter()
@@ -367,15 +369,15 @@ pub struct DynamicComponentConfig {
     pub namespace: String,
     pub r#type: String,
     pub model: String,
-    pub attributes: Option<BTreeMap<String, Kind>>,
+    pub attributes: Option<HashMap<String, Kind>>,
 }
 
 impl TryFrom<&ComponentConfig> for DynamicComponentConfig {
     type Error = AttributeError;
     fn try_from(value: &ComponentConfig) -> Result<Self, Self::Error> {
-        let mut attrs_opt: Option<BTreeMap<String, Kind>> = None;
+        let mut attrs_opt: Option<HashMap<String, Kind>> = None;
         if let Some(cfg_attrs) = value.attributes.as_ref() {
-            let mut attrs = BTreeMap::new();
+            let mut attrs = HashMap::new();
             for (k, v) in cfg_attrs.fields.iter() {
                 let val: Kind = match &v.kind {
                     None => return Err(AttributeError::KeyNotFound(k.to_string())),
@@ -506,7 +508,7 @@ impl Component for DynamicComponentConfig {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::collections::HashMap;
 
     use crate::common::config::{
         AttributeError, Component, Kind, RobotConfigStatic, StaticComponentConfig,
@@ -619,7 +621,7 @@ mod tests {
         assert_eq!(val.as_ref().ok(), None);
         assert_eq!(val.err().unwrap(), AttributeError::ParseNumError);
 
-        let val = PMR.components.unwrap()[1].get_attribute::<BTreeMap<&'static str, u32>>("pins");
+        let val = PMR.components.unwrap()[1].get_attribute::<HashMap<&'static str, u32>>("pins");
 
         assert_eq!(val.as_ref().err(), None);
         let val = val.unwrap();
@@ -628,7 +630,7 @@ mod tests {
         assert_eq!(val["a"], 29);
         assert_eq!(val["b"], 5);
 
-        let val = PMR.components.unwrap()[2].get_attribute::<BTreeMap<&'static str, u8>>("pins2");
+        let val = PMR.components.unwrap()[2].get_attribute::<HashMap<&'static str, u8>>("pins2");
 
         assert_eq!(val.as_ref().ok(), None);
         assert_eq!(val.err().unwrap(), AttributeError::ParseNumError);

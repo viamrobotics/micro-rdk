@@ -6,7 +6,7 @@ pub struct GetModeRequest {
     pub name: ::prost::alloc::string::String,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -23,7 +23,7 @@ pub struct SetModeRequest {
     pub mode: i32,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -44,13 +44,17 @@ pub struct GetLocationRequest {
     pub name: ::prost::alloc::string::String,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetLocationResponse {
     #[prost(message, optional, tag="1")]
     pub location: ::core::option::Option<super::super::super::common::v1::GeoPoint>,
+    /// A number from [0-360) where 0 is north
+    /// 90 is east, 180 is south, 270 is west
+    #[prost(double, tag="2")]
+    pub compass_heading: f64,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -59,7 +63,7 @@ pub struct GetWaypointsRequest {
     pub name: ::prost::alloc::string::String,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -76,7 +80,7 @@ pub struct AddWaypointRequest {
     pub location: ::core::option::Option<super::super::super::common::v1::GeoPoint>,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -91,7 +95,7 @@ pub struct RemoveWaypointRequest {
     pub id: ::prost::alloc::string::String,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -108,7 +112,7 @@ pub struct GetObstaclesRequest {
     pub name: ::prost::alloc::string::String,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

@@ -21,7 +21,7 @@ pub struct MoveRequest {
     pub constraints: ::core::option::Option<Constraints>,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -46,13 +46,35 @@ pub struct MoveOnMapRequest {
     pub slam_service_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MoveOnMapResponse {
     #[prost(bool, tag="1")]
     pub success: bool,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MotionConfiguration {
+    /// The name of the vision service(s) that will be used to detect obstacles
+    #[prost(message, repeated, tag="1")]
+    pub vision_services: ::prost::alloc::vec::Vec<super::super::super::common::v1::ResourceName>,
+    /// Sets the frequency to poll for the position of the robot
+    #[prost(double, optional, tag="2")]
+    pub position_polling_frequency_hz: ::core::option::Option<f64>,
+    /// Sets the frequency to poll the vision service(s) for new obstacles
+    #[prost(double, optional, tag="3")]
+    pub obstacle_polling_frequency_hz: ::core::option::Option<f64>,
+    /// Sets the distance in meters that a robot is allowed to deviate from the motion plan
+    #[prost(double, optional, tag="4")]
+    pub plan_deviation_m: ::core::option::Option<f64>,
+    /// Optional linear velocity to target when moving
+    #[prost(double, optional, tag="5")]
+    pub linear_m_per_sec: ::core::option::Option<f64>,
+    /// Optional angular velocity to target when turning
+    #[prost(double, optional, tag="6")]
+    pub angular_degs_per_sec: ::core::option::Option<f64>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -75,40 +97,16 @@ pub struct MoveOnGlobeRequest {
     /// Obstacles to be considered for motion planning
     #[prost(message, repeated, tag="6")]
     pub obstacles: ::prost::alloc::vec::Vec<super::super::super::common::v1::GeoObstacle>,
-    /// Optional linear velocity to target when moving
-    #[prost(float, optional, tag="7")]
-    pub linear_meters_per_sec: ::core::option::Option<f32>,
-    /// Optional angular velocity to target when turning
-    #[prost(float, optional, tag="8")]
-    pub angular_deg_per_sec: ::core::option::Option<f32>,
+    /// Optional set of motion configuration options
+    #[prost(message, optional, tag="7")]
+    pub motion_configuration: ::core::option::Option<MotionConfiguration>,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MoveOnGlobeResponse {
-    #[prost(bool, tag="1")]
-    pub success: bool,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct MoveSingleComponentRequest {
-    #[prost(string, tag="1")]
-    pub name: ::prost::alloc::string::String,
-    #[prost(message, optional, tag="2")]
-    pub destination: ::core::option::Option<super::super::super::common::v1::PoseInFrame>,
-    #[prost(message, optional, tag="3")]
-    pub component_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
-    #[prost(message, optional, tag="4")]
-    pub world_state: ::core::option::Option<super::super::super::common::v1::WorldState>,
-    /// Additional arguments to the method
-    #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct MoveSingleComponentResponse {
     #[prost(bool, tag="1")]
     pub success: bool,
 }
@@ -131,7 +129,7 @@ pub struct GetPoseRequest {
     pub supplemental_transforms: ::prost::alloc::vec::Vec<super::super::super::common::v1::Transform>,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -152,7 +150,8 @@ pub struct Constraints {
     #[prost(message, repeated, tag="3")]
     pub collision_specification: ::prost::alloc::vec::Vec<CollisionSpecification>,
 }
-/// LinearConstraint specifies that the component being moved should move linearly relative to its goal. It does not constrain the motion of components other than the `component_name` specified in motion.Move
+/// LinearConstraint specifies that the component being moved should move linearly relative to its goal.
+/// It does not constrain the motion of components other than the `component_name` specified in motion.Move
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct LinearConstraint {
@@ -163,7 +162,8 @@ pub struct LinearConstraint {
     #[prost(float, optional, tag="2")]
     pub orientation_tolerance_degs: ::core::option::Option<f32>,
 }
-/// OrientationConstraint specifies that the component being moved will not deviate its orientation beyond some threshold relative to the goal. It does not constrain the motion of components other than the `component_name` specified in motion.Move
+/// OrientationConstraint specifies that the component being moved will not deviate its orientation beyond some threshold relative
+/// to the goal. It does not constrain the motion of components other than the `component_name` specified in motion.Move
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OrientationConstraint {

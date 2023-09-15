@@ -3,10 +3,11 @@ use super::config::ConfigType;
 use super::math_utils::Vector3;
 use super::registry::{ComponentRegistry, Dependency};
 use super::status::Status;
+use crate::google;
 use crate::proto::common::v1::GeoPoint;
 use crate::proto::component::movement_sensor;
 
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 pub static COMPONENT_NAME: &str = "movement_sensor";
@@ -170,9 +171,9 @@ impl MovementSensor for FakeMovementSensor {
 }
 
 impl Status for FakeMovementSensor {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
-        Ok(Some(prost_types::Struct {
-            fields: BTreeMap::new(),
+    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+        Ok(Some(google::protobuf::Struct {
+            fields: HashMap::new(),
         }))
     }
 }

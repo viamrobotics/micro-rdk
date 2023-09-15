@@ -143,7 +143,7 @@ impl LocalRobot {
     // and added to the created robot.
     pub fn new_from_config_response(
         config_resp: &ConfigResponse,
-        registry: ComponentRegistry,
+        registry: Box<ComponentRegistry>,
     ) -> anyhow::Result<Self> {
         let mut robot = LocalRobot {
             resources: ResourceMap::new(),
@@ -195,7 +195,7 @@ impl LocalRobot {
         components: &mut Vec<&ComponentConfig>,
         board: Option<BoardType>,
         board_resource_key: Option<ResourceKey>,
-        registry: ComponentRegistry,
+        registry: Box<ComponentRegistry>,
     ) -> anyhow::Result<()> {
         let mut registry = registry;
         let mut inserted_resources = HashSet::<ResourceKey>::new();
@@ -594,7 +594,7 @@ impl LocalRobot {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::collections::HashMap;
 
     use crate::common::board::Board;
     use crate::common::config::{Kind, RobotConfigStatic, StaticComponentConfig};
@@ -605,8 +605,9 @@ mod tests {
     use crate::common::registry::ComponentRegistry;
     use crate::common::robot::{LocalRobot, ResourceMap};
     use crate::common::sensor::Sensor;
+    use crate::google;
+    use crate::google::protobuf::Struct;
     use crate::proto::app::v1::ComponentConfig;
-    use prost_types::Struct;
 
     #[test_log::test]
     fn test_robot_from_static() {
@@ -771,7 +772,7 @@ mod tests {
         assert!(value.is_some());
 
         let value = match value {
-            Some(prost_types::value::Kind::NumberValue(a)) => Some(a),
+            Some(google::protobuf::value::Kind::NumberValue(a)) => Some(a),
             _ => None,
         };
 
@@ -874,10 +875,10 @@ mod tests {
             service_configs: Vec::new(),
             api: "blah".to_string(),
             attributes: Some(Struct {
-                fields: BTreeMap::from([(
+                fields: HashMap::from([(
                     "fake_deg".to_string(),
-                    prost_types::Value {
-                        kind: Some(prost_types::value::Kind::NumberValue(90.0)),
+                    google::protobuf::Value {
+                        kind: Some(google::protobuf::value::Kind::NumberValue(90.0)),
                     },
                 )]),
             }),
@@ -894,10 +895,12 @@ mod tests {
             service_configs: Vec::new(),
             api: "blah".to_string(),
             attributes: Some(Struct {
-                fields: BTreeMap::from([(
+                fields: HashMap::from([(
                     "encoder".to_string(),
-                    prost_types::Value {
-                        kind: Some(prost_types::value::Kind::StringValue("enc1".to_string())),
+                    google::protobuf::Value {
+                        kind: Some(google::protobuf::value::Kind::StringValue(
+                            "enc1".to_string(),
+                        )),
                     },
                 )]),
             }),
@@ -914,10 +917,12 @@ mod tests {
             service_configs: Vec::new(),
             api: "blah".to_string(),
             attributes: Some(Struct {
-                fields: BTreeMap::from([(
+                fields: HashMap::from([(
                     "encoder".to_string(),
-                    prost_types::Value {
-                        kind: Some(prost_types::value::Kind::StringValue("enc2".to_string())),
+                    google::protobuf::Value {
+                        kind: Some(google::protobuf::value::Kind::StringValue(
+                            "enc2".to_string(),
+                        )),
                     },
                 )]),
             }),
@@ -934,10 +939,10 @@ mod tests {
             service_configs: Vec::new(),
             api: "blah".to_string(),
             attributes: Some(Struct {
-                fields: BTreeMap::from([(
+                fields: HashMap::from([(
                     "fake_deg".to_string(),
-                    prost_types::Value {
-                        kind: Some(prost_types::value::Kind::NumberValue(180.0)),
+                    google::protobuf::Value {
+                        kind: Some(google::protobuf::value::Kind::NumberValue(180.0)),
                     },
                 )]),
             }),
@@ -992,10 +997,12 @@ mod tests {
             service_configs: Vec::new(),
             api: "blah".to_string(),
             attributes: Some(Struct {
-                fields: BTreeMap::from([(
+                fields: HashMap::from([(
                     "encoder".to_string(),
-                    prost_types::Value {
-                        kind: Some(prost_types::value::Kind::StringValue("enc1".to_string())),
+                    google::protobuf::Value {
+                        kind: Some(google::protobuf::value::Kind::StringValue(
+                            "enc1".to_string(),
+                        )),
                     },
                 )]),
             }),
@@ -1012,10 +1019,12 @@ mod tests {
             service_configs: Vec::new(),
             api: "blah".to_string(),
             attributes: Some(Struct {
-                fields: BTreeMap::from([(
+                fields: HashMap::from([(
                     "encoder".to_string(),
-                    prost_types::Value {
-                        kind: Some(prost_types::value::Kind::StringValue("enc2".to_string())),
+                    google::protobuf::Value {
+                        kind: Some(google::protobuf::value::Kind::StringValue(
+                            "enc2".to_string(),
+                        )),
                     },
                 )]),
             }),
@@ -1032,10 +1041,10 @@ mod tests {
             service_configs: Vec::new(),
             api: "blah".to_string(),
             attributes: Some(Struct {
-                fields: BTreeMap::from([(
+                fields: HashMap::from([(
                     "fake_deg".to_string(),
-                    prost_types::Value {
-                        kind: Some(prost_types::value::Kind::NumberValue(180.0)),
+                    google::protobuf::Value {
+                        kind: Some(google::protobuf::value::Kind::NumberValue(180.0)),
                     },
                 )]),
             }),

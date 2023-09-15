@@ -6,7 +6,7 @@ pub struct FrameSystemConfig {
     #[prost(message, optional, tag="1")]
     pub frame: ::core::option::Option<super::super::common::v1::Transform>,
     #[prost(message, optional, tag="2")]
-    pub kinematics: ::core::option::Option<::prost_types::Struct>,
+    pub kinematics: ::core::option::Option<super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -102,9 +102,9 @@ pub struct Operation {
     #[prost(string, tag="2")]
     pub method: ::prost::alloc::string::String,
     #[prost(message, optional, tag="3")]
-    pub arguments: ::core::option::Option<::prost_types::Struct>,
+    pub arguments: ::core::option::Option<super::super::super::google::protobuf::Struct>,
     #[prost(message, optional, tag="4")]
-    pub started: ::core::option::Option<::prost_types::Timestamp>,
+    pub started: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
     #[prost(string, optional, tag="5")]
     pub session_id: ::core::option::Option<::prost::alloc::string::String>,
 }
@@ -182,7 +182,7 @@ pub struct Discovery {
     #[prost(message, optional, tag="1")]
     pub query: ::core::option::Option<DiscoveryQuery>,
     #[prost(message, optional, tag="2")]
-    pub results: ::core::option::Option<::prost_types::Struct>,
+    pub results: ::core::option::Option<super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -202,7 +202,7 @@ pub struct Status {
     #[prost(message, optional, tag="1")]
     pub name: ::core::option::Option<super::super::common::v1::ResourceName>,
     #[prost(message, optional, tag="2")]
-    pub status: ::core::option::Option<::prost_types::Struct>,
+    pub status: ::core::option::Option<super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -223,7 +223,7 @@ pub struct StreamStatusRequest {
     pub resource_names: ::prost::alloc::vec::Vec<super::super::common::v1::ResourceName>,
     /// how often to send a new status.
     #[prost(message, optional, tag="2")]
-    pub every: ::core::option::Option<::prost_types::Duration>,
+    pub every: ::core::option::Option<super::super::super::google::protobuf::Duration>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -237,7 +237,7 @@ pub struct StopExtraParameters {
     #[prost(message, optional, tag="1")]
     pub name: ::core::option::Option<super::super::common::v1::ResourceName>,
     #[prost(message, optional, tag="2")]
-    pub params: ::core::option::Option<::prost_types::Struct>,
+    pub params: ::core::option::Option<super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -263,7 +263,7 @@ pub struct StartSessionResponse {
     #[prost(string, tag="1")]
     pub id: ::prost::alloc::string::String,
     #[prost(message, optional, tag="2")]
-    pub heartbeat_window: ::core::option::Option<::prost_types::Duration>,
+    pub heartbeat_window: ::core::option::Option<super::super::super::google::protobuf::Duration>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

@@ -1,11 +1,12 @@
 #![allow(dead_code)]
 use crate::common::analog::AnalogReader;
 use crate::common::status::Status;
+use crate::google;
 use crate::proto::common;
 use crate::proto::component;
 use core::cell::RefCell;
 use log::*;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -67,8 +68,7 @@ impl FakeBoard {
         FakeBoard { analogs, i2cs }
     }
     pub(crate) fn from_config(cfg: ConfigType) -> anyhow::Result<BoardType> {
-        let analogs = if let Ok(analog_confs) = cfg.get_attribute::<BTreeMap<&str, f64>>("analogs")
-        {
+        let analogs = if let Ok(analog_confs) = cfg.get_attribute::<HashMap<&str, f64>>("analogs") {
             analog_confs
                 .iter()
                 .map(|(k, v)| {
@@ -159,38 +159,40 @@ impl Board for FakeBoard {
 }
 
 impl Status for FakeBoard {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
-        let mut bt = BTreeMap::new();
-        let mut analogs = BTreeMap::new();
+    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+        let mut hm = HashMap::new();
+        let mut analogs = HashMap::new();
         self.analogs.iter().for_each(|a| {
             let mut borrowed = a.borrow_mut();
             analogs.insert(
                 borrowed.name(),
-                prost_types::Value {
-                    kind: Some(prost_types::value::Kind::StructValue(prost_types::Struct {
-                        fields: BTreeMap::from([(
-                            "value".to_string(),
-                            prost_types::Value {
-                                kind: Some(prost_types::value::Kind::NumberValue(
-                                    borrowed.read().unwrap_or(0).into(),
-                                )),
-                            },
-                        )]),
-                    })),
+                google::protobuf::Value {
+                    kind: Some(google::protobuf::value::Kind::StructValue(
+                        google::protobuf::Struct {
+                            fields: HashMap::from([(
+                                "value".to_string(),
+                                google::protobuf::Value {
+                                    kind: Some(google::protobuf::value::Kind::NumberValue(
+                                        borrowed.read().unwrap_or(0).into(),
+                                    )),
+                                },
+                            )]),
+                        },
+                    )),
                 },
             );
         });
         if !analogs.is_empty() {
-            bt.insert(
+            hm.insert(
                 "analogs".to_string(),
-                prost_types::Value {
-                    kind: Some(prost_types::value::Kind::StructValue(prost_types::Struct {
-                        fields: analogs,
-                    })),
+                google::protobuf::Value {
+                    kind: Some(google::protobuf::value::Kind::StructValue(
+                        google::protobuf::Struct { fields: analogs },
+                    )),
                 },
             );
         }
-        Ok(Some(prost_types::Struct { fields: bt }))
+        Ok(Some(google::protobuf::Struct { fields: hm }))
     }
 }
 

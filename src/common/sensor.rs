@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 
 use crate::common::status::Status;
-use std::collections::BTreeMap;
+use crate::google;
+
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -20,7 +21,7 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 }
 
 pub type GenericReadingsResult =
-    ::std::collections::HashMap<::prost::alloc::string::String, ::prost_types::Value>;
+    ::std::collections::HashMap<::prost::alloc::string::String, google::protobuf::Value>;
 
 pub type TypedReadingsResult<T> = ::std::collections::HashMap<String, T>;
 
@@ -34,15 +35,15 @@ pub trait SensorT<T>: Sensor {
     fn get_readings(&self) -> anyhow::Result<TypedReadingsResult<T>>;
 }
 
-// A local wrapper type we can use to specialize `From` for `prost_types::Value``
+// A local wrapper type we can use to specialize `From` for `google::protobuf::Value``
 pub struct SensorResult<T> {
     pub value: T,
 }
 
-impl From<SensorResult<f64>> for ::prost_types::Value {
-    fn from(value: SensorResult<f64>) -> ::prost_types::Value {
-        prost_types::Value {
-            kind: Some(::prost_types::value::Kind::NumberValue(value.value)),
+impl From<SensorResult<f64>> for google::protobuf::Value {
+    fn from(value: SensorResult<f64>) -> google::protobuf::Value {
+        google::protobuf::Value {
+            kind: Some(google::protobuf::value::Kind::NumberValue(value.value)),
         }
     }
 }
@@ -98,9 +99,9 @@ where
 }
 
 impl Status for FakeSensor {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
-        Ok(Some(prost_types::Struct {
-            fields: BTreeMap::new(),
+    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+        Ok(Some(google::protobuf::Struct {
+            fields: HashMap::new(),
         }))
     }
 }
