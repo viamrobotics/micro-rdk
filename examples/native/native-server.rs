@@ -19,10 +19,7 @@ use std::{
 };
 
 fn main() -> anyhow::Result<()> {
-    simple_logger::SimpleLogger::new()
-        .with_level(LevelFilter::Info)
-        .init()
-        .unwrap();
+    env_logger::init();
 
     let repr = {
         use micro_rdk::common::analog::FakeAnalogReader;

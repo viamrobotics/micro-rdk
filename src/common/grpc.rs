@@ -883,16 +883,20 @@ where
     R: GrpcResponse + 'static,
 {
     fn unary_rpc(&mut self, method: &str, data: &Bytes) -> Result<Bytes, GrpcError> {
-        {
-            let cap = RefCell::borrow(&self.buffer).capacity();
-            let len = RefCell::borrow(&self.buffer).len();
-            log::debug!("current status of buffer is cap: {:?} len: {:?}", cap, len);
-        }
-        debug!("webRTC");
+        // {
+        //     let cap = RefCell::borrow(&self.buffer).capacity();
+        //     let len = RefCell::borrow(&self.buffer).len();
+        //     log::debug!("current status of buffer is cap: {:?} len: {:?}", cap, len);
+        // }
         {
             RefCell::borrow_mut(&self.buffer).reserve(GRPC_BUFFER_SIZE);
         }
-        log::debug!("req is {:?}, ", method);
+        // {
+        //     let cap = RefCell::borrow(&self.buffer).capacity();
+        //     let len = RefCell::borrow(&self.buffer).len();
+        //     log::debug!("current status of buffer is cap: {:?} len: {:?}", cap, len);
+        // }
+        log::debug!("unary req is {:?}, ", method);
         self.handle_request(method, data)
             .map(|_| self.response.get_data().split_off(5))
     }
@@ -901,15 +905,15 @@ where
         method: &str,
         data: &Bytes,
     ) -> Result<(Bytes, Instant), GrpcError> {
-        {
-            let cap = RefCell::borrow(&self.buffer).capacity();
-            let len = RefCell::borrow(&self.buffer).len();
-            log::debug!("current status of buffer is cap: {:?} len: {:?}", cap, len);
-        }
-        debug!("webRTC");
+        // {
+        //     let cap = RefCell::borrow(&self.buffer).capacity();
+        //     let len = RefCell::borrow(&self.buffer).len();
+        //     log::debug!("current status of buffer is cap: {:?} len: {:?}", cap, len);
+        // }
         {
             RefCell::borrow_mut(&self.buffer).reserve(GRPC_BUFFER_SIZE);
         }
+        log::debug!("stream req is {:?}, ", method);
         self.handle_rpc_stream(method, data)
             .map(|dur| (self.response.get_data().split_off(5), dur))
     }
