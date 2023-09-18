@@ -185,7 +185,7 @@ impl<'a> AppClient<'a> {
             os: "esp32".to_string(),
             host: "esp32".to_string(),
             ips: vec![self.ip.to_string()],
-            version: "0.0.2".to_string(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
             git_revision: "".to_string(),
             platform: Some("esp32".to_string()),
         };
