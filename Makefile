@@ -87,11 +87,6 @@ else
 	$(error esp32-server.bin not found, run build-esp32-bin first)
 endif
 
-
-build-fake:
-	touch esp32-server-with-cred.bin
-	dd if=/dev/urandom of=esp32-server-with-cred.bin bs=4M count=1
-
 canon-image: canon-image-amd64 canon-image-arm64
 
 canon-image-amd64:
