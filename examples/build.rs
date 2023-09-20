@@ -351,7 +351,7 @@ async fn read_cloud_config(config: &mut Config) -> anyhow::Result<RobotConfig> {
         os: "esp32-build".to_string(),
         host: gethostname::gethostname().to_str().unwrap().to_string(),
         ips: vec![local_ip().unwrap().to_string()],
-        version: "0.0.1".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
         git_revision: "".to_string(),
         platform: Some("esp32-build".to_string()),
     };
