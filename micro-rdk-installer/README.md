@@ -19,7 +19,7 @@ Commands:
                             your computer via data cable
   write-credentials     Write Wi-Fi and robot credentials to the NVS storage portion of a pre-compiled binary
                             running a micro-RDK server
-  create-nvs-partition  Generate a binary of a complete NVS data partition that conatins Wi-Fi and security
+  create-nvs-partition  Generate a binary of a complete NVS data partition that contains Wi-Fi and security
                             credentials for a robot
   help                  Print this message or the help of the given subcommand(s)
 
@@ -30,7 +30,7 @@ Options:
 ### Quick use
 
 1. Find your robot part at https://app.viam.com. Then navigate to the **Setup** tab
-2. Regardless of your operating system, select **Linux** and follow Step 1 to download the Viam app config for your robot
+2. Regardless of your operating system, select **Mac** and press the button that appears in Step 2 to download the Viam app config for your robot
 3. Run: `./micro-rdk-installer write-flash --app-config=<file path to the viam.json file downloaded in previous step>`
     1. To see the micro-RDK server logs through the serial connection, add `--monitor`
     2. If the program cannot auto-detect the serial port to which your ESP32 is connected, you may be prompted to select the correct one among a list
