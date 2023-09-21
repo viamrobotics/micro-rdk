@@ -23,7 +23,7 @@ pub struct PackageInfo {
     #[prost(message, repeated, tag="5")]
     pub files: ::prost::alloc::vec::Vec<FileInfo>,
     #[prost(message, optional, tag="6")]
-    pub metadata: ::core::option::Option<::prost_types::Struct>,
+    pub metadata: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -60,6 +60,8 @@ pub struct DeletePackageRequest {
     pub id: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
     pub version: ::prost::alloc::string::String,
+    #[prost(enumeration="PackageType", tag="3")]
+    pub r#type: i32,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -73,7 +75,7 @@ pub struct Package {
     #[prost(string, tag="2")]
     pub url: ::prost::alloc::string::String,
     #[prost(message, optional, tag="3")]
-    pub created_on: ::core::option::Option<::prost_types::Timestamp>,
+    pub created_on: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
     #[prost(string, tag="4")]
     pub checksum: ::prost::alloc::string::String,
     #[prost(string, tag="5")]
@@ -127,6 +129,7 @@ pub enum PackageType {
     MlModel = 2,
     Module = 3,
     SlamMap = 4,
+    BoardDefs = 5,
 }
 impl PackageType {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -140,6 +143,7 @@ impl PackageType {
             PackageType::MlModel => "PACKAGE_TYPE_ML_MODEL",
             PackageType::Module => "PACKAGE_TYPE_MODULE",
             PackageType::SlamMap => "PACKAGE_TYPE_SLAM_MAP",
+            PackageType::BoardDefs => "PACKAGE_TYPE_BOARD_DEFS",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -150,6 +154,7 @@ impl PackageType {
             "PACKAGE_TYPE_ML_MODEL" => Some(Self::MlModel),
             "PACKAGE_TYPE_MODULE" => Some(Self::Module),
             "PACKAGE_TYPE_SLAM_MAP" => Some(Self::SlamMap),
+            "PACKAGE_TYPE_BOARD_DEFS" => Some(Self::BoardDefs),
             _ => None,
         }
     }

@@ -710,7 +710,7 @@ pub mod method_settings {
         /// Initial delay after which the first poll request will be made.
         /// Default value: 5 seconds.
         #[prost(message, optional, tag="1")]
-        pub initial_poll_delay: ::core::option::Option<::prost_types::Duration>,
+        pub initial_poll_delay: ::core::option::Option<super::super::protobuf::Duration>,
         /// Multiplier to gradually increase delay between subsequent polls until it
         /// reaches max_poll_delay.
         /// Default value: 1.5.
@@ -719,11 +719,11 @@ pub mod method_settings {
         /// Maximum time between two subsequent poll requests.
         /// Default value: 45 seconds.
         #[prost(message, optional, tag="3")]
-        pub max_poll_delay: ::core::option::Option<::prost_types::Duration>,
+        pub max_poll_delay: ::core::option::Option<super::super::protobuf::Duration>,
         /// Total polling timeout.
         /// Default value: 5 minutes.
         #[prost(message, optional, tag="4")]
-        pub total_poll_timeout: ::core::option::Option<::prost_types::Duration>,
+        pub total_poll_timeout: ::core::option::Option<super::super::protobuf::Duration>,
     }
 }
 /// The organization for which the client libraries are being published.
@@ -857,6 +857,19 @@ pub enum FieldBehavior {
     /// a non-empty value will be returned. The user will not be aware of what
     /// non-empty value to expect.
     NonEmptyDefault = 7,
+    /// Denotes that the field in a resource (a message annotated with
+    /// google.api.resource) is used in the resource name to uniquely identify the
+    /// resource. For AIP-compliant APIs, this should only be applied to the
+    /// `name` field on the resource.
+    ///
+    /// This behavior should not be applied to references to other resources within
+    /// the message.
+    ///
+    /// The identifier field of resources often have different field behavior
+    /// depending on the request it is embedded in (e.g. for Create methods name
+    /// is optional and unused, while for Update methods it is required). Instead
+    /// of method-specific annotations, only `IDENTIFIER` is required.
+    Identifier = 8,
 }
 impl FieldBehavior {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -873,6 +886,7 @@ impl FieldBehavior {
             FieldBehavior::Immutable => "IMMUTABLE",
             FieldBehavior::UnorderedList => "UNORDERED_LIST",
             FieldBehavior::NonEmptyDefault => "NON_EMPTY_DEFAULT",
+            FieldBehavior::Identifier => "IDENTIFIER",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -886,6 +900,7 @@ impl FieldBehavior {
             "IMMUTABLE" => Some(Self::Immutable),
             "UNORDERED_LIST" => Some(Self::UnorderedList),
             "NON_EMPTY_DEFAULT" => Some(Self::NonEmptyDefault),
+            "IDENTIFIER" => Some(Self::Identifier),
             _ => None,
         }
     }
@@ -945,7 +960,7 @@ pub struct HttpBody {
     /// Application specific response metadata. Must be set in the first response
     /// for streaming APIs.
     #[prost(message, repeated, tag="3")]
-    pub extensions: ::prost::alloc::vec::Vec<::prost_types::Any>,
+    pub extensions: ::prost::alloc::vec::Vec<super::protobuf::Any>,
 }
 /// A simple descriptor of a resource type.
 ///

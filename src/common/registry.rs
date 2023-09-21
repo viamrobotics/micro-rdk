@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use std::collections::BTreeMap as Map;
+use std::collections::HashMap as Map;
 use thiserror::Error;
 
 use super::{
@@ -327,7 +327,7 @@ impl ComponentRegistry {
 
 #[cfg(test)]
 mod tests {
-    use prost_types::value::Kind;
+    use crate::google;
 
     use crate::common::{
         self,
@@ -339,7 +339,7 @@ mod tests {
         },
         status::Status,
     };
-    use std::collections::BTreeMap;
+    use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
 
     lazy_static::lazy_static! {
@@ -381,9 +381,9 @@ mod tests {
     }
 
     impl Status for TestSensor {
-        fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
-            Ok(Some(prost_types::Struct {
-                fields: BTreeMap::new(),
+        fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+            Ok(Some(google::protobuf::Struct {
+                fields: HashMap::new(),
             }))
         }
     }
@@ -440,7 +440,7 @@ mod tests {
         assert!(ctor.is_ok());
 
         // make robot
-        let robot = LocalRobot::new_from_config_response(&cfg_resp, registry)?;
+        let robot = LocalRobot::new_from_config_response(&cfg_resp, Box::new(registry))?;
 
         // get test value from sensor
         let test_sensor = robot
@@ -456,8 +456,8 @@ mod tests {
             .clone();
         assert_eq!(
             r,
-            prost_types::Value {
-                kind: Some(Kind::NumberValue(42.0))
+            google::protobuf::Value {
+                kind: Some(google::protobuf::value::Kind::NumberValue(42.0))
             }
         );
 

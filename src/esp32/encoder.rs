@@ -15,7 +15,7 @@ use espsys::pcnt_evt_type_t_PCNT_EVT_H_LIM as pcnt_evt_h_lim;
 use espsys::pcnt_evt_type_t_PCNT_EVT_L_LIM as pcnt_evt_l_lim;
 use espsys::{esp, EspError, ESP_OK};
 
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -25,6 +25,7 @@ use crate::common::encoder::{
 };
 use crate::common::registry::{ComponentRegistry, Dependency};
 use crate::common::status::Status;
+use crate::google;
 
 use embedded_hal::digital::v2::InputPin;
 
@@ -261,9 +262,9 @@ where
     A: InputPin + PinExt,
     B: InputPin + PinExt,
 {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
-        Ok(Some(prost_types::Struct {
-            fields: BTreeMap::new(),
+    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+        Ok(Some(google::protobuf::Struct {
+            fields: HashMap::new(),
         }))
     }
 }

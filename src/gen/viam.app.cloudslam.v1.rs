@@ -6,7 +6,7 @@
 pub struct StartMappingSessionRequest {
     /// The given config contains details such as sensor, map package and algorithm-specific fields required to run slam.
     #[prost(message, optional, tag="1")]
-    pub slam_config: ::core::option::Option<::prost_types::Struct>,
+    pub slam_config: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
     /// Version to use for slam, defaults stable
     #[prost(string, tag="2")]
     pub slam_version: ::prost::alloc::string::String,
@@ -21,6 +21,8 @@ pub struct StartMappingSessionRequest {
     /// Version to use for viam, defaults stable
     #[prost(string, tag="7")]
     pub viam_server_version: ::prost::alloc::string::String,
+    #[prost(bool, tag="8")]
+    pub is_online: bool,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -84,8 +86,6 @@ pub struct ListMappingSessionsResponse {
 pub struct StopMappingSessionRequest {
     #[prost(string, tag="1")]
     pub session_id: ::prost::alloc::string::String,
-    #[prost(bool, tag="2")]
-    pub save_map: bool,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -94,6 +94,41 @@ pub struct StopMappingSessionResponse {
     pub package_id: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
     pub version: ::prost::alloc::string::String,
+}
+// GetMappingSessionMetadataByID
+
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetMappingSessionMetadataByIdRequest {
+    #[prost(string, tag="1")]
+    pub session_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetMappingSessionMetadataByIdResponse {
+    #[prost(message, optional, tag="1")]
+    pub session_metadata: ::core::option::Option<MappingMetadata>,
+}
+// UpdateMappingSessionMetadataByID
+
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UpdateMappingSessionMetadataByIdRequest {
+    #[prost(string, tag="1")]
+    pub session_id: ::prost::alloc::string::String,
+    /// “success”, “failed to start”, etc
+    #[prost(string, tag="2")]
+    pub end_status: ::prost::alloc::string::String,
+    /// set at the time of job closeout and used as the package version
+    #[prost(message, optional, tag="3")]
+    pub time_cloud_run_job_ended: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
+    /// additional details on the end status if needed, such as errors
+    #[prost(string, tag="4")]
+    pub error_msg: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UpdateMappingSessionMetadataByIdResponse {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -109,16 +144,16 @@ pub struct MappingMetadata {
     pub robot_id: ::prost::alloc::string::String,
     /// time this document was created
     #[prost(message, optional, tag="4")]
-    pub time_start_submitted: ::core::option::Option<::prost_types::Timestamp>,
+    pub time_start_submitted: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
     /// time the cloud run job started
     #[prost(message, optional, tag="5")]
-    pub time_cloud_run_job_started: ::core::option::Option<::prost_types::Timestamp>,
+    pub time_cloud_run_job_started: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
     /// time StopSlamSession was called
     #[prost(message, optional, tag="6")]
-    pub time_end_submitted: ::core::option::Option<::prost_types::Timestamp>,
+    pub time_end_submitted: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
     /// time the cloud run job ended
     #[prost(message, optional, tag="7")]
-    pub time_cloud_run_job_ended: ::core::option::Option<::prost_types::Timestamp>,
+    pub time_cloud_run_job_ended: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
     /// “success”, “failed to start”, etc
     #[prost(string, tag="8")]
     pub end_status: ::prost::alloc::string::String,
@@ -137,5 +172,8 @@ pub struct MappingMetadata {
     /// a robot config for a slam session
     #[prost(string, tag="13")]
     pub config: ::prost::alloc::string::String,
+    /// additional details on the end status if needed, such as errors
+    #[prost(string, tag="14")]
+    pub error_msg: ::prost::alloc::string::String,
 }
 // @@protoc_insertion_point(module)

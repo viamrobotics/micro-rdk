@@ -278,7 +278,7 @@ pub mod constant {
 #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum ConstantKind {
         /// null value.
-        #[prost(enumeration="::prost_types::NullValue", tag="1")]
+        #[prost(enumeration="super::super::super::super::protobuf::NullValue", tag="1")]
         NullValue(i32),
         /// boolean value.
         #[prost(bool, tag="2")]
@@ -302,12 +302,12 @@ pub mod constant {
         ///
         /// Deprecated: duration is no longer considered a builtin cel type.
         #[prost(message, tag="8")]
-        DurationValue(::prost_types::Duration),
+        DurationValue(super::super::super::super::protobuf::Duration),
         /// protobuf.Timestamp value.
         ///
         /// Deprecated: timestamp is no longer considered a builtin cel type.
         #[prost(message, tag="9")]
-        TimestampValue(::prost_types::Timestamp),
+        TimestampValue(super::super::super::super::protobuf::Timestamp),
     }
 }
 /// Source information collected at parse time.
@@ -567,9 +567,9 @@ pub mod r#type {
     pub enum TypeKind {
         /// Dynamic type.
         #[prost(message, tag="1")]
-        Dyn(()),
+        Dyn(super::super::super::super::protobuf::Empty),
         /// Null value.
-        #[prost(enumeration="::prost_types::NullValue", tag="2")]
+        #[prost(enumeration="super::super::super::super::protobuf::NullValue", tag="2")]
         Null(i32),
         /// Primitive types: `true`, `1u`, `-2.0`, `'string'`, `b'bytes'`.
         #[prost(enumeration="PrimitiveType", tag="3")]
@@ -614,7 +614,7 @@ pub mod r#type {
         /// as the `ERROR` type. This permits the type-checker to discover other
         /// errors present in the expression.
         #[prost(message, tag="12")]
-        Error(()),
+        Error(super::super::super::super::protobuf::Empty),
         /// Abstract, application defined type.
         #[prost(message, tag="14")]
         AbstractType(AbstractType),
@@ -790,7 +790,7 @@ pub mod value {
 #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Kind {
         /// Null value.
-        #[prost(enumeration="::prost_types::NullValue", tag="1")]
+        #[prost(enumeration="super::super::super::super::protobuf::NullValue", tag="1")]
         NullValue(i32),
         /// Boolean value.
         #[prost(bool, tag="2")]
@@ -815,7 +815,7 @@ pub mod value {
         EnumValue(super::EnumValue),
         /// The proto message backing an object value.
         #[prost(message, tag="10")]
-        ObjectValue(::prost_types::Any),
+        ObjectValue(super::super::super::super::protobuf::Any),
         /// Map value.
         #[prost(message, tag="11")]
         MapValue(super::MapValue),

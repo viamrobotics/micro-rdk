@@ -239,7 +239,7 @@ pub struct ResponseMetadata {
     /// Note: If correlating between other resources, be sure that the means
     /// of measuring the capture are similar enough such that comparison can be made between them.
     #[prost(message, optional, tag="1")]
-    pub captured_at: ::core::option::Option<::prost_types::Timestamp>,
+    pub captured_at: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
 }
 /// DoCommandRequest represents a generic DoCommand input
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -248,14 +248,14 @@ pub struct DoCommandRequest {
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
     #[prost(message, optional, tag="2")]
-    pub command: ::core::option::Option<::prost_types::Struct>,
+    pub command: ::core::option::Option<super::super::super::google::protobuf::Struct>,
 }
 /// DoCommandResponse represents a generic DoCommand output
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DoCommandResponse {
     #[prost(message, optional, tag="1")]
-    pub result: ::core::option::Option<::prost_types::Struct>,
+    pub result: ::core::option::Option<super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -263,6 +263,9 @@ pub struct GetKinematicsRequest {
     /// The component name
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -281,6 +284,9 @@ pub struct GetGeometriesRequest {
     /// The component name
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

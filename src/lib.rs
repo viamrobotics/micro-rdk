@@ -84,6 +84,10 @@ pub mod google {
         #![allow(clippy::derive_partial_eq_without_eq)]
         include!("gen/google.rpc.rs");
     }
+    pub mod protobuf {
+        #![allow(clippy::derive_partial_eq_without_eq)]
+        include!("gen/google.protobuf.rs");
+    }
 }
 
 pub mod proto {
@@ -179,6 +183,8 @@ pub mod proto {
 #[macro_use]
 extern crate trackable;
 
+use std::time;
+
 use stun_codec::rfc5245::attributes::*;
 use stun_codec::rfc5389::attributes::*;
 stun_codec::define_attribute_enums!(
@@ -197,3 +203,19 @@ stun_codec::define_attribute_enums!(
         UseCandidate
     ]
 );
+
+pub struct DurationParseFailure;
+
+impl TryFrom<google::protobuf::Duration> for time::Duration {
+    type Error = DurationParseFailure;
+    fn try_from(duration: google::protobuf::Duration) -> Result<Self, Self::Error> {
+        if duration.seconds >= 0 && duration.nanos >= 0 {
+            Ok(time::Duration::new(
+                duration.seconds as u64,
+                duration.nanos as u32,
+            ))
+        } else {
+            Err(DurationParseFailure)
+        }
+    }
+}

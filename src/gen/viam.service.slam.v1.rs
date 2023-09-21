@@ -17,7 +17,7 @@ pub struct GetPositionResponse {
     pub component_reference: ::prost::alloc::string::String,
     /// Additional information in the response
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -76,6 +76,6 @@ pub struct GetLatestMapInfoRequest {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetLatestMapInfoResponse {
     #[prost(message, optional, tag="1")]
-    pub last_map_update: ::core::option::Option<::prost_types::Timestamp>,
+    pub last_map_update: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
 }
 // @@protoc_insertion_point(module)

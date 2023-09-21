@@ -6,7 +6,7 @@ pub struct StatusRequest {
     pub name: ::prost::alloc::string::String,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -25,7 +25,7 @@ pub struct SetGpioRequest {
     pub high: bool,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -40,7 +40,7 @@ pub struct GetGpioRequest {
     pub pin: ::prost::alloc::string::String,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -57,7 +57,7 @@ pub struct PwmRequest {
     pub pin: ::prost::alloc::string::String,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -78,7 +78,7 @@ pub struct SetPwmRequest {
     pub duty_cycle_pct: f64,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -93,7 +93,7 @@ pub struct PwmFrequencyRequest {
     pub pin: ::prost::alloc::string::String,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -112,7 +112,7 @@ pub struct SetPwmFrequencyRequest {
     pub frequency_hz: u64,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -129,7 +129,7 @@ pub struct ReadAnalogReaderRequest {
     pub analog_reader_name: ::prost::alloc::string::String,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -148,7 +148,7 @@ pub struct GetDigitalInterruptValueRequest {
     pub digital_interrupt_name: ::prost::alloc::string::String,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -167,10 +167,10 @@ pub struct SetPowerModeRequest {
     pub power_mode: i32,
     /// Requested duration to stay in `power_mode`
     #[prost(message, optional, tag="3")]
-    pub duration: ::core::option::Option<::prost_types::Duration>,
+    pub duration: ::core::option::Option<super::super::super::super::google::protobuf::Duration>,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

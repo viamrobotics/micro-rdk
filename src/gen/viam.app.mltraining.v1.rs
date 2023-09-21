@@ -55,13 +55,11 @@ pub struct TrainingJobMetadata {
     #[prost(enumeration="TrainingStatus", tag="2")]
     pub status: i32,
     #[prost(message, optional, tag="3")]
-    pub created_on: ::core::option::Option<::prost_types::Timestamp>,
+    pub created_on: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
     #[prost(message, optional, tag="4")]
-    pub last_modified: ::core::option::Option<::prost_types::Timestamp>,
+    pub last_modified: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
     #[prost(string, tag="5")]
     pub synced_model_id: ::prost::alloc::string::String,
-    #[prost(string, tag="6")]
-    pub user_email: ::prost::alloc::string::String,
     #[prost(string, tag="7")]
     pub id: ::prost::alloc::string::String,
     #[prost(message, optional, tag="8")]

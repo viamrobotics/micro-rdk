@@ -6,7 +6,7 @@ pub struct GetSensorsRequest {
     pub name: ::prost::alloc::string::String,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -23,7 +23,7 @@ pub struct GetReadingsRequest {
     pub sensor_names: ::prost::alloc::vec::Vec<super::super::super::common::v1::ResourceName>,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<::prost_types::Struct>,
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -31,7 +31,7 @@ pub struct Readings {
     #[prost(message, optional, tag="1")]
     pub name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
     #[prost(map="string, message", tag="2")]
-    pub readings: ::std::collections::HashMap<::prost::alloc::string::String, ::prost_types::Value>,
+    pub readings: ::std::collections::HashMap<::prost::alloc::string::String, super::super::super::super::google::protobuf::Value>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

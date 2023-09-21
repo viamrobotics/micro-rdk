@@ -86,7 +86,7 @@ pub struct CaptureMetadata {
     #[prost(string, tag="10")]
     pub method_name: ::prost::alloc::string::String,
     #[prost(map="string, message", tag="11")]
-    pub method_parameters: ::std::collections::HashMap<::prost::alloc::string::String, ::prost_types::Any>,
+    pub method_parameters: ::std::collections::HashMap<::prost::alloc::string::String, super::super::super::super::google::protobuf::Any>,
     #[prost(string, repeated, tag="12")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(string, tag="13")]
@@ -97,9 +97,9 @@ pub struct CaptureMetadata {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CaptureInterval {
     #[prost(message, optional, tag="1")]
-    pub start: ::core::option::Option<::prost_types::Timestamp>,
+    pub start: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
     #[prost(message, optional, tag="2")]
-    pub end: ::core::option::Option<::prost_types::Timestamp>,
+    pub end: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
 }
 /// TabularDataByFilterRequest requests tabular data based on filter values
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -109,6 +109,8 @@ pub struct TabularDataByFilterRequest {
     pub data_request: ::core::option::Option<DataRequest>,
     #[prost(bool, tag="2")]
     pub count_only: bool,
+    #[prost(bool, tag="3")]
+    pub include_internal_data: bool,
 }
 /// TabularDataByFilterResponse provides the data and metadata of tabular data
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -129,13 +131,13 @@ pub struct TabularDataByFilterResponse {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TabularData {
     #[prost(message, optional, tag="1")]
-    pub data: ::core::option::Option<::prost_types::Struct>,
+    pub data: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
     #[prost(uint32, tag="2")]
     pub metadata_index: u32,
     #[prost(message, optional, tag="3")]
-    pub time_requested: ::core::option::Option<::prost_types::Timestamp>,
+    pub time_requested: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
     #[prost(message, optional, tag="4")]
-    pub time_received: ::core::option::Option<::prost_types::Timestamp>,
+    pub time_received: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -155,6 +157,8 @@ pub struct BinaryDataByFilterRequest {
     pub include_binary: bool,
     #[prost(bool, tag="3")]
     pub count_only: bool,
+    #[prost(bool, tag="4")]
+    pub include_internal_data: bool,
 }
 /// BinaryDataByFilterResponse provides the data and metadata of binary (image + file) data when a filter is provided
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -187,10 +191,6 @@ pub struct BinaryDataByIDsRequest {
     pub include_binary: bool,
     #[prost(message, repeated, tag="3")]
     pub binary_ids: ::prost::alloc::vec::Vec<BinaryId>,
-    /// Replaced by binary_ids
-    #[deprecated]
-    #[prost(string, repeated, tag="1")]
-    pub file_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 /// BinaryDataByIDsResponse provides the data and metadata of binary (image + file) data when a filter is provided
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -234,9 +234,9 @@ pub struct BinaryMetadata {
     #[prost(message, optional, tag="2")]
     pub capture_metadata: ::core::option::Option<CaptureMetadata>,
     #[prost(message, optional, tag="3")]
-    pub time_requested: ::core::option::Option<::prost_types::Timestamp>,
+    pub time_requested: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
     #[prost(message, optional, tag="4")]
-    pub time_received: ::core::option::Option<::prost_types::Timestamp>,
+    pub time_received: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
     #[prost(string, tag="5")]
     pub file_name: ::prost::alloc::string::String,
     #[prost(string, tag="6")]
@@ -260,12 +260,32 @@ pub struct DeleteTabularDataByFilterResponse {
     #[prost(uint64, tag="1")]
     pub deleted_count: u64,
 }
+/// DeleteTabularDataRequest deletes the data from the organization that is older than `delete_older_than_days`.
+/// For example if `delete_older_than_days` is 10, this deletes any data that was captured up to 10 days ago.
+/// If it is 0, all existing data is deleted.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DeleteTabularDataRequest {
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+    #[prost(uint32, tag="2")]
+    pub delete_older_than_days: u32,
+}
+/// DeleteBinaryDataResponse returns the number of tabular datapoints deleted.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DeleteTabularDataResponse {
+    #[prost(uint64, tag="1")]
+    pub deleted_count: u64,
+}
 /// DeleteBinaryDataByFilterRequest deletes the data and metadata of binary data when a filter is provided
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DeleteBinaryDataByFilterRequest {
     #[prost(message, optional, tag="1")]
     pub filter: ::core::option::Option<Filter>,
+    #[prost(bool, tag="2")]
+    pub include_internal_data: bool,
 }
 /// DeleteBinaryDataByFilterResponse returns the number of binary files deleted when a filter is provided
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -280,10 +300,6 @@ pub struct DeleteBinaryDataByFilterResponse {
 pub struct DeleteBinaryDataByIDsRequest {
     #[prost(message, repeated, tag="2")]
     pub binary_ids: ::prost::alloc::vec::Vec<BinaryId>,
-    /// Replaced by binary_ids
-    #[deprecated]
-    #[prost(string, repeated, tag="1")]
-    pub file_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 /// DeleteBinaryDataByIDsResponse returns the number of binary files deleted when binary ids are provided
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -300,10 +316,6 @@ pub struct AddTagsToBinaryDataByIDsRequest {
     pub binary_ids: ::prost::alloc::vec::Vec<BinaryId>,
     #[prost(string, repeated, tag="2")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    /// Replaced by binary_ids
-    #[deprecated]
-    #[prost(string, repeated, tag="1")]
-    pub file_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -330,10 +342,6 @@ pub struct RemoveTagsFromBinaryDataByIDsRequest {
     pub binary_ids: ::prost::alloc::vec::Vec<BinaryId>,
     #[prost(string, repeated, tag="2")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    /// Replaced by binary_ids
-    #[deprecated]
-    #[prost(string, repeated, tag="1")]
-    pub file_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 /// RemoveTagsFromBinaryDataByIDsResponse returns the number of binary files which had tags removed
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -387,10 +395,6 @@ pub struct AddBoundingBoxToImageByIdRequest {
     pub x_max_normalized: f64,
     #[prost(double, tag="6")]
     pub y_max_normalized: f64,
-    /// Replaced by binary_id
-    #[deprecated]
-    #[prost(string, tag="1")]
-    pub file_id: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -405,10 +409,6 @@ pub struct RemoveBoundingBoxFromImageByIdRequest {
     pub binary_id: ::core::option::Option<BinaryId>,
     #[prost(string, tag="2")]
     pub bbox_id: ::prost::alloc::string::String,
-    /// Replaced by binary_id
-    #[deprecated]
-    #[prost(string, tag="1")]
-    pub file_id: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -425,6 +425,33 @@ pub struct BoundingBoxLabelsByFilterRequest {
 pub struct BoundingBoxLabelsByFilterResponse {
     #[prost(string, repeated, tag="1")]
     pub labels: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+/// ConfigureDatabaseUserRequest accepts a Viam organization ID and a password for the database user
+/// being configured. Viam uses gRPC over TLS, so the entire request will be encrypted while in
+/// flight, including the password.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ConfigureDatabaseUserRequest {
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub password: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ConfigureDatabaseUserResponse {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetDatabaseConnectionRequest {
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetDatabaseConnectionResponse {
+    #[prost(string, tag="1")]
+    pub hostname: ::prost::alloc::string::String,
 }
 /// Order specifies the order in which data is returned.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
