@@ -20,7 +20,7 @@ pub fn read_nvs_metadata(binary_path: PathBuf) -> Result<NVSMetadata, Error> {
         .seek(SeekFrom::Start(0x8000))
         .map_err(Error::FileError)?;
     let expected_magic_bytes: [u8; 2] = [0xAA, 0x50];
-    let entries_read = 0;
+    let mut entries_read = 0;
     loop {
         if entries_read == PARTITION_TABLE_MAX_ENTRIES {
             break
