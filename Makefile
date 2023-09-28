@@ -79,7 +79,7 @@ build-esp32-bin:
 	cd examples && cargo espflash save-image --merge --chip esp32 target/esp32-server.bin -T esp32/partitions.csv -s 4M  --bin esp32-server --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort --release
 
 build-esp32-with-cred-bin:
-	export MICRO_RDK_USE_NVS=true && cd examples && cargo espflash save-image --merge --chip esp32 target/esp32-server-with-cred.bin -T esp32/partitions.csv -s 4M  --bin esp32-server-with-cred --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort --release
+	cd examples && cargo espflash save-image --merge --chip esp32 target/esp32-server-with-cred.bin -T esp32/partitions.csv -s 4M  --bin esp32-server-with-cred --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort --release
 
 flash-esp32-bin:
 ifneq (,$(wildcard ./examples/target/esp32-server.bin))
