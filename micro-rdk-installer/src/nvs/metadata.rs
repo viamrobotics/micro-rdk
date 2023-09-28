@@ -9,7 +9,10 @@ pub struct NVSMetadata {
     pub start_address: u64
 }
 
+// These constraints are germane to Esp32's Partition Table. See Espressif's 
+// docs: https://docs.espressif.com/projects/esp-idf/en/release-v4.4/esp32/api-guides/partition-tables.html?highlight=partition%20table
 const PARTITION_TABLE_MAX_ENTRIES: usize = 95;
+const PARTITION_TABLE_ENTRY_MAGIC_BYTES: [u8; 2] = [0xAA, 0x50];
 
 pub fn read_nvs_metadata(binary_path: PathBuf) -> Result<NVSMetadata, Error> {
     let mut app_file = OpenOptions::new()
@@ -19,7 +22,6 @@ pub fn read_nvs_metadata(binary_path: PathBuf) -> Result<NVSMetadata, Error> {
     app_file
         .seek(SeekFrom::Start(0x8000))
         .map_err(Error::FileError)?;
-    let expected_magic_bytes: [u8; 2] = [0xAA, 0x50];
     let mut entries_read = 0;
     loop {
         if entries_read == PARTITION_TABLE_MAX_ENTRIES {
@@ -27,7 +29,7 @@ pub fn read_nvs_metadata(binary_path: PathBuf) -> Result<NVSMetadata, Error> {
         }
         let mut magic_bytes: [u8; 2] = [0xFF, 0xFF];
         app_file.read(&mut magic_bytes[..]).map_err(Error::FileError)?;
-        if magic_bytes != expected_magic_bytes {
+        if magic_bytes != PARTITION_TABLE_ENTRY_MAGIC_BYTES {
             break;
         }
         let mut table_entry: [u8; 30] = [0xFF; 30];
@@ -45,8 +47,18 @@ fn get_nvs_metadata_from_entry(line: &[u8; 30]) -> Result<Option<NVSMetadata>, E
         if line[2..6] == [0xFF, 0xFF, 0xFF, 0xFF] {
             return Err(Error::NVSOffsetMissingError);
         }
-        let offset = u32::from_le_bytes(line[2..6].try_into().unwrap());
-        let size = u32::from_le_bytes(line[6..10].try_into().unwrap());
+        let offset = u32::from_le_bytes(match line[2..6].try_into() {
+            Ok(val) => val,
+            Err(_) => {
+                unreachable!()
+            }
+        });
+        let size = u32::from_le_bytes(match line[6..10].try_into(){
+            Ok(val) => val,
+            Err(_) => {
+                unreachable!()
+            }
+        });
         return Ok(Some(NVSMetadata{
             size: size as u64,
             start_address: offset as u64
