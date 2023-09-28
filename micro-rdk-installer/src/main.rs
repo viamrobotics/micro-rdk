@@ -12,6 +12,7 @@ use micro_rdk_installer::nvs::partition::{NVSPartition, NVSPartitionData};
 use micro_rdk_installer::nvs::request::{
     download_micro_rdk_release, populate_nvs_storage_from_app,
 };
+use micro_rdk_installer::nvs::metadata::read_nvs_metadata;
 use secrecy::Secret;
 use serde::Deserialize;
 use tokio::runtime::Runtime;
@@ -46,16 +47,6 @@ struct WriteCredentials {
     /// data partition will be edited with Wi-Fi and robot credentials
     #[arg(long = "binary-path")]
     binary_path: String,
-    /// Size of the NVS partition in bytes. The default here represents the size
-    /// declared in examples/esp32/partitions.csv (0x8000, or 32768)
-    #[arg(long = "nvs-size", default_value = "32768")]
-    nvs_size: usize,
-    /// The address in the binary at which the NVS data partition begins. The default here 
-    /// represents the offset as declared in examples/esp32/partitions.csv 
-    /// (0x9000, or 36864), as that is the partition table that will be used to 
-    /// compile the default application binary
-    #[arg(long = "nvs-offset-address", default_value = "36864")]
-    nvs_offset: u64,
 }
 
 /// Flash a pre-compiled binary with the micro-RDK server directly to an ESP32
@@ -73,16 +64,6 @@ struct WriteFlash {
     /// See https://github.com/viamrobotics/micro-rdk/releases for the version options
     #[arg(long = "version")]
     version: Option<String>,
-    /// Size of the NVS partition in bytes. The default here represents the size
-    /// declared in examples/esp32/partitions.csv (0x8000, or 32768)
-    #[arg(long = "nvs-size", default_value = "32768")]
-    nvs_size: usize,
-    /// The address in the binary at which the NVS data partition begins. The default here 
-    /// represents the offset as declared in examples/esp32/partitions.csv 
-    /// (0x9000, or 36864), as that is the partition table that will be used to 
-    /// compile the default application binary
-    #[arg(long = "nvs-offset-address", default_value = "36864")]
-    nvs_offset: u64,
     #[arg(long = "baud-rate")]
     baud_rate: Option<u32>,
     /// This opens the serial monitor immediately after flashing. 
@@ -205,34 +186,37 @@ fn main() -> Result<(), Error> {
     let cli = Cli::parse();
     match &cli.command {
         Some(Commands::WriteCredentials(args)) => {
-            let nvs_data = create_nvs_partition_binary(args.config.to_string(), args.nvs_size)?;
+            let app_path = PathBuf::from(args.binary_path.clone());
+            let nvs_metadata = read_nvs_metadata(app_path.clone())?;
+            let nvs_data = create_nvs_partition_binary(args.config.to_string(), nvs_metadata.size as usize)?;
             write_credentials_to_app_binary(
-                PathBuf::from(args.binary_path.clone()),
+                app_path,
                 &nvs_data,
-                args.nvs_size as u64,
-                args.nvs_offset,
+                nvs_metadata.size,
+                nvs_metadata.start_address,
             )?;
         }
         Some(Commands::WriteFlash(args)) => {
-            let nvs_data = create_nvs_partition_binary(args.config.to_string(), args.nvs_size)?;
             let tmp_dir = tempfile::Builder::new()
                 .prefix("micro-rdk-bin")
                 .tempdir()
                 .map_err(Error::FileError)?;
-            let path = match args.binary_path.clone() {
+            let app_path = match args.binary_path.clone() {
                 Some(path) => PathBuf::from(path),
                 None => {
                     let rt = Runtime::new().map_err(Error::AsyncError)?;
                     rt.block_on(download_micro_rdk_release(&tmp_dir, args.version.clone()))?
                 }
             };
+            let nvs_metadata = read_nvs_metadata(app_path.clone())?;
+            let nvs_data = create_nvs_partition_binary(args.config.to_string(), nvs_metadata.size as usize)?;
             write_credentials_to_app_binary(
-                path.clone(),
+                app_path.clone(),
                 &nvs_data,
-                args.nvs_size as u64,
-                args.nvs_offset,
+                nvs_metadata.size,
+                nvs_metadata.start_address,
             )?;
-            flash(path, args.monitor, args.baud_rate)?;
+            flash(app_path, args.monitor, args.baud_rate)?;
         }
         Some(Commands::CreateNvsPartition(args)) => {
             let mut file = File::create(&args.file_name).map_err(Error::FileError)?;

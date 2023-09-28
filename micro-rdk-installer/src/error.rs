@@ -7,6 +7,10 @@ use thiserror::Error;
 pub enum Error {
     #[error("NVS Data Processing Error: {0}")]
     NVSDataProcessingError(String),
+    #[error("NVS entry missing in partition table")]
+    NVSMissingError,
+    #[error("NVS offset missing in partition table")]
+    NVSOffsetMissingError,
     #[error("File Error: {0}")]
     FileError(std::io::Error),
     #[error("Binary Retrieval Error: {0}")]
