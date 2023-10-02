@@ -3,11 +3,11 @@ use crate::common::encoder::{
     Direction, Encoder, EncoderPositionType, EncoderSupportedRepresentations, SingleEncoder,
 };
 use crate::common::motor::{Motor, MotorType};
-
 use crate::common::status::Status;
 use crate::common::stop::Stoppable;
+use crate::google;
 
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::time::Duration;
 
 pub struct SingleEncodedMotor {
@@ -74,18 +74,18 @@ impl Stoppable for SingleEncodedMotor {
 }
 
 impl Status for SingleEncodedMotor {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
-        let mut bt = BTreeMap::new();
+    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+        let mut hm = HashMap::new();
         let pos = self
             .encoder
             .get_position(EncoderPositionType::UNSPECIFIED)?
             .value as f64;
-        bt.insert(
+        hm.insert(
             "position".to_string(),
-            prost_types::Value {
-                kind: Some(prost_types::value::Kind::NumberValue(pos)),
+            google::protobuf::Value {
+                kind: Some(google::protobuf::value::Kind::NumberValue(pos)),
             },
         );
-        Ok(Some(prost_types::Struct { fields: bt }))
+        Ok(Some(google::protobuf::Struct { fields: hm }))
     }
 }

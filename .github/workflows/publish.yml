@@ -1,0 +1,41 @@
+name: publish
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  tests:
+    uses: ./.github/workflows/test.yml
+  publish-release:
+    runs-on: [x64, qemu-host]
+    container:
+      image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
+    needs: tests
+    steps:
+    - name : Checkout main branch code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 2
+    - name: Build esp32 binary
+      run: |
+        bash -c 'export MICRO_RDK_USE_NVS=true && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && make build-esp32-with-cred-bin'
+        cp examples/target/esp32-server-with-cred.bin  micro-rdk-esp32-server.bin
+        sha256sum  micro-rdk-esp32-server.bin  >> sha256sums.txt
+    - name: Check release type
+      id: check-tag
+      run: |
+        if echo ${{ github.event.ref }} | grep -Eq '^refs/tags/v.*rc[0-9]{1}$'; then
+              echo "match=true" >> $GITHUB_OUTPUT
+        else
+              echo "match=false" >> $GITHUB_OUTPUT
+        fi
+    - name: Publish release
+      uses: marvinpinto/action-automatic-releases@latest
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        files: |
+          micro-rdk-esp32-server.bin
+          sha256sums.txt
+        prerelease: ${{ steps.check-tag.outputs.match }}

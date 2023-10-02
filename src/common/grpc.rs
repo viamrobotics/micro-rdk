@@ -191,7 +191,7 @@ where
             "/viam.component.base.v1.BaseService/MoveStraight" => self.base_move_straight(payload),
             "/viam.component.base.v1.BaseService/Spin" => self.base_spin(payload),
             "/viam.component.base.v1.BaseService/SetVelocity" => self.base_set_velocity(payload),
-            "/viam.component.board.v1.BoardService/GetDigitalinterruptValue" => {
+            "/viam.component.board.v1.BoardService/GetDigitalInterruptValue" => {
                 self.board_get_digital_interrupt_value(payload)
             }
             "/viam.component.board.v1.BoardService/GetGPIO" => self.board_get_pin(payload),
@@ -375,8 +375,23 @@ where
         self.encode_message(resp)
     }
 
-    fn board_get_digital_interrupt_value(&mut self, _message: &[u8]) -> Result<(), GrpcError> {
-        Err(GrpcError::RpcUnimplemented)
+    fn board_get_digital_interrupt_value(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+        let req = component::board::v1::GetDigitalInterruptValueRequest::decode(message)
+            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+        let board = match self.robot.lock().unwrap().get_board_by_name(req.board_name) {
+            Some(b) => b,
+            None => return Err(GrpcError::RpcUnavailable),
+        };
+        let interrupt_pin = req
+            .digital_interrupt_name
+            .parse::<i32>()
+            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+        let value = board
+            .get_digital_interrupt_value(interrupt_pin)
+            .map_err(|_| GrpcError::RpcInternal)?
+            .into();
+        let resp = component::board::v1::GetDigitalInterruptValueResponse { value };
+        self.encode_message(resp)
     }
 
     fn board_status(&mut self, message: &[u8]) -> Result<(), GrpcError> {
@@ -869,15 +884,8 @@ where
 {
     fn unary_rpc(&mut self, method: &str, data: &Bytes) -> Result<Bytes, GrpcError> {
         {
-            let cap = RefCell::borrow(&self.buffer).capacity();
-            let len = RefCell::borrow(&self.buffer).len();
-            log::debug!("current status of buffer is cap: {:?} len: {:?}", cap, len);
-        }
-        debug!("webRTC");
-        {
             RefCell::borrow_mut(&self.buffer).reserve(GRPC_BUFFER_SIZE);
         }
-        log::debug!("req is {:?}, ", method);
         self.handle_request(method, data)
             .map(|_| self.response.get_data().split_off(5))
     }
@@ -887,14 +895,9 @@ where
         data: &Bytes,
     ) -> Result<(Bytes, Instant), GrpcError> {
         {
-            let cap = RefCell::borrow(&self.buffer).capacity();
-            let len = RefCell::borrow(&self.buffer).len();
-            log::debug!("current status of buffer is cap: {:?} len: {:?}", cap, len);
-        }
-        debug!("webRTC");
-        {
             RefCell::borrow_mut(&self.buffer).reserve(GRPC_BUFFER_SIZE);
         }
+        log::debug!("stream req is {:?}, ", method);
         self.handle_rpc_stream(method, data)
             .map(|dur| (self.response.get_data().split_off(5), dur))
     }

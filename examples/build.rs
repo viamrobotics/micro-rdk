@@ -143,26 +143,41 @@ pub struct Cloud {
 
 fn main() -> anyhow::Result<()> {
     println!("cargo:rerun-if-changed=viam.json");
+    let use_nvs = match env::var_os("MICRO_RDK_USE_NVS") {
+        Some(val) => {
+            let use_nvs = val.to_ascii_lowercase() == "true";
+            if !use_nvs {
+                println!("Found MICRO_RDK_USE_NVS={:?}, will not write credentials as variables to file. If this was not intended provide the value as 'true' or 'True'", val);
+            }
+            use_nvs
+        }
+        None => false,
+    };
     if env::var("TARGET").unwrap() == "xtensa-esp32-espidf" {
         if std::env::var_os("IDF_PATH").is_none() {
             return Err(anyhow::anyhow!(
                 "You need to run IDF's export.sh before building"
             ));
         }
-        if std::env::var_os("MICRO_RDK_WIFI_SSID").is_none() {
-            std::env::set_var("MICRO_RDK_WIFI_SSID", "Viam-2G");
-            println!("cargo:rustc-env=MICRO_RDK_WIFI_SSID=Viam-2G");
-        }
-        if std::env::var_os("MICRO_RDK_WIFI_PASSWORD").is_none() {
-            return Err(anyhow::anyhow!(
-                "please set the password for WiFi {}",
-                std::env::var_os("MICRO_RDK_WIFI_PASSWORD")
-                    .unwrap()
-                    .to_str()
-                    .unwrap()
-            ));
+        if !use_nvs {
+            if std::env::var_os("MICRO_RDK_WIFI_SSID").is_none() {
+                std::env::set_var("MICRO_RDK_WIFI_SSID", "Viam-2G");
+                println!("cargo:rustc-env=MICRO_RDK_WIFI_SSID=Viam-2G");
+            }
+            if std::env::var_os("MICRO_RDK_WIFI_PASSWORD").is_none() {
+                return Err(anyhow::anyhow!(
+                    "please set the password for WiFi {}",
+                    std::env::var_os("MICRO_RDK_WIFI_SSID")
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
+                ));
+            }
         }
         embuild::build::LinkArgs::output_propagated("ESP_IDF")?;
+    }
+    if use_nvs {
+        return Ok(());
     }
 
     let (cert_der, kp_der, fp) = generate_dtls_certificate()?;
@@ -336,7 +351,7 @@ async fn read_cloud_config(config: &mut Config) -> anyhow::Result<RobotConfig> {
         os: "esp32-build".to_string(),
         host: gethostname::gethostname().to_str().unwrap().to_string(),
         ips: vec![local_ip().unwrap().to_string()],
-        version: "0.0.1".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
         git_revision: "".to_string(),
         platform: Some("esp32-build".to_string()),
     };

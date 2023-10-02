@@ -6,3 +6,4 @@ plugins:
       - bytes=.viam.component.camera.v1
       - bytes=.proto.rpc.webrtc.v1
       - type_attribute=.viam.common.v1.ResourceName=#[derive(Eq\, Hash)]
+      - compile_well_known_types

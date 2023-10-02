@@ -5,8 +5,8 @@ use crate::common::sensor::SensorResult;
 use crate::common::sensor::SensorT;
 use crate::common::sensor::TypedReadingsResult;
 use crate::common::status::Status;
+use crate::google;
 use std::cell::RefCell;
-use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -40,9 +40,9 @@ impl SensorT<f64> for MoistureSensor {
 }
 
 impl Status for MoistureSensor {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
-        Ok(Some(prost_types::Struct {
-            fields: BTreeMap::new(),
+    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+        Ok(Some(google::protobuf::Struct {
+            fields: HashMap::new(),
         }))
     }
 }

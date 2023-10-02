@@ -9,9 +9,9 @@ pub struct Robot {
     #[prost(string, tag="3")]
     pub location: ::prost::alloc::string::String,
     #[prost(message, optional, tag="4")]
-    pub last_access: ::core::option::Option<::prost_types::Timestamp>,
+    pub last_access: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
     #[prost(message, optional, tag="5")]
-    pub created_on: ::core::option::Option<::prost_types::Timestamp>,
+    pub created_on: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -32,11 +32,11 @@ pub struct RobotPart {
     #[prost(string, tag="12")]
     pub location_id: ::prost::alloc::string::String,
     #[prost(message, optional, tag="5")]
-    pub robot_config: ::core::option::Option<::prost_types::Struct>,
+    pub robot_config: ::core::option::Option<super::super::super::google::protobuf::Struct>,
     #[prost(message, optional, tag="6")]
-    pub last_access: ::core::option::Option<::prost_types::Timestamp>,
+    pub last_access: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
     #[prost(message, optional, tag="7")]
-    pub user_supplied_info: ::core::option::Option<::prost_types::Struct>,
+    pub user_supplied_info: ::core::option::Option<super::super::super::google::protobuf::Struct>,
     #[prost(bool, tag="8")]
     pub main_part: bool,
     #[prost(string, tag="9")]
@@ -44,7 +44,7 @@ pub struct RobotPart {
     #[prost(string, tag="11")]
     pub local_fqdn: ::prost::alloc::string::String,
     #[prost(message, optional, tag="13")]
-    pub created_on: ::core::option::Option<::prost_types::Timestamp>,
+    pub created_on: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
     /// List of secrets allowed for authentication.
     #[prost(message, repeated, tag="14")]
     pub secrets: ::prost::alloc::vec::Vec<SharedSecret>,
@@ -57,7 +57,7 @@ pub struct RobotPartHistoryEntry {
     #[prost(string, tag="2")]
     pub robot: ::prost::alloc::string::String,
     #[prost(message, optional, tag="3")]
-    pub when: ::core::option::Option<::prost_types::Timestamp>,
+    pub when: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
     #[prost(message, optional, tag="4")]
     pub old: ::core::option::Option<RobotPart>,
 }
@@ -73,13 +73,15 @@ pub struct Organization {
     #[prost(string, tag="2")]
     pub name: ::prost::alloc::string::String,
     #[prost(message, optional, tag="3")]
-    pub created_on: ::core::option::Option<::prost_types::Timestamp>,
+    pub created_on: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
     #[prost(string, tag="4")]
     pub public_namespace: ::prost::alloc::string::String,
     /// GCS region of the organization. Locations created under this org will have their GCS region set to this by default and packages
     /// associated with this org will be stored in this region.
     #[prost(string, tag="5")]
     pub default_region: ::prost::alloc::string::String,
+    #[prost(string, optional, tag="6")]
+    pub cid: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -89,7 +91,9 @@ pub struct OrganizationMember {
     #[prost(string, repeated, tag="2")]
     pub emails: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(message, optional, tag="3")]
-    pub date_added: ::core::option::Option<::prost_types::Timestamp>,
+    pub date_added: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
+    #[prost(message, optional, tag="4")]
+    pub last_login: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -105,9 +109,9 @@ pub struct OrganizationInvite {
     #[prost(string, tag="2")]
     pub email: ::prost::alloc::string::String,
     #[prost(message, optional, tag="3")]
-    pub created_on: ::core::option::Option<::prost_types::Timestamp>,
-    #[prost(int64, tag="4")]
-    pub robot_count: i64,
+    pub created_on: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
+    #[prost(message, repeated, tag="4")]
+    pub authorizations: ::prost::alloc::vec::Vec<Authorization>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -157,6 +161,8 @@ pub struct UpdateOrganizationRequest {
     /// The new GCS region to associate the org with.
     #[prost(string, optional, tag="4")]
     pub region: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag="5")]
+    pub cid: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -316,7 +322,7 @@ pub struct Location {
     pub organizations: ::prost::alloc::vec::Vec<LocationOrganization>,
     /// Location creation timestamp.
     #[prost(message, optional, tag="3")]
-    pub created_on: ::core::option::Option<::prost_types::Timestamp>,
+    pub created_on: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
     ///
     #[prost(int32, tag="7")]
     pub robot_count: i32,
@@ -335,7 +341,7 @@ pub struct SharedSecret {
     pub secret: ::prost::alloc::string::String,
     /// Date/time the secret was first created.
     #[prost(message, optional, tag="3")]
-    pub created_on: ::core::option::Option<::prost_types::Timestamp>,
+    pub created_on: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
     /// State of the shared secret. In most cases it should be enabled. We may support
     /// disabling a specific secret while keeping it in the database.
     #[prost(enumeration="shared_secret::State", tag="4")]
@@ -604,17 +610,17 @@ pub struct LogEntry {
     #[prost(string, tag="2")]
     pub level: ::prost::alloc::string::String,
     #[prost(message, optional, tag="3")]
-    pub time: ::core::option::Option<::prost_types::Timestamp>,
+    pub time: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
     #[prost(string, tag="4")]
     pub logger_name: ::prost::alloc::string::String,
     #[prost(string, tag="5")]
     pub message: ::prost::alloc::string::String,
     #[prost(message, optional, tag="6")]
-    pub caller: ::core::option::Option<::prost_types::Struct>,
+    pub caller: ::core::option::Option<super::super::super::google::protobuf::Struct>,
     #[prost(string, tag="7")]
     pub stack: ::prost::alloc::string::String,
     #[prost(message, repeated, tag="8")]
-    pub fields: ::prost::alloc::vec::Vec<::prost_types::Struct>,
+    pub fields: ::prost::alloc::vec::Vec<super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -660,7 +666,7 @@ pub struct UpdateRobotPartRequest {
     #[prost(string, tag="2")]
     pub name: ::prost::alloc::string::String,
     #[prost(message, optional, tag="3")]
-    pub robot_config: ::core::option::Option<::prost_types::Struct>,
+    pub robot_config: ::core::option::Option<super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -690,6 +696,30 @@ pub struct DeleteRobotPartRequest {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetRobotApiKeysRequest {
+    #[prost(string, tag="1")]
+    pub robot_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ApiKey {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub key: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="4")]
+    pub created_on: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetRobotApiKeysResponse {
+    #[prost(message, repeated, tag="1")]
+    pub api_keys: ::prost::alloc::vec::Vec<ApiKey>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DeleteRobotPartResponse {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -700,13 +730,13 @@ pub struct Fragment {
     #[prost(string, tag="2")]
     pub name: ::prost::alloc::string::String,
     #[prost(message, optional, tag="3")]
-    pub fragment: ::core::option::Option<::prost_types::Struct>,
+    pub fragment: ::core::option::Option<super::super::super::google::protobuf::Struct>,
     #[prost(string, tag="4")]
     pub organization_owner: ::prost::alloc::string::String,
     #[prost(bool, tag="5")]
     pub public: bool,
     #[prost(message, optional, tag="6")]
-    pub created_on: ::core::option::Option<::prost_types::Timestamp>,
+    pub created_on: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
     #[prost(string, tag="7")]
     pub organization_name: ::prost::alloc::string::String,
     /// number of robot parts using this fragment
@@ -751,7 +781,7 @@ pub struct CreateFragmentRequest {
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
     #[prost(message, optional, tag="2")]
-    pub config: ::core::option::Option<::prost_types::Struct>,
+    pub config: ::core::option::Option<super::super::super::google::protobuf::Struct>,
     #[prost(string, tag="3")]
     pub organization_id: ::prost::alloc::string::String,
 }
@@ -769,7 +799,7 @@ pub struct UpdateFragmentRequest {
     #[prost(string, tag="2")]
     pub name: ::prost::alloc::string::String,
     #[prost(message, optional, tag="3")]
-    pub config: ::core::option::Option<::prost_types::Struct>,
+    pub config: ::core::option::Option<super::super::super::google::protobuf::Struct>,
     #[prost(bool, optional, tag="4")]
     pub public: ::core::option::Option<bool>,
 }
@@ -902,6 +932,8 @@ pub struct Authorization {
     pub identity_id: ::prost::alloc::string::String,
     #[prost(string, tag="6")]
     pub organization_id: ::prost::alloc::string::String,
+    #[prost(string, tag="7")]
+    pub identity_type: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -922,6 +954,18 @@ pub struct RemoveRoleRequest {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RemoveRoleResponse {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ChangeRoleRequest {
+    #[prost(message, optional, tag="1")]
+    pub old_authorization: ::core::option::Option<Authorization>,
+    #[prost(message, optional, tag="2")]
+    pub new_authorization: ::core::option::Option<Authorization>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ChangeRoleResponse {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -974,7 +1018,7 @@ pub struct CreateModuleRequest {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CreateModuleResponse {
-    /// The id of the module containing the namespace and name
+    /// The id of the module (formatted as prefix:name where prefix is the module owner's orgid or namespace)
     #[prost(string, tag="1")]
     pub module_id: ::prost::alloc::string::String,
     /// The detail page of the module
@@ -984,12 +1028,9 @@ pub struct CreateModuleResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct UpdateModuleRequest {
-    /// The id of the module being updated, containing module name or namespace and module name
+    /// The id of the module (formatted as prefix:name where prefix is the module owner's orgid or namespace)
     #[prost(string, tag="1")]
     pub module_id: ::prost::alloc::string::String,
-    /// The organization of the module being updated, required if no namespace exists in the module_id
-    #[prost(string, optional, tag="7")]
-    pub organization_id: ::core::option::Option<::prost::alloc::string::String>,
     /// The visibility that should be set for the module
     #[prost(enumeration="Visibility", tag="2")]
     pub visibility: i32,
@@ -1026,12 +1067,9 @@ pub struct Model {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ModuleFileInfo {
-    /// The id of the module being uploaded, containing module name or namespace and module name
+    /// The id of the module (formatted as prefix:name where prefix is the module owner's orgid or namespace)
     #[prost(string, tag="1")]
     pub module_id: ::prost::alloc::string::String,
-    /// The organization of the module being updated, required if no namespace exists in the module_id
-    #[prost(string, optional, tag="4")]
-    pub organization_id: ::core::option::Option<::prost::alloc::string::String>,
     /// The semver string that represents the new major/minor/patch version of the module
     #[prost(string, tag="2")]
     pub version: ::prost::alloc::string::String,
@@ -1068,12 +1106,9 @@ pub struct UploadModuleFileResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetModuleRequest {
-    /// The id of the module being retrieved, containing module name or namespace and module name
+    /// The id of the module (formatted as prefix:name where prefix is the module owner's orgid or namespace)
     #[prost(string, tag="1")]
     pub module_id: ::prost::alloc::string::String,
-    /// The organization of the module being updated, required if no namespace exists in the module_id
-    #[prost(string, optional, tag="2")]
-    pub organization_id: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1085,12 +1120,9 @@ pub struct GetModuleResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Module {
-    /// The id of the module, containing module name or namespace and module name
+    /// The id of the module (formatted as prefix:name where prefix is the module owner's orgid or namespace)
     #[prost(string, tag="1")]
     pub module_id: ::prost::alloc::string::String,
-    /// The id of the organization that owns the module
-    #[prost(string, tag="10")]
-    pub organization_id: ::prost::alloc::string::String,
     /// The name of the module
     #[prost(string, tag="2")]
     pub name: ::prost::alloc::string::String,
@@ -1098,6 +1130,7 @@ pub struct Module {
     #[prost(enumeration="Visibility", tag="3")]
     pub visibility: i32,
     /// The versions of the module that are available
+    /// When this is returned from the backend, the versions are sorted in ascending order by the semver version
     #[prost(message, repeated, tag="4")]
     pub versions: ::prost::alloc::vec::Vec<VersionHistory>,
     /// The url to reference for documentation, code, etc.
@@ -1109,15 +1142,22 @@ pub struct Module {
     /// A list of models that are available in the module
     #[prost(message, repeated, tag="7")]
     pub models: ::prost::alloc::vec::Vec<Model>,
-    /// The executable to run to start the module program
-    #[prost(string, tag="11")]
-    pub entrypoint: ::prost::alloc::string::String,
     /// The total number of robots using this module
     #[prost(int64, tag="8")]
     pub total_robot_usage: i64,
     /// The total number of organizations using this module
     #[prost(int64, tag="9")]
     pub total_organization_usage: i64,
+    /// The id of the organization that owns the module
+    #[prost(string, tag="10")]
+    pub organization_id: ::prost::alloc::string::String,
+    /// The executable to run to start the module program
+    #[prost(string, tag="11")]
+    pub entrypoint: ::prost::alloc::string::String,
+    /// The public namespace of the organization that owns the module
+    /// This is empty if no public namespace is set
+    #[prost(string, tag="12")]
+    pub public_namespace: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1128,6 +1168,12 @@ pub struct VersionHistory {
     /// The uploads that are available for this module version
     #[prost(message, repeated, tag="2")]
     pub files: ::prost::alloc::vec::Vec<Uploads>,
+    /// The models that this verion of the module provides
+    #[prost(message, repeated, tag="3")]
+    pub models: ::prost::alloc::vec::Vec<Model>,
+    /// The entrypoint for this version of the module
+    #[prost(string, tag="4")]
+    pub entrypoint: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1137,7 +1183,7 @@ pub struct Uploads {
     pub platform: ::prost::alloc::string::String,
     /// The time when the file was uploaded
     #[prost(message, optional, tag="2")]
-    pub uploaded_at: ::core::option::Option<::prost_types::Timestamp>,
+    pub uploaded_at: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1184,6 +1230,22 @@ pub struct OrgDetails {
 pub struct ListOrganizationsByUserResponse {
     #[prost(message, repeated, tag="1")]
     pub orgs: ::prost::alloc::vec::Vec<OrgDetails>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateKeyRequest {
+    #[prost(message, repeated, tag="1")]
+    pub authorizations: ::prost::alloc::vec::Vec<Authorization>,
+    #[prost(string, tag="2")]
+    pub name: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateKeyResponse {
+    #[prost(string, tag="1")]
+    pub key: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub id: ::prost::alloc::string::String,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -1251,15 +1313,15 @@ pub struct InvoiceSummary {
     #[prost(string, tag="1")]
     pub id: ::prost::alloc::string::String,
     #[prost(message, optional, tag="2")]
-    pub invoice_date: ::core::option::Option<::prost_types::Timestamp>,
+    pub invoice_date: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
     #[prost(double, tag="3")]
     pub invoice_amount: f64,
     #[prost(string, tag="4")]
     pub status: ::prost::alloc::string::String,
     #[prost(message, optional, tag="5")]
-    pub due_date: ::core::option::Option<::prost_types::Timestamp>,
+    pub due_date: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
     #[prost(message, optional, tag="6")]
-    pub paid_date: ::core::option::Option<::prost_types::Timestamp>,
+    pub paid_date: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1275,7 +1337,7 @@ pub struct BillableResourceEvent {
     #[prost(string, tag="5")]
     pub usage_cost: ::prost::alloc::string::String,
     #[prost(message, optional, tag="6")]
-    pub occurred_at: ::core::option::Option<::prost_types::Timestamp>,
+    pub occurred_at: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
     #[prost(string, tag="7")]
     pub user_name: ::prost::alloc::string::String,
 }
@@ -1285,13 +1347,13 @@ pub struct Invoice {
     #[prost(string, tag="1")]
     pub id: ::prost::alloc::string::String,
     #[prost(message, optional, tag="2")]
-    pub invoice_date: ::core::option::Option<::prost_types::Timestamp>,
+    pub invoice_date: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
     #[prost(double, tag="3")]
     pub invoice_amount: f64,
     #[prost(string, tag="4")]
     pub status: ::prost::alloc::string::String,
     #[prost(message, optional, tag="5")]
-    pub due_date: ::core::option::Option<::prost_types::Timestamp>,
+    pub due_date: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
     #[prost(message, repeated, tag="6")]
     pub items: ::prost::alloc::vec::Vec<BillableResourceEvent>,
     #[prost(string, tag="7")]
@@ -1351,9 +1413,9 @@ pub struct GetCurrentMonthUsageRequest {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetCurrentMonthUsageResponse {
     #[prost(message, optional, tag="1")]
-    pub start_date: ::core::option::Option<::prost_types::Timestamp>,
+    pub start_date: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
     #[prost(message, optional, tag="2")]
-    pub end_date: ::core::option::Option<::prost_types::Timestamp>,
+    pub end_date: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
     #[prost(double, tag="3")]
     pub cloud_storage_usage_cost: f64,
     #[prost(double, tag="4")]
@@ -1385,7 +1447,7 @@ pub struct GetUnpaidBalanceResponse {
     #[prost(double, tag="1")]
     pub unpaid_balance: f64,
     #[prost(message, optional, tag="2")]
-    pub unpaid_balance_due_date: ::core::option::Option<::prost_types::Timestamp>,
+    pub unpaid_balance_due_date: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
 }
 /// TODO(APP-1865) may want to remove
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -1431,6 +1493,9 @@ pub struct GetOrgBillingInformationResponse {
     /// defined if type is PAYMENT_METHOD_TYPE_CARD
     #[prost(message, optional, tag="3")]
     pub method: ::core::option::Option<PaymentMethodCard>,
+    /// Only return billing_tier for billing dashboard admin users
+    #[prost(string, optional, tag="4")]
+    pub billing_tier: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1474,7 +1539,7 @@ pub struct GetBillingSummaryResponse {
     pub current_month_balance: f64,
     /// due date for current month usage
     #[prost(message, optional, tag="7")]
-    pub current_month_due_date: ::core::option::Option<::prost_types::Timestamp>,
+    pub current_month_due_date: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
     #[prost(string, tag="8")]
     pub invoice_email: ::prost::alloc::string::String,
     #[prost(message, optional, tag="9")]
@@ -1604,7 +1669,7 @@ pub struct ComponentConfig {
     #[prost(message, repeated, tag="7")]
     pub service_configs: ::prost::alloc::vec::Vec<ResourceLevelServiceConfig>,
     #[prost(message, optional, tag="8")]
-    pub attributes: ::core::option::Option<::prost_types::Struct>,
+    pub attributes: ::core::option::Option<super::super::super::google::protobuf::Struct>,
     #[prost(string, tag="9")]
     pub api: ::prost::alloc::string::String,
 }
@@ -1616,7 +1681,7 @@ pub struct ResourceLevelServiceConfig {
     pub r#type: ::prost::alloc::string::String,
     /// TODO(adam): Should this be move to a structured type as defined in the typescript frontend.
     #[prost(message, optional, tag="2")]
-    pub attributes: ::core::option::Option<::prost_types::Struct>,
+    pub attributes: ::core::option::Option<super::super::super::google::protobuf::Struct>,
 }
 /// A ProcessConfig describes how to manage a system process.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -1637,7 +1702,7 @@ pub struct ProcessConfig {
     #[prost(int32, tag="7")]
     pub stop_signal: i32,
     #[prost(message, optional, tag="8")]
-    pub stop_timeout: ::core::option::Option<::prost_types::Duration>,
+    pub stop_timeout: ::core::option::Option<super::super::super::google::protobuf::Duration>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1651,13 +1716,15 @@ pub struct ServiceConfig {
     #[prost(string, tag="3")]
     pub r#type: ::prost::alloc::string::String,
     #[prost(message, optional, tag="4")]
-    pub attributes: ::core::option::Option<::prost_types::Struct>,
+    pub attributes: ::core::option::Option<super::super::super::google::protobuf::Struct>,
     #[prost(string, repeated, tag="5")]
     pub depends_on: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(string, tag="6")]
     pub model: ::prost::alloc::string::String,
     #[prost(string, tag="9")]
     pub api: ::prost::alloc::string::String,
+    #[prost(message, repeated, tag="10")]
+    pub service_configs: ::prost::alloc::vec::Vec<ResourceLevelServiceConfig>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1677,7 +1744,7 @@ pub struct NetworkConfig {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SessionsConfig {
     #[prost(message, optional, tag="1")]
-    pub heartbeat_window: ::core::option::Option<::prost_types::Duration>,
+    pub heartbeat_window: ::core::option::Option<super::super::super::google::protobuf::Duration>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1695,7 +1762,7 @@ pub struct JwksFile {
     /// JSON Web Keys (JWKS) file as arbitary json.
     /// See <https://www.rfc-editor.org/rfc/rfc7517>
     #[prost(message, optional, tag="1")]
-    pub json: ::core::option::Option<::prost_types::Struct>,
+    pub json: ::core::option::Option<super::super::super::google::protobuf::Struct>,
 }
 /// ExternalAuthConfig describes how a viam managed robot can accept
 /// credentials signed by the cloud app.
@@ -1711,7 +1778,7 @@ pub struct AuthHandlerConfig {
     #[prost(enumeration="CredentialsType", tag="1")]
     pub r#type: i32,
     #[prost(message, optional, tag="5")]
-    pub config: ::core::option::Option<::prost_types::Struct>,
+    pub config: ::core::option::Option<super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1863,9 +1930,9 @@ pub struct RemoteConfig {
     #[prost(bool, tag="6")]
     pub insecure: bool,
     #[prost(message, optional, tag="7")]
-    pub connection_check_interval: ::core::option::Option<::prost_types::Duration>,
+    pub connection_check_interval: ::core::option::Option<super::super::super::google::protobuf::Duration>,
     #[prost(message, optional, tag="8")]
-    pub reconnect_interval: ::core::option::Option<::prost_types::Duration>,
+    pub reconnect_interval: ::core::option::Option<super::super::super::google::protobuf::Duration>,
     #[prost(message, repeated, tag="9")]
     pub service_configs: ::prost::alloc::vec::Vec<ResourceLevelServiceConfig>,
     /// Secret is a helper for a robot location secret.
@@ -1979,7 +2046,7 @@ pub struct NeedsRestartResponse {
     #[prost(bool, tag="2")]
     pub must_restart: bool,
     #[prost(message, optional, tag="3")]
-    pub restart_check_interval: ::core::option::Option<::prost_types::Duration>,
+    pub restart_check_interval: ::core::option::Option<super::super::super::google::protobuf::Duration>,
 }
 /// ModuleConfig is the configuration for a module.
 #[allow(clippy::derive_partial_eq_without_eq)]

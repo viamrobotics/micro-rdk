@@ -6,7 +6,7 @@ pub struct RecordRequest {
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
     #[prost(message, optional, tag="2")]
-    pub duration: ::core::option::Option<::prost_types::Duration>,
+    pub duration: ::core::option::Option<super::super::super::super::google::protobuf::Duration>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -71,7 +71,7 @@ pub struct PropertiesResponse {
     #[prost(uint32, tag="1")]
     pub channel_count: u32,
     #[prost(message, optional, tag="2")]
-    pub latency: ::core::option::Option<::prost_types::Duration>,
+    pub latency: ::core::option::Option<super::super::super::super::google::protobuf::Duration>,
     #[prost(uint32, tag="3")]
     pub sample_rate: u32,
     #[prost(uint32, tag="4")]

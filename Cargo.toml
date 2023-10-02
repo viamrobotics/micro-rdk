@@ -14,7 +14,6 @@ crate-type = ["lib"]
 
 [patch.crates-io]
 esp-idf-sys = {git = "https://github.com/npmenard/esp-idf-sys.git"}
-polling = { git = "https://github.com/esp-rs-compat/polling" }
 smol = { git = "https://github.com/esp-rs-compat/smol" }
 socket2 = { git = "https://github.com/npmenard/socket2.git" }
 async-io = {git = "https://github.com/npmenard/async-io.git"}
@@ -49,7 +48,6 @@ log = "0.4"
 mdns-sd = { version = "0.5.10", optional = true, default-features = false, features = ["async"] }
 phf = { version = "0.11", features = ["macros"] }
 prost = "0.11.0"
-prost-types = "0.11.1"
 rustls = { version = "0.20.7", features = ["logging","tls12"], optional = true }
 rustls-pemfile = { version = "1.0.2", optional = true }
 sctp-proto = "0.1.4"
@@ -73,6 +71,7 @@ async-std-openssl = {version = "0.6.3", optional = true }
 thiserror = "1.0.40"
 pin-project-lite = "0.2.9"
 url = "2.4.0"
+once_cell = "1.18.0"
 
 [build-dependencies]
 anyhow = "1"

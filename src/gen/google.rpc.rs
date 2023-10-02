@@ -22,7 +22,7 @@ pub struct Status {
     /// A list of messages that carry the error details.  There is a common set of
     /// message types for APIs to use.
     #[prost(message, repeated, tag="3")]
-    pub details: ::prost::alloc::vec::Vec<::prost_types::Any>,
+    pub details: ::prost::alloc::vec::Vec<super::protobuf::Any>,
 }
 /// The canonical error codes for gRPC APIs.
 ///
@@ -293,7 +293,7 @@ pub struct ErrorInfo {
 pub struct RetryInfo {
     /// Clients should wait at least this long between retrying the same request.
     #[prost(message, optional, tag="1")]
-    pub retry_delay: ::core::option::Option<::prost_types::Duration>,
+    pub retry_delay: ::core::option::Option<super::protobuf::Duration>,
 }
 /// Describes additional debugging info.
 #[allow(clippy::derive_partial_eq_without_eq)]

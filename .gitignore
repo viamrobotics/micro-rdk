@@ -3,4 +3,5 @@
 Cargo.lock
 /examples/viam.json
 /examples/target/*
+/micro-rdk-installer/target/*
 .vscode

@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 use crate::common::status::Status;
+use crate::google;
 use log::*;
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -255,22 +256,22 @@ impl Motor for FakeMotor {
     }
 }
 impl Status for FakeMotor {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
-        let mut bt = BTreeMap::new();
-        bt.insert(
+    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+        let mut hm = HashMap::new();
+        hm.insert(
             "position".to_string(),
-            prost_types::Value {
-                kind: Some(prost_types::value::Kind::NumberValue(self.pos)),
+            google::protobuf::Value {
+                kind: Some(google::protobuf::value::Kind::NumberValue(self.pos)),
             },
         );
-        bt.insert(
+        hm.insert(
             "position_reporting".to_string(),
-            prost_types::Value {
-                kind: Some(prost_types::value::Kind::BoolValue(true)),
+            google::protobuf::Value {
+                kind: Some(google::protobuf::value::Kind::BoolValue(true)),
             },
         );
 
-        Ok(Some(prost_types::Struct { fields: bt }))
+        Ok(Some(google::protobuf::Struct { fields: hm }))
     }
 }
 
@@ -336,9 +337,9 @@ impl Motor for FakeMotorWithDependency {
 }
 
 impl Status for FakeMotorWithDependency {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
-        let bt = BTreeMap::new();
-        Ok(Some(prost_types::Struct { fields: bt }))
+    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+        let hm = HashMap::new();
+        Ok(Some(google::protobuf::Struct { fields: hm }))
     }
 }
 

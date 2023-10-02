@@ -48,13 +48,16 @@ pub struct Esp32TlsStream {
 }
 
 pub struct Esp32TlsServerConfig {
-    srv_cert: &'static [&'static [u8]],
+    srv_cert: [Vec<u8>; 2],
     srv_key: *const u8,
     srv_key_len: u32,
 }
 
 impl Esp32TlsServerConfig {
-    pub fn new(srv_cert: &'static [&'static [u8]], srv_key: *const u8, srv_key_len: u32) -> Self {
+    // An Esp32TlsServerConfig takes a certificate and key bytearray (in the form of a pointer and length)
+    // The PEM certificate has two parts: the first is the certificate chain and the second is the
+    // certificate authority.
+    pub fn new(srv_cert: [Vec<u8>; 2], srv_key: *const u8, srv_key_len: u32) -> Self {
         Esp32TlsServerConfig {
             srv_cert,
             srv_key,

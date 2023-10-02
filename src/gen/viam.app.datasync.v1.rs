@@ -38,11 +38,34 @@ pub struct FileUploadResponse {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StreamingDataCaptureUploadRequest {
+    #[prost(oneof="streaming_data_capture_upload_request::UploadPacket", tags="1, 2")]
+    pub upload_packet: ::core::option::Option<streaming_data_capture_upload_request::UploadPacket>,
+}
+/// Nested message and enum types in `StreamingDataCaptureUploadRequest`.
+pub mod streaming_data_capture_upload_request {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum UploadPacket {
+        #[prost(message, tag="1")]
+        Metadata(super::DataCaptureUploadMetadata),
+        #[prost(bytes, tag="2")]
+        Data(::prost::alloc::vec::Vec<u8>),
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StreamingDataCaptureUploadResponse {
+    #[prost(string, tag="1")]
+    pub file_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SensorMetadata {
     #[prost(message, optional, tag="1")]
-    pub time_requested: ::core::option::Option<::prost_types::Timestamp>,
+    pub time_requested: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
     #[prost(message, optional, tag="2")]
-    pub time_received: ::core::option::Option<::prost_types::Timestamp>,
+    pub time_received: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -58,7 +81,7 @@ pub mod sensor_data {
 #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Data {
         #[prost(message, tag="2")]
-        Struct(::prost_types::Struct),
+        Struct(super::super::super::super::super::google::protobuf::Struct),
         #[prost(bytes, tag="3")]
         Binary(::prost::alloc::vec::Vec<u8>),
     }
@@ -85,7 +108,7 @@ pub struct UploadMetadata {
     #[prost(string, tag="7")]
     pub file_name: ::prost::alloc::string::String,
     #[prost(map="string, message", tag="8")]
-    pub method_parameters: ::std::collections::HashMap<::prost::alloc::string::String, ::prost_types::Any>,
+    pub method_parameters: ::std::collections::HashMap<::prost::alloc::string::String, super::super::super::super::google::protobuf::Any>,
     #[prost(string, tag="9")]
     pub file_extension: ::prost::alloc::string::String,
     #[prost(string, repeated, tag="10")]
@@ -95,9 +118,9 @@ pub struct UploadMetadata {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CaptureInterval {
     #[prost(message, optional, tag="1")]
-    pub start: ::core::option::Option<::prost_types::Timestamp>,
+    pub start: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
     #[prost(message, optional, tag="2")]
-    pub end: ::core::option::Option<::prost_types::Timestamp>,
+    pub end: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -111,11 +134,19 @@ pub struct DataCaptureMetadata {
     #[prost(enumeration="DataType", tag="5")]
     pub r#type: i32,
     #[prost(map="string, message", tag="6")]
-    pub method_parameters: ::std::collections::HashMap<::prost::alloc::string::String, ::prost_types::Any>,
+    pub method_parameters: ::std::collections::HashMap<::prost::alloc::string::String, super::super::super::super::google::protobuf::Any>,
     #[prost(string, tag="7")]
     pub file_extension: ::prost::alloc::string::String,
     #[prost(string, repeated, tag="8")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DataCaptureUploadMetadata {
+    #[prost(message, optional, tag="1")]
+    pub upload_metadata: ::core::option::Option<UploadMetadata>,
+    #[prost(message, optional, tag="2")]
+    pub sensor_metadata: ::core::option::Option<SensorMetadata>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]

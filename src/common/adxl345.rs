@@ -2,6 +2,7 @@
 use crate::common::i2c::I2cHandleType;
 use crate::common::math_utils::Vector3;
 use crate::common::movement_sensor::{MovementSensor, MovementSensorSupportedMethods};
+use crate::google;
 
 use super::board::Board;
 use super::config::ConfigType;
@@ -10,7 +11,7 @@ use super::movement_sensor::MovementSensorType;
 use super::registry::{get_board_from_dependencies, ComponentRegistry, Dependency};
 use super::status::Status;
 
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::mem::size_of;
 use std::sync::{Arc, Mutex};
 
@@ -145,9 +146,9 @@ impl MovementSensor for ADXL345 {
 }
 
 impl Status for ADXL345 {
-    fn get_status(&self) -> anyhow::Result<Option<prost_types::Struct>> {
-        Ok(Some(prost_types::Struct {
-            fields: BTreeMap::new(),
+    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+        Ok(Some(google::protobuf::Struct {
+            fields: HashMap::new(),
         }))
     }
 }
