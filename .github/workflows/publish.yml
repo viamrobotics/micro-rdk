@@ -59,9 +59,9 @@ jobs:
       id: check-tag
       run: |
         if echo ${{ github.event.ref }} | grep -Eq '^refs/tags/v.*rc[0-9]{1}$'; then
-              echo "match=true" >> $GITHUB_OUTPUT
+              echo "is_rc_release=true" >> $GITHUB_OUTPUT
         else
-              echo "match=false" >> $GITHUB_OUTPUT
+              echo "is_rc_release=false" >> $GITHUB_OUTPUT
         fi
     - name: Upload release
       uses: actions/upload-artifact@v2
@@ -69,6 +69,7 @@ jobs:
         name: micro-rdk-installer-${{ matrix.job.file_suffix }}
         path: micro-rdk-installer/micro-rdk-installer-${{ matrix.job.file_suffix }}
 
+  # github-actions does not have a runner that supports arm64 linux and cross-compilation does not seem to work for the ring crate
   build-installer-arm64-linux:
     runs-on: [x64, qemu-host]
     container:
