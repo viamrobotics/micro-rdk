@@ -14,9 +14,9 @@ jobs:
       fail-fast: false
       matrix:
         job:
-          - { target: x86_64-unknown-linux-gnu, exe: amd64-linux, os: ubuntu-latest}
-          - { target: x86_64-apple-darwin, exe: macos, os: macos-latest}
-          - { target: x86_64-pc-windows-gnu, exe: windows.exe, os: windows-latest}    
+          - { target: x86_64-unknown-linux-gnu, file_suffix: amd64-linux, os: ubuntu-latest}
+          - { target: x86_64-apple-darwin, file_suffix: macos, os: macos-latest}
+          - { target: x86_64-pc-windows-gnu, file_suffix: windows.exe, os: windows-latest}    
     runs-on: ${{ matrix.job.os }}
     defaults: 
       run:
@@ -50,11 +50,11 @@ jobs:
     - name: Rename result
       if: ${{ matrix.job.os != 'windows-latest' }}
       run: |
-        cp target/${{ matrix.job.target }}/release/micro-rdk-installer micro-rdk-installer-${{ matrix.job.exe }}
+        cp target/${{ matrix.job.target }}/release/micro-rdk-installer micro-rdk-installer-${{ matrix.job.file_suffix }}
     - name: Rename result (Windows)
       if: ${{ matrix.job.os == 'windows-latest' }}
       run: |
-        cp target/${{ matrix.job.target }}/release/micro-rdk-installer.exe micro-rdk-installer-${{ matrix.job.exe }}
+        cp target/${{ matrix.job.target }}/release/micro-rdk-installer.exe micro-rdk-installer-${{ matrix.job.file_suffix }}
     - name: Check release type
       id: check-tag
       run: |
@@ -66,8 +66,8 @@ jobs:
     - name: Upload release
       uses: actions/upload-artifact@v2
       with:
-        name: micro-rdk-installer-${{ matrix.job.exe }}
-        path: micro-rdk-installer/micro-rdk-installer-${{ matrix.job.exe }}
+        name: micro-rdk-installer-${{ matrix.job.file_suffix }}
+        path: micro-rdk-installer/micro-rdk-installer-${{ matrix.job.file_suffix }}
 
   build-installer-arm64-linux:
     runs-on: [x64, qemu-host]
