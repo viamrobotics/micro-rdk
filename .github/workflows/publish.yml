@@ -71,8 +71,7 @@ jobs:
 
   # github-actions does not have a runner that supports arm64 linux and cross-compilation does not seem to work for the ring crate
   build-installer-arm64-linux:
-    runs-on: [x64, qemu-host]
-    container:
+    runs-on: [buildjet-8vcpu-ubuntu-2204-arm]
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:arm64
     needs: tests
     defaults: 
@@ -90,7 +89,7 @@ jobs:
         profile: minimal
         toolchain: 1.70.0
         override: true
-        target: 
+        target: ${{ matrix.job.target }}
         default: true
     - name: Build installer binary
       run: |
