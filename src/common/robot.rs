@@ -16,6 +16,7 @@ use crate::{
     common::movement_sensor::MovementSensor,
     common::sensor::Sensor,
     common::status::Status,
+    common::stop::Stoppable,
     proto::{
         app::v1::{ComponentConfig, ConfigResponse},
         common::{self, v1::ResourceName},
@@ -589,6 +590,21 @@ impl LocalRobot {
             Some(_) => None,
             None => None,
         }
+    }
+
+    pub fn stop_all(&mut self) -> anyhow::Result<()> {
+        for resource in self.resources.values_mut() {
+            match resource {
+                ResourceType::Base(b) => {
+                    b.stop()?;
+                }
+                ResourceType::Motor(m) => {
+                    m.stop()?;
+                }
+                _ => continue,
+            }
+        }
+        Ok(())
     }
 }
 
