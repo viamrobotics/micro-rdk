@@ -19,18 +19,17 @@ use esp_idf_hal::adc::AdcChannelDriver;
 use esp_idf_hal::adc::AdcDriver;
 use esp_idf_hal::adc::Atten11dB;
 use esp_idf_hal::adc::ADC1;
-use esp_idf_hal::gpio::{AnyIOPin, InputOutput, InterruptType, PinDriver, Pull};
-use esp_idf_sys::{esp, gpio_install_isr_service, gpio_isr_handler_add, ESP_INTR_FLAG_IRAM};
+use esp_idf_hal::gpio::InterruptType;
+
 use log::*;
-use once_cell::sync::{Lazy, OnceCell};
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use super::analog::Esp32AnalogReader;
 use super::i2c::{Esp32I2C, Esp32I2cConfig};
+use super::pin::Esp32GPIOPin;
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
@@ -38,109 +37,6 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
         .is_err()
     {
         log::error!("esp32 board type already registered");
-    }
-}
-
-fn install_gpio_isr_service() -> anyhow::Result<()> {
-    static GPIO_ISR_SERVICE_INSTALLED: Lazy<Arc<OnceCell<()>>> =
-        Lazy::new(|| Arc::new(OnceCell::new()));
-    GPIO_ISR_SERVICE_INSTALLED.get_or_try_init(|| {
-        unsafe {
-            esp!(gpio_install_isr_service(ESP_INTR_FLAG_IRAM as i32))?;
-        };
-        Ok::<(), anyhow::Error>(())
-    })?;
-    Ok(())
-}
-
-/// Esp32GPIOPin is a wrapper for a pin on ESP32 as represented in esp-idf-hal
-/// and esp-idf-sys. This exists so that all micro-RDK drivers can interact
-/// with pins through the board instance and avoid conflicting uses of pins
-/// by multiple processes
-pub struct Esp32GPIOPin {
-    pin: i32,
-    driver: PinDriver<'static, AnyIOPin, InputOutput>,
-    pull: Option<Pull>,
-    interrupt_type: Option<InterruptType>,
-    event_count: Arc<AtomicU32>,
-}
-
-impl Esp32GPIOPin {
-    pub fn new(pin: i32, pull: Option<Pull>) -> anyhow::Result<Self> {
-        let mut driver = PinDriver::input_output(unsafe { AnyIOPin::new(pin) })?;
-        if let Some(pull) = pull {
-            driver.set_pull(pull)?;
-        }
-        Ok(Self {
-            pin,
-            driver,
-            pull,
-            interrupt_type: None,
-            event_count: Arc::new(AtomicU32::new(0)),
-        })
-    }
-
-    pub fn pin(&self) -> i32 {
-        self.pin
-    }
-
-    pub fn is_high(&self) -> bool {
-        self.driver.is_high()
-    }
-
-    pub fn set_high(&mut self) -> anyhow::Result<()> {
-        self.driver
-            .set_high()
-            .map_err(|e| anyhow::anyhow!("couldn't set pin {} high {}", self.pin, e))
-    }
-
-    pub fn set_low(&mut self) -> anyhow::Result<()> {
-        self.driver
-            .set_low()
-            .map_err(|e| anyhow::anyhow!("couldn't set pin {} low {}", self.pin, e))
-    }
-
-    pub fn is_interrupt(&self) -> bool {
-        self.interrupt_type.is_some()
-    }
-
-    pub fn setup_interrupt(&mut self, intr_type: InterruptType) -> anyhow::Result<()> {
-        match &self.interrupt_type {
-            Some(existing_type) => {
-                if *existing_type == intr_type {
-                    return Ok(());
-                }
-            }
-            None => {
-                self.interrupt_type = Some(intr_type);
-            }
-        };
-        install_gpio_isr_service()?;
-        self.driver.set_interrupt_type(intr_type)?;
-        self.event_count.store(0, Ordering::Relaxed);
-        unsafe {
-            // we can't use the subscribe method on PinDriver to add the handler
-            // because it requires an FnMut with a static lifetime. A possible follow-up
-            // would be to lazily initialize a Esp32GPIOPin for every possible pin (delineated by feature)
-            // in a global state which an EspBoard instance would be able to access
-            esp!(gpio_isr_handler_add(
-                self.pin,
-                Some(Self::interrupt),
-                &mut self.event_count as *mut Arc<AtomicU32> as *mut _
-            ))?;
-        }
-        Ok(())
-    }
-
-    pub fn get_event_count(&self) -> u32 {
-        self.event_count.load(Ordering::Relaxed)
-    }
-
-    #[inline(always)]
-    #[link_section = ".iram1.intr_srv"]
-    unsafe extern "C" fn interrupt(arg: *mut core::ffi::c_void) {
-        let arg: &mut Arc<AtomicU32> = &mut *(arg as *mut _);
-        arg.fetch_add(1, Ordering::Relaxed);
     }
 }
 
@@ -379,6 +275,36 @@ impl Board for EspBoard {
             .find(|p| p.pin() == pin)
             .context(format!("pin {pin} not registered on board"))?;
         Ok(pin.is_high())
+    }
+    fn get_pwm_duty(&self, pin: i32) -> f64 {
+        match self.pins.iter().find(|p| p.pin() == pin) {
+            None => 0.0,
+            Some(pin) => pin.get_pwm_duty(),
+        }
+    }
+    fn set_pwm_duty(&mut self, pin: i32, duty_cycle_pct: f64) -> anyhow::Result<()> {
+        let pin = self
+            .pins
+            .iter_mut()
+            .find(|p| p.pin() == pin)
+            .context(format!("pin {pin} not registered on board"))?;
+        pin.set_pwm_duty(duty_cycle_pct)
+    }
+    fn get_pwm_frequency(&self, pin: i32) -> anyhow::Result<u64> {
+        let pin = self
+            .pins
+            .iter()
+            .find(|p| p.pin() == pin)
+            .context(format!("pin {pin} not registered on board"))?;
+        Ok(pin.get_pwm_frequency())
+    }
+    fn set_pwm_frequency(&mut self, pin: i32, frequency_hz: u64) -> anyhow::Result<()> {
+        let pin = self
+            .pins
+            .iter_mut()
+            .find(|p| p.pin() == pin)
+            .context(format!("pin {pin} not registered on board"))?;
+        pin.set_pwm_frequency(frequency_hz)
     }
     fn get_board_status(&self) -> anyhow::Result<common::v1::BoardStatus> {
         let mut b = common::v1::BoardStatus {
