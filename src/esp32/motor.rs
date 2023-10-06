@@ -39,11 +39,10 @@
 //! ```
 //!
 #![allow(dead_code)]
-use esp_idf_hal::gpio::{AnyOutputPin, Output, PinDriver};
-use esp_idf_hal::ledc::config::TimerConfig;
-use esp_idf_hal::ledc::{LedcDriver, LedcTimerDriver, CHANNEL0, CHANNEL1, CHANNEL2};
+use esp_idf_hal::gpio::{AnyIOPin, AnyOutputPin, Output, PinDriver};
 
 use super::pin::PinExt;
+use super::pwm::{create_pwm_driver, PwmDriver};
 use crate::common::config::ConfigType;
 use crate::common::encoder::{
     Encoder, EncoderPositionType, EncoderType, COMPONENT_NAME as EncoderCompName,
@@ -64,7 +63,6 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use embedded_hal::digital::v2::OutputPin;
-use embedded_hal::PwmPin;
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
@@ -80,7 +78,6 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
             &ABMotorEsp32::<
                 PinDriver<'_, AnyOutputPin, Output>,
                 PinDriver<'_, AnyOutputPin, Output>,
-                LedcDriver<'_>,
             >::dependencies_from_config,
         )
         .is_err()
@@ -101,14 +98,11 @@ pub fn gpio_motor_from_config(cfg: ConfigType, deps: Vec<Dependency>) -> anyhow:
         MotorPinType::PwmAB => ABMotorEsp32::<
             PinDriver<'_, AnyOutputPin, Output>,
             PinDriver<'_, AnyOutputPin, Output>,
-            LedcDriver<'_>,
         >::from_config(cfg)?
         .clone(),
-        MotorPinType::PwmDirection => PwmDirectionMotorEsp32::<
-            PinDriver<'_, AnyOutputPin, Output>,
-            LedcDriver<'_>,
-        >::from_config(cfg)?
-        .clone(),
+        MotorPinType::PwmDirection => {
+            PwmDirectionMotorEsp32::<PinDriver<'_, AnyOutputPin, Output>>::from_config(cfg)?.clone()
+        }
     };
     let mut enc: Option<EncoderType> = None;
     for Dependency(_, dep) in deps {
@@ -197,28 +191,28 @@ where
 }
 
 // Represents a motor using a A, B, and PWM pins
-pub struct ABMotorEsp32<A, B, PWM> {
+pub struct ABMotorEsp32<A, B> {
     a: A,
     b: B,
-    pwm: PWM,
+    pwm_driver: PwmDriver<'static>,
     max_rpm: f64,
     dir_flip: bool,
 }
 
-impl<A, B, PWM> ABMotorEsp32<A, B, PWM>
+impl<A, B> ABMotorEsp32<A, B>
 where
     A: OutputPin + PinExt,
     B: OutputPin + PinExt,
-    PWM: PwmPin<Duty = u32>,
 {
-    pub fn new(a: A, b: B, pwm: PWM, max_rpm: f64, dir_flip: bool) -> Self {
-        Self {
+    pub fn new(a: A, b: B, pwm: AnyIOPin, max_rpm: f64, dir_flip: bool) -> anyhow::Result<Self> {
+        let pwm_driver = create_pwm_driver(pwm, 10000)?;
+        Ok(Self {
             a,
             b,
-            pwm,
+            pwm_driver,
             max_rpm,
             dir_flip,
-        }
+        })
     }
 
     pub(crate) fn dependencies_from_config(cfg: ConfigType) -> Vec<ResourceKey> {
@@ -233,43 +227,31 @@ where
     pub(crate) fn from_config(cfg: ConfigType) -> anyhow::Result<MotorType> {
         if let Ok(pins) = cfg.get_attribute::<MotorPinsConfig>("pins") {
             if pins.a.is_some() && pins.b.is_some() {
-                use esp_idf_hal::units::FromValueType;
-                let pwm_tconf = TimerConfig::default().frequency(10.kHz().into());
-                let timer =
-                    LedcTimerDriver::new(unsafe { esp_idf_hal::ledc::TIMER0::new() }, &pwm_tconf)?;
-                let pwm_pin = unsafe { AnyOutputPin::new(pins.pwm) };
-                let chan = PWMCHANNELS.lock().unwrap().take_next_channel()?;
-                let chan = match chan {
-                    PwmChannel::C0(c) => LedcDriver::new(c, timer, pwm_pin)?,
-                    PwmChannel::C1(c) => LedcDriver::new(c, timer, pwm_pin)?,
-                    PwmChannel::C2(c) => LedcDriver::new(c, timer, pwm_pin)?,
-                };
+                let pwm_pin = unsafe { AnyIOPin::new(pins.pwm) };
                 let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm")?;
                 let dir_flip: bool = cfg.get_attribute::<bool>("dir_flip").unwrap_or_default();
                 return Ok(Arc::new(Mutex::new(ABMotorEsp32::new(
                     PinDriver::output(unsafe { AnyOutputPin::new(pins.a.unwrap()) })?,
                     PinDriver::output(unsafe { AnyOutputPin::new(pins.b.unwrap()) })?,
-                    chan,
+                    pwm_pin,
                     max_rpm,
                     dir_flip,
-                ))));
+                )?)));
             }
         }
         Err(anyhow::anyhow!("cannot build motor"))
     }
 }
 
-impl<A, B, PWM> Motor for ABMotorEsp32<A, B, PWM>
+impl<A, B> Motor for ABMotorEsp32<A, B>
 where
     A: OutputPin + PinExt,
     B: OutputPin + PinExt,
-    PWM: PwmPin<Duty = u32>,
 {
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
         if !(-1.0..=1.0).contains(&pct) {
             anyhow::bail!("power outside limit")
         }
-        let max_duty = self.pwm.get_max_duty();
         let set_forwards = (pct > 0.0) && !self.dir_flip;
         if set_forwards {
             self.a
@@ -287,8 +269,7 @@ where
                 .map_err(|_| anyhow::anyhow!("error setting B pin"))?;
         }
 
-        self.pwm
-            .set_duty(((max_duty as f64) * pct.abs()).floor() as u32);
+        self.pwm_driver.set_ledc_duty_pct(pct)?;
         debug!("set to {:?} pct", pct);
         Ok(())
     }
@@ -305,11 +286,10 @@ where
     }
 }
 
-impl<A, B, PWM> Status for ABMotorEsp32<A, B, PWM>
+impl<A, B> Status for ABMotorEsp32<A, B>
 where
     A: OutputPin + PinExt,
     B: OutputPin + PinExt,
-    PWM: PwmPin<Duty = u32>,
 {
     fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
         let mut hm = HashMap::new();
@@ -324,11 +304,10 @@ where
     }
 }
 
-impl<A, B, PWM> Stoppable for ABMotorEsp32<A, B, PWM>
+impl<A, B> Stoppable for ABMotorEsp32<A, B>
 where
     A: OutputPin + PinExt,
     B: OutputPin + PinExt,
-    PWM: PwmPin<Duty = u32>,
 {
     fn stop(&mut self) -> anyhow::Result<()> {
         self.set_power(0.0)
@@ -336,65 +315,53 @@ where
 }
 
 // Represents a motor using a direction pin and a PWM pin
-pub struct PwmDirectionMotorEsp32<DIR, PWM> {
+pub struct PwmDirectionMotorEsp32<DIR> {
     dir: DIR,
-    pwm: PWM,
+    pwm_driver: PwmDriver<'static>,
     dir_flip: bool,
     max_rpm: f64,
 }
 
-impl<DIR, PWM> PwmDirectionMotorEsp32<DIR, PWM>
+impl<DIR> PwmDirectionMotorEsp32<DIR>
 where
     DIR: OutputPin + PinExt,
-    PWM: PwmPin<Duty = u32>,
 {
-    pub fn new(dir: DIR, pwm: PWM, dir_flip: bool, max_rpm: f64) -> Self {
-        Self {
+    pub fn new(dir: DIR, pwm: AnyIOPin, dir_flip: bool, max_rpm: f64) -> anyhow::Result<Self> {
+        let pwm_driver = create_pwm_driver(pwm, 10000)?;
+        Ok(Self {
             dir,
-            pwm,
+            pwm_driver,
             dir_flip,
             max_rpm,
-        }
+        })
     }
 
     pub(crate) fn from_config(cfg: ConfigType) -> anyhow::Result<MotorType> {
         if let Ok(pins) = cfg.get_attribute::<MotorPinsConfig>("pins") {
             if pins.dir.is_some() {
-                use esp_idf_hal::units::FromValueType;
-                let pwm_tconf = TimerConfig::default().frequency(10.kHz().into());
-                let timer =
-                    LedcTimerDriver::new(unsafe { esp_idf_hal::ledc::TIMER0::new() }, &pwm_tconf)?;
-                let pwm_pin = unsafe { AnyOutputPin::new(pins.pwm) };
-                let chan = PWMCHANNELS.lock().unwrap().take_next_channel()?;
-                let chan = match chan {
-                    PwmChannel::C0(c) => LedcDriver::new(c, timer, pwm_pin)?,
-                    PwmChannel::C1(c) => LedcDriver::new(c, timer, pwm_pin)?,
-                    PwmChannel::C2(c) => LedcDriver::new(c, timer, pwm_pin)?,
-                };
+                let pwm_pin = unsafe { AnyIOPin::new(pins.pwm) };
                 let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm")?;
                 let dir_flip: bool = cfg.get_attribute::<bool>("dir_flip").unwrap_or_default();
                 return Ok(Arc::new(Mutex::new(PwmDirectionMotorEsp32::new(
                     PinDriver::output(unsafe { AnyOutputPin::new(pins.dir.unwrap()) })?,
-                    chan,
+                    pwm_pin,
                     dir_flip,
                     max_rpm,
-                ))));
+                )?)));
             }
         }
         Err(anyhow::anyhow!("cannot build motor"))
     }
 }
 
-impl<DIR, PWM> Motor for PwmDirectionMotorEsp32<DIR, PWM>
+impl<DIR> Motor for PwmDirectionMotorEsp32<DIR>
 where
     DIR: OutputPin + PinExt,
-    PWM: PwmPin<Duty = u32>,
 {
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
         if !(-1.0..=1.0).contains(&pct) {
             anyhow::bail!("power outside limit")
         }
-        let max_duty = self.pwm.get_max_duty();
         let set_high = (pct > 0.0) && !self.dir_flip;
         if set_high {
             self.dir
@@ -405,8 +372,7 @@ where
                 .set_low()
                 .map_err(|_| anyhow::anyhow!("error setting direction pin"))?;
         }
-        self.pwm
-            .set_duty(((max_duty as f64) * pct.abs()).floor() as u32);
+        self.pwm_driver.set_ledc_duty_pct(pct)?;
         debug!("set to {:?} pct", pct);
         Ok(())
     }
@@ -423,10 +389,9 @@ where
     }
 }
 
-impl<DIR, PWM> Status for PwmDirectionMotorEsp32<DIR, PWM>
+impl<DIR> Status for PwmDirectionMotorEsp32<DIR>
 where
     DIR: OutputPin + PinExt,
-    PWM: PwmPin<Duty = u32>,
 {
     fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
         let mut hm = HashMap::new();
@@ -441,76 +406,11 @@ where
     }
 }
 
-impl<DIR, PWM> Stoppable for PwmDirectionMotorEsp32<DIR, PWM>
+impl<DIR> Stoppable for PwmDirectionMotorEsp32<DIR>
 where
     DIR: OutputPin + PinExt,
-    PWM: PwmPin<Duty = u32>,
 {
     fn stop(&mut self) -> anyhow::Result<()> {
         self.set_power(0.0)
     }
-}
-
-/// Below is a first attempt as an approach to runtime configuration, the problem raise with runtime configuration is
-/// enforcing single instance of any peripheral at any point in the program. For example say you have a Motor that uses pins 33,34 and 35 and
-/// a AnalogReader that uses pin 35. This situation is wrong since two objects own pin 35. In embedded rust this is avoided by having any hardware
-/// peripherals be singleton and leveraging the borrow checker so that single ownership rules are enforced. When dealing with runtime configuration,
-/// the borrow checker cannot help us. We can however follow the singleton approach and wrap peripherals into options that will be 'taken out' when
-/// something needs an hardware component. Following is an implementation of the proposed approach, a significant limitation is that the hardware can
-/// only be taken once and can never be returned.
-enum PwmChannel {
-    C0(CHANNEL0),
-    C1(CHANNEL1),
-    C2(CHANNEL2),
-}
-struct PwmChannels {
-    channel0: Option<CHANNEL0>,
-    channel1: Option<CHANNEL1>,
-    channel2: Option<CHANNEL2>,
-}
-
-impl PwmChannels {
-    fn take_channel(&mut self, n: i32) -> anyhow::Result<PwmChannel> {
-        match n {
-            0 => {
-                if self.channel0.is_some() {
-                    let chan = self.channel0.take().unwrap();
-                    return Ok(PwmChannel::C0(chan));
-                }
-                Err(anyhow::anyhow!("channel 0 already taken"))
-            }
-            1 => {
-                if self.channel1.is_some() {
-                    let chan = self.channel1.take().unwrap();
-                    return Ok(PwmChannel::C1(chan));
-                }
-                Err(anyhow::anyhow!("channel 1 already taken"))
-            }
-            2 => {
-                if self.channel2.is_some() {
-                    let chan = self.channel2.take().unwrap();
-                    return Ok(PwmChannel::C2(chan));
-                }
-                Err(anyhow::anyhow!("channel 2 already taken"))
-            }
-            _ => Err(anyhow::anyhow!("no channel {}", n)),
-        }
-    }
-    fn take_next_channel(&mut self) -> anyhow::Result<PwmChannel> {
-        for i in 0..2 {
-            let ret = self.take_channel(i);
-            if ret.is_ok() {
-                return ret;
-            }
-        }
-        Err(anyhow::anyhow!("no more channel available"))
-    }
-}
-
-lazy_static::lazy_static! {
-    static ref PWMCHANNELS: Mutex<PwmChannels> = Mutex::new(PwmChannels {
-        channel0: Some(unsafe { CHANNEL0::new() }),
-        channel1: Some(unsafe { CHANNEL1::new() }),
-        channel2: Some(unsafe { CHANNEL2::new() }),
-    });
 }
