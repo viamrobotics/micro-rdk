@@ -95,7 +95,7 @@ jobs:
     - name: Build installer binary
       run: |
         cargo build --release --locked --target aarch64-unknown-linux-gnu
-        cp target/release/micro-rdk-installer micro-rdk-installer-arm64-linux
+        cp target/aarch64-unknown-linux-gnu/release/micro-rdk-installer micro-rdk-installer-arm64-linux
     - name: Upload release
       uses: actions/upload-artifact@v2
       with:
