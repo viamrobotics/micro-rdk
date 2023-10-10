@@ -593,16 +593,33 @@ impl LocalRobot {
     }
 
     pub fn stop_all(&mut self) -> anyhow::Result<()> {
+        let mut stop_errors: Vec<anyhow::Error> = vec![];
         for resource in self.resources.values_mut() {
             match resource {
                 ResourceType::Base(b) => {
-                    b.stop()?;
+                    match b.stop() {
+                        Ok(_) => {}
+                        Err(err) => {
+                            stop_errors.push(err);
+                        }
+                    };
                 }
                 ResourceType::Motor(m) => {
-                    m.stop()?;
+                    match m.stop() {
+                        Ok(_) => {}
+                        Err(err) => {
+                            stop_errors.push(err);
+                        }
+                    };
                 }
                 _ => continue,
             }
+        }
+        if !stop_errors.is_empty() {
+            anyhow::bail!(
+                "Could not stop all robot actuators, following errors encountered: {:?}",
+                stop_errors
+            )
         }
         Ok(())
     }
