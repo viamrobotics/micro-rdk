@@ -156,7 +156,7 @@ impl WebRtcSignalingChannel {
             }
         }
     }
-    pub(crate) async fn send_sdp_answer(&mut self, sdp: WebRtcSdp) -> Result<(), WebRtcError> {
+    pub(crate) async fn send_sdp_answer(&mut self, sdp: &WebRtcSdp) -> Result<(), WebRtcError> {
         let answer = SdpOffer {
             sdp_type: "answer".to_owned(),
             sdp: sdp.sdp.marshal(),
@@ -166,7 +166,7 @@ impl WebRtcSignalingChannel {
             .encode(serde_json::to_string(&answer).map_err(WebRtcError::AnswerMarshalError)?);
 
         let answer = AnswerResponse {
-            uuid: sdp.uuid,
+            uuid: sdp.uuid.clone(),
             stage: Some(answer_response::Stage::Init(AnswerResponseInitStage {
                 sdp: answer,
             })),
@@ -303,7 +303,7 @@ where
         }
     }
 
-    pub async fn run_ice_until_connected(&mut self, answer: WebRtcSdp) -> Result<(), WebRtcError> {
+    pub async fn run_ice_until_connected(&mut self, answer: &WebRtcSdp) -> Result<(), WebRtcError> {
         let (tx, rx) = smol::channel::bounded(1);
 
         //(TODO(RSDK-3060)) implement ICEError
@@ -399,7 +399,11 @@ where
         Err(WebRtcError::DataChannelOpenError())
     }
 
-    pub async fn answer(&mut self) -> Result<WebRtcSdp, WebRtcError> {
+    pub(crate) fn into_transport(self) -> WebRtcTransport {
+        self.transport
+    }
+
+    pub async fn answer(&mut self) -> Result<Box<WebRtcSdp>, WebRtcError> {
         let offer = self
             .signaling
             .as_mut()
@@ -474,6 +478,9 @@ where
 
         let answer = answer.with_media(media);
 
-        Ok(WebRtcSdp::new(answer, self.uuid.as_ref().unwrap().clone()))
+        Ok(Box::new(WebRtcSdp::new(
+            answer,
+            self.uuid.as_ref().unwrap().clone(),
+        )))
     }
 }

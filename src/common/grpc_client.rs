@@ -212,8 +212,7 @@ impl<'a> GrpcClient<'a> {
         P: prost::Message + std::default::Default,
     {
         let http2_connection = self.http2_connection.clone();
-        let mut http2_connection =
-            block_on(self.executor.run(async { http2_connection.ready().await }))?;
+        let mut http2_connection = http2_connection.ready().await?;
 
         let (response, send) = http2_connection.send_request(r, false)?;
 
@@ -237,7 +236,7 @@ impl<'a> GrpcClient<'a> {
 
     pub(crate) fn send_request(&mut self, r: Request<()>, body: Bytes) -> Result<Bytes> {
         let http2_connection = self.http2_connection.clone();
-        // verify if the server can accept a new HTTP2 strema
+        // verify if the server can accept a new HTTP2 stream
         let mut http2_connection =
             block_on(self.executor.run(async { http2_connection.ready().await }))?;
 

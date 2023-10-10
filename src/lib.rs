@@ -34,8 +34,10 @@ pub mod common {
         pub mod sctp;
     }
     pub mod conn {
+        pub mod errors;
         pub mod mdns;
         pub mod server;
+        mod utils;
     }
 }
 

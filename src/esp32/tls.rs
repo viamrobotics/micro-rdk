@@ -16,7 +16,8 @@ use std::{
     os::{raw::c_char, unix::prelude::AsRawFd},
 };
 
-use crate::common::conn::server::{ServerError, TlsClientConnector};
+use crate::common::conn::errors::ServerError;
+use crate::common::conn::server::TlsClientConnector;
 
 use super::tcp::Esp32Stream;
 

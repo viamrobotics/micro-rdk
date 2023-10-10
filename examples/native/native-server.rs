@@ -1,7 +1,6 @@
 // Generated robot config during build process
 include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
-use log::*;
 use micro_rdk::{
     common::{
         app_client::AppClientConfig,

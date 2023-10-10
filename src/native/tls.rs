@@ -69,7 +69,8 @@ impl TlsClientConnector for NativeTls {
 
 use rustls::KeyLog;
 
-use crate::common::conn::server::{ServerError, TlsClientConnector};
+use crate::common::conn::errors::ServerError;
+use crate::common::conn::server::TlsClientConnector;
 
 use super::tcp::NativeStream;
 

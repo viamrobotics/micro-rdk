@@ -185,7 +185,7 @@ impl Debug for IoPktChannel {
 
 impl IoPktChannel {
     fn new(tx: smol::channel::Sender<IoPkt>) -> Self {
-        let (txo, rx) = smol::channel::bounded::<IoPkt>(10);
+        let (txo, rx) = smol::channel::bounded::<IoPkt>(25);
         Self {
             rx,
             transport_tx: tx,
