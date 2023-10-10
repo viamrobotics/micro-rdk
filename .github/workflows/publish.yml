@@ -8,7 +8,102 @@ on:
 jobs:
   tests:
     uses: ./.github/workflows/test.yml
-  publish-release:
+  
+  build-installer:
+    strategy:
+      fail-fast: false
+      matrix:
+        job:
+          - { target: x86_64-unknown-linux-gnu, file_suffix: amd64-linux, os: ubuntu-latest}
+          - { target: x86_64-apple-darwin, file_suffix: macos, os: macos-latest}
+          - { target: x86_64-pc-windows-gnu, file_suffix: windows.exe, os: windows-latest}    
+    runs-on: ${{ matrix.job.os }}
+    defaults: 
+      run:
+        working-directory: ./micro-rdk-installer
+        shell: bash
+    steps:
+    - name: Checkout main branch code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 2
+    - name: Set toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: 1.70.0
+        override: true
+        target: ${{ matrix.job.target }}
+        default: true
+    - name: Install x86_64 linux dependencies
+      if: ${{ matrix.job.os == 'ubuntu-latest' }}
+      run: |
+        sudo apt-get install libudev-dev pkg-config libssl-dev
+    - name: Install MacOS dependencies
+      if: ${{ matrix.job.os == 'macos-latest' }}
+      run: |
+        brew install coreutils
+        export PATH="/usr/local/opt/coreutils/libexec/gnubin:$PATH"
+    - name: Build installer binary
+      run: |
+        cargo build --release --target ${{ matrix.job.target }} --locked
+    - name: Rename result
+      if: ${{ matrix.job.os != 'windows-latest' }}
+      run: |
+        cp target/${{ matrix.job.target }}/release/micro-rdk-installer micro-rdk-installer-${{ matrix.job.file_suffix }}
+    - name: Rename result (Windows)
+      if: ${{ matrix.job.os == 'windows-latest' }}
+      run: |
+        cp target/${{ matrix.job.target }}/release/micro-rdk-installer.exe micro-rdk-installer-${{ matrix.job.file_suffix }}
+    - name: Check release type
+      id: check-tag
+      run: |
+        if echo ${{ github.event.ref }} | grep -Eq '^refs/tags/v.*rc[0-9]{1}$'; then
+              echo "is_rc_release=true" >> $GITHUB_OUTPUT
+        else
+              echo "is_rc_release=false" >> $GITHUB_OUTPUT
+        fi
+    - name: Upload release
+      uses: actions/upload-artifact@v2
+      with:
+        name: micro-rdk-installer-${{ matrix.job.file_suffix }}
+        path: micro-rdk-installer/micro-rdk-installer-${{ matrix.job.file_suffix }}
+
+  # github-actions does not have a runner that supports arm64 linux and cross-compilation does not seem to work for the ring crate
+  build-installer-arm64-linux:
+    runs-on: [buildjet-8vcpu-ubuntu-2204-arm]
+    container:
+      image: ghcr.io/viamrobotics/micro-rdk-dev-env:arm64
+    needs: tests
+    defaults: 
+      run:
+        working-directory: ./micro-rdk-installer
+        shell: bash
+    steps:
+    - name: Checkout main branch code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 2
+    - name: Set toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: 1.70.0
+        override: true
+        target: aarch64-unknown-linux-gnu
+        default: true
+    - name: Build installer binary
+      run: |
+        cargo build --release --locked --target aarch64-unknown-linux-gnu
+        cp target/aarch64-unknown-linux-gnu/release/micro-rdk-installer micro-rdk-installer-arm64-linux
+    - name: Upload release
+      uses: actions/upload-artifact@v2
+      with:
+        name: micro-rdk-installer-arm64-linux
+        path: micro-rdk-installer/micro-rdk-installer-arm64-linux
+      
+
+  build-micro-RDK:
     runs-on: [x64, qemu-host]
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
@@ -22,7 +117,16 @@ jobs:
       run: |
         bash -c 'export MICRO_RDK_USE_NVS=true && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && make build-esp32-with-cred-bin'
         cp examples/target/esp32-server-with-cred.bin  micro-rdk-esp32-server.bin
-        sha256sum  micro-rdk-esp32-server.bin  >> sha256sums.txt
+    - name: Upload release
+      uses: actions/upload-artifact@v2
+      with:
+        name: micro-rdk-esp32-server.bin
+        path: micro-rdk-esp32-server.bin
+
+  publish-release:
+    needs: [build-installer, build-installer-arm64-linux, build-micro-RDK]
+    runs-on: ubuntu-latest
+    steps:
     - name: Check release type
       id: check-tag
       run: |
@@ -31,11 +135,42 @@ jobs:
         else
               echo "match=false" >> $GITHUB_OUTPUT
         fi
+    - name: Download arm64-linux installer
+      uses: actions/download-artifact@v3
+      with:
+        name: micro-rdk-installer-arm64-linux
+    - name: Download amd64-linux installer
+      uses: actions/download-artifact@v3
+      with:
+        name: micro-rdk-installer-amd64-linux
+    - name: Download macos installer
+      uses: actions/download-artifact@v3
+      with:
+        name: micro-rdk-installer-macos
+    - name: Download windows installer
+      uses: actions/download-artifact@v3
+      with:
+        name: micro-rdk-installer-windows.exe
+    - name: Download micro-RDK binary
+      uses: actions/download-artifact@v3
+      with:
+        name: micro-rdk-esp32-server.bin
+    - name: Compute checksums
+      run: |
+        sha256sum  micro-rdk-installer-arm64-linux  >> sha256sums.txt
+        sha256sum  micro-rdk-installer-amd64-linux  >> sha256sums.txt
+        sha256sum  micro-rdk-installer-macos  >> sha256sums.txt
+        sha256sum  micro-rdk-installer-windows.exe  >> sha256sums.txt
+        sha256sum  micro-rdk-esp32-server.bin  >> sha256sums.txt
     - name: Publish release
       uses: marvinpinto/action-automatic-releases@latest
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         files: |
+          micro-rdk-installer-arm64-linux
+          micro-rdk-installer-amd64-linux
+          micro-rdk-installer-macos
+          micro-rdk-installer-windows.exe
           micro-rdk-esp32-server.bin
           sha256sums.txt
         prerelease: ${{ steps.check-tag.outputs.match }}
