@@ -100,7 +100,6 @@ fn main() -> anyhow::Result<()> {
         (ip, eth)
     };
 
-    micro_rdk::esp32::utils::esp32_print_heap_summary!();
     unsafe {
         if !g_spiram_ok {
             log::info!("spiram not initialized disabling cache feature of the wifi driver");
@@ -113,7 +112,7 @@ fn main() -> anyhow::Result<()> {
         let wifi = start_wifi(periph.modem, sys_loop_stack)?;
         (wifi.wifi().sta_netif().get_ip_info()?.ip, wifi)
     };
-    micro_rdk::esp32::utils::esp32_print_heap_summary!();
+
     let cfg = AppClientConfig::new(
         ROBOT_SECRET.to_owned(),
         ROBOT_ID.to_owned(),
