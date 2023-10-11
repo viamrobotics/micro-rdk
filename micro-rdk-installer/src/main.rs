@@ -8,11 +8,11 @@ use dialoguer::{Input, Password};
 use espflash::cli::{config::Config, connect, monitor::monitor, ConnectArgs, EspflashProgress};
 use micro_rdk_installer::error::Error;
 use micro_rdk_installer::nvs::data::{ViamFlashStorageData, WifiCredentials};
+use micro_rdk_installer::nvs::metadata::read_nvs_metadata;
 use micro_rdk_installer::nvs::partition::{NVSPartition, NVSPartitionData};
 use micro_rdk_installer::nvs::request::{
     download_micro_rdk_release, populate_nvs_storage_from_app,
 };
-use micro_rdk_installer::nvs::metadata::read_nvs_metadata;
 use secrecy::Secret;
 use serde::Deserialize;
 use tokio::runtime::Runtime;
@@ -34,6 +34,7 @@ enum Commands {
     WriteFlash(WriteFlash),
     WriteCredentials(WriteCredentials),
     CreateNvsPartition(CreateNVSPartition),
+    Monitor(Monitor),
 }
 
 /// Write Wi-Fi and robot credentials to the NVS storage portion of a pre-compiled
@@ -60,19 +61,19 @@ struct WriteFlash {
     /// data partition will be edited with wifi and robot credentials
     #[arg(long = "bin")]
     binary_path: Option<String>,
-    /// Version of the compiled micro-RDK server to download. 
+    /// Version of the compiled micro-RDK server to download.
     /// See https://github.com/viamrobotics/micro-rdk/releases for the version options
     #[arg(long = "version")]
     version: Option<String>,
     #[arg(long = "baud-rate")]
     baud_rate: Option<u32>,
-    /// This opens the serial monitor immediately after flashing. 
+    /// This opens the serial monitor immediately after flashing.
     /// The micro-RDK server logs can be viewed this way
     #[arg(long = "monitor")]
-    monitor: bool
+    monitor: bool,
 }
 
-/// Generate a binary of a complete NVS data partition that conatins Wi-Fi and security 
+/// Generate a binary of a complete NVS data partition that conatins Wi-Fi and security
 /// credentials for a robot
 #[derive(Args)]
 struct CreateNVSPartition {
@@ -87,9 +88,16 @@ struct CreateNVSPartition {
     size: usize,
 }
 
+/// Monitor a currently connected ESP32
+#[derive(Args)]
+struct Monitor {
+    #[arg(long = "baud-rate")]
+    baud_rate: Option<u32>,
+}
+
 #[derive(Parser)]
 #[command(
-    about = "A CLI that can flash a compilation of micro-RDK directly to an ESP32 provided configuration information",
+    about = "A CLI that can flash a compilation of micro-RDK directly to an ESP32 provided configuration information"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -182,13 +190,29 @@ fn flash(binary_path: PathBuf, should_monitor: bool, baud_rate: Option<u32>) -> 
     Ok(())
 }
 
+fn monitor_esp32(baud_rate: Option<u32>) -> Result<(), Error> {
+    let connect_args = ConnectArgs {
+        baud: Some(baud_rate.unwrap_or(460800)),
+        // let espflash auto-detect the port
+        port: None,
+        no_stub: false,
+    };
+    let conf = Config::default();
+    let flasher = connect(&connect_args, &conf).map_err(|_| Error::FlashConnect)?;
+    let pid = flasher.get_usb_pid().map_err(Error::EspFlashError)?;
+    monitor(flasher.into_interface(), None, pid, 115_200)
+        .map_err(|err| Error::MonitorError(err.to_string()))?;
+    Ok(())
+}
+
 fn main() -> Result<(), Error> {
     let cli = Cli::parse();
     match &cli.command {
         Some(Commands::WriteCredentials(args)) => {
             let app_path = PathBuf::from(args.binary_path.clone());
             let nvs_metadata = read_nvs_metadata(app_path.clone())?;
-            let nvs_data = create_nvs_partition_binary(args.config.to_string(), nvs_metadata.size as usize)?;
+            let nvs_data =
+                create_nvs_partition_binary(args.config.to_string(), nvs_metadata.size as usize)?;
             write_credentials_to_app_binary(
                 app_path,
                 &nvs_data,
@@ -209,7 +233,8 @@ fn main() -> Result<(), Error> {
                 }
             };
             let nvs_metadata = read_nvs_metadata(app_path.clone())?;
-            let nvs_data = create_nvs_partition_binary(args.config.to_string(), nvs_metadata.size as usize)?;
+            let nvs_data =
+                create_nvs_partition_binary(args.config.to_string(), nvs_metadata.size as usize)?;
             write_credentials_to_app_binary(
                 app_path.clone(),
                 &nvs_data,
@@ -226,6 +251,7 @@ fn main() -> Result<(), Error> {
             )?)
             .map_err(Error::FileError)?;
         }
+        Some(Commands::Monitor(args)) => monitor_esp32(args.baud_rate)?,
         None => return Err(Error::NoCommandError),
     };
     Ok(())
