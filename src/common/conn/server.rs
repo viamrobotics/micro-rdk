@@ -333,12 +333,6 @@ where
 
             let listener = self.http_listener.next_conn();
 
-            log::info!(
-                "some sizes {} {}",
-                std::mem::size_of_val(&sig),
-                std::mem::size_of_val(&listener)
-            );
-
             log::info!("waiting for connection");
 
             let connection = futures_lite::future::or(
@@ -416,40 +410,6 @@ where
         .await
         .map_err(|e| ServerError::Other(e.into()))
     }
-
-    // async fn serve_webrtc(
-    //     &mut self,
-    //     c: WebRTCConnection<CC, D::Output, Executor<'a>>,
-    //     robot: Arc<Mutex<LocalRobot>>,
-    // ) -> Result<(), ServerError> {
-    //     let ret = {
-    //         let channel = c
-    //             .open_data_channel()
-    //             .await
-    //             .map_err(|e| ServerError::Other(e.into()))?;
-
-    //         let transport = channel.1.as_transport();
-
-    //         let r = self.exec.spawn(async move {
-    //             let mut grpc = WebRtcGrpcServer::new(
-    //                 channel.0,
-    //                 GrpcServer::new(robot.clone(), WebRtcGrpcBody::default()),
-    //             );
-    //             let _r = transport;
-    //             log::info!("runnning this");
-    //             loop {
-    //                 if let Err(e) = grpc.next_request().await {
-    //                     log::info!("err {:?}", e);
-    //                     break;
-    //                 }
-    //             }
-    //             log::info!("bye");
-    //         });
-    //         r.detach();
-    //         Ok(())
-    //     };
-    //     ret
-    // }
 }
 #[derive(Debug)]
 pub enum IncomingConnection<L, U> {
