@@ -73,6 +73,10 @@ jobs:
       with:
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: 2
+    - name: Format
+      run: |
+        cd micro-rdk-installer
+        cargo fmt --all
     - name: Clippy Micro-RDK Installer
       run: |
         bash -c 'make clippy-cli'
