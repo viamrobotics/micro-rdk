@@ -90,7 +90,7 @@ impl From<&proto::app::v1::CloudConfig> for RobotCloudConfig {
     }
 }
 
-pub struct ViamServerBuilder<'a, T, M, C, CC = WebRtcNoOp, D = WebRtcNoOp, L = NoHttp2> {
+pub struct ViamServerBuilder<'a, M, C, T, CC = WebRtcNoOp, D = WebRtcNoOp, L = NoHttp2> {
     mdns: M,
     webrtc: Option<Box<WebRtcConfiguration<'a, D, CC>>>,
     port: u16, // gRPC/HTTP2 port
@@ -101,17 +101,17 @@ pub struct ViamServerBuilder<'a, T, M, C, CC = WebRtcNoOp, D = WebRtcNoOp, L = N
     app_config: AppClientConfig,
 }
 
-impl<'a, T, M, C> ViamServerBuilder<'a, T, M, C>
+impl<'a, M, C, T> ViamServerBuilder<'a, M, C, T>
 where
     M: Mdns,
-    T: AsyncRead + AsyncWrite + Unpin + 'static,
     C: TlsClientConnector,
+    T: AsyncRead + AsyncWrite + Unpin + 'static,
 {
     pub fn new(mdns: M, exec: Executor<'a>, app_connector: C, app_config: AppClientConfig) -> Self {
         Self {
             mdns,
             http2_listener: NoHttp2 {},
-            port: 7888,
+            port: 0,
             webrtc: None,
             _marker: PhantomData,
             exec,
@@ -121,22 +121,22 @@ where
     }
 }
 
-impl<'a, T, M, C, CC, D, L> ViamServerBuilder<'a, T, M, C, CC, D, L>
+impl<'a, M, C, T, CC, D, L> ViamServerBuilder<'a, M, C, T, CC, D, L>
 where
     M: Mdns,
-    L: AsyncableTcpListener<T>,
-    L::Output: Http2Connector<Stream = T>,
     C: TlsClientConnector,
+    T: AsyncRead + AsyncWrite + Unpin + 'static,
+    CC: Certificate + 'a,
     D: DtlsBuilder,
     D::Output: 'a,
-    CC: Certificate + 'a,
-    T: AsyncRead + AsyncWrite + Unpin + 'static,
+    L: AsyncableTcpListener<T>,
+    L::Output: Http2Connector<Stream = T>,
 {
     pub fn with_http2<L2, T2>(
         self,
         http2_listener: L2,
         port: u16,
-    ) -> ViamServerBuilder<'a, T2, M, C, CC, D, L2> {
+    ) -> ViamServerBuilder<'a, M, C, T2, CC, D, L2> {
         ViamServerBuilder {
             mdns: self.mdns,
             port,
@@ -151,7 +151,7 @@ where
     pub fn with_webrtc<D2, CC2>(
         self,
         webrtc: Box<WebRtcConfiguration<'a, D2, CC2>>,
-    ) -> ViamServerBuilder<'a, T, M, C, CC2, D2, L> {
+    ) -> ViamServerBuilder<'a, M, C, T, CC2, D2, L> {
         ViamServerBuilder {
             mdns: self.mdns,
             webrtc: Some(webrtc),
@@ -166,7 +166,7 @@ where
     pub fn build(
         mut self,
         config: &ConfigResponse,
-    ) -> Result<ViamServer<'a, L, T, D, CC, C>, ServerError> {
+    ) -> Result<ViamServer<'a, C, T, CC, D, L>, ServerError> {
         let cfg: RobotCloudConfig = config
             .config
             .as_ref()
@@ -261,7 +261,7 @@ where
     }
 }
 
-pub struct ViamServer<'a, L, T, D, CC, C> {
+pub struct ViamServer<'a, C, T, CC, D, L> {
     http_listener: HttpListener<L, T>,
     webrtc_config: Option<Box<WebRtcConfiguration<'a, D, CC>>>,
     exec: Executor<'a>,
@@ -270,15 +270,15 @@ pub struct ViamServer<'a, L, T, D, CC, C> {
     app_client: Option<AppClient<'a>>,
     webtrc_conn: Option<Task<Result<(), ServerError>>>,
 }
-impl<'a, L, T, D, CC, C> ViamServer<'a, L, T, D, CC, C>
+impl<'a, C, T, CC, D, L> ViamServer<'a, C, T, CC, D, L>
 where
-    L: AsyncableTcpListener<T>,
-    L::Output: Http2Connector<Stream = T>,
+    C: TlsClientConnector,
     T: AsyncRead + AsyncWrite + Unpin + 'static,
     CC: Certificate + 'a,
     D: DtlsBuilder,
     D::Output: 'a,
-    C: TlsClientConnector,
+    L: AsyncableTcpListener<T>,
+    L::Output: Http2Connector<Stream = T>,
 {
     fn new(
         http_listener: HttpListener<L, T>,
