@@ -2896,6 +2896,7 @@ dependencies = [
  "esp-idf-hal",
  "esp-idf-svc",
  "esp-idf-sys",
+ "futures",
  "futures-lite",
  "h2",
  "hyper",

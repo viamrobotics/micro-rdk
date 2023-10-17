@@ -7,6 +7,7 @@ const PASS: &str = env!("MICRO_RDK_WIFI_PASSWORD");
 
 include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
+use esp_idf_sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT};
 use log::*;
 
 use esp_idf_svc::eventloop::EspSystemEventLoop;
@@ -14,6 +15,10 @@ use micro_rdk::{
     common::{app_client::AppClientConfig, entry::RobotRepresentation},
     esp32::{certificate::WebRtcCertificate, entry::serve_web, tls::Esp32TlsServerConfig},
 };
+
+extern "C" {
+    pub static g_spiram_ok: bool;
+}
 
 #[cfg(feature = "qemu")]
 use {
@@ -95,6 +100,12 @@ fn main() -> anyhow::Result<()> {
         (ip, eth)
     };
 
+    unsafe {
+        if !g_spiram_ok {
+            log::info!("spiram not initialized disabling cache feature of the wifi driver");
+            g_wifi_feature_caps &= !(CONFIG_FEATURE_CACHE_TX_BUF_BIT as u64);
+        }
+    }
     #[allow(clippy::redundant_clone)]
     #[cfg(not(feature = "qemu"))]
     let (ip, _wifi) = {

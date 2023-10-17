@@ -6,7 +6,7 @@ use crate::native::exec::NativeExecutor;
 use anyhow::Result;
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_lite::{future::block_on, Stream};
-use h2::{client::SendRequest, RecvStream, SendStream};
+use h2::{client::SendRequest, Reason, RecvStream, SendStream};
 use hyper::{http::status, Method, Request};
 use smol::Task;
 use std::{marker::PhantomData, task::Poll};
@@ -15,6 +15,12 @@ use tokio::io::{AsyncRead, AsyncWrite};
 pub(crate) struct GrpcMessageSender<T> {
     sender_half: SendStream<Bytes>,
     _marker: PhantomData<T>,
+}
+
+impl<T> Drop for GrpcMessageSender<T> {
+    fn drop(&mut self) {
+        self.sender_half.send_reset(Reason::CANCEL);
+    }
 }
 
 impl<T> GrpcMessageSender<T>
@@ -49,20 +55,20 @@ where
     }
 }
 
-impl<T> Drop for GrpcMessageSender<T> {
-    fn drop(&mut self) {
-        log::debug!("dropping the sender");
-        if let Err(err) = self.sender_half.send_data(Bytes::new(), true) {
-            log::error!("failed to close sender half {:?}", err)
-        }
-    }
-}
-
 pub(crate) struct GrpcMessageStream<T> {
     receiver_half: RecvStream,
     _marker: PhantomData<T>,
     buffer: Bytes,
 }
+
+impl<T> Drop for GrpcMessageStream<T> {
+    fn drop(&mut self) {
+        let capa = self.receiver_half.flow_control().used_capacity();
+        let _ = self.receiver_half.flow_control().release_capacity(capa);
+        self.buffer.clear();
+    }
+}
+
 impl<T> Unpin for GrpcMessageStream<T> {}
 
 impl<T> GrpcMessageStream<T> {
@@ -212,8 +218,7 @@ impl<'a> GrpcClient<'a> {
         P: prost::Message + std::default::Default,
     {
         let http2_connection = self.http2_connection.clone();
-        let mut http2_connection =
-            block_on(self.executor.run(async { http2_connection.ready().await }))?;
+        let mut http2_connection = http2_connection.ready().await?;
 
         let (response, send) = http2_connection.send_request(r, false)?;
 
@@ -237,7 +242,7 @@ impl<'a> GrpcClient<'a> {
 
     pub(crate) fn send_request(&mut self, r: Request<()>, body: Bytes) -> Result<Bytes> {
         let http2_connection = self.http2_connection.clone();
-        // verify if the server can accept a new HTTP2 strema
+        // verify if the server can accept a new HTTP2 stream
         let mut http2_connection =
             block_on(self.executor.run(async { http2_connection.ready().await }))?;
 

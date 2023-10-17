@@ -432,6 +432,12 @@ pub struct DtlsStream<S> {
     _p: PhantomData<S>,
 }
 
+impl<S> Drop for DtlsStream<S> {
+    fn drop(&mut self) {
+        let _ = unsafe { Box::from_raw(self.bio_ptr as *mut SslStreamState<S>) };
+    }
+}
+
 impl<S> DtlsStream<S>
 where
     S: Read + Write,

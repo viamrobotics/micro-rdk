@@ -4,10 +4,15 @@ use thiserror::Error;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::nvs::{EspDefaultNvs, EspDefaultNvsPartition, EspNvs};
 use esp_idf_sys::EspError;
+use esp_idf_sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT};
 use micro_rdk::{
     common::{app_client::AppClientConfig, entry::RobotRepresentation},
     esp32::{certificate::WebRtcCertificate, entry::serve_web, tls::Esp32TlsServerConfig},
 };
+
+extern "C" {
+    pub static g_spiram_ok: bool;
+}
 
 #[cfg(feature = "qemu")]
 use {
@@ -161,6 +166,13 @@ fn main() -> Result<(), ServerError> {
         let ip = Ipv4Addr::new(10, 1, 12, 187);
         (ip, eth)
     };
+
+    unsafe {
+        if !g_spiram_ok {
+            log::info!("spiram not initialized disabling cache feature of the wifi driver");
+            g_wifi_feature_caps &= !(CONFIG_FEATURE_CACHE_TX_BUF_BIT as u64);
+        }
+    }
 
     info!("starting wifi...");
     #[allow(clippy::redundant_clone)]

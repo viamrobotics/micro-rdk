@@ -184,8 +184,8 @@ impl Debug for IoPktChannel {
 }
 
 impl IoPktChannel {
-    fn new(tx: smol::channel::Sender<IoPkt>) -> Self {
-        let (txo, rx) = smol::channel::bounded::<IoPkt>(10);
+    fn new(tx: smol::channel::Sender<IoPkt>, cap: usize) -> Self {
+        let (txo, rx) = smol::channel::bounded::<IoPkt>(cap);
         Self {
             rx,
             transport_tx: tx,
@@ -267,12 +267,12 @@ impl Drop for WebRtcTransport {
 
 impl WebRtcTransport {
     pub fn new(socket: UdpSocket) -> Self {
-        let (tx, rx) = smol::channel::bounded::<IoPkt>(10);
+        let (tx, rx) = smol::channel::bounded::<IoPkt>(15);
         let (_tx_closer, rx_closer) = smol::channel::bounded::<()>(1);
         Self {
             socket,
-            stun: IoPktChannel::new(tx.clone()),
-            dtls: IoPktChannel::new(tx),
+            stun: IoPktChannel::new(tx.clone(), 8),
+            dtls: IoPktChannel::new(tx, 20),
             rx,
             rx_closer,
             _tx_closer,

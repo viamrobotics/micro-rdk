@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 #![allow(unused_macros)]
 
+#[macro_export]
 macro_rules! esp32_print_heap_summary {
     () => {
         #[cfg(debug_assertions)]
@@ -12,7 +13,7 @@ macro_rules! esp32_print_heap_summary {
         }
     };
 }
-pub(crate) use esp32_print_heap_summary;
+pub use esp32_print_heap_summary;
 
 macro_rules! esp32_print_heap_internal_summary {
     () => {

@@ -64,12 +64,12 @@ pub fn serve_web(
     let webrtc = Box::new(WebRtcConfiguration::new(
         webrtc_certificate,
         dtls,
-        client_connector,
         exec.clone(),
-        app_config,
     ));
 
-    let mut srv = ViamServerBuilder::new(mdns, tls_listener, webrtc, cloned_exec, 12346)
+    let mut srv = ViamServerBuilder::new(mdns, cloned_exec, client_connector, app_config)
+        .with_http2(tls_listener, 12346)
+        .with_webrtc(webrtc)
         .build(&cfg_response)
         .unwrap();
 

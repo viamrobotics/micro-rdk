@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 /// Fingerprint of a certificate
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Fingerprint {
     /// hashing algorithm
     algo: String,

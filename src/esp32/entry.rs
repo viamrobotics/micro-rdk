@@ -74,9 +74,7 @@ pub fn serve_web(
         let webrtc = Box::new(WebRtcConfiguration::new(
             webrtc_certificate,
             dtls,
-            client_connector,
             exec.clone(),
-            app_config,
         ));
 
         let robot_cfg = cfg_response.as_ref().config.as_ref().unwrap();
@@ -98,7 +96,9 @@ pub fn serve_web(
 
         (
             Box::new(
-                ViamServerBuilder::new(mdns, tls_listener, webrtc, cloned_exec, 12346)
+                ViamServerBuilder::new(mdns, cloned_exec, client_connector, app_config)
+                    .with_webrtc(webrtc)
+                    .with_http2(tls_listener, 12346)
                     .build(&cfg_response)
                     .unwrap(),
             ),
