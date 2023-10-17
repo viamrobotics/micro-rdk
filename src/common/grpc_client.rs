@@ -7,7 +7,9 @@ use anyhow::Result;
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_lite::{future::block_on, Stream};
 use h2::{client::SendRequest, Reason, RecvStream, SendStream};
+use hyper::header::HeaderMap;
 use hyper::{http::status, Method, Request};
+
 use smol::Task;
 use std::{marker::PhantomData, task::Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -240,7 +242,11 @@ impl<'a> GrpcClient<'a> {
         Ok((r, p))
     }
 
-    pub(crate) fn send_request(&mut self, r: Request<()>, body: Bytes) -> Result<Bytes> {
+    pub(crate) fn send_request(
+        &mut self,
+        r: Request<()>,
+        body: Bytes,
+    ) -> Result<(Bytes, HeaderMap)> {
         let http2_connection = self.http2_connection.clone();
         // verify if the server can accept a new HTTP2 stream
         let mut http2_connection =
@@ -252,6 +258,7 @@ impl<'a> GrpcClient<'a> {
         send.send_data(body, true)?;
 
         let (part, mut body) = block_on(self.executor.run(async { response.await }))?.into_parts();
+
         if part.status != status::StatusCode::OK {
             log::error!("received status code {}", part.status.to_string());
         }
@@ -293,6 +300,6 @@ impl<'a> GrpcClient<'a> {
                 }
             }
         }
-        Ok(response_buf.into())
+        Ok((response_buf.into(), part.headers))
     }
 }
