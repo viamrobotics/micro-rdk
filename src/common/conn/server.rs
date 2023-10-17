@@ -516,7 +516,7 @@ where
         let this = self.project();
         let r = ready!(this.future.poll(cx));
         let s = match r {
-            Err(_) => return Poll::Ready(Err(ServerError::ServerConnectionNotConfigured)),
+            Err(e) => return Poll::Ready(Err(ServerError::Other(Box::new(e)))),
             Ok(s) => s,
         };
         Poll::Ready(Ok(WebRtcApi::new(
