@@ -2,10 +2,24 @@
 
 A CLI that allows a user to flash a build of Micro-RDK, along with their robot's credentials and their wifi information, directly to their esp32 without requiring installation of ESP-IDF, Rust, or Python.
 
-## Build Instructions
+## Option 1: Download Pre-Built Binaries
 
-1. `cargo build`
-2. Exwecutable (`micro-rdk-installer`) will be under target/debug
+These download links are for the latest release of the installer by architecture
+- [x86_64-Linux](https://github.com/viamrobotics/micro-rdk/releases/latest/download/micro-rdk-installer-amd64-linux)
+- [aarch64-Linux](https://github.com/viamrobotics/micro-rdk/releases/latest/download/micro-rdk-installer-arm64-linux)
+- [MacOS](https://github.com/viamrobotics/micro-rdk/releases/latest/download/micro-rdk-installer-macos)
+- [Windows](https://github.com/viamrobotics/micro-rdk/releases/latest/download/micro-rdk-installer-windows.exe)
+
+## Option 2: Build From Source
+
+Only necessary as an alternative to the previous Download step
+
+Requirements: rust (1.67.0 or higher), Cargo (1.67.0 or higher)
+
+1. `git clone https://github.com/viamrobotics/micro-rdk.git`
+2. cd micro-rdk/micro-rdk-installer
+2.`cargo build`
+3. Executable (`micro-rdk-installer`) will be under target/debug
 
 ## Usage
 

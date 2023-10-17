@@ -9,6 +9,7 @@ pub mod common {
     pub mod digital_interrupt;
     pub mod encoder;
     pub mod entry;
+    pub mod gpio_motor;
     pub mod grpc;
     pub mod grpc_client;
     pub mod i2c;
@@ -54,7 +55,6 @@ pub mod esp32 {
     pub mod entry;
     pub mod exec;
     pub mod i2c;
-    pub mod motor;
     pub mod pin;
     pub mod pulse_counter;
     pub mod pwm;

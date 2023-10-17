@@ -112,6 +112,7 @@ impl Default for ComponentRegistry {
         crate::common::board::register_models(&mut r);
         crate::common::encoder::register_models(&mut r);
         crate::common::motor::register_models(&mut r);
+        crate::common::gpio_motor::register_models(&mut r);
         crate::common::sensor::register_models(&mut r);
         crate::common::movement_sensor::register_models(&mut r);
         crate::common::mpu6050::register_models(&mut r);
@@ -119,7 +120,6 @@ impl Default for ComponentRegistry {
         #[cfg(esp32)]
         {
             crate::esp32::board::register_models(&mut r);
-            crate::esp32::motor::register_models(&mut r);
             crate::esp32::encoder::register_models(&mut r);
             crate::esp32::single_encoder::register_models(&mut r);
             crate::esp32::base::register_models(&mut r);
