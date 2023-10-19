@@ -21,6 +21,7 @@ use crate::{
             grpc::{WebRtcGrpcBody, WebRtcGrpcServer},
         },
     },
+    //esp32::utils,
     proto::{self, app::v1::ConfigResponse},
 };
 
@@ -311,8 +312,10 @@ where
             .unwrap();
         let _ = self.app_client.insert(app_client);
         let cloned_robot = robot.clone();
+
         loop {
             let _ = smol::Timer::after(std::time::Duration::from_millis(100)).await;
+
             let sig = if let Some(webrtc_config) = self.webrtc_config.as_ref() {
                 let ip = self.app_config.get_ip();
                 let signaling = self.app_client.as_mut().unwrap().connect_signaling();
@@ -443,12 +446,12 @@ impl<C, D, E> WebRTCConnection<C, D, E>
 where
     C: Certificate,
     D: DtlsConnector,
-    E: WebRtcExecutor<Pin<Box<dyn Future<Output = ()> + Send>>> + Clone,
+    E: WebRtcExecutor<Pin<Box<dyn Future<Output = ()>>>> + Clone,
 {
     async fn open_data_channel(&mut self) -> Result<(), ServerError> {
         self.webrtc_api
             .run_ice_until_connected(&self.sdp)
-            .timeout(std::time::Duration::from_secs(6))
+            .timeout(std::time::Duration::from_secs(10))
             .await
             .ok_or(ServerError::ServerConnectionTimeout)?
             .map_err(|e| ServerError::Other(e.into()))?;
@@ -456,7 +459,7 @@ where
         let c = self
             .webrtc_api
             .open_data_channel()
-            .timeout(std::time::Duration::from_secs(6))
+            .timeout(std::time::Duration::from_secs(10))
             .await
             .ok_or(ServerError::ServerConnectionTimeout)?
             .map_err(|e| ServerError::Other(e.into()))?;

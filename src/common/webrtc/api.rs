@@ -44,7 +44,7 @@ use super::{
     exec::WebRtcExecutor,
     ice::{ICEAgent, ICECredentials},
     io::WebRtcTransport,
-    sctp::{Channel, SctpProto},
+    sctp::{Channel, SctpConnector},
 };
 
 #[derive(Error, Debug)]
@@ -268,7 +268,7 @@ impl<'a, C, D, E> WebRtcApi<C, D, E>
 where
     C: Certificate,
     D: DtlsConnector,
-    E: WebRtcExecutor<Pin<Box<dyn Future<Output = ()> + Send>>> + Clone + 'a,
+    E: WebRtcExecutor<Pin<Box<dyn Future<Output = ()>>>> + Clone + 'a,
 {
     pub(crate) fn new(
         executor: E,
@@ -385,8 +385,8 @@ where
         if let Ok(dtls_stream) = dtls.accept().await {
             let (c_tx, c_rx) = async_channel::unbounded();
 
-            let mut sctp = Box::new(SctpProto::new(dtls_stream, c_tx));
-            sctp.listen().await.unwrap();
+            let sctp = Box::new(SctpConnector::new(dtls_stream, c_tx));
+            let mut sctp = sctp.listen().await.unwrap();
             self.executor.execute(Box::pin(async move {
                 sctp.run().await;
             }));
@@ -410,6 +410,8 @@ where
             .ok_or(WebRtcError::SignalingDisconnected())?
             .wait_sdp_offer()
             .await?;
+
+        log::info!("Offered {:?}", offer);
         let answer = SessionDescription::new_jsep_session_description(false);
 
         let attribute = offer

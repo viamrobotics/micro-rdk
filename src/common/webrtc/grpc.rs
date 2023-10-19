@@ -182,6 +182,7 @@ where
 
     async fn next_rpc_call(&mut self) -> Result<u32, WebRtcError> {
         loop {
+            // log::info!("entering stream");
             let read = self
                 .channel
                 .read(&mut self.buffer)
@@ -189,6 +190,7 @@ where
                 .map_err(WebRtcError::IoError)?;
             let req = webrtc::v1::Request::decode(&self.buffer[..read])
                 .map_err(WebRtcError::GrpcDecodeError)?;
+            //log::info!("req {:?}", req);
             if let Some(wrtc_type) = req.r#type {
                 match wrtc_type {
                     webrtc::v1::request::Type::Headers(hdr) => {
@@ -198,9 +200,11 @@ where
                                 webrtc::v1::ResponseHeaders { metadata: None },
                             )),
                         };
-                        let _ = self
-                            .streams
-                            .insert(req.stream.unwrap().id as u32, RpcCall(hdr, None, None));
+                        let _ = self.streams.insert(
+                            req.stream.clone().unwrap().id as u32,
+                            RpcCall(hdr, None, None),
+                        );
+                        //  log::info!("inserting stream {}", req.stream.unwrap().id);
                         self.send_response(header_response).await?;
                     }
                     webrtc::v1::request::Type::Message(msg) => {
@@ -210,6 +214,8 @@ where
                         if let Some(call) = self.streams.get_mut(&key) {
                             let _ = call.2.insert(msg);
                             return Ok(key);
+                        } else {
+                            log::info!("discarding stream {}", key);
                         }
                     }
                     webrtc::v1::request::Type::RstStream(rst) => {

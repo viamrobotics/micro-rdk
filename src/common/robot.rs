@@ -991,7 +991,7 @@ mod tests {
                 &mut component_cfgs,
                 None,
                 None,
-                Box::new(ComponentRegistry::default())
+                Box::<ComponentRegistry>::default()
             )
             .is_ok());
 
@@ -1093,7 +1093,7 @@ mod tests {
                 &mut component_cfgs,
                 None,
                 None,
-                Box::new(ComponentRegistry::default())
+                Box::<ComponentRegistry>::default(),
             )
             .is_ok());
 

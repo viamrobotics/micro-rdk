@@ -10,11 +10,13 @@ include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 use esp_idf_sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT};
 use log::*;
 
+use esp_idf_svc::eth::{EspEth, EthDriver};
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use micro_rdk::{
     common::{app_client::AppClientConfig, entry::RobotRepresentation},
     esp32::{certificate::WebRtcCertificate, entry::serve_web, tls::Esp32TlsServerConfig},
 };
+use std::net::Ipv4Addr;
 
 extern "C" {
     pub static g_spiram_ok: bool;
@@ -31,7 +33,6 @@ use {
     },
     std::{
         collections::HashMap,
-        net::Ipv4Addr,
         sync::{Arc, Mutex},
     },
 };
@@ -48,8 +49,18 @@ use {
     esp_idf_sys::esp_wifi_set_ps,
     micro_rdk::common::registry::ComponentRegistry,
 };
-
+// static mut trace: &'static mut [esp_idf_sys::heap_trace_record_t] =
+//     &mut [esp_idf_sys::heap_trace_record_t {
+//         ccount: 0,
+//         address: std::ptr::null_mut(),
+//         size: 0,
+//         alloced_by: [std::ptr::null_mut(); 10],
+//         freed_by: [std::ptr::null_mut(); 10],
+//     }; 300];
 fn main() -> anyhow::Result<()> {
+    // unsafe {
+    //     esp_idf_sys::heap_trace_init_tohost();
+    // }
     esp_idf_sys::link_patches();
 
     esp_idf_svc::log::EspLogger::initialize_default();
@@ -88,14 +99,14 @@ fn main() -> anyhow::Result<()> {
     let (ip, _block_eth) = {
         use esp_idf_hal::prelude::Peripherals;
         info!("creating eth object");
-        let mut eth = Box::new(esp_idf_svc::eth::EspEth::wrap(
+        let mut eth = esp_idf_svc::eth::EspEth::wrap(
             esp_idf_svc::eth::EthDriver::new_openeth(
                 Peripherals::take().unwrap().mac,
                 sys_loop_stack.clone(),
             )
             .unwrap(),
-        )?);
-        let _ = eth_configure(&sys_loop_stack, &mut eth)?;
+        )?;
+        let (_, eth) = eth_configure(&sys_loop_stack, eth)?;
         let ip = Ipv4Addr::new(10, 1, 12, 187);
         (ip, eth)
     };
@@ -108,6 +119,28 @@ fn main() -> anyhow::Result<()> {
     }
     #[allow(clippy::redundant_clone)]
     #[cfg(not(feature = "qemu"))]
+    // let (ip, _eth) = {
+    //     use esp_idf_hal::gpio::{Gpio0, Gpio16, Gpio17};
+    //     info!("creating eth object");
+    //     let mut hw = esp_idf_svc::eth::EspEth::wrap(EthDriver::new_rmii(
+    //         periph.mac,
+    //         periph.pins.gpio25,
+    //         periph.pins.gpio26,
+    //         periph.pins.gpio27,
+    //         periph.pins.gpio23,
+    //         periph.pins.gpio22,
+    //         periph.pins.gpio21,
+    //         periph.pins.gpio19,
+    //         periph.pins.gpio18,
+    //         esp_idf_svc::eth::RmiiClockConfig::<Gpio0, Gpio16, Gpio17>::Input(periph.pins.gpio0),
+    //         Some(periph.pins.gpio5),
+    //         esp_idf_svc::eth::RmiiEthChipset::IP101,
+    //         Some(1),
+    //         sys_loop_stack.clone(),
+    //     )?)?;
+    //     let (ip, eth) = eth_configure(&sys_loop_stack, hw)?;
+    //     (ip, eth)
+    // };
     let (ip, _wifi) = {
         let wifi = start_wifi(periph.modem, sys_loop_stack)?;
         (wifi.wifi().sta_netif().get_ip_info()?.ip, wifi)
@@ -134,18 +167,21 @@ fn main() -> anyhow::Result<()> {
     serve_web(cfg, tls_cfg, repr, ip, webrtc_certificate);
     Ok(())
 }
-
-#[cfg(feature = "qemu")]
+use esp_idf_svc::eth::BlockingEth;
+use esp_idf_svc::netif::EspNetif;
+//#[cfg(feature = "qemu")]
 fn eth_configure<'d, T>(
     sl_stack: &EspSystemEventLoop,
-    eth: &mut esp_idf_svc::eth::EspEth<'d, T>,
-) -> anyhow::Result<Ipv4Addr> {
+    eth: esp_idf_svc::eth::EspEth<'d, T>,
+) -> anyhow::Result<(Ipv4Addr, Box<BlockingEth<EspEth<'d, T>>>)> {
     let mut eth = esp_idf_svc::eth::BlockingEth::wrap(eth, sl_stack.clone())?;
     eth.start()?;
+    eth.wait_netif_up()?;
+
     let ip_info = eth.eth().netif().get_ip_info()?;
 
     info!("ETH IP {:?}", ip_info.ip);
-    Ok(ip_info.ip)
+    Ok((ip_info.ip, Box::new(eth)))
 }
 
 #[cfg(not(feature = "qemu"))]

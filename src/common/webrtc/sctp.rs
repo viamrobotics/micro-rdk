@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::HashMap,
     fmt::Debug,
+    io,
     net::SocketAddr,
     sync::{Arc, Mutex},
     task::{Poll, Waker},
@@ -10,16 +11,16 @@ use std::{
 
 use async_channel::Sender;
 use bytes::Bytes;
+use thiserror::Error;
 
 use futures_lite::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use sctp_proto::{
-    Association, AssociationHandle, Chunks, ClientConfig, DatagramEvent, Endpoint, EndpointConfig,
-    Event, Payload, ServerConfig, StreamEvent, StreamId, Transmit,
+    Association, AssociationHandle, ClientConfig, DatagramEvent, Endpoint, EndpointConfig, Event,
+    Payload, ServerConfig, StreamEvent, StreamId, Transmit,
 };
 
 //#[derive(Clone)]
 struct SctpStream {
-    data: VecDeque<Chunks>,
     waker: Option<Waker>,
 }
 
@@ -36,6 +37,7 @@ pub struct Channel {
     tx_event: Sender<SctpEvent>,
     tx_stream_id: StreamId,
     rx_channel: Arc<Mutex<SctpStream>>,
+    association: Arc<Mutex<Association>>,
     closed: Arc<Mutex<bool>>,
 }
 
@@ -45,7 +47,6 @@ impl Channel {
             return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof));
         }
         let bytes = Bytes::copy_from_slice(buf);
-
         self.tx_event
             .send(SctpEvent::OutgoingStreamData((self.tx_stream_id, bytes)))
             .await
@@ -62,17 +63,21 @@ impl AsyncRead for Channel {
         if *self.closed.lock().unwrap() {
             return Poll::Ready(Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof)));
         }
-        let mut rx_stream = self.rx_channel.lock().unwrap();
-        if !rx_stream.data.is_empty() {
-            let chunk = rx_stream.data.pop_front().unwrap();
-            // TODO(RSDK-3062) : we assume that buf.len > chunk.len() this is wrong, we should do a
-            // partial read an update remaining data accordingly
+        let mut association = self.association.lock().unwrap();
+        let mut stream = association
+            .stream(self.tx_stream_id)
+            .map_err(|_| std::io::ErrorKind::BrokenPipe)?;
+
+        if let Some(chunk) = stream
+            .read_sctp()
+            .map_err(|_| std::io::ErrorKind::BrokenPipe)?
+        {
             let r = chunk.read(buf).unwrap();
-            Poll::Ready(Ok(r))
-        } else {
-            let _ = rx_stream.waker.insert(cx.waker().clone());
-            Poll::Pending
+            return Poll::Ready(Ok(r));
         }
+        let mut rx_stream = self.rx_channel.lock().unwrap();
+        let _ = rx_stream.waker.insert(cx.waker().clone());
+        Poll::Pending
     }
 }
 
@@ -85,10 +90,141 @@ enum SctpEvent {
     Disconnect,
 }
 
+#[derive(Error, Debug)]
+pub enum SctpError {
+    #[error("couldn't accept connection")]
+    SctpErrorCannotAssociate,
+    #[error("couldn't connect")]
+    SctpErrorCouldntConnect,
+    #[error(transparent)]
+    SctpIoError(#[from] io::Error),
+    #[error(transparent)]
+    SctpErrorConnect(#[from] sctp_proto::ConnectError),
+    #[error("Sctp event queue full")]
+    SctpErrorEventQueueFull,
+}
+
+pub struct SctpConnector<S> {
+    endpoint: Endpoint,
+    state: SctpState,
+    transport: S,
+    channels_rx: Sender<Channel>,
+}
+
+impl<S> SctpConnector<S>
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send,
+{
+    pub fn new(transport: S, channel_send: Sender<Channel>) -> Self {
+        let endpoint_cfg = EndpointConfig::new();
+        let endpoint = Endpoint::new(Arc::new(endpoint_cfg), None);
+        Self {
+            endpoint,
+            state: SctpState::UnInit,
+            channels_rx: channel_send,
+            transport,
+        }
+    }
+    pub async fn listen(mut self) -> Result<SctpProto<S>, SctpError> {
+        self.state = SctpState::AwaitAssociation;
+        let server_config = Some(Arc::new(ServerConfig::new()));
+
+        self.endpoint.set_server_config(server_config);
+
+        let mut buf = [0; 300];
+
+        let len = self
+            .transport
+            .read(&mut buf)
+            .await
+            .map_err(SctpError::SctpIoError)?;
+
+        if len == 0 {
+            return Err(SctpError::SctpErrorCannotAssociate);
+        }
+
+        let buf = Bytes::copy_from_slice(&buf[..len]);
+        let from = "127.0.0.1:5000".parse().unwrap();
+
+        let (hnd, mut assoc) = if let Some((hnd, DatagramEvent::NewAssociation(assoc))) =
+            self.endpoint.handle(Instant::now(), from, None, None, buf)
+        {
+            (hnd, assoc)
+        } else {
+            return Err(SctpError::SctpErrorCannotAssociate);
+        };
+
+        if let Some(pkt) = assoc.poll_transmit(Instant::now()) {
+            let _ = match pkt.payload {
+                Payload::RawEncode(data) => {
+                    let mut ret = 0;
+                    for payload in data {
+                        ret += self.transport.write(&payload).await?;
+                    }
+                    ret
+                }
+                _ => {
+                    return Err(SctpError::SctpErrorCannotAssociate);
+                }
+            };
+        }
+
+        let (sctp_event_tx, sctp_event_rx) = async_channel::unbounded();
+        Ok(SctpProto {
+            endpoint: self.endpoint,
+            transport: self.transport,
+            association: Arc::new(Mutex::new(assoc)),
+            hnd,
+            state: SctpState::AwaitAssociation,
+            sctp_event_rx,
+            sctp_event_tx,
+            channels: HashMap::new(),
+            channels_rx: self.channels_rx,
+        })
+    }
+
+    pub async fn connect(mut self, addr: SocketAddr) -> Result<SctpProto<S>, SctpError> {
+        let client_config = ClientConfig::new();
+
+        let (hnd, mut association) = self
+            .endpoint
+            .connect(client_config, addr)
+            .map_err(SctpError::SctpErrorConnect)?;
+
+        if let Some(pkt) = association.poll_transmit(Instant::now()) {
+            let _ = match pkt.payload {
+                Payload::RawEncode(data) => {
+                    let mut ret = 0;
+                    for payload in data {
+                        ret += self.transport.write(&payload).await?;
+                    }
+                    ret
+                }
+                _ => {
+                    return Err(SctpError::SctpErrorCannotAssociate);
+                }
+            };
+        }
+
+        let (sctp_event_tx, sctp_event_rx) = async_channel::bounded(5);
+        Ok(SctpProto {
+            endpoint: self.endpoint,
+            transport: self.transport,
+            association: Arc::new(Mutex::new(association)),
+            hnd,
+            state: SctpState::AwaitAssociation,
+            sctp_event_rx,
+            sctp_event_tx,
+            channels: HashMap::new(),
+            channels_rx: self.channels_rx,
+        })
+    }
+}
+
 pub struct SctpProto<S> {
     endpoint: Endpoint,
     transport: S,
-    association: Option<Association>,
+    association: Arc<Mutex<Association>>,
     hnd: AssociationHandle,
     state: SctpState,
     sctp_event_rx: async_channel::Receiver<SctpEvent>,
@@ -97,80 +233,47 @@ pub struct SctpProto<S> {
     channels_rx: Sender<Channel>,
 }
 
+impl<S> Drop for SctpProto<S> {
+    fn drop(&mut self) {
+        log::error!("drop sctp");
+    }
+}
+
 unsafe impl<S> Send for SctpProto<S> {}
+
+async fn write_to_transport<S: AsyncRead + AsyncWrite + Unpin + Send>(
+    mut transport: S,
+    transmit: Transmit,
+) -> anyhow::Result<usize> {
+    let written = match transmit.payload {
+        Payload::RawEncode(data) => {
+            let mut ret = 0;
+            for payload in data {
+                ret += transport.write(&payload).await?;
+            }
+            ret
+        }
+        Payload::PartialDecode(data) => {
+            log::error!(
+                "received a Partial decoded but don't know what to do with it {:?}",
+                data
+            );
+            0
+        }
+    };
+    Ok(written)
+}
 
 impl<S> SctpProto<S>
 where
     S: AsyncRead + AsyncWrite + Unpin + Send,
 {
-    pub fn new(transport: S, channel_send: Sender<Channel>) -> Self {
-        let endpoint_cfg = EndpointConfig::new();
-        let endpoint = Endpoint::new(Arc::new(endpoint_cfg), None);
-
-        let (sctp_event_tx, sctp_event_rx) = async_channel::unbounded();
-
-        Self {
-            endpoint,
-            transport,
-            association: None,
-            hnd: AssociationHandle(0),
-            state: SctpState::UnInit,
-            sctp_event_rx,
-            sctp_event_tx,
-            channels: HashMap::new(),
-            channels_rx: channel_send,
-        }
+    fn close(&mut self) -> Result<(), SctpError> {
+        self.sctp_event_tx
+            .send_blocking(SctpEvent::Disconnect)
+            .map_err(|_| SctpError::SctpErrorEventQueueFull)
     }
-    async fn write_to_transport(&mut self, transmit: Transmit) -> anyhow::Result<usize> {
-        let written = match transmit.payload {
-            Payload::RawEncode(data) => {
-                let mut ret = 0;
-                for payload in data {
-                    ret += self.transport.write(&payload).await?;
-                }
-                ret
-            }
-            Payload::PartialDecode(data) => {
-                log::error!(
-                    "received a Partial decoded but don't know what to do with it {:?}",
-                    data
-                );
-                0
-            }
-        };
-        Ok(written)
-    }
-    async fn handle_outgoing_data(&mut self) -> anyhow::Result<usize> {
-        let mut written = 0;
-        if let Some(pkt) = self.endpoint.poll_transmit() {
-            written += self.write_to_transport(pkt).await?;
-        }
-        if let Some(assoc) = self.association.as_mut() {
-            if let Some(pkt) = assoc.poll_transmit(Instant::now()) {
-                written += self.write_to_transport(pkt).await?;
-            }
-        }
-        Ok(written)
-    }
-    pub async fn listen(&mut self) -> anyhow::Result<()> {
-        self.state = SctpState::AwaitAssociation;
-        let server_config = Some(Arc::new(ServerConfig::new()));
 
-        self.endpoint.set_server_config(server_config);
-
-        Ok(())
-    }
-    pub async fn connect(&mut self, addr: SocketAddr) -> anyhow::Result<()> {
-        let client_config = ClientConfig::new();
-
-        let (hnd, assoc) = self.endpoint.connect(client_config, addr).unwrap();
-        let _ = self.association.insert(assoc);
-        self.hnd = hnd;
-        if let Err(e) = self.sctp_event_tx.send(SctpEvent::OutgoingData).await {
-            log::error!("When initiating an association event after an endpoint event couldn't submit event {:?}",e);
-        }
-        Ok(())
-    }
     pub async fn run(&mut self) {
         let mut sctp_timeout = None;
         loop {
@@ -195,8 +298,10 @@ where
                         if len == 0 {
                             return SctpEvent::Disconnect;
                         }
+
                         let buf = Bytes::copy_from_slice(&buf[..len]);
                         let from = "127.0.0.1:5000".parse().unwrap();
+
                         SctpEvent::IncomingData((from, buf))
                     },
                     async {
@@ -210,150 +315,131 @@ where
 
             match event {
                 SctpEvent::IncomingData((from, data)) => {
-                    if let Some(ret) = self.endpoint.handle(Instant::now(), from, None, None, data)
+                    if let Some((hnd, ev)) =
+                        self.endpoint.handle(Instant::now(), from, None, None, data)
                     {
-                        if let Err(e) = self.process_datagram_event(ret.0, ret.1) {
-                            log::error!("error while processing datagram event {:?}", e);
+                        match ev {
+                            DatagramEvent::NewAssociation(_) => {}
+                            DatagramEvent::AssociationEvent(ev) => {
+                                if hnd != self.hnd {
+                                    log::error!(
+                                        "the association handle of the datagram is not the one active currently"
+                                    );
+                                } else {
+                                    self.association.lock().unwrap().handle_event(ev);
+                                }
+                            }
                         };
                     }
                 }
-                SctpEvent::OutgoingData => {
-                    self.handle_outgoing_data().await.unwrap();
-                }
+                SctpEvent::OutgoingData => {}
                 SctpEvent::Timeout(time) => {
-                    if let Some(assoc) = self.association.as_mut() {
-                        assoc.handle_timeout(time);
-                    }
+                    let mut association = self.association.lock().unwrap();
+                    association.handle_timeout(time);
                 }
                 SctpEvent::OutgoingStreamData((id, buf)) => {
-                    if let Some(assoc) = self.association.as_mut() {
-                        if let Ok(mut stream) = assoc.stream(id) {
-                            log::debug!("writing payload {:?}", buf.len());
-                            stream.write(&buf).unwrap();
-                        } else {
-                            log::error!("couldn't get stream .....");
-                        }
+                    let mut association = self.association.lock().unwrap();
+                    if let Ok(mut stream) = association.stream(id) {
+                        let _ = stream.write(&buf);
+                    } else {
+                        log::error!("couldn't get stream .....");
                     }
                 }
                 SctpEvent::Disconnect => {
-                    if let Some(assoc) = self.association.as_mut() {
-                        let _ = assoc.close();
-                    }
-                    for channel in &self.channels {
-                        *channel.1.closed.lock().unwrap() = true;
-                        if let Some(waker) = &channel.1.rx_channel.lock().unwrap().waker {
-                            waker.wake_by_ref();
-                        }
-                    }
-                    let _ = self.sctp_event_tx.close();
-                    let _ = self.sctp_event_rx.close();
+                    let mut association = self.association.lock().unwrap();
+                    let _ = association.close();
                     break;
                 }
             };
-
-            if let Some(assoc) = self.association.as_mut() {
-                while let Some(ev) = assoc.poll() {
-                    match ev {
-                        Event::AssociationLost { reason } => {
-                            log::error!("Association lost why? {:02x?}", reason);
-                        }
-                        Event::Connected => {
-                            match assoc
-                                .open_stream(0, sctp_proto::PayloadProtocolIdentifier::Binary)
-                            {
-                                Err(e) => {
-                                    log::error!(" cannot open stream {:?}", e);
-                                }
-                                Ok(s) => {
-                                    let c = Channel {
-                                        tx_event: self.sctp_event_tx.clone(),
-                                        tx_stream_id: s.stream_identifier(),
-                                        rx_channel: Arc::new(Mutex::new(SctpStream {
-                                            data: VecDeque::new(),
-                                            waker: None,
-                                        })),
-                                        closed: Arc::new(Mutex::new(false)),
-                                    };
-                                    self.channels.insert(ChannelId(0), c.clone());
-                                    self.channels_rx.send(c).await.unwrap();
-                                }
-                            }
-                        }
-                        Event::DatagramReceived => {
-                            log::debug!("we have received some data on this association");
-                        }
-                        Event::Stream(stream) => match stream {
-                            StreamEvent::Opened => {
-                                log::debug!("some stream was opened")
-                            }
-                            StreamEvent::Readable { id } => {
-                                if let Some(channel) = self.channels.get(&ChannelId(id)) {
-                                    let mut stream = channel.rx_channel.lock().unwrap();
-                                    if let Ok(mut real_stream) = assoc.stream(id) {
-                                        let data = real_stream.read().unwrap().unwrap();
-                                        stream.data.push_back(data)
-                                    }
-                                    if let Some(waker) = stream.waker.as_ref() {
-                                        waker.clone().wake();
-                                    }
-                                }
-                            }
-                            _ => {
-                                log::debug!("skipping this stream event {:?}", stream)
-                            }
-                        },
+            while let Some(ev) = self.association.lock().unwrap().poll() {
+                match ev {
+                    Event::AssociationLost { reason } => {
+                        log::error!("Association lost why? {:02x?}", reason);
+                        let mut association = self.association.lock().unwrap();
+                        let _ = association.close();
+                        break;
                     }
-                }
-
-                if let Some(endpoint) = assoc.poll_endpoint_event() {
-                    if let Some(assoc_ev) = self.endpoint.handle_event(self.hnd, endpoint) {
-                        assoc.handle_event(assoc_ev);
-                        if let Err(e) = self.sctp_event_tx.send(SctpEvent::OutgoingData).await {
-                            log::error!("When processing an association event after an endpoint event couldn't submit event {:?}",e);
+                    Event::Connected => {
+                        match self
+                            .association
+                            .lock()
+                            .unwrap()
+                            .open_stream(0, sctp_proto::PayloadProtocolIdentifier::Binary)
+                        {
+                            Err(e) => {
+                                log::error!(" cannot open stream {:?}", e);
+                            }
+                            Ok(s) => {
+                                let c = Channel {
+                                    tx_event: self.sctp_event_tx.clone(),
+                                    tx_stream_id: s.stream_identifier(),
+                                    rx_channel: Arc::new(Mutex::new(SctpStream { waker: None })),
+                                    closed: Arc::new(Mutex::new(false)),
+                                    association: self.association.clone(),
+                                };
+                                self.channels.insert(ChannelId(0), c.clone());
+                                self.channels_rx.send(c).await.unwrap();
+                            }
                         }
                     }
-                }
-            }
-            if let Err(e) = self.handle_outgoing_data().await {
-                log::error!("Error while sending data {:?}", e);
-            }
-            if let Some(assoc) = self.association.as_mut() {
-                if let Some(timeout) = assoc.poll_timeout() {
-                    log::debug!(
-                        "Log {:?} would timeout in {:?}",
-                        assoc.side(),
-                        timeout - Instant::now()
-                    );
-                    let _ = sctp_timeout.insert(timeout);
-                }
-            }
-        }
-    }
+                    Event::DatagramReceived => {
+                        log::debug!("we have received some data on this association");
+                    }
+                    Event::Stream(stream) => match stream {
+                        StreamEvent::Opened => {
+                            log::debug!("some stream was opened")
+                        }
+                        StreamEvent::Readable { id } => {
+                            if let Some(channel) = self.channels.get(&ChannelId(id)) {
+                                let stream = channel.rx_channel.lock().unwrap();
 
-    fn process_datagram_event(
-        &mut self,
-        hnd: AssociationHandle,
-        ev: DatagramEvent,
-    ) -> anyhow::Result<()> {
-        match ev {
-            DatagramEvent::NewAssociation(assoc) => {
-                let _ = self.association.insert(assoc);
-                self.hnd = hnd;
-                Ok(())
+                                if let Some(waker) = stream.waker.as_ref() {
+                                    waker.clone().wake();
+                                }
+                            }
+                        }
+                        _ => {
+                            log::debug!("skipping this stream event {:?}", stream)
+                        }
+                    },
+                }
             }
-            DatagramEvent::AssociationEvent(ev) => {
-                if hnd != self.hnd {
-                    log::error!(
-                        "the association handle of the datagram is not the one active currently"
-                    );
-                    return Ok(());
+
+            if let Some(endpoint) = self.association.lock().unwrap().poll_endpoint_event() {
+                if let Some(assoc_ev) = self.endpoint.handle_event(self.hnd, endpoint) {
+                    self.association.lock().unwrap().handle_event(assoc_ev);
+                    if let Err(e) = self.sctp_event_tx.send(SctpEvent::OutgoingData).await {
+                        log::error!("When processing an association event after an endpoint event couldn't submit event {:?}",e);
+                    }
                 }
-                if let Some(assoc) = self.association.as_mut() {
-                    assoc.handle_event(ev);
-                }
-                Ok(())
+            }
+
+            if let Some(pkt) = self.endpoint.poll_transmit() {
+                let _ = write_to_transport(&mut self.transport, pkt).await;
+            }
+
+            if let Some(pkt) = self
+                .association
+                .lock()
+                .unwrap()
+                .poll_transmit(Instant::now())
+            {
+                let _ = write_to_transport(&mut self.transport, pkt).await;
+            }
+
+            if let Some(timeout) = self.association.lock().unwrap().poll_timeout() {
+                let _ = sctp_timeout.insert(timeout);
             }
         }
+        log::info!("association closed");
+        for channel in &self.channels {
+            *channel.1.closed.lock().unwrap() = true;
+            if let Some(waker) = &channel.1.rx_channel.lock().unwrap().waker {
+                waker.wake_by_ref();
+            }
+        }
+        let _ = self.sctp_event_tx.close();
+        let _ = self.sctp_event_rx.close();
     }
 }
 
@@ -371,7 +457,7 @@ mod tests {
     use std::task::Poll;
     use std::time::Duration;
 
-    use crate::common::webrtc::sctp::SctpProto;
+    use crate::common::webrtc::sctp::SctpConnector;
     use crate::native::exec::NativeExecutor;
     use async_io::{Async, Timer};
     use futures_lite::future::block_on;
@@ -473,9 +559,7 @@ mod tests {
     #[test_log::test]
     fn test_sctp() {
         let local_ex = NativeExecutor::new();
-        //UdpSocket::bind("127.0.0.1:63332").await.unwrap();
 
-        log::error!("hellow");
         let cloned = local_ex.clone();
         let cloned2 = local_ex.clone();
         local_ex
@@ -499,11 +583,13 @@ mod tests {
         );
 
         let (c_tx, c_rx) = async_channel::unbounded();
-        let mut srv = SctpProto::new(socket, c_tx);
+        let srv = SctpConnector::new(socket, c_tx);
 
         let conn = srv.listen().await;
 
         assert!(conn.is_ok());
+
+        let mut srv = conn.unwrap();
 
         exec.spawn(async move {
             srv.run().await;
@@ -539,16 +625,18 @@ mod tests {
         );
 
         let (c_tx, c_rx) = async_channel::unbounded();
-        let mut client = SctpProto::new(socket, c_tx);
+        let client = SctpConnector::new(socket, c_tx);
 
         let ret = client.connect("127.0.0.1:63332".parse().unwrap()).await;
+
+        assert!(ret.is_ok());
+
+        let mut client = ret.unwrap();
 
         exec.spawn(async move {
             client.run().await;
         })
         .detach();
-
-        assert!(ret.is_ok());
 
         let channel = c_rx.recv().await;
 

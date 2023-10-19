@@ -1837,7 +1837,6 @@ dependencies = [
 [[package]]
 name = "esp-idf-sys"
 version = "0.33.1"
-source = "git+https://github.com/npmenard/esp-idf-sys.git#f8c368678af6b8c337f7c2f0380895e919547e00"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -4172,9 +4171,9 @@ dependencies = [
 
 [[package]]
 name = "sctp-proto"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae7ae1e01cd2977a9992382a5048ef8fdf01445a999719f866dca1a1ab17ceed"
+checksum = "514eb06a3f6b1f119b6a00a9a87afac072894817d3283b0d36adc8f8a135886a"
 dependencies = [
  "bytes",
  "crc",
