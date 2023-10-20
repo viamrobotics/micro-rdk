@@ -346,7 +346,7 @@ where
         if let Ok(pins) = cfg.get_attribute::<MotorPinsConfig>("pins") {
             if let Some(dir_pin) = pins.dir {
                 let pwm_pin = pins.pwm;
-                let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm")?.unwrap_or(100.0);
+                let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm").unwrap_or(100.0);
                 let dir_flip: bool = cfg.get_attribute::<bool>("dir_flip").unwrap_or_default();
                 return Ok(Arc::new(Mutex::new(PwmDirectionMotor::new(
                     dir_pin, pwm_pin, max_rpm, dir_flip, board,
