@@ -10,7 +10,7 @@ use futures_lite::AsyncReadExt;
 use prost::Message;
 
 use crate::{
-    common::grpc::{GrpcError, GrpcResponse},
+    common::grpc::{GrpcResponse, ServerError},
     google::rpc::Status,
     proto::rpc::webrtc::{
         self,
@@ -74,12 +74,12 @@ pub struct WebRtcGrpcServer<S> {
 }
 
 pub trait WebRtcGrpcService {
-    fn unary_rpc(&mut self, method: &str, data: &Bytes) -> Result<Bytes, GrpcError>;
+    fn unary_rpc(&mut self, method: &str, data: &Bytes) -> Result<Bytes, ServerError>;
     fn server_stream_rpc(
         &mut self,
         method: &str,
         data: &Bytes,
-    ) -> Result<(Bytes, Instant), GrpcError>;
+    ) -> Result<(Bytes, Instant), ServerError>;
 }
 
 impl<S> WebRtcGrpcServer<S>
