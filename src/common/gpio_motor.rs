@@ -50,7 +50,8 @@ use super::encoder::{
 };
 use super::math_utils::go_for_math;
 use super::motor::{
-    Motor, MotorPinType, MotorPinsConfig, MotorType, COMPONENT_NAME as MotorCompName,
+    Motor, MotorPinType, MotorPinsConfig, MotorSupportedProperties, MotorType,
+    COMPONENT_NAME as MotorCompName,
 };
 use super::registry::{get_board_from_dependencies, ComponentRegistry, Dependency, ResourceKey};
 use super::robot::Resource;
@@ -153,6 +154,11 @@ where
     }
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
         self.motor.go_for(rpm, revolutions)
+    }
+    fn get_properties(&mut self) -> MotorSupportedProperties {
+        MotorSupportedProperties {
+            position_reporting: true,
+        }
     }
 }
 
@@ -283,6 +289,12 @@ where
         }
         Ok(None)
     }
+
+    fn get_properties(&mut self) -> MotorSupportedProperties {
+        MotorSupportedProperties {
+            position_reporting: false,
+        }
+    }
 }
 
 impl<B> Status for PwmABMotor<B>
@@ -382,6 +394,12 @@ where
             return Ok(dur);
         }
         Ok(None)
+    }
+
+    fn get_properties(&mut self) -> MotorSupportedProperties {
+        MotorSupportedProperties {
+            position_reporting: false,
+        }
     }
 }
 

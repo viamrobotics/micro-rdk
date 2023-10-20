@@ -292,12 +292,34 @@ where
         }
     }
 
-    fn motor_get_position(&mut self, _message: &[u8]) -> Result<(), GrpcError> {
-        Err(GrpcError::RpcUnimplemented)
+    fn motor_get_position(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+        let req = component::motor::v1::GetPositionRequest::decode(message)
+            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+        let motor = match self.robot.lock().unwrap().get_motor_by_name(req.name) {
+            Some(m) => m,
+            None => return Err(GrpcError::RpcUnavailable),
+        };
+        let pos = motor
+            .lock()
+            .unwrap()
+            .get_position()
+            .map_err(|_| GrpcError::RpcInternal)?;
+        let resp = component::motor::v1::GetPositionResponse {
+            position: pos as f64,
+        };
+        self.encode_message(resp)
     }
 
-    fn motor_get_properties(&mut self, _message: &[u8]) -> Result<(), GrpcError> {
-        Err(GrpcError::RpcUnimplemented)
+    fn motor_get_properties(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+        let req = component::motor::v1::GetPropertiesRequest::decode(message)
+            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+        let motor = match self.robot.lock().unwrap().get_motor_by_name(req.name) {
+            Some(m) => m,
+            None => return Err(GrpcError::RpcUnavailable),
+        };
+        let props: component::motor::v1::GetPropertiesResponse =
+            motor.lock().unwrap().get_properties().into();
+        self.encode_message(props)
     }
 
     fn motor_go_for(&mut self, _message: &[u8]) -> Result<(), GrpcError> {
