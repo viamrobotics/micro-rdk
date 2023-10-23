@@ -2,7 +2,7 @@ use super::single_encoder::SingleEncoderType;
 use crate::common::encoder::{
     Direction, Encoder, EncoderPositionType, EncoderSupportedRepresentations, SingleEncoder,
 };
-use crate::common::motor::{Motor, MotorType};
+use crate::common::motor::{Motor, MotorSupportedProperties, MotorType};
 use crate::common::status::Status;
 use crate::common::stop::Stoppable;
 use crate::google;
@@ -64,6 +64,11 @@ impl Motor for SingleEncodedMotor {
     }
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
         self.motor.go_for(rpm, revolutions)
+    }
+    fn get_properties(&mut self) -> MotorSupportedProperties {
+        MotorSupportedProperties {
+            position_reporting: true,
+        }
     }
 }
 

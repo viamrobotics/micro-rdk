@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 use crate::common::status::Status;
 use crate::google;
+use crate::proto::component::motor::v1::GetPropertiesResponse;
 use log::*;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -42,6 +43,18 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     }
 }
 
+pub struct MotorSupportedProperties {
+    pub position_reporting: bool,
+}
+
+impl From<MotorSupportedProperties> for GetPropertiesResponse {
+    fn from(value: MotorSupportedProperties) -> Self {
+        GetPropertiesResponse {
+            position_reporting: value.position_reporting,
+        }
+    }
+}
+
 pub trait Motor: Status + Stoppable {
     /// Sets the percentage of the motor's total power that should be employed.
     /// expressed a value between `-1.0` and `1.0` where negative values indicate a backwards
@@ -56,6 +69,9 @@ pub trait Motor: Status + Stoppable {
     /// If revolutions is 0, this will run the motor at rpm indefinitely.
     /// If revolutions != 0, this will block until the number of revolutions has been completed or another operation comes in.
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>>;
+    /// Returns an instance of MotorSupportedProperties indicating the optional properties
+    /// supported by this motor
+    fn get_properties(&mut self) -> MotorSupportedProperties;
 }
 
 pub type MotorType = Arc<Mutex<dyn Motor>>;
@@ -222,6 +238,9 @@ where
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
         self.get_mut().unwrap().go_for(rpm, revolutions)
     }
+    fn get_properties(&mut self) -> MotorSupportedProperties {
+        self.get_mut().unwrap().get_properties()
+    }
 }
 
 impl<A> Motor for Arc<Mutex<A>>
@@ -236,6 +255,9 @@ where
     }
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
         self.lock().unwrap().go_for(rpm, revolutions)
+    }
+    fn get_properties(&mut self) -> MotorSupportedProperties {
+        self.lock().unwrap().get_properties()
     }
 }
 
@@ -253,6 +275,11 @@ impl Motor for FakeMotor {
         let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions)?;
         self.set_power(pwr)?;
         Ok(dur)
+    }
+    fn get_properties(&mut self) -> MotorSupportedProperties {
+        MotorSupportedProperties {
+            position_reporting: true,
+        }
     }
 }
 impl Status for FakeMotor {
@@ -333,6 +360,11 @@ impl Motor for FakeMotorWithDependency {
     }
     fn go_for(&mut self, _: f64, _: f64) -> anyhow::Result<Option<Duration>> {
         anyhow::bail!("go_for unimplemented")
+    }
+    fn get_properties(&mut self) -> MotorSupportedProperties {
+        MotorSupportedProperties {
+            position_reporting: true,
+        }
     }
 }
 
