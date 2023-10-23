@@ -182,7 +182,6 @@ where
 
     async fn next_rpc_call(&mut self) -> Result<u32, WebRtcError> {
         loop {
-            // log::info!("entering stream");
             let read = self
                 .channel
                 .read(&mut self.buffer)
@@ -190,7 +189,6 @@ where
                 .map_err(WebRtcError::IoError)?;
             let req = webrtc::v1::Request::decode(&self.buffer[..read])
                 .map_err(WebRtcError::GrpcDecodeError)?;
-            //log::info!("req {:?}", req);
             if let Some(wrtc_type) = req.r#type {
                 match wrtc_type {
                     webrtc::v1::request::Type::Headers(hdr) => {
@@ -204,7 +202,7 @@ where
                             req.stream.clone().unwrap().id as u32,
                             RpcCall(hdr, None, None),
                         );
-                        //  log::info!("inserting stream {}", req.stream.unwrap().id);
+
                         self.send_response(header_response).await?;
                     }
                     webrtc::v1::request::Type::Message(msg) => {

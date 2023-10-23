@@ -287,7 +287,7 @@ fn main() -> anyhow::Result<()> {
         )]
     }
     .join("\n");
-    fs::write(&dest_path, conf_decl).unwrap();
+    fs::write(dest_path, conf_decl).unwrap();
 
     Ok(())
 }

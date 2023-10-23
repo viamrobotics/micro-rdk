@@ -235,7 +235,7 @@ pub struct SctpProto<S> {
 
 impl<S> Drop for SctpProto<S> {
     fn drop(&mut self) {
-        log::error!("drop sctp");
+        log::debug!("drop sctp");
     }
 }
 
@@ -431,7 +431,7 @@ where
                 let _ = sctp_timeout.insert(timeout);
             }
         }
-        log::info!("association closed");
+
         for channel in &self.channels {
             *channel.1.closed.lock().unwrap() = true;
             if let Some(waker) = &channel.1.rx_channel.lock().unwrap().waker {

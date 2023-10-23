@@ -18,7 +18,7 @@ opt-level = "z"
 qemu = []
 
 [patch.crates-io]
-esp-idf-sys = {path = "../../esp-idf-sys"}
+esp-idf-sys = {git = "https://github.com/npmenard/esp-idf-sys.git"}
 polling = { git = "https://github.com/esp-rs-compat/polling" }
 smol = { git = "https://github.com/esp-rs-compat/smol" }
 socket2 = { git = "https://github.com/npmenard/socket2.git" }

@@ -411,7 +411,6 @@ where
             .wait_sdp_offer()
             .await?;
 
-        log::info!("Offered {:?}", offer);
         let answer = SessionDescription::new_jsep_session_description(false);
 
         let attribute = offer

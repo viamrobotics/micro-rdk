@@ -21,7 +21,6 @@ use crate::{
             grpc::{WebRtcGrpcBody, WebRtcGrpcServer},
         },
     },
-    //esp32::utils,
     proto::{self, app::v1::ConfigResponse},
 };
 

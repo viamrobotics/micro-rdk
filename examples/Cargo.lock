@@ -1837,6 +1837,7 @@ dependencies = [
 [[package]]
 name = "esp-idf-sys"
 version = "0.33.1"
+source = "git+https://github.com/npmenard/esp-idf-sys.git#f8c368678af6b8c337f7c2f0380895e919547e00"
 dependencies = [
  "anyhow",
  "bindgen",
