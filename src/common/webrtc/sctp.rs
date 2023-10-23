@@ -274,6 +274,92 @@ where
             .map_err(|_| SctpError::SctpErrorEventQueueFull)
     }
 
+    fn process_association_events(&mut self) -> Result<(), SctpError> {
+        let mut association = self.association.lock().unwrap();
+        while let Some(ev) = association.poll() {
+            match ev {
+                Event::AssociationLost { reason } => {
+                    log::error!("Association lost why? {:02x?}", reason);
+                    let _ = association.close();
+                    break;
+                }
+                Event::Connected => {
+                    match association.open_stream(0, sctp_proto::PayloadProtocolIdentifier::Binary)
+                    {
+                        Err(e) => {
+                            log::error!(" cannot open stream {:?}", e);
+                        }
+                        Ok(s) => {
+                            let c = Channel {
+                                tx_event: self.sctp_event_tx.clone(),
+                                tx_stream_id: s.stream_identifier(),
+                                rx_channel: Arc::new(Mutex::new(SctpStream { waker: None })),
+                                closed: Arc::new(Mutex::new(false)),
+                                association: self.association.clone(),
+                            };
+                            self.channels.insert(ChannelId(0), c.clone());
+                            if let Err(e) = self.channels_rx.try_send(c) {
+                                log::error!("Failed to send opened channel {:?}", e);
+                            }
+                        }
+                    }
+                }
+                Event::DatagramReceived => {
+                    log::debug!("we have received some data on this association");
+                }
+                Event::Stream(stream) => match stream {
+                    StreamEvent::Opened => {
+                        log::debug!("some stream was opened")
+                    }
+                    StreamEvent::Readable { id } => {
+                        if let Some(channel) = self.channels.get(&ChannelId(id)) {
+                            let stream = channel.rx_channel.lock().unwrap();
+
+                            if let Some(waker) = stream.waker.as_ref() {
+                                waker.clone().wake();
+                            }
+                        }
+                    }
+                    _ => {
+                        log::debug!("skipping this stream event {:?}", stream)
+                    }
+                },
+            }
+        }
+        Ok(())
+    }
+
+    async fn process_endpoint_events(&mut self) -> Result<(), SctpError> {
+        {
+            let mut association = self.association.lock().unwrap();
+            if let Some(endpoint) = association.poll_endpoint_event() {
+                if let Some(assoc_ev) = self.endpoint.handle_event(self.hnd, endpoint) {
+                    association.handle_event(assoc_ev);
+                    if let Err(e) = self.sctp_event_tx.try_send(SctpEvent::OutgoingData) {
+                        log::error!("When processing an association event after an endpoint event couldn't submit event {:?}",e);
+                    }
+                }
+            }
+        }
+        if let Some(pkt) = self.endpoint.poll_transmit() {
+            let _ = write_to_transport(&mut self.transport, pkt).await;
+        }
+        Ok(())
+    }
+
+    async fn send_association_packets(&mut self) -> Result<(), SctpError> {
+        let pkt = {
+            self.association
+                .lock()
+                .unwrap()
+                .poll_transmit(Instant::now())
+        };
+        if let Some(pkt) = pkt {
+            let _ = write_to_transport(&mut self.transport, pkt).await;
+        }
+
+        Ok(())
+    }
     pub async fn run(&mut self) {
         let mut sctp_timeout = None;
         loop {
@@ -351,83 +437,13 @@ where
                     break;
                 }
             };
-            while let Some(ev) = self.association.lock().unwrap().poll() {
-                match ev {
-                    Event::AssociationLost { reason } => {
-                        log::error!("Association lost why? {:02x?}", reason);
-                        let mut association = self.association.lock().unwrap();
-                        let _ = association.close();
-                        break;
-                    }
-                    Event::Connected => {
-                        match self
-                            .association
-                            .lock()
-                            .unwrap()
-                            .open_stream(0, sctp_proto::PayloadProtocolIdentifier::Binary)
-                        {
-                            Err(e) => {
-                                log::error!(" cannot open stream {:?}", e);
-                            }
-                            Ok(s) => {
-                                let c = Channel {
-                                    tx_event: self.sctp_event_tx.clone(),
-                                    tx_stream_id: s.stream_identifier(),
-                                    rx_channel: Arc::new(Mutex::new(SctpStream { waker: None })),
-                                    closed: Arc::new(Mutex::new(false)),
-                                    association: self.association.clone(),
-                                };
-                                self.channels.insert(ChannelId(0), c.clone());
-                                self.channels_rx.send(c).await.unwrap();
-                            }
-                        }
-                    }
-                    Event::DatagramReceived => {
-                        log::debug!("we have received some data on this association");
-                    }
-                    Event::Stream(stream) => match stream {
-                        StreamEvent::Opened => {
-                            log::debug!("some stream was opened")
-                        }
-                        StreamEvent::Readable { id } => {
-                            if let Some(channel) = self.channels.get(&ChannelId(id)) {
-                                let stream = channel.rx_channel.lock().unwrap();
 
-                                if let Some(waker) = stream.waker.as_ref() {
-                                    waker.clone().wake();
-                                }
-                            }
-                        }
-                        _ => {
-                            log::debug!("skipping this stream event {:?}", stream)
-                        }
-                    },
-                }
-            }
-
-            if let Some(endpoint) = self.association.lock().unwrap().poll_endpoint_event() {
-                if let Some(assoc_ev) = self.endpoint.handle_event(self.hnd, endpoint) {
-                    self.association.lock().unwrap().handle_event(assoc_ev);
-                    if let Err(e) = self.sctp_event_tx.send(SctpEvent::OutgoingData).await {
-                        log::error!("When processing an association event after an endpoint event couldn't submit event {:?}",e);
-                    }
-                }
-            }
-
-            if let Some(pkt) = self.endpoint.poll_transmit() {
-                let _ = write_to_transport(&mut self.transport, pkt).await;
-            }
-
-            if let Some(pkt) = self
-                .association
-                .lock()
-                .unwrap()
-                .poll_transmit(Instant::now())
-            {
-                let _ = write_to_transport(&mut self.transport, pkt).await;
-            }
+            self.process_association_events().unwrap();
+            self.process_endpoint_events().await.unwrap();
+            self.send_association_packets().await.unwrap();
 
             if let Some(timeout) = self.association.lock().unwrap().poll_timeout() {
+                //log::error!("next timeout {:?}", timeout);
                 let _ = sctp_timeout.insert(timeout);
             }
         }
