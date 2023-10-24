@@ -1,12 +1,14 @@
 #![allow(unused)]
+use anyhow::Context;
 use bytes::{BufMut, Bytes, BytesMut};
+use chrono::{format::ParseError, DateTime, FixedOffset};
 use futures_lite::Future;
 use prost::{DecodeError, EncodeError, Message};
-use std::{net::Ipv4Addr, pin::Pin, rc::Rc};
+use std::{net::Ipv4Addr, pin::Pin, rc::Rc, time::SystemTime};
 use thiserror::Error;
 
 use crate::proto::{
-    app::v1::{AgentInfo, ConfigRequest, ConfigResponse},
+    app::v1::{AgentInfo, ConfigRequest, ConfigResponse, LogEntry, LogRequest},
     rpc::{
         v1::{AuthenticateRequest, AuthenticateResponse, Credentials},
         webrtc::v1::{AnswerRequest, AnswerResponse, AnswerResponseErrorStage},
@@ -35,6 +37,12 @@ pub enum AppClientError {
     AppDecodeError(#[from] DecodeError),
     #[error(transparent)]
     AppWebRtcError(#[from] WebRtcError),
+    #[error("error converting from HeaderValue to string for 'date'")]
+    AppConfigHeaderValueParseError,
+    #[error(transparent)]
+    AppConfigHeaderDateParseError(#[from] ParseError),
+    #[error("Date missing from header of config response")]
+    AppConfigHeaderDateMissingError,
 }
 
 #[derive(Debug, Clone)]
@@ -138,7 +146,8 @@ impl<'a> AppClientBuilder<'a> {
         let mut r = self
             .grpc_client
             .send_request(r, body)
-            .map_err(AppClientError::AppOtherError)?;
+            .map_err(AppClientError::AppOtherError)?
+            .0;
         let r = r.split_off(5);
         let r = AuthenticateResponse::decode(r).map_err(AppClientError::AppDecodeError)?;
         Ok(format!("Bearer {}", r.access_token))
@@ -175,7 +184,12 @@ impl<'a> AppClient<'a> {
             .map_err(AppClientError::AppOtherError)?;
         Ok(AppSignaling(tx, rx))
     }
-    pub fn get_config(&mut self) -> Result<Box<ConfigResponse>, AppClientError> {
+
+    // returns both a response from the robot config request and the timestamp of the response
+    // taken from its header for the purposes of timestamping configuration logs
+    pub fn get_config(
+        &mut self,
+    ) -> Result<(Box<ConfigResponse>, Option<DateTime<FixedOffset>>), AppClientError> {
         let r = self
             .grpc_client
             .build_request("/viam.app.v1.RobotService/Config", Some(&self.jwt), "")
@@ -196,10 +210,38 @@ impl<'a> AppClient<'a> {
         };
         let body = encode_request(req)?;
 
-        let mut r = self.grpc_client.send_request(r, body)?;
+        let (mut r, headers) = self.grpc_client.send_request(r, body)?;
+
+        let datetime = if let Some(date_val) = headers.get("date") {
+            let date_str = date_val
+                .to_str()
+                .map_err(|_| AppClientError::AppConfigHeaderValueParseError)?;
+            DateTime::parse_from_rfc2822(date_str).ok()
+        } else {
+            None
+        };
+
         let r = r.split_off(5);
 
-        Ok(Box::new(ConfigResponse::decode(r)?))
+        Ok((Box::new(ConfigResponse::decode(r)?), datetime))
+    }
+
+    pub fn push_logs(&mut self, logs: Vec<LogEntry>) -> Result<(), AppClientError> {
+        let r = self
+            .grpc_client
+            .build_request("/viam.app.v1.RobotService/Log", Some(&self.jwt), "")
+            .map_err(AppClientError::AppOtherError)?;
+
+        let req = LogRequest {
+            id: self.config.robot_id.clone(),
+            logs,
+        };
+
+        let body = encode_request(req)?;
+
+        self.grpc_client.send_request(r, body)?;
+
+        Ok(())
     }
 }
 

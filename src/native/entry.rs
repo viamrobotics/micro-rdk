@@ -5,6 +5,7 @@ use crate::{
         conn::server::{ViamServerBuilder, WebRtcConfiguration},
         entry::RobotRepresentation,
         grpc_client::GrpcClient,
+        log::config_log_entry,
         robot::LocalRobot,
     },
     native::exec::NativeExecutor,
@@ -32,7 +33,7 @@ pub fn serve_web(
     let exec = NativeExecutor::new();
     let mdns = NativeMdns::new("".to_owned(), ip).unwrap();
 
-    let cfg_response = {
+    let (cfg_response, robot) = {
         let cloned_exec = exec.clone();
         let conn = client_connector.open_ssl_context(None).unwrap();
         let conn = NativeStream::TLSStream(Box::new(conn));
@@ -40,16 +41,34 @@ pub fn serve_web(
         let builder = AppClientBuilder::new(Box::new(grpc_client), app_config.clone());
 
         let mut client = builder.build().unwrap();
-        client.get_config().unwrap()
-    };
 
-    let robot = match repr {
-        RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
-        RobotRepresentation::WithRegistry(registry) => {
-            log::info!("building robot from config");
-            let r = LocalRobot::new_from_config_response(&cfg_response, registry).unwrap();
-            Arc::new(Mutex::new(r))
-        }
+        let (cfg_response, cfg_received_datetime) = client.get_config().unwrap();
+
+        let robot = match repr {
+            RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
+            RobotRepresentation::WithRegistry(registry) => {
+                log::info!("building robot from config");
+                let r = match LocalRobot::new_from_config_response(&cfg_response, registry) {
+                    Ok(robot) => {
+                        if let Some(datetime) = cfg_received_datetime {
+                            let logs = vec![config_log_entry(datetime, None)];
+                            client.push_logs(logs).expect("could not push logs to app");
+                        }
+                        robot
+                    }
+                    Err(err) => {
+                        if let Some(datetime) = cfg_received_datetime {
+                            let logs = vec![config_log_entry(datetime, Some(&err))];
+                            client.push_logs(logs).expect("could not push logs to app");
+                        }
+                        panic!("{}", err)
+                    }
+                };
+                Arc::new(Mutex::new(r))
+            }
+        };
+
+        (cfg_response, robot)
     };
 
     let address: SocketAddr = "0.0.0.0:12346".parse().unwrap();
@@ -154,7 +173,7 @@ mod tests {
 
         let body = encode_request(req)?;
 
-        let mut r = grpc_client.send_request(r, body)?;
+        let mut r = grpc_client.send_request(r, body)?.0;
         let r = r.split_off(5);
         let r = AuthenticateResponse::decode(r).unwrap();
         let jwt = format!("Bearer {}", r.access_token);
