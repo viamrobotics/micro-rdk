@@ -48,6 +48,14 @@ struct WriteCredentials {
     /// data partition will be edited with Wi-Fi and robot credentials
     #[arg(long = "binary-path")]
     binary_path: String,
+    /// Wi-Fi SSID to write to NVS partition of binary. If not provided, user will be
+    /// prompted for it
+    #[arg(long = "wifi-ssid")]
+    wifi_ssid: Option<String>,
+    /// Wi-Fi password to write to NVS partition of binary. If not provided, user will be
+    /// prompted for it
+    #[arg(long = "wifi-password")]
+    wifi_password: Option<Secret<String>>,
 }
 
 /// Flash a pre-compiled binary with the micro-RDK server directly to an ESP32
@@ -71,6 +79,14 @@ struct WriteFlash {
     /// The micro-RDK server logs can be viewed this way
     #[arg(long = "monitor")]
     monitor: bool,
+    /// Wi-Fi SSID to write to NVS partition of binary. If not provided, user will be
+    /// prompted for it
+    #[arg(long = "wifi-ssid")]
+    wifi_ssid: Option<String>,
+    /// Wi-Fi password to write to NVS partition of binary. If not provided, user will be
+    /// prompted for it
+    #[arg(long = "wifi-password")]
+    wifi_password: Option<Secret<String>>,
 }
 
 /// Generate a binary of a complete NVS data partition that conatins Wi-Fi and security
@@ -86,6 +102,14 @@ struct CreateNVSPartition {
     // declared in examples/esp32/partitions.csv (0x8000, or 32768)
     #[arg(long = "size", default_value = "32768")]
     size: usize,
+    /// Wi-Fi SSID to write to NVS partition of binary. If not provided, user will be
+    /// prompted for it
+    #[arg(long = "wifi-ssid")]
+    wifi_ssid: Option<String>,
+    /// Wi-Fi password to write to NVS partition of binary. If not provided, user will be
+    /// prompted for it
+    #[arg(long = "wifi-password")]
+    wifi_password: Option<Secret<String>>,
 }
 
 /// Monitor a currently connected ESP32
@@ -104,37 +128,52 @@ struct Cli {
     command: Option<Commands>,
 }
 
-fn request_wifi() -> Result<WifiCredentials, Error> {
-    let ssid: String = Input::with_theme(&ColorfulTheme::default())
-        .with_prompt("Please enter WiFi SSID")
-        .interact_text()
-        .map_err(Error::WifiCredentialsError)?;
-    let password: Secret<String> = Secret::new(
-        Password::with_theme(&ColorfulTheme::default())
-            .with_prompt("Please enter WiFi Password")
-            .validate_with(|input: &String| -> Result<(), Error> {
-                if input.len() > 64 {
-                    return Err(Error::WifiPasswordTooLongError(
-                        "password length limited to 64 characters or less".to_string(),
-                    ));
-                }
-                Ok(())
-            })
-            .interact()
-            .map_err(Error::WifiCredentialsError)?,
-    );
-
+fn request_wifi(
+    wifi_ssid: Option<String>,
+    wifi_password: Option<Secret<String>>,
+) -> Result<WifiCredentials, Error> {
+    let ssid: String = if let Some(ssid) = wifi_ssid {
+        ssid
+    } else {
+        Input::with_theme(&ColorfulTheme::default())
+            .with_prompt("Please enter WiFi SSID")
+            .interact_text()
+            .map_err(Error::WifiCredentialsError)?
+    };
+    let password: Secret<String> = if let Some(password) = wifi_password {
+        password
+    } else {
+        Secret::new(
+            Password::with_theme(&ColorfulTheme::default())
+                .with_prompt("Please enter WiFi Password")
+                .validate_with(|input: &String| -> Result<(), Error> {
+                    if input.len() > 64 {
+                        return Err(Error::WifiPasswordTooLongError(
+                            "password length limited to 64 characters or less".to_string(),
+                        ));
+                    }
+                    Ok(())
+                })
+                .interact()
+                .map_err(Error::WifiCredentialsError)?,
+        )
+    };
     Ok(WifiCredentials { ssid, password })
 }
 
-fn create_nvs_partition_binary(config_path: String, size: usize) -> Result<Vec<u8>, Error> {
+fn create_nvs_partition_binary(
+    config_path: String,
+    size: usize,
+    wifi_ssid: Option<String>,
+    wifi_password: Option<Secret<String>>,
+) -> Result<Vec<u8>, Error> {
     let mut storage_data = ViamFlashStorageData::default();
     let config_str = fs::read_to_string(config_path).map_err(Error::FileError)?;
     let app_config: AppConfig = serde_json::from_str(&config_str)?;
     storage_data.robot_credentials.robot_id = Some(app_config.cloud.r#id.to_string());
     storage_data.robot_credentials.app_address = Some(app_config.cloud.app_address.to_string());
     storage_data.robot_credentials.robot_secret = Some(app_config.cloud.secret);
-    let wifi_cred = request_wifi()?;
+    let wifi_cred = request_wifi(wifi_ssid, wifi_password)?;
     storage_data.wifi = Some(wifi_cred);
     populate_nvs_storage_from_app(&mut storage_data)?;
     let part = &mut NVSPartition::from_storage_data(storage_data, size)?;
@@ -211,8 +250,12 @@ fn main() -> Result<(), Error> {
         Some(Commands::WriteCredentials(args)) => {
             let app_path = PathBuf::from(args.binary_path.clone());
             let nvs_metadata = read_nvs_metadata(app_path.clone())?;
-            let nvs_data =
-                create_nvs_partition_binary(args.config.to_string(), nvs_metadata.size as usize)?;
+            let nvs_data = create_nvs_partition_binary(
+                args.config.to_string(),
+                nvs_metadata.size as usize,
+                args.wifi_ssid.clone(),
+                args.wifi_password.clone(),
+            )?;
             write_credentials_to_app_binary(
                 app_path,
                 &nvs_data,
@@ -233,8 +276,12 @@ fn main() -> Result<(), Error> {
                 }
             };
             let nvs_metadata = read_nvs_metadata(app_path.clone())?;
-            let nvs_data =
-                create_nvs_partition_binary(args.config.to_string(), nvs_metadata.size as usize)?;
+            let nvs_data = create_nvs_partition_binary(
+                args.config.to_string(),
+                nvs_metadata.size as usize,
+                args.wifi_ssid.clone(),
+                args.wifi_password.clone(),
+            )?;
             write_credentials_to_app_binary(
                 app_path.clone(),
                 &nvs_data,
@@ -248,6 +295,8 @@ fn main() -> Result<(), Error> {
             file.write_all(&create_nvs_partition_binary(
                 args.config.to_string(),
                 args.size,
+                args.wifi_ssid.clone(),
+                args.wifi_password.clone(),
             )?)
             .map_err(Error::FileError)?;
         }
