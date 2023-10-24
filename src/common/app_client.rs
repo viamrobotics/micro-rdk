@@ -186,7 +186,8 @@ impl<'a> AppClient<'a> {
     }
 
     // returns both a response from the robot config request and the timestamp of the response
-    // taken from its header for the purposes of timestamping configuration logs
+    // taken from its header for the purposes of timestamping configuration logs and returning
+    // `last_reconfigured` values for resource statuses.
     pub fn get_config(
         &mut self,
     ) -> Result<(Box<ConfigResponse>, Option<DateTime<FixedOffset>>), AppClientError> {

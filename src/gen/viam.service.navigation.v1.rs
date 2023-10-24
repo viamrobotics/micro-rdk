@@ -121,12 +121,42 @@ pub struct GetObstaclesResponse {
     #[prost(message, repeated, tag="1")]
     pub obstacles: ::prost::alloc::vec::Vec<super::super::super::common::v1::GeoObstacle>,
 }
+/// A user provided destination and the set of geopoints that
+/// the robot is expected to take to get there
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Path {
+    /// The id of the user specified waypoint
+    #[prost(string, tag="1")]
+    pub destination_waypoint_id: ::prost::alloc::string::String,
+    /// List of geopoints that the motion planner output to reach the destination
+    /// The first geopoint is the starting position of the robot for that path
+    #[prost(message, repeated, tag="2")]
+    pub geopoints: ::prost::alloc::vec::Vec<super::super::super::common::v1::GeoPoint>,
+}
+/// Returns all the paths known to the navigation service
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetPathsRequest {
+    /// Name of the navigation service
+    #[prost(string, tag="1")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetPathsResponse {
+    #[prost(message, repeated, tag="1")]
+    pub paths: ::prost::alloc::vec::Vec<Path>,
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum Mode {
     Unspecified = 0,
     Manual = 1,
     Waypoint = 2,
+    Explore = 3,
 }
 impl Mode {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -138,6 +168,7 @@ impl Mode {
             Mode::Unspecified => "MODE_UNSPECIFIED",
             Mode::Manual => "MODE_MANUAL",
             Mode::Waypoint => "MODE_WAYPOINT",
+            Mode::Explore => "MODE_EXPLORE",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -146,6 +177,7 @@ impl Mode {
             "MODE_UNSPECIFIED" => Some(Self::Unspecified),
             "MODE_MANUAL" => Some(Self::Manual),
             "MODE_WAYPOINT" => Some(Self::Waypoint),
+            "MODE_EXPLORE" => Some(Self::Explore),
             _ => None,
         }
     }

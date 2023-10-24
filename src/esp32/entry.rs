@@ -57,7 +57,11 @@ pub fn serve_web(
                 RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
                 RobotRepresentation::WithRegistry(registry) => {
                     log::info!("building robot from config");
-                    let r = match LocalRobot::new_from_config_response(&cfg_response, registry) {
+                    let r = match LocalRobot::new_from_config_response(
+                        &cfg_response,
+                        registry,
+                        cfg_received_datetime,
+                    ) {
                         Ok(robot) => {
                             if let Some(datetime) = cfg_received_datetime {
                                 let logs = vec![config_log_entry(datetime, None)];

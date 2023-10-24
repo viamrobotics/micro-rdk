@@ -587,7 +587,7 @@ where
     }
 
     fn sensor_get_readings(&mut self, message: &[u8]) -> Result<(), GrpcError> {
-        let req = component::sensor::v1::GetReadingsRequest::decode(message)
+        let req = proto::common::v1::GetReadingsRequest::decode(message)
             .map_err(|_| GrpcError::RpcInvalidArgument)?;
         let sensor = match self.robot.lock().unwrap().get_sensor_by_name(req.name) {
             Some(b) => b,
@@ -599,7 +599,7 @@ where
             .unwrap()
             .get_generic_readings()
             .map_err(|_| GrpcError::RpcInternal)?;
-        let resp = component::sensor::v1::GetReadingsResponse { readings };
+        let resp = proto::common::v1::GetReadingsResponse { readings };
         self.encode_message(resp)
     }
 

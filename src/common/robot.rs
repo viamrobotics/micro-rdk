@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use chrono::{DateTime, FixedOffset};
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
@@ -17,6 +18,7 @@ use crate::{
     common::sensor::Sensor,
     common::status::Status,
     common::stop::Stoppable,
+    google,
     proto::{
         app::v1::{ComponentConfig, ConfigResponse},
         common::{self, v1::ResourceName},
@@ -54,6 +56,7 @@ pub type ResourceMap = HashMap<ResourceName, Resource>;
 
 pub struct LocalRobot {
     resources: ResourceMap,
+    build_time: Option<DateTime<FixedOffset>>,
 }
 
 fn resource_name_from_component_cfg(cfg: &ComponentConfig) -> ResourceName {
@@ -84,11 +87,17 @@ fn get_model_without_namespace_prefix(full_model: &mut String) -> anyhow::Result
 
 impl LocalRobot {
     pub fn new(res: ResourceMap) -> Self {
-        LocalRobot { resources: res }
+        LocalRobot {
+            resources: res,
+            // We do not know build time for non-cloud micro RDK robots.
+            build_time: None,
+        }
     }
     pub fn new_from_static(cfg: &RobotConfigStatic) -> anyhow::Result<Self> {
         let mut robot = LocalRobot {
             resources: ResourceMap::new(),
+            // We do not know build time for non-cloud micro RDK robots.
+            build_time: None,
         };
         let mut registry = ComponentRegistry::default();
         if let Some(components) = cfg.components.as_ref() {
@@ -145,9 +154,13 @@ impl LocalRobot {
     pub fn new_from_config_response(
         config_resp: &ConfigResponse,
         registry: Box<ComponentRegistry>,
+        build_time: Option<DateTime<FixedOffset>>,
     ) -> anyhow::Result<Self> {
         let mut robot = LocalRobot {
             resources: ResourceMap::new(),
+            // Use date time pulled off gRPC header as the `build_time` returned in the status of
+            // every resource as `last_reconfigured`.
+            build_time,
         };
 
         let components = &config_resp.config.as_ref().unwrap().components;
@@ -378,6 +391,13 @@ impl LocalRobot {
         &mut self,
         mut msg: robot::v1::GetStatusRequest,
     ) -> anyhow::Result<Vec<robot::v1::Status>> {
+        let last_reconfigured_proto = match self.build_time {
+            Some(bt) => Some(google::protobuf::Timestamp {
+                seconds: bt.timestamp(),
+                nanos: bt.timestamp_subsec_nanos() as i32,
+            }),
+            None => None,
+        };
         if msg.resource_names.is_empty() {
             let mut vec = Vec::with_capacity(self.resources.len());
             for (name, val) in self.resources.iter_mut() {
@@ -386,6 +406,7 @@ impl LocalRobot {
                         let status = m.get_status()?;
                         vec.push(robot::v1::Status {
                             name: Some(name.clone()),
+                            last_reconfigured: last_reconfigured_proto.clone(),
                             status,
                         });
                     }
@@ -393,6 +414,7 @@ impl LocalRobot {
                         let status = b.get_status()?;
                         vec.push(robot::v1::Status {
                             name: Some(name.clone()),
+                            last_reconfigured: last_reconfigured_proto.clone(),
                             status,
                         });
                     }
@@ -400,6 +422,7 @@ impl LocalRobot {
                         let status = b.get_status()?;
                         vec.push(robot::v1::Status {
                             name: Some(name.clone()),
+                            last_reconfigured: last_reconfigured_proto.clone(),
                             status,
                         });
                     }
@@ -407,6 +430,7 @@ impl LocalRobot {
                         let status = b.get_status()?;
                         vec.push(robot::v1::Status {
                             name: Some(name.clone()),
+                            last_reconfigured: last_reconfigured_proto.clone(),
                             status,
                         });
                     }
@@ -414,6 +438,7 @@ impl LocalRobot {
                         let status = b.get_status()?;
                         vec.push(robot::v1::Status {
                             name: Some(name.clone()),
+                            last_reconfigured: last_reconfigured_proto.clone(),
                             status,
                         });
                     }
@@ -421,6 +446,7 @@ impl LocalRobot {
                         let status = b.get_status()?;
                         vec.push(robot::v1::Status {
                             name: Some(name.clone()),
+                            last_reconfigured: last_reconfigured_proto.clone(),
                             status,
                         });
                     }
@@ -440,6 +466,7 @@ impl LocalRobot {
                             let status = m.get_status()?;
                             vec.push(robot::v1::Status {
                                 name: Some(name),
+                                last_reconfigured: last_reconfigured_proto.clone(),
                                 status,
                             });
                         }
@@ -447,6 +474,7 @@ impl LocalRobot {
                             let status = b.get_status()?;
                             vec.push(robot::v1::Status {
                                 name: Some(name),
+                                last_reconfigured: last_reconfigured_proto.clone(),
                                 status,
                             });
                         }
@@ -454,6 +482,7 @@ impl LocalRobot {
                             let status = b.get_status()?;
                             vec.push(robot::v1::Status {
                                 name: Some(name),
+                                last_reconfigured: last_reconfigured_proto.clone(),
                                 status,
                             });
                         }
@@ -461,6 +490,7 @@ impl LocalRobot {
                             let status = b.get_status()?;
                             vec.push(robot::v1::Status {
                                 name: Some(name),
+                                last_reconfigured: last_reconfigured_proto.clone(),
                                 status,
                             });
                         }
@@ -468,6 +498,7 @@ impl LocalRobot {
                             let status = b.get_status()?;
                             vec.push(robot::v1::Status {
                                 name: Some(name),
+                                last_reconfigured: last_reconfigured_proto.clone(),
                                 status,
                             });
                         }
@@ -475,6 +506,7 @@ impl LocalRobot {
                             let status = b.get_status()?;
                             vec.push(robot::v1::Status {
                                 name: Some(name),
+                                last_reconfigured: last_reconfigured_proto.clone(),
                                 status,
                             });
                         }
@@ -984,6 +1016,7 @@ mod tests {
 
         let mut robot = LocalRobot {
             resources: ResourceMap::new(),
+            build_time: None,
         };
 
         assert!(robot
@@ -1086,6 +1119,7 @@ mod tests {
 
         let mut robot = LocalRobot {
             resources: ResourceMap::new(),
+            build_time: None,
         };
 
         assert!(robot

@@ -4,6 +4,8 @@
 pub struct SubmitTrainingJobRequest {
     #[prost(message, optional, tag="1")]
     pub filter: ::core::option::Option<super::super::data::v1::Filter>,
+    #[prost(string, tag="7")]
+    pub dataset_id: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
     pub organization_id: ::prost::alloc::string::String,
     #[prost(string, tag="3")]

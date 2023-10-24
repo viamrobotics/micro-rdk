@@ -137,6 +137,25 @@ pub struct ReadAnalogReaderResponse {
     #[prost(int32, tag="1")]
     pub value: i32,
 }
+// Analog Writer
+
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct WriteAnalogRequest {
+    #[prost(string, tag="1")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub pin: ::prost::alloc::string::String,
+    #[prost(int32, tag="3")]
+    pub value: i32,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct WriteAnalogResponse {
+}
 // Digital Interrupt
 
 #[allow(clippy::derive_partial_eq_without_eq)]
