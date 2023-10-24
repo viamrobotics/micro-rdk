@@ -391,13 +391,10 @@ impl LocalRobot {
         &mut self,
         mut msg: robot::v1::GetStatusRequest,
     ) -> anyhow::Result<Vec<robot::v1::Status>> {
-        let last_reconfigured_proto = match self.build_time {
-            Some(bt) => Some(google::protobuf::Timestamp {
-                seconds: bt.timestamp(),
-                nanos: bt.timestamp_subsec_nanos() as i32,
-            }),
-            None => None,
-        };
+        let last_reconfigured_proto = self.build_time.map(|bt| google::protobuf::Timestamp {
+            seconds: bt.timestamp(),
+            nanos: bt.timestamp_subsec_nanos() as i32,
+        });
         if msg.resource_names.is_empty() {
             let mut vec = Vec::with_capacity(self.resources.len());
             for (name, val) in self.resources.iter_mut() {
