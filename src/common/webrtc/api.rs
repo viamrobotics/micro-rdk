@@ -44,7 +44,7 @@ use super::{
     exec::WebRtcExecutor,
     ice::{ICEAgent, ICECredentials},
     io::WebRtcTransport,
-    sctp::{Channel, SctpConnector},
+    sctp::{Channel, SctpConnector, SctpHandle},
 };
 
 #[derive(Error, Debug)]
@@ -262,6 +262,15 @@ pub struct WebRtcApi<S, D, E> {
     remote_creds: Option<ICECredentials>,
     local_ip: Ipv4Addr,
     dtls: Option<D>,
+    sctp_handle: Option<SctpHandle>,
+}
+
+impl<C, D, E> Drop for WebRtcApi<C, D, E> {
+    fn drop(&mut self) {
+        if let Some(s) = self.sctp_handle.as_mut() {
+            let _ = s.close();
+        }
+    }
 }
 
 impl<'a, C, D, E> WebRtcApi<C, D, E>
@@ -300,6 +309,7 @@ where
             local_creds: Default::default(),
             local_ip,
             dtls: Some(dtls),
+            sctp_handle: None,
         }
     }
 
@@ -387,6 +397,7 @@ where
 
             let sctp = Box::new(SctpConnector::new(dtls_stream, c_tx));
             let mut sctp = sctp.listen().await.unwrap();
+            let _ = self.sctp_handle.insert(sctp.get_handle());
             self.executor.execute(Box::pin(async move {
                 sctp.run().await;
             }));
@@ -397,10 +408,6 @@ where
         }
 
         Err(WebRtcError::DataChannelOpenError())
-    }
-
-    pub(crate) fn into_transport(self) -> WebRtcTransport {
-        self.transport
     }
 
     pub async fn answer(&mut self) -> Result<Box<WebRtcSdp>, WebRtcError> {

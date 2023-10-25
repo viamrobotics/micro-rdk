@@ -102,6 +102,8 @@ pub enum SctpError {
     SctpErrorConnect(#[from] sctp_proto::ConnectError),
     #[error("Sctp event queue full")]
     SctpErrorEventQueueFull,
+    #[error("Sctp connection closed")]
+    SctpDisconnected,
 }
 
 pub struct SctpConnector<S> {
@@ -221,6 +223,18 @@ where
     }
 }
 
+pub struct SctpHandle {
+    sctp_event_tx: async_channel::Sender<SctpEvent>,
+}
+
+impl SctpHandle {
+    pub fn close(&mut self) -> Result<(), SctpError> {
+        self.sctp_event_tx
+            .try_send(SctpEvent::Disconnect)
+            .map_err(|_| SctpError::SctpDisconnected)
+    }
+}
+
 pub struct SctpProto<S> {
     endpoint: Endpoint,
     transport: S,
@@ -236,6 +250,7 @@ pub struct SctpProto<S> {
 impl<S> Drop for SctpProto<S> {
     fn drop(&mut self) {
         log::debug!("drop sctp");
+        let _ = self.sctp_event_rx.close();
     }
 }
 
@@ -327,6 +342,12 @@ where
             }
         }
         Ok(())
+    }
+
+    pub fn get_handle(&self) -> SctpHandle {
+        SctpHandle {
+            sctp_event_tx: self.sctp_event_tx.clone(),
+        }
     }
 
     async fn process_endpoint_events(&mut self) -> Result<(), SctpError> {
@@ -648,6 +669,7 @@ mod tests {
         assert!(ret.is_ok());
 
         let mut client = ret.unwrap();
+        let mut hnd = client.get_handle();
 
         exec.spawn(async move {
             client.run().await;
@@ -696,6 +718,14 @@ mod tests {
 
             let read = read.unwrap();
             assert_eq!(&random_bytes, &buf[..read]);
+        }
+
+        {
+            let ret = hnd.close();
+            assert!(ret.is_ok());
+            let mut buf = [0; 8192];
+            let read = channel.read(&mut buf).await;
+            assert!(read.is_err());
         }
     }
 }

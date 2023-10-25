@@ -199,7 +199,7 @@ where
                             )),
                         };
                         let _ = self.streams.insert(
-                            req.stream.clone().unwrap().id as u32,
+                            req.stream.as_ref().unwrap().id as u32,
                             RpcCall(hdr, None, None),
                         );
 
