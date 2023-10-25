@@ -44,7 +44,7 @@ use super::{
     exec::WebRtcExecutor,
     ice::{ICEAgent, ICECredentials},
     io::WebRtcTransport,
-    sctp::{Channel, SctpProto},
+    sctp::{Channel, SctpConnector, SctpHandle},
 };
 
 #[derive(Error, Debug)]
@@ -262,13 +262,22 @@ pub struct WebRtcApi<S, D, E> {
     remote_creds: Option<ICECredentials>,
     local_ip: Ipv4Addr,
     dtls: Option<D>,
+    sctp_handle: Option<SctpHandle>,
+}
+
+impl<C, D, E> Drop for WebRtcApi<C, D, E> {
+    fn drop(&mut self) {
+        if let Some(s) = self.sctp_handle.as_mut() {
+            let _ = s.close();
+        }
+    }
 }
 
 impl<'a, C, D, E> WebRtcApi<C, D, E>
 where
     C: Certificate,
     D: DtlsConnector,
-    E: WebRtcExecutor<Pin<Box<dyn Future<Output = ()> + Send>>> + Clone + 'a,
+    E: WebRtcExecutor<Pin<Box<dyn Future<Output = ()>>>> + Clone + 'a,
 {
     pub(crate) fn new(
         executor: E,
@@ -300,6 +309,7 @@ where
             local_creds: Default::default(),
             local_ip,
             dtls: Some(dtls),
+            sctp_handle: None,
         }
     }
 
@@ -385,8 +395,9 @@ where
         if let Ok(dtls_stream) = dtls.accept().await {
             let (c_tx, c_rx) = async_channel::unbounded();
 
-            let mut sctp = Box::new(SctpProto::new(dtls_stream, c_tx));
-            sctp.listen().await.unwrap();
+            let sctp = Box::new(SctpConnector::new(dtls_stream, c_tx));
+            let mut sctp = sctp.listen().await.unwrap();
+            let _ = self.sctp_handle.insert(sctp.get_handle());
             self.executor.execute(Box::pin(async move {
                 sctp.run().await;
             }));
@@ -399,10 +410,6 @@ where
         Err(WebRtcError::DataChannelOpenError())
     }
 
-    pub(crate) fn into_transport(self) -> WebRtcTransport {
-        self.transport
-    }
-
     pub async fn answer(&mut self) -> Result<Box<WebRtcSdp>, WebRtcError> {
         let offer = self
             .signaling
@@ -410,6 +417,7 @@ where
             .ok_or(WebRtcError::SignalingDisconnected())?
             .wait_sdp_offer()
             .await?;
+
         let answer = SessionDescription::new_jsep_session_description(false);
 
         let attribute = offer

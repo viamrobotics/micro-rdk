@@ -198,9 +198,11 @@ where
                                 webrtc::v1::ResponseHeaders { metadata: None },
                             )),
                         };
-                        let _ = self
-                            .streams
-                            .insert(req.stream.unwrap().id as u32, RpcCall(hdr, None, None));
+                        let _ = self.streams.insert(
+                            req.stream.as_ref().unwrap().id as u32,
+                            RpcCall(hdr, None, None),
+                        );
+
                         self.send_response(header_response).await?;
                     }
                     webrtc::v1::request::Type::Message(msg) => {
@@ -210,6 +212,8 @@ where
                         if let Some(call) = self.streams.get_mut(&key) {
                             let _ = call.2.insert(msg);
                             return Ok(key);
+                        } else {
+                            log::info!("discarding stream {}", key);
                         }
                     }
                     webrtc::v1::request::Type::RstStream(rst) => {

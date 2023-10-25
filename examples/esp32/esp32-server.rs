@@ -7,14 +7,17 @@ const PASS: &str = env!("MICRO_RDK_WIFI_PASSWORD");
 
 include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
+#[cfg(feature = "qemu")]
+use esp_idf_svc::eth::{EspEth, EthDriver};
+use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT};
 use log::*;
-
-use esp_idf_svc::eventloop::EspSystemEventLoop;
 use micro_rdk::{
     common::{app_client::AppClientConfig, entry::RobotRepresentation},
     esp32::{certificate::WebRtcCertificate, entry::serve_web, tls::Esp32TlsServerConfig},
 };
+#[cfg(feature = "qemu")]
+use std::net::Ipv4Addr;
 
 extern "C" {
     pub static g_spiram_ok: bool;
@@ -31,7 +34,6 @@ use {
     },
     std::{
         collections::HashMap,
-        net::Ipv4Addr,
         sync::{Arc, Mutex},
     },
 };
@@ -74,7 +76,7 @@ fn main() -> anyhow::Result<()> {
         RobotRepresentation::WithRobot(LocalRobot::new(res))
     };
     #[cfg(not(feature = "qemu"))]
-    let repr = RobotRepresentation::WithRegistry(Box::new(ComponentRegistry::default()));
+    let repr = RobotRepresentation::WithRegistry(Box::<ComponentRegistry>::default());
 
     {
         esp_idf_sys::esp!(unsafe {
@@ -88,14 +90,14 @@ fn main() -> anyhow::Result<()> {
     let (ip, _block_eth) = {
         use esp_idf_hal::prelude::Peripherals;
         info!("creating eth object");
-        let mut eth = Box::new(esp_idf_svc::eth::EspEth::wrap(
+        let mut eth = esp_idf_svc::eth::EspEth::wrap(
             esp_idf_svc::eth::EthDriver::new_openeth(
                 Peripherals::take().unwrap().mac,
                 sys_loop_stack.clone(),
             )
             .unwrap(),
-        )?);
-        let _ = eth_configure(&sys_loop_stack, &mut eth)?;
+        )?;
+        let (_, eth) = eth_configure(&sys_loop_stack, eth)?;
         let ip = Ipv4Addr::new(10, 1, 12, 187);
         (ip, eth)
     };
@@ -136,16 +138,22 @@ fn main() -> anyhow::Result<()> {
 }
 
 #[cfg(feature = "qemu")]
+use esp_idf_svc::eth::BlockingEth;
+#[cfg(feature = "qemu")]
+use esp_idf_svc::netif::EspNetif;
+#[cfg(feature = "qemu")]
 fn eth_configure<'d, T>(
     sl_stack: &EspSystemEventLoop,
-    eth: &mut esp_idf_svc::eth::EspEth<'d, T>,
-) -> anyhow::Result<Ipv4Addr> {
+    eth: esp_idf_svc::eth::EspEth<'d, T>,
+) -> anyhow::Result<(Ipv4Addr, Box<BlockingEth<EspEth<'d, T>>>)> {
     let mut eth = esp_idf_svc::eth::BlockingEth::wrap(eth, sl_stack.clone())?;
     eth.start()?;
+    eth.wait_netif_up()?;
+
     let ip_info = eth.eth().netif().get_ip_info()?;
 
     info!("ETH IP {:?}", ip_info.ip);
-    Ok(ip_info.ip)
+    Ok((ip_info.ip, Box::new(eth)))
 }
 
 #[cfg(not(feature = "qemu"))]
