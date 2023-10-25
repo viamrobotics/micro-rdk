@@ -168,12 +168,6 @@ pub mod proto {
                 include!("gen/viam.component.encoder.v1.rs");
             }
         }
-        pub mod sensor {
-            pub mod v1 {
-                #![allow(clippy::derive_partial_eq_without_eq)]
-                include!("gen/viam.component.sensor.v1.rs");
-            }
-        }
 
         pub mod movement_sensor {
             pub mod v1 {

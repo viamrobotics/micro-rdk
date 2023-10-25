@@ -440,7 +440,7 @@ mod tests {
         assert!(ctor.is_ok());
 
         // make robot
-        let robot = LocalRobot::new_from_config_response(&cfg_resp, Box::new(registry))?;
+        let robot = LocalRobot::new_from_config_response(&cfg_resp, Box::new(registry), None)?;
 
         // get test value from sensor
         let test_sensor = robot

@@ -203,6 +203,8 @@ pub struct Status {
     pub name: ::core::option::Option<super::super::common::v1::ResourceName>,
     #[prost(message, optional, tag="2")]
     pub status: ::core::option::Option<super::super::super::google::protobuf::Struct>,
+    #[prost(message, optional, tag="3")]
+    pub last_reconfigured: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

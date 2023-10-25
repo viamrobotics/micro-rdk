@@ -4,12 +4,12 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StartMappingSessionRequest {
-    /// The given config contains details such as sensor, map package and algorithm-specific fields required to run slam.
-    #[prost(message, optional, tag="1")]
-    pub slam_config: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
     /// Version to use for slam, defaults stable
-    #[prost(string, tag="2")]
+    #[prost(string, tag="1")]
     pub slam_version: ::prost::alloc::string::String,
+    /// Version to use for viam, defaults stable
+    #[prost(string, tag="2")]
+    pub viam_server_version: ::prost::alloc::string::String,
     #[prost(string, tag="3")]
     pub map_name: ::prost::alloc::string::String,
     #[prost(string, tag="4")]
@@ -18,11 +18,34 @@ pub struct StartMappingSessionRequest {
     pub location_id: ::prost::alloc::string::String,
     #[prost(string, tag="6")]
     pub robot_id: ::prost::alloc::string::String,
-    /// Version to use for viam, defaults stable
-    #[prost(string, tag="7")]
-    pub viam_server_version: ::prost::alloc::string::String,
-    #[prost(bool, tag="8")]
-    pub is_online: bool,
+    #[prost(message, optional, tag="7")]
+    pub capture_interval: ::core::option::Option<CaptureInterval>,
+    #[prost(message, repeated, tag="8")]
+    pub sensors: ::prost::alloc::vec::Vec<SensorInfo>,
+    #[prost(message, optional, tag="10")]
+    pub slam_algorithm_params: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
+    #[prost(string, tag="11")]
+    pub existing_map_version: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SensorInfo {
+    #[prost(string, tag="1")]
+    pub source_component_name: ::prost::alloc::string::String,
+    /// type is the RDK component type
+    #[prost(string, tag="2")]
+    pub r#type: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub data_frequency_hz: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CaptureInterval {
+    #[prost(message, optional, tag="1")]
+    pub start_time: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
+    /// if no end_time specified cloud slam will be run using live sensors
+    #[prost(message, optional, tag="2")]
+    pub end_time: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -116,9 +139,9 @@ pub struct GetMappingSessionMetadataByIdResponse {
 pub struct UpdateMappingSessionMetadataByIdRequest {
     #[prost(string, tag="1")]
     pub session_id: ::prost::alloc::string::String,
-    /// “success”, “failed to start”, etc
-    #[prost(string, tag="2")]
-    pub end_status: ::prost::alloc::string::String,
+    /// enums that represent “success”, “failed”, etc
+    #[prost(enumeration="EndStatus", tag="2")]
+    pub end_status: i32,
     /// set at the time of job closeout and used as the package version
     #[prost(message, optional, tag="3")]
     pub time_cloud_run_job_ended: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
@@ -154,9 +177,9 @@ pub struct MappingMetadata {
     /// time the cloud run job ended
     #[prost(message, optional, tag="7")]
     pub time_cloud_run_job_ended: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
-    /// “success”, “failed to start”, etc
-    #[prost(string, tag="8")]
-    pub end_status: ::prost::alloc::string::String,
+    /// enums that represent “success”, “failed”, etc
+    #[prost(enumeration="EndStatus", tag="8")]
+    pub end_status: i32,
     /// initially unset
     #[prost(string, tag="9")]
     pub cloud_run_job_id: ::prost::alloc::string::String,
@@ -175,5 +198,37 @@ pub struct MappingMetadata {
     /// additional details on the end status if needed, such as errors
     #[prost(string, tag="14")]
     pub error_msg: ::prost::alloc::string::String,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum EndStatus {
+    Unspecified = 0,
+    Success = 1,
+    Timeout = 2,
+    Fail = 3,
+}
+impl EndStatus {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            EndStatus::Unspecified => "END_STATUS_UNSPECIFIED",
+            EndStatus::Success => "END_STATUS_SUCCESS",
+            EndStatus::Timeout => "END_STATUS_TIMEOUT",
+            EndStatus::Fail => "END_STATUS_FAIL",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "END_STATUS_UNSPECIFIED" => Some(Self::Unspecified),
+            "END_STATUS_SUCCESS" => Some(Self::Success),
+            "END_STATUS_TIMEOUT" => Some(Self::Timeout),
+            "END_STATUS_FAIL" => Some(Self::Fail),
+            _ => None,
+        }
+    }
 }
 // @@protoc_insertion_point(module)

@@ -1247,6 +1247,78 @@ pub struct CreateKeyResponse {
     #[prost(string, tag="2")]
     pub id: ::prost::alloc::string::String,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DeleteKeyRequest {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DeleteKeyResponse {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AuthorizationDetails {
+    #[prost(string, tag="1")]
+    pub authorization_type: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub authorization_id: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub resource_type: ::prost::alloc::string::String,
+    #[prost(string, tag="4")]
+    pub resource_id: ::prost::alloc::string::String,
+    #[prost(string, tag="5")]
+    pub org_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ApiKeyWithAuthorizations {
+    #[prost(message, optional, tag="1")]
+    pub api_key: ::core::option::Option<ApiKey>,
+    #[prost(message, repeated, tag="2")]
+    pub authorizations: ::prost::alloc::vec::Vec<AuthorizationDetails>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListKeysRequest {
+    #[prost(string, tag="1")]
+    pub org_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListKeysResponse {
+    #[prost(message, repeated, tag="1")]
+    pub api_keys: ::prost::alloc::vec::Vec<ApiKeyWithAuthorizations>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RotateKeyRequest {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RotateKeyResponse {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub key: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateKeyFromExistingKeyAuthorizationsRequest {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateKeyFromExistingKeyAuthorizationsResponse {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub key: ::prost::alloc::string::String,
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum Visibility {
@@ -1587,6 +1659,25 @@ impl PaymentMethodType {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct IsLegalAcceptedRequest {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct IsLegalAcceptedResponse {
+    /// If false, the user should not be able to use the application.
+    #[prost(bool, tag="1")]
+    pub accepted_legal: bool,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AcceptLegalRequest {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AcceptLegalResponse {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RobotConfig {
     #[prost(message, optional, tag="1")]
     pub cloud: ::core::option::Option<CloudConfig>,
@@ -1703,6 +1794,9 @@ pub struct ProcessConfig {
     pub stop_signal: i32,
     #[prost(message, optional, tag="8")]
     pub stop_timeout: ::core::option::Option<super::super::super::google::protobuf::Duration>,
+    /// additional environment variables passed to the process
+    #[prost(map="string, string", tag="9")]
+    pub env: ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -2060,6 +2154,15 @@ pub struct ModuleConfig {
     /// log level for module
     #[prost(string, tag="3")]
     pub log_level: ::prost::alloc::string::String,
+    /// type of the module ("local" or "registry")
+    #[prost(string, tag="4")]
+    pub r#type: ::prost::alloc::string::String,
+    /// the id of the module if it is a registry module
+    #[prost(string, tag="5")]
+    pub module_id: ::prost::alloc::string::String,
+    /// additional environment variables passed to the module process
+    #[prost(map="string, string", tag="6")]
+    pub env: ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
 }
 /// PackageConfig is the configration for deployed Packages.
 #[allow(clippy::derive_partial_eq_without_eq)]
