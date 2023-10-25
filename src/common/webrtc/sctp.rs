@@ -235,6 +235,7 @@ impl SctpHandle {
     }
 }
 
+/// Where S implements AsyncRead + AsyncWrite + Unpin + Send
 pub struct SctpProto<S> {
     endpoint: Endpoint,
     transport: S,
