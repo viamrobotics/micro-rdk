@@ -50,7 +50,8 @@ use super::encoder::{
 };
 use super::math_utils::go_for_math;
 use super::motor::{
-    Motor, MotorPinType, MotorPinsConfig, MotorType, COMPONENT_NAME as MotorCompName,
+    Motor, MotorPinType, MotorPinsConfig, MotorSupportedProperties, MotorType,
+    COMPONENT_NAME as MotorCompName,
 };
 use super::registry::{get_board_from_dependencies, ComponentRegistry, Dependency, ResourceKey};
 use super::robot::Resource;
@@ -154,6 +155,11 @@ where
     fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
         self.motor.go_for(rpm, revolutions)
     }
+    fn get_properties(&mut self) -> MotorSupportedProperties {
+        MotorSupportedProperties {
+            position_reporting: true,
+        }
+    }
 }
 
 impl<M, Enc> Stoppable for EncodedMotor<M, Enc>
@@ -236,7 +242,7 @@ where
                 let pwm_pin = pins.pwm;
                 let a_pin = pins.a.unwrap();
                 let b_pin = pins.b.unwrap();
-                let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm")?;
+                let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm").unwrap_or(100.0);
                 let dir_flip: bool = cfg.get_attribute::<bool>("dir_flip").unwrap_or_default();
                 return Ok(Arc::new(Mutex::new(PwmABMotor::new(
                     a_pin, b_pin, pwm_pin, max_rpm, dir_flip, board,
@@ -282,6 +288,12 @@ where
             return Ok(dur);
         }
         Ok(None)
+    }
+
+    fn get_properties(&mut self) -> MotorSupportedProperties {
+        MotorSupportedProperties {
+            position_reporting: false,
+        }
     }
 }
 
@@ -346,7 +358,7 @@ where
         if let Ok(pins) = cfg.get_attribute::<MotorPinsConfig>("pins") {
             if let Some(dir_pin) = pins.dir {
                 let pwm_pin = pins.pwm;
-                let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm")?;
+                let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm").unwrap_or(100.0);
                 let dir_flip: bool = cfg.get_attribute::<bool>("dir_flip").unwrap_or_default();
                 return Ok(Arc::new(Mutex::new(PwmDirectionMotor::new(
                     dir_pin, pwm_pin, max_rpm, dir_flip, board,
@@ -382,6 +394,12 @@ where
             return Ok(dur);
         }
         Ok(None)
+    }
+
+    fn get_properties(&mut self) -> MotorSupportedProperties {
+        MotorSupportedProperties {
+            position_reporting: false,
+        }
     }
 }
 
