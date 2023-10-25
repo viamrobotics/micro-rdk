@@ -15,7 +15,7 @@ RUN cd qemu && mkdir build && cd build && ../configure --target-list=xtensa-soft
 
 WORKDIR /esp
 
-RUN git clone --depth 1 -b v4.4.4 --single-branch --recurse-submodules --shallow-submodules https://github.com/npmenard/esp-idf
+RUN git clone --depth 1 -b v4.4.4 --single-branch --recurse-submodules --shallow-submodules https://github.com/viamrobotics/esp-idf
 
 
 FROM debian:bullseye
