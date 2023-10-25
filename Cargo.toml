@@ -6,7 +6,7 @@ license = "AGPL-3.0"
 name = "micro-rdk"
 repository = "https://github.com/viamrobotics/micro-rdk"
 resolver = "2"
-version = "0.0.1"
+version = "0.0.3"
 rust-version = "1.67"
 
 [lib]
