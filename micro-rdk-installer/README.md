@@ -35,6 +35,7 @@ Commands:
                             running a micro-RDK server
   create-nvs-partition  Generate a binary of a complete NVS data partition that contains Wi-Fi and security
                             credentials for a robot
+  monitor               Monitor a currently connected ESP32
   help                  Print this message or the help of the given subcommand(s)
 
 Options:

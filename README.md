@@ -36,6 +36,29 @@ the ESP32.
 
 For documentation of the Micro-RDK, see the [Viam Documentation](https://docs.viam.com/installation/microcontrollers/).
 
+## Debugging
+
+### Viewing server logs
+
+The following instructions should be used for viewing server logs from an esp32 in terminal. These logs should be copied and included when contacting Viam support. 
+
+#### Using espflash
+
+To see server logs for an esp32, use the `monitor` command on `espflash`:
+
+```
+cargo espflash monitor
+```
+
+#### Without espflash
+
+In the event that cargo and/or espflash is not installed, the [micro-rdk-installer](https://github.com/viamrobotics/micro-rdk/tree/main/micro-rdk-installer) also contains the monitor command and can be downloaded as an alternative. 
+Here is an example using the x86_64-Linux version:
+
+```
+./micro-rdk-installer-amd64-linux monitor
+```
+
 ## License
 
 Copyright 2022-2023 Viam Inc.
