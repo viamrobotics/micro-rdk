@@ -13,10 +13,10 @@ rust-version = "1.67"
 crate-type = ["lib"]
 
 [patch.crates-io]
-esp-idf-sys = {git = "https://github.com/npmenard/esp-idf-sys.git"}
+esp-idf-sys = {git = "https://github.com/viamrobotics/esp-idf-sys.git"}
 smol = { git = "https://github.com/esp-rs-compat/smol" }
-socket2 = { git = "https://github.com/npmenard/socket2.git" }
-async-io = {git = "https://github.com/npmenard/async-io.git"}
+socket2 = { git = "https://github.com/viamrobotics/socket2.git" }
+async-io = {git = "https://github.com/viamrobotics/async-io.git"}
 
 [features]
 default = []
@@ -64,7 +64,7 @@ serde_json = "1.0.94"
 rand = "0.8.5"
 rcgen = {version = "0.10.0", optional = true }
 sha2 = "0.10.6"
-stun_codec = { version = "0.3.0" , git = "https://github.com/npmenard/stun_codec"}
+stun_codec = { version = "0.3.0" , git = "https://github.com/viamrobotics/stun_codec"}
 bytecodec = "0.4.15"
 trackable = "1.2.0"
 openssl = {version = "0.10.50",  optional = true }
