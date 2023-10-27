@@ -1069,9 +1069,10 @@ impl GrpcError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub struct ServerError {
     grpc_error: GrpcError,
+    #[source]
     cause: Option<anyhow::Error>,
 }
 
@@ -1094,15 +1095,6 @@ impl From<GrpcError> for ServerError {
         Self {
             grpc_error,
             cause: None,
-        }
-    }
-}
-
-impl Error for ServerError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match &self.cause {
-            Some(cause) => Some(cause.as_ref()),
-            None => Some(&self.grpc_error),
         }
     }
 }
