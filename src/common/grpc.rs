@@ -1,3 +1,4 @@
+use core::fmt;
 use std::{
     fmt::Debug,
     marker::PhantomData,
@@ -177,14 +178,14 @@ where
         &mut self,
         path: &str,
         payload: &[u8],
-    ) -> Result<std::time::Instant, GrpcError> {
+    ) -> Result<std::time::Instant, ServerError> {
         match path {
             "/viam.robot.v1.RobotService/StreamStatus" => self.robot_status_stream(payload),
-            _ => Err(GrpcError::RpcUnavailable),
+            _ => Err(ServerError::from(GrpcError::RpcUnavailable)),
         }
     }
 
-    pub(crate) fn handle_request(&mut self, path: &str, payload: &[u8]) -> Result<(), GrpcError> {
+    pub(crate) fn handle_request(&mut self, path: &str, payload: &[u8]) -> Result<(), ServerError> {
         match path {
             "/viam.component.base.v1.BaseService/SetPower" => self.base_set_power(payload),
             "/viam.component.base.v1.BaseService/Stop" => self.base_stop(payload),
@@ -277,64 +278,64 @@ where
             "/viam.component.encoder.v1.EncoderService/GetProperties" => {
                 self.encoder_get_properties(payload)
             }
-            _ => Err(GrpcError::RpcUnimplemented),
+            _ => Err(ServerError::from(GrpcError::RpcUnimplemented)),
         }
     }
 
     fn process_request(&mut self, path: &str, msg: Bytes) {
-        let payload = Self::validate_rpc(&msg);
+        let payload = Self::validate_rpc(&msg).map_err(ServerError::from);
         match payload.and_then(|payload| self.handle_request(path, payload)) {
             Ok(_) => {}
             Err(e) => {
                 let message = Some(e.to_string());
-                self.response.set_status(e as i32, message);
+                self.response.set_status(e.status_code(), message);
             }
         }
     }
 
-    fn motor_get_position(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn motor_get_position(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::motor::v1::GetPositionRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let motor = match self.robot.lock().unwrap().get_motor_by_name(req.name) {
             Some(m) => m,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         let pos = motor
             .lock()
             .unwrap()
             .get_position()
-            .map_err(|_| GrpcError::RpcInternal)?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let resp = component::motor::v1::GetPositionResponse {
             position: pos as f64,
         };
         self.encode_message(resp)
     }
 
-    fn motor_get_properties(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn motor_get_properties(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::motor::v1::GetPropertiesRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let motor = match self.robot.lock().unwrap().get_motor_by_name(req.name) {
             Some(m) => m,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         let props: component::motor::v1::GetPropertiesResponse =
             motor.lock().unwrap().get_properties().into();
         self.encode_message(props)
     }
 
-    fn motor_go_for(&mut self, _message: &[u8]) -> Result<(), GrpcError> {
+    fn motor_go_for(&mut self, _message: &[u8]) -> Result<(), ServerError> {
         // TODO: internal go_for can't wait without blocking executor, must be waited from here.
         // requires refactoring this function (and its callers) to be async
         /*
         let req = component::motor::v1::GoForRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let motor = match self.robot.lock().unwrap().get_motor_by_name(req.name) {
             Some(m) => m,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         let mut motor = motor.lock().unwrap();
 
-        if let Some(dur) =  motor.go_for(req.rpm, req.revolutions).map_err(|_| GrpcError::RpcInternal)? {
+        if let Some(dur) =  motor.go_for(req.rpm, req.revolutions).map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))? {
             // async wait for duration
         }
         motor.lock().unwrap();
@@ -342,157 +343,158 @@ where
         let resp = component::motor::v1::GoForResponse {};
         self.encode_message(resp)
         */
-        Err(GrpcError::RpcUnimplemented)
+        Err(ServerError::from(GrpcError::RpcUnimplemented))
     }
 
-    fn motor_go_to(&mut self, _message: &[u8]) -> Result<(), GrpcError> {
-        Err(GrpcError::RpcUnimplemented)
+    fn motor_go_to(&mut self, _message: &[u8]) -> Result<(), ServerError> {
+        Err(ServerError::from(GrpcError::RpcUnimplemented))
     }
 
-    fn motor_is_powered(&mut self, _message: &[u8]) -> Result<(), GrpcError> {
-        Err(GrpcError::RpcUnimplemented)
+    fn motor_is_powered(&mut self, _message: &[u8]) -> Result<(), ServerError> {
+        Err(ServerError::from(GrpcError::RpcUnimplemented))
     }
-    fn motor_reset_zero_position(&mut self, _message: &[u8]) -> Result<(), GrpcError> {
-        Err(GrpcError::RpcUnimplemented)
+    fn motor_reset_zero_position(&mut self, _message: &[u8]) -> Result<(), ServerError> {
+        Err(ServerError::from(GrpcError::RpcUnimplemented))
     }
 
-    fn auth_service_authentificate(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn auth_service_authentificate(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let _req = proto::rpc::v1::AuthenticateRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let resp = proto::rpc::v1::AuthenticateResponse {
             access_token: "esp32".to_string(),
         };
         self.encode_message(resp)
     }
 
-    fn motor_set_power(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn motor_set_power(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::motor::v1::SetPowerRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let motor = match self.robot.lock().unwrap().get_motor_by_name(req.name) {
             Some(m) => m,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         motor
             .lock()
             .unwrap()
             .set_power(req.power_pct)
-            .map_err(|_| GrpcError::RpcInternal)?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let resp = component::motor::v1::SetPowerResponse {};
         self.encode_message(resp)
     }
 
-    fn motor_stop(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn motor_stop(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::motor::v1::StopRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let motor = match self.robot.lock().unwrap().get_motor_by_name(req.name) {
             Some(m) => m,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         motor
             .lock()
             .unwrap()
             .stop()
-            .map_err(|_| GrpcError::RpcInternal)?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let resp = component::motor::v1::StopResponse {};
         self.encode_message(resp)
     }
 
-    fn board_get_digital_interrupt_value(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn board_get_digital_interrupt_value(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::board::v1::GetDigitalInterruptValueRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let board = match self.robot.lock().unwrap().get_board_by_name(req.board_name) {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         let interrupt_pin = req
             .digital_interrupt_name
             .parse::<i32>()
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let value = board
             .get_digital_interrupt_value(interrupt_pin)
-            .map_err(|_| GrpcError::RpcInternal)?
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?
             .into();
         let resp = component::board::v1::GetDigitalInterruptValueResponse { value };
         self.encode_message(resp)
     }
 
-    fn board_status(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn board_status(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::board::v1::StatusRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         let status = board
             .lock()
             .unwrap()
             .get_board_status()
-            .map_err(|_| GrpcError::RpcInternal)?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let status = component::board::v1::StatusResponse {
             status: Some(status),
         };
         self.encode_message(status)
     }
 
-    fn board_pwm(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn board_pwm(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::board::v1::PwmRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         let pin: i32 = req
             .pin
             .parse::<i32>()
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let duty_cycle_pct = board.get_pwm_duty(pin);
         let resp = component::board::v1::PwmResponse { duty_cycle_pct };
         self.encode_message(resp)
     }
 
-    fn board_pwm_frequency(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn board_pwm_frequency(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::board::v1::PwmFrequencyRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         let pin: i32 = req
             .pin
             .parse::<i32>()
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let frequency_hz = board
             .get_pwm_frequency(pin)
-            .map_err(|_| GrpcError::RpcInternal)?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let resp = component::board::v1::PwmFrequencyResponse { frequency_hz };
         self.encode_message(resp)
     }
 
-    fn board_read_analog_reader(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn board_read_analog_reader(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::board::v1::ReadAnalogReaderRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let board = match self.robot.lock().unwrap().get_board_by_name(req.board_name) {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         let reader = board
             .get_analog_reader_by_name(req.analog_reader_name)
-            .map_err(|_| GrpcError::RpcUnavailable)?;
+            .map_err(|err| ServerError::new(GrpcError::RpcUnavailable, Some(err)))?;
         let resp = component::board::v1::ReadAnalogReaderResponse {
             value: reader
                 .borrow_mut()
                 .read()
-                .map_err(|_| GrpcError::RpcInternal)? as i32,
+                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?
+                as i32,
         };
         self.encode_message(resp)
     }
 
-    fn board_set_pin(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn board_set_pin(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::board::v1::SetGpioRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
 
         let pin: i32 = req.pin.parse::<i32>().unwrap();
@@ -501,79 +503,79 @@ where
             .lock()
             .unwrap()
             .set_gpio_pin_level(pin, is_high)
-            .map_err(|_| GrpcError::RpcInternal)?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let resp = component::board::v1::SetGpioResponse {};
         self.encode_message(resp)
     }
 
-    fn board_set_pwm(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn board_set_pwm(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::board::v1::SetPwmRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let mut board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         let pin: i32 = req.pin.parse::<i32>().unwrap();
         board
             .set_pwm_duty(pin, req.duty_cycle_pct)
-            .map_err(|_| GrpcError::RpcInternal)?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let resp = component::board::v1::SetPwmResponse {};
         self.encode_message(resp)
     }
 
-    fn board_set_pwm_frequency(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn board_set_pwm_frequency(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::board::v1::SetPwmFrequencyRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let mut board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         let pin: i32 = req.pin.parse::<i32>().unwrap();
         board
             .set_pwm_frequency(pin, req.frequency_hz)
-            .map_err(|_| GrpcError::RpcInternal)?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let resp = component::board::v1::SetPwmFrequencyResponse {};
         self.encode_message(resp)
     }
 
-    fn board_set_power_mode(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn board_set_power_mode(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::board::v1::SetPowerModeRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let pm = req.power_mode();
 
         if pm == component::board::v1::PowerMode::Unspecified {
-            return Err(GrpcError::RpcInvalidArgument);
+            return Err(ServerError::from(GrpcError::RpcInvalidArgument));
         }
 
         let dur = match req.duration {
             Some(dur) => match Duration::try_from(dur) {
                 Ok(converted) => Some(converted),
-                Err(_) => return Err(GrpcError::RpcInvalidArgument),
+                Err(_) => return Err(ServerError::from(GrpcError::RpcInvalidArgument)),
             },
             None => None,
         };
 
         let board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
 
         board
             .lock()
             .unwrap()
             .set_power_mode(pm, dur)
-            .map_err(|_| GrpcError::RpcInternal)?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
 
         let resp = component::board::v1::SetPowerModeResponse {};
         self.encode_message(resp)
     }
 
-    fn board_get_pin(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn board_get_pin(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::board::v1::GetGpioRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
 
         let pin: i32 = req.pin.parse::<i32>().unwrap();
@@ -581,31 +583,31 @@ where
             .lock()
             .unwrap()
             .get_gpio_level(pin)
-            .map_err(|_| GrpcError::RpcInternal)?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let resp = component::board::v1::GetGpioResponse { high: level };
         self.encode_message(resp)
     }
 
-    fn sensor_get_readings(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn sensor_get_readings(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = proto::common::v1::GetReadingsRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let sensor = match self.robot.lock().unwrap().get_sensor_by_name(req.name) {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
 
         let readings = sensor
             .lock()
             .unwrap()
             .get_generic_readings()
-            .map_err(|_| GrpcError::RpcInternal)?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let resp = proto::common::v1::GetReadingsResponse { readings };
         self.encode_message(resp)
     }
 
-    fn movement_sensor_get_position(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn movement_sensor_get_position(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::movement_sensor::v1::GetPositionRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let m_sensor = match self
             .robot
             .lock()
@@ -613,20 +615,20 @@ where
             .get_movement_sensor_by_name(req.name)
         {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         let position = m_sensor
             .lock()
             .unwrap()
             .get_position()
-            .map_err(|_| GrpcError::RpcInternal)?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let resp = component::movement_sensor::v1::GetPositionResponse::from(position);
         self.encode_message(resp)
     }
 
-    fn movement_sensor_get_linear_velocity(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn movement_sensor_get_linear_velocity(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::movement_sensor::v1::GetLinearVelocityRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let m_sensor = match self
             .robot
             .lock()
@@ -634,13 +636,13 @@ where
             .get_movement_sensor_by_name(req.name)
         {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         let l_vel = m_sensor
             .lock()
             .unwrap()
             .get_linear_velocity()
-            .map_err(|_| GrpcError::RpcInternal)?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let l_vel_msg = proto::common::v1::Vector3::from(l_vel);
         let resp = component::movement_sensor::v1::GetLinearVelocityResponse {
             linear_velocity: Some(l_vel_msg),
@@ -648,9 +650,9 @@ where
         self.encode_message(resp)
     }
 
-    fn movement_sensor_get_angular_velocity(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn movement_sensor_get_angular_velocity(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::movement_sensor::v1::GetAngularVelocityRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let m_sensor = match self
             .robot
             .lock()
@@ -658,13 +660,13 @@ where
             .get_movement_sensor_by_name(req.name)
         {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         let a_vel = m_sensor
             .lock()
             .unwrap()
             .get_angular_velocity()
-            .map_err(|_| GrpcError::RpcInternal)?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let a_vel_msg = proto::common::v1::Vector3::from(a_vel);
         let resp = component::movement_sensor::v1::GetAngularVelocityResponse {
             angular_velocity: Some(a_vel_msg),
@@ -672,9 +674,12 @@ where
         self.encode_message(resp)
     }
 
-    fn movement_sensor_get_linear_acceleration(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn movement_sensor_get_linear_acceleration(
+        &mut self,
+        message: &[u8],
+    ) -> Result<(), ServerError> {
         let req = component::movement_sensor::v1::GetLinearAccelerationRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let m_sensor = match self
             .robot
             .lock()
@@ -682,13 +687,13 @@ where
             .get_movement_sensor_by_name(req.name)
         {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         let l_acc = m_sensor
             .lock()
             .unwrap()
             .get_linear_acceleration()
-            .map_err(|_| GrpcError::RpcInternal)?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let l_acc_msg = proto::common::v1::Vector3::from(l_acc);
         let resp = component::movement_sensor::v1::GetLinearAccelerationResponse {
             linear_acceleration: Some(l_acc_msg),
@@ -696,9 +701,9 @@ where
         self.encode_message(resp)
     }
 
-    fn movement_sensor_get_compass_heading(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn movement_sensor_get_compass_heading(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::movement_sensor::v1::GetCompassHeadingRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let m_sensor = match self
             .robot
             .lock()
@@ -706,20 +711,20 @@ where
             .get_movement_sensor_by_name(req.name)
         {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         let heading = m_sensor
             .lock()
             .unwrap()
             .get_compass_heading()
-            .map_err(|_| GrpcError::RpcInternal)?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let resp = component::movement_sensor::v1::GetCompassHeadingResponse { value: heading };
         self.encode_message(resp)
     }
 
-    fn movement_sensor_get_properties(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn movement_sensor_get_properties(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::movement_sensor::v1::GetPropertiesRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let m_sensor = match self
             .robot
             .lock()
@@ -727,39 +732,39 @@ where
             .get_movement_sensor_by_name(req.name)
         {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         let props = m_sensor.lock().unwrap().get_properties();
         let resp = component::movement_sensor::v1::GetPropertiesResponse::from(props);
         self.encode_message(resp)
     }
 
-    fn movement_sensor_get_accuracy(&mut self, _message: &[u8]) -> Result<(), GrpcError> {
-        Err(GrpcError::RpcUnimplemented)
+    fn movement_sensor_get_accuracy(&mut self, _message: &[u8]) -> Result<(), ServerError> {
+        Err(ServerError::from(GrpcError::RpcUnimplemented))
     }
 
-    fn movement_sensor_get_orientation(&mut self, _message: &[u8]) -> Result<(), GrpcError> {
-        Err(GrpcError::RpcUnimplemented)
+    fn movement_sensor_get_orientation(&mut self, _message: &[u8]) -> Result<(), ServerError> {
+        Err(ServerError::from(GrpcError::RpcUnimplemented))
     }
 
-    fn base_move_straight(&mut self, _message: &[u8]) -> Result<(), GrpcError> {
-        Err(GrpcError::RpcUnimplemented)
+    fn base_move_straight(&mut self, _message: &[u8]) -> Result<(), ServerError> {
+        Err(ServerError::from(GrpcError::RpcUnimplemented))
     }
 
-    fn base_spin(&mut self, _message: &[u8]) -> Result<(), GrpcError> {
-        Err(GrpcError::RpcUnimplemented)
+    fn base_spin(&mut self, _message: &[u8]) -> Result<(), ServerError> {
+        Err(ServerError::from(GrpcError::RpcUnimplemented))
     }
 
-    fn base_set_velocity(&mut self, _: &[u8]) -> Result<(), GrpcError> {
-        Err(GrpcError::RpcUnimplemented)
+    fn base_set_velocity(&mut self, _: &[u8]) -> Result<(), ServerError> {
+        Err(ServerError::from(GrpcError::RpcUnimplemented))
     }
 
-    fn base_set_power(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn base_set_power(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::base::v1::SetPowerRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let base = match self.robot.lock().unwrap().get_base_by_name(req.name) {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         base.lock()
             .unwrap()
@@ -767,33 +772,33 @@ where
                 &req.linear.unwrap_or_default(),
                 &req.angular.unwrap_or_default(),
             )
-            .map_err(|_| GrpcError::RpcInternal)?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let resp = component::base::v1::SetPowerResponse {};
         self.encode_message(resp)
     }
 
-    fn base_stop(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn base_stop(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::base::v1::StopRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let base = match self.robot.lock().unwrap().get_base_by_name(req.name) {
             Some(b) => b,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
 
         base.lock()
             .unwrap()
             .stop()
-            .map_err(|_| GrpcError::RpcInternal)?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let resp = component::base::v1::StopResponse {};
         self.encode_message(resp)
     }
 
-    fn encoder_get_properties(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn encoder_get_properties(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::encoder::v1::GetPropertiesRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let enc = match self.robot.lock().unwrap().get_encoder_by_name(req.name) {
             Some(e) => e,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
 
         let props = enc.lock().unwrap().get_properties();
@@ -801,45 +806,45 @@ where
         self.encode_message(resp)
     }
 
-    fn encoder_get_position(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn encoder_get_position(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::encoder::v1::GetPositionRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let name = req.name.clone();
         let pos_type = req.position_type();
         let enc = match self.robot.lock().unwrap().get_encoder_by_name(name) {
             Some(e) => e,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         let pos = enc
             .lock()
             .unwrap()
             .get_position(pos_type.into())
-            .map_err(|_| GrpcError::RpcInternal)?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let resp = component::encoder::v1::GetPositionResponse::from(pos);
         self.encode_message(resp)
     }
 
-    fn encoder_reset_position(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn encoder_reset_position(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::encoder::v1::ResetPositionRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let enc = match self.robot.lock().unwrap().get_encoder_by_name(req.name) {
             Some(e) => e,
-            None => return Err(GrpcError::RpcUnavailable),
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         enc.lock()
             .unwrap()
             .reset_position()
-            .map_err(|_| GrpcError::RpcInternal)?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let resp = component::encoder::v1::ResetPositionResponse {};
         self.encode_message(resp)
     }
 
-    fn robot_status_stream(&mut self, message: &[u8]) -> Result<std::time::Instant, GrpcError> {
+    fn robot_status_stream(&mut self, message: &[u8]) -> Result<std::time::Instant, ServerError> {
         let req = robot::v1::StreamStatusRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let duration = Instant::now()
             + TryInto::<Duration>::try_into(req.every.unwrap())
-                .map_err(|_| GrpcError::RpcInvalidArgument)?;
+                .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         // fake a GetStatusRequest because local robot expect this
         let req = robot::v1::GetStatusRequest {
             resource_names: req.resource_names,
@@ -850,36 +855,36 @@ where
                 .lock()
                 .unwrap()
                 .get_status(req)
-                .map_err(|_| GrpcError::RpcInternal)?,
+                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?,
         };
         self.encode_message(status).map(|_| duration)
     }
 
     // robot_get_operations returns an empty response since operations are not yet
     // supported on micro-rdk
-    fn robot_get_oprations(&mut self, _: &[u8]) -> Result<(), GrpcError> {
+    fn robot_get_oprations(&mut self, _: &[u8]) -> Result<(), ServerError> {
         let operation = robot::v1::GetOperationsResponse::default();
         self.encode_message(operation)
     }
 
-    fn robot_status(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn robot_status(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = robot::v1::GetStatusRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let status = robot::v1::GetStatusResponse {
             status: self
                 .robot
                 .lock()
                 .unwrap()
                 .get_status(req)
-                .map_err(|_| GrpcError::RpcInternal)?,
+                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?,
         };
         self.encode_message(status)
     }
 
     #[cfg(feature = "camera")]
-    fn camera_get_frame(&mut self, message: &[u8]) -> Result<(), GrpcError> {
+    fn camera_get_frame(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::camera::v1::GetImageRequest::decode(message)
-            .map_err(|_| GrpcError::RpcInvalidArgument)?;
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         if let Some(camera) = self.robot.lock().unwrap().get_camera_by_name(req.name) {
             // TODO: Modify `get_frame` to return a data structure that can be passed into
             // `encode_message`, rather than re-implementing `encode_message` here. See
@@ -892,7 +897,7 @@ where
                 .lock()
                 .unwrap()
                 .get_frame(msg)
-                .map_err(|_| GrpcError::RpcInternal)?;
+                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
             let len = msg.len().to_be_bytes();
             buffer[1] = len[0];
             buffer[2] = len[1];
@@ -902,46 +907,47 @@ where
             self.response.put_data(buffer.freeze());
             return Ok(());
         }
-        Err(GrpcError::RpcUnavailable)
+        Err(ServerError::from(GrpcError::RpcUnavailable))
     }
 
     #[cfg(feature = "camera")]
-    fn camera_get_point_cloud(&mut self, _message: &[u8]) -> Result<(), GrpcError> {
-        Err(GrpcError::RpcUnimplemented)
+    fn camera_get_point_cloud(&mut self, _message: &[u8]) -> Result<(), ServerError> {
+        Err(ServerError::from(GrpcError::RpcUnimplemented))
     }
 
     #[cfg(feature = "camera")]
-    fn camera_get_properties(&mut self, _message: &[u8]) -> Result<(), GrpcError> {
-        Err(GrpcError::RpcUnimplemented)
+    fn camera_get_properties(&mut self, _message: &[u8]) -> Result<(), ServerError> {
+        Err(ServerError::from(GrpcError::RpcUnimplemented))
     }
 
     #[cfg(feature = "camera")]
-    fn camera_render_frame(&mut self, _message: &[u8]) -> Result<(), GrpcError> {
-        Err(GrpcError::RpcUnimplemented)
+    fn camera_render_frame(&mut self, _message: &[u8]) -> Result<(), ServerError> {
+        Err(ServerError::from(GrpcError::RpcUnimplemented))
     }
 
-    fn resource_names(&mut self, _unused_message: &[u8]) -> Result<(), GrpcError> {
+    fn resource_names(&mut self, _unused_message: &[u8]) -> Result<(), ServerError> {
         let rr = self
             .robot
             .lock()
             .unwrap()
             .get_resource_names()
-            .map_err(|_| GrpcError::RpcInternal)?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let rr = robot::v1::ResourceNamesResponse { resources: rr };
         self.encode_message(rr)
     }
 
-    fn encode_message<M: Message>(&mut self, m: M) -> Result<(), GrpcError> {
+    fn encode_message<M: Message>(&mut self, m: M) -> Result<(), ServerError> {
         let mut buffer = RefCell::borrow_mut(&self.buffer).split_off(0);
         // The buffer will have a null byte, then 4 bytes containing the big-endian length of the
         // data (*not* including this 5-byte header), and then the data from the message itself.
         if 5 + m.encoded_len() > buffer.capacity() {
-            return Err(GrpcError::RpcResourceExhausted);
+            return Err(GrpcError::RpcResourceExhausted.into());
         }
         buffer.put_u8(0);
         buffer.put_u32(m.encoded_len().try_into().unwrap());
         let mut msg = buffer.split();
-        m.encode(&mut msg).map_err(|_| GrpcError::RpcInternal)?;
+        m.encode(&mut msg)
+            .map_err(|_| ServerError::from(GrpcError::RpcInternal))?;
         buffer.unsplit(msg);
         self.response.put_data(buffer.freeze());
         Ok(())
@@ -952,7 +958,7 @@ impl<R> WebRtcGrpcService for GrpcServer<R>
 where
     R: GrpcResponse + 'static,
 {
-    fn unary_rpc(&mut self, method: &str, data: &Bytes) -> Result<Bytes, GrpcError> {
+    fn unary_rpc(&mut self, method: &str, data: &Bytes) -> Result<Bytes, ServerError> {
         {
             RefCell::borrow_mut(&self.buffer).reserve(GRPC_BUFFER_SIZE);
         }
@@ -963,7 +969,7 @@ where
         &mut self,
         method: &str,
         data: &Bytes,
-    ) -> Result<(Bytes, Instant), GrpcError> {
+    ) -> Result<(Bytes, Instant), ServerError> {
         {
             RefCell::borrow_mut(&self.buffer).reserve(GRPC_BUFFER_SIZE);
         }
@@ -1017,7 +1023,7 @@ impl<R> Drop for GrpcServer<R> {
         debug!("Server dropped");
     }
 }
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone, Copy)]
 pub enum GrpcError {
     #[error("canceled rpc")]
     RpcCanceled = 1,
@@ -1052,19 +1058,58 @@ pub enum GrpcError {
     #[error("unauthenticated")]
     RpcUnauthenticated = 16,
 }
-pub struct MakeSvcGrpcServer {
-    server: GrpcServer<GrpcBody>,
-}
 
 impl GrpcError {
-    pub fn to_status(self) -> Status {
-        let message = self.to_string();
+    pub fn to_status(self, message: String) -> Status {
         Status {
             code: self as i32,
             message,
             details: vec![],
         }
     }
+}
+
+#[derive(Debug, Error)]
+pub struct ServerError {
+    grpc_error: GrpcError,
+    #[source]
+    cause: Option<anyhow::Error>,
+}
+
+impl ServerError {
+    pub fn new(grpc_error: GrpcError, cause: Option<anyhow::Error>) -> Self {
+        Self { grpc_error, cause }
+    }
+
+    pub fn to_status(&self) -> Status {
+        self.grpc_error.to_status(self.to_string())
+    }
+
+    pub fn status_code(&self) -> i32 {
+        self.grpc_error as i32
+    }
+}
+
+impl From<GrpcError> for ServerError {
+    fn from(grpc_error: GrpcError) -> Self {
+        Self {
+            grpc_error,
+            cause: None,
+        }
+    }
+}
+
+impl fmt::Display for ServerError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.cause {
+            Some(err) => write!(f, "{}: {}", self.grpc_error, err),
+            None => std::fmt::Display::fmt(&self.grpc_error, f),
+        }
+    }
+}
+
+pub struct MakeSvcGrpcServer {
+    server: GrpcServer<GrpcBody>,
 }
 
 impl MakeSvcGrpcServer {
