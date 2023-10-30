@@ -280,6 +280,10 @@ where
             "/viam.component.encoder.v1.EncoderService/GetProperties" => {
                 self.encoder_get_properties(payload)
             }
+            "/viam.component.servo.v1.ServoService/Move" => self.servo_move(payload),
+            "/viam.component.servo.v1.ServoService/GetPosition" => self.servo_get_position(payload),
+            "/viam.component.servo.v1.ServoService/IsMoving" => self.servo_is_moving(payload),
+            "/viam.component.servo.v1.ServoService/Stop" => self.servo_stop(payload),
             _ => Err(ServerError::from(GrpcError::RpcUnimplemented)),
         }
     }
@@ -415,6 +419,71 @@ where
             .stop()
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let resp = component::motor::v1::StopResponse {};
+        self.encode_message(resp)
+    }
+
+    fn servo_move(&mut self, message: &[u8]) -> Result<(), ServerError> {
+        let req = component::servo::v1::MoveRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let servo = match self.robot.lock().unwrap().get_servo_by_name(req.name) {
+            Some(s) => s,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        servo
+            .lock()
+            .unwrap()
+            .move_to(req.angle_deg)
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+        let resp = component::servo::v1::MoveResponse {};
+        self.encode_message(resp)
+    }
+
+    fn servo_get_position(&mut self, message: &[u8]) -> Result<(), ServerError> {
+        let req = component::servo::v1::GetPositionRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let servo = match self.robot.lock().unwrap().get_servo_by_name(req.name) {
+            Some(s) => s,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        let pos = servo
+            .lock()
+            .unwrap()
+            .get_position()
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+        let resp = component::servo::v1::GetPositionResponse { position_deg: pos };
+        self.encode_message(resp)
+    }
+
+    fn servo_is_moving(&mut self, message: &[u8]) -> Result<(), ServerError> {
+        let req = component::servo::v1::IsMovingRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let servo = match self.robot.lock().unwrap().get_servo_by_name(req.name) {
+            Some(s) => s,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        let resp = component::servo::v1::IsMovingResponse {
+            is_moving: servo
+                .lock()
+                .unwrap()
+                .is_moving()
+                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?,
+        };
+        self.encode_message(resp)
+    }
+
+    fn servo_stop(&mut self, message: &[u8]) -> Result<(), ServerError> {
+        let req = component::servo::v1::StopRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let servo = match self.robot.lock().unwrap().get_servo_by_name(req.name) {
+            Some(m) => m,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        servo
+            .lock()
+            .unwrap()
+            .stop()
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+        let resp = component::servo::v1::StopResponse {};
         self.encode_message(resp)
     }
 
