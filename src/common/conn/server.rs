@@ -311,9 +311,9 @@ where
             .unwrap();
         let _ = self.app_client.insert(app_client);
         let cloned_robot = robot.clone();
-
+        let mut current_prio = None;
         loop {
-            let _ = smol::Timer::after(std::time::Duration::from_millis(100)).await;
+            let _ = smol::Timer::after(std::time::Duration::from_millis(300)).await;
 
             let sig = if let Some(webrtc_config) = self.webrtc_config.as_ref() {
                 let ip = self.app_config.get_ip();
@@ -345,22 +345,29 @@ where
                 },
                 async {
                     let mut api = sig.await.map_err(|e| ServerError::Other(Box::new(e)))?;
-                    if let Some(task) = self.webtrc_conn.as_ref() {
-                        if !task.is_finished() {
-                            log::info!(
-                                "a webrtc connection is active ignoring further signaling requests"
-                            );
-                            return Err(ServerError::ServerConnectionNotConfigured);
-                        }
-                    }
+
+                    let prio = self
+                        .webtrc_conn
+                        .as_ref()
+                        .map_or(None, |f| (!f.is_finished()).then(|| &current_prio))
+                        .unwrap_or(&None);
+
                     let sdp = api
-                        .answer()
+                        .answer(prio)
                         .await
                         .map_err(|e| ServerError::Other(Box::new(e)))?;
 
+                    if let Some(task) = self.webtrc_conn.take() {
+                        if !task.is_finished() {
+                            let ret = task.cancel().await;
+                        }
+                    }
+
+                    let _ = current_prio.insert(sdp.1);
+
                     Ok(IncomingConnection::WebRtcConnection(WebRTCConnection {
                         webrtc_api: api,
-                        sdp,
+                        sdp: sdp.0,
                         server: None,
                         robot: cloned_robot.clone(),
                     }))
