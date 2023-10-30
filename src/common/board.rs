@@ -1,24 +1,38 @@
-#![allow(dead_code)]
-use crate::common::analog::AnalogReader;
-use crate::common::status::Status;
-use crate::google;
-use crate::proto::common;
-use crate::proto::component;
-use core::cell::RefCell;
-use log::*;
-use std::collections::HashMap;
-use std::rc::Rc;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::time::Duration;
+//! general-purpose compute board
 
-use super::analog::FakeAnalogReader;
-use super::config::ConfigType;
-use super::i2c::FakeI2CHandle;
-use super::i2c::FakeI2cConfig;
-use super::i2c::I2CHandle;
-use super::i2c::I2cHandleType;
-use super::registry::ComponentRegistry;
+#![allow(dead_code)]
+use crate::{
+    common::{
+        analog::AnalogReader,
+        status::Status,
+    },
+    google,
+    proto::{
+        common, 
+        component::board::v1::PowerMode
+    },
+};
+
+use log::*;
+use core::cell::RefCell;
+use std::{
+    collections::HashMap,
+    rc::Rc,
+    sync::Arc,
+    sync::Mutex,
+    time::Duration,
+};
+
+use super::{
+    analog::FakeAnalogReader,
+    config::ConfigType,
+    i2c::{
+        FakeI2CHandle, 
+        FakeI2cConfig, 
+        I2CHandle, 
+        I2cHandleType},
+    registry::ComponentRegistry,
+};
 
 pub static COMPONENT_NAME: &str = "board";
 
@@ -31,23 +45,23 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     }
 }
 
-pub struct FakeBoard {
-    analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>,
-    i2cs: HashMap<String, Arc<Mutex<FakeI2CHandle>>>,
-    pin_pwms: HashMap<i32, f64>,
-    pin_pwm_freq: HashMap<i32, u64>,
-}
+/// The [Board] trait represents the functionality of a physical general purpose compute board that contains various components such as analog readers and digital interrupts.
 pub trait Board: Status {
+    /// Set a pin to high(`true`) or low(`false`)
     fn set_gpio_pin_level(&mut self, pin: i32, is_high: bool) -> anyhow::Result<()>;
+    /// Return the current [BoardStatus] of the board
     fn get_board_status(&self) -> anyhow::Result<common::v1::BoardStatus>;
+    /// Get the state of a pin, high(`true`) or low(`false`)
     fn get_gpio_level(&self, pin: i32) -> anyhow::Result<bool>;
+    /// Get an [AnalogReader] by name
     fn get_analog_reader_by_name(
         &self,
         name: String,
     ) -> anyhow::Result<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>;
+    /// Set the board to the indicated [PowerMode]
     fn set_power_mode(
         &self,
-        mode: component::board::v1::PowerMode,
+        mode: PowerMode,
         duration: Option<Duration>,
     ) -> anyhow::Result<()>;
     fn get_i2c_by_name(&self, name: String) -> anyhow::Result<I2cHandleType>;
@@ -56,13 +70,26 @@ pub trait Board: Status {
     fn get_digital_interrupt_value(&self, _pin: i32) -> anyhow::Result<u32> {
         anyhow::bail!("this board does not support digital interrupts")
     }
+    /// Get the pin's given duty cycle
     fn get_pwm_duty(&self, pin: i32) -> f64;
+    /// Set the pin to the given duty cycle 
     fn set_pwm_duty(&mut self, pin: i32, duty_cycle_pct: f64) -> anyhow::Result<()>;
+    /// Get the PWM frequency of the pin
     fn get_pwm_frequency(&self, pin: i32) -> anyhow::Result<u64>;
+    /// Set the pin to the given PWM frequency (in Hz). 
+    /// When frequency is 0, it will use the board’s default PWM frequency.
     fn set_pwm_frequency(&mut self, pin: i32, frequency_hz: u64) -> anyhow::Result<()>;
 }
 
+/// An alias for a thread-safe handle to a struct that implements the [Board] trait
 pub type BoardType = Arc<Mutex<dyn Board>>;
+
+pub struct FakeBoard {
+    analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>,
+    i2cs: HashMap<String, Arc<Mutex<FakeI2CHandle>>>,
+    pin_pwms: HashMap<i32, f64>,
+    pin_pwm_freq: HashMap<i32, u64>,
+}
 
 impl FakeBoard {
     pub fn new(analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>) -> Self {
@@ -135,7 +162,7 @@ impl Board for FakeBoard {
                 },
             );
         });
-        Ok(b) //component::board::v1::StatusResponse { status: Some(b) }
+        Ok(b)
     }
     fn get_gpio_level(&self, pin: i32) -> anyhow::Result<bool> {
         info!("get pin {}", pin);
@@ -152,7 +179,7 @@ impl Board for FakeBoard {
     }
     fn set_power_mode(
         &self,
-        mode: component::board::v1::PowerMode,
+        mode: PowerMode,
         duration: Option<Duration>,
     ) -> anyhow::Result<()> {
         info!(
@@ -248,7 +275,7 @@ where
 
     fn set_power_mode(
         &self,
-        mode: component::board::v1::PowerMode,
+        mode: PowerMode,
         duration: Option<Duration>,
     ) -> anyhow::Result<()> {
         self.lock().unwrap().set_power_mode(mode, duration)
