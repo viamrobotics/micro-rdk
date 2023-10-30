@@ -349,7 +349,7 @@ where
                     let prio = self
                         .webtrc_conn
                         .as_ref()
-                        .map_or(None, |f| (!f.is_finished()).then(|| &current_prio))
+                        .and_then(|f| (!f.is_finished()).then_some(&current_prio))
                         .unwrap_or(&None);
 
                     let sdp = api
@@ -359,7 +359,7 @@ where
 
                     if let Some(task) = self.webtrc_conn.take() {
                         if !task.is_finished() {
-                            let ret = task.cancel().await;
+                            let _ = task.cancel().await;
                         }
                     }
 
