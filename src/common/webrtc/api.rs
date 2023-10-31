@@ -71,7 +71,7 @@ pub enum WebRtcError {
     Other(#[from] anyhow::Error),
     #[error(transparent)]
     DtlsError(#[from] Box<dyn std::error::Error + Send + Sync>),
-    #[error("the active webrtc connection has an higher priority")]
+    #[error("the active webrtc connection has a higher priority")]
     CurrentConnectionHigherPrority(),
 }
 
@@ -414,7 +414,7 @@ where
 
     pub async fn answer(
         &mut self,
-        local_prio: &Option<u32>,
+        current_prio: &Option<u32>,
     ) -> Result<(Box<WebRtcSdp>, u32), WebRtcError> {
         let offer = self
             .signaling
@@ -431,14 +431,16 @@ where
             .get(0)
             .ok_or_else(|| WebRtcError::InvalidSDPOffer("no media description".to_owned()))?;
 
-        let remote_prio = attribute
+        let caller_prio = attribute
             .attribute("x-priority")
             .flatten()
             .map_or(Ok(u32::MAX), |a| a.parse::<u32>())
             .unwrap_or(u32::MAX);
-        let local_prio = local_prio.unwrap_or(0);
 
-        if local_prio >= remote_prio {
+        let current_prio = current_prio.unwrap_or(0);
+
+        // TODO use is_some_then when rust min version reach 1.70
+        if current_prio >= caller_prio {
             return Err(WebRtcError::CurrentConnectionHigherPrority());
         }
 
@@ -504,7 +506,7 @@ where
 
         Ok((
             Box::new(WebRtcSdp::new(answer, self.uuid.as_ref().unwrap().clone())),
-            remote_prio,
+            caller_prio,
         ))
     }
 }

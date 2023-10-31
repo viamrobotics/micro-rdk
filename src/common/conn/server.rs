@@ -357,6 +357,8 @@ where
                         .await
                         .map_err(|e| ServerError::Other(Box::new(e)))?;
 
+                    // When the current priority is lower than the priority of the incoming connection then
+                    // we cancel and close the current webrtc connection (if any)
                     if let Some(task) = self.webtrc_conn.take() {
                         if !task.is_finished() {
                             let _ = task.cancel().await;
