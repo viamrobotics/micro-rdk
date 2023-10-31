@@ -71,6 +71,8 @@ pub enum WebRtcError {
     Other(#[from] anyhow::Error),
     #[error(transparent)]
     DtlsError(#[from] Box<dyn std::error::Error + Send + Sync>),
+    #[error("the active webrtc connection has a higher priority")]
+    CurrentConnectionHigherPrority(),
 }
 
 pub(crate) struct WebRtcSignalingChannel {
@@ -410,7 +412,10 @@ where
         Err(WebRtcError::DataChannelOpenError())
     }
 
-    pub async fn answer(&mut self) -> Result<Box<WebRtcSdp>, WebRtcError> {
+    pub async fn answer(
+        &mut self,
+        current_prio: &Option<u32>,
+    ) -> Result<(Box<WebRtcSdp>, u32), WebRtcError> {
         let offer = self
             .signaling
             .as_mut()
@@ -425,6 +430,19 @@ where
             .media_descriptions
             .get(0)
             .ok_or_else(|| WebRtcError::InvalidSDPOffer("no media description".to_owned()))?;
+
+        let caller_prio = attribute
+            .attribute("x-priority")
+            .flatten()
+            .map_or(Ok(u32::MAX), |a| a.parse::<u32>())
+            .unwrap_or(u32::MAX);
+
+        let current_prio = current_prio.unwrap_or(0);
+
+        // TODO use is_some_then when rust min version reach 1.70
+        if current_prio >= caller_prio {
+            return Err(WebRtcError::CurrentConnectionHigherPrority());
+        }
 
         let remote_creds = ICECredentials::new(
             attribute
@@ -486,9 +504,9 @@ where
 
         let answer = answer.with_media(media);
 
-        Ok(Box::new(WebRtcSdp::new(
-            answer,
-            self.uuid.as_ref().unwrap().clone(),
-        )))
+        Ok((
+            Box::new(WebRtcSdp::new(answer, self.uuid.as_ref().unwrap().clone())),
+            caller_prio,
+        ))
     }
 }
