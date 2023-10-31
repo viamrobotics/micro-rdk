@@ -1,4 +1,4 @@
-//! ESP32-specific implementations of common components
+//! ESP32-specific implementations of components and tools
 
 pub mod analog;
 pub mod base;

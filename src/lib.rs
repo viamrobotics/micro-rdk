@@ -4,19 +4,9 @@ pub mod common;
 pub mod esp32;
 
 #[cfg(feature = "native")]
-pub mod native {
-    pub mod certificate;
-    pub mod dtls;
-    pub mod entry;
-    pub mod exec;
-    pub mod tcp;
-    pub mod tls;
-    pub mod conn {
-        pub mod mdns;
-    }
-}
+pub mod native;
 
-/// gRPC protobufs and prototypes
+/// gRPC protobuf utilities, auto-generated
 pub mod google {
     pub mod rpc {
         #![allow(clippy::derive_partial_eq_without_eq)]
@@ -28,7 +18,7 @@ pub mod google {
     }
 }
 
-/// gRPC protobufs
+/// gRPC prototypes from definitions in [api repository](https://github.com/viamrobotics/api/tree/main/proto/viam), auto-generated
 pub mod proto {
     pub mod common {
         pub mod v1 {

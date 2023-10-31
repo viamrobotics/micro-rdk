@@ -1,4 +1,4 @@
-//! general-purpose compute board
+//! Abstraction of a general-purpose compute board
 
 #![allow(dead_code)]
 use crate::{
@@ -45,7 +45,7 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     }
 }
 
-/// The [Board] trait represents the functionality of a physical general purpose compute board that contains various components such as analog readers and digital interrupts.
+/// The [Board] trait represents the functionality of a general purpose compute board that contains various components such as analog readers and digital interrupts.
 pub trait Board: Status {
     /// Set a pin to high(`true`) or low(`false`)
     fn set_gpio_pin_level(&mut self, pin: i32, is_high: bool) -> anyhow::Result<()>;
@@ -84,6 +84,7 @@ pub trait Board: Status {
 /// An alias for a thread-safe handle to a struct that implements the [Board] trait
 pub type BoardType = Arc<Mutex<dyn Board>>;
 
+/// A test implementation of a generic compute board
 pub struct FakeBoard {
     analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>,
     i2cs: HashMap<String, Arc<Mutex<FakeI2CHandle>>>,
