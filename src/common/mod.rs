@@ -1,4 +1,4 @@
-//! Structs, Traits, and tools used to develop [component](https://docs.viam.com/components/)
+//! Structs, traits, and utils to develop [component](https://docs.viam.com/components/)
 //! drivers.
 //!
 //! # Components
@@ -11,7 +11,7 @@
 //! - [movement_sensor]
 //! - [sensor]
 //!
-//! # Tools and Protocols
+//! # Utils
 //! - [grpc]
 //! - [grpc_client]
 //! - [i2c]

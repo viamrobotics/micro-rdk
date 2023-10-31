@@ -45,9 +45,9 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     }
 }
 
-/// The [Board] trait represents the functionality of a general purpose compute board that contains various components such as analog readers and digital interrupts.
+/// Represents the functionality of a general purpose compute board that contains various components such as analog readers and digital interrupts.
 pub trait Board: Status {
-    /// Set a pin to high(`true`) or low(`false`)
+    /// Set a pin to high or low
     fn set_gpio_pin_level(&mut self, pin: i32, is_high: bool) -> anyhow::Result<()>;
     /// Return the current [BoardStatus] of the board
     fn get_board_status(&self) -> anyhow::Result<common::v1::BoardStatus>;
