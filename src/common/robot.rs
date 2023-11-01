@@ -10,6 +10,7 @@ use std::{
 use crate::camera::{Camera, CameraType};
 
 use crate::{
+    common::actuator::Actuator,
     common::base::Base,
     common::board::Board,
     common::encoder::Encoder,
@@ -17,7 +18,6 @@ use crate::{
     common::movement_sensor::MovementSensor,
     common::sensor::Sensor,
     common::status::Status,
-    common::stop::Stoppable,
     google,
     proto::{
         app::v1::{ComponentConfig, ConfigResponse},

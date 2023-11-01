@@ -192,6 +192,7 @@ where
             "/viam.component.base.v1.BaseService/MoveStraight" => self.base_move_straight(payload),
             "/viam.component.base.v1.BaseService/Spin" => self.base_spin(payload),
             "/viam.component.base.v1.BaseService/SetVelocity" => self.base_set_velocity(payload),
+            "/viam.component.base.v1.BaseService/IsMoving" => self.base_is_moving(payload),
             "/viam.component.board.v1.BoardService/GetDigitalInterruptValue" => {
                 self.board_get_digital_interrupt_value(payload)
             }
@@ -233,6 +234,7 @@ where
             "/viam.component.motor.v1.MotorService/GoFor" => self.motor_go_for(payload),
             "/viam.component.motor.v1.MotorService/GoTo" => self.motor_go_to(payload),
             "/viam.component.motor.v1.MotorService/IsPowered" => self.motor_is_powered(payload),
+            "/viam.component.motor.v1.MotorService/IsMoving" => self.motor_is_moving(payload),
             "/viam.component.motor.v1.MotorService/ResetZeroPosition" => {
                 self.motor_reset_zero_position(payload)
             }
@@ -353,6 +355,24 @@ where
     fn motor_is_powered(&mut self, _message: &[u8]) -> Result<(), ServerError> {
         Err(ServerError::from(GrpcError::RpcUnimplemented))
     }
+
+    fn motor_is_moving(&mut self, message: &[u8]) -> Result<(), ServerError> {
+        let req = component::motor::v1::IsMovingRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let motor = match self.robot.lock().unwrap().get_motor_by_name(req.name) {
+            Some(m) => m,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        let resp = component::motor::v1::IsMovingResponse {
+            is_moving: motor
+                .lock()
+                .unwrap()
+                .is_moving()
+                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?,
+        };
+        self.encode_message(resp)
+    }
+
     fn motor_reset_zero_position(&mut self, _message: &[u8]) -> Result<(), ServerError> {
         Err(ServerError::from(GrpcError::RpcUnimplemented))
     }
@@ -757,6 +777,23 @@ where
 
     fn base_set_velocity(&mut self, _: &[u8]) -> Result<(), ServerError> {
         Err(ServerError::from(GrpcError::RpcUnimplemented))
+    }
+
+    fn base_is_moving(&mut self, message: &[u8]) -> Result<(), ServerError> {
+        let req = component::base::v1::IsMovingRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let base = match self.robot.lock().unwrap().get_base_by_name(req.name) {
+            Some(b) => b,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        let resp = component::base::v1::IsMovingResponse {
+            is_moving: base
+                .lock()
+                .unwrap()
+                .is_moving()
+                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?,
+        };
+        self.encode_message(resp)
     }
 
     fn base_set_power(&mut self, message: &[u8]) -> Result<(), ServerError> {

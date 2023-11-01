@@ -1,11 +1,11 @@
 #![allow(dead_code)]
+use crate::common::actuator::Actuator;
 use crate::common::base::{Base, BaseType, COMPONENT_NAME as BaseCompName};
 use crate::common::config::ConfigType;
 use crate::common::motor::{Motor, MotorType, COMPONENT_NAME as MotorCompName};
 use crate::common::registry::{ComponentRegistry, Dependency, ResourceKey};
 use crate::common::robot::Resource;
 use crate::common::status::Status;
-use crate::common::stop::Stoppable;
 use crate::google;
 use crate::proto::common::v1::Vector3;
 use std::collections::HashMap;
@@ -128,11 +128,14 @@ where
     }
 }
 
-impl<ML, MR> Stoppable for Esp32WheelBase<ML, MR>
+impl<ML, MR> Actuator for Esp32WheelBase<ML, MR>
 where
     ML: Motor,
     MR: Motor,
 {
+    fn is_moving(&mut self) -> anyhow::Result<bool> {
+        Ok(self.motor_left.is_moving()? || self.motor_right.is_moving()?)
+    }
     fn stop(&mut self) -> anyhow::Result<()> {
         self.motor_left.stop()?;
         self.motor_right.stop()?;

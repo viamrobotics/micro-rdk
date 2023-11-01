@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use super::actuator::Actuator;
 use super::config::{AttributeError, ConfigType, Kind};
 use super::encoder::{
     Encoder, EncoderPositionType, EncoderType, COMPONENT_NAME as EncoderCompName,
@@ -14,7 +15,6 @@ use super::encoder::{
 use super::math_utils::go_for_math;
 use super::registry::{ComponentRegistry, Dependency, ResourceKey};
 use super::robot::Resource;
-use super::stop::Stoppable;
 
 pub static COMPONENT_NAME: &str = "motor";
 
@@ -55,7 +55,7 @@ impl From<MotorSupportedProperties> for GetPropertiesResponse {
     }
 }
 
-pub trait Motor: Status + Stoppable {
+pub trait Motor: Status + Actuator {
     /// Sets the percentage of the motor's total power that should be employed.
     /// expressed a value between `-1.0` and `1.0` where negative values indicate a backwards
     /// direction and positive values a forward direction.
@@ -302,7 +302,7 @@ impl Status for FakeMotor {
     }
 }
 
-impl Stoppable for FakeMotor {
+impl Actuator for FakeMotor {
     fn stop(&mut self) -> anyhow::Result<()> {
         debug!("stopping motor");
         self.set_power(0.0)?;
@@ -375,7 +375,7 @@ impl Status for FakeMotorWithDependency {
     }
 }
 
-impl Stoppable for FakeMotorWithDependency {
+impl Actuator for FakeMotorWithDependency {
     fn stop(&mut self) -> anyhow::Result<()> {
         Ok(())
     }

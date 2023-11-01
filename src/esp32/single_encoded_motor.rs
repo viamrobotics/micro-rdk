@@ -1,10 +1,11 @@
 use super::single_encoder::SingleEncoderType;
+
+use crate::common::actuator::Actuator;
 use crate::common::encoder::{
     Direction, Encoder, EncoderPositionType, EncoderSupportedRepresentations, SingleEncoder,
 };
 use crate::common::motor::{Motor, MotorSupportedProperties, MotorType};
 use crate::common::status::Status;
-use crate::common::stop::Stoppable;
 use crate::google;
 
 use std::collections::HashMap;
@@ -72,7 +73,10 @@ impl Motor for SingleEncodedMotor {
     }
 }
 
-impl Stoppable for SingleEncodedMotor {
+impl Actuator for SingleEncodedMotor {
+    fn is_moving(&mut self) -> anyhow::Result<bool> {
+        self.motor.is_moving()
+    }
     fn stop(&mut self) -> anyhow::Result<()> {
         self.motor.stop()
     }
