@@ -58,8 +58,8 @@ impl MPU6050 {
         }
         let board_unwrapped = board.unwrap();
         let i2c_handle: I2cHandleType;
-        if let Ok(i2c_name) = cfg.get_attribute::<&'static str>("i2c_bus") {
-            i2c_handle = board_unwrapped.get_i2c_by_name(i2c_name.to_string())?;
+        if let Ok(i2c_name) = cfg.get_attribute::<String>("i2c_bus") {
+            i2c_handle = board_unwrapped.get_i2c_by_name(i2c_name)?;
         } else {
             return Err(anyhow::anyhow!(
                 "i2c_bus is a required config attribute for MPU6050"

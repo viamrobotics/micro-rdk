@@ -7,18 +7,18 @@ use esp_idf_hal::gpio::AnyIOPin;
 use esp_idf_hal::i2c::{I2cConfig, I2cDriver, I2C0, I2C1};
 use esp_idf_hal::units::Hertz;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Esp32I2cConfig {
-    pub name: &'static str,
-    pub bus: &'static str,
+    pub name: String,
+    pub bus: String,
     pub baudrate_hz: u32,
     pub timeout_ns: u32,
     pub data_pin: i32,
     pub clock_pin: i32,
 }
 
-impl From<Esp32I2cConfig> for I2cConfig {
-    fn from(value: Esp32I2cConfig) -> I2cConfig {
+impl From<&Esp32I2cConfig> for I2cConfig {
+    fn from(value: &Esp32I2cConfig) -> I2cConfig {
         // TODO: when next version of esp_idf_hal is released, use below instead
         // of storing timeout on Esp32I2C struct
         // let config = I2cConfig::new().baudrate(Hertz(value.baudrate_hz));
@@ -113,14 +113,14 @@ pub struct Esp32I2C<'a> {
 }
 
 impl<'a> Esp32I2C<'a> {
-    pub fn new_from_config(conf: Esp32I2cConfig) -> anyhow::Result<Self> {
+    pub fn new_from_config(conf: &Esp32I2cConfig) -> anyhow::Result<Self> {
         let name = conf.name.to_string();
         let timeout_ns = conf.timeout_ns;
         let sda = unsafe { AnyIOPin::new(conf.data_pin) };
         let scl = unsafe { AnyIOPin::new(conf.clock_pin) };
         let driver_conf = I2cConfig::from(conf);
 
-        match conf.bus {
+        match conf.bus.as_str() {
             "i2c0" => {
                 let i2c0 = unsafe { I2C0::new() };
                 let driver = I2cDriver::new(i2c0, sda, scl, &driver_conf)?;
