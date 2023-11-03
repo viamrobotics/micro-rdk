@@ -77,17 +77,17 @@ pub trait Board: Status {
         anyhow::bail!("this board does not support digital interrupts")
     }
 
-    /// Get the pin's given duty cycle
+    /// Get the pin's given duty cycle, returns percentage as float between 0.0 and 1.0
     fn get_pwm_duty(&self, pin: i32) -> f64;
 
-    /// Set the pin to the given duty cycle 
+    /// Set the pin to the given duty cycle , `duty_cycle_pct` is a float between 0.0 and 1.0
     fn set_pwm_duty(&mut self, pin: i32, duty_cycle_pct: f64) -> anyhow::Result<()>;
 
     /// Get the PWM frequency of the pin
     fn get_pwm_frequency(&self, pin: i32) -> anyhow::Result<u64>;
 
     /// Set the pin to the given PWM frequency (in Hz). 
-    /// When frequency is 0, it will use the board’s default PWM frequency.
+    /// When frequency is 0, the board will unregister the pin and PWM signal
     fn set_pwm_frequency(&mut self, pin: i32, frequency_hz: u64) -> anyhow::Result<()>;
 }
 

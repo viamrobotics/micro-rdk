@@ -17,6 +17,12 @@
 //! - [i2c]
 //! - [webrtc]
 //! - [conn]
+//!
+//!
+//! General Purpose Drivers 
+//! - [gpio_motor]
+//! - [adxl345]
+//! - [mpu6050]
 
 pub mod actuator;
 pub mod adxl345;
