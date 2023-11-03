@@ -49,33 +49,43 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 pub trait Board: Status {
     /// Set a pin to high or low
     fn set_gpio_pin_level(&mut self, pin: i32, is_high: bool) -> anyhow::Result<()>;
+
     /// Return the current [BoardStatus] of the board
     fn get_board_status(&self) -> anyhow::Result<common::v1::BoardStatus>;
+
     /// Get the state of a pin, high(`true`) or low(`false`)
     fn get_gpio_level(&self, pin: i32) -> anyhow::Result<bool>;
+
     /// Get an [AnalogReader] by name
     fn get_analog_reader_by_name(
         &self,
         name: String,
     ) -> anyhow::Result<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>;
+
     /// Set the board to the indicated [PowerMode]
     fn set_power_mode(
         &self,
         mode: PowerMode,
         duration: Option<Duration>,
     ) -> anyhow::Result<()>;
+
     fn get_i2c_by_name(&self, name: String) -> anyhow::Result<I2cHandleType>;
+
     /// Return the amount of detected interrupt events on a pin. Should error if the
     /// pin has not been configured as an interrupt
     fn get_digital_interrupt_value(&self, _pin: i32) -> anyhow::Result<u32> {
         anyhow::bail!("this board does not support digital interrupts")
     }
+
     /// Get the pin's given duty cycle
     fn get_pwm_duty(&self, pin: i32) -> f64;
+
     /// Set the pin to the given duty cycle 
     fn set_pwm_duty(&mut self, pin: i32, duty_cycle_pct: f64) -> anyhow::Result<()>;
+
     /// Get the PWM frequency of the pin
     fn get_pwm_frequency(&self, pin: i32) -> anyhow::Result<u64>;
+
     /// Set the pin to the given PWM frequency (in Hz). 
     /// When frequency is 0, it will use the board’s default PWM frequency.
     fn set_pwm_frequency(&mut self, pin: i32, frequency_hz: u64) -> anyhow::Result<()>;
@@ -106,6 +116,7 @@ impl FakeBoard {
             pin_pwm_freq: HashMap::new(),
         }
     }
+
     pub(crate) fn from_config(cfg: ConfigType) -> anyhow::Result<BoardType> {
         let analogs = if let Ok(analog_confs) = cfg.get_attribute::<HashMap<&str, f64>>("analogs") {
             analog_confs
@@ -149,6 +160,7 @@ impl Board for FakeBoard {
         info!("set pin {} to {}", pin, is_high);
         Ok(())
     }
+
     fn get_board_status(&self) -> anyhow::Result<common::v1::BoardStatus> {
         let mut b = common::v1::BoardStatus {
             analogs: HashMap::new(),
@@ -165,10 +177,12 @@ impl Board for FakeBoard {
         });
         Ok(b)
     }
+
     fn get_gpio_level(&self, pin: i32) -> anyhow::Result<bool> {
         info!("get pin {}", pin);
         Ok(true)
     }
+
     fn get_analog_reader_by_name(
         &self,
         name: String,
@@ -178,6 +192,7 @@ impl Board for FakeBoard {
             None => Err(anyhow::anyhow!("couldn't find analog reader {}", name)),
         }
     }
+
     fn set_power_mode(
         &self,
         mode: PowerMode,
@@ -193,6 +208,7 @@ impl Board for FakeBoard {
         );
         Ok(())
     }
+
     fn get_i2c_by_name(&self, name: String) -> anyhow::Result<I2cHandleType> {
         if let Some(i2c_handle) = self.i2cs.get(&name) {
             Ok((*i2c_handle).clone())
@@ -200,16 +216,20 @@ impl Board for FakeBoard {
             anyhow::bail!("could not find I2C with name {}", name)
         }
     }
+
     fn get_pwm_duty(&self, pin: i32) -> f64 {
         *self.pin_pwms.get(&pin).unwrap_or(&0.0)
     }
+
     fn set_pwm_duty(&mut self, pin: i32, duty_cycle_pct: f64) -> anyhow::Result<()> {
         self.pin_pwms.insert(pin, duty_cycle_pct);
         Ok(())
     }
+
     fn get_pwm_frequency(&self, pin: i32) -> anyhow::Result<u64> {
         Ok(*self.pin_pwm_freq.get(&pin).unwrap_or(&0))
     }
+
     fn set_pwm_frequency(&mut self, pin: i32, frequency_hz: u64) -> anyhow::Result<()> {
         self.pin_pwm_freq.insert(pin, frequency_hz);
         Ok(())
@@ -261,12 +281,15 @@ where
     fn get_board_status(&self) -> anyhow::Result<common::v1::BoardStatus> {
         self.lock().unwrap().get_board_status()
     }
+
     fn get_gpio_level(&self, pin: i32) -> anyhow::Result<bool> {
         self.lock().unwrap().get_gpio_level(pin)
     }
+
     fn set_gpio_pin_level(&mut self, pin: i32, is_high: bool) -> anyhow::Result<()> {
         self.lock().unwrap().set_gpio_pin_level(pin, is_high)
     }
+
     fn get_analog_reader_by_name(
         &self,
         name: String,
