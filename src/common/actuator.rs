@@ -1,12 +1,8 @@
 use std::sync::{Arc, Mutex};
 
 pub trait Actuator {
-    fn is_moving(&mut self) -> anyhow::Result<bool> {
-        anyhow::bail!("is_moving is unsupported")
-    }
-    fn stop(&mut self) -> anyhow::Result<()> {
-        anyhow::bail!("stop is unsupported")
-    }
+    fn is_moving(&mut self) -> anyhow::Result<bool>;
+    fn stop(&mut self) -> anyhow::Result<()>;
 }
 
 impl<L> Actuator for Mutex<L>

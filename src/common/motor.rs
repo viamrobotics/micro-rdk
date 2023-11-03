@@ -308,16 +308,21 @@ impl Actuator for FakeMotor {
         self.set_power(0.0)?;
         Ok(())
     }
+    fn is_moving(&mut self) -> anyhow::Result<bool> {
+        Ok(self.power > 0.0)
+    }
 }
 
 pub struct FakeMotorWithDependency {
     encoder: Option<EncoderType>,
+    power: f64,
 }
 
 impl FakeMotorWithDependency {
-    pub fn new(encoder: EncoderType) -> Self {
+    pub fn new(encoder: Option<EncoderType>) -> Self {
         Self {
-            encoder: Some(encoder),
+            encoder,
+            power: 0.0,
         }
     }
 
@@ -343,7 +348,7 @@ impl FakeMotorWithDependency {
                 }
             };
         }
-        Ok(Arc::new(Mutex::new(Self { encoder: enc })))
+        Ok(Arc::new(Mutex::new(Self::new(enc))))
     }
 }
 
@@ -356,6 +361,7 @@ impl Motor for FakeMotorWithDependency {
     }
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
         debug!("setting power to {}", pct);
+        self.power = pct;
         Ok(())
     }
     fn go_for(&mut self, _: f64, _: f64) -> anyhow::Result<Option<Duration>> {
@@ -377,7 +383,11 @@ impl Status for FakeMotorWithDependency {
 
 impl Actuator for FakeMotorWithDependency {
     fn stop(&mut self) -> anyhow::Result<()> {
+        self.power = 0.0;
         Ok(())
+    }
+    fn is_moving(&mut self) -> anyhow::Result<bool> {
+        Ok(self.power > 0.0)
     }
 }
 
