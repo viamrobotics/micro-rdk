@@ -43,6 +43,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 
+use super::actuator::Actuator;
 use super::board::{Board, BoardType};
 use super::config::ConfigType;
 use super::encoder::{
@@ -56,7 +57,6 @@ use super::motor::{
 use super::registry::{get_board_from_dependencies, ComponentRegistry, Dependency, ResourceKey};
 use super::robot::Resource;
 use super::status::Status;
-use super::stop::Stoppable;
 use crate::google;
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
@@ -162,11 +162,14 @@ where
     }
 }
 
-impl<M, Enc> Stoppable for EncodedMotor<M, Enc>
+impl<M, Enc> Actuator for EncodedMotor<M, Enc>
 where
     M: Motor,
     Enc: Encoder,
 {
+    fn is_moving(&mut self) -> anyhow::Result<bool> {
+        self.motor.is_moving()
+    }
     fn stop(&mut self) -> anyhow::Result<()> {
         self.motor.stop()
     }
@@ -314,10 +317,13 @@ where
     }
 }
 
-impl<B> Stoppable for PwmABMotor<B>
+impl<B> Actuator for PwmABMotor<B>
 where
     B: Board,
 {
+    fn is_moving(&mut self) -> anyhow::Result<bool> {
+        Ok(self.board.get_pwm_duty(self.pwm_pin) <= 0.05)
+    }
     fn stop(&mut self) -> anyhow::Result<()> {
         self.set_power(0.0)
     }
@@ -420,10 +426,13 @@ where
     }
 }
 
-impl<B> Stoppable for PwmDirectionMotor<B>
+impl<B> Actuator for PwmDirectionMotor<B>
 where
     B: Board,
 {
+    fn is_moving(&mut self) -> anyhow::Result<bool> {
+        Ok(self.board.get_pwm_duty(self.pwm_pin) <= 0.05)
+    }
     fn stop(&mut self) -> anyhow::Result<()> {
         self.set_power(0.0)
     }

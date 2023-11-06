@@ -92,11 +92,21 @@ where
     pub(crate) fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<EncoderType> {
         let pin_a_num = match cfg.get_attribute::<i32>("a") {
             Ok(num) => num,
-            Err(_) => return Err(anyhow::anyhow!("cannot build encoder, need 'a' pin")),
+            Err(err) => {
+                return Err(anyhow::anyhow!(
+                    "cannot build encoder, could not parse 'a' pin: {:?}",
+                    err
+                ))
+            }
         };
         let pin_b_num = match cfg.get_attribute::<i32>("b") {
             Ok(num) => num,
-            Err(_) => return Err(anyhow::anyhow!("cannot build encoder, need 'b' pin")),
+            Err(err) => {
+                return Err(anyhow::anyhow!(
+                    "cannot build encoder, could not parse 'b' pin: {:?}",
+                    err
+                ))
+            }
         };
         let a = match PinDriver::input(unsafe { AnyInputPin::new(pin_a_num) }) {
             Ok(a) => a,

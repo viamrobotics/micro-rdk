@@ -1,20 +1,22 @@
 #![allow(dead_code)]
+use crate::common::actuator::Actuator;
 use crate::common::status::Status;
-use crate::common::stop::Stoppable;
 use crate::google;
 use crate::proto::common::v1::Vector3;
+use anyhow::Ok;
 use log::*;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 pub static COMPONENT_NAME: &str = "base";
 
-pub trait Base: Status + Stoppable {
+pub trait Base: Status + Actuator {
     fn set_power(&mut self, lin: &Vector3, ang: &Vector3) -> anyhow::Result<()>;
 }
 
 pub type BaseType = Arc<Mutex<dyn Base>>;
 
+// TODO(RSDK-5648) - Store power from set_power call on struct and register as "fake" model
 pub struct FakeBase {}
 
 impl FakeBase {
@@ -47,7 +49,10 @@ impl Base for FakeBase {
     }
 }
 
-impl Stoppable for FakeBase {
+impl Actuator for FakeBase {
+    fn is_moving(&mut self) -> anyhow::Result<bool> {
+        Ok(false)
+    }
     fn stop(&mut self) -> anyhow::Result<()> {
         debug!("Stopping base");
         Ok(())

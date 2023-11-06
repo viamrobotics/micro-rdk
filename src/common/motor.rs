@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use super::actuator::Actuator;
 use super::config::{AttributeError, ConfigType, Kind};
 use super::encoder::{
     Encoder, EncoderPositionType, EncoderType, COMPONENT_NAME as EncoderCompName,
@@ -14,7 +15,6 @@ use super::encoder::{
 use super::math_utils::go_for_math;
 use super::registry::{ComponentRegistry, Dependency, ResourceKey};
 use super::robot::Resource;
-use super::stop::Stoppable;
 
 pub static COMPONENT_NAME: &str = "motor";
 
@@ -55,7 +55,7 @@ impl From<MotorSupportedProperties> for GetPropertiesResponse {
     }
 }
 
-pub trait Motor: Status + Stoppable {
+pub trait Motor: Status + Actuator {
     /// Sets the percentage of the motor's total power that should be employed.
     /// expressed a value between `-1.0` and `1.0` where negative values indicate a backwards
     /// direction and positive values a forward direction.
@@ -302,22 +302,27 @@ impl Status for FakeMotor {
     }
 }
 
-impl Stoppable for FakeMotor {
+impl Actuator for FakeMotor {
     fn stop(&mut self) -> anyhow::Result<()> {
         debug!("stopping motor");
         self.set_power(0.0)?;
         Ok(())
     }
+    fn is_moving(&mut self) -> anyhow::Result<bool> {
+        Ok(self.power > 0.0)
+    }
 }
 
 pub struct FakeMotorWithDependency {
     encoder: Option<EncoderType>,
+    power: f64,
 }
 
 impl FakeMotorWithDependency {
-    pub fn new(encoder: EncoderType) -> Self {
+    pub fn new(encoder: Option<EncoderType>) -> Self {
         Self {
-            encoder: Some(encoder),
+            encoder,
+            power: 0.0,
         }
     }
 
@@ -343,7 +348,7 @@ impl FakeMotorWithDependency {
                 }
             };
         }
-        Ok(Arc::new(Mutex::new(Self { encoder: enc })))
+        Ok(Arc::new(Mutex::new(Self::new(enc))))
     }
 }
 
@@ -356,6 +361,7 @@ impl Motor for FakeMotorWithDependency {
     }
     fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
         debug!("setting power to {}", pct);
+        self.power = pct;
         Ok(())
     }
     fn go_for(&mut self, _: f64, _: f64) -> anyhow::Result<Option<Duration>> {
@@ -375,9 +381,13 @@ impl Status for FakeMotorWithDependency {
     }
 }
 
-impl Stoppable for FakeMotorWithDependency {
+impl Actuator for FakeMotorWithDependency {
     fn stop(&mut self) -> anyhow::Result<()> {
+        self.power = 0.0;
         Ok(())
+    }
+    fn is_moving(&mut self) -> anyhow::Result<bool> {
+        Ok(self.power > 0.0)
     }
 }
 

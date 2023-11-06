@@ -1,4 +1,5 @@
 pub mod common {
+    pub mod actuator;
     pub mod adxl345;
     pub mod analog;
     pub mod app_client;
@@ -23,7 +24,6 @@ pub mod common {
     pub mod robot;
     pub mod sensor;
     pub mod status;
-    pub mod stop;
     pub mod webrtc {
         pub mod api;
         pub mod candidates;
