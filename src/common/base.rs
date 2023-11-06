@@ -16,6 +16,7 @@ pub trait Base: Status + Actuator {
 
 pub type BaseType = Arc<Mutex<dyn Base>>;
 
+// TODO(RSDK-5648) - Store power from set_power call on struct and register as "fake" model
 pub struct FakeBase {}
 
 impl FakeBase {

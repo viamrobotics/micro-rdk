@@ -322,7 +322,7 @@ where
     B: Board,
 {
     fn is_moving(&mut self) -> anyhow::Result<bool> {
-        Ok(self.board.get_pwm_duty(self.pwm_pin) != 0.0)
+        Ok(self.board.get_pwm_duty(self.pwm_pin) <= 0.05)
     }
     fn stop(&mut self) -> anyhow::Result<()> {
         self.set_power(0.0)
@@ -431,7 +431,7 @@ where
     B: Board,
 {
     fn is_moving(&mut self) -> anyhow::Result<bool> {
-        Ok(self.board.get_pwm_duty(self.pwm_pin) != 0.0)
+        Ok(self.board.get_pwm_duty(self.pwm_pin) <= 0.05)
     }
     fn stop(&mut self) -> anyhow::Result<()> {
         self.set_power(0.0)
