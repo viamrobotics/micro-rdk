@@ -121,7 +121,8 @@ struct Monitor {
 
 #[derive(Parser)]
 #[command(
-    about = "A CLI that can flash a compilation of micro-RDK directly to an ESP32 provided configuration information"
+    about = "A CLI that can flash a compilation of micro-RDK directly to an ESP32 provided configuration information",
+    arg_required_else_help = true
 )]
 struct Cli {
     #[command(subcommand)]
