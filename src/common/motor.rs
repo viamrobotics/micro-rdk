@@ -89,6 +89,9 @@ pub struct MotorPinsConfig {
     pub(crate) b: Option<i32>,
     pub(crate) dir: Option<i32>,
     pub(crate) pwm: Option<i32>,
+    pub(crate) enable_pin_high: Option<i32>,
+    pub(crate) enable_pin_low: Option<i32>,
+    pub(crate) pwm_frequency: Option<u32>,
 }
 
 impl MotorPinsConfig {
@@ -113,56 +116,86 @@ pub struct FakeMotor {
 impl TryFrom<Kind> for MotorPinsConfig {
     type Error = AttributeError;
     fn try_from(value: Kind) -> Result<Self, Self::Error> {
-        let a = match value.get("a") {
-            Ok(opt) => match opt {
-                Some(val) => Some(val.try_into()?),
-                None => None,
-            },
-            Err(err) => match err {
-                AttributeError::KeyNotFound(_) => None,
-                _ => {
-                    return Err(err);
+        let a = value
+            .get("a")
+            .and_then(|v| v.map(TryInto::try_into).transpose())
+            .or_else(|e| {
+                if matches!(e, AttributeError::KeyNotFound(_)) {
+                    Ok(None)
+                } else {
+                    Err(e)
                 }
-            },
-        };
-        let b = match value.get("b") {
-            Ok(opt) => match opt {
-                Some(val) => Some(val.try_into()?),
-                None => None,
-            },
-            Err(err) => match err {
-                AttributeError::KeyNotFound(_) => None,
-                _ => {
-                    return Err(err);
+            })?;
+        let b = value
+            .get("b")
+            .and_then(|v| v.map(TryInto::try_into).transpose())
+            .or_else(|e| {
+                if matches!(e, AttributeError::KeyNotFound(_)) {
+                    Ok(None)
+                } else {
+                    Err(e)
                 }
-            },
-        };
-        let dir = match value.get("dir") {
-            Ok(opt) => match opt {
-                Some(val) => Some(val.try_into()?),
-                None => None,
-            },
-            Err(err) => match err {
-                AttributeError::KeyNotFound(_) => None,
-                _ => {
-                    return Err(err);
+            })?;
+        let dir = value
+            .get("dir")
+            .and_then(|v| v.map(TryInto::try_into).transpose())
+            .or_else(|e| {
+                if matches!(e, AttributeError::KeyNotFound(_)) {
+                    Ok(None)
+                } else {
+                    Err(e)
                 }
-            },
-        };
-        let pwm = match value.get("pwm") {
-            Ok(opt) => match opt {
-                Some(val) => Some(val.try_into()?),
-                None => None,
-            },
-            Err(err) => match err {
-                AttributeError::KeyNotFound(_) => None,
-                _ => {
-                    return Err(err);
+            })?;
+        let pwm = value
+            .get("pwm")
+            .and_then(|v| v.map(TryInto::try_into).transpose())
+            .or_else(|e| {
+                if matches!(e, AttributeError::KeyNotFound(_)) {
+                    Ok(None)
+                } else {
+                    Err(e)
                 }
-            },
-        };
+            })?;
+        let enable_pin_high = value
+            .get("en_high")
+            .and_then(|v| v.map(TryInto::try_into).transpose())
+            .or_else(|e| {
+                if matches!(e, AttributeError::KeyNotFound(_)) {
+                    Ok(None)
+                } else {
+                    Err(e)
+                }
+            })?;
+        let enable_pin_low = value
+            .get("en_low")
+            .and_then(|v| v.map(TryInto::try_into).transpose())
+            .or_else(|e| {
+                if matches!(e, AttributeError::KeyNotFound(_)) {
+                    Ok(None)
+                } else {
+                    Err(e)
+                }
+            })?;
+        let pwm_frequency = value
+            .get("pwm_freq")
+            .and_then(|v| v.map(TryInto::try_into).transpose())
+            .or_else(|e| {
+                if matches!(e, AttributeError::KeyNotFound(_)) {
+                    Ok(None)
+                } else {
+                    Err(e)
+                }
+            })?;
 
-        Ok(Self { a, b, dir, pwm })
+        Ok(Self {
+            a,
+            b,
+            dir,
+            pwm,
+            enable_pin_high,
+            enable_pin_low,
+            pwm_frequency,
+        })
     }
 }
 
@@ -217,7 +250,51 @@ impl TryFrom<&Kind> for MotorPinsConfig {
                 }
             },
         };
-        Ok(Self { a, b, dir, pwm })
+        let enable_pin_high = match value.get("en_high") {
+            Ok(opt) => match opt {
+                Some(val) => Some(val.try_into()?),
+                None => None,
+            },
+            Err(err) => match err {
+                AttributeError::KeyNotFound(_) => None,
+                _ => {
+                    return Err(err);
+                }
+            },
+        };
+        let enable_pin_low = match value.get("en_low") {
+            Ok(opt) => match opt {
+                Some(val) => Some(val.try_into()?),
+                None => None,
+            },
+            Err(err) => match err {
+                AttributeError::KeyNotFound(_) => None,
+                _ => {
+                    return Err(err);
+                }
+            },
+        };
+        let pwm_frequency = match value.get("pwm_freq") {
+            Ok(opt) => match opt {
+                Some(val) => Some(val.try_into()?),
+                None => None,
+            },
+            Err(err) => match err {
+                AttributeError::KeyNotFound(_) => None,
+                _ => {
+                    return Err(err);
+                }
+            },
+        };
+        Ok(Self {
+            a,
+            b,
+            dir,
+            pwm,
+            enable_pin_high,
+            enable_pin_low,
+            pwm_frequency,
+        })
     }
 }
 
