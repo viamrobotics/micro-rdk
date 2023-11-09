@@ -2,35 +2,19 @@
 
 #![allow(dead_code)]
 use crate::{
-    common::{
-        analog::AnalogReader,
-        status::Status,
-    },
+    common::{analog::AnalogReader, status::Status},
     google,
-    proto::{
-        common, 
-        component::board::v1::PowerMode
-    },
+    proto::{common, component::board::v1::PowerMode},
 };
 
-use log::*;
 use core::cell::RefCell;
-use std::{
-    collections::HashMap,
-    rc::Rc,
-    sync::Arc,
-    sync::Mutex,
-    time::Duration,
-};
+use log::*;
+use std::{collections::HashMap, rc::Rc, sync::Arc, sync::Mutex, time::Duration};
 
 use super::{
     analog::FakeAnalogReader,
     config::ConfigType,
-    i2c::{
-        FakeI2CHandle, 
-        FakeI2cConfig, 
-        I2CHandle, 
-        I2cHandleType},
+    i2c::{FakeI2CHandle, FakeI2cConfig, I2CHandle, I2cHandleType},
     registry::ComponentRegistry,
 };
 
@@ -63,12 +47,9 @@ pub trait Board: Status {
     ) -> anyhow::Result<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>;
 
     /// Set the board to the indicated [PowerMode]
-    fn set_power_mode(
-        &self,
-        mode: PowerMode,
-        duration: Option<Duration>,
-    ) -> anyhow::Result<()>;
+    fn set_power_mode(&self, mode: PowerMode, duration: Option<Duration>) -> anyhow::Result<()>;
 
+    /// Get a wrapped [I2CHandle] by name.
     fn get_i2c_by_name(&self, name: String) -> anyhow::Result<I2cHandleType>;
 
     /// Return the amount of detected interrupt events on a pin. Should error if the
@@ -86,8 +67,9 @@ pub trait Board: Status {
     /// Get the PWM frequency of the pin
     fn get_pwm_frequency(&self, pin: i32) -> anyhow::Result<u64>;
 
-    /// Set the pin to the given PWM frequency (in Hz). 
-    /// When frequency is 0, the board will unregister the pin and PWM signal
+    /// Set the pin to the given PWM frequency (in Hz).
+    /// When frequency is 0, the board will unregister the pin and PWM channel from
+    /// the timer and removes the PWM signal.
     fn set_pwm_frequency(&mut self, pin: i32, frequency_hz: u64) -> anyhow::Result<()>;
 }
 
@@ -193,11 +175,7 @@ impl Board for FakeBoard {
         }
     }
 
-    fn set_power_mode(
-        &self,
-        mode: PowerMode,
-        duration: Option<Duration>,
-    ) -> anyhow::Result<()> {
+    fn set_power_mode(&self, mode: PowerMode, duration: Option<Duration>) -> anyhow::Result<()> {
         info!(
             "set power mode to {} for {} milliseconds",
             mode.as_str_name(),
@@ -297,11 +275,7 @@ where
         self.lock().unwrap().get_analog_reader_by_name(name)
     }
 
-    fn set_power_mode(
-        &self,
-        mode: PowerMode,
-        duration: Option<Duration>,
-    ) -> anyhow::Result<()> {
+    fn set_power_mode(&self, mode: PowerMode, duration: Option<Duration>) -> anyhow::Result<()> {
         self.lock().unwrap().set_power_mode(mode, duration)
     }
 
