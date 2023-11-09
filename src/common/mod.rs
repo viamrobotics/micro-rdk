@@ -19,7 +19,7 @@
 //! - [conn]
 //!
 //!
-//! General Purpose Drivers 
+//! General Purpose Drivers
 //! - [gpio_motor]
 //! - [adxl345]
 //! - [mpu6050]

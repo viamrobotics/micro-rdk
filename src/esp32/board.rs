@@ -1,7 +1,7 @@
 #![allow(dead_code)]
-use log::*;
 use anyhow::Context;
 use core::cell::RefCell;
+use log::*;
 use std::{
     collections::HashMap,
     rc::Rc,
@@ -11,25 +11,16 @@ use std::{
 
 use crate::{
     common::{
-        analog::{
-            AnalogReader,
-            AnalogReaderConfig,
-        },
-        board::{
-            Board, 
-            BoardType
-        },
+        analog::{AnalogReader, AnalogReaderConfig},
+        board::{Board, BoardType},
         config::ConfigType,
         digital_interrupt::DigitalInterruptConfig,
         i2c::I2cHandleType,
         registry::ComponentRegistry,
-        status::Status
+        status::Status,
     },
     google,
-    proto::{
-        common,
-        component,
-    },
+    proto::{common, component},
 };
 
 use super::{
@@ -39,13 +30,7 @@ use super::{
 };
 
 use esp_idf_hal::{
-    adc::{
-        config::Config,
-        AdcChannelDriver,
-        AdcDriver,
-        Atten11dB,
-        ADC1,
-    },
+    adc::{config::Config, AdcChannelDriver, AdcDriver, Atten11dB, ADC1},
     gpio::InterruptType,
 };
 
