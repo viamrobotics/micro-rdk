@@ -11,6 +11,7 @@ pub mod common {
     pub mod encoder;
     pub mod entry;
     pub mod gpio_motor;
+    pub mod gpio_servo;
     pub mod grpc;
     pub mod grpc_client;
     pub mod i2c;
@@ -23,6 +24,7 @@ pub mod common {
     pub mod registry;
     pub mod robot;
     pub mod sensor;
+    pub mod servo;
     pub mod status;
     pub mod webrtc {
         pub mod api;
@@ -173,6 +175,13 @@ pub mod proto {
             pub mod v1 {
                 #![allow(clippy::derive_partial_eq_without_eq)]
                 include!("gen/viam.component.movementsensor.v1.rs");
+            }
+        }
+
+        pub mod servo {
+            pub mod v1 {
+                #![allow(clippy::derive_partial_eq_without_eq)]
+                include!("gen/viam.component.servo.v1.rs");
             }
         }
     }

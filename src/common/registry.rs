@@ -4,7 +4,7 @@ use thiserror::Error;
 
 use super::{
     base::BaseType, board::BoardType, config::ConfigType, encoder::EncoderType, motor::MotorType,
-    movement_sensor::MovementSensorType, robot::Resource, sensor::SensorType,
+    movement_sensor::MovementSensorType, robot::Resource, sensor::SensorType, servo::ServoType,
 };
 use crate::proto::common::v1::ResourceName;
 
@@ -47,6 +47,7 @@ impl ResourceKey {
             "movement_sensor" => crate::common::movement_sensor::COMPONENT_NAME,
             "sensor" => crate::common::sensor::COMPONENT_NAME,
             "base" => crate::common::base::COMPONENT_NAME,
+            "servo" => crate::common::servo::COMPONENT_NAME,
             &_ => {
                 anyhow::bail!("component type {} is not supported yet", model.to_string());
             }
@@ -65,6 +66,7 @@ impl TryFrom<ResourceName> for ResourceKey {
             "movement_sensor" => crate::common::movement_sensor::COMPONENT_NAME,
             "encoder" => crate::common::encoder::COMPONENT_NAME,
             "base" => crate::common::base::COMPONENT_NAME,
+            "servo" => crate::common::servo::COMPONENT_NAME,
             _ => {
                 anyhow::bail!("component type {} is not supported yet", comp_type);
             }
@@ -94,6 +96,9 @@ type EncoderConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<
 /// Fn that returns an `BaseType`, `Arc<Mutex<dyn Base>>`
 type BaseConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<BaseType>;
 
+/// Fn that returns a `ServoType`, `Arc<Mutex<dyn Servo>>`
+type ServoConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<ServoType>;
+
 type DependenciesFromConfig = dyn Fn(ConfigType) -> Vec<ResourceKey>;
 
 pub struct ComponentRegistry {
@@ -103,6 +108,7 @@ pub struct ComponentRegistry {
     movement_sensors: Map<&'static str, &'static MovementSensorConstructor>,
     encoders: Map<&'static str, &'static EncoderConstructor>,
     bases: Map<&'static str, &'static BaseConstructor>,
+    servos: Map<&'static str, &'static ServoConstructor>,
     dependencies: Map<&'static str, Map<&'static str, &'static DependenciesFromConfig>>,
 }
 
@@ -113,6 +119,7 @@ impl Default for ComponentRegistry {
         crate::common::encoder::register_models(&mut r);
         crate::common::motor::register_models(&mut r);
         crate::common::gpio_motor::register_models(&mut r);
+        crate::common::gpio_servo::register_models(&mut r);
         crate::common::sensor::register_models(&mut r);
         crate::common::movement_sensor::register_models(&mut r);
         crate::common::mpu6050::register_models(&mut r);
@@ -136,6 +143,7 @@ impl ComponentRegistry {
         dependency_func_map.insert(crate::common::encoder::COMPONENT_NAME, Map::new());
         dependency_func_map.insert(crate::common::sensor::COMPONENT_NAME, Map::new());
         dependency_func_map.insert(crate::common::base::COMPONENT_NAME, Map::new());
+        dependency_func_map.insert(crate::common::servo::COMPONENT_NAME, Map::new());
         Self {
             motors: Map::new(),
             board: Map::new(),
@@ -143,6 +151,7 @@ impl ComponentRegistry {
             movement_sensors: Map::new(),
             encoders: Map::new(),
             bases: Map::new(),
+            servos: Map::new(),
             dependencies: dependency_func_map,
         }
     }
@@ -215,6 +224,18 @@ impl ComponentRegistry {
             return Err(RegistryError::ModelAlreadyRegistered(model));
         }
         let _ = self.bases.insert(model, constructor);
+        Ok(())
+    }
+
+    pub fn register_servo(
+        &mut self,
+        model: &'static str,
+        constructor: &'static ServoConstructor,
+    ) -> Result<(), RegistryError> {
+        if self.servos.contains_key(model) {
+            return Err(RegistryError::ModelAlreadyRegistered(model));
+        }
+        let _ = self.servos.insert(model, constructor);
         Ok(())
     }
 
@@ -319,6 +340,17 @@ impl ComponentRegistry {
     ) -> Result<&'static BaseConstructor, RegistryError> {
         let model_name: &str = &model;
         if let Some(ctor) = self.bases.get(model_name) {
+            return Ok(*ctor);
+        }
+        Err(RegistryError::ModelNotFound(model))
+    }
+
+    pub(crate) fn get_servo_constructor(
+        &self,
+        model: String,
+    ) -> Result<&'static ServoConstructor, RegistryError> {
+        let model_name: &str = &model;
+        if let Some(ctor) = self.servos.get(model_name) {
             return Ok(*ctor);
         }
         Err(RegistryError::ModelNotFound(model))

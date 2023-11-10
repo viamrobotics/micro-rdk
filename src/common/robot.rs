@@ -36,6 +36,7 @@ use super::{
     movement_sensor::MovementSensorType,
     registry::{get_board_from_dependencies, ComponentRegistry, Dependency, ResourceKey},
     sensor::SensorType,
+    servo::{Servo, ServoType},
 };
 
 static NAMESPACE_PREFIX: &str = "rdk:builtin:";
@@ -48,6 +49,7 @@ pub enum ResourceType {
     Sensor(SensorType),
     MovementSensor(MovementSensorType),
     Encoder(EncoderType),
+    Servo(ServoType),
     #[cfg(feature = "camera")]
     Camera(CameraType),
 }
@@ -239,6 +241,7 @@ impl LocalRobot {
                 "movement_sensor" => crate::common::movement_sensor::COMPONENT_NAME,
                 "sensor" => crate::common::sensor::COMPONENT_NAME,
                 "base" => crate::common::base::COMPONENT_NAME,
+                "servo" => crate::common::servo::COMPONENT_NAME,
                 &_ => {
                     anyhow::bail!(
                         "component type {} is not supported yet",
@@ -379,6 +382,10 @@ impl LocalRobot {
                 let ctor = registry.get_base_constructor(model)?;
                 ResourceType::Base(ctor(cfg, deps)?)
             }
+            "servo" => {
+                let ctor = registry.get_servo_constructor(model)?;
+                ResourceType::Servo(ctor(cfg, deps)?)
+            }
             &_ => {
                 anyhow::bail!("component type {} is not supported yet", r_type);
             }
@@ -447,6 +454,14 @@ impl LocalRobot {
                             status,
                         });
                     }
+                    ResourceType::Servo(b) => {
+                        let status = b.get_status()?;
+                        vec.push(robot::v1::Status {
+                            name: Some(name.clone()),
+                            last_reconfigured: last_reconfigured_proto.clone(),
+                            status,
+                        });
+                    }
                     #[cfg(feature = "camera")]
                     _ => continue,
                 };
@@ -500,6 +515,14 @@ impl LocalRobot {
                             });
                         }
                         ResourceType::Encoder(b) => {
+                            let status = b.get_status()?;
+                            vec.push(robot::v1::Status {
+                                name: Some(name),
+                                last_reconfigured: last_reconfigured_proto.clone(),
+                                status,
+                            });
+                        }
+                        ResourceType::Servo(b) => {
                             let status = b.get_status()?;
                             vec.push(robot::v1::Status {
                                 name: Some(name),
@@ -616,6 +639,20 @@ impl LocalRobot {
         };
         match self.resources.get(&name) {
             Some(ResourceType::Encoder(r)) => Some(r.clone()),
+            Some(_) => None,
+            None => None,
+        }
+    }
+
+    pub fn get_servo_by_name(&self, name: String) -> Option<Arc<Mutex<dyn Servo>>> {
+        let name = ResourceName {
+            namespace: "rdk".to_string(),
+            r#type: "component".to_string(),
+            subtype: "servo".to_string(),
+            name,
+        };
+        match self.resources.get(&name) {
+            Some(ResourceType::Servo(r)) => Some(r.clone()),
             Some(_) => None,
             None => None,
         }

@@ -80,6 +80,7 @@ pub type MotorType = Arc<Mutex<dyn Motor>>;
 pub enum MotorPinType {
     PwmAB,
     PwmDirection,
+    AB,
 }
 
 #[derive(Debug, Default)]
@@ -87,13 +88,16 @@ pub struct MotorPinsConfig {
     pub(crate) a: Option<i32>,
     pub(crate) b: Option<i32>,
     pub(crate) dir: Option<i32>,
-    pub(crate) pwm: i32,
+    pub(crate) pwm: Option<i32>,
 }
 
 impl MotorPinsConfig {
     pub fn detect_motor_type(&self) -> anyhow::Result<MotorPinType> {
         match self {
-            x if (x.a.is_some() && x.b.is_some()) => Ok(MotorPinType::PwmAB),
+            x if (x.a.is_some() && x.b.is_some()) => match x.pwm {
+                Some(_) => Ok(MotorPinType::PwmAB),
+                None => Ok(MotorPinType::AB),
+            },
             x if x.dir.is_some() => Ok(MotorPinType::PwmDirection),
             _ => Err(anyhow::anyhow!("invalid pin parameters for motor")),
         }
@@ -145,10 +149,19 @@ impl TryFrom<Kind> for MotorPinsConfig {
                 }
             },
         };
-        let pwm = value
-            .get("pwm")?
-            .ok_or_else(|| AttributeError::KeyNotFound("pwm".to_string()))?
-            .try_into()?;
+        let pwm = match value.get("pwm") {
+            Ok(opt) => match opt {
+                Some(val) => Some(val.try_into()?),
+                None => None,
+            },
+            Err(err) => match err {
+                AttributeError::KeyNotFound(_) => None,
+                _ => {
+                    return Err(err);
+                }
+            },
+        };
+
         Ok(Self { a, b, dir, pwm })
     }
 }
@@ -192,10 +205,18 @@ impl TryFrom<&Kind> for MotorPinsConfig {
                 }
             },
         };
-        let pwm = value
-            .get("pwm")?
-            .ok_or_else(|| AttributeError::KeyNotFound("pwm".to_string()))?
-            .try_into()?;
+        let pwm = match value.get("pwm") {
+            Ok(opt) => match opt {
+                Some(val) => Some(val.try_into()?),
+                None => None,
+            },
+            Err(err) => match err {
+                AttributeError::KeyNotFound(_) => None,
+                _ => {
+                    return Err(err);
+                }
+            },
+        };
         Ok(Self { a, b, dir, pwm })
     }
 }
@@ -430,7 +451,8 @@ mod tests {
         assert_eq!(val.a.unwrap(), 11);
         assert!(val.b.is_some());
         assert_eq!(val.b.unwrap(), 12);
-        assert_eq!(val.pwm, 13);
+        assert!(val.pwm.is_some());
+        assert_eq!(val.pwm.unwrap(), 13);
         assert!(val.dir.is_some());
         assert_eq!(val.dir.unwrap(), 14);
 
@@ -496,6 +518,23 @@ mod tests {
                         )
                     }),
                 },
+                StaticComponentConfig {
+                    name: "motor3",
+                    namespace: "rdk",
+                    r#type: "motor",
+                    model: "gpio",
+                    attributes: Some(phf::phf_map! {
+                        "max_rpm" => Kind::NumberValue(10000f64),
+                        "fake_position" => Kind::NumberValue(10f64),
+                        "board" => Kind::StringValueStatic("board"),
+                        "pins" => Kind::StructValueStatic(
+                            phf::phf_map!{
+                                "a" => Kind::StringValueStatic("11"),
+                                "b" => Kind::StringValueStatic("13"),
+                            }
+                        )
+                    }),
+                },
             ]),
         });
 
@@ -518,5 +557,12 @@ mod tests {
         assert!(pin_cfg_result_3.is_ok());
         let motor_type_3 = pin_cfg_result_3.unwrap().detect_motor_type();
         assert!(motor_type_3.is_err());
+
+        let static_cfg_4 = ConfigType::Static(&STATIC_ROBOT_CONFIG.unwrap().components.unwrap()[3]);
+        let pin_cfg_result_4 = static_cfg_4.get_attribute::<MotorPinsConfig>("pins");
+        assert!(pin_cfg_result_4.is_ok());
+        let motor_type_4 = pin_cfg_result_4.unwrap().detect_motor_type();
+        assert!(motor_type_4.is_ok());
+        assert!(matches!(motor_type_4.unwrap(), MotorPinType::AB));
     }
 }
