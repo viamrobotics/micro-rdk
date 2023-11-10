@@ -108,6 +108,7 @@ pub(crate) fn gpio_motor_from_config(
         MotorPinType::PwmDirection => {
             PwmDirectionMotor::<BoardType>::from_config(cfg, board.clone())?.clone()
         }
+        MotorPinType::AB => AbMotor::<BoardType>::from_config(cfg, board.clone())?.clone(),
     };
     if let Some(enc) = enc {
         let enc_motor = EncodedMotor::new(motor, enc.clone());
@@ -117,9 +118,10 @@ pub(crate) fn gpio_motor_from_config(
 }
 
 // Motors generally don't care about the PWM frequency, so long as
-// it is in the order of magnitude 0f 10s of kHZ. For simplicity, we
-// just select 10kHz.
-const MOTOR_PWM_FREQUENCY: u64 = 10000;
+// it is in the order of kHZ. For simplicity, we
+// just select 1 kHz. (TODO(RSDK-5619) - remove default entirely in favor
+// of forcing the user to supply a PWM frequency in the motor config)
+const MOTOR_PWM_FREQUENCY: u64 = 1000;
 
 pub struct EncodedMotor<M, Enc> {
     motor: M,
@@ -226,6 +228,8 @@ where
             max_rpm,
             dir_flip,
         };
+        // we start with this because we want to reserve a timer and PWM channel early
+        // for boards where these are a limited resource
         res.board.set_pwm_frequency(pwm_pin, MOTOR_PWM_FREQUENCY)?;
         Ok(res)
     }
@@ -240,19 +244,27 @@ where
     }
 
     pub(crate) fn from_config(cfg: ConfigType, board: BoardType) -> anyhow::Result<MotorType> {
-        if let Ok(pins) = cfg.get_attribute::<MotorPinsConfig>("pins") {
-            if pins.a.is_some() && pins.b.is_some() {
-                let pwm_pin = pins.pwm;
-                let a_pin = pins.a.unwrap();
-                let b_pin = pins.b.unwrap();
-                let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm").unwrap_or(100.0);
-                let dir_flip: bool = cfg.get_attribute::<bool>("dir_flip").unwrap_or_default();
-                return Ok(Arc::new(Mutex::new(PwmABMotor::new(
-                    a_pin, b_pin, pwm_pin, max_rpm, dir_flip, board,
-                )?)));
-            }
-        }
-        Err(anyhow::anyhow!("cannot build motor"))
+        let pins = cfg
+            .get_attribute::<MotorPinsConfig>("pins")
+            .or(Err(anyhow::anyhow!(
+                "cannot build motor, could not find 'pins' attribute"
+            )))?;
+
+        let a_pin = pins
+            .a
+            .ok_or(anyhow::anyhow!("cannot build PwmABMotor, need 'a' pin"))?;
+        let b_pin = pins
+            .b
+            .ok_or(anyhow::anyhow!("cannot build PwmABMotor, need 'b' pin"))?;
+        let pwm_pin = pins
+            .pwm
+            .ok_or(anyhow::anyhow!("cannot build PwmABMotor, need PWM pin"))?;
+        let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm").unwrap_or(100.0);
+        let dir_flip: bool = cfg.get_attribute::<bool>("dir_flip").unwrap_or_default();
+
+        Ok(Arc::new(Mutex::new(PwmABMotor::new(
+            a_pin, b_pin, pwm_pin, max_rpm, dir_flip, board,
+        )?)))
     }
 }
 
@@ -356,22 +368,29 @@ where
             max_rpm,
             dir_flip,
         };
+        // we start with this because we want to reserve a timer and PWM channel early
+        // for boards where these are a limited resource
         res.board.set_pwm_frequency(pwm_pin, MOTOR_PWM_FREQUENCY)?;
         Ok(res)
     }
 
     pub(crate) fn from_config(cfg: ConfigType, board: BoardType) -> anyhow::Result<MotorType> {
-        if let Ok(pins) = cfg.get_attribute::<MotorPinsConfig>("pins") {
-            if let Some(dir_pin) = pins.dir {
-                let pwm_pin = pins.pwm;
-                let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm").unwrap_or(100.0);
-                let dir_flip: bool = cfg.get_attribute::<bool>("dir_flip").unwrap_or_default();
-                return Ok(Arc::new(Mutex::new(PwmDirectionMotor::new(
-                    dir_pin, pwm_pin, max_rpm, dir_flip, board,
-                )?)));
-            }
-        }
-        Err(anyhow::anyhow!("cannot build motor"))
+        let pins = cfg
+            .get_attribute::<MotorPinsConfig>("pins")
+            .or(Err(anyhow::anyhow!(
+                "cannot build motor, could not find 'pins' attribute"
+            )))?;
+        let dir_pin = pins.dir.ok_or(anyhow::anyhow!(
+            "cannot build PwmDirectionMotor, need direction pin"
+        ))?;
+        let pwm_pin = pins.pwm.ok_or(anyhow::anyhow!(
+            "cannot build PwmDirectionMotor, need PWM pin"
+        ))?;
+        let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm").unwrap_or(100.0);
+        let dir_flip: bool = cfg.get_attribute::<bool>("dir_flip").unwrap_or_default();
+        Ok(Arc::new(Mutex::new(PwmDirectionMotor::new(
+            dir_pin, pwm_pin, max_rpm, dir_flip, board,
+        )?)))
     }
 }
 
@@ -435,5 +454,147 @@ where
     }
     fn stop(&mut self) -> anyhow::Result<()> {
         self.set_power(0.0)
+    }
+}
+
+/// Represents a motor with an A and B pin. When moving forwards,
+/// a PWM signal is sent through the A pin and the B pin is set to high,
+/// vice versa for moving backwards. Note: If the dir_flip attribute is set to
+/// true, this functionality is reversed
+pub(crate) struct AbMotor<B> {
+    board: B,
+    a_pin: i32,
+    b_pin: i32,
+    max_rpm: f64,
+    dir_flip: bool,
+    is_on: bool,
+    pwm_pin: i32,
+}
+
+impl<B> AbMotor<B>
+where
+    B: Board,
+{
+    pub(crate) fn new(
+        a_pin: i32,
+        b_pin: i32,
+        max_rpm: f64,
+        dir_flip: bool,
+        board: B,
+    ) -> anyhow::Result<Self> {
+        let mut res = Self {
+            board,
+            a_pin,
+            b_pin,
+            max_rpm,
+            dir_flip,
+            is_on: false,
+            pwm_pin: a_pin,
+        };
+        // we start with this because we want to reserve a timer and PWM channel early
+        // for boards where these are a limited resource
+        res.board.set_pwm_frequency(a_pin, MOTOR_PWM_FREQUENCY)?;
+        res.board.set_pwm_duty(a_pin, 0.0)?;
+        Ok(res)
+    }
+
+    pub(crate) fn from_config(cfg: ConfigType, board: BoardType) -> anyhow::Result<MotorType> {
+        let pins = cfg
+            .get_attribute::<MotorPinsConfig>("pins")
+            .or(Err(anyhow::anyhow!(
+                "cannot build motor, could not find 'pins' attribute"
+            )))?;
+        let a_pin = pins
+            .a
+            .ok_or(anyhow::anyhow!("cannot build AbMotor, need 'a' pin"))?;
+        let b_pin = pins
+            .b
+            .ok_or(anyhow::anyhow!("cannot build AbMotor, need 'b' pin"))?;
+        let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm").unwrap_or(100.0);
+        let dir_flip: bool = cfg.get_attribute::<bool>("dir_flip").unwrap_or_default();
+        Ok(Arc::new(Mutex::new(AbMotor::new(
+            a_pin, b_pin, max_rpm, dir_flip, board,
+        )?)))
+    }
+}
+
+impl<B> Motor for AbMotor<B>
+where
+    B: Board,
+{
+    fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
+        if !(-1.0..=1.0).contains(&pct) {
+            anyhow::bail!("power outside limit, must be between -1.0 and 1.0")
+        }
+        if pct.abs() <= 0.001 {
+            return self.stop();
+        }
+        let (pwm_pin, high_pin) = if (pct >= 0.001) == self.dir_flip {
+            (self.b_pin, self.a_pin)
+        } else {
+            (self.a_pin, self.b_pin)
+        };
+        if pwm_pin != self.pwm_pin {
+            self.board.set_pwm_frequency(pwm_pin, MOTOR_PWM_FREQUENCY)?;
+            self.board.set_pwm_frequency(self.pwm_pin, 0)?;
+        }
+        self.pwm_pin = pwm_pin;
+        self.board.set_gpio_pin_level(high_pin, true)?;
+        self.board.set_pwm_duty(pwm_pin, pct)?;
+        self.is_on = true;
+        Ok(())
+    }
+
+    fn get_position(&mut self) -> anyhow::Result<i32> {
+        anyhow::bail!("position reporting not supported without an encoder")
+    }
+
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
+        let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions)?;
+        self.set_power(pwr)?;
+        if dur.is_some() {
+            return Ok(dur);
+        }
+        Ok(None)
+    }
+
+    fn get_properties(&mut self) -> MotorSupportedProperties {
+        MotorSupportedProperties {
+            position_reporting: false,
+        }
+    }
+}
+
+impl<B> Status for AbMotor<B>
+where
+    B: Board,
+{
+    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+        let mut hm = HashMap::new();
+        let pos = 0.0;
+        hm.insert(
+            "position".to_string(),
+            google::protobuf::Value {
+                kind: Some(google::protobuf::value::Kind::NumberValue(pos)),
+            },
+        );
+        Ok(Some(google::protobuf::Struct { fields: hm }))
+    }
+}
+
+impl<B> Actuator for AbMotor<B>
+where
+    B: Board,
+{
+    fn is_moving(&mut self) -> anyhow::Result<bool> {
+        Ok(self.is_on)
+    }
+
+    fn stop(&mut self) -> anyhow::Result<()> {
+        self.board.set_pwm_duty(self.pwm_pin, 0.0)?;
+        self.board.set_gpio_pin_level(self.a_pin, false)?;
+        self.board.set_gpio_pin_level(self.b_pin, false)?;
+        self.is_on = false;
+        Ok(())
     }
 }
