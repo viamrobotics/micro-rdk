@@ -40,8 +40,10 @@ pub struct Webhook {
     fqdn: String,
     /// Endpoint that will be sent a GET request with credential information
     endpoint: Option<String>,
-    /// Location Secret used by the webhook's SDK script to connect
-    secret: Option<String>,
+    /// API key ID used by the webhook's SDK script to connect
+    api_key_id: Option<String>,
+    /// API key used by the webhook's SDK script to connect
+    api_key: Option<String>,
     num_retries: u8,
 }
 
@@ -50,7 +52,8 @@ impl Default for Webhook {
         Self {
             fqdn: String::default(),
             endpoint: None,
-            secret: None,
+            api_key_id: None,
+            api_key: None,
             num_retries: 3,
         }
     }
@@ -92,8 +95,13 @@ impl Webhook {
             }
         };
 
-        webhook.secret = board_cfg
-            .get_attribute::<String>("webhook-secret")
+        webhook.api_key_id = board_cfg
+            .get_attribute::<String>("api-key-id")
+            .map_err(WebhookError::AttributeError)
+            .ok();
+
+        webhook.api_key = board_cfg
+            .get_attribute::<String>("api-key")
             .map_err(WebhookError::AttributeError)
             .ok();
 
@@ -107,14 +115,16 @@ impl Webhook {
         let Self {
             fqdn,
             endpoint,
-            secret,
+            api_key_id,
+            api_key,
             num_retries: _,
         } = self;
 
         Self {
             fqdn,
             endpoint,
-            secret,
+            api_key_id,
+            api_key,
             num_retries,
         }
     }
@@ -124,7 +134,8 @@ impl Webhook {
     pub fn payload(&self) -> String {
         json!({
             "location": self.fqdn,
-            "secret": self.secret,
+            "api-key-id": self.api_key_id,
+            "api-key": self.api_key,
         })
         .to_string()
     }
