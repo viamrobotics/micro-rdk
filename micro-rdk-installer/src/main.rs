@@ -176,6 +176,15 @@ fn create_nvs_partition_binary(
     storage_data.robot_credentials.robot_secret = Some(app_config.cloud.secret);
     let wifi_cred = request_wifi(wifi_ssid, wifi_password)?;
     storage_data.wifi = Some(wifi_cred);
+    log::info!(
+        "Creating NVS partition with robot id: {:?}, wifi ssid: {:?}.",
+        storage_data
+            .robot_credentials
+            .robot_id
+            .clone()
+            .unwrap_or(String::from("none")),
+        storage_data.wifi.clone().unwrap().ssid
+    );
     populate_nvs_storage_from_app(&mut storage_data)?;
     let part = &mut NVSPartition::from_storage_data(storage_data, size)?;
     Ok(NVSPartitionData::try_from(part)?.to_bytes())
@@ -199,6 +208,7 @@ fn write_credentials_to_app_binary(
     app_file
         .seek(SeekFrom::Start(nvs_start_address))
         .map_err(Error::FileError)?;
+    log::info!("Writing credentials to binary.");
     app_file.write_all(nvs_data).map_err(Error::FileError)?;
     Ok(())
 }
@@ -211,6 +221,7 @@ fn flash(binary_path: PathBuf, should_monitor: bool, baud_rate: Option<u32>) -> 
         no_stub: false,
     };
     let conf = Config::default();
+    log::info!("Connecting...");
     let mut flasher = connect(&connect_args, &conf).map_err(|_| Error::FlashConnect)?;
     let mut f = File::open(binary_path).map_err(Error::FileError)?;
     let size = f.metadata().map_err(Error::FileError)?.len();
@@ -219,10 +230,13 @@ fn flash(binary_path: PathBuf, should_monitor: bool, baud_rate: Option<u32>) -> 
             .map_err(|_| Error::BinaryBufferError(size))?,
     );
     f.read_to_end(&mut buffer).map_err(Error::FileError)?;
+    log::info!("Connected. Writing to flash...");
     flasher
         .write_bin_to_flash(0x00, &buffer, Some(&mut EspflashProgress::default()))
         .map_err(Error::EspFlashError)?;
+    log::info!("Flashing completed.");
     if should_monitor {
+        log::info!("Starting monitor...");
         let pid = flasher.get_usb_pid().map_err(Error::EspFlashError)?;
         monitor(flasher.into_interface(), None, pid, 115_200)
             .map_err(|err| Error::MonitorError(err.to_string()))?;
@@ -238,14 +252,31 @@ fn monitor_esp32(baud_rate: Option<u32>) -> Result<(), Error> {
         no_stub: false,
     };
     let conf = Config::default();
+    log::info!("Connecting...");
     let flasher = connect(&connect_args, &conf).map_err(|_| Error::FlashConnect)?;
     let pid = flasher.get_usb_pid().map_err(Error::EspFlashError)?;
+    log::info!("Connected. Starting monitor...");
     monitor(flasher.into_interface(), None, pid, 115_200)
         .map_err(|err| Error::MonitorError(err.to_string()))?;
     Ok(())
 }
 
+fn init_logger() {
+    let env = env_logger::Env::default()
+        .filter_or("MY_LOG_LEVEL", "info")
+        .write_style("MY_LOG_STYLE");
+
+    env_logger::Builder::from_env(env)
+        .format(|buf, record| {
+            let style = buf.style();
+
+            writeln!(buf, "{}", style.value(record.args()))
+        })
+        .init();
+}
+
 fn main() -> Result<(), Error> {
+    init_logger();
     let cli = Cli::parse();
     match &cli.command {
         Some(Commands::WriteCredentials(args)) => {
