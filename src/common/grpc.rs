@@ -1051,7 +1051,7 @@ where
         }
         buffer.put_u8(0);
         buffer.put_u32(m.encoded_len().try_into().unwrap());
-        let mut msg = buffer.split();
+        let mut msg = buffer.split_off(5);
         m.encode(&mut msg)
             .map_err(|_| ServerError::from(GrpcError::RpcInternal))?;
         buffer.unsplit(msg);
