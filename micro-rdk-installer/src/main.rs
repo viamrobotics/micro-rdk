@@ -1,3 +1,4 @@
+use log::LevelFilter;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::PathBuf;
@@ -262,9 +263,9 @@ fn monitor_esp32(baud_rate: Option<u32>) -> Result<(), Error> {
 }
 
 fn init_logger() {
-    let env = env_logger::Env::default().filter("info");
-
-    env_logger::Builder::from_env(env)
+    env_logger::Builder::new()
+        .filter_level(LevelFilter::Off)
+        .filter_module("micro_rdk_installer", LevelFilter::Info)
         .format(|buf, record| {
             let style = buf.style();
 
