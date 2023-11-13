@@ -262,14 +262,13 @@ fn monitor_esp32(baud_rate: Option<u32>) -> Result<(), Error> {
 }
 
 fn init_logger() {
-    let env = env_logger::Env::default()
-        .filter_or("MY_LOG_LEVEL", "info")
-        .write_style("MY_LOG_STYLE");
+    let env = env_logger::Env::default().filter("info");
 
     env_logger::Builder::from_env(env)
         .format(|buf, record| {
             let style = buf.style();
 
+            // just the message, no timestamp or log level
             writeln!(buf, "{}", style.value(record.args()))
         })
         .init();
