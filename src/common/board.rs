@@ -4,7 +4,7 @@
 use crate::{
     common::{analog::AnalogReader, status::Status},
     google,
-    proto::{common, component::board::v1::PowerMode},
+    proto::{common, component},
 };
 
 use core::cell::RefCell;
@@ -34,7 +34,7 @@ pub trait Board: Status {
     /// Set a pin to high or low
     fn set_gpio_pin_level(&mut self, pin: i32, is_high: bool) -> anyhow::Result<()>;
 
-    /// Return the current [BoardStatus] of the board
+    /// Return the current [BoardStatus](common::v1::BoardStatus) of the board
     fn get_board_status(&self) -> anyhow::Result<common::v1::BoardStatus>;
 
     /// Get the state of a pin, high(`true`) or low(`false`)
@@ -46,8 +46,12 @@ pub trait Board: Status {
         name: String,
     ) -> anyhow::Result<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>;
 
-    /// Set the board to the indicated [PowerMode]
-    fn set_power_mode(&self, mode: PowerMode, duration: Option<Duration>) -> anyhow::Result<()>;
+    /// Set the board to the indicated [PowerMode](component::board::v1::PowerMode)
+    fn set_power_mode(
+        &self,
+        mode: component::board::v1::PowerMode,
+        duration: Option<Duration>,
+    ) -> anyhow::Result<()>;
 
     /// Get a wrapped [I2CHandle] by name.
     fn get_i2c_by_name(&self, name: String) -> anyhow::Result<I2cHandleType>;
@@ -61,7 +65,8 @@ pub trait Board: Status {
     /// Get the pin's given duty cycle, returns percentage as float between 0.0 and 1.0
     fn get_pwm_duty(&self, pin: i32) -> f64;
 
-    /// Set the pin to the given duty cycle , `duty_cycle_pct` is a float between 0.0 and 1.0
+    /// Set the pin to the given duty cycle , `duty_cycle_pct` is a float between 0.0 and 1.0.
+    /// If the `pin` does not use PWM,
     fn set_pwm_duty(&mut self, pin: i32, duty_cycle_pct: f64) -> anyhow::Result<()>;
 
     /// Get the PWM frequency of the pin
@@ -76,6 +81,7 @@ pub trait Board: Status {
 /// An alias for a thread-safe handle to a struct that implements the [Board] trait
 pub type BoardType = Arc<Mutex<dyn Board>>;
 
+#[doc(hidden)]
 /// A test implementation of a generic compute board
 pub struct FakeBoard {
     analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>,
@@ -175,7 +181,11 @@ impl Board for FakeBoard {
         }
     }
 
-    fn set_power_mode(&self, mode: PowerMode, duration: Option<Duration>) -> anyhow::Result<()> {
+    fn set_power_mode(
+        &self,
+        mode: component::board::v1::PowerMode,
+        duration: Option<Duration>,
+    ) -> anyhow::Result<()> {
         info!(
             "set power mode to {} for {} milliseconds",
             mode.as_str_name(),
@@ -275,7 +285,11 @@ where
         self.lock().unwrap().get_analog_reader_by_name(name)
     }
 
-    fn set_power_mode(&self, mode: PowerMode, duration: Option<Duration>) -> anyhow::Result<()> {
+    fn set_power_mode(
+        &self,
+        mode: component::board::v1::PowerMode,
+        duration: Option<Duration>,
+    ) -> anyhow::Result<()> {
         self.lock().unwrap().set_power_mode(mode, duration)
     }
 

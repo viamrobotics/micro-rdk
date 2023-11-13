@@ -10,6 +10,7 @@
 //! - [motor]
 //! - [movement_sensor]
 //! - [sensor]
+//! - [servo]
 //!
 //! # Utils
 //! - [grpc]
@@ -36,6 +37,7 @@ pub mod digital_interrupt;
 pub mod encoder;
 pub mod entry;
 pub mod gpio_motor;
+pub mod gpio_servo;
 pub mod grpc;
 pub mod grpc_client;
 pub mod i2c;
@@ -48,6 +50,7 @@ pub mod mpu6050;
 pub mod registry;
 pub mod robot;
 pub mod sensor;
+pub mod servo;
 pub mod status;
 pub mod webrtc {
     pub mod api;
