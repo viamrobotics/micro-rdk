@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use super::config::ConfigType;
+use super::generic::DoCommand;
 use super::math_utils::Vector3;
 use super::registry::{ComponentRegistry, Dependency};
 use super::status::Status;
@@ -68,7 +69,7 @@ impl From<GeoPosition> for movement_sensor::v1::GetPositionResponse {
 
 // A trait for implementing a movement sensor component driver. TODO: add
 // get_orientation and get_accuracy if/when they become supportable.
-pub trait MovementSensor: Status {
+pub trait MovementSensor: Status + DoCommand {
     fn get_position(&mut self) -> anyhow::Result<GeoPosition>;
     fn get_linear_velocity(&mut self) -> anyhow::Result<Vector3>;
     fn get_angular_velocity(&mut self) -> anyhow::Result<Vector3>;
@@ -79,6 +80,7 @@ pub trait MovementSensor: Status {
 
 pub type MovementSensorType = Arc<Mutex<dyn MovementSensor>>;
 
+#[derive(DoCommand)]
 pub struct FakeMovementSensor {
     pos: GeoPosition,
     linear_acc: Vector3,

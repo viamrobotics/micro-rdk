@@ -1,10 +1,10 @@
 use std::sync::{Arc, Mutex};
 
-use super::{actuator::Actuator, status::Status};
+use super::{actuator::Actuator, generic::DoCommand, status::Status};
 
 pub static COMPONENT_NAME: &str = "servo";
 
-pub trait Servo: Status + Actuator {
+pub trait Servo: Status + Actuator + DoCommand {
     /// Moves the servo to an angular position of `angle_deg` away
     /// from the home position
     fn move_to(&mut self, angle_deg: u32) -> anyhow::Result<()>;

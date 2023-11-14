@@ -213,6 +213,7 @@ where
             "/viam.component.board.v1.BoardService/SetPowerMode" => {
                 self.board_set_power_mode(payload)
             }
+            "/viam.component.board.v1.BoardService/DoCommand" => self.board_do_command(payload),
             "/viam.component.generic.v1.GenericService/DoCommand" => {
                 self.generic_component_do_command(payload)
             }
@@ -243,6 +244,7 @@ where
             }
             "/viam.component.motor.v1.MotorService/SetPower" => self.motor_set_power(payload),
             "/viam.component.motor.v1.MotorService/Stop" => self.motor_stop(payload),
+            "/viam.component.motor.v1.MotorService/DoCommand" => self.motor_do_command(payload),
             "/viam.robot.v1.RobotService/ResourceNames" => self.resource_names(payload),
             "/viam.robot.v1.RobotService/GetStatus" => self.robot_status(payload),
             "/viam.robot.v1.RobotService/GetOperations" => self.robot_get_oprations(payload),
@@ -250,6 +252,7 @@ where
             "/viam.component.sensor.v1.SensorService/GetReadings" => {
                 self.sensor_get_readings(payload)
             }
+            "/viam.component.sensor.v1.SensorService/DoCommand" => self.sensor_do_command(payload),
             "/viam.component.movementsensor.v1.MovementSensorService/GetPosition" => {
                 self.movement_sensor_get_position(payload)
             }
@@ -274,6 +277,9 @@ where
             "/viam.component.movementsensor.v1.MovementSensorService/GetAccuracy" => {
                 self.movement_sensor_get_accuracy(payload)
             }
+            "/viam.component.movementsensor.v1.MovementSensorService/DoCommand" => {
+                self.movement_sensor_do_command(payload)
+            }
             "/viam.component.encoder.v1.EncoderService/GetPosition" => {
                 self.encoder_get_position(payload)
             }
@@ -282,6 +288,9 @@ where
             }
             "/viam.component.encoder.v1.EncoderService/GetProperties" => {
                 self.encoder_get_properties(payload)
+            }
+            "/viam.component.encoder.v1.EncoderService/DoCommand" => {
+                self.encoder_do_command(payload)
             }
             "/viam.component.powersensor.v1.PowerSensorService/GetVoltage" => {
                 self.power_sensor_get_voltage(payload)
@@ -292,10 +301,14 @@ where
             "/viam.component.powersensor.v1.PowerSensorService/GetPower" => {
                 self.power_sensor_get_power(payload)
             }
+            "/viam.component.powersensor.v1.PowerSensorService/DoCommand" => {
+                self.power_sensor_do_command(payload)
+            }
             "/viam.component.servo.v1.ServoService/Move" => self.servo_move(payload),
             "/viam.component.servo.v1.ServoService/GetPosition" => self.servo_get_position(payload),
             "/viam.component.servo.v1.ServoService/IsMoving" => self.servo_is_moving(payload),
             "/viam.component.servo.v1.ServoService/Stop" => self.servo_stop(payload),
+            "/viam.component.servo.v1.ServoService/DoCommand" => self.servo_do_command(payload),
             _ => Err(ServerError::from(GrpcError::RpcUnimplemented)),
         }
     }
@@ -391,6 +404,22 @@ where
 
     fn motor_reset_zero_position(&mut self, _message: &[u8]) -> Result<(), ServerError> {
         Err(ServerError::from(GrpcError::RpcUnimplemented))
+    }
+
+    fn motor_do_command(&mut self, message: &[u8]) -> Result<(), ServerError> {
+        let req = proto::common::v1::DoCommandRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let motor = match self.robot.lock().unwrap().get_motor_by_name(req.name) {
+            Some(m) => m,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        let res = motor
+            .lock()
+            .unwrap()
+            .do_command(req.command)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let resp = proto::common::v1::DoCommandResponse { result: res };
+        self.encode_message(resp)
     }
 
     fn auth_service_authentificate(&mut self, message: &[u8]) -> Result<(), ServerError> {
@@ -496,6 +525,22 @@ where
             .stop()
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let resp = component::servo::v1::StopResponse {};
+        self.encode_message(resp)
+    }
+
+    fn servo_do_command(&mut self, message: &[u8]) -> Result<(), ServerError> {
+        let req = proto::common::v1::DoCommandRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let servo = match self.robot.lock().unwrap().get_servo_by_name(req.name) {
+            Some(m) => m,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        let res = servo
+            .lock()
+            .unwrap()
+            .do_command(req.command)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let resp = proto::common::v1::DoCommandResponse { result: res };
         self.encode_message(resp)
     }
 
@@ -689,6 +734,22 @@ where
         self.encode_message(resp)
     }
 
+    fn board_do_command(&mut self, message: &[u8]) -> Result<(), ServerError> {
+        let req = proto::common::v1::DoCommandRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
+            Some(m) => m,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        let res = board
+            .lock()
+            .unwrap()
+            .do_command(req.command)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let resp = proto::common::v1::DoCommandResponse { result: res };
+        self.encode_message(resp)
+    }
+
     fn generic_component_do_command(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = proto::common::v1::DoCommandRequest::decode(message)
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
@@ -724,6 +785,22 @@ where
             .get_generic_readings()
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let resp = proto::common::v1::GetReadingsResponse { readings };
+        self.encode_message(resp)
+    }
+
+    fn sensor_do_command(&mut self, message: &[u8]) -> Result<(), ServerError> {
+        let req = proto::common::v1::DoCommandRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let sensor = match self.robot.lock().unwrap().get_sensor_by_name(req.name) {
+            Some(m) => m,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        let res = sensor
+            .lock()
+            .unwrap()
+            .do_command(req.command)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let resp = proto::common::v1::DoCommandResponse { result: res };
         self.encode_message(resp)
     }
 
@@ -869,6 +946,27 @@ where
         Err(ServerError::from(GrpcError::RpcUnimplemented))
     }
 
+    fn movement_sensor_do_command(&mut self, message: &[u8]) -> Result<(), ServerError> {
+        let req = proto::common::v1::DoCommandRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let movement_sensor = match self
+            .robot
+            .lock()
+            .unwrap()
+            .get_movement_sensor_by_name(req.name)
+        {
+            Some(m) => m,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        let res = movement_sensor
+            .lock()
+            .unwrap()
+            .do_command(req.command)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let resp = proto::common::v1::DoCommandResponse { result: res };
+        self.encode_message(resp)
+    }
+
     fn base_move_straight(&mut self, _message: &[u8]) -> Result<(), ServerError> {
         Err(ServerError::from(GrpcError::RpcUnimplemented))
     }
@@ -978,6 +1076,22 @@ where
         self.encode_message(resp)
     }
 
+    fn encoder_do_command(&mut self, message: &[u8]) -> Result<(), ServerError> {
+        let req = proto::common::v1::DoCommandRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let encoder = match self.robot.lock().unwrap().get_encoder_by_name(req.name) {
+            Some(m) => m,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        let res = encoder
+            .lock()
+            .unwrap()
+            .do_command(req.command)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let resp = proto::common::v1::DoCommandResponse { result: res };
+        self.encode_message(resp)
+    }
+
     fn power_sensor_get_voltage(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::power_sensor::v1::GetVoltageRequest::decode(message)
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
@@ -1039,6 +1153,27 @@ where
                 .get_power()
                 .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?,
         };
+        self.encode_message(resp)
+    }
+
+    fn power_sensor_do_command(&mut self, message: &[u8]) -> Result<(), ServerError> {
+        let req = proto::common::v1::DoCommandRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let power_sensor = match self
+            .robot
+            .lock()
+            .unwrap()
+            .get_power_sensor_by_name(req.name)
+        {
+            Some(m) => m,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        let res = power_sensor
+            .lock()
+            .unwrap()
+            .do_command(req.command)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let resp = proto::common::v1::DoCommandResponse { result: res };
         self.encode_message(resp)
     }
 

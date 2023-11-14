@@ -8,6 +8,7 @@ use crate::proto::component::encoder::v1::GetPropertiesResponse;
 use crate::proto::component::encoder::v1::PositionType;
 
 use super::config::ConfigType;
+use super::generic::DoCommand;
 use super::registry::{ComponentRegistry, Dependency};
 use super::status::Status;
 
@@ -93,7 +94,7 @@ impl From<EncoderPosition> for GetPositionResponse {
     }
 }
 
-pub trait Encoder: Status {
+pub trait Encoder: Status + DoCommand {
     fn get_properties(&mut self) -> EncoderSupportedRepresentations;
     fn get_position(&self, position_type: EncoderPositionType) -> anyhow::Result<EncoderPosition>;
     fn reset_position(&mut self) -> anyhow::Result<()> {
@@ -122,6 +123,7 @@ pub trait SingleEncoder: Encoder {
 
 pub(crate) type EncoderType = Arc<Mutex<dyn Encoder>>;
 
+#[derive(DoCommand)]
 pub struct FakeIncrementalEncoder {
     pub ticks: f32,
 }
@@ -176,6 +178,7 @@ impl Status for FakeIncrementalEncoder {
     }
 }
 
+#[derive(DoCommand)]
 pub struct FakeEncoder {
     pub angle_degrees: f32,
     pub ticks_per_rotation: u32,

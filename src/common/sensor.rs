@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use super::config::ConfigType;
+use super::generic::DoCommand;
 use super::registry::{ComponentRegistry, Dependency};
 
 pub static COMPONENT_NAME: &str = "sensor";
@@ -25,7 +26,7 @@ pub type GenericReadingsResult =
 
 pub type TypedReadingsResult<T> = ::std::collections::HashMap<String, T>;
 
-pub trait Sensor: Status {
+pub trait Sensor: Status + DoCommand {
     fn get_generic_readings(&self) -> anyhow::Result<GenericReadingsResult>;
 }
 
@@ -48,6 +49,7 @@ impl From<SensorResult<f64>> for google::protobuf::Value {
     }
 }
 
+#[derive(DoCommand)]
 pub struct FakeSensor {
     fake_reading: f64,
 }
@@ -89,6 +91,7 @@ impl SensorT<f64> for FakeSensor {
         Ok(x)
     }
 }
+
 impl<A> Sensor for Mutex<A>
 where
     A: ?Sized + Sensor,

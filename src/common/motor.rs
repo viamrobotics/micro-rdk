@@ -12,6 +12,7 @@ use super::config::{AttributeError, ConfigType, Kind};
 use super::encoder::{
     Encoder, EncoderPositionType, EncoderType, COMPONENT_NAME as EncoderCompName,
 };
+use super::generic::DoCommand;
 use super::math_utils::go_for_math;
 use super::registry::{ComponentRegistry, Dependency, ResourceKey};
 use super::robot::Resource;
@@ -55,7 +56,7 @@ impl From<MotorSupportedProperties> for GetPropertiesResponse {
     }
 }
 
-pub trait Motor: Status + Actuator {
+pub trait Motor: Status + Actuator + DoCommand {
     /// Sets the percentage of the motor's total power that should be employed.
     /// expressed a value between `-1.0` and `1.0` where negative values indicate a backwards
     /// direction and positive values a forward direction.
@@ -104,6 +105,7 @@ impl MotorPinsConfig {
     }
 }
 
+#[derive(DoCommand)]
 pub struct FakeMotor {
     pos: f64,
     power: f64,
@@ -334,6 +336,7 @@ impl Actuator for FakeMotor {
     }
 }
 
+#[derive(DoCommand)]
 pub struct FakeMotorWithDependency {
     encoder: Option<EncoderType>,
     power: f64,

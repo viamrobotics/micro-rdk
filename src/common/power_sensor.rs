@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::proto::component;
 
-use super::status::Status;
+use super::{generic::DoCommand, status::Status};
 
 pub static COMPONENT_NAME: &str = "power_sensor";
 
@@ -48,7 +48,7 @@ impl From<Current> for component::power_sensor::v1::GetCurrentResponse {
     }
 }
 
-pub trait PowerSensor: Status {
+pub trait PowerSensor: Status + DoCommand {
     fn get_voltage(&self) -> anyhow::Result<Voltage>;
 
     fn get_current(&self) -> anyhow::Result<Current>;

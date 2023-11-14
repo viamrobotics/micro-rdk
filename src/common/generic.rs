@@ -22,7 +22,7 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     }
 }
 
-pub trait GenericComponent: Status {
+pub trait DoCommand {
     /// do_command custom commands outside of a strict API. Takes a command struct that can be interpreted
     /// as a map of method name keys to argument values.
     fn do_command(&mut self, _command_struct: Option<Struct>) -> anyhow::Result<Option<Struct>> {
@@ -30,25 +30,31 @@ pub trait GenericComponent: Status {
     }
 }
 
-pub type GenericComponentType = Arc<Mutex<dyn GenericComponent>>;
-
-impl<L> GenericComponent for Mutex<L>
+impl<L> DoCommand for Mutex<L>
 where
-    L: ?Sized + GenericComponent,
+    L: ?Sized + DoCommand,
 {
     fn do_command(&mut self, command_struct: Option<Struct>) -> anyhow::Result<Option<Struct>> {
         self.get_mut().unwrap().do_command(command_struct)
     }
 }
 
-impl<A> GenericComponent for Arc<Mutex<A>>
+impl<A> DoCommand for Arc<Mutex<A>>
 where
-    A: ?Sized + GenericComponent,
+    A: ?Sized + DoCommand,
 {
     fn do_command(&mut self, command_struct: Option<Struct>) -> anyhow::Result<Option<Struct>> {
         self.lock().unwrap().do_command(command_struct)
     }
 }
+
+pub trait GenericComponent: DoCommand + Status {}
+
+pub type GenericComponentType = Arc<Mutex<dyn GenericComponent>>;
+
+impl<L> GenericComponent for Mutex<L> where L: ?Sized + GenericComponent {}
+
+impl<A> GenericComponent for Arc<Mutex<A>> where A: ?Sized + GenericComponent {}
 
 pub struct FakeGenericComponent {}
 
@@ -61,7 +67,9 @@ impl FakeGenericComponent {
     }
 }
 
-impl GenericComponent for FakeGenericComponent {
+impl GenericComponent for FakeGenericComponent {}
+
+impl DoCommand for FakeGenericComponent {
     fn do_command(&mut self, command_struct: Option<Struct>) -> anyhow::Result<Option<Struct>> {
         let mut res = HashMap::new();
         if let Some(command_struct) = command_struct.as_ref() {

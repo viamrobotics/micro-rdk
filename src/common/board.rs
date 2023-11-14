@@ -14,6 +14,7 @@ use std::{collections::HashMap, rc::Rc, sync::Arc, sync::Mutex, time::Duration};
 use super::{
     analog::FakeAnalogReader,
     config::ConfigType,
+    generic::DoCommand,
     i2c::{FakeI2CHandle, FakeI2cConfig, I2CHandle, I2cHandleType},
     registry::ComponentRegistry,
 };
@@ -30,7 +31,7 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 }
 
 /// Represents the functionality of a general purpose compute board that contains various components such as analog readers and digital interrupts.
-pub trait Board: Status {
+pub trait Board: Status + DoCommand {
     /// Set a pin to high or low
     fn set_gpio_pin_level(&mut self, pin: i32, is_high: bool) -> anyhow::Result<()>;
 
@@ -82,6 +83,7 @@ pub type BoardType = Arc<Mutex<dyn Board>>;
 
 #[doc(hidden)]
 /// A test implementation of a generic compute board
+#[derive(DoCommand)]
 pub struct FakeBoard {
     analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>,
     i2cs: HashMap<String, Arc<Mutex<FakeI2CHandle>>>,

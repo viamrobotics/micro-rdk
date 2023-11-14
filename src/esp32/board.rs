@@ -15,6 +15,7 @@ use crate::{
         board::{Board, BoardType},
         config::ConfigType,
         digital_interrupt::DigitalInterruptConfig,
+        generic::DoCommand,
         i2c::I2cHandleType,
         registry::ComponentRegistry,
         status::Status,
@@ -44,6 +45,7 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 }
 
 /// An ESP32 implementation that wraps esp-idf functionality
+#[derive(DoCommand)]
 pub struct EspBoard {
     pins: Vec<Esp32GPIOPin>,
     analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>,
