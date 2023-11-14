@@ -4,7 +4,8 @@ use thiserror::Error;
 
 use super::{
     base::BaseType, board::BoardType, config::ConfigType, encoder::EncoderType, motor::MotorType,
-    movement_sensor::MovementSensorType, robot::Resource, sensor::SensorType, servo::ServoType,
+    movement_sensor::MovementSensorType, power_sensor::PowerSensorType, robot::Resource,
+    sensor::SensorType, servo::ServoType,
 };
 use crate::proto::common::v1::ResourceName;
 
@@ -48,6 +49,7 @@ impl ResourceKey {
             "sensor" => crate::common::sensor::COMPONENT_NAME,
             "base" => crate::common::base::COMPONENT_NAME,
             "servo" => crate::common::servo::COMPONENT_NAME,
+            "power_sensor" => crate::common::power_sensor::COMPONENT_NAME,
             &_ => {
                 anyhow::bail!("component type {} is not supported yet", model.to_string());
             }
@@ -67,6 +69,7 @@ impl TryFrom<ResourceName> for ResourceKey {
             "encoder" => crate::common::encoder::COMPONENT_NAME,
             "base" => crate::common::base::COMPONENT_NAME,
             "servo" => crate::common::servo::COMPONENT_NAME,
+            "power_sensor" => crate::common::power_sensor::COMPONENT_NAME,
             _ => {
                 anyhow::bail!("component type {} is not supported yet", comp_type);
             }
@@ -99,6 +102,10 @@ type BaseConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<Bas
 /// Fn that returns a `ServoType`, `Arc<Mutex<dyn Servo>>`
 type ServoConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<ServoType>;
 
+/// Fn that returns a `PowerSensorType`, `Arc<Mutex<dyn PowerSensor>>`
+type PowerSensorConstructor =
+    dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<PowerSensorType>;
+
 type DependenciesFromConfig = dyn Fn(ConfigType) -> Vec<ResourceKey>;
 
 pub struct ComponentRegistry {
@@ -109,6 +116,7 @@ pub struct ComponentRegistry {
     encoders: Map<&'static str, &'static EncoderConstructor>,
     bases: Map<&'static str, &'static BaseConstructor>,
     servos: Map<&'static str, &'static ServoConstructor>,
+    power_sensors: Map<&'static str, &'static PowerSensorConstructor>,
     dependencies: Map<&'static str, Map<&'static str, &'static DependenciesFromConfig>>,
 }
 
@@ -144,6 +152,7 @@ impl ComponentRegistry {
         dependency_func_map.insert(crate::common::sensor::COMPONENT_NAME, Map::new());
         dependency_func_map.insert(crate::common::base::COMPONENT_NAME, Map::new());
         dependency_func_map.insert(crate::common::servo::COMPONENT_NAME, Map::new());
+        dependency_func_map.insert(crate::common::power_sensor::COMPONENT_NAME, Map::new());
         Self {
             motors: Map::new(),
             board: Map::new(),
@@ -152,6 +161,7 @@ impl ComponentRegistry {
             encoders: Map::new(),
             bases: Map::new(),
             servos: Map::new(),
+            power_sensors: Map::new(),
             dependencies: dependency_func_map,
         }
     }
@@ -224,6 +234,18 @@ impl ComponentRegistry {
             return Err(RegistryError::ModelAlreadyRegistered(model));
         }
         let _ = self.bases.insert(model, constructor);
+        Ok(())
+    }
+
+    pub fn register_power_sensor(
+        &mut self,
+        model: &'static str,
+        constructor: &'static PowerSensorConstructor,
+    ) -> Result<(), RegistryError> {
+        if self.power_sensors.contains_key(model) {
+            return Err(RegistryError::ModelAlreadyRegistered(model));
+        }
+        let _ = self.power_sensors.insert(model, constructor);
         Ok(())
     }
 
@@ -340,6 +362,17 @@ impl ComponentRegistry {
     ) -> Result<&'static BaseConstructor, RegistryError> {
         let model_name: &str = &model;
         if let Some(ctor) = self.bases.get(model_name) {
+            return Ok(*ctor);
+        }
+        Err(RegistryError::ModelNotFound(model))
+    }
+
+    pub(crate) fn get_power_sensor_constructor(
+        &self,
+        model: String,
+    ) -> Result<&'static PowerSensorConstructor, RegistryError> {
+        let model_name: &str = &model;
+        if let Some(ctor) = self.power_sensors.get(model_name) {
             return Ok(*ctor);
         }
         Err(RegistryError::ModelNotFound(model))

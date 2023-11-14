@@ -280,6 +280,15 @@ where
             "/viam.component.encoder.v1.EncoderService/GetProperties" => {
                 self.encoder_get_properties(payload)
             }
+            "/viam.component.powersensor.v1.PowerSensorService/GetVoltage" => {
+                self.power_sensor_get_voltage(payload)
+            }
+            "/viam.component.powersensor.v1.PowerSensorService/GetCurrent" => {
+                self.power_sensor_get_current(payload)
+            }
+            "/viam.component.powersensor.v1.PowerSensorService/GetPower" => {
+                self.power_sensor_get_power(payload)
+            }
             "/viam.component.servo.v1.ServoService/Move" => self.servo_move(payload),
             "/viam.component.servo.v1.ServoService/GetPosition" => self.servo_get_position(payload),
             "/viam.component.servo.v1.ServoService/IsMoving" => self.servo_is_moving(payload),
@@ -942,6 +951,70 @@ where
             .reset_position()
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let resp = component::encoder::v1::ResetPositionResponse {};
+        self.encode_message(resp)
+    }
+
+    fn power_sensor_get_voltage(&mut self, message: &[u8]) -> Result<(), ServerError> {
+        let req = component::power_sensor::v1::GetVoltageRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let power_sensor = match self
+            .robot
+            .lock()
+            .unwrap()
+            .get_power_sensor_by_name(req.name)
+        {
+            Some(s) => s,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        let resp: component::power_sensor::v1::GetVoltageResponse = power_sensor
+            .lock()
+            .unwrap()
+            .get_voltage()
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?
+            .into();
+        self.encode_message(resp)
+    }
+
+    fn power_sensor_get_current(&mut self, message: &[u8]) -> Result<(), ServerError> {
+        let req = component::power_sensor::v1::GetCurrentRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let power_sensor = match self
+            .robot
+            .lock()
+            .unwrap()
+            .get_power_sensor_by_name(req.name)
+        {
+            Some(s) => s,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        let resp: component::power_sensor::v1::GetCurrentResponse = power_sensor
+            .lock()
+            .unwrap()
+            .get_current()
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?
+            .into();
+        self.encode_message(resp)
+    }
+
+    fn power_sensor_get_power(&mut self, message: &[u8]) -> Result<(), ServerError> {
+        let req = component::power_sensor::v1::GetPowerRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let power_sensor = match self
+            .robot
+            .lock()
+            .unwrap()
+            .get_power_sensor_by_name(req.name)
+        {
+            Some(s) => s,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        let resp = component::power_sensor::v1::GetPowerResponse {
+            watts: power_sensor
+                .lock()
+                .unwrap()
+                .get_power()
+                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?,
+        };
         self.encode_message(resp)
     }
 
