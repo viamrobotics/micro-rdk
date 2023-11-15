@@ -3,9 +3,9 @@ use std::collections::HashMap as Map;
 use thiserror::Error;
 
 use super::{
-    base::BaseType, board::BoardType, config::ConfigType, encoder::EncoderType, motor::MotorType,
-    movement_sensor::MovementSensorType, power_sensor::PowerSensorType, robot::Resource,
-    sensor::SensorType, servo::ServoType,
+    base::BaseType, board::BoardType, config::ConfigType, encoder::EncoderType,
+    generic::GenericComponentType, motor::MotorType, movement_sensor::MovementSensorType,
+    power_sensor::PowerSensorType, robot::Resource, sensor::SensorType, servo::ServoType,
 };
 use crate::proto::common::v1::ResourceName;
 
@@ -50,6 +50,7 @@ impl ResourceKey {
             "base" => crate::common::base::COMPONENT_NAME,
             "servo" => crate::common::servo::COMPONENT_NAME,
             "power_sensor" => crate::common::power_sensor::COMPONENT_NAME,
+            "generic" => crate::common::generic::COMPONENT_NAME,
             &_ => {
                 anyhow::bail!("component type {} is not supported yet", model.to_string());
             }
@@ -70,6 +71,7 @@ impl TryFrom<ResourceName> for ResourceKey {
             "base" => crate::common::base::COMPONENT_NAME,
             "servo" => crate::common::servo::COMPONENT_NAME,
             "power_sensor" => crate::common::power_sensor::COMPONENT_NAME,
+            "generic" => crate::common::generic::COMPONENT_NAME,
             _ => {
                 anyhow::bail!("component type {} is not supported yet", comp_type);
             }
@@ -106,6 +108,10 @@ type ServoConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<Se
 type PowerSensorConstructor =
     dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<PowerSensorType>;
 
+/// Fn that returns a `GenericComponentType`, `Arc<Mutex<dyn GenericComponentType>>`
+type GenericComponentConstructor =
+    dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<GenericComponentType>;
+
 type DependenciesFromConfig = dyn Fn(ConfigType) -> Vec<ResourceKey>;
 
 pub struct ComponentRegistry {
@@ -117,6 +123,7 @@ pub struct ComponentRegistry {
     bases: Map<&'static str, &'static BaseConstructor>,
     servos: Map<&'static str, &'static ServoConstructor>,
     power_sensors: Map<&'static str, &'static PowerSensorConstructor>,
+    generic_components: Map<&'static str, &'static GenericComponentConstructor>,
     dependencies: Map<&'static str, Map<&'static str, &'static DependenciesFromConfig>>,
 }
 
@@ -132,6 +139,7 @@ impl Default for ComponentRegistry {
         crate::common::movement_sensor::register_models(&mut r);
         crate::common::mpu6050::register_models(&mut r);
         crate::common::adxl345::register_models(&mut r);
+        crate::common::generic::register_models(&mut r);
         #[cfg(esp32)]
         {
             crate::esp32::board::register_models(&mut r);
@@ -153,6 +161,7 @@ impl ComponentRegistry {
         dependency_func_map.insert(crate::common::base::COMPONENT_NAME, Map::new());
         dependency_func_map.insert(crate::common::servo::COMPONENT_NAME, Map::new());
         dependency_func_map.insert(crate::common::power_sensor::COMPONENT_NAME, Map::new());
+        dependency_func_map.insert(crate::common::generic::COMPONENT_NAME, Map::new());
         Self {
             motors: Map::new(),
             board: Map::new(),
@@ -162,6 +171,7 @@ impl ComponentRegistry {
             bases: Map::new(),
             servos: Map::new(),
             power_sensors: Map::new(),
+            generic_components: Map::new(),
             dependencies: dependency_func_map,
         }
     }
@@ -258,6 +268,18 @@ impl ComponentRegistry {
             return Err(RegistryError::ModelAlreadyRegistered(model));
         }
         let _ = self.servos.insert(model, constructor);
+        Ok(())
+    }
+
+    pub fn register_generic_component(
+        &mut self,
+        model: &'static str,
+        constructor: &'static GenericComponentConstructor,
+    ) -> Result<(), RegistryError> {
+        if self.generic_components.contains_key(model) {
+            return Err(RegistryError::ModelAlreadyRegistered(model));
+        }
+        let _ = self.generic_components.insert(model, constructor);
         Ok(())
     }
 
@@ -384,6 +406,17 @@ impl ComponentRegistry {
     ) -> Result<&'static ServoConstructor, RegistryError> {
         let model_name: &str = &model;
         if let Some(ctor) = self.servos.get(model_name) {
+            return Ok(*ctor);
+        }
+        Err(RegistryError::ModelNotFound(model))
+    }
+
+    pub(crate) fn get_generic_component_constructor(
+        &self,
+        model: String,
+    ) -> Result<&'static GenericComponentConstructor, RegistryError> {
+        let model_name: &str = &model;
+        if let Some(ctor) = self.generic_components.get(model_name) {
             return Ok(*ctor);
         }
         Err(RegistryError::ModelNotFound(model))

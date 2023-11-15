@@ -213,6 +213,9 @@ where
             "/viam.component.board.v1.BoardService/SetPowerMode" => {
                 self.board_set_power_mode(payload)
             }
+            "/viam.component.generic.v1.GenericService/DoCommand" => {
+                self.generic_component_do_command(payload)
+            }
             #[cfg(feature = "camera")]
             "/viam.component.camera.v1.CameraService/GetImage" => self.camera_get_frame(payload),
             #[cfg(feature = "camera")]
@@ -683,6 +686,27 @@ where
             .get_gpio_level(pin)
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
         let resp = component::board::v1::GetGpioResponse { high: level };
+        self.encode_message(resp)
+    }
+
+    fn generic_component_do_command(&mut self, message: &[u8]) -> Result<(), ServerError> {
+        let req = proto::common::v1::DoCommandRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let component = match self
+            .robot
+            .lock()
+            .unwrap()
+            .get_generic_component_by_name(req.name)
+        {
+            Some(c) => c,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        let res = component
+            .lock()
+            .unwrap()
+            .do_command(req.command)
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+        let resp = proto::common::v1::DoCommandResponse { result: res };
         self.encode_message(resp)
     }
 
