@@ -21,6 +21,7 @@ pub mod common {
     pub mod motor;
     pub mod movement_sensor;
     pub mod mpu6050;
+    pub mod power_sensor;
     pub mod registry;
     pub mod robot;
     pub mod sensor;
@@ -182,6 +183,13 @@ pub mod proto {
             pub mod v1 {
                 #![allow(clippy::derive_partial_eq_without_eq)]
                 include!("gen/viam.component.servo.v1.rs");
+            }
+        }
+
+        pub mod power_sensor {
+            pub mod v1 {
+                #![allow(clippy::derive_partial_eq_without_eq)]
+                include!("gen/viam.component.powersensor.v1.rs");
             }
         }
     }

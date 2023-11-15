@@ -34,6 +34,7 @@ use super::{
     encoder::EncoderType,
     motor::MotorType,
     movement_sensor::MovementSensorType,
+    power_sensor::{PowerSensor, PowerSensorType},
     registry::{get_board_from_dependencies, ComponentRegistry, Dependency, ResourceKey},
     sensor::SensorType,
     servo::{Servo, ServoType},
@@ -49,6 +50,7 @@ pub enum ResourceType {
     Sensor(SensorType),
     MovementSensor(MovementSensorType),
     Encoder(EncoderType),
+    PowerSensor(PowerSensorType),
     Servo(ServoType),
     #[cfg(feature = "camera")]
     Camera(CameraType),
@@ -241,6 +243,7 @@ impl LocalRobot {
                 "movement_sensor" => crate::common::movement_sensor::COMPONENT_NAME,
                 "sensor" => crate::common::sensor::COMPONENT_NAME,
                 "base" => crate::common::base::COMPONENT_NAME,
+                "power_sensor" => crate::common::power_sensor::COMPONENT_NAME,
                 "servo" => crate::common::servo::COMPONENT_NAME,
                 &_ => {
                     anyhow::bail!(
@@ -382,6 +385,10 @@ impl LocalRobot {
                 let ctor = registry.get_base_constructor(model)?;
                 ResourceType::Base(ctor(cfg, deps)?)
             }
+            "power_sensor" => {
+                let ctor = registry.get_power_sensor_constructor(model)?;
+                ResourceType::PowerSensor(ctor(cfg, deps)?)
+            }
             "servo" => {
                 let ctor = registry.get_servo_constructor(model)?;
                 ResourceType::Servo(ctor(cfg, deps)?)
@@ -454,6 +461,14 @@ impl LocalRobot {
                             status,
                         });
                     }
+                    ResourceType::PowerSensor(b) => {
+                        let status = b.get_status()?;
+                        vec.push(robot::v1::Status {
+                            name: Some(name.clone()),
+                            last_reconfigured: last_reconfigured_proto.clone(),
+                            status,
+                        });
+                    }
                     ResourceType::Servo(b) => {
                         let status = b.get_status()?;
                         vec.push(robot::v1::Status {
@@ -515,6 +530,14 @@ impl LocalRobot {
                             });
                         }
                         ResourceType::Encoder(b) => {
+                            let status = b.get_status()?;
+                            vec.push(robot::v1::Status {
+                                name: Some(name),
+                                last_reconfigured: last_reconfigured_proto.clone(),
+                                status,
+                            });
+                        }
+                        ResourceType::PowerSensor(b) => {
                             let status = b.get_status()?;
                             vec.push(robot::v1::Status {
                                 name: Some(name),
@@ -639,6 +662,20 @@ impl LocalRobot {
         };
         match self.resources.get(&name) {
             Some(ResourceType::Encoder(r)) => Some(r.clone()),
+            Some(_) => None,
+            None => None,
+        }
+    }
+
+    pub fn get_power_sensor_by_name(&self, name: String) -> Option<Arc<Mutex<dyn PowerSensor>>> {
+        let name = ResourceName {
+            namespace: "rdk".to_string(),
+            r#type: "component".to_string(),
+            subtype: "power_sensor".to_string(),
+            name,
+        };
+        match self.resources.get(&name) {
+            Some(ResourceType::PowerSensor(r)) => Some(r.clone()),
             Some(_) => None,
             None => None,
         }
