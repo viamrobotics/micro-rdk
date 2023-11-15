@@ -140,6 +140,7 @@ impl Default for ComponentRegistry {
         crate::common::mpu6050::register_models(&mut r);
         crate::common::adxl345::register_models(&mut r);
         crate::common::generic::register_models(&mut r);
+        crate::common::ina::register_models(&mut r);
         #[cfg(esp32)]
         {
             crate::esp32::board::register_models(&mut r);

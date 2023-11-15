@@ -21,8 +21,9 @@
 //!
 //!
 //! General Purpose Drivers
-//! - [gpio_motor]
 //! - [adxl345]
+//! - [gpio_motor]
+//! - [ina]
 //! - [mpu6050]
 
 pub mod actuator;
@@ -42,6 +43,7 @@ pub mod gpio_servo;
 pub mod grpc;
 pub mod grpc_client;
 pub mod i2c;
+pub mod ina;
 pub mod log;
 pub mod math_utils;
 pub mod moisture_sensor;
