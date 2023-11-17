@@ -66,7 +66,6 @@ pub trait Board: Status {
     fn get_pwm_duty(&self, pin: i32) -> f64;
 
     /// Set the pin to the given duty cycle , `duty_cycle_pct` is a float between 0.0 and 1.0.
-    /// If the `pin` does not use PWM,
     fn set_pwm_duty(&mut self, pin: i32, duty_cycle_pct: f64) -> anyhow::Result<()>;
 
     /// Get the PWM frequency of the pin
