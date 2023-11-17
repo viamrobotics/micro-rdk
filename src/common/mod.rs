@@ -36,6 +36,7 @@ pub mod config;
 pub mod digital_interrupt;
 pub mod encoder;
 pub mod entry;
+pub mod generic;
 pub mod gpio_motor;
 pub mod gpio_servo;
 pub mod grpc;
