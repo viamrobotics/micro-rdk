@@ -766,6 +766,42 @@ impl LocalRobot {
         }
         Ok(())
     }
+
+    pub fn get_resource_rpc_subtypes(&self) -> robot::v1::ResourceRpcSubtypesResponse {
+        let mut resource_rpc_subtypes: Vec<robot::v1::ResourceRpcSubtype> = vec![];
+        for (name, res) in &self.resources {
+            resource_rpc_subtypes.push(robot::v1::ResourceRpcSubtype {
+                subtype: Some(ResourceName {
+                    namespace: name.namespace.to_string(),
+                    r#type: name.r#type.to_string(),
+                    subtype: name.subtype.to_string(),
+                    name: name.name.to_string(),
+                }),
+                proto_service: match res {
+                    ResourceType::Base(_) => "viam.component.board.v1.BaseService".to_string(),
+                    ResourceType::Board(_) => "viam.component.board.v1.BoardService".to_string(),
+                    ResourceType::Encoder(_) => {
+                        "viam.component.board.v1.EncoderService".to_string()
+                    }
+                    ResourceType::Generic(_) => {
+                        "viam.component.board.v1.GenericService".to_string()
+                    }
+                    ResourceType::Motor(_) => "viam.component.board.v1.MotorService".to_string(),
+                    ResourceType::MovementSensor(_) => {
+                        "viam.component.board.v1.MovementSensorService".to_string()
+                    }
+                    ResourceType::PowerSensor(_) => {
+                        "viam.component.board.v1.PowerSensorService".to_string()
+                    }
+                    ResourceType::Servo(_) => "viam.component.board.v1.ServoService".to_string(),
+                    ResourceType::Sensor(_) => "viam.component.board.v1.SensorService".to_string(),
+                },
+            });
+        }
+        robot::v1::ResourceRpcSubtypesResponse {
+            resource_rpc_subtypes,
+        }
+    }
 }
 
 #[cfg(test)]

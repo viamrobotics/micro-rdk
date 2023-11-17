@@ -187,6 +187,9 @@ where
 
     pub(crate) fn handle_request(&mut self, path: &str, payload: &[u8]) -> Result<(), ServerError> {
         match path {
+            "/viam.robot.v1.RobotService/ResourceRPCSubtypes" => {
+                self.robot_get_resource_rpc_subtypes()
+            }
             "/viam.component.base.v1.BaseService/SetPower" => self.base_set_power(payload),
             "/viam.component.base.v1.BaseService/Stop" => self.base_stop(payload),
             "/viam.component.base.v1.BaseService/MoveStraight" => self.base_move_straight(payload),
@@ -1082,6 +1085,11 @@ where
                 .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?,
         };
         self.encode_message(status)
+    }
+
+    fn robot_get_resource_rpc_subtypes(&mut self) -> Result<(), ServerError> {
+        let rpc_subtypes = self.robot.lock().unwrap().get_resource_rpc_subtypes();
+        self.encode_message(rpc_subtypes)
     }
 
     #[cfg(feature = "camera")]
