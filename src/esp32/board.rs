@@ -1,35 +1,38 @@
 #![allow(dead_code)]
-use crate::common::analog::AnalogReader;
-use crate::common::analog::AnalogReaderConfig;
-use crate::common::board::Board;
-use crate::common::board::BoardType;
-use crate::common::config::ConfigType;
-use crate::common::digital_interrupt::DigitalInterruptConfig;
-use crate::common::i2c::I2cHandleType;
-use crate::common::registry::ComponentRegistry;
-use crate::common::status::Status;
-use crate::google;
-use crate::proto::common;
-use crate::proto::component;
-
 use anyhow::Context;
 use core::cell::RefCell;
-use esp_idf_hal::adc::config::Config;
-use esp_idf_hal::adc::AdcChannelDriver;
-use esp_idf_hal::adc::AdcDriver;
-use esp_idf_hal::adc::Atten11dB;
-use esp_idf_hal::adc::ADC1;
-use esp_idf_hal::gpio::InterruptType;
-
 use log::*;
-use std::collections::HashMap;
-use std::rc::Rc;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::{
+    collections::HashMap,
+    rc::Rc,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
-use super::analog::Esp32AnalogReader;
-use super::i2c::{Esp32I2C, Esp32I2cConfig};
-use super::pin::Esp32GPIOPin;
+use crate::{
+    common::{
+        analog::{AnalogReader, AnalogReaderConfig},
+        board::{Board, BoardType},
+        config::ConfigType,
+        digital_interrupt::DigitalInterruptConfig,
+        i2c::I2cHandleType,
+        registry::ComponentRegistry,
+        status::Status,
+    },
+    google,
+    proto::{common, component},
+};
+
+use super::{
+    analog::Esp32AnalogReader,
+    i2c::{Esp32I2C, Esp32I2cConfig},
+    pin::Esp32GPIOPin,
+};
+
+use esp_idf_hal::{
+    adc::{config::Config, AdcChannelDriver, AdcDriver, Atten11dB, ADC1},
+    gpio::InterruptType,
+};
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
@@ -40,6 +43,7 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     }
 }
 
+/// An ESP32 implementation that wraps esp-idf functionality
 pub struct EspBoard {
     pins: Vec<Esp32GPIOPin>,
     analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>>,

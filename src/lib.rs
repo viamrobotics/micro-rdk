@@ -1,92 +1,12 @@
-pub mod common {
-    pub mod actuator;
-    pub mod adxl345;
-    pub mod analog;
-    pub mod app_client;
-    pub mod base;
-    pub mod board;
-    pub mod camera;
-    pub mod config;
-    pub mod digital_interrupt;
-    pub mod encoder;
-    pub mod entry;
-    pub mod generic;
-    pub mod gpio_motor;
-    pub mod gpio_servo;
-    pub mod grpc;
-    pub mod grpc_client;
-    pub mod i2c;
-    pub mod log;
-    pub mod math_utils;
-    pub mod moisture_sensor;
-    pub mod motor;
-    pub mod movement_sensor;
-    pub mod mpu6050;
-    pub mod power_sensor;
-    pub mod registry;
-    pub mod robot;
-    pub mod sensor;
-    pub mod servo;
-    pub mod status;
-    pub mod webrtc {
-        pub mod api;
-        pub mod candidates;
-        pub mod certificate;
-        pub mod dtls;
-        pub mod exec;
-        pub mod grpc;
-        pub mod ice;
-        pub mod io;
-        pub mod sctp;
-    }
-    pub mod conn {
-        pub mod errors;
-        pub mod mdns;
-        pub mod server;
-        mod utils;
-    }
-}
+pub mod common;
 
 #[cfg(feature = "esp32")]
-pub mod esp32 {
-    pub mod analog;
-    pub mod base;
-    pub mod board;
-    #[cfg(feature = "camera")]
-    pub mod camera;
-    pub mod certificate;
-    pub mod dtls;
-    pub mod encoder;
-    pub mod entry;
-    pub mod exec;
-    pub mod i2c;
-    pub mod pin;
-    pub mod pulse_counter;
-    pub mod pwm;
-    pub mod single_encoded_motor;
-    pub mod single_encoder;
-    pub mod tcp;
-    pub mod tls;
-    pub mod utils;
-    pub mod webhook;
-    pub mod conn {
-        pub mod mdns;
-    }
-}
+pub mod esp32;
 
 #[cfg(feature = "native")]
-pub mod native {
-    pub mod certificate;
-    pub mod dtls;
-    pub mod entry;
-    pub mod exec;
-    pub mod tcp;
-    pub mod tls;
-    pub mod conn {
-        pub mod mdns;
-    }
-}
+pub mod native;
 
+/// gRPC protobuf utilities, auto-generated
 pub mod google {
     pub mod rpc {
         #![allow(clippy::derive_partial_eq_without_eq)]
@@ -98,6 +18,7 @@ pub mod google {
     }
 }
 
+/// gRPC prototypes from definitions in [api repository](https://github.com/viamrobotics/api/tree/main/proto/viam), auto-generated
 pub mod proto {
     pub mod common {
         pub mod v1 {
