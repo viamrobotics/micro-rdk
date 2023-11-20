@@ -224,7 +224,7 @@ impl MotorSettings {
 }
 
 // Represents a motor using a A, B, and PWM pins
-pub(crate) struct PwmABMotor<B> {
+pub(crate) struct PwmABMotor<B: Board> {
     board: B,
     a_pin: i32,
     b_pin: i32,
@@ -244,6 +244,8 @@ where
         board: B,
     ) -> anyhow::Result<Self> {
         let pwm_freq = motor_settings.pwm_frequency as u64;
+        let enable_high = motor_settings.enable_pin_high;
+        let enable_low = motor_settings.enable_pin_low;
         let mut res = Self {
             board,
             a_pin,
@@ -254,6 +256,13 @@ where
         // we start with this because we want to reserve a timer and PWM channel early
         // for boards where these are a limited resource
         res.board.set_pwm_frequency(pwm_pin, pwm_freq)?;
+
+        set_enable_pins(
+            &mut res.board,
+            enable_high,
+            enable_low,
+            true,
+        )?;
         Ok(res)
     }
 
@@ -303,12 +312,6 @@ where
         if pct.abs() < 0.001 {
             return self.stop();
         }
-        set_enable_pins(
-            &mut self.board,
-            self.motor_settings.enable_pin_high,
-            self.motor_settings.enable_pin_low,
-            true,
-        )?;
         let set_forwards = (pct > 0.0) && !self.motor_settings.dir_flip;
         if set_forwards {
             self.board.set_gpio_pin_level(self.a_pin, false)?;
@@ -370,20 +373,27 @@ where
         Ok(self.board.get_pwm_duty(self.pwm_pin) <= 0.05)
     }
     fn stop(&mut self) -> anyhow::Result<()> {
-        set_enable_pins(
-            &mut self.board,
-            self.motor_settings.enable_pin_high,
-            self.motor_settings.enable_pin_low,
-            false,
-        )?;
         self.board.set_gpio_pin_level(self.a_pin, false)?;
         self.board.set_gpio_pin_level(self.b_pin, false)?;
         self.board.set_pwm_duty(self.pwm_pin, 0.0)
     }
 }
 
+impl<B: Board> Drop for PwmABMotor<B> {
+    fn drop(&mut self) {
+        if let Err(err) = set_enable_pins(
+            &mut self.board,
+            self.motor_settings.enable_pin_high,
+            self.motor_settings.enable_pin_low,
+            false,
+        ) {
+            log::error!("PwmAbMotor dropped, but could not disable enable pins: {:?}", err)
+        };
+    }
+}
+
 // Represents a motor using a direction pin and a PWM pin
-pub(crate) struct PwmDirectionMotor<B> {
+pub(crate) struct PwmDirectionMotor<B: Board> {
     board: B,
     dir_pin: i32,
     pwm_pin: i32,
@@ -401,12 +411,20 @@ where
         board: B,
     ) -> anyhow::Result<Self> {
         let pwm_freq = motor_settings.pwm_frequency as u64;
+        let enable_high = motor_settings.enable_pin_high;
+        let enable_low = motor_settings.enable_pin_low;
         let mut res = Self {
             board,
             dir_pin,
             pwm_pin,
             motor_settings,
         };
+        set_enable_pins(
+            &mut res.board,
+            enable_high,
+            enable_low,
+            true,
+        )?;
         // we start with this because we want to reserve a timer and PWM channel early
         // for boards where these are a limited resource
         res.board.set_pwm_frequency(pwm_pin, pwm_freq)?;
@@ -446,12 +464,6 @@ where
         if pct.abs() < 0.001 {
             return self.stop();
         }
-        set_enable_pins(
-            &mut self.board,
-            self.motor_settings.enable_pin_high,
-            self.motor_settings.enable_pin_low,
-            true,
-        )?;
         let set_high = (pct > 0.0) && !self.motor_settings.dir_flip;
         self.board.set_gpio_pin_level(self.dir_pin, set_high)?;
         self.board.set_pwm_duty(self.pwm_pin, pct)?;
@@ -503,13 +515,21 @@ where
         Ok(self.board.get_pwm_duty(self.pwm_pin) <= 0.05)
     }
     fn stop(&mut self) -> anyhow::Result<()> {
-        set_enable_pins(
+        self.board.set_pwm_duty(self.pwm_pin, 0.0)
+    }
+}
+
+impl<B: Board> Drop for PwmDirectionMotor<B>
+{
+    fn drop(&mut self) {
+        if let Err(err) = set_enable_pins(
             &mut self.board,
             self.motor_settings.enable_pin_high,
             self.motor_settings.enable_pin_low,
             false,
-        )?;
-        self.board.set_pwm_duty(self.pwm_pin, 0.0)
+        ) {
+            log::error!("PwmDirectionMotor dropped, but could not disable enable pins: {:?}", err)
+        };
     }
 }
 
@@ -517,7 +537,7 @@ where
 /// a PWM signal is sent through the A pin and the B pin is set to high,
 /// vice versa for moving backwards. Note: If the dir_flip attribute is set to
 /// true, this functionality is reversed
-pub(crate) struct AbMotor<B> {
+pub(crate) struct AbMotor<B: Board> {
     board: B,
     a_pin: i32,
     b_pin: i32,
@@ -537,6 +557,8 @@ where
         board: B,
     ) -> anyhow::Result<Self> {
         let pwm_freq = motor_settings.pwm_frequency as u64;
+        let enable_high = motor_settings.enable_pin_high;
+        let enable_low = motor_settings.enable_pin_low;
         let mut res = Self {
             board,
             a_pin,
@@ -545,6 +567,14 @@ where
             pwm_pin: a_pin,
             motor_settings,
         };
+
+        set_enable_pins(
+            &mut res.board,
+            enable_high,
+            enable_low,
+            true,
+        )?;
+
         // we start with this because we want to reserve a timer and PWM channel early
         // for boards where these are a limited resource
         res.board.set_pwm_frequency(a_pin, pwm_freq)?;
@@ -585,12 +615,6 @@ where
         if pct.abs() <= 0.001 {
             return self.stop();
         }
-        set_enable_pins(
-            &mut self.board,
-            self.motor_settings.enable_pin_high,
-            self.motor_settings.enable_pin_low,
-            true,
-        )?;
         let (pwm_pin, high_pin) = if (pct >= 0.001) == self.motor_settings.dir_flip {
             (self.b_pin, self.a_pin)
         } else {
@@ -665,6 +689,20 @@ where
         self.board.set_gpio_pin_level(self.b_pin, false)?;
         self.is_on = false;
         Ok(())
+    }
+}
+
+impl<B: Board> Drop for AbMotor<B> 
+{
+    fn drop(&mut self) {
+        if let Err(err) = set_enable_pins(
+            &mut self.board,
+            self.motor_settings.enable_pin_high,
+            self.motor_settings.enable_pin_low,
+            false,
+        ) {
+            log::error!("AbMotor dropped, but could not disable enable pins: {:?}", err)
+        };
     }
 }
 
