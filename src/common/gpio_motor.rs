@@ -257,12 +257,7 @@ where
         // for boards where these are a limited resource
         res.board.set_pwm_frequency(pwm_pin, pwm_freq)?;
 
-        set_enable_pins(
-            &mut res.board,
-            enable_high,
-            enable_low,
-            true,
-        )?;
+        set_enable_pins(&mut res.board, enable_high, enable_low, true)?;
         Ok(res)
     }
 
@@ -387,7 +382,10 @@ impl<B: Board> Drop for PwmABMotor<B> {
             self.motor_settings.enable_pin_low,
             false,
         ) {
-            log::error!("PwmAbMotor dropped, but could not disable enable pins: {:?}", err)
+            log::error!(
+                "PwmAbMotor dropped, but could not disable enable pins: {:?}",
+                err
+            )
         };
     }
 }
@@ -419,12 +417,7 @@ where
             pwm_pin,
             motor_settings,
         };
-        set_enable_pins(
-            &mut res.board,
-            enable_high,
-            enable_low,
-            true,
-        )?;
+        set_enable_pins(&mut res.board, enable_high, enable_low, true)?;
         // we start with this because we want to reserve a timer and PWM channel early
         // for boards where these are a limited resource
         res.board.set_pwm_frequency(pwm_pin, pwm_freq)?;
@@ -519,8 +512,7 @@ where
     }
 }
 
-impl<B: Board> Drop for PwmDirectionMotor<B>
-{
+impl<B: Board> Drop for PwmDirectionMotor<B> {
     fn drop(&mut self) {
         if let Err(err) = set_enable_pins(
             &mut self.board,
@@ -528,7 +520,10 @@ impl<B: Board> Drop for PwmDirectionMotor<B>
             self.motor_settings.enable_pin_low,
             false,
         ) {
-            log::error!("PwmDirectionMotor dropped, but could not disable enable pins: {:?}", err)
+            log::error!(
+                "PwmDirectionMotor dropped, but could not disable enable pins: {:?}",
+                err
+            )
         };
     }
 }
@@ -568,12 +563,7 @@ where
             motor_settings,
         };
 
-        set_enable_pins(
-            &mut res.board,
-            enable_high,
-            enable_low,
-            true,
-        )?;
+        set_enable_pins(&mut res.board, enable_high, enable_low, true)?;
 
         // we start with this because we want to reserve a timer and PWM channel early
         // for boards where these are a limited resource
@@ -692,8 +682,7 @@ where
     }
 }
 
-impl<B: Board> Drop for AbMotor<B> 
-{
+impl<B: Board> Drop for AbMotor<B> {
     fn drop(&mut self) {
         if let Err(err) = set_enable_pins(
             &mut self.board,
@@ -701,7 +690,10 @@ impl<B: Board> Drop for AbMotor<B>
             self.motor_settings.enable_pin_low,
             false,
         ) {
-            log::error!("AbMotor dropped, but could not disable enable pins: {:?}", err)
+            log::error!(
+                "AbMotor dropped, but could not disable enable pins: {:?}",
+                err
+            )
         };
     }
 }
