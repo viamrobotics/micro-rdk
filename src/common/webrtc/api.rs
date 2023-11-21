@@ -83,7 +83,7 @@ pub(crate) struct WebRtcSignalingChannel {
 
 impl Drop for WebRtcSignalingChannel {
     fn drop(&mut self) {
-        log::error!("dropping signaling");
+        log::debug!("dropping signaling");
     }
 }
 

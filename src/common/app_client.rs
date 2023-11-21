@@ -16,7 +16,7 @@ use crate::proto::{
 };
 
 use super::{
-    grpc_client::{GrpcClient, GrpcMessageSender, GrpcMessageStream},
+    grpc_client::{GrpcClient, GrpcClientError, GrpcMessageSender, GrpcMessageStream},
     webrtc::{
         api::{WebRtcApi, WebRtcError},
         certificate::Certificate,
@@ -43,6 +43,8 @@ pub enum AppClientError {
     AppConfigHeaderDateParseError(#[from] ParseError),
     #[error("Date missing from header of config response")]
     AppConfigHeaderDateMissingError,
+    #[error(transparent)]
+    AppGrpcClientError(#[from] GrpcClientError),
 }
 
 #[derive(Debug, Clone)]
@@ -129,7 +131,7 @@ impl<'a> AppClientBuilder<'a> {
         let r = self
             .grpc_client
             .build_request("/proto.rpc.v1.AuthService/Authenticate", None, "")
-            .map_err(AppClientError::AppOtherError)?;
+            .map_err(AppClientError::AppGrpcClientError)?;
 
         let cred = Credentials {
             r#type: "robot-secret".to_owned(),
@@ -146,7 +148,7 @@ impl<'a> AppClientBuilder<'a> {
         let mut r = self
             .grpc_client
             .send_request(r, body)
-            .map_err(AppClientError::AppOtherError)?
+            .map_err(AppClientError::AppGrpcClientError)?
             .0;
         let r = r.split_off(5);
         let r = AuthenticateResponse::decode(r).map_err(AppClientError::AppDecodeError)?;
@@ -175,13 +177,13 @@ impl<'a> AppClient<'a> {
                 Some(&self.jwt),
                 &self.config.rpc_host,
             )
-            .map_err(AppClientError::AppOtherError)?;
+            .map_err(AppClientError::AppGrpcClientError)?;
 
         let (tx, rx) = self
             .grpc_client
             .send_request_bidi::<AnswerResponse, AnswerRequest>(r, None)
             .await
-            .map_err(AppClientError::AppOtherError)?;
+            .map_err(AppClientError::AppGrpcClientError)?;
         Ok(AppSignaling(tx, rx))
     }
 
@@ -194,7 +196,7 @@ impl<'a> AppClient<'a> {
         let r = self
             .grpc_client
             .build_request("/viam.app.v1.RobotService/Config", Some(&self.jwt), "")
-            .map_err(AppClientError::AppOtherError)?;
+            .map_err(AppClientError::AppGrpcClientError)?;
 
         let agent = AgentInfo {
             os: "esp32".to_string(),
@@ -231,7 +233,7 @@ impl<'a> AppClient<'a> {
         let r = self
             .grpc_client
             .build_request("/viam.app.v1.RobotService/Log", Some(&self.jwt), "")
-            .map_err(AppClientError::AppOtherError)?;
+            .map_err(AppClientError::AppGrpcClientError)?;
 
         let req = LogRequest {
             id: self.config.robot_id.clone(),
