@@ -11,7 +11,7 @@ use crate::{
     common::{
         app_client::{AppClient, AppClientBuilder, AppClientConfig, AppClientError, AppSignaling},
         grpc::{GrpcBody, GrpcServer},
-        grpc_client::GrpcClient,
+        grpc_client::{GrpcClient, GrpcClientError},
         robot::LocalRobot,
         webrtc::{
             api::{WebRtcApi, WebRtcSdp},
@@ -302,18 +302,22 @@ where
         block_on(cloned_exec.run(Box::pin(self.serve(robot))));
     }
     async fn serve(&mut self, robot: Arc<Mutex<LocalRobot>>) {
-        let conn = self.app_connector.connect().unwrap();
-        let cloned_exec = self.exec.clone();
-        let grpc_client =
-            Box::new(GrpcClient::new(conn, cloned_exec, "https://app.viam.com:443").unwrap());
-        let app_client = AppClientBuilder::new(grpc_client, self.app_config.clone())
-            .build()
-            .unwrap();
-        let _ = self.app_client.insert(app_client);
         let cloned_robot = robot.clone();
         let mut current_prio = None;
         loop {
             let _ = smol::Timer::after(std::time::Duration::from_millis(300)).await;
+
+            if self.app_client.is_none() {
+                let conn = self.app_connector.connect().unwrap();
+                let cloned_exec = self.exec.clone();
+                let grpc_client = Box::new(
+                    GrpcClient::new(conn, cloned_exec, "https://app.viam.com:443").unwrap(),
+                );
+                let app_client = AppClientBuilder::new(grpc_client, self.app_config.clone())
+                    .build()
+                    .unwrap();
+                let _ = self.app_client.insert(app_client);
+            }
 
             let sig = if let Some(webrtc_config) = self.webrtc_config.as_ref() {
                 let ip = self.app_config.get_ip();
@@ -344,7 +348,7 @@ where
                         .map_err(|e| ServerError::Other(e.into()))
                 },
                 async {
-                    let mut api = sig.await.map_err(|e| ServerError::Other(Box::new(e)))?;
+                    let mut api = sig.await?;
 
                     let prio = self
                         .webtrc_conn
@@ -377,8 +381,17 @@ where
             );
             let connection = connection.await;
 
-            if let Err(e) = connection {
-                log::error!("error {} while listening", e);
+            if let Err(err) = connection {
+                if let ServerError::ServerAppClientError(AppClientError::AppGrpcClientError(
+                    GrpcClientError::ProtoError(err),
+                )) = err
+                {
+                    // Google load balancer may terminate a connection after some time
+                    // it will do so by sending a GOAWAY frame
+                    if err.is_go_away() || err.is_io() || err.is_library() {
+                        let _ = self.app_client.take();
+                    }
+                }
                 continue;
             }
             if let Err(e) = match connection.unwrap() {
@@ -527,7 +540,7 @@ where
         let this = self.project();
         let r = ready!(this.future.poll(cx));
         let s = match r {
-            Err(e) => return Poll::Ready(Err(ServerError::Other(Box::new(e)))),
+            Err(e) => return Poll::Ready(Err(ServerError::ServerAppClientError(e))),
             Ok(s) => s,
         };
         Poll::Ready(Ok(WebRtcApi::new(

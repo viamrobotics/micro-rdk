@@ -3,7 +3,6 @@
 use crate::esp32::exec::Esp32Executor;
 #[cfg(feature = "native")]
 use crate::native::exec::NativeExecutor;
-use anyhow::Result;
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_lite::{future::block_on, Stream};
 use h2::{client::SendRequest, Reason, RecvStream, SendStream};
@@ -12,7 +11,24 @@ use hyper::{http::status, Method, Request};
 
 use smol::Task;
 use std::{marker::PhantomData, task::Poll};
+use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};
+
+#[derive(Error, Debug)]
+pub enum GrpcClientError {
+    #[error(transparent)]
+    ProtoError(#[from] h2::Error),
+    #[error(transparent)]
+    ConversionError(#[from] std::num::TryFromIntError),
+    #[error(transparent)]
+    MessageEncodingError(#[from] prost::EncodeError),
+    #[error("http request error {0}")]
+    HttpStatusError(status::StatusCode),
+    #[error(transparent)]
+    HyperHttpError(#[from] hyper::http::Error),
+    #[error("grpc error code {code:?}, message {message:?}")]
+    GrpcError { code: i8, message: String },
+}
 
 pub(crate) struct GrpcMessageSender<T> {
     sender_half: SendStream<Bytes>,
@@ -35,8 +51,7 @@ where
             _marker: PhantomData,
         }
     }
-    pub(crate) fn send_message(&mut self, message: T) -> anyhow::Result<()> {
-        log::debug!("sending a message");
+    pub(crate) fn send_message(&mut self, message: T) -> Result<(), GrpcClientError> {
         let body: Bytes = {
             let mut buf = BytesMut::with_capacity(message.encoded_len() + 5);
             buf.put_u8(0);
@@ -48,12 +63,12 @@ where
         };
         self.sender_half
             .send_data(body, false)
-            .map_err(|err| anyhow::anyhow!("couldn't send message {}", err))
+            .map_err(GrpcClientError::ProtoError)
     }
-    pub(crate) fn send_empty_body(&mut self) -> anyhow::Result<()> {
+    pub(crate) fn send_empty_body(&mut self) -> Result<(), GrpcClientError> {
         self.sender_half
             .send_data(Bytes::new(), false)
-            .map_err(|err| anyhow::anyhow!("couldn't send message {}", err))
+            .map_err(GrpcClientError::ProtoError)
     }
 }
 
@@ -157,7 +172,7 @@ impl<'a> Drop for GrpcClient<'a> {
 }
 
 impl<'a> GrpcClient<'a> {
-    pub fn new<T>(io: T, executor: Executor<'a>, uri: &'a str) -> anyhow::Result<Self>
+    pub fn new<T>(io: T, executor: Executor<'a>, uri: &'a str) -> Result<Self, GrpcClientError>
     where
         T: AsyncRead + AsyncWrite + Unpin + 'a,
     {
@@ -190,7 +205,7 @@ impl<'a> GrpcClient<'a> {
         path: &str,
         jwt: Option<&str>,
         rpc_host: &str,
-    ) -> Result<Request<()>> {
+    ) -> Result<Request<()>, GrpcClientError> {
         let mut uri = self.uri.to_owned();
         uri.push_str(path);
 
@@ -205,8 +220,7 @@ impl<'a> GrpcClient<'a> {
             r = r.header("authorization", jwt);
         };
 
-        r.body(())
-            .map_err(|e| anyhow::anyhow!("cannot build request {}", e))
+        r.body(()).map_err(GrpcClientError::HyperHttpError)
     }
 
     pub(crate) async fn send_request_bidi<R, P>(
@@ -214,7 +228,7 @@ impl<'a> GrpcClient<'a> {
         r: Request<()>,
         message: Option<R>, // we shouldn't need this to get server headers when initiating a
                             // bidi stream
-    ) -> Result<(GrpcMessageSender<R>, GrpcMessageStream<P>)>
+    ) -> Result<(GrpcMessageSender<R>, GrpcMessageStream<P>), GrpcClientError>
     where
         R: prost::Message + std::default::Default,
         P: prost::Message + std::default::Default,
@@ -235,7 +249,7 @@ impl<'a> GrpcClient<'a> {
         let (part, body) = response.await?.into_parts();
 
         if part.status != status::StatusCode::OK {
-            anyhow::bail!("http error {}", part.status.as_u16())
+            return Err(GrpcClientError::HttpStatusError(part.status));
         }
         let p: GrpcMessageStream<P> = GrpcMessageStream::new(body);
 
@@ -246,7 +260,7 @@ impl<'a> GrpcClient<'a> {
         &mut self,
         r: Request<()>,
         body: Bytes,
-    ) -> Result<(Bytes, HeaderMap)> {
+    ) -> Result<(Bytes, HeaderMap), GrpcClientError> {
         let http2_connection = self.http2_connection.clone();
         // verify if the server can accept a new HTTP2 stream
         let mut http2_connection =
@@ -277,26 +291,31 @@ impl<'a> GrpcClient<'a> {
         if let Some(trailers) = trailers {
             match trailers.get("grpc-status") {
                 Some(status) => {
-                    let grpc_code: i32 = str::parse::<i32>(status.to_str()?)?;
+                    // if we get an unparsable grpc status message we default to -1 (not a valid grpc error code)
+                    let grpc_code: i8 =
+                        str::parse::<i8>(status.to_str().unwrap_or("")).unwrap_or(-1);
                     if grpc_code != 0 {
                         match trailers.get("grpc-message") {
                             Some(message) => {
-                                return Err(anyhow::anyhow!(
-                                    "grpc return code {} message {}",
-                                    grpc_code,
-                                    message.to_str()?
-                                ));
+                                return Err(GrpcClientError::GrpcError {
+                                    code: grpc_code,
+                                    message: message.to_str().unwrap_or("").to_owned(),
+                                });
                             }
                             None => {
-                                return Err(anyhow::anyhow!("grpc return code {}", grpc_code));
+                                return Err(GrpcClientError::GrpcError {
+                                    code: grpc_code,
+                                    message: String::new(),
+                                });
                             }
                         }
                     }
                 }
                 None => {
-                    return Err(anyhow::anyhow!(
-                        "received grpc trailers without a grpc-status"
-                    ));
+                    return Err(GrpcClientError::GrpcError {
+                        code: 0,
+                        message: "received grpc trailers without a grpc-status".to_owned(),
+                    });
                 }
             }
         }

@@ -1,5 +1,7 @@
 use std::error::Error;
 use thiserror::Error;
+
+use crate::common::app_client::AppClientError;
 #[derive(Error, Debug)]
 pub enum ServerError {
     #[error("couldn't open ssl connection")]
@@ -10,4 +12,6 @@ pub enum ServerError {
     Other(#[from] Box<dyn Error + Send + Sync>),
     #[error("not configured")]
     ServerConnectionNotConfigured,
+    #[error(transparent)]
+    ServerAppClientError(AppClientError),
 }
