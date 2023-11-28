@@ -425,6 +425,7 @@ impl ComponentRegistry {
 
 #[cfg(test)]
 mod tests {
+    use crate::common::generic::DoCommand;
     use crate::google;
 
     use crate::common::{
@@ -485,6 +486,9 @@ mod tests {
             }))
         }
     }
+
+    impl DoCommand for TestSensor {}
+
     #[test_log::test]
     fn test_driver() -> anyhow::Result<()> {
         use crate::proto::app::v1::{ComponentConfig, ConfigResponse, RobotConfig};

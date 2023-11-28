@@ -28,6 +28,7 @@ use super::{
     actuator::Actuator,
     board::{Board, BoardType},
     config::{AttributeError, ConfigType},
+    generic::DoCommand,
     registry::{get_board_from_dependencies, ComponentRegistry, Dependency},
     servo::{Servo, ServoType},
     status::Status,
@@ -118,6 +119,7 @@ impl GpioServoSettings {
     }
 }
 
+#[derive(DoCommand)]
 pub struct GpioServo<B> {
     board: B,
     pin: i32,

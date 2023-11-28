@@ -74,6 +74,8 @@ pin-project-lite = "0.2.9"
 url = "2.4.0"
 once_cell = "1.18.0"
 chrono = "0.4.31"
+micro-rdk-macros = { path = "./micro-rdk-macros" }
+ignore = "=0.4.20"
 
 [build-dependencies]
 anyhow = "1"

@@ -6,6 +6,11 @@ pub mod esp32;
 #[cfg(feature = "native")]
 pub mod native;
 
+#[macro_use]
+pub extern crate micro_rdk_macros;
+
+pub use micro_rdk_macros::DoCommand;
+
 /// gRPC protobuf utilities, auto-generated
 pub mod google {
     pub mod rpc {

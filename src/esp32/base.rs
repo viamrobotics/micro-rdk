@@ -2,6 +2,7 @@
 use crate::common::actuator::Actuator;
 use crate::common::base::{Base, BaseType, COMPONENT_NAME as BaseCompName};
 use crate::common::config::ConfigType;
+use crate::common::generic::DoCommand;
 use crate::common::motor::{Motor, MotorType, COMPONENT_NAME as MotorCompName};
 use crate::common::registry::{ComponentRegistry, Dependency, ResourceKey};
 use crate::common::robot::Resource;
@@ -33,6 +34,7 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     }
 }
 
+#[derive(DoCommand)]
 pub struct Esp32WheelBase<ML, MR> {
     motor_right: MR,
     motor_left: ML,

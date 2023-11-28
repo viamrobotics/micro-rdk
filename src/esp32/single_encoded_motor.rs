@@ -4,6 +4,7 @@ use crate::common::actuator::Actuator;
 use crate::common::encoder::{
     Direction, Encoder, EncoderPositionType, EncoderSupportedRepresentations, SingleEncoder,
 };
+use crate::common::generic::DoCommand;
 use crate::common::motor::{Motor, MotorSupportedProperties, MotorType};
 use crate::common::status::Status;
 use crate::google;
@@ -11,6 +12,7 @@ use crate::google;
 use std::collections::HashMap;
 use std::time::Duration;
 
+#[derive(DoCommand)]
 pub struct SingleEncodedMotor {
     encoder: SingleEncoderType,
     motor: MotorType,

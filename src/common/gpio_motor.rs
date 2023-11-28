@@ -49,6 +49,7 @@ use super::config::ConfigType;
 use super::encoder::{
     Encoder, EncoderPositionType, EncoderType, COMPONENT_NAME as EncoderCompName,
 };
+use super::generic::DoCommand;
 use super::math_utils::go_for_math;
 use super::motor::{
     Motor, MotorPinType, MotorPinsConfig, MotorSupportedProperties, MotorType,
@@ -123,6 +124,7 @@ pub(crate) fn gpio_motor_from_config(
 // of forcing the user to supply a PWM frequency in the motor config)
 const MOTOR_PWM_FREQUENCY: u64 = 1000;
 
+#[derive(DoCommand)]
 pub struct EncodedMotor<M, Enc> {
     motor: M,
     enc: Enc,
@@ -199,6 +201,7 @@ where
 }
 
 // Represents a motor using a A, B, and PWM pins
+#[derive(DoCommand)]
 pub(crate) struct PwmABMotor<B> {
     board: B,
     a_pin: i32,
@@ -342,6 +345,7 @@ where
 }
 
 // Represents a motor using a direction pin and a PWM pin
+#[derive(DoCommand)]
 pub(crate) struct PwmDirectionMotor<B> {
     board: B,
     dir_pin: i32,
@@ -461,6 +465,7 @@ where
 /// a PWM signal is sent through the A pin and the B pin is set to high,
 /// vice versa for moving backwards. Note: If the dir_flip attribute is set to
 /// true, this functionality is reversed
+#[derive(DoCommand)]
 pub(crate) struct AbMotor<B> {
     board: B,
     a_pin: i32,

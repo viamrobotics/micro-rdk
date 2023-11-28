@@ -23,6 +23,7 @@ use crate::common::config::ConfigType;
 use crate::common::encoder::{
     Encoder, EncoderPosition, EncoderPositionType, EncoderSupportedRepresentations, EncoderType,
 };
+use crate::common::generic::DoCommand;
 use crate::common::registry::{ComponentRegistry, Dependency};
 use crate::common::status::Status;
 use crate::google;
@@ -49,6 +50,7 @@ pub struct PulseStorage {
     pub unit: u32,
 }
 
+#[derive(DoCommand)]
 pub struct Esp32Encoder<A, B> {
     pulse_counter: Box<PulseStorage>,
     config: pcnt_config_t,

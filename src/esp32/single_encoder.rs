@@ -8,6 +8,7 @@ use crate::common::encoder::{
     Direction, Encoder, EncoderPosition, EncoderPositionType, EncoderSupportedRepresentations,
     EncoderType, SingleEncoder,
 };
+use crate::common::generic::DoCommand;
 use crate::common::registry::{ComponentRegistry, Dependency};
 use crate::google;
 
@@ -51,6 +52,7 @@ struct PulseStorage {
     moving_forwards: Arc<AtomicBool>,
 }
 
+#[derive(DoCommand)]
 pub struct Esp32SingleEncoder {
     pulse_counter: Box<PulseStorage>,
     config: pcnt_config_t,

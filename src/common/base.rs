@@ -8,15 +8,18 @@ use log::*;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use super::generic::DoCommand;
+
 pub static COMPONENT_NAME: &str = "base";
 
-pub trait Base: Status + Actuator {
+pub trait Base: Status + Actuator + DoCommand {
     fn set_power(&mut self, lin: &Vector3, ang: &Vector3) -> anyhow::Result<()>;
 }
 
 pub type BaseType = Arc<Mutex<dyn Base>>;
 
 // TODO(RSDK-5648) - Store power from set_power call on struct and register as "fake" model
+#[derive(DoCommand)]
 pub struct FakeBase {}
 
 impl FakeBase {
@@ -36,6 +39,15 @@ where
 {
     fn set_power(&mut self, lin: &Vector3, ang: &Vector3) -> anyhow::Result<()> {
         self.get_mut().unwrap().set_power(lin, ang)
+    }
+}
+
+impl<L> Base for Arc<Mutex<L>>
+where
+    L: Base,
+{
+    fn set_power(&mut self, lin: &Vector3, ang: &Vector3) -> anyhow::Result<()> {
+        self.lock().unwrap().set_power(lin, ang)
     }
 }
 

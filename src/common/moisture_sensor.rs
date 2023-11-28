@@ -10,6 +10,9 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use super::generic::DoCommand;
+
+#[derive(DoCommand)]
 pub struct MoistureSensor {
     analog: Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>,
 }
