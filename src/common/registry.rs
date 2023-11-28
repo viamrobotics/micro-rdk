@@ -306,9 +306,8 @@ impl ComponentRegistry {
     pub(crate) fn get_dependency_function(
         &self,
         component_type: &'static str,
-        model: String,
+        model_name: &str,
     ) -> Result<&'static DependenciesFromConfig, RegistryError> {
-        let model_name: &str = &model;
         if !self.dependencies.contains_key(component_type) {
             return Err(RegistryError::ComponentTypeNotInDependencies(
                 component_type,
@@ -319,7 +318,7 @@ impl ComponentRegistry {
             return Ok(*func);
         }
         Err(RegistryError::ModelNotFoundInDependencies(
-            model,
+            model_name.to_owned(),
             component_type,
         ))
     }
@@ -431,7 +430,7 @@ mod tests {
 
     use crate::common::{
         self,
-        config::{ConfigType, StaticComponentConfig},
+        config::{ConfigType, DynamicComponentConfig},
         registry::{ComponentRegistry, Dependency, RegistryError},
         robot::LocalRobot,
         sensor::{
@@ -441,10 +440,6 @@ mod tests {
     };
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
-
-    lazy_static::lazy_static! {
-        static ref EMPTY_CONFIG: StaticComponentConfig = StaticComponentConfig::default();
-    }
 
     pub struct TestSensor {}
 
@@ -543,7 +538,7 @@ mod tests {
         assert!(ctor.is_ok());
 
         // make robot
-        let robot = LocalRobot::new_from_config_response(&cfg_resp, Box::new(registry), None)?;
+        let robot = LocalRobot::from_cloud_config(&cfg_resp, Box::new(registry), None)?;
 
         // get test value from sensor
         let test_sensor = robot
@@ -616,7 +611,10 @@ mod tests {
         let ctor = registry.get_motor_constructor("fake2".to_string());
         assert!(ctor.is_ok());
 
-        let ret = ctor.unwrap()(ConfigType::Static(&EMPTY_CONFIG), Vec::new());
+        let ret = ctor.unwrap()(
+            ConfigType::Dynamic(&DynamicComponentConfig::default()),
+            Vec::new(),
+        );
 
         assert!(ret.is_err());
         assert_eq!(format!("{}", ret.err().unwrap()), "not implemented");
@@ -624,7 +622,7 @@ mod tests {
         let ctor = registry.get_board_constructor("fake2".to_string());
         assert!(ctor.is_ok());
 
-        let ret = ctor.unwrap()(ConfigType::Static(&EMPTY_CONFIG));
+        let ret = ctor.unwrap()(ConfigType::Dynamic(&DynamicComponentConfig::default()));
 
         assert!(ret.is_err());
         assert_eq!(format!("{}", ret.err().unwrap()), "not implemented");

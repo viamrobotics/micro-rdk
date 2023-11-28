@@ -48,7 +48,7 @@ pub fn serve_web(
             RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
             RobotRepresentation::WithRegistry(registry) => {
                 log::info!("building robot from config");
-                let r = match LocalRobot::new_from_config_response(
+                let r = match LocalRobot::from_cloud_config(
                     &cfg_response,
                     registry,
                     cfg_received_datetime,

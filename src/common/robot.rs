@@ -2,7 +2,7 @@
 
 use chrono::{DateTime, FixedOffset};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     sync::{Arc, Mutex},
 };
 
@@ -20,7 +20,7 @@ use crate::{
     common::status::Status,
     google,
     proto::{
-        app::v1::{ComponentConfig, ConfigResponse},
+        app::v1::ConfigResponse,
         common::{self, v1::ResourceName},
         robot,
     },
@@ -30,16 +30,19 @@ use log::*;
 use super::{
     base::BaseType,
     board::BoardType,
-    config::{Component, ConfigType, DynamicComponentConfig, RobotConfigStatic},
+    config::{AttributeError, Component, ConfigType, DynamicComponentConfig},
     encoder::EncoderType,
     generic::{GenericComponent, GenericComponentType},
     motor::MotorType,
     movement_sensor::MovementSensorType,
     power_sensor::{PowerSensor, PowerSensorType},
-    registry::{get_board_from_dependencies, ComponentRegistry, Dependency, ResourceKey},
+    registry::{
+        get_board_from_dependencies, ComponentRegistry, Dependency, RegistryError, ResourceKey,
+    },
     sensor::SensorType,
     servo::{Servo, ServoType},
 };
+use thiserror::Error;
 
 static NAMESPACE_PREFIX: &str = "rdk:builtin:";
 
@@ -60,12 +63,33 @@ pub enum ResourceType {
 pub type Resource = ResourceType;
 pub type ResourceMap = HashMap<ResourceName, Resource>;
 
+#[derive(Default)]
 pub struct LocalRobot {
     resources: ResourceMap,
     build_time: Option<DateTime<FixedOffset>>,
 }
 
-fn resource_name_from_component_cfg(cfg: &ComponentConfig) -> ResourceName {
+#[derive(Error, Debug)]
+pub enum RobotError {
+    #[error("no board setup")]
+    RobotNoBoard,
+    #[error("{0} type is not supported")]
+    RobotComponentTypeNotSupported(String),
+    #[error("wrong model prefix {0} expected 'rdk:builtin'")]
+    RobotModelWrongPrefix(String),
+    #[error("model is missing")]
+    RobotModelAbsent,
+    #[error(transparent)]
+    RobotRegistryError(#[from] RegistryError),
+    #[error("missing {0} dependency for {1}")]
+    RobotDepencyMissing(String, String),
+    #[error(transparent)]
+    RobotResourceBuildError(#[from] anyhow::Error),
+    #[error(transparent)]
+    RobotParseConfigError(#[from] AttributeError),
+}
+
+fn resource_name_from_component_cfg(cfg: &DynamicComponentConfig) -> ResourceName {
     ResourceName {
         namespace: cfg.namespace.to_string(),
         r#type: "component".to_string(),
@@ -77,87 +101,71 @@ fn resource_name_from_component_cfg(cfg: &ComponentConfig) -> ResourceName {
 // Extracts model string from the full namespace provided by incoming instances of ComponentConfig.
 // TODO: This prefix requirement was put in place due to model names sent from app being otherwise
 // prefixed with "rdk:builtin:". A more ideal and robust method of namespacing is preferred.
-fn get_model_without_namespace_prefix(full_model: &mut String) -> anyhow::Result<String> {
+fn get_model_without_namespace_prefix(full_model: &mut String) -> Result<String, RobotError> {
     if !full_model.starts_with(NAMESPACE_PREFIX) {
-        anyhow::bail!(
-            "model name must be prefixed with 'rdk:builtin:', model name is {:?}",
-            full_model
-        );
+        return Err(RobotError::RobotModelWrongPrefix(full_model.to_string()));
     }
     let model = full_model.split_off(NAMESPACE_PREFIX.len());
     if model.is_empty() {
-        anyhow::bail!("cannot use empty model name for configuring resource");
+        return Err(RobotError::RobotModelAbsent);
     }
     Ok(model)
 }
 
 impl LocalRobot {
-    pub fn new(res: ResourceMap) -> Self {
-        LocalRobot {
-            resources: res,
-            // We do not know build time for non-cloud micro RDK robots.
-            build_time: None,
-        }
+    pub fn new() -> Self {
+        Default::default()
     }
-    pub fn new_from_static(cfg: &RobotConfigStatic) -> anyhow::Result<Self> {
-        let mut robot = LocalRobot {
-            resources: ResourceMap::new(),
-            // We do not know build time for non-cloud micro RDK robots.
-            build_time: None,
+    fn process_components(
+        &mut self,
+        mut components: Vec<Option<DynamicComponentConfig>>,
+        mut registry: Box<ComponentRegistry>,
+    ) -> Result<(), RobotError> {
+        let config = components
+            .iter_mut()
+            .find(|cfg| cfg.as_ref().map_or(false, |cfg| cfg.r#type == "board"));
+        let (board, board_key) = if let Some(Some(config)) = config {
+            let model = get_model_without_namespace_prefix(&mut config.model.to_owned())?;
+            let board_key = Some(ResourceKey(
+                crate::common::board::COMPONENT_NAME,
+                config.name.to_string(),
+            ));
+            let constructor = registry
+                .get_board_constructor(model)
+                .map_err(RobotError::RobotRegistryError)?;
+            let board = constructor(ConfigType::Dynamic(config))
+                .map_err(RobotError::RobotResourceBuildError)?;
+            (Some(board), board_key)
+        } else {
+            (None, None)
         };
-        let mut registry = ComponentRegistry::default();
-        if let Some(components) = cfg.components.as_ref() {
-            let mut b_r_key: Option<ResourceKey> = None;
-            let r = components.iter().find(|x| x.get_type() == "board");
-            let b = match r {
-                Some(r) => {
-                    b_r_key = Some(ResourceKey::new(
-                        crate::common::board::COMPONENT_NAME,
-                        r.name.to_string(),
-                    )?);
-                    let ctor = registry.get_board_constructor(r.get_model().to_string())?;
-                    let b = ctor(ConfigType::Static(r));
-                    if let Ok(b) = b {
-                        Some(b)
-                    } else {
-                        log::info!("failed to build the board with {:?}", b.err().unwrap());
-                        None
-                    }
+        let mut resource_to_build = components.len();
+        let max_iteration = resource_to_build * 2;
+        let mut num_iteration = 0;
+        let mut iter = (0..resource_to_build).cycle();
+        while resource_to_build > 0 && num_iteration < max_iteration {
+            num_iteration += 1;
+            let cfg = &mut components[iter.next().unwrap()];
+            if let Some(cfg) = cfg.as_ref() {
+                if self
+                    .build_resource(cfg, board.clone(), board_key.clone(), &mut registry)
+                    .is_err()
+                {
+                    continue;
                 }
-                None => None,
-            };
-            for x in components.iter() {
-                let mut deps = Vec::new();
-                if let Some(b) = b.as_ref() {
-                    if let Some(b_r_key) = b_r_key.as_ref() {
-                        let dep = Dependency(b_r_key.clone(), Resource::Board(b.clone()));
-                        deps.push(dep);
-                    }
-                }
-                match robot.insert_resource(
-                    x.get_model().to_string(),
-                    x.get_resource_name(),
-                    ConfigType::Static(x),
-                    deps,
-                    &mut registry,
-                ) {
-                    Ok(()) => {
-                        continue;
-                    }
-                    Err(err) => {
-                        log::error!("{:?}", err);
-                        continue;
-                    }
-                };
+            } else {
+                continue;
             }
-        };
-        Ok(robot)
+            let _ = cfg.take();
+            resource_to_build -= 1;
+        }
+        Ok(())
     }
 
     // Creates a robot from the response of a gRPC call to acquire the robot configuration. The individual
     // component configs within the response are consumed and the corresponding components are generated
     // and added to the created robot.
-    pub fn new_from_config_response(
+    pub fn from_cloud_config(
         config_resp: &ConfigResponse,
         registry: Box<ComponentRegistry>,
         build_time: Option<DateTime<FixedOffset>>,
@@ -169,187 +177,103 @@ impl LocalRobot {
             build_time,
         };
 
-        let components = &config_resp.config.as_ref().unwrap().components;
+        let components: Result<Vec<Option<DynamicComponentConfig>>, AttributeError> = config_resp
+            .config
+            .as_ref()
+            .unwrap()
+            .components
+            .iter()
+            .map(|x| x.try_into().map(Option::Some))
+            .collect();
+        robot.process_components(
+            components.map_err(RobotError::RobotParseConfigError)?,
+            registry,
+        )?;
+        Ok(robot)
+    }
 
-        let board_config = components.iter().find(|x| x.r#type == "board");
-        // Initialize the board component first
-        let mut board_resource_key: Option<ResourceKey> = None;
-        let board = match board_config {
-            Some(config) => {
-                let model = get_model_without_namespace_prefix(&mut config.model.to_string())?;
-                board_resource_key = Some(ResourceKey::new(
-                    crate::common::board::COMPONENT_NAME,
-                    config.name.to_string(),
-                )?);
-                let cfg: DynamicComponentConfig = match config.try_into() {
-                    Ok(cfg) => cfg,
-                    Err(err) => {
-                        anyhow::bail!("could not configure board: {:?}", err);
+    fn build_resource(
+        &mut self,
+        config: &DynamicComponentConfig,
+        board: Option<BoardType>,
+        board_name: Option<ResourceKey>,
+        registry: &mut ComponentRegistry,
+    ) -> Result<(), RobotError> {
+        let new_resource_name = resource_name_from_component_cfg(config);
+        let model = get_model_without_namespace_prefix(&mut config.get_model().to_owned())?;
+
+        let mut dependencies = self.get_config_dependencies(config, registry)?;
+
+        if let Some(b) = board.as_ref() {
+            dependencies.push(Dependency(
+                board_name.as_ref().unwrap().clone(),
+                ResourceType::Board(b.clone()),
+            ));
+        }
+        self.insert_resource(
+            model,
+            new_resource_name,
+            ConfigType::Dynamic(config),
+            dependencies,
+            registry,
+        )?;
+        Ok(())
+    }
+
+    fn get_config_dependencies(
+        &mut self,
+        config: &DynamicComponentConfig,
+        registry: &mut ComponentRegistry,
+    ) -> Result<Vec<Dependency>, RobotError> {
+        let type_as_static = match config.get_type() {
+            "motor" => crate::common::motor::COMPONENT_NAME,
+            "board" => crate::common::board::COMPONENT_NAME,
+            "encoder" => crate::common::encoder::COMPONENT_NAME,
+            "movement_sensor" => crate::common::movement_sensor::COMPONENT_NAME,
+            "sensor" => crate::common::sensor::COMPONENT_NAME,
+            "base" => crate::common::base::COMPONENT_NAME,
+            "power_sensor" => crate::common::power_sensor::COMPONENT_NAME,
+            "servo" => crate::common::servo::COMPONENT_NAME,
+            "generic" => crate::common::generic::COMPONENT_NAME,
+            &_ => {
+                return Err(RobotError::RobotComponentTypeNotSupported(
+                    config.get_type().to_owned(),
+                ))
+            }
+        };
+        let model = get_model_without_namespace_prefix(&mut config.get_model().to_owned())?;
+        let deps_keys = registry
+            .get_dependency_function(type_as_static, &model)
+            .map_or(Vec::new(), |dep_fn| dep_fn(ConfigType::Dynamic(config)));
+
+        deps_keys
+            .into_iter()
+            .map(|key| {
+                let r_name = ResourceName {
+                    namespace: config.namespace.clone(),
+                    r#type: "component".to_owned(),
+                    subtype: key.0.to_owned(),
+                    name: key.1.clone(),
+                };
+
+                let res = match self.resources.get(&r_name) {
+                    Some(r) => r.clone(),
+                    None => {
+                        return Err(RobotError::RobotDepencyMissing(
+                            key.1,
+                            config.name.to_owned(),
+                        ));
                     }
                 };
-                let constructor = registry.get_board_constructor(model)?;
-                let board = constructor(ConfigType::Dynamic(cfg));
-                if let Ok(board) = board {
-                    Some(board)
-                } else {
-                    log::info!("failed to build the board with {:?}", board.err().unwrap());
-                    None
-                }
-            }
-            None => None,
-        };
-
-        let mut components_queue: Vec<&ComponentConfig> = components.iter().collect();
-
-        robot.insert_resources(&mut components_queue, board, board_resource_key, registry)?;
-
-        Ok(robot)
+                Ok(Dependency(ResourceKey(key.0, key.1.clone()), res))
+            })
+            .collect()
     }
 
     // Inserts components in order of dependency. If a component's dependencies are not satisfied it is
     // temporarily skipped and sent to the end of the queue. This process repeats until all the components
     // are added (or a max number of iterations are reached, indicating a configuration error). We have not
     // selected the most time-efficient algorithm for solving this problem in order to minimize memory usage
-    fn insert_resources(
-        &mut self,
-        components: &mut Vec<&ComponentConfig>,
-        board: Option<BoardType>,
-        board_resource_key: Option<ResourceKey>,
-        registry: Box<ComponentRegistry>,
-    ) -> anyhow::Result<()> {
-        let mut registry = registry;
-        let mut inserted_resources = HashSet::<ResourceKey>::new();
-        inserted_resources.try_reserve(components.len())?;
-
-        let mut num_iterations = 0;
-        let max_iterations = components.len() * 2;
-        while !components.is_empty() && num_iterations < max_iterations {
-            let comp_cfg = components.remove(0);
-            let resource_name = resource_name_from_component_cfg(comp_cfg);
-            let model = get_model_without_namespace_prefix(&mut comp_cfg.model.to_string())?;
-            let dyn_config: DynamicComponentConfig = match comp_cfg.try_into() {
-                Ok(cfg) => cfg,
-                Err(err) => {
-                    log::error!(
-                        "could not configure component {:?}: {:?}",
-                        comp_cfg.name,
-                        err
-                    );
-                    continue;
-                }
-            };
-            let c_type_static = match dyn_config.get_type() {
-                "motor" => crate::common::motor::COMPONENT_NAME,
-                "board" => crate::common::board::COMPONENT_NAME,
-                "encoder" => crate::common::encoder::COMPONENT_NAME,
-                "movement_sensor" => crate::common::movement_sensor::COMPONENT_NAME,
-                "sensor" => crate::common::sensor::COMPONENT_NAME,
-                "base" => crate::common::base::COMPONENT_NAME,
-                "power_sensor" => crate::common::power_sensor::COMPONENT_NAME,
-                "servo" => crate::common::servo::COMPONENT_NAME,
-                "generic" => crate::common::generic::COMPONENT_NAME,
-                &_ => {
-                    anyhow::bail!(
-                        "component type {} is not supported yet",
-                        dyn_config.get_type()
-                    );
-                }
-            };
-            let resource_key = ResourceKey::new(c_type_static, resource_name.name.to_string())?;
-
-            if !inserted_resources.contains(&resource_key) {
-                match registry.get_dependency_function(c_type_static, model.to_string()) {
-                    Ok(dependency_getter) => {
-                        let dependency_resource_keys =
-                            dependency_getter(ConfigType::Dynamic(dyn_config));
-                        if dependency_resource_keys
-                            .iter()
-                            .all(|x| inserted_resources.contains(x))
-                        {
-                            let dependencies_result: Result<Vec<Dependency>, anyhow::Error> =
-                                dependency_resource_keys
-                                    .iter()
-                                    .map(|dep_key| {
-                                        let dep_r_name = ResourceName {
-                                            namespace: resource_name.namespace.to_string(),
-                                            r#type: resource_name.r#type.to_string(),
-                                            subtype: dep_key.0.to_string(),
-                                            name: dep_key.1.to_string(),
-                                        };
-                                        let res = match self.resources.get(&dep_r_name) {
-                                            Some(r) => r.clone(),
-                                            None => anyhow::bail!("dependency not created yet"),
-                                        };
-                                        let dep_key_copy =
-                                            ResourceKey(dep_key.0, dep_key.1.to_string());
-                                        Ok(Dependency(dep_key_copy, res))
-                                    })
-                                    .collect();
-                            let mut dependencies = dependencies_result?;
-                            if let Some(b) = board.as_ref() {
-                                if let Some(b_r_key) = board_resource_key.as_ref() {
-                                    let dep =
-                                        Dependency(b_r_key.clone(), Resource::Board(b.clone()));
-                                    dependencies.push(dep);
-                                }
-                            }
-                            match self.insert_resource(
-                                model.to_string(),
-                                resource_name,
-                                ConfigType::Dynamic(comp_cfg.try_into()?),
-                                dependencies,
-                                &mut registry,
-                            ) {
-                                Ok(()) => {}
-                                Err(err) => {
-                                    log::error!("{:?}", err);
-                                    continue;
-                                }
-                            };
-                            inserted_resources.insert(resource_key);
-                        } else {
-                            let model = model.to_string();
-                            log::debug!("skipping {model} for now...");
-                            components.push(comp_cfg)
-                        }
-                    }
-                    Err(_) => {
-                        let mut dependencies = Vec::new();
-                        if let Some(b) = board.as_ref() {
-                            if let Some(b_r_key) = board_resource_key.as_ref() {
-                                let dep = Dependency(b_r_key.clone(), Resource::Board(b.clone()));
-                                dependencies.push(dep);
-                            }
-                        }
-                        match self.insert_resource(
-                            model.to_string(),
-                            resource_name,
-                            ConfigType::Dynamic(comp_cfg.try_into()?),
-                            dependencies,
-                            &mut registry,
-                        ) {
-                            Ok(()) => {}
-                            Err(err) => {
-                                log::error!("{:?}", err);
-                                continue;
-                            }
-                        };
-                        inserted_resources.insert(resource_key);
-                    }
-                };
-            }
-            num_iterations += 1;
-        }
-        if !components.is_empty() {
-            log::error!(
-                "Some components not created because their dependencies were never met.
-                Check your config for missing components or circular dependencies.
-                Uncreated component configs: {:?}",
-                components
-            );
-        }
-        Ok(())
-    }
 
     fn insert_resource(
         &mut self,
@@ -358,12 +282,14 @@ impl LocalRobot {
         cfg: ConfigType,
         deps: Vec<Dependency>,
         registry: &mut ComponentRegistry,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), RobotError> {
         let r_type = cfg.get_type();
         let res = match r_type {
             "motor" => {
-                let ctor = registry.get_motor_constructor(model)?;
-                ResourceType::Motor(ctor(cfg, deps)?)
+                let ctor = registry
+                    .get_motor_constructor(model)
+                    .map_err(RobotError::RobotRegistryError)?;
+                ResourceType::Motor(ctor(cfg, deps).map_err(RobotError::RobotResourceBuildError)?)
             }
             "board" => {
                 let board = get_board_from_dependencies(deps);
@@ -373,35 +299,55 @@ impl LocalRobot {
                 })
             }
             "sensor" => {
-                let ctor = registry.get_sensor_constructor(model)?;
-                ResourceType::Sensor(ctor(cfg, deps)?)
+                let ctor = registry
+                    .get_sensor_constructor(model)
+                    .map_err(RobotError::RobotRegistryError)?;
+                ResourceType::Sensor(ctor(cfg, deps).map_err(RobotError::RobotResourceBuildError)?)
             }
             "movement_sensor" => {
-                let ctor = registry.get_movement_sensor_constructor(model)?;
-                ResourceType::MovementSensor(ctor(cfg, deps)?)
+                let ctor = registry
+                    .get_movement_sensor_constructor(model)
+                    .map_err(RobotError::RobotRegistryError)?;
+                ResourceType::MovementSensor(
+                    ctor(cfg, deps).map_err(RobotError::RobotResourceBuildError)?,
+                )
             }
             "encoder" => {
-                let ctor = registry.get_encoder_constructor(model)?;
-                ResourceType::Encoder(ctor(cfg, deps)?)
+                let ctor = registry
+                    .get_encoder_constructor(model)
+                    .map_err(RobotError::RobotRegistryError)?;
+                ResourceType::Encoder(ctor(cfg, deps).map_err(RobotError::RobotResourceBuildError)?)
             }
             "base" => {
-                let ctor = registry.get_base_constructor(model)?;
-                ResourceType::Base(ctor(cfg, deps)?)
+                let ctor = registry
+                    .get_base_constructor(model)
+                    .map_err(RobotError::RobotRegistryError)?;
+                ResourceType::Base(ctor(cfg, deps).map_err(RobotError::RobotResourceBuildError)?)
             }
             "power_sensor" => {
-                let ctor = registry.get_power_sensor_constructor(model)?;
-                ResourceType::PowerSensor(ctor(cfg, deps)?)
+                let ctor = registry
+                    .get_power_sensor_constructor(model)
+                    .map_err(RobotError::RobotRegistryError)?;
+                ResourceType::PowerSensor(
+                    ctor(cfg, deps).map_err(RobotError::RobotResourceBuildError)?,
+                )
             }
             "servo" => {
-                let ctor = registry.get_servo_constructor(model)?;
-                ResourceType::Servo(ctor(cfg, deps)?)
+                let ctor = registry
+                    .get_servo_constructor(model)
+                    .map_err(RobotError::RobotRegistryError)?;
+                ResourceType::Servo(ctor(cfg, deps).map_err(RobotError::RobotResourceBuildError)?)
             }
             "generic" => {
-                let ctor = registry.get_generic_component_constructor(model)?;
-                ResourceType::Generic(ctor(cfg, deps)?)
+                let ctor = registry
+                    .get_generic_component_constructor(model)
+                    .map_err(RobotError::RobotRegistryError)?;
+                ResourceType::Generic(ctor(cfg, deps).map_err(RobotError::RobotResourceBuildError)?)
             }
             &_ => {
-                anyhow::bail!("component type {} is not supported yet", r_type);
+                return Err(RobotError::RobotComponentTypeNotSupported(
+                    r_type.to_owned(),
+                ));
             }
         };
         self.resources.insert(r_name, res);
@@ -773,103 +719,147 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::common::board::Board;
-    use crate::common::config::{Kind, RobotConfigStatic, StaticComponentConfig};
+    use crate::common::config::{DynamicComponentConfig, Kind};
     use crate::common::encoder::{Encoder, EncoderPositionType};
     use crate::common::i2c::I2CHandle;
     use crate::common::motor::Motor;
     use crate::common::movement_sensor::MovementSensor;
-    use crate::common::registry::ComponentRegistry;
-    use crate::common::robot::{LocalRobot, ResourceMap};
+    use crate::common::robot::LocalRobot;
     use crate::common::sensor::Sensor;
     use crate::google;
     use crate::google::protobuf::Struct;
-    use crate::proto::app::v1::ComponentConfig;
+    use crate::proto::app::v1::{ComponentConfig, ConfigResponse, RobotConfig};
 
     #[test_log::test]
-    fn test_robot_from_static() {
-        #[allow(clippy::redundant_static_lifetimes, dead_code)]
-        const STATIC_ROBOT_CONFIG: Option<RobotConfigStatic> = Some(RobotConfigStatic {
-            components: Some(&[
-                StaticComponentConfig {
-                    name: "board",
-                    namespace: "rdk",
-                    r#type: "board",
-                    model: "fake",
-                    attributes: Some(
-                        phf::phf_map! {"pins" => Kind::ListValueStatic(&[Kind::StringValueStatic("11"),Kind::StringValueStatic("12"),Kind::StringValueStatic("13")]),
-                        "analogs" => Kind::StructValueStatic(phf::phf_map!{"1" => Kind::StringValueStatic("11.12")}),
-                        "i2cs" => Kind::ListValueStatic(&[
-                            Kind::StructValueStatic(phf::phf_map!{"name" => Kind::StringValueStatic("i2c0")}),
-                            Kind::StructValueStatic(phf::phf_map!{
-                                "name" => Kind::StringValueStatic("i2c1"),
-                                "value_1" => Kind::StringValueStatic("5"),
-                                "value_2" => Kind::StringValueStatic("4")
-                            })
-                        ])},
+    fn test_robot_from_components() {
+        let robot_config: Vec<Option<DynamicComponentConfig>> = vec![
+            Some(DynamicComponentConfig {
+                name: "board".to_owned(),
+                namespace: "rdk".to_owned(),
+                r#type: "board".to_owned(),
+                model: "rdk:builtin:fake".to_owned(),
+                attributes: Some(HashMap::from([
+                    (
+                        "pins".to_owned(),
+                        Kind::VecValue(vec![
+                            Kind::StringValue("11".to_owned()),
+                            Kind::StringValue("12".to_owned()),
+                            Kind::StringValue("13".to_owned()),
+                        ]),
                     ),
-                },
-                StaticComponentConfig {
-                    name: "motor",
-                    namespace: "rdk",
-                    r#type: "motor",
-                    model: "fake",
-                    attributes: Some(phf::phf_map! {
-                    "pins" => Kind::StructValueStatic(phf::phf_map!{
-                        "pwm" => Kind::StringValueStatic("12"),
-                        "a" => Kind::StringValueStatic("29"),
-                        "b" => Kind::StringValueStatic("5")}
+                    (
+                        "analogs".to_owned(),
+                        Kind::StructValue(HashMap::from([(
+                            "1".to_owned(),
+                            Kind::StringValue("11.12".to_owned()),
+                        )])),
                     ),
-                    "board" => Kind::StringValueStatic("board"),
-                    "max_rpm" => Kind::StringValueStatic("100"),
-                    "fake_position" => Kind::StringValueStatic("1205")}),
-                },
-                StaticComponentConfig {
-                    name: "sensor",
-                    namespace: "rdk",
-                    r#type: "sensor",
-                    model: "fake",
-                    attributes: Some(
-                        phf::phf_map! {"fake_value" => Kind::StringValueStatic("11.12")},
+                    (
+                        "i2cs".to_owned(),
+                        Kind::VecValue(vec![
+                            Kind::StructValue(HashMap::from([(
+                                "name".to_owned(),
+                                Kind::StringValue("i2c0".to_owned()),
+                            )])),
+                            Kind::StructValue(HashMap::from([
+                                ("name".to_owned(), Kind::StringValue("i2c1".to_owned())),
+                                ("value_1".to_owned(), Kind::StringValue("5".to_owned())),
+                                ("value_2".to_owned(), Kind::StringValue("4".to_owned())),
+                            ])),
+                        ]),
                     ),
-                },
-                StaticComponentConfig {
-                    name: "m_sensor",
-                    namespace: "rdk",
-                    r#type: "movement_sensor",
-                    model: "fake",
-                    attributes: Some(phf::phf_map! {
-                        "fake_lat" => Kind::StringValueStatic("68.86"),
-                        "fake_lon" => Kind::StringValueStatic("-85.44"),
-                        "fake_alt" => Kind::StringValueStatic("3000.1"),
-                        "lin_acc_x" => Kind::StringValueStatic("200.2"),
-                        "lin_acc_y" => Kind::StringValueStatic("-100.3"),
-                        "lin_acc_z" => Kind::StringValueStatic("100.4"),
-                    }),
-                },
-                StaticComponentConfig {
-                    name: "enc1",
-                    namespace: "rdk",
-                    r#type: "encoder",
-                    model: "fake",
-                    attributes: Some(phf::phf_map! {
-                        "fake_deg" => Kind::StringValueStatic("45.0"),
-                        "ticks_per_rotation" => Kind::StringValueStatic("2"),
-                    }),
-                },
-                StaticComponentConfig {
-                    name: "enc2",
-                    namespace: "rdk",
-                    r#type: "encoder",
-                    model: "fake_incremental",
-                    attributes: Some(phf::phf_map! {
-                        "fake_ticks" => Kind::StringValueStatic("3.0"),
-                    }),
-                },
-            ]),
-        });
-        let robot = LocalRobot::new_from_static(&STATIC_ROBOT_CONFIG.unwrap());
-        assert!(robot.is_ok());
-        let robot = robot.unwrap();
+                ])),
+            }),
+            Some(DynamicComponentConfig {
+                name: "motor".to_owned(),
+                namespace: "rdk".to_owned(),
+                r#type: "motor".to_owned(),
+                model: "rdk:builtin:fake".to_owned(),
+                attributes: Some(HashMap::from([
+                    ("max_rpm".to_owned(), Kind::StringValue("100".to_owned())),
+                    (
+                        "fake_position".to_owned(),
+                        Kind::StringValue("1205".to_owned()),
+                    ),
+                    ("board".to_owned(), Kind::StringValue("board".to_owned())),
+                    (
+                        "pins".to_owned(),
+                        Kind::StructValue(HashMap::from([
+                            ("a".to_owned(), Kind::StringValue("29".to_owned())),
+                            ("b".to_owned(), Kind::StringValue("5".to_owned())),
+                            ("pwm".to_owned(), Kind::StringValue("12".to_owned())),
+                        ])),
+                    ),
+                ])),
+            }),
+            Some(DynamicComponentConfig {
+                name: "sensor".to_owned(),
+                namespace: "rdk".to_owned(),
+                r#type: "sensor".to_owned(),
+                model: "rdk:builtin:fake".to_owned(),
+                attributes: Some(HashMap::from([(
+                    "fake_value".to_owned(),
+                    Kind::StringValue("11.12".to_owned()),
+                )])),
+            }),
+            Some(DynamicComponentConfig {
+                name: "m_sensor".to_owned(),
+                namespace: "rdk".to_owned(),
+                r#type: "movement_sensor".to_owned(),
+                model: "rdk:builtin:fake".to_owned(),
+                attributes: Some(HashMap::from([
+                    ("fake_lat".to_owned(), Kind::StringValue("68.86".to_owned())),
+                    (
+                        "fake_lon".to_owned(),
+                        Kind::StringValue("-85.44".to_owned()),
+                    ),
+                    (
+                        "fake_alt".to_owned(),
+                        Kind::StringValue("3000.1".to_owned()),
+                    ),
+                    (
+                        "lin_acc_x".to_owned(),
+                        Kind::StringValue("200.2".to_owned()),
+                    ),
+                    (
+                        "lin_acc_y".to_owned(),
+                        Kind::StringValue("-100.3".to_owned()),
+                    ),
+                    (
+                        "lin_acc_z".to_owned(),
+                        Kind::StringValue("100.4".to_owned()),
+                    ),
+                ])),
+            }),
+            Some(DynamicComponentConfig {
+                name: "enc1".to_owned(),
+                namespace: "rdk".to_owned(),
+                r#type: "encoder".to_owned(),
+                model: "rdk:builtin:fake".to_owned(),
+                attributes: Some(HashMap::from([
+                    ("fake_deg".to_owned(), Kind::StringValue("45.0".to_owned())),
+                    (
+                        "ticks_per_rotation".to_owned(),
+                        Kind::StringValue("2".to_owned()),
+                    ),
+                ])),
+            }),
+            Some(DynamicComponentConfig {
+                name: "enc2".to_owned(),
+                namespace: "rdk".to_owned(),
+                r#type: "encoder".to_owned(),
+                model: "rdk:builtin:fake_incremental".to_owned(),
+                attributes: Some(HashMap::from([(
+                    "fake_ticks".to_owned(),
+                    Kind::StringValue("3.0".to_owned()),
+                )])),
+            }),
+        ];
+
+        let mut robot = LocalRobot::default();
+
+        let ret = robot.process_components(robot_config, Box::default());
+        ret.unwrap();
 
         let motor = robot.get_motor_by_name("motor".to_string());
 
@@ -1038,7 +1028,7 @@ mod tests {
     }
 
     #[test_log::test]
-    fn test_insert_resources() {
+    fn test_from_cloud_config() {
         let mut component_cfgs = Vec::new();
 
         let comp = ComponentConfig {
@@ -1059,7 +1049,7 @@ mod tests {
                 )]),
             }),
         };
-        component_cfgs.push(&comp);
+        component_cfgs.push(comp);
 
         let comp2 = ComponentConfig {
             name: "m1".to_string(),
@@ -1081,7 +1071,7 @@ mod tests {
                 )]),
             }),
         };
-        component_cfgs.push(&comp2);
+        component_cfgs.push(comp2);
 
         let comp3: ComponentConfig = ComponentConfig {
             name: "m2".to_string(),
@@ -1103,7 +1093,7 @@ mod tests {
                 )]),
             }),
         };
-        component_cfgs.push(&comp3);
+        component_cfgs.push(comp3);
 
         let comp4 = ComponentConfig {
             name: "enc2".to_string(),
@@ -1123,21 +1113,20 @@ mod tests {
                 )]),
             }),
         };
-        component_cfgs.push(&comp4);
+        component_cfgs.push(comp4);
 
-        let mut robot = LocalRobot {
-            resources: ResourceMap::new(),
-            build_time: None,
+        let robot_cfg = ConfigResponse {
+            config: Some(RobotConfig {
+                components: component_cfgs,
+                ..Default::default()
+            }),
         };
 
-        assert!(robot
-            .insert_resources(
-                &mut component_cfgs,
-                None,
-                None,
-                Box::<ComponentRegistry>::default()
-            )
-            .is_ok());
+        let robot = LocalRobot::from_cloud_config(&robot_cfg, Box::default(), None);
+
+        assert!(robot.is_ok());
+
+        let robot = robot.unwrap();
 
         let m1 = robot.get_motor_by_name("m1".to_string());
 
@@ -1161,7 +1150,7 @@ mod tests {
     }
 
     #[test_log::test]
-    fn test_insert_resources_unmet_dependency() {
+    fn test_cloud_config_missing_dependencies() {
         let mut component_cfgs = Vec::new();
 
         let comp2 = ComponentConfig {
@@ -1184,7 +1173,7 @@ mod tests {
                 )]),
             }),
         };
-        component_cfgs.push(&comp2);
+        component_cfgs.push(comp2);
 
         let comp3: ComponentConfig = ComponentConfig {
             name: "m2".to_string(),
@@ -1206,7 +1195,7 @@ mod tests {
                 )]),
             }),
         };
-        component_cfgs.push(&comp3);
+        component_cfgs.push(comp3);
 
         let comp4 = ComponentConfig {
             name: "enc2".to_string(),
@@ -1226,21 +1215,20 @@ mod tests {
                 )]),
             }),
         };
-        component_cfgs.push(&comp4);
+        component_cfgs.push(comp4);
 
-        let mut robot = LocalRobot {
-            resources: ResourceMap::new(),
-            build_time: None,
+        let robot_cfg = ConfigResponse {
+            config: Some(RobotConfig {
+                components: component_cfgs,
+                ..Default::default()
+            }),
         };
 
-        assert!(robot
-            .insert_resources(
-                &mut component_cfgs,
-                None,
-                None,
-                Box::<ComponentRegistry>::default(),
-            )
-            .is_ok());
+        let robot = LocalRobot::from_cloud_config(&robot_cfg, Box::default(), None);
+
+        assert!(robot.is_ok());
+
+        let robot = robot.unwrap();
 
         let m1 = robot.get_motor_by_name("m1".to_string());
 
