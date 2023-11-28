@@ -1,7 +1,9 @@
 use micro_rdk_macros::DoCommand;
 
 pub trait DoCommand {
-    fn do_command(&self) -> u8 { 1 }
+    fn do_command(&self) -> u8 {
+        1
+    }
 }
 
 pub trait TestTrait: DoCommand {
@@ -12,7 +14,9 @@ pub trait TestTrait: DoCommand {
 pub struct TestStruct {}
 
 impl TestTrait for TestStruct {
-    fn test_fn(&self) -> u8 { 2 }
+    fn test_fn(&self) -> u8 {
+        2
+    }
 }
 
 #[test]
