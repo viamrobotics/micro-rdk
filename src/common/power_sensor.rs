@@ -14,14 +14,14 @@ pub enum PowerSupplyType {
 
 #[derive(Debug, Copy, Clone)]
 pub struct Voltage {
-    volts: f64,
-    power_supply_type: PowerSupplyType,
+    pub volts: f64,
+    pub power_supply_type: PowerSupplyType,
 }
 
 #[derive(Debug, Copy, Clone)]
 pub struct Current {
-    amperes: f64,
-    power_supply_type: PowerSupplyType,
+    pub amperes: f64,
+    pub power_supply_type: PowerSupplyType,
 }
 
 impl From<Voltage> for component::power_sensor::v1::GetVoltageResponse {
@@ -49,12 +49,12 @@ impl From<Current> for component::power_sensor::v1::GetCurrentResponse {
 }
 
 pub trait PowerSensor: Status + DoCommand {
-    fn get_voltage(&self) -> anyhow::Result<Voltage>;
+    fn get_voltage(&mut self) -> anyhow::Result<Voltage>;
 
-    fn get_current(&self) -> anyhow::Result<Current>;
+    fn get_current(&mut self) -> anyhow::Result<Current>;
 
     /// returns the power reading in watts
-    fn get_power(&self) -> anyhow::Result<f64>;
+    fn get_power(&mut self) -> anyhow::Result<f64>;
 }
 
 pub type PowerSensorType = Arc<Mutex<dyn PowerSensor>>;
@@ -63,16 +63,16 @@ impl<P> PowerSensor for Mutex<P>
 where
     P: ?Sized + PowerSensor,
 {
-    fn get_current(&self) -> anyhow::Result<Current> {
-        self.lock().unwrap().get_current()
+    fn get_current(&mut self) -> anyhow::Result<Current> {
+        self.get_mut().unwrap().get_current()
     }
 
-    fn get_voltage(&self) -> anyhow::Result<Voltage> {
-        self.lock().unwrap().get_voltage()
+    fn get_voltage(&mut self) -> anyhow::Result<Voltage> {
+        self.get_mut().unwrap().get_voltage()
     }
 
-    fn get_power(&self) -> anyhow::Result<f64> {
-        self.lock().unwrap().get_power()
+    fn get_power(&mut self) -> anyhow::Result<f64> {
+        self.get_mut().unwrap().get_power()
     }
 }
 
@@ -80,15 +80,15 @@ impl<A> PowerSensor for Arc<Mutex<A>>
 where
     A: ?Sized + PowerSensor,
 {
-    fn get_current(&self) -> anyhow::Result<Current> {
+    fn get_current(&mut self) -> anyhow::Result<Current> {
         self.lock().unwrap().get_current()
     }
 
-    fn get_voltage(&self) -> anyhow::Result<Voltage> {
+    fn get_voltage(&mut self) -> anyhow::Result<Voltage> {
         self.lock().unwrap().get_voltage()
     }
 
-    fn get_power(&self) -> anyhow::Result<f64> {
+    fn get_power(&mut self) -> anyhow::Result<f64> {
         self.lock().unwrap().get_power()
     }
 }
