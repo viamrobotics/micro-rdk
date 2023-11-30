@@ -82,7 +82,7 @@ pub enum RobotError {
     #[error(transparent)]
     RobotRegistryError(#[from] RegistryError),
     #[error("missing {0} dependency for {1}")]
-    RobotDepencyMissing(String, String),
+    RobotDependencyMissing(String, String),
     #[error(transparent)]
     RobotResourceBuildError(#[from] anyhow::Error),
     #[error(transparent)]
@@ -274,7 +274,7 @@ impl LocalRobot {
                 let res = match self.resources.get(&r_name) {
                     Some(r) => r.clone(),
                     None => {
-                        return Err(RobotError::RobotDepencyMissing(
+                        return Err(RobotError::RobotDependencyMissing(
                             key.1,
                             config.name.to_owned(),
                         ));
