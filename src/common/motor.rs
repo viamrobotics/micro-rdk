@@ -112,62 +112,6 @@ pub struct FakeMotor {
     max_rpm: f64,
 }
 
-impl TryFrom<Kind> for MotorPinsConfig {
-    type Error = AttributeError;
-    fn try_from(value: Kind) -> Result<Self, Self::Error> {
-        let a = match value.get("a") {
-            Ok(opt) => match opt {
-                Some(val) => Some(val.try_into()?),
-                None => None,
-            },
-            Err(err) => match err {
-                AttributeError::KeyNotFound(_) => None,
-                _ => {
-                    return Err(err);
-                }
-            },
-        };
-        let b = match value.get("b") {
-            Ok(opt) => match opt {
-                Some(val) => Some(val.try_into()?),
-                None => None,
-            },
-            Err(err) => match err {
-                AttributeError::KeyNotFound(_) => None,
-                _ => {
-                    return Err(err);
-                }
-            },
-        };
-        let dir = match value.get("dir") {
-            Ok(opt) => match opt {
-                Some(val) => Some(val.try_into()?),
-                None => None,
-            },
-            Err(err) => match err {
-                AttributeError::KeyNotFound(_) => None,
-                _ => {
-                    return Err(err);
-                }
-            },
-        };
-        let pwm = match value.get("pwm") {
-            Ok(opt) => match opt {
-                Some(val) => Some(val.try_into()?),
-                None => None,
-            },
-            Err(err) => match err {
-                AttributeError::KeyNotFound(_) => None,
-                _ => {
-                    return Err(err);
-                }
-            },
-        };
-
-        Ok(Self { a, b, dir, pwm })
-    }
-}
-
 impl TryFrom<&Kind> for MotorPinsConfig {
     type Error = AttributeError;
     fn try_from(value: &Kind) -> Result<Self, Self::Error> {

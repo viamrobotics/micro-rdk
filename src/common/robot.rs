@@ -116,6 +116,10 @@ impl LocalRobot {
     pub fn new() -> Self {
         Default::default()
     }
+    // Inserts components in order of dependency. If a component's dependencies are not satisfied it is
+    // temporarily skipped and sent to the end of the queue. This process repeats until all the components
+    // are added (or a max number of iterations are reached, indicating a configuration error). We have not
+    // selected the most time-efficient algorithm for solving this problem in order to minimize memory usage
     fn process_components(
         &mut self,
         mut components: Vec<Option<DynamicComponentConfig>>,
@@ -147,6 +151,7 @@ impl LocalRobot {
             num_iteration += 1;
             let cfg = &mut components[iter.next().unwrap()];
             if let Some(cfg) = cfg.as_ref() {
+                // capture the error and make it available to LocalRobot so it can be pushed in the logs?
                 if self
                     .build_resource(cfg, board.clone(), board_key.clone(), &mut registry)
                     .is_err()
@@ -158,6 +163,16 @@ impl LocalRobot {
             }
             let _ = cfg.take();
             resource_to_build -= 1;
+        }
+        if resource_to_build > 0 {
+            log::error!(
+                "These components couldn't be built {:?}. Check for errors, missing or circular dependencies in the config.",
+                components
+                    .into_iter()
+                    .flatten()
+                    .map(|x| x.name)
+                    .collect::<Vec<String>>()
+            )
         }
         Ok(())
     }
@@ -269,11 +284,6 @@ impl LocalRobot {
             })
             .collect()
     }
-
-    // Inserts components in order of dependency. If a component's dependencies are not satisfied it is
-    // temporarily skipped and sent to the end of the queue. This process repeats until all the components
-    // are added (or a max number of iterations are reached, indicating a configuration error). We have not
-    // selected the most time-efficient algorithm for solving this problem in order to minimize memory usage
 
     fn insert_resource(
         &mut self,
