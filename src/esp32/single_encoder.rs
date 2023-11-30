@@ -8,7 +8,6 @@ use crate::common::encoder::{
     Direction, Encoder, EncoderPosition, EncoderPositionType, EncoderSupportedRepresentations,
     EncoderType, SingleEncoder,
 };
-use crate::common::generic::DoCommand;
 use crate::common::registry::{ComponentRegistry, Dependency};
 use crate::google;
 

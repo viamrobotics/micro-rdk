@@ -1,8 +1,15 @@
 use std::sync::{Arc, Mutex};
 
-use crate::proto::component;
+use crate::{
+    google::protobuf::{value::Kind, Value},
+    proto::component,
+};
 
-use super::{generic::DoCommand, status::Status};
+use super::{
+    generic::DoCommand,
+    sensor::{GenericReadingsResult, Readings},
+    status::Status,
+};
 
 pub static COMPONENT_NAME: &str = "power_sensor";
 
@@ -48,7 +55,7 @@ impl From<Current> for component::power_sensor::v1::GetCurrentResponse {
     }
 }
 
-pub trait PowerSensor: Status + DoCommand {
+pub trait PowerSensor: Status + Readings + DoCommand {
     fn get_voltage(&mut self) -> anyhow::Result<Voltage>;
 
     fn get_current(&mut self) -> anyhow::Result<Current>;
@@ -58,6 +65,45 @@ pub trait PowerSensor: Status + DoCommand {
 }
 
 pub type PowerSensorType = Arc<Mutex<dyn PowerSensor>>;
+
+pub fn get_power_sensor_generic_readings(
+    ps: &mut dyn PowerSensor,
+) -> anyhow::Result<GenericReadingsResult> {
+    let voltage = ps.get_voltage()?;
+    let current = ps.get_current()?;
+    let power = ps.get_power()?;
+
+    let res = std::collections::HashMap::from([
+        (
+            "volts".to_string(),
+            Value {
+                kind: Some(Kind::NumberValue(voltage.volts)),
+            },
+        ),
+        (
+            "amps".to_string(),
+            Value {
+                kind: Some(Kind::NumberValue(current.amperes)),
+            },
+        ),
+        (
+            "is_ac".to_string(),
+            Value {
+                kind: Some(Kind::BoolValue(matches!(
+                    voltage.power_supply_type,
+                    PowerSupplyType::AC
+                ))),
+            },
+        ),
+        (
+            "watts".to_string(),
+            Value {
+                kind: Some(Kind::NumberValue(power)),
+            },
+        ),
+    ]);
+    Ok(res)
+}
 
 impl<P> PowerSensor for Mutex<P>
 where

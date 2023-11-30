@@ -3,8 +3,10 @@ use super::config::ConfigType;
 use super::generic::DoCommand;
 use super::math_utils::Vector3;
 use super::registry::{ComponentRegistry, Dependency};
+use super::sensor::{GenericReadingsResult, Readings};
 use super::status::Status;
 use crate::google;
+use crate::google::protobuf::{value::Kind, Struct, Value};
 use crate::proto::common::v1::GeoPoint;
 use crate::proto::component::movement_sensor;
 
@@ -54,6 +56,35 @@ pub struct GeoPosition {
     pub alt: f32,
 }
 
+impl From<GeoPosition> for Value {
+    fn from(value: GeoPosition) -> Self {
+        let mut fields = HashMap::new();
+        fields.insert(
+            "lat".to_string(),
+            Value {
+                kind: Some(google::protobuf::value::Kind::NumberValue(value.lat)),
+            },
+        );
+        fields.insert(
+            "lon".to_string(),
+            Value {
+                kind: Some(google::protobuf::value::Kind::NumberValue(value.lon)),
+            },
+        );
+        fields.insert(
+            "alt".to_string(),
+            Value {
+                kind: Some(google::protobuf::value::Kind::NumberValue(value.alt as f64)),
+            },
+        );
+        Value {
+            kind: Some(google::protobuf::value::Kind::StructValue(Struct {
+                fields,
+            })),
+        }
+    }
+}
+
 impl From<GeoPosition> for movement_sensor::v1::GetPositionResponse {
     fn from(pos: GeoPosition) -> movement_sensor::v1::GetPositionResponse {
         let pt = GeoPoint {
@@ -69,7 +100,7 @@ impl From<GeoPosition> for movement_sensor::v1::GetPositionResponse {
 
 // A trait for implementing a movement sensor component driver. TODO: add
 // get_orientation and get_accuracy if/when they become supportable.
-pub trait MovementSensor: Status + DoCommand {
+pub trait MovementSensor: Status + Readings + DoCommand {
     fn get_position(&mut self) -> anyhow::Result<GeoPosition>;
     fn get_linear_velocity(&mut self) -> anyhow::Result<Vector3>;
     fn get_angular_velocity(&mut self) -> anyhow::Result<Vector3>;
@@ -80,7 +111,44 @@ pub trait MovementSensor: Status + DoCommand {
 
 pub type MovementSensorType = Arc<Mutex<dyn MovementSensor>>;
 
-#[derive(DoCommand)]
+pub fn get_movement_sensor_generic_readings(
+    ms: &mut dyn MovementSensor,
+) -> anyhow::Result<GenericReadingsResult> {
+    let mut res = std::collections::HashMap::new();
+    let supported_methods = ms.get_properties();
+    if supported_methods.position_supported {
+        res.insert("position".to_string(), ms.get_position()?.into());
+    }
+    if supported_methods.linear_velocity_supported {
+        res.insert(
+            "linear_velocity".to_string(),
+            ms.get_linear_velocity()?.into(),
+        );
+    }
+    if supported_methods.linear_acceleration_supported {
+        res.insert(
+            "linear_acceleration".to_string(),
+            ms.get_linear_acceleration()?.into(),
+        );
+    }
+    if supported_methods.angular_velocity_supported {
+        res.insert(
+            "angular_velocity".to_string(),
+            ms.get_angular_velocity()?.into(),
+        );
+    }
+    if supported_methods.compass_heading_supported {
+        res.insert(
+            "compass_heading".to_string(),
+            Value {
+                kind: Some(Kind::NumberValue(ms.get_compass_heading()?)),
+            },
+        );
+    }
+    Ok(res)
+}
+
+#[derive(DoCommand, MovementSensorReadings)]
 pub struct FakeMovementSensor {
     pos: GeoPosition,
     linear_acc: Vector3,

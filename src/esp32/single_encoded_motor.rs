@@ -4,7 +4,6 @@ use crate::common::actuator::Actuator;
 use crate::common::encoder::{
     Direction, Encoder, EncoderPositionType, EncoderSupportedRepresentations, SingleEncoder,
 };
-use crate::common::generic::DoCommand;
 use crate::common::motor::{Motor, MotorSupportedProperties, MotorType};
 use crate::common::status::Status;
 use crate::google;

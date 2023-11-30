@@ -15,7 +15,6 @@ use crate::{
         board::{Board, BoardType},
         config::ConfigType,
         digital_interrupt::DigitalInterruptConfig,
-        generic::DoCommand,
         i2c::I2cHandleType,
         registry::ComponentRegistry,
         status::Status,

@@ -19,7 +19,6 @@ use std::sync::{Arc, Mutex};
 use super::{
     board::Board,
     config::ConfigType,
-    generic::DoCommand,
     i2c::I2cHandleType,
     power_sensor::{Current, PowerSensor, PowerSensorType, PowerSupplyType, Voltage},
     registry::{get_board_from_dependencies, ComponentRegistry, Dependency},
@@ -119,7 +118,7 @@ impl fmt::Display for Model {
     }
 }
 
-#[derive(DoCommand)]
+#[derive(DoCommand, PowerSensorReadings)]
 struct Ina<H: I2CHandle> {
     model: Model,
     i2c_handle: H,

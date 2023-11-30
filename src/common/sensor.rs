@@ -26,9 +26,11 @@ pub type GenericReadingsResult =
 
 pub type TypedReadingsResult<T> = ::std::collections::HashMap<String, T>;
 
-pub trait Sensor: Status + DoCommand {
-    fn get_generic_readings(&self) -> anyhow::Result<GenericReadingsResult>;
+pub trait Readings {
+    fn get_generic_readings(&mut self) -> anyhow::Result<GenericReadingsResult>;
 }
+
+pub trait Sensor: Readings + Status + DoCommand {}
 
 pub type SensorType = Arc<Mutex<dyn Sensor>>;
 
@@ -74,8 +76,10 @@ impl Default for FakeSensor {
     }
 }
 
-impl Sensor for FakeSensor {
-    fn get_generic_readings(&self) -> anyhow::Result<GenericReadingsResult> {
+impl Sensor for FakeSensor {}
+
+impl Readings for FakeSensor {
+    fn get_generic_readings(&mut self) -> anyhow::Result<GenericReadingsResult> {
         Ok(self
             .get_readings()?
             .into_iter()
@@ -92,11 +96,24 @@ impl SensorT<f64> for FakeSensor {
     }
 }
 
-impl<A> Sensor for Mutex<A>
+impl<A> Sensor for Mutex<A> where A: ?Sized + Sensor {}
+
+impl<A> Sensor for Arc<Mutex<A>> where A: ?Sized + Sensor {}
+
+impl<A> Readings for Mutex<A>
 where
-    A: ?Sized + Sensor,
+    A: ?Sized + Readings,
 {
-    fn get_generic_readings(&self) -> anyhow::Result<GenericReadingsResult> {
+    fn get_generic_readings(&mut self) -> anyhow::Result<GenericReadingsResult> {
+        self.get_mut().unwrap().get_generic_readings()
+    }
+}
+
+impl<A> Readings for Arc<Mutex<A>>
+where
+    A: ?Sized + Readings,
+{
+    fn get_generic_readings(&mut self) -> anyhow::Result<GenericReadingsResult> {
         self.lock().unwrap().get_generic_readings()
     }
 }
