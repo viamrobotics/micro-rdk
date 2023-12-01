@@ -46,7 +46,7 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 
 const READING_START_REGISTER: u8 = 59;
 const STANDBY_MODE_REGISTER: u8 = 107;
-const MAX_U16: f64 = 32768.0;
+const MAX_I16: f64 = 32768.0;
 
 #[derive(DoCommand)]
 pub struct MPU6050 {
@@ -123,9 +123,9 @@ fn get_angular_velocity_from_reading(reading: &[u8; 14]) -> Vector3 {
 
     let max_velocity: f64 = 250.0;
 
-    let x = f64::from(unscaled_x) * max_velocity / MAX_U16;
-    let y = f64::from(unscaled_y) * max_velocity / MAX_U16;
-    let z = f64::from(unscaled_z) * max_velocity / MAX_U16;
+    let x = f64::from(unscaled_x) * max_velocity / MAX_I16;
+    let y = f64::from(unscaled_y) * max_velocity / MAX_I16;
+    let z = f64::from(unscaled_z) * max_velocity / MAX_I16;
     Vector3 { x, y, z }
 }
 
@@ -138,9 +138,9 @@ fn get_linear_acceleration_from_reading(reading: &[u8; 14]) -> Vector3 {
 
     let max_acceleration: f64 = 2.0 * 9.81;
 
-    let x = f64::from(unscaled_x) * max_acceleration / MAX_U16;
-    let y = f64::from(unscaled_y) * max_acceleration / MAX_U16;
-    let z = f64::from(unscaled_z) * max_acceleration / MAX_U16;
+    let x = f64::from(unscaled_x) * max_acceleration / MAX_I16;
+    let y = f64::from(unscaled_y) * max_acceleration / MAX_I16;
+    let z = f64::from(unscaled_z) * max_acceleration / MAX_I16;
     Vector3 { x, y, z }
 }
 
