@@ -220,6 +220,12 @@ mod tests {
         assert_eq!(ang_vel.x, 125.0);
         assert_eq!(ang_vel.y, 62.5);
         assert_eq!(ang_vel.z, 31.25);
+
+        let reading: [u8; 14] = [0, 0, 0, 0, 0, 0, 0, 0, 64, 0, 130, 0, 16, 0];
+        let ang_vel = get_angular_velocity_from_reading(&reading);
+        assert_eq!(ang_vel.x, 125.0);
+        assert_eq!(ang_vel.y, -246.09375);
+        assert_eq!(ang_vel.z, 31.25);
         Ok(())
     }
 }
