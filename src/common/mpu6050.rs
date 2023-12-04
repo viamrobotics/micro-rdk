@@ -22,7 +22,6 @@ use crate::google;
 
 use super::board::Board;
 use super::config::ConfigType;
-use super::generic::DoCommand;
 use super::i2c::I2CHandle;
 use super::movement_sensor::MovementSensorType;
 use super::registry::{get_board_from_dependencies, ComponentRegistry, Dependency};
@@ -48,7 +47,7 @@ const READING_START_REGISTER: u8 = 59;
 const STANDBY_MODE_REGISTER: u8 = 107;
 const MAX_I16: f64 = 32768.0;
 
-#[derive(DoCommand)]
+#[derive(DoCommand, MovementSensorReadings)]
 pub struct MPU6050 {
     i2c_handle: I2cHandleType,
     i2c_address: u8,

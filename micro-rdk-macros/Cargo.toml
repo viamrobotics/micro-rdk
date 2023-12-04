@@ -9,8 +9,14 @@ edition = "2021"
 proc-macro = true
 
 [dependencies]
+proc-macro-crate = "2.0.0"
+proc-macro2 = "1.0.67"
 quote = "1.0.33"
 syn = "1.0.109"
+
+[dev-dependencies]
+anyhow = { version = "1", features = ["backtrace"] }
+micro-rdk = { path = "../", features = ["native"] }
 
 [[test]]
 name = "do-command-tests"

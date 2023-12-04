@@ -435,7 +435,8 @@ mod tests {
         registry::{ComponentRegistry, Dependency, RegistryError},
         robot::LocalRobot,
         sensor::{
-            GenericReadingsResult, Sensor, SensorResult, SensorT, SensorType, TypedReadingsResult,
+            GenericReadingsResult, Readings, Sensor, SensorResult, SensorT, SensorType,
+            TypedReadingsResult,
         },
         status::Status,
     };
@@ -462,8 +463,10 @@ mod tests {
         }
     }
 
-    impl Sensor for TestSensor {
-        fn get_generic_readings(&self) -> anyhow::Result<GenericReadingsResult> {
+    impl Sensor for TestSensor {}
+
+    impl Readings for TestSensor {
+        fn get_generic_readings(&mut self) -> anyhow::Result<GenericReadingsResult> {
             Ok(self
                 .get_readings()?
                 .into_iter()

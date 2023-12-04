@@ -2,7 +2,6 @@
 use crate::common::actuator::Actuator;
 use crate::common::base::{Base, BaseType, COMPONENT_NAME as BaseCompName};
 use crate::common::config::ConfigType;
-use crate::common::generic::DoCommand;
 use crate::common::motor::{Motor, MotorType, COMPONENT_NAME as MotorCompName};
 use crate::common::registry::{ComponentRegistry, Dependency, ResourceKey};
 use crate::common::robot::Resource;

@@ -23,7 +23,6 @@ use crate::common::config::ConfigType;
 use crate::common::encoder::{
     Encoder, EncoderPosition, EncoderPositionType, EncoderSupportedRepresentations, EncoderType,
 };
-use crate::common::generic::DoCommand;
 use crate::common::registry::{ComponentRegistry, Dependency};
 use crate::common::status::Status;
 use crate::google;
