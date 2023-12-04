@@ -141,12 +141,12 @@ impl Default for ComponentRegistry {
         crate::common::adxl345::register_models(&mut r);
         crate::common::generic::register_models(&mut r);
         crate::common::ina::register_models(&mut r);
+        crate::common::wheeled_base::register_models(&mut r);
         #[cfg(esp32)]
         {
             crate::esp32::board::register_models(&mut r);
             crate::esp32::encoder::register_models(&mut r);
             crate::esp32::single_encoder::register_models(&mut r);
-            crate::esp32::base::register_models(&mut r);
         }
         r
     }
