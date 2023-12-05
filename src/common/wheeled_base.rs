@@ -13,22 +13,22 @@ use std::sync::{Arc, Mutex};
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
         .register_base(
-            "micro_rdk_wheeled_base",
+            "two_wheeled_base",
             &WheeledBase::<MotorType, MotorType>::from_config,
         )
         .is_err()
     {
-        log::error!("micro_rdk_wheeled_base model is already registered")
+        log::error!("two_wheeled_base model is already registered")
     }
     if registry
         .register_dependency_getter(
             BaseCompName,
-            "micro_rdk_wheeled_base",
+            "two_wheeled_base",
             &WheeledBase::<MotorType, MotorType>::dependencies_from_config,
         )
         .is_err()
     {
-        log::error!("failed to register dependency getter for esp32_wheeled_base model")
+        log::error!("failed to register dependency getter for two_wheeled_base model")
     }
 }
 
