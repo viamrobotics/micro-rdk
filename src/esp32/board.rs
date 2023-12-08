@@ -24,16 +24,16 @@ use crate::{
 };
 
 use super::{
-    analog::{Esp32AnalogReader, Esp32RawAdcChannel},
+    analog::Esp32AnalogReader,
     i2c::{Esp32I2C, Esp32I2cConfig},
     pin::Esp32GPIOPin,
 };
 
 use esp_idf_hal::{
     adc::{config::Config, AdcChannelDriver, AdcDriver, Atten11dB, ADC1},
-    gpio::ADCPin,
     gpio::InterruptType,
 };
+
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
         .register_board("esp32", &EspBoard::from_config)
@@ -85,114 +85,106 @@ impl EspBoard {
                             let chan: Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>> =
                                 match v.pin {
                                     32 => {
-                                        let pin = unsafe { esp_idf_hal::gpio::Gpio32::new() };
-                                        let adc_channel = Esp32RawAdcChannel(pin.adc_channel());
                                         let p: Rc<
                                             RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>,
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(pin)
-                                                .ok()?,
+                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(unsafe {
+                                                esp_idf_hal::gpio::Gpio32::new()
+                                            })
+                                            .ok()?,
                                             adc1,
-                                            adc_channel,
                                         )));
                                         Some(p)
                                     }
                                     33 => {
-                                        let pin = unsafe { esp_idf_hal::gpio::Gpio33::new() };
-                                        let adc_channel = Esp32RawAdcChannel(pin.adc_channel());
                                         let p: Rc<
                                             RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>,
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(pin)
-                                                .ok()?,
+                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(unsafe {
+                                                esp_idf_hal::gpio::Gpio33::new()
+                                            })
+                                            .ok()?,
                                             adc1,
-                                            adc_channel,
                                         )));
                                         Some(p)
                                     }
                                     34 => {
-                                        let pin = unsafe { esp_idf_hal::gpio::Gpio34::new() };
-                                        let adc_channel = Esp32RawAdcChannel(pin.adc_channel());
                                         let p: Rc<
                                             RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>,
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(pin)
-                                                .ok()?,
+                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(unsafe {
+                                                esp_idf_hal::gpio::Gpio34::new()
+                                            })
+                                            .ok()?,
                                             adc1,
-                                            adc_channel,
                                         )));
                                         Some(p)
                                     }
                                     35 => {
-                                        let pin = unsafe { esp_idf_hal::gpio::Gpio35::new() };
-                                        let adc_channel = Esp32RawAdcChannel(pin.adc_channel());
                                         let p: Rc<
                                             RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>,
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(pin)
-                                                .ok()?,
+                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(unsafe {
+                                                esp_idf_hal::gpio::Gpio35::new()
+                                            })
+                                            .ok()?,
                                             adc1,
-                                            adc_channel,
                                         )));
                                         Some(p)
                                     }
                                     36 => {
-                                        let pin = unsafe { esp_idf_hal::gpio::Gpio36::new() };
-                                        let adc_channel = Esp32RawAdcChannel(pin.adc_channel());
                                         let p: Rc<
                                             RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>,
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(pin)
-                                                .ok()?,
+                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(unsafe {
+                                                esp_idf_hal::gpio::Gpio36::new()
+                                            })
+                                            .ok()?,
                                             adc1,
-                                            adc_channel,
                                         )));
                                         Some(p)
                                     }
                                     37 => {
-                                        let pin = unsafe { esp_idf_hal::gpio::Gpio37::new() };
-                                        let adc_channel = Esp32RawAdcChannel(pin.adc_channel());
                                         let p: Rc<
                                             RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>,
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(pin)
-                                                .ok()?,
+                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(unsafe {
+                                                esp_idf_hal::gpio::Gpio37::new()
+                                            })
+                                            .ok()?,
                                             adc1,
-                                            adc_channel,
                                         )));
                                         Some(p)
                                     }
                                     38 => {
-                                        let pin = unsafe { esp_idf_hal::gpio::Gpio38::new() };
-                                        let adc_channel = Esp32RawAdcChannel(pin.adc_channel());
                                         let p: Rc<
                                             RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>,
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(pin)
-                                                .ok()?,
+                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(unsafe {
+                                                esp_idf_hal::gpio::Gpio38::new()
+                                            })
+                                            .ok()?,
                                             adc1,
-                                            adc_channel,
                                         )));
                                         Some(p)
                                     }
                                     39 => {
-                                        let pin = unsafe { esp_idf_hal::gpio::Gpio39::new() };
-                                        let adc_channel = Esp32RawAdcChannel(pin.adc_channel());
                                         let p: Rc<
                                             RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>,
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(pin)
-                                                .ok()?,
+                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(unsafe {
+                                                esp_idf_hal::gpio::Gpio39::new()
+                                            })
+                                            .ok()?,
                                             adc1,
-                                            adc_channel,
                                         )));
                                         Some(p)
                                     }
