@@ -7,7 +7,7 @@ name = "micro-rdk"
 repository = "https://github.com/viamrobotics/micro-rdk"
 resolver = "2"
 version = "0.1.4"
-rust-version = "1.67"
+rust-version = "1.71"
 
 [lib]
 crate-type = ["lib"]
@@ -35,10 +35,10 @@ async-io = "=1.12.0"
 bytes = "1.2.1"
 either = "1.8.0"
 embedded-hal = { version = "0.2.7", features = ["unproven"], optional = true }
-embedded-svc = { version = "0.25.1", optional = true }
-esp-idf-hal = { version="0.41.1", optional = true }
-esp-idf-svc = { version = "0.46.0",  optional = true }
-esp-idf-sys = { version = "0.33.1", features = ["binstart"],  optional = true }
+embedded-svc = { version = "0.26.4", optional = true }
+esp-idf-hal = { version = "0.42.5", optional = true }
+esp-idf-svc = { version = "0.47.3",  optional = true }
+esp-idf-sys = { version = "0.33.7", features = ["binstart"],  optional = true }
 futures = "0.3.28"
 futures-lite = "1.12.0"
 h2 = "0.3.14"
