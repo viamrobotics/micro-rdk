@@ -1,5 +1,5 @@
+//! The exec module exposes helpers to execute futures on an ESP32
 use crate::common::webrtc::exec::WebRtcExecutor;
-///! The exec module exposes helpers to execute futures on an ESP32
 use futures_lite::{
     future::{self, block_on},
     Future,
@@ -54,6 +54,6 @@ where
         self.executor.spawn(fut).detach();
     }
     fn block_on<T>(&self, fut: impl Future<Output = T>) -> T {
-        block_on(self.run(async { fut.await }))
+        block_on(self.run(fut))
     }
 }

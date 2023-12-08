@@ -30,7 +30,10 @@ use super::{
 };
 
 use esp_idf_hal::{
-    adc::{config::Config, AdcChannelDriver, AdcDriver, Atten11dB, ADC1},
+    adc::{
+        attenuation::adc_atten_t_ADC_ATTEN_DB_11 as Atten11dB, config::Config, AdcChannelDriver,
+        AdcDriver, ADC1,
+    },
     gpio::InterruptType,
 };
 
@@ -89,7 +92,7 @@ impl EspBoard {
                                             RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>,
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(unsafe {
+                                            AdcChannelDriver::<Atten11dB, _>::new(unsafe {
                                                 esp_idf_hal::gpio::Gpio32::new()
                                             })
                                             .ok()?,
@@ -102,7 +105,7 @@ impl EspBoard {
                                             RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>,
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(unsafe {
+                                            AdcChannelDriver::<Atten11dB, _>::new(unsafe {
                                                 esp_idf_hal::gpio::Gpio33::new()
                                             })
                                             .ok()?,
@@ -115,7 +118,7 @@ impl EspBoard {
                                             RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>,
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(unsafe {
+                                            AdcChannelDriver::<Atten11dB, _>::new(unsafe {
                                                 esp_idf_hal::gpio::Gpio34::new()
                                             })
                                             .ok()?,
@@ -128,7 +131,7 @@ impl EspBoard {
                                             RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>,
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(unsafe {
+                                            AdcChannelDriver::<Atten11dB, _>::new(unsafe {
                                                 esp_idf_hal::gpio::Gpio35::new()
                                             })
                                             .ok()?,
@@ -141,7 +144,7 @@ impl EspBoard {
                                             RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>,
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(unsafe {
+                                            AdcChannelDriver::<Atten11dB, _>::new(unsafe {
                                                 esp_idf_hal::gpio::Gpio36::new()
                                             })
                                             .ok()?,
@@ -154,7 +157,7 @@ impl EspBoard {
                                             RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>,
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(unsafe {
+                                            AdcChannelDriver::<Atten11dB, _>::new(unsafe {
                                                 esp_idf_hal::gpio::Gpio37::new()
                                             })
                                             .ok()?,
@@ -167,7 +170,7 @@ impl EspBoard {
                                             RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>,
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(unsafe {
+                                            AdcChannelDriver::<Atten11dB, _>::new(unsafe {
                                                 esp_idf_hal::gpio::Gpio38::new()
                                             })
                                             .ok()?,
@@ -180,7 +183,7 @@ impl EspBoard {
                                             RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>,
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::<_, Atten11dB<ADC1>>::new(unsafe {
+                                            AdcChannelDriver::<Atten11dB, _>::new(unsafe {
                                                 esp_idf_hal::gpio::Gpio39::new()
                                             })
                                             .ok()?,

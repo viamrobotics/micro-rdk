@@ -1,5 +1,5 @@
-FROM rust:1.70.0-bullseye AS builder
-RUN apt update && apt-get install -y --no-install-recommends git libudev-dev make bzip2 gcc libgcrypt20 libgcrypt20-dev  ninja-build libudev-dev sudo wget git flex bison gperf ccache libffi-dev libssl-dev dfu-util libusb-1.0-0 cmake pkg-config libglib2.0-dev libpixman-1-dev software-properties-common openssh-client libslirp-dev
+FROM rust:1.74-bullseye AS builder
+RUN apt update && apt-get install -y --no-install-recommends git libudev-dev make bzip2 gcc libgcrypt20 libgcrypt20-dev  ninja-build libudev-dev sudo wget git flex bison gperf ccache libffi-dev libssl-dev dfu-util libusb-1.0-0 cmake pkg-config libglib2.0-dev libpixman-1-dev software-properties-common openssh-client libslirp-dev python3-venv
 
 RUN cargo install cargo-binstall
 RUN cargo binstall cargo-espflash@2.0.0-rc.1 --install-path /usr/ -y
@@ -20,7 +20,7 @@ RUN git clone --depth 1 -b v4.4.4 --single-branch --recurse-submodules --shallow
 
 FROM debian:bullseye
 
-ARG RUST_VERSION=1.67.0
+ARG RUST_VERSION=1.71.0
 
 ENV DEBIAN_FRONTEND noninteractive
 ENV DEBCONF_NOWARNINGS="yes"
@@ -38,7 +38,7 @@ RUN echo "deb http://deb.debian.org/debian bullseye-backports main" >> /etc/apt/
 
 RUN apt update 
 
-RUN apt-get install -y --no-install-recommends git wget flex bison gperf python3 python3-pip python3-venv cmake ninja-build ccache libffi-dev libssl-dev libudev-dev dfu-util libusb-1.0-0 openssh-client software-properties-common sudo && \
+RUN apt-get install -y --no-install-recommends git wget flex bison gperf python3 python3-pip python3-venv cmake ninja-build ccache libffi-dev libssl-dev libudev-dev dfu-util libusb-1.0-0 openssh-client software-properties-common python3-venv sudo && \
     apt-add-repository 'deb http://deb.debian.org/debian bullseye-backports main' && \
     apt update && \
     apt-get install -y --no-install-recommends cmake/bullseye-backports && \
