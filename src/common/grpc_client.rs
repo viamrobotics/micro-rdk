@@ -271,7 +271,7 @@ impl<'a> GrpcClient<'a> {
         // send the body of the request and let the server know we have nothing else to send
         send.send_data(body, true)?;
 
-        let (part, mut body) = block_on(self.executor.run(async { response.await }))?.into_parts();
+        let (part, mut body) = block_on(self.executor.run(response))?.into_parts();
 
         if part.status != status::StatusCode::OK {
             log::error!("received status code {}", part.status.to_string());

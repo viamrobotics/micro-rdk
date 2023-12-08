@@ -46,7 +46,7 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 
 pub struct PulseStorage {
     pub acc: Arc<AtomicI32>,
-    pub unit: u32,
+    pub unit: i32,
 }
 
 #[derive(DoCommand)]

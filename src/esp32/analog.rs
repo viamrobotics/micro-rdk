@@ -1,23 +1,20 @@
 #![allow(dead_code)]
 use crate::common::analog::AnalogReader;
 use core::cell::RefCell;
-use esp_idf_hal::adc::{AdcChannelDriver, AdcDriver, Attenuation};
+use esp_idf_hal::adc::{AdcChannelDriver, AdcDriver};
 use esp_idf_hal::gpio::ADCPin;
 use std::rc::Rc;
 
-pub struct Esp32AnalogReader<'a, T: ADCPin, ATTEN> {
-    channel: AdcChannelDriver<'a, T, ATTEN>,
+pub struct Esp32AnalogReader<'a, const A: u32, T: ADCPin> {
+    channel: AdcChannelDriver<'a, A, T>,
     driver: Rc<RefCell<AdcDriver<'a, T::Adc>>>,
     name: String,
 }
 
-impl<'a, T: ADCPin, ATTEN> Esp32AnalogReader<'a, T, ATTEN>
-where
-    ATTEN: Attenuation<T::Adc>,
-{
+impl<'a, const A: u32, T: ADCPin> Esp32AnalogReader<'a, A, T> {
     pub fn new(
         name: String,
-        channel: AdcChannelDriver<'a, T, ATTEN>,
+        channel: AdcChannelDriver<'a, A, T>,
         driver: Rc<RefCell<AdcDriver<'a, T::Adc>>>,
     ) -> Self {
         Self {
@@ -37,10 +34,7 @@ where
     }
 }
 
-impl<'a, T: ADCPin, ATTEN> AnalogReader<u16> for Esp32AnalogReader<'a, T, ATTEN>
-where
-    ATTEN: Attenuation<T::Adc>,
-{
+impl<'a, const A: u32, T: ADCPin> AnalogReader<u16> for Esp32AnalogReader<'a, A, T> {
     type Error = anyhow::Error;
     fn read(&mut self) -> Result<u16, Self::Error> {
         self.inner_read()

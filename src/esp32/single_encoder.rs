@@ -47,7 +47,7 @@ pub(crate) type SingleEncoderType = Arc<Mutex<dyn SingleEncoder>>;
 
 struct PulseStorage {
     acc: Arc<AtomicI32>,
-    unit: u32,
+    unit: i32,
     moving_forwards: Arc<AtomicBool>,
 }
 
