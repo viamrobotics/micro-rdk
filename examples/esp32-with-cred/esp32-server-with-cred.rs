@@ -123,7 +123,7 @@ fn main() -> Result<(), ServerError> {
     let sys_loop_stack = EspSystemEventLoop::take()?;
 
     #[cfg(not(feature = "qemu"))]
-    let periph = Peripherals::take().ok_or(ServerError::PeripheralsError)?;
+    let periph = Peripherals::take().map_err(|_| ServerError::PeripheralsError)?;
 
     #[cfg(feature = "qemu")]
     let repr = {
