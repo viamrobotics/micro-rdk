@@ -1,11 +1,10 @@
-#![allow(dead_code)]
-use crate::common::actuator::Actuator;
-use crate::common::base::{Base, BaseType, COMPONENT_NAME as BaseCompName};
-use crate::common::config::ConfigType;
-use crate::common::motor::{Motor, MotorType, COMPONENT_NAME as MotorCompName};
-use crate::common::registry::{ComponentRegistry, Dependency, ResourceKey};
-use crate::common::robot::Resource;
-use crate::common::status::Status;
+use super::actuator::Actuator;
+use super::base::{Base, BaseType, COMPONENT_NAME as BaseCompName};
+use super::config::ConfigType;
+use super::motor::{Motor, MotorType, COMPONENT_NAME as MotorCompName};
+use super::registry::{ComponentRegistry, Dependency, ResourceKey};
+use super::robot::Resource;
+use super::status::Status;
 use crate::google;
 use crate::proto::common::v1::Vector3;
 use std::collections::HashMap;
@@ -14,38 +13,38 @@ use std::sync::{Arc, Mutex};
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
         .register_base(
-            "esp32_wheeled_base",
-            &Esp32WheelBase::<MotorType, MotorType>::from_config,
+            "two_wheeled_base",
+            &WheeledBase::<MotorType, MotorType>::from_config,
         )
         .is_err()
     {
-        log::error!("esp32_wheeled_base model is already registered")
+        log::error!("two_wheeled_base model is already registered")
     }
     if registry
         .register_dependency_getter(
             BaseCompName,
-            "esp32_wheeled_base",
-            &Esp32WheelBase::<MotorType, MotorType>::dependencies_from_config,
+            "two_wheeled_base",
+            &WheeledBase::<MotorType, MotorType>::dependencies_from_config,
         )
         .is_err()
     {
-        log::error!("failed to register dependency getter for esp32_wheeled_base model")
+        log::error!("failed to register dependency getter for two_wheeled_base model")
     }
 }
 
 #[derive(DoCommand)]
-pub struct Esp32WheelBase<ML, MR> {
+pub struct WheeledBase<ML, MR> {
     motor_right: MR,
     motor_left: ML,
 }
 
-impl<ML, MR> Esp32WheelBase<ML, MR>
+impl<ML, MR> WheeledBase<ML, MR>
 where
     ML: Motor,
     MR: Motor,
 {
     pub fn new(motor_left: ML, motor_right: MR) -> Self {
-        Esp32WheelBase {
+        WheeledBase {
             motor_right,
             motor_left,
         }
@@ -84,7 +83,7 @@ where
         }
         if let Some(l_motor) = l_motor {
             if let Some(r_motor) = r_motor {
-                Ok(Arc::new(Mutex::new(Esp32WheelBase::new(r_motor, l_motor))))
+                Ok(Arc::new(Mutex::new(WheeledBase::new(r_motor, l_motor))))
             } else {
                 anyhow::bail!(
                     "right motor for base not found in dependencies, looking for motor named {:?}",
@@ -112,7 +111,7 @@ where
         r_keys
     }
 }
-impl<ML, MR> Status for Esp32WheelBase<ML, MR>
+impl<ML, MR> Status for WheeledBase<ML, MR>
 where
     ML: Motor,
     MR: Motor,
@@ -129,7 +128,7 @@ where
     }
 }
 
-impl<ML, MR> Actuator for Esp32WheelBase<ML, MR>
+impl<ML, MR> Actuator for WheeledBase<ML, MR>
 where
     ML: Motor,
     MR: Motor,
@@ -144,7 +143,7 @@ where
     }
 }
 
-impl<ML, MR> Base for Esp32WheelBase<ML, MR>
+impl<ML, MR> Base for WheeledBase<ML, MR>
 where
     ML: Motor,
     MR: Motor,

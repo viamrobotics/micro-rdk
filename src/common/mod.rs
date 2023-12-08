@@ -56,6 +56,7 @@ pub mod robot;
 pub mod sensor;
 pub mod servo;
 pub mod status;
+pub mod wheeled_base;
 pub mod webrtc {
     pub mod api;
     pub mod candidates;
