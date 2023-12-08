@@ -735,7 +735,7 @@ mod tests {
     use crate::common::motor::Motor;
     use crate::common::movement_sensor::MovementSensor;
     use crate::common::robot::LocalRobot;
-    use crate::common::sensor::Sensor;
+    use crate::common::sensor::Readings;
     use crate::google;
     use crate::google::protobuf::Struct;
     use crate::proto::app::v1::{ComponentConfig, ConfigResponse, RobotConfig};

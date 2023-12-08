@@ -10,6 +10,8 @@ pub mod native;
 pub extern crate micro_rdk_macros;
 
 pub use micro_rdk_macros::DoCommand;
+pub use micro_rdk_macros::MovementSensorReadings;
+pub use micro_rdk_macros::PowerSensorReadings;
 
 /// gRPC protobuf utilities, auto-generated
 pub mod google {

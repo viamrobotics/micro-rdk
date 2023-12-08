@@ -49,7 +49,6 @@ use super::config::ConfigType;
 use super::encoder::{
     Encoder, EncoderPositionType, EncoderType, COMPONENT_NAME as EncoderCompName,
 };
-use super::generic::DoCommand;
 use super::math_utils::go_for_math;
 use super::motor::{
     Motor, MotorPinType, MotorPinsConfig, MotorSupportedProperties, MotorType,

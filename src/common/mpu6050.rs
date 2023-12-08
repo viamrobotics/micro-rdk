@@ -1,4 +1,20 @@
-#![allow(dead_code)]
+//! Package mpu6050 implements the movementsensor interface for an MPU-6050 6-axis accelerometer. A
+//! datasheet for this chip is at
+//! https://components101.com/sites/default/files/component_datasheet/MPU6050-DataSheet.pdf and a
+//! description of the I2C registers is at
+//! https://download.datasheets.com/pdfs/2015/3/19/8/3/59/59/invse_/manual/5rm-mpu-6000a-00v4.2.pdf
+//!
+//! We support reading the accelerometer, gyroscope, and thermometer data off of the chip. We do not
+//! yet support using the digital interrupt pin to notify on events (freefall, collision, etc.),
+//! nor do we yet support using the secondary I2C connection to add an external clock or
+//! magnetometer.
+//!
+//! The chip has two possible I2C addresses, which can be selected by wiring the AD0 pin to either
+//! hot or ground:
+//!   - if AD0 is wired to ground, it uses the default I2C address of 0x68
+//!   - if AD0 is wired to hot, it uses the alternate I2C address of 0x69
+//!
+
 use crate::common::i2c::I2cHandleType;
 use crate::common::math_utils::Vector3;
 use crate::common::movement_sensor::{MovementSensor, MovementSensorSupportedMethods};
@@ -6,7 +22,6 @@ use crate::google;
 
 use super::board::Board;
 use super::config::ConfigType;
-use super::generic::DoCommand;
 use super::i2c::I2CHandle;
 use super::movement_sensor::MovementSensorType;
 use super::registry::{get_board_from_dependencies, ComponentRegistry, Dependency};
@@ -30,8 +45,9 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 
 const READING_START_REGISTER: u8 = 59;
 const STANDBY_MODE_REGISTER: u8 = 107;
+const MAX_I16: f64 = 32768.0;
 
-#[derive(DoCommand)]
+#[derive(DoCommand, MovementSensorReadings)]
 pub struct MPU6050 {
     i2c_handle: I2cHandleType,
     i2c_address: u8,
@@ -98,18 +114,17 @@ impl Drop for MPU6050 {
 }
 
 fn get_angular_velocity_from_reading(reading: &[u8; 14]) -> Vector3 {
-    let (x_bytes, y_z_bytes) = reading[8..14].split_at(size_of::<u16>());
-    let unscaled_x = u16::from_be_bytes(x_bytes.try_into().unwrap());
-    let (y_bytes, z_bytes) = y_z_bytes.split_at(size_of::<u16>());
-    let unscaled_y = u16::from_be_bytes(y_bytes.try_into().unwrap());
-    let unscaled_z = u16::from_be_bytes(z_bytes.try_into().unwrap());
+    let (x_bytes, y_z_bytes) = reading[8..14].split_at(size_of::<i16>());
+    let unscaled_x = i16::from_be_bytes(x_bytes.try_into().unwrap());
+    let (y_bytes, z_bytes) = y_z_bytes.split_at(size_of::<i16>());
+    let unscaled_y = i16::from_be_bytes(y_bytes.try_into().unwrap());
+    let unscaled_z = i16::from_be_bytes(z_bytes.try_into().unwrap());
 
     let max_velocity: f64 = 250.0;
-    let max_u16: f64 = 32768.0;
 
-    let x = f64::from(unscaled_x) * max_velocity / max_u16;
-    let y = f64::from(unscaled_y) * max_velocity / max_u16;
-    let z = f64::from(unscaled_z) * max_velocity / max_u16;
+    let x = f64::from(unscaled_x) * max_velocity / MAX_I16;
+    let y = f64::from(unscaled_y) * max_velocity / MAX_I16;
+    let z = f64::from(unscaled_z) * max_velocity / MAX_I16;
     Vector3 { x, y, z }
 }
 
@@ -120,12 +135,11 @@ fn get_linear_acceleration_from_reading(reading: &[u8; 14]) -> Vector3 {
     let unscaled_y = i16::from_be_bytes(y_bytes.try_into().unwrap());
     let unscaled_z = i16::from_be_bytes(z_bytes.try_into().unwrap());
 
-    let max_acceleration: f64 = 2.0 * 9.81 * 1000.0;
-    let max_u16: f64 = 32768.0;
+    let max_acceleration: f64 = 2.0 * 9.81;
 
-    let x = f64::from(unscaled_x) * max_acceleration / max_u16;
-    let y = f64::from(unscaled_y) * max_acceleration / max_u16;
-    let z = f64::from(unscaled_z) * max_acceleration / max_u16;
+    let x = f64::from(unscaled_x) * max_acceleration / MAX_I16;
+    let y = f64::from(unscaled_y) * max_acceleration / MAX_I16;
+    let z = f64::from(unscaled_z) * max_acceleration / MAX_I16;
     Vector3 { x, y, z }
 }
 
@@ -185,16 +199,16 @@ mod tests {
     fn test_read_linear_acceleration() -> anyhow::Result<()> {
         let reading: [u8; 14] = [64, 0, 32, 0, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         let lin_acc = get_linear_acceleration_from_reading(&reading);
-        assert_eq!(lin_acc.x, 9810.0);
-        assert_eq!(lin_acc.y, 4905.0);
-        assert_eq!(lin_acc.z, 2452.5);
+        assert_eq!(lin_acc.x, 9.81);
+        assert_eq!(lin_acc.y, 4.905);
+        assert_eq!(lin_acc.z, 2.4525);
 
         let reading: [u8; 14] = [64, 0, 130, 0, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         let lin_acc = get_linear_acceleration_from_reading(&reading);
 
-        assert_eq!(lin_acc.x, 9810.0);
-        assert_eq!(lin_acc.y, -19313.4375);
-        assert_eq!(lin_acc.z, 2452.5);
+        assert_eq!(lin_acc.x, 9.81);
+        assert!((lin_acc.y - -19.3134375).abs() < 0.000001);
+        assert_eq!(lin_acc.z, 2.4525);
         Ok(())
     }
 
@@ -204,6 +218,12 @@ mod tests {
         let ang_vel = get_angular_velocity_from_reading(&reading);
         assert_eq!(ang_vel.x, 125.0);
         assert_eq!(ang_vel.y, 62.5);
+        assert_eq!(ang_vel.z, 31.25);
+
+        let reading: [u8; 14] = [0, 0, 0, 0, 0, 0, 0, 0, 64, 0, 130, 0, 16, 0];
+        let ang_vel = get_angular_velocity_from_reading(&reading);
+        assert_eq!(ang_vel.x, 125.0);
+        assert_eq!(ang_vel.y, -246.09375);
         assert_eq!(ang_vel.z, 31.25);
         Ok(())
     }

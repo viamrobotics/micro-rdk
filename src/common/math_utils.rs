@@ -1,7 +1,10 @@
 #![allow(dead_code)]
-use crate::proto::common;
+use crate::{
+    google::protobuf::{value::Kind, Struct, Value},
+    proto::common,
+};
 use anyhow::bail;
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Vector3 {
@@ -29,6 +32,35 @@ impl From<Vector3> for common::v1::Vector3 {
         }
     }
 }
+
+impl From<Vector3> for Value {
+    fn from(value: Vector3) -> Self {
+        let fields = HashMap::from([
+            (
+                "x".to_string(),
+                Value {
+                    kind: Some(Kind::NumberValue(value.x)),
+                },
+            ),
+            (
+                "y".to_string(),
+                Value {
+                    kind: Some(Kind::NumberValue(value.y)),
+                },
+            ),
+            (
+                "z".to_string(),
+                Value {
+                    kind: Some(Kind::NumberValue(value.z)),
+                },
+            ),
+        ]);
+        Self {
+            kind: Some(Kind::StructValue(Struct { fields })),
+        }
+    }
+}
+
 // If revolutions is 0, the returned wait duration will be 0 representing that
 // the motor should run indefinitely.
 pub(crate) fn go_for_math(

@@ -10,7 +10,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use super::generic::DoCommand;
+use super::sensor::Readings;
 
 #[derive(DoCommand)]
 pub struct MoistureSensor {
@@ -23,8 +23,10 @@ impl MoistureSensor {
     }
 }
 
-impl Sensor for MoistureSensor {
-    fn get_generic_readings(&self) -> anyhow::Result<GenericReadingsResult> {
+impl Sensor for MoistureSensor {}
+
+impl Readings for MoistureSensor {
+    fn get_generic_readings(&mut self) -> anyhow::Result<GenericReadingsResult> {
         Ok(self
             .get_readings()?
             .into_iter()

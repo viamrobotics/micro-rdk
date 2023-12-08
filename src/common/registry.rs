@@ -141,12 +141,12 @@ impl Default for ComponentRegistry {
         crate::common::adxl345::register_models(&mut r);
         crate::common::generic::register_models(&mut r);
         crate::common::ina::register_models(&mut r);
+        crate::common::wheeled_base::register_models(&mut r);
         #[cfg(esp32)]
         {
             crate::esp32::board::register_models(&mut r);
             crate::esp32::encoder::register_models(&mut r);
             crate::esp32::single_encoder::register_models(&mut r);
-            crate::esp32::base::register_models(&mut r);
         }
         r
     }
@@ -434,7 +434,8 @@ mod tests {
         registry::{ComponentRegistry, Dependency, RegistryError},
         robot::LocalRobot,
         sensor::{
-            GenericReadingsResult, Sensor, SensorResult, SensorT, SensorType, TypedReadingsResult,
+            GenericReadingsResult, Readings, Sensor, SensorResult, SensorT, SensorType,
+            TypedReadingsResult,
         },
         status::Status,
     };
@@ -457,8 +458,10 @@ mod tests {
         }
     }
 
-    impl Sensor for TestSensor {
-        fn get_generic_readings(&self) -> anyhow::Result<GenericReadingsResult> {
+    impl Sensor for TestSensor {}
+
+    impl Readings for TestSensor {
+        fn get_generic_readings(&mut self) -> anyhow::Result<GenericReadingsResult> {
             Ok(self
                 .get_readings()?
                 .into_iter()
