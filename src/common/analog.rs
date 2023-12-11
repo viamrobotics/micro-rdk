@@ -40,21 +40,6 @@ pub(crate) struct AnalogReaderConfig {
     pub(crate) pin: i32,
 }
 
-impl TryFrom<Kind> for AnalogReaderConfig {
-    type Error = AttributeError;
-    fn try_from(value: Kind) -> Result<Self, Self::Error> {
-        if !value.contains_key("name")? {
-            return Err(AttributeError::KeyNotFound("name".to_string()));
-        }
-        if !value.contains_key("pin")? {
-            return Err(AttributeError::KeyNotFound("pin".to_string()));
-        }
-        let name = value.get("name")?.unwrap().try_into()?;
-        let pin: i32 = value.get("pin")?.unwrap().try_into()?;
-        Ok(Self { name, pin })
-    }
-}
-
 impl TryFrom<&Kind> for AnalogReaderConfig {
     type Error = AttributeError;
     fn try_from(value: &Kind) -> Result<Self, Self::Error> {
@@ -72,26 +57,44 @@ impl TryFrom<&Kind> for AnalogReaderConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::common::config::{Component, Kind, RobotConfigStatic, StaticComponentConfig};
+    use std::collections::HashMap;
+
+    use crate::common::config::{Component, DynamicComponentConfig, Kind};
 
     use super::AnalogReaderConfig;
     #[test_log::test]
     fn test_analog_reader_config() -> anyhow::Result<()> {
-        #[allow(clippy::redundant_static_lifetimes, dead_code)]
-        const STATIC_ROBOT_CONFIG: Option<RobotConfigStatic> = Some(RobotConfigStatic {
-            components: Some(&[StaticComponentConfig {
-                name: "board",
-                namespace: "rdk",
-                r#type: "board",
-                model: "fake",
-                attributes: Some(
-                    phf::phf_map! {"pins" => Kind::ListValueStatic(&[Kind::StringValueStatic("11"),Kind::StringValueStatic("12"),Kind::StringValueStatic("13")]),"analogs" => Kind::ListValueStatic(&[Kind::StructValueStatic(phf::phf_map!{"name" => Kind::StringValueStatic("string"),"pi\
-                    n" => Kind::StringValueStatic("12")}),Kind::StructValueStatic(phf::phf_map!{"name" => Kind::StringValueStatic("string"),"pin" => Kind::StringValueStatic("11")})])},
+        let robot_config: &[DynamicComponentConfig] = &[DynamicComponentConfig {
+            name: "board".to_owned(),
+            namespace: "rdk".to_owned(),
+            r#type: "board".to_owned(),
+            model: "fake".to_owned(),
+            attributes: Some(HashMap::from([
+                (
+                    "pins".to_owned(),
+                    Kind::VecValue(vec![
+                        Kind::StringValue("11".to_owned()),
+                        Kind::StringValue("12".to_owned()),
+                        Kind::StringValue("13".to_owned()),
+                    ]),
                 ),
-            }]),
-        });
-        let val = STATIC_ROBOT_CONFIG.unwrap().components.unwrap()[0]
-            .get_attribute::<Vec<AnalogReaderConfig>>("analogs");
+                (
+                    "analogs".to_owned(),
+                    Kind::VecValue(vec![
+                        Kind::StructValue(HashMap::from([
+                            ("name".to_owned(), Kind::StringValue("string".to_owned())),
+                            ("pin".to_owned(), Kind::StringValue("12".to_owned())),
+                        ])),
+                        Kind::StructValue(HashMap::from([
+                            ("name".to_owned(), Kind::StringValue("string".to_owned())),
+                            ("pin".to_owned(), Kind::StringValue("11".to_owned())),
+                        ])),
+                    ]),
+                ),
+            ])),
+        }];
+
+        let val = robot_config[0].get_attribute::<Vec<AnalogReaderConfig>>("analogs");
 
         assert!(&val.is_ok());
 

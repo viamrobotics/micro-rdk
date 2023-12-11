@@ -30,44 +30,6 @@ impl From<&Esp32I2cConfig> for I2cConfig {
     }
 }
 
-impl TryFrom<Kind> for Esp32I2cConfig {
-    type Error = AttributeError;
-    fn try_from(value: Kind) -> Result<Self, Self::Error> {
-        if !value.contains_key("name")? {
-            return Err(AttributeError::KeyNotFound("name".to_string()));
-        }
-        let name = value.get("name")?.unwrap().try_into()?;
-        if !value.contains_key("bus")? {
-            return Err(AttributeError::KeyNotFound("bus".to_string()));
-        }
-        let bus = value.get("bus")?.unwrap().try_into()?;
-        let mut data_pin = 11;
-        if value.contains_key("data_pin")? {
-            data_pin = value.get("data_pin")?.unwrap().try_into()?;
-        }
-        let mut clock_pin = 6;
-        if value.contains_key("clock_pin")? {
-            clock_pin = value.get("clock_pin")?.unwrap().try_into()?;
-        }
-        let mut baudrate_hz: u32 = 1000000;
-        if value.contains_key("baudrate_hz")? {
-            baudrate_hz = value.get("baudrate")?.unwrap().try_into()?;
-        }
-        let mut timeout_ns: u32 = 0;
-        if value.contains_key("timeout_ns")? {
-            timeout_ns = value.get("timeout_ns")?.unwrap().try_into()?;
-        }
-        Ok(Self {
-            name,
-            bus,
-            baudrate_hz,
-            timeout_ns,
-            data_pin,
-            clock_pin,
-        })
-    }
-}
-
 impl TryFrom<&Kind> for Esp32I2cConfig {
     type Error = AttributeError;
     fn try_from(value: &Kind) -> Result<Self, Self::Error> {

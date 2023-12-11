@@ -8,7 +8,7 @@ const PASS: &str = env!("MICRO_RDK_WIFI_PASSWORD");
 include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
 #[cfg(feature = "qemu")]
-use esp_idf_svc::eth::{EspEth, EthDriver};
+use esp_idf_svc::eth::EspEth;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT};
 use log::*;
@@ -23,20 +23,7 @@ extern "C" {
     pub static g_spiram_ok: bool;
 }
 
-#[cfg(feature = "qemu")]
-use {
-    micro_rdk::{
-        common::{
-            board::FakeBoard,
-            robot::{LocalRobot, ResourceMap, ResourceType},
-        },
-        proto::common::v1::ResourceName,
-    },
-    std::{
-        collections::HashMap,
-        sync::{Arc, Mutex},
-    },
-};
+use micro_rdk::common::registry::ComponentRegistry;
 
 #[cfg(not(feature = "qemu"))]
 use {
@@ -48,7 +35,6 @@ use {
     esp_idf_svc::wifi::{BlockingWifi, EspWifi},
     esp_idf_sys as _,
     esp_idf_sys::esp_wifi_set_ps,
-    micro_rdk::common::registry::ComponentRegistry,
 };
 
 fn main() -> anyhow::Result<()> {
@@ -60,22 +46,6 @@ fn main() -> anyhow::Result<()> {
     #[cfg(not(feature = "qemu"))]
     let periph = Peripherals::take().unwrap();
 
-    #[cfg(feature = "qemu")]
-    let repr = {
-        let board = Arc::new(Mutex::new(FakeBoard::new(vec![])));
-        let mut res: ResourceMap = HashMap::with_capacity(1);
-        res.insert(
-            ResourceName {
-                namespace: "rdk".to_string(),
-                r#type: "component".to_string(),
-                subtype: "board".to_string(),
-                name: "b".to_string(),
-            },
-            ResourceType::Board(board),
-        );
-        RobotRepresentation::WithRobot(LocalRobot::new(res))
-    };
-    #[cfg(not(feature = "qemu"))]
     let repr = RobotRepresentation::WithRegistry(Box::<ComponentRegistry>::default());
 
     {
@@ -90,7 +60,7 @@ fn main() -> anyhow::Result<()> {
     let (ip, _block_eth) = {
         use esp_idf_hal::prelude::Peripherals;
         info!("creating eth object");
-        let mut eth = esp_idf_svc::eth::EspEth::wrap(
+        let eth = esp_idf_svc::eth::EspEth::wrap(
             esp_idf_svc::eth::EthDriver::new_openeth(
                 Peripherals::take().unwrap().mac,
                 sys_loop_stack.clone(),
@@ -139,8 +109,6 @@ fn main() -> anyhow::Result<()> {
 
 #[cfg(feature = "qemu")]
 use esp_idf_svc::eth::BlockingEth;
-#[cfg(feature = "qemu")]
-use esp_idf_svc::netif::EspNetif;
 #[cfg(feature = "qemu")]
 fn eth_configure<'d, T>(
     sl_stack: &EspSystemEventLoop,

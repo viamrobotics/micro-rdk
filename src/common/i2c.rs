@@ -37,37 +37,9 @@ pub(crate) struct FakeI2cConfig<'a> {
     pub(crate) value_3: u8,
 }
 
-impl<'a> TryFrom<Kind> for FakeI2cConfig<'a> {
+impl<'a> TryFrom<&'a Kind> for FakeI2cConfig<'a> {
     type Error = AttributeError;
-    fn try_from(value: Kind) -> Result<Self, Self::Error> {
-        if !value.contains_key("name")? {
-            return Err(AttributeError::KeyNotFound("name".to_string()));
-        }
-        let name = value.get("name")?.unwrap().try_into()?;
-        let value_1 = match value.get("value_1")? {
-            Some(val) => val.try_into()?,
-            None => 0,
-        };
-        let value_2 = match value.get("value_2")? {
-            Some(val) => val.try_into()?,
-            None => 0,
-        };
-        let value_3 = match value.get("value_3")? {
-            Some(val) => val.try_into()?,
-            None => 0,
-        };
-        Ok(FakeI2cConfig {
-            name,
-            value_1,
-            value_2,
-            value_3,
-        })
-    }
-}
-
-impl<'a> TryFrom<&Kind> for FakeI2cConfig<'a> {
-    type Error = AttributeError;
-    fn try_from(value: &Kind) -> Result<Self, Self::Error> {
+    fn try_from(value: &'a Kind) -> Result<Self, Self::Error> {
         if !value.contains_key("name")? {
             return Err(AttributeError::KeyNotFound("name".to_string()));
         }
