@@ -26,7 +26,7 @@ impl<'a, const A: u32, T: ADCPin> Esp32AnalogReader<'a, A, T> {
     fn inner_read(&mut self) -> anyhow::Result<u16> {
         self.driver
             .borrow_mut()
-            .read(&mut self.channel)
+            .read_raw(&mut self.channel)
             .map_err(|e| anyhow::anyhow!(format!("error while reading analog reader {e}")))
     }
     fn inner_name(&self) -> String {
