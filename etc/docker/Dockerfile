@@ -1,8 +1,8 @@
-FROM rust:1.74-bullseye AS builder
+FROM rust:1.74-bookworm AS builder
 RUN apt update && apt-get install -y --no-install-recommends git libudev-dev make bzip2 gcc libgcrypt20 libgcrypt20-dev  ninja-build libudev-dev sudo wget git flex bison gperf ccache libffi-dev libssl-dev dfu-util libusb-1.0-0 cmake pkg-config libglib2.0-dev libpixman-1-dev software-properties-common openssh-client libslirp-dev python3-venv
 
-RUN cargo install cargo-binstall
-RUN cargo binstall cargo-espflash@2.0.0-rc.1 --install-path /usr/ -y
+RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+RUN cargo binstall cargo-espflash --install-path /usr/ -y
 RUN cargo binstall espup --install-path /usr/ -y
 RUN cargo install ldproxy --root /usr/ 
 
@@ -18,7 +18,7 @@ WORKDIR /esp
 RUN git clone --depth 1 -b v4.4.4 --single-branch --recurse-submodules --shallow-submodules https://github.com/viamrobotics/esp-idf
 
 
-FROM debian:bullseye
+FROM debian:bookworm
 
 ARG RUST_VERSION=1.71.0
 
@@ -34,16 +34,11 @@ ENV RUSTUP_HOME=/opt/rust/rustup \
 
 RUN apt update && apt dist-upgrade -y
 
-RUN echo "deb http://deb.debian.org/debian bullseye-backports main" >> /etc/apt/sources.list.d/backports.list
-
 RUN apt update 
 
-RUN apt-get install -y --no-install-recommends git wget flex bison gperf python3 python3-pip python3-venv cmake ninja-build ccache libffi-dev libssl-dev libudev-dev dfu-util libusb-1.0-0 openssh-client software-properties-common python3-venv sudo && \
-    apt-add-repository 'deb http://deb.debian.org/debian bullseye-backports main' && \
-    apt update && \
-    apt-get install -y --no-install-recommends cmake/bullseye-backports && \
-    update-alternatives --install /usr/bin/python python /usr/bin/python3 10 && \
-    python -m pip install --upgrade pip virtualenv
+RUN apt-get install -y --no-install-recommends git wget flex bison gperf python3 python3-pip python3-virtualenv cmake ninja-build ccache libffi-dev libssl-dev libudev-dev dfu-util libusb-1.0-0 openssh-client software-properties-common python3-venv sudo && \
+    apt-get install -y --no-install-recommends cmake && \
+    update-alternatives --install /usr/bin/python python /usr/bin/python3 10 
 
 
 RUN RUST_VERSION=$RUST_VERSION \
@@ -70,23 +65,22 @@ COPY --from=builder /usr/espup /usr/bin
    
 WORKDIR /host/
 
-
 RUN useradd -s /bin/bash -m testbot && \
     echo 'testbot ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers && \
     echo "Defaults   secure_path=\"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${CARGO_HOME}/bin\"" >> /etc/sudoers.d/environment && \
     echo 'Defaults   env_keep+="CARGO_HOME RUSTUP_HOME IDF_PATH IDF_TOOLS_PATH ESP_ROOT"' >> /etc/sudoers.d/environment
 
-RUN sudo chown -R testbot:testbot $CARGO_HOME &&\
-    sudo chown -R testbot:testbot $RUSTUP_HOME
+RUN chown -R testbot:testbot $CARGO_HOME &&\
+    chown -R testbot:testbot $RUSTUP_HOME
+
+RUN mkdir -p $ESP_ROOT &&\
+    chown -R testbot:testbot $ESP_ROOT
+
+RUN chmod -R a+rwx $ESP_ROOT
 
 USER testbot
 
-RUN sudo mkdir -p $ESP_ROOT &&\
-    sudo chown -R testbot:testbot $ESP_ROOT
-
 COPY --from=builder /esp $ESP_ROOT/
-
-RUN sudo chmod -R a+rwx $ESP_ROOT
 
 RUN git config --global --add safe.directory $ESP_ROOT/esp-idf
 

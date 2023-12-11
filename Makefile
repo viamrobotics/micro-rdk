@@ -1,5 +1,7 @@
 SHELL := /bin/bash
-ESPFLASHVERSION = $(shell expr `cargo espflash -V | grep ^cargo-espflash | sed 's/^.* //g' | cut -f1 -d. ` \< 2)
+ESPFLASHVERSION_MAJ := $(shell expr `cargo espflash -V | grep ^cargo-espflash | sed 's/^.* //g' | cut -f1 -d. `)
+ESPFLASHVERSION_MIN := $(shell expr `cargo espflash -V | grep ^cargo-espflash | sed 's/^.* //g' | cut -f2 -d. `)
+ESPFLASHVERSION := $(shell [ $(ESPFLASHVERSION_MAJ) -gt 1 -a $(ESPFLASHVERSION_MIN) -ge 1 ] && echo true)
 
 DATE := $(shell date +%F)
 IMAGE_BASE = ghcr.io/viamrobotics/micro-rdk-dev-env
@@ -17,8 +19,8 @@ license-finder:
 	license_finder
 
 cargo-ver:
-ifeq "$(ESPFLASHVERSION)" "1"
-		$(error Update espfash to version >2.0. Update with cargo install cargo-espflash@2.0.0-rc.1)
+ifneq ($(ESPFLASHVERSION),true)
+		$(error Update espfash to version >2.0. Update with cargo install cargo-espflash)
 endif
 
 build:
@@ -31,7 +33,7 @@ native:
 	cd examples && cargo run  --bin native-server
 
 build-qemu:
-	cd examples && cargo build  --bin esp32-server  --features qemu --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort && cargo espflash save-image --features qemu --merge --chip esp32 target/xtensa-esp32-espidf/debug/debug.bin -T esp32/partitions.csv -s 4M  --bin esp32-server --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
+	cd examples && cargo build  --bin esp32-server  --features qemu --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort && cargo espflash save-image --features qemu --merge --chip esp32 target/xtensa-esp32-espidf/debug/debug.bin -T esp32/partitions.csv -s 4mb  --bin esp32-server --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
 
 
 sim-local: cargo-ver build-qemu
@@ -79,10 +81,10 @@ size:
 	find . -name "esp-build.map" -exec ${IDF_PATH}/tools/idf_size.py {} \;
 
 build-esp32-bin:
-	cd examples && cargo espflash save-image --merge --chip esp32 target/esp32-server.bin -T esp32/partitions.csv -s 4M  --bin esp32-server --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort --release
+	cd examples && cargo espflash save-image --merge --chip esp32 target/esp32-server.bin -T esp32/partitions.csv -s 4mb  --bin esp32-server --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort --release
 
 build-esp32-with-cred-bin:
-	cd examples && cargo espflash save-image --merge --chip esp32 target/esp32-server-with-cred.bin -T esp32/partitions.csv -s 4M  --bin esp32-server-with-cred --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort --release
+	cd examples && cargo espflash save-image --merge --chip esp32 target/esp32-server-with-cred.bin -T esp32/partitions.csv -s 4mb  --bin esp32-server-with-cred --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort --release
 
 flash-esp32-bin:
 ifneq (,$(wildcard ./examples/target/esp32-server.bin))
