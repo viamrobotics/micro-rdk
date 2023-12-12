@@ -73,10 +73,8 @@ RUN useradd -s /bin/bash -m testbot && \
 RUN chown -R testbot:testbot $CARGO_HOME &&\
     chown -R testbot:testbot $RUSTUP_HOME
 
-RUN mkdir -p $ESP_ROOT &&\
+RUN mkdir -p $ESP_ROOT && \
     chown -R testbot:testbot $ESP_ROOT
-
-RUN chmod -R a+rwx $ESP_ROOT
 
 USER testbot
 
@@ -106,3 +104,5 @@ RUN apt-get install make build-essential pkg-config -y && apt-get autoremove -y 
 
 COPY --from=builder /qemu/qemu/build/qemu-system-xtensa /usr/bin
 
+RUN chmod -R a+rwx $ESP_ROOT && \
+    chown -R testbot:testbot $ESP_ROOT    
