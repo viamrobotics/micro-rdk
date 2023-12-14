@@ -1,4 +1,4 @@
-use super::pwm::{create_pwm_driver, PwmDriver};
+use super::pwm::PwmDriver;
 use esp_idf_hal::gpio::{AnyIOPin, InputOutput, InterruptType, Pin, PinDriver, Pull};
 use esp_idf_sys::{esp, gpio_install_isr_service, gpio_isr_handler_add, ESP_INTR_FLAG_IRAM};
 use once_cell::sync::{Lazy, OnceCell};
@@ -99,7 +99,7 @@ impl Esp32GPIOPin {
                 pwm_driver.set_ledc_duty_pct(pct)?;
             }
             None => {
-                let mut pwm_driver = create_pwm_driver(unsafe { AnyIOPin::new(self.pin) }, 10000)?;
+                let mut pwm_driver = PwmDriver::new(unsafe { AnyIOPin::new(self.pin) }, 10000)?;
                 pwm_driver.set_ledc_duty_pct(pct)?;
                 self.pwm_driver = Some(pwm_driver);
             }
@@ -130,7 +130,7 @@ impl Esp32GPIOPin {
                 }
                 None => {
                     let pwm_driver =
-                        create_pwm_driver(unsafe { AnyIOPin::new(self.pin) }, freq as u32)?;
+                        PwmDriver::new(unsafe { AnyIOPin::new(self.pin) }, freq as u32)?;
                     self.pwm_driver = Some(pwm_driver);
                 }
             }
