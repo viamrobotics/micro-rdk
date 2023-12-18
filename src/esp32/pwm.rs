@@ -32,6 +32,8 @@ pub enum Esp32PwmError {
     NoChannelsAvailable,
     #[error("invalid timer number {0}")]
     InvalidTimerNumber(i32),
+    #[error("one or more channel are bind to the timer")]
+    OtherChannelsBindToTimer,
 }
 
 impl From<EspError> for Esp32PwmError {
@@ -184,40 +186,43 @@ impl Debug for LedcTimerWrapper<'_> {
     }
 }
 
-fn create_timer_driver<'a>(timer: u8, conf: &TimerConfig) -> LedcTimerDriver<'a> {
+fn create_timer_driver<'a>(
+    timer: u8,
+    conf: &TimerConfig,
+) -> Result<LedcTimerDriver<'a>, Esp32PwmError> {
     match timer {
-        0 => LedcTimerDriver::new(unsafe { TIMER0::new() }, conf).unwrap(),
-        1 => LedcTimerDriver::new(unsafe { TIMER1::new() }, conf).unwrap(),
-        2 => LedcTimerDriver::new(unsafe { TIMER2::new() }, conf).unwrap(),
-        3 => LedcTimerDriver::new(unsafe { TIMER3::new() }, conf).unwrap(),
+        0 => LedcTimerDriver::new(unsafe { TIMER0::new() }, conf).map_err(Esp32PwmError::EspError),
+        1 => LedcTimerDriver::new(unsafe { TIMER1::new() }, conf).map_err(Esp32PwmError::EspError),
+        2 => LedcTimerDriver::new(unsafe { TIMER2::new() }, conf).map_err(Esp32PwmError::EspError),
+        3 => LedcTimerDriver::new(unsafe { TIMER3::new() }, conf).map_err(Esp32PwmError::EspError),
         _ => unreachable!(),
     }
 }
 
 impl<'a> LedcTimerWrapper<'a> {
-    fn new(id: u8, frequency_hz: u32) -> Self {
+    fn new(id: u8, frequency_hz: u32) -> Result<Self, Esp32PwmError> {
         let timer_config = TimerConfig::default().frequency(frequency_hz.Hz());
         let timer = OnceCell::new();
-        let _ = timer.set(create_timer_driver(id, &timer_config));
-        Self {
+        let _ = timer.set(create_timer_driver(id, &timer_config)?);
+        Ok(Self {
             count: 0,
             frequency: frequency_hz,
             timer,
-        }
+        })
     }
     fn set_frequency(&mut self, frequency_hz: u32) -> Result<(), Esp32PwmError> {
         if self.frequency == frequency_hz {
             return Ok(());
         }
         if self.count > 0 {
-            return Err(Esp32PwmError::NoChannelsAvailable);
+            return Err(Esp32PwmError::OtherChannelsBindToTimer);
         }
         let id = {
             let timer = self.timer.take();
             timer.unwrap().timer() as u8
         };
         let timer_config = TimerConfig::default().frequency(frequency_hz.Hz());
-        let _ = self.timer.set(create_timer_driver(id, &timer_config));
+        let _ = self.timer.set(create_timer_driver(id, &timer_config)?);
         self.frequency = frequency_hz;
         Ok(())
     }
@@ -232,10 +237,10 @@ impl<'a> LedcTimerWrapper<'a> {
 impl<'a> LedcManager<'a> {
     fn new() -> Self {
         let timer_allocation = [
-            LedcTimerWrapper::new(0, 1000),
-            LedcTimerWrapper::new(1, 1000),
-            LedcTimerWrapper::new(2, 1000),
-            LedcTimerWrapper::new(3, 1000),
+            LedcTimerWrapper::new(0, 1000).unwrap(),
+            LedcTimerWrapper::new(1, 1000).unwrap(),
+            LedcTimerWrapper::new(2, 1000).unwrap(),
+            LedcTimerWrapper::new(3, 1000).unwrap(),
         ];
         Self {
             used_channel: PwmChannelInUse(0),
