@@ -85,7 +85,7 @@ impl<'a> PwmDriver<'a> {
         let mut ledc_manager = LEDC_MANAGER.lock().unwrap();
         let channel = ledc_manager.allocate_pin(pin.pin(), starting_frequency_hz)?;
         let timer = ledc_manager.get_configure_timer_instance(channel.1);
-        let ledc_driver = get_ledc_driver_by_channel(channel.0, timer, pin).unwrap();
+        let ledc_driver = get_ledc_driver_by_channel(channel.0, timer, pin)?;
         Ok(PwmDriver {
             ledc_driver,
             timer_number: channel.1 as usize,
