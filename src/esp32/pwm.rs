@@ -1,3 +1,4 @@
+use bitfield::{bitfield, Bit, BitMut};
 use esp_idf_hal::gpio::AnyIOPin;
 use esp_idf_hal::gpio::Pin;
 use esp_idf_hal::ledc::{
@@ -6,31 +7,21 @@ use esp_idf_hal::ledc::{
 };
 use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::prelude::FromValueType;
-use esp_idf_sys::{
-    ledc_bind_channel_timer, ledc_channel_t_LEDC_CHANNEL_MAX, ledc_get_freq, ledc_set_freq,
-    ledc_timer_t, EspError,
-};
+use esp_idf_sys::{ledc_bind_channel_timer, ledc_get_freq, ledc_timer_t, EspError};
 use once_cell::sync::Lazy;
-use std::collections::HashMap;
+use std::cell::OnceCell;
+use std::fmt::Debug;
 use std::sync::Mutex;
 use thiserror::Error;
 
 static LEDC_MANAGER: Lazy<Mutex<LedcManager>> = Lazy::new(|| Mutex::new(LedcManager::new()));
 
-pub(crate) fn create_pwm_driver(
-    pin: AnyIOPin,
-    starting_frequency_hz: u32,
-) -> Result<PwmDriver<'static>, Esp32PwmError> {
-    let chan = LEDC_MANAGER.lock().unwrap().take_next_channel(pin.pin())?;
-    PwmDriver::new(pin, chan, starting_frequency_hz)
-}
-
 #[derive(Debug, Error)]
 pub enum Esp32PwmError {
     #[error("{0}")]
     EspError(EspError),
-    #[error("only 4 different PWM frequencies allowed, available freq: {0}, {1}, {2}, {3}")]
-    NoTimersAvailable(u32, u32, u32, u32),
+    #[error("all timer are used try a different frequency")]
+    NoTimersAvailable,
     #[error("CHANNEL{0} already in use by pin {1}")]
     ChannelAlreadyInUse(i32, i32),
     #[error("Could not find TIMER{0}")]
@@ -39,6 +30,10 @@ pub enum Esp32PwmError {
     ChannelNotFound(i32),
     #[error("no more pwm channels available")]
     NoChannelsAvailable,
+    #[error("invalid timer number {0}")]
+    InvalidTimerNumber(i32),
+    #[error("one or more channel are bind to the timer")]
+    OtherChannelsBindToTimer,
 }
 
 impl From<EspError> for Esp32PwmError {
@@ -59,69 +54,13 @@ enum PwmChannel {
     C7,
 }
 
-impl PwmChannel {
-    fn bind_to_timer(&self, timer_number: u8) -> Result<(), Esp32PwmError> {
-        match self {
-            PwmChannel::C0 => {
-                esp_idf_sys::esp!(unsafe {
-                    ledc_bind_channel_timer(SpeedMode::LowSpeed.into(), timer_number.into(), 0)
-                })?;
-            }
-            PwmChannel::C1 => {
-                esp_idf_sys::esp!(unsafe {
-                    ledc_bind_channel_timer(SpeedMode::LowSpeed.into(), timer_number.into(), 1)
-                })?;
-            }
-            PwmChannel::C2 => {
-                esp_idf_sys::esp!(unsafe {
-                    ledc_bind_channel_timer(SpeedMode::LowSpeed.into(), timer_number.into(), 2)
-                })?;
-            }
-            PwmChannel::C3 => {
-                esp_idf_sys::esp!(unsafe {
-                    ledc_bind_channel_timer(SpeedMode::LowSpeed.into(), timer_number.into(), 3)
-                })?;
-            }
-            PwmChannel::C4 => {
-                esp_idf_sys::esp!(unsafe {
-                    ledc_bind_channel_timer(SpeedMode::LowSpeed.into(), timer_number.into(), 4)
-                })?;
-            }
-            PwmChannel::C5 => {
-                esp_idf_sys::esp!(unsafe {
-                    ledc_bind_channel_timer(SpeedMode::LowSpeed.into(), timer_number.into(), 5)
-                })?;
-            }
-            PwmChannel::C6 => {
-                esp_idf_sys::esp!(unsafe {
-                    ledc_bind_channel_timer(SpeedMode::LowSpeed.into(), timer_number.into(), 6)
-                })?;
-            }
-            PwmChannel::C7 => {
-                esp_idf_sys::esp!(unsafe {
-                    ledc_bind_channel_timer(SpeedMode::LowSpeed.into(), timer_number.into(), 7)
-                })?;
-            }
-        };
-        Ok(())
-    }
-}
-
 fn get_ledc_driver_by_channel<'a>(
     channel: PwmChannel,
-    timer_number: usize,
-    starting_frequency_hz: u32,
+    timer: &LedcTimerDriver<'a>,
     pin: AnyIOPin,
 ) -> Result<LedcDriver<'a>, Esp32PwmError> {
     esp_idf_hal::into_ref!(pin);
-    let pwm_tconf = TimerConfig::default().frequency(starting_frequency_hz.Hz());
-    let timer = match timer_number {
-        0 => LedcTimerDriver::new(unsafe { TIMER0::new() }, &pwm_tconf)?,
-        1 => LedcTimerDriver::new(unsafe { TIMER1::new() }, &pwm_tconf)?,
-        2 => LedcTimerDriver::new(unsafe { TIMER2::new() }, &pwm_tconf)?,
-        3 => LedcTimerDriver::new(unsafe { TIMER3::new() }, &pwm_tconf)?,
-        _ => return Err(Esp32PwmError::TimerNotFound(timer_number)),
-    };
+
     Ok(match channel {
         PwmChannel::C0 => LedcDriver::new(unsafe { CHANNEL0::new() }, timer, pin)?,
         PwmChannel::C1 => LedcDriver::new(unsafe { CHANNEL1::new() }, timer, pin)?,
@@ -142,20 +81,15 @@ pub(crate) struct PwmDriver<'a> {
     channel: PwmChannel,
 }
 impl<'a> PwmDriver<'a> {
-    fn new(
-        pin: AnyIOPin,
-        channel: PwmChannel,
-        starting_frequency_hz: u32,
-    ) -> Result<PwmDriver<'a>, Esp32PwmError> {
+    pub fn new(pin: AnyIOPin, starting_frequency_hz: u32) -> Result<PwmDriver<'a>, Esp32PwmError> {
         let mut ledc_manager = LEDC_MANAGER.lock().unwrap();
-        let timer_number = ledc_manager.take_timer(starting_frequency_hz, channel)?;
-        let ledc_driver =
-            get_ledc_driver_by_channel(channel, timer_number, starting_frequency_hz, pin)?;
-
+        let channel = ledc_manager.allocate_pin(pin.pin(), starting_frequency_hz)?;
+        let timer = ledc_manager.get_configure_timer_instance(channel.1);
+        let ledc_driver = get_ledc_driver_by_channel(channel.0, timer, pin)?;
         Ok(PwmDriver {
             ledc_driver,
-            timer_number,
-            channel,
+            timer_number: channel.1 as usize,
+            channel: channel.0,
         })
     }
 
@@ -178,29 +112,8 @@ impl<'a> PwmDriver<'a> {
 
     pub fn set_timer_frequency(&mut self, frequency_hz: u32) -> Result<(), Esp32PwmError> {
         let mut ledc_manager = LEDC_MANAGER.lock().unwrap();
-        let channels_sharing_timer =
-            ledc_manager.number_of_channels_by_timer(self.timer_number) - 1;
-        // if we're not in danger of unexpectedly changing the frequency of another PWM signal
-        // sharing the same timer, simply change the frequency of the current timer
-        if channels_sharing_timer == 0 {
-            ledc_manager.set_frequency_on_timer(self.timer_number, frequency_hz)?;
-            return Ok(());
-        }
-        let timer_number = ledc_manager.take_timer(frequency_hz, self.channel)?;
-        let timer: ledc_timer_t = (timer_number as u8).into();
-        match esp_idf_sys::esp!(unsafe {
-            ledc_set_freq(SpeedMode::LowSpeed.into(), timer, frequency_hz)
-        }) {
-            Ok(val) => Ok(val),
-            Err(err) => {
-                ledc_manager.drop_timer(timer_number, self.channel);
-                Err(err)
-            }
-        }?;
-        if timer_number != self.timer_number {
-            self.channel.bind_to_timer(timer_number as u8)?;
-        }
-        ledc_manager.drop_timer(self.timer_number, self.channel);
+        let timer_number =
+            ledc_manager.set_timer_frequency(self.timer_number, frequency_hz, self.channel)?;
         self.timer_number = timer_number;
         Ok(())
     }
@@ -209,95 +122,19 @@ impl<'a> PwmDriver<'a> {
 impl<'a> Drop for PwmDriver<'a> {
     fn drop(&mut self) {
         let mut ledc_manager = LEDC_MANAGER.lock().unwrap();
-        ledc_manager.drop_timer(self.timer_number, self.channel);
+        ledc_manager.release_channel_and_timer(self.channel, self.timer_number);
     }
 }
 
-struct LedcManager {
-    channel_pin_subscriptions: HashMap<i32, i32>,
-    timer_frequencies: [Option<u32>; 4],
-    timer_channels: [Vec<PwmChannel>; 4],
+bitfield! {
+    struct PwmChannelInUse(u8);
+    impl Debug;
+    channels, _ : 7,0;
 }
 
-impl LedcManager {
-    fn new() -> Self {
-        Self {
-            channel_pin_subscriptions: HashMap::new(),
-            timer_frequencies: [None, None, None, None],
-            timer_channels: [Vec::new(), Vec::new(), Vec::new(), Vec::new()],
-        }
-    }
-
-    fn find_timer_by_frequency(&mut self, frequency_hz: u32) -> Option<usize> {
-        self.timer_frequencies
-            .iter()
-            .position(|&x| x == Some(frequency_hz))
-    }
-
-    fn set_frequency_on_timer(
-        &mut self,
-        timer_number: usize,
-        frequency_hz: u32,
-    ) -> Result<(), Esp32PwmError> {
-        let timer: ledc_timer_t = (timer_number as u8).into();
-        esp_idf_sys::esp!(unsafe {
-            ledc_set_freq(SpeedMode::LowSpeed.into(), timer, frequency_hz)
-        })?;
-        self.timer_frequencies[timer_number] = Some(frequency_hz);
-        Ok(())
-    }
-
-    fn number_of_channels_by_timer(&self, timer_number: usize) -> usize {
-        self.timer_channels[timer_number].len()
-    }
-
-    fn take_timer(
-        &mut self,
-        frequency_hz: u32,
-        channel: PwmChannel,
-    ) -> Result<usize, Esp32PwmError> {
-        match self.find_timer_by_frequency(frequency_hz) {
-            Some(timer_number) => {
-                self.timer_channels[timer_number].push(channel);
-                Ok(timer_number)
-            }
-            None => {
-                if self.timer_frequencies.iter().all(|&x| x.is_some()) {
-                    Err(Esp32PwmError::NoTimersAvailable(
-                        self.timer_frequencies[0].unwrap(),
-                        self.timer_frequencies[1].unwrap(),
-                        self.timer_frequencies[2].unwrap(),
-                        self.timer_frequencies[3].unwrap(),
-                    ))
-                } else {
-                    let timer_number = match self.timer_frequencies.iter().position(|x| x.is_none())
-                    {
-                        Some(timer_number) => timer_number,
-                        None => unreachable!(),
-                    };
-                    self.timer_frequencies[timer_number] = Some(frequency_hz);
-                    self.timer_channels[timer_number].push(channel);
-                    Ok(timer_number)
-                }
-            }
-        }
-    }
-
-    fn drop_timer(&mut self, timer_number: usize, channel: PwmChannel) {
-        let timer_channels = &mut self.timer_channels[timer_number];
-        if let Some(index) = timer_channels.iter().position(|&x| x == channel) {
-            timer_channels.swap_remove(index);
-            if self.timer_channels[timer_number].is_empty() {
-                self.timer_frequencies[timer_number] = None;
-            };
-        };
-    }
-
-    fn take_channel(&mut self, n: i32, pin: i32) -> Result<PwmChannel, Esp32PwmError> {
-        if let Some(&pin_using_channel) = self.channel_pin_subscriptions.get(&n) {
-            return Err(Esp32PwmError::ChannelAlreadyInUse(n, pin_using_channel));
-        }
-        let res = match n {
+impl From<u8> for PwmChannel {
+    fn from(value: u8) -> Self {
+        match value {
             0 => PwmChannel::C0,
             1 => PwmChannel::C1,
             2 => PwmChannel::C2,
@@ -306,26 +143,248 @@ impl LedcManager {
             5 => PwmChannel::C5,
             6 => PwmChannel::C6,
             7 => PwmChannel::C7,
-            _ => {
-                return Err(Esp32PwmError::ChannelNotFound(n));
-            }
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl From<PwmChannel> for usize {
+    fn from(value: PwmChannel) -> Self {
+        match value {
+            PwmChannel::C0 => 0,
+            PwmChannel::C1 => 1,
+            PwmChannel::C2 => 2,
+            PwmChannel::C3 => 3,
+            PwmChannel::C4 => 4,
+            PwmChannel::C5 => 5,
+            PwmChannel::C6 => 6,
+            PwmChannel::C7 => 7,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct LedcManager<'a> {
+    used_channel: PwmChannelInUse,
+    associated_pins: [u8; 8],
+    timer_allocation: [LedcTimerWrapper<'a>; 4],
+}
+
+struct LedcTimerWrapper<'a> {
+    frequency: u32,
+    count: u8,
+    timer: OnceCell<LedcTimerDriver<'a>>,
+}
+
+impl Debug for LedcTimerWrapper<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LedcTimerWrapper")
+            .field("count", &self.count)
+            .field("frequency", &self.frequency)
+            .field("timer", &self.timer.get().unwrap().timer())
+            .finish()
+    }
+}
+
+fn create_timer_driver<'a>(
+    timer: u8,
+    conf: &TimerConfig,
+) -> Result<LedcTimerDriver<'a>, Esp32PwmError> {
+    match timer {
+        0 => LedcTimerDriver::new(unsafe { TIMER0::new() }, conf).map_err(Esp32PwmError::EspError),
+        1 => LedcTimerDriver::new(unsafe { TIMER1::new() }, conf).map_err(Esp32PwmError::EspError),
+        2 => LedcTimerDriver::new(unsafe { TIMER2::new() }, conf).map_err(Esp32PwmError::EspError),
+        3 => LedcTimerDriver::new(unsafe { TIMER3::new() }, conf).map_err(Esp32PwmError::EspError),
+        _ => unreachable!(),
+    }
+}
+
+impl<'a> LedcTimerWrapper<'a> {
+    fn new(id: u8, frequency_hz: u32) -> Result<Self, Esp32PwmError> {
+        let timer_config = TimerConfig::default().frequency(frequency_hz.Hz());
+        let timer = OnceCell::new();
+        let _ = timer.set(create_timer_driver(id, &timer_config)?);
+        Ok(Self {
+            count: 0,
+            frequency: frequency_hz,
+            timer,
+        })
+    }
+    fn set_frequency(&mut self, frequency_hz: u32) -> Result<(), Esp32PwmError> {
+        if self.frequency == frequency_hz {
+            return Ok(());
+        }
+        if self.count > 0 {
+            return Err(Esp32PwmError::OtherChannelsBindToTimer);
+        }
+        let id = {
+            let timer = self.timer.take();
+            timer.unwrap().timer() as u8
         };
-        self.channel_pin_subscriptions.insert(n, pin);
-        Ok(res)
+        let timer_config = TimerConfig::default().frequency(frequency_hz.Hz());
+        let _ = self.timer.set(create_timer_driver(id, &timer_config)?);
+        self.frequency = frequency_hz;
+        Ok(())
+    }
+    fn inc(&mut self) {
+        self.count += 1;
+    }
+    fn dec(&mut self) {
+        self.count -= 1;
+    }
+}
+
+impl<'a> LedcManager<'a> {
+    fn new() -> Self {
+        let timer_allocation = [
+            LedcTimerWrapper::new(0, 1000).unwrap(),
+            LedcTimerWrapper::new(1, 1000).unwrap(),
+            LedcTimerWrapper::new(2, 1000).unwrap(),
+            LedcTimerWrapper::new(3, 1000).unwrap(),
+        ];
+        Self {
+            used_channel: PwmChannelInUse(0),
+            associated_pins: [0_u8; 8],
+            timer_allocation,
+        }
     }
 
-    fn take_next_channel(&mut self, pin: i32) -> Result<PwmChannel, Esp32PwmError> {
-        for i in 0..(ledc_channel_t_LEDC_CHANNEL_MAX as i32) {
-            match self.take_channel(i, pin) {
-                Ok(ret) => {
-                    return Ok(ret);
-                }
-                Err(err) => match err {
-                    Esp32PwmError::ChannelAlreadyInUse(_, _) => {}
-                    _ => return Err(err),
-                },
-            };
+    fn get_configure_timer_instance<'d>(&'d self, timer_number: u32) -> &'d LedcTimerDriver<'a> {
+        self.timer_allocation[timer_number as usize]
+            .timer
+            .get()
+            .unwrap()
+    }
+
+    fn next_available_timer(&mut self, frequency_hz: u32) -> Result<usize, Esp32PwmError> {
+        // Timer with same frequency exist?
+        if let Some(timer) = self.find_timer_by_frequency(frequency_hz) {
+            return Ok(timer);
         }
-        Err(Esp32PwmError::NoChannelsAvailable)
+        // Free Timer?
+        let res = self
+            .timer_allocation
+            .iter()
+            .enumerate()
+            .find_map(|(i, t)| if t.count == 0 { Some(i) } else { None })
+            .ok_or(Esp32PwmError::NoTimersAvailable);
+        let timer_number = match res {
+            Ok(t) => {
+                self.timer_allocation[t].set_frequency(frequency_hz)?;
+                t
+            }
+            // if no timer are free then match with the nearest pwm frequency
+            Err(_) => self
+                .timer_allocation
+                .iter()
+                .enumerate()
+                .min_by(|(_, a), (_, b)| {
+                    (a.frequency as i32 - frequency_hz as i32)
+                        .abs()
+                        .cmp(&(b.frequency as i32 - frequency_hz as i32).abs())
+                })
+                .map(|(idx, _)| idx)
+                .unwrap(),
+        };
+        Ok(timer_number)
+    }
+
+    fn find_timer_by_frequency(&mut self, frequency_hz: u32) -> Option<usize> {
+        self.timer_allocation
+            .iter()
+            .position(|t| t.frequency == frequency_hz)
+    }
+
+    fn set_timer_frequency(
+        &mut self,
+        timer_number: usize,
+        frequency_hz: u32,
+        channel: PwmChannel,
+    ) -> Result<usize, Esp32PwmError> {
+        if timer_number > 3 {
+            return Err(Esp32PwmError::InvalidTimerNumber(timer_number as i32));
+        }
+
+        // We decrease and then e=increase the timer count to check if
+        // the new frequency can be achieved on the assigned timer (ie no other channels are depending on it)
+        // After that we have 3 case
+        // 1) another timer as the target frequency to assign the channel to it
+        // 2) an timer is free so assigned the channel to it
+        // 3) Neither 1 or 2 are possible so frequency remains unchanged (note we could find the nearest frequency there)
+        self.timer_allocation[timer_number].dec();
+        let res = self.timer_allocation[timer_number].set_frequency(frequency_hz);
+        self.timer_allocation[timer_number].inc();
+
+        match res {
+            Ok(()) => Ok(timer_number),
+            Err(_) => {
+                let new_timer = self
+                    .timer_allocation
+                    .iter_mut()
+                    .enumerate()
+                    .find_map(|(i, t)| match t.set_frequency(frequency_hz) {
+                        Ok(()) => Some(i),
+                        Err(_) => None,
+                    })
+                    .ok_or(Esp32PwmError::NoTimersAvailable)?;
+                unsafe {
+                    ledc_bind_channel_timer(
+                        SpeedMode::LowSpeed.into(),
+                        Into::<usize>::into(channel) as u32,
+                        new_timer as u32,
+                    )
+                };
+                self.bind_channel_to_timer(Some(timer_number), new_timer)
+                    .map(|_| new_timer)
+            }
+        }
+    }
+    fn bind_channel_to_timer(
+        &mut self,
+        old_timer: Option<usize>,
+        new_timer: usize,
+    ) -> Result<(), Esp32PwmError> {
+        if let Some(old_timer) = old_timer {
+            if old_timer > self.timer_allocation.len() - 1 {
+                return Err(Esp32PwmError::InvalidTimerNumber(old_timer as i32));
+            }
+            if old_timer == new_timer {
+                return Ok(());
+            }
+            self.timer_allocation[old_timer].dec();
+        }
+        if new_timer > self.timer_allocation.len() - 1 {
+            return Err(Esp32PwmError::InvalidTimerNumber(new_timer as i32));
+        }
+        self.timer_allocation[new_timer].inc();
+        Ok(())
+    }
+    fn next_available_channel(&mut self, pin: i32) -> Result<PwmChannel, Esp32PwmError> {
+        let mut channel: Option<PwmChannel> = None;
+        for i in 0..8 {
+            if !self.used_channel.bit(i) {
+                let _ = channel.insert((i as u8).into());
+                self.used_channel.set_bit(i, true);
+                self.associated_pins[i] = pin as u8;
+                break;
+            }
+        }
+        channel.ok_or(Esp32PwmError::NoChannelsAvailable)
+    }
+    fn release_channel_and_timer(&mut self, channel: PwmChannel, timer_number: usize) {
+        self.used_channel.set_bit(channel.into(), false);
+        if timer_number < self.timer_allocation.len() - 1 {
+            self.timer_allocation[timer_number].dec();
+        }
+    }
+    fn allocate_pin(
+        &mut self,
+        pin: i32,
+        frequency_hz: u32,
+    ) -> Result<(PwmChannel, u32), Esp32PwmError> {
+        let channel = self.next_available_channel(pin)?;
+        let timer = self.next_available_timer(frequency_hz)?;
+        self.bind_channel_to_timer(None, timer)?;
+        Ok((channel, timer as u32))
     }
 }
