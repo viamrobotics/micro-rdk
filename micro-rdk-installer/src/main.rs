@@ -80,6 +80,10 @@ struct WriteFlash {
     /// The micro-RDK server logs can be viewed this way
     #[arg(long = "monitor")]
     monitor: bool,
+    /// If monitor = true, a file will be created at the given path
+    /// containing copies of the monitor logs
+    #[arg(long = "log-file")]
+    log_file_path: Option<String>,
     /// Wi-Fi SSID to write to NVS partition of binary. If not provided, user will be
     /// prompted for it
     #[arg(long = "wifi-ssid")]
@@ -118,6 +122,10 @@ struct CreateNVSPartition {
 struct Monitor {
     #[arg(long = "baud-rate")]
     baud_rate: Option<u32>,
+    /// If supplied, a file will be created at the given path
+    /// containing copies of the monitor logs
+    #[arg(long = "log-file")]
+    log_file_path: Option<String>,
 }
 
 #[derive(Parser)]
@@ -214,7 +222,12 @@ fn write_credentials_to_app_binary(
     Ok(())
 }
 
-fn flash(binary_path: PathBuf, should_monitor: bool, baud_rate: Option<u32>) -> Result<(), Error> {
+fn flash(
+    binary_path: PathBuf,
+    should_monitor: bool,
+    baud_rate: Option<u32>,
+    log_file_path: Option<String>,
+) -> Result<(), Error> {
     let connect_args = ConnectArgs {
         baud: Some(baud_rate.unwrap_or(460800)),
         // let espflash auto-detect the port
@@ -239,13 +252,13 @@ fn flash(binary_path: PathBuf, should_monitor: bool, baud_rate: Option<u32>) -> 
     if should_monitor {
         log::info!("Starting monitor...");
         let pid = flasher.get_usb_pid().map_err(Error::EspFlashError)?;
-        monitor(flasher.into_interface(), None, pid, 115_200)
+        monitor(flasher.into_interface(), None, pid, 115_200, log_file_path)
             .map_err(|err| Error::MonitorError(err.to_string()))?;
     }
     Ok(())
 }
 
-fn monitor_esp32(baud_rate: Option<u32>) -> Result<(), Error> {
+fn monitor_esp32(baud_rate: Option<u32>, log_file_path: Option<String>) -> Result<(), Error> {
     let connect_args = ConnectArgs {
         baud: Some(baud_rate.unwrap_or(460800)),
         // let espflash auto-detect the port
@@ -257,7 +270,7 @@ fn monitor_esp32(baud_rate: Option<u32>) -> Result<(), Error> {
     let flasher = connect(&connect_args, &conf).map_err(|_| Error::FlashConnect)?;
     let pid = flasher.get_usb_pid().map_err(Error::EspFlashError)?;
     log::info!("Connected. Starting monitor...");
-    monitor(flasher.into_interface(), None, pid, 115_200)
+    monitor(flasher.into_interface(), None, pid, 115_200, log_file_path)
         .map_err(|err| Error::MonitorError(err.to_string()))?;
     Ok(())
 }
@@ -320,7 +333,12 @@ fn main() -> Result<(), Error> {
                 nvs_metadata.size,
                 nvs_metadata.start_address,
             )?;
-            flash(app_path, args.monitor, args.baud_rate)?;
+            flash(
+                app_path,
+                args.monitor,
+                args.baud_rate,
+                args.log_file_path.clone(),
+            )?;
         }
         Some(Commands::CreateNvsPartition(args)) => {
             let mut file = File::create(&args.file_name).map_err(Error::FileError)?;
@@ -332,7 +350,7 @@ fn main() -> Result<(), Error> {
             )?)
             .map_err(Error::FileError)?;
         }
-        Some(Commands::Monitor(args)) => monitor_esp32(args.baud_rate)?,
+        Some(Commands::Monitor(args)) => monitor_esp32(args.baud_rate, args.log_file_path.clone())?,
         None => return Err(Error::NoCommandError),
     };
     Ok(())
