@@ -257,16 +257,35 @@ impl<'a> LedcManager<'a> {
     }
 
     fn next_available_timer(&mut self, frequency_hz: u32) -> Result<usize, Esp32PwmError> {
+        // Timer with same frequency exist?
         if let Some(timer) = self.find_timer_by_frequency(frequency_hz) {
             return Ok(timer);
         }
-        let timer_number = self
+        // Free Timer?
+        let res = self
             .timer_allocation
             .iter()
             .enumerate()
             .find_map(|(i, t)| if t.count == 0 { Some(i) } else { None })
-            .ok_or(Esp32PwmError::NoTimersAvailable)?;
-        self.timer_allocation[timer_number].set_frequency(frequency_hz)?;
+            .ok_or(Esp32PwmError::NoTimersAvailable);
+        let timer_number = match res {
+            Ok(t) => {
+                self.timer_allocation[t].set_frequency(frequency_hz)?;
+                t
+            }
+            // if no timer are free then match with the nearest pwm frequency
+            Err(_) => self
+                .timer_allocation
+                .iter()
+                .enumerate()
+                .min_by(|(_, a), (_, b)| {
+                    (a.frequency as i32 - frequency_hz as i32)
+                        .abs()
+                        .cmp(&(b.frequency as i32 - frequency_hz as i32).abs())
+                })
+                .map(|(idx, _)| idx)
+                .unwrap(),
+        };
         Ok(timer_number)
     }
 
@@ -286,6 +305,12 @@ impl<'a> LedcManager<'a> {
             return Err(Esp32PwmError::InvalidTimerNumber(timer_number as i32));
         }
 
+        // We decrease and then e=increase the timer count to check if
+        // the new frequency can be achieved on the assigned timer (ie no other channels are depending on it)
+        // After that we have 3 case
+        // 1) another timer as the target frequency to assign the channel to it
+        // 2) an timer is free so assigned the channel to it
+        // 3) Neither 1 or 2 are possible so frequency remains unchanged (note we could find the nearest frequency there)
         self.timer_allocation[timer_number].dec();
         let res = self.timer_allocation[timer_number].set_frequency(frequency_hz);
         self.timer_allocation[timer_number].inc();

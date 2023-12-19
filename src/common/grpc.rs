@@ -662,9 +662,10 @@ where
             None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         let pin: i32 = req.pin.parse::<i32>().unwrap();
-        board
-            .set_pwm_duty(pin, req.duty_cycle_pct)
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+
+        // ignore error to match behavior on RDK
+        let _ = board.set_pwm_duty(pin, req.duty_cycle_pct);
+
         let resp = component::board::v1::SetPwmResponse {};
         self.encode_message(resp)
     }
@@ -677,9 +678,9 @@ where
             None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         let pin: i32 = req.pin.parse::<i32>().unwrap();
-        board
-            .set_pwm_frequency(pin, req.frequency_hz)
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+
+        // ignore error to match behavior on RDK
+        let _ = board.set_pwm_frequency(pin, req.frequency_hz);
         let resp = component::board::v1::SetPwmFrequencyResponse {};
         self.encode_message(resp)
     }
