@@ -9,6 +9,9 @@ pub mod native;
 #[macro_use]
 pub extern crate micro_rdk_macros;
 
+#[macro_use(defer)]
+extern crate scopeguard;
+
 pub use micro_rdk_macros::DoCommand;
 pub use micro_rdk_macros::MovementSensorReadings;
 pub use micro_rdk_macros::PowerSensorReadings;

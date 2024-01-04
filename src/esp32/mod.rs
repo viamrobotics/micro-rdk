@@ -9,6 +9,7 @@ pub mod dtls;
 pub mod encoder;
 pub mod entry;
 pub mod exec;
+pub mod hcsr04;
 pub mod i2c;
 pub mod pin;
 pub mod pulse_counter;
