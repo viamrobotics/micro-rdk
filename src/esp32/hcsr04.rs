@@ -22,8 +22,7 @@ use crate::{
         },
         status::Status,
     },
-    DoCommand,
-    google,
+    google, DoCommand,
 };
 
 use esp_idf_hal::{
@@ -37,13 +36,14 @@ use esp_idf_hal::{
 
 use esp_idf_sys::{esp, gpio_isr_handler_add, gpio_isr_handler_remove};
 
-
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
-    if registry.register_sensor("ultrasonic", &HCSR04Sensor::from_config).is_err() {
+    if registry
+        .register_sensor("ultrasonic", &HCSR04Sensor::from_config)
+        .is_err()
+    {
         log::error!("HCSR04Sensor is already registered");
     }
 }
-
 
 struct IsrSharedState {
     // The state machine used to track interrupts and compute the
