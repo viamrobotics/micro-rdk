@@ -59,7 +59,7 @@ struct IsrSharedState {
 }
 
 #[derive(DoCommand)]
-struct HCSR04Sensor {
+pub struct HCSR04Sensor {
     // We require a board in order to ensure that ISR setup has completed
     _board: BoardType,
 
