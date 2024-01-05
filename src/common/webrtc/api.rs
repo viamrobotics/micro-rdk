@@ -6,6 +6,7 @@ use std::{
     pin::Pin,
     rc::Rc,
     sync::{atomic::AtomicBool, Arc},
+    task::Poll,
     time::Duration,
 };
 
@@ -23,6 +24,7 @@ use crate::{
 };
 
 use base64::{engine::general_purpose, Engine};
+use futures::task::AtomicWaker;
 use futures_lite::{Future, StreamExt};
 use prost::{DecodeError, EncodeError};
 use sdp::{
@@ -73,6 +75,8 @@ pub enum WebRtcError {
     DtlsError(#[from] Box<dyn std::error::Error + Send + Sync>),
     #[error("the active webrtc connection has a higher priority")]
     CurrentConnectionHigherPrority(),
+    #[error("cannot parse candidate")]
+    CannotParseCandidate,
 }
 
 pub(crate) struct WebRtcSignalingChannel {
@@ -103,6 +107,53 @@ pub struct WebRtcSdp {
 impl WebRtcSdp {
     pub fn new(sdp: SessionDescription, uuid: String) -> Self {
         WebRtcSdp { sdp, uuid }
+    }
+}
+
+struct AtomicSyncInner {
+    waker: AtomicWaker,
+    done: AtomicBool,
+}
+
+#[derive(Clone)]
+pub(crate) struct AtomicSync(Arc<AtomicSyncInner>);
+
+impl Default for AtomicSync {
+    fn default() -> Self {
+        Self(Arc::new(AtomicSyncInner {
+            waker: AtomicWaker::new(),
+            done: AtomicBool::new(false),
+        }))
+    }
+}
+
+impl AtomicSync {
+    pub(crate) fn done(&self) {
+        self.0
+            .done
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+        self.0.waker.wake();
+    }
+    fn get(&self) -> bool {
+        self.0.done.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
+impl Future for AtomicSync {
+    type Output = ();
+    fn poll(
+        self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        if self.0.done.load(std::sync::atomic::Ordering::Relaxed) {
+            return Poll::Ready(());
+        }
+        self.0.waker.register(cx.waker());
+        if self.0.done.load(std::sync::atomic::Ordering::Relaxed) {
+            Poll::Ready(())
+        } else {
+            Poll::Pending
+        }
     }
 }
 
@@ -212,8 +263,12 @@ impl WebRtcSignalingChannel {
                         answer_request::Stage::Update(c) => {
                             if let Some(c) = c.candidate {
                                 log::debug!("received candidate {}", c.candidate);
-                                let c = c.candidate.try_into().ok();
-                                return Ok(c);
+                                let c = c
+                                    .candidate
+                                    .try_into()
+                                    .map_err(|_| WebRtcError::CannotParseCandidate)
+                                    .map(Option::Some);
+                                return c;
                             } else {
                                 log::error!("received no candidates with this update request");
                                 return Ok(None);
@@ -328,14 +383,15 @@ where
             self.local_ip,
         );
 
-        log::info!("gathering local candidates");
-        ice_agent.local_candidates().await.unwrap();
-
         self.signaling
             .as_mut()
             .ok_or(WebRtcError::SignalingDisconnected())?
             .send_sdp_answer(answer)
             .await?;
+
+        log::info!("gathering local candidates");
+        ice_agent.local_candidates().await.unwrap();
+
         for c in &ice_agent.local_candidates {
             log::debug!("sending local candidates {:?}", c);
             self.signaling
@@ -351,13 +407,13 @@ where
             .as_mut()
             .ok_or(WebRtcError::SignalingDisconnected())?
             .send_done(self.uuid.as_ref().unwrap().clone())?;
-        let sync = Arc::new(AtomicBool::new(false));
+        let sync = AtomicSync::default();
         let sync_clone = sync.clone();
         self.executor.execute(Box::pin(async move {
             ice_agent.run(sync).await;
         }));
 
-        while !sync_clone.load(std::sync::atomic::Ordering::Relaxed) {
+        while !sync_clone.get() {
             if let Some(candidate) = self
                 .signaling
                 .as_mut()
@@ -369,17 +425,21 @@ where
                 match candidate {
                     Ok(candidate) => {
                         if let Some(c) = candidate {
-                            log::debug!("received candidate : {}", &c);
                             tx.send(c).await.unwrap();
+                        } else {
+                            break;
                         }
                     }
+                    Err(WebRtcError::CannotParseCandidate) => continue,
                     Err(e) => {
                         // TODO(RSDK-3854)
+                        log::error!("error when attempting to connect");
                         return Err(e);
                     }
                 }
             }
         }
+        sync_clone.await;
         let _ = self.signaling.take();
         Ok(())
     }

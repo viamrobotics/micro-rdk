@@ -40,6 +40,7 @@ use std::{
     rc::Rc,
     sync::{Arc, Mutex},
     task::Poll,
+    time::Duration,
 };
 use tokio::io::{AsyncRead, AsyncWrite};
 
@@ -497,8 +498,16 @@ where
         }
         let srv = self.server.as_mut().unwrap();
         loop {
-            if let Err(e) = srv.next_request().await {
-                return Err(ServerError::Other(Box::new(e)));
+            let req = srv.next_request().timeout(Duration::from_secs(30)).await;
+            match req {
+                Some(e) => {
+                    if let Err(e) = e {
+                        return Err(ServerError::Other(Box::new(e)));
+                    }
+                }
+                None => {
+                    return Err(ServerError::ServerConnectionTimeout);
+                }
             }
         }
     }
