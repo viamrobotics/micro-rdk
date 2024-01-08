@@ -431,8 +431,6 @@ where
                     }
                     Err(WebRtcError::CannotParseCandidate) => continue,
                     Err(e) => {
-                        // TODO(RSDK-3854)
-                        log::error!("error when attempting to connect");
                         return Err(e);
                     }
                 }
