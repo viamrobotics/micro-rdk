@@ -12,16 +12,9 @@
 //     "echo_interrupt_pin": "18"
 //     "timeout_ms" : "20",
 //   },
-//   "depends_on": [
-//     "board"
-//   ]
 // }
 //
 // Configuration details:
-//
-// The sensor requires a board dependency in the `depends_on`
-// section. Note that this differs from RDK ultrasonic support where
-// the `board` is part of `attributes`.
 //
 // The following `attributes` section parameters configure the sensor:
 //
@@ -39,6 +32,9 @@
 //    no `timeout_ms` is set, the sensor will default to 50ms. Values
 //    are clamped between 100us and 100ms.
 //
+// Note that unlike the RDK ultrasonic sensor, the Micro-RDK sensor
+// does not currently require a `board` attribute, though this may
+// change in the future.
 
 use std::{
     cell::RefCell,
@@ -53,9 +49,8 @@ use std::{
 
 use crate::{
     common::{
-        board::BoardType,
         config::{AttributeError, ConfigType},
-        registry::{self, ComponentRegistry, Dependency},
+        registry::{ComponentRegistry, Dependency},
         sensor::{
             GenericReadingsResult, Readings, Sensor, SensorResult, SensorT, SensorType,
             TypedReadingsResult,
@@ -99,9 +94,6 @@ struct IsrSharedState {
 
 #[derive(DoCommand)]
 pub struct HCSR04Sensor {
-    // We require a board in order to ensure that ISR setup has completed
-    _board: BoardType,
-
     // The PinDriver to control the pin that triggers issuing a pulse.
     //
     // NOTE: This could be an Esp32GPIOPin, but instead uses PinDriver directly
@@ -128,11 +120,7 @@ pub struct HCSR04Sensor {
 }
 
 impl HCSR04Sensor {
-    pub fn from_config(cfg: ConfigType, deps: Vec<Dependency>) -> anyhow::Result<SensorType> {
-        let board = registry::get_board_from_dependencies(deps).ok_or(anyhow::anyhow!(
-            "HCSR04Sensor: failed to get board from dependencies"
-        ))?;
-
+    pub fn from_config(cfg: ConfigType, _deps: Vec<Dependency>) -> anyhow::Result<SensorType> {
         let trigger_pin = cfg.get_attribute::<i32>("trigger_pin").map_err(|e| {
             anyhow::anyhow!(
                 "HCSR04Sensor: failed to get `trigger_pin from configuration`: {:?}",
@@ -161,7 +149,6 @@ impl HCSR04Sensor {
         )?;
 
         Ok(Arc::new(Mutex::new(HCSR04Sensor::new(
-            board,
             trigger_pin,
             echo_interrupt_pin,
             timeout,
@@ -169,7 +156,6 @@ impl HCSR04Sensor {
     }
 
     fn new(
-        board: BoardType,
         trigger_pin: i32,
         echo_interrupt_pin: i32,
         timeout: Option<Duration>,
@@ -182,7 +168,6 @@ impl HCSR04Sensor {
         let notifier = notification.notifier();
 
         let sensor = Self {
-            _board: board,
             trigger_pin: RefCell::new(PinDriver::output(unsafe { AnyIOPin::new(trigger_pin) })?),
             echo_interrupt_pin: RefCell::new(PinDriver::input(unsafe {
                 AnyIOPin::new(echo_interrupt_pin)
