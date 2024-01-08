@@ -102,10 +102,17 @@ pub struct HCSR04Sensor {
     _board: BoardType,
 
     // The PinDriver to control the pin that triggers issuing a pulse.
+    //
+    // NOTE: This could be an Esp32GPIOPin, but instead uses PinDriver directly
+    // for consistency with `echo_interrupt_pin` below, which cannot be.
     trigger_pin: PinDriver<'static, AnyIOPin, Output>,
 
     // The PinDriver used to listen for digital interrupts and measure
     // the length of the echo pulse.
+    //
+    // TODO: It would be nice to use Esp32GPIOPin here instead,
+    // however, that type forces the pin into `InputOutput` mode which
+    // appears not to work with digital interrupts.
     echo_interrupt_pin: PinDriver<'static, AnyIOPin, Input>,
 
     // How long we will wait for an echo pulse before concluding that there is no
