@@ -51,7 +51,6 @@ struct IsrSharedState {
     //
     // 0: Starting state, ready to take a reading
     // i64 > 0: Millisecond timestamp of first edge of echo signal
-    // -1 : Lockout state, further interrupts will be ignored
     timestamp: AtomicI64,
 
     // The channel the ISR will use to communicate results back to waiters.
@@ -184,27 +183,15 @@ impl HCSR04Sensor {
             Ok(_) => {
                 // Initial edge: timestamp gets stored.
             }
-            Err(-1) => {
-                // Locked out: ignore this interrupt. Sometimes it
-                // seems that there are spurious edges on timeouts.
-            }
             Err(prior) => {
-                // Final edge: try set the lockout to debounce
-                // (i.e. we observe `timestamp` to be still set to
-                // `prior`), and if so, return a reply.
-                if let Ok(_) =
-                    arg.timestamp
-                        .compare_exchange(prior, -1, Ordering::AcqRel, Ordering::Acquire)
-                {
-                    // Notify the waiter if we can convert the
-                    // computed duration into a non-zero u32. If we
-                    // don't notify, the waiter will time out and
-                    // return an error, and the state machine will be
-                    // reset on the next `get_readings` call.
-                    if let Ok(delta) = u32::try_from(when - prior) {
-                        if let Some(nz) = NonZeroU32::new(delta) {
-                            arg.notifier.notify_and_yield(nz);
-                        }
+                // Terminal edge: notify the waiter if we can convert
+                // the computed duration into a non-zero u32. If we
+                // don't notify, the waiter will time out and return
+                // an error, and the state machine will be reset on
+                // the next `get_readings` call.
+                if let Ok(delta) = u32::try_from(when - prior) {
+                    if let Some(nz) = NonZeroU32::new(delta) {
+                        arg.notifier.notify_and_yield(nz);
                     }
                 }
             }
