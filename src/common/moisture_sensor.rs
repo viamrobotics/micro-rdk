@@ -36,7 +36,7 @@ impl Readings for MoistureSensor {
 }
 
 impl SensorT<f64> for MoistureSensor {
-    fn get_readings(&mut self) -> anyhow::Result<TypedReadingsResult<f64>> {
+    fn get_readings(&self) -> anyhow::Result<TypedReadingsResult<f64>> {
         let reading = self.analog.borrow_mut().read()?;
         let mut x = HashMap::new();
         x.insert("millivolts".to_string(), reading as f64);

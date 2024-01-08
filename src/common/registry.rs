@@ -472,7 +472,7 @@ mod tests {
     }
 
     impl SensorT<f64> for TestSensor {
-        fn get_readings(&mut self) -> anyhow::Result<TypedReadingsResult<f64>> {
+        fn get_readings(&self) -> anyhow::Result<TypedReadingsResult<f64>> {
             let mut x = std::collections::HashMap::new();
             x.insert("test_sensor".to_string(), 42.0);
             Ok(x)
