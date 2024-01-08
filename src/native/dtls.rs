@@ -103,7 +103,7 @@ impl DtlsConnector for Dtls {
     type Error = openssl::ssl::Error;
     type Stream = SslStream<IoPktChannel>;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Stream, Self::Error>>>>;
-    fn accept(self) -> Self::Future {
+    fn accept(self) -> Result<Self::Future, Self::Error> {
         let mut ssl = Ssl::new(&self.context).unwrap();
         ssl.set_accept_state();
         let eckey = EcKey::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
@@ -114,11 +114,11 @@ impl DtlsConnector for Dtls {
 
         let mut stream = async_std_openssl::SslStream::new(ssl, transport).unwrap();
 
-        Box::pin(async move {
+        Ok(Box::pin(async move {
             let pin = Pin::new(&mut stream);
             pin.accept().await?;
             Ok(stream)
-        })
+        }))
     }
     fn set_transport(&mut self, transport: IoPktChannel) {
         let _ = self.transport.insert(transport);

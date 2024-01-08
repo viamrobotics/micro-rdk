@@ -4,10 +4,10 @@ use super::io::IoPktChannel;
 
 pub trait DtlsConnector {
     type Stream: AsyncRead + AsyncWrite + Send + Unpin + 'static;
-    type Error;
+    type Error: std::error::Error + Send + Sync + 'static;
     type Future: Future<Output = Result<Self::Stream, Self::Error>>;
 
-    fn accept(self) -> Self::Future;
+    fn accept(self) -> Result<Self::Future, Self::Error>;
     fn set_transport(&mut self, transport: IoPktChannel);
 }
 

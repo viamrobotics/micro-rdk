@@ -263,12 +263,11 @@ impl WebRtcSignalingChannel {
                         answer_request::Stage::Update(c) => {
                             if let Some(c) = c.candidate {
                                 log::debug!("received candidate {}", c.candidate);
-                                let c = c
+                                return c
                                     .candidate
                                     .try_into()
                                     .map_err(|_| WebRtcError::CannotParseCandidate)
                                     .map(Option::Some);
-                                return c;
                             } else {
                                 log::error!("received no candidates with this update request");
                                 return Ok(None);
@@ -454,11 +453,18 @@ where
 
         dtls.set_transport(dtls_transport);
 
-        if let Ok(dtls_stream) = dtls.accept().await {
+        if let Ok(dtls_stream) = dtls
+            .accept()
+            .map_err(|e| WebRtcError::DtlsError(Box::new(e)))?
+            .await
+        {
             let (c_tx, c_rx) = async_channel::unbounded();
 
             let sctp = Box::new(SctpConnector::new(dtls_stream, c_tx));
-            let mut sctp = sctp.listen().await.unwrap();
+            let mut sctp = sctp
+                .listen()
+                .await
+                .map_err(|e| WebRtcError::DtlsError(Box::new(e)))?;
             let _ = self.sctp_handle.insert(sctp.get_handle());
             self.executor.execute(Box::pin(async move {
                 sctp.run().await;
