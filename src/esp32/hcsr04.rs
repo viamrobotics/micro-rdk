@@ -1,5 +1,44 @@
 // Support for HC-SR04 style ultrasonic ranging modules. See
 // https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf.
+//
+// Example configuration
+//
+// {
+//   "model": "ultrasonic",
+//   "name": "ultrasonic-sensor",
+//   "type": "sensor",
+//   "attributes": {
+//     "trigger_pin": "15",
+//     "echo_interrupt_pin": "18"
+//     "timeout_ms" : "20",
+//   },
+//   "depends_on": [
+//     "board"
+//   ]
+// }
+//
+// Configuration details:
+//
+// The sensor requires a board dependency in the `depends_on`
+// section. Note that this differs from RDK ultrasonic support where
+// the `board` is part of `attributes`.
+//
+// The following `attributes` section parameters configure the sensor:
+//
+//  - `trigger_pin` (required): The GPIO pin number connected to the pulse
+//    trigger input on the sensor.
+//
+//  - `echo_interrupt_pin` (required): The GPIO pin number connected to the echo
+//    interrupt pin. Please note that unlike the RDK ultrasonic
+//    sensor, you must not use a named pin associated with a digital
+//    interrupt configured on the board: it will not (currently) work.
+//
+//  - `timeout_ms` (optional): The maximum timeout the sensor will
+//    wait for an echo pulse in milliseconds. If no echo is observed
+//    within this timeout, an error will be returned to the caller. If
+//    no `timeout_ms` is set, the sensor will default to 50ms. Values
+//    are clamped between 100us and 100ms.
+//
 
 use std::{
     collections::HashMap,
@@ -138,7 +177,9 @@ impl HCSR04Sensor {
             _board: board,
             trigger_pin: PinDriver::output(unsafe { AnyIOPin::new(trigger_pin) })?,
             echo_interrupt_pin: PinDriver::input(unsafe { AnyIOPin::new(echo_interrupt_pin) })?,
-            timeout: timeout.unwrap_or(Duration::from_millis(50)),
+            timeout: timeout.unwrap_or(Duration::from_millis(50)).clamp(
+                Duration::from_micros(100),
+                Duration::from_millis(100)),
             interrupt_notification: notification,
             isr_shared_state: Arc::new(IsrSharedState {
                 timestamp: 0.into(),
