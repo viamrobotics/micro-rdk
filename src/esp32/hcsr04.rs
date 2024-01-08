@@ -43,6 +43,7 @@
 use std::{
     collections::HashMap,
     num::NonZeroU32,
+    cell::RefCell,
     sync::{
         atomic::{AtomicI64, Ordering},
         Arc, Mutex,
@@ -105,7 +106,7 @@ pub struct HCSR04Sensor {
     //
     // NOTE: This could be an Esp32GPIOPin, but instead uses PinDriver directly
     // for consistency with `echo_interrupt_pin` below, which cannot be.
-    trigger_pin: PinDriver<'static, AnyIOPin, Output>,
+    trigger_pin: RefCell<PinDriver<'static, AnyIOPin, Output>>,
 
     // The PinDriver used to listen for digital interrupts and measure
     // the length of the echo pulse.
@@ -113,7 +114,7 @@ pub struct HCSR04Sensor {
     // TODO: It would be nice to use Esp32GPIOPin here instead,
     // however, that type forces the pin into `InputOutput` mode which
     // appears not to work with digital interrupts.
-    echo_interrupt_pin: PinDriver<'static, AnyIOPin, Input>,
+    echo_interrupt_pin: RefCell<PinDriver<'static, AnyIOPin, Input>>,
 
     // How long we will wait for an echo pulse before concluding that there is no
     // obstacle in range. Defaults to 50ms.
@@ -180,10 +181,10 @@ impl HCSR04Sensor {
         let notification = Notification::new();
         let notifier = notification.notifier();
 
-        let mut sensor = Self {
+        let sensor = Self {
             _board: board,
-            trigger_pin: PinDriver::output(unsafe { AnyIOPin::new(trigger_pin) })?,
-            echo_interrupt_pin: PinDriver::input(unsafe { AnyIOPin::new(echo_interrupt_pin) })?,
+            trigger_pin: RefCell::new(PinDriver::output(unsafe { AnyIOPin::new(trigger_pin) })?),
+            echo_interrupt_pin: RefCell::new(PinDriver::input(unsafe { AnyIOPin::new(echo_interrupt_pin) })?),
             timeout: timeout.unwrap_or(Duration::from_millis(50)).clamp(
                 Duration::from_micros(100),
                 Duration::from_millis(100)),
@@ -194,7 +195,7 @@ impl HCSR04Sensor {
             }),
         };
 
-        sensor.echo_interrupt_pin.set_pull(Pull::Down)?;
+        sensor.echo_interrupt_pin.borrow_mut().set_pull(Pull::Down)?;
 
         // Start the trigger pin high: the pulse is sent on the
         // falling edge, so we can just go low immediately in
@@ -202,10 +203,11 @@ impl HCSR04Sensor {
         // `get_readings` request within 10us of the prior one
         // completing, the pin will be high long enough to trigger the
         // pulse.
-        sensor.trigger_pin.set_high()?;
+        sensor.trigger_pin.borrow_mut().set_high()?;
 
         sensor
             .echo_interrupt_pin
+            .borrow_mut()
             .set_interrupt_type(InterruptType::AnyEdge)?;
 
         unsafe {
@@ -249,7 +251,7 @@ impl HCSR04Sensor {
 
 impl Drop for HCSR04Sensor {
     fn drop(&mut self) {
-        let pin = self.echo_interrupt_pin.pin();
+        let pin = self.echo_interrupt_pin.borrow_mut().pin();
         if let Err(error) = unsafe { esp!(gpio_isr_handler_remove(pin)) } {
             log::warn!(
                 "HCSR04Sensor: failed to remove interrupt handler for pin {}: {}",
@@ -273,10 +275,10 @@ impl Readings for HCSR04Sensor {
 }
 
 impl SensorT<f64> for HCSR04Sensor {
-    fn get_readings(&mut self) -> anyhow::Result<TypedReadingsResult<f64>> {
+    fn get_readings(&self) -> anyhow::Result<TypedReadingsResult<f64>> {
         // If the echo pin is already high for some reason, the state machine
         // won't work correctly.
-        if self.echo_interrupt_pin.is_high() {
+        if self.echo_interrupt_pin.borrow().is_high() {
             anyhow::bail!("HCSR04Sensor: echo pin is high before trigger sent")
         }
 
@@ -288,7 +290,7 @@ impl SensorT<f64> for HCSR04Sensor {
 
         // Drive the pin low to trigger the pulse, and ensure we put
         // it back to high after our wait.
-        let trigger_pin = &mut self.trigger_pin;
+        let mut trigger_pin = self.trigger_pin.borrow_mut();
         trigger_pin.set_low()?;
         defer! {
             let _ = trigger_pin.set_high();
