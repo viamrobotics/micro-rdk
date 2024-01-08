@@ -41,9 +41,9 @@
 //
 
 use std::{
+    cell::RefCell,
     collections::HashMap,
     num::NonZeroU32,
-    cell::RefCell,
     sync::{
         atomic::{AtomicI64, Ordering},
         Arc, Mutex,
@@ -184,10 +184,12 @@ impl HCSR04Sensor {
         let sensor = Self {
             _board: board,
             trigger_pin: RefCell::new(PinDriver::output(unsafe { AnyIOPin::new(trigger_pin) })?),
-            echo_interrupt_pin: RefCell::new(PinDriver::input(unsafe { AnyIOPin::new(echo_interrupt_pin) })?),
-            timeout: timeout.unwrap_or(Duration::from_millis(50)).clamp(
-                Duration::from_micros(100),
-                Duration::from_millis(100)),
+            echo_interrupt_pin: RefCell::new(PinDriver::input(unsafe {
+                AnyIOPin::new(echo_interrupt_pin)
+            })?),
+            timeout: timeout
+                .unwrap_or(Duration::from_millis(50))
+                .clamp(Duration::from_micros(100), Duration::from_millis(100)),
             interrupt_notification: notification,
             isr_shared_state: Arc::new(IsrSharedState {
                 timestamp: 0.into(),
@@ -195,7 +197,10 @@ impl HCSR04Sensor {
             }),
         };
 
-        sensor.echo_interrupt_pin.borrow_mut().set_pull(Pull::Down)?;
+        sensor
+            .echo_interrupt_pin
+            .borrow_mut()
+            .set_pull(Pull::Down)?;
 
         // Start the trigger pin high: the pulse is sent on the
         // falling edge, so we can just go low immediately in
