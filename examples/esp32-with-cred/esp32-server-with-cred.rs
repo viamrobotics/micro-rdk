@@ -116,14 +116,16 @@ impl NvsStaticVars {
     }
 }
 
-fn main() -> Result<(), ServerError> {
+fn main() {
     esp_idf_sys::link_patches();
 
     esp_idf_svc::log::EspLogger::initialize_default();
-    let sys_loop_stack = EspSystemEventLoop::take()?;
+    let sys_loop_stack = EspSystemEventLoop::take().unwrap();
 
     #[cfg(not(feature = "qemu"))]
-    let periph = Peripherals::take().map_err(|_| ServerError::PeripheralsError)?;
+    let periph = Peripherals::take()
+        .map_err(|_| ServerError::PeripheralsError)
+        .unwrap();
 
     #[cfg(feature = "qemu")]
     let repr = {
@@ -145,24 +147,30 @@ fn main() -> Result<(), ServerError> {
 
     esp_idf_sys::esp!(unsafe {
         esp_idf_sys::esp_vfs_eventfd_register(&esp_idf_sys::esp_vfs_eventfd_config_t { max_fds: 5 })
-    })?;
+    })
+    .unwrap();
 
     info!("load vars from NVS...");
-    let nvs_vars = NvsStaticVars::new()?;
+    let nvs_vars = NvsStaticVars::new().unwrap();
 
     #[cfg(feature = "qemu")]
     let (ip, _block_eth) = {
         use esp_idf_hal::prelude::Peripherals;
         info!("creating eth object");
-        let mut eth = Box::new(esp_idf_svc::eth::EspEth::wrap(
-            esp_idf_svc::eth::EthDriver::new_openeth(
-                Peripherals::take()
-                    .ok_or(ServerError::PeripheralsError)?
-                    .mac,
-                sys_loop_stack.clone(),
-            )?,
-        )?);
-        let _ = eth_configure(&sys_loop_stack, &mut eth)?;
+        let mut eth = Box::new(
+            esp_idf_svc::eth::EspEth::wrap(
+                esp_idf_svc::eth::EthDriver::new_openeth(
+                    Peripherals::take()
+                        .ok_or(ServerError::PeripheralsError)
+                        .unwrap()
+                        .mac,
+                    sys_loop_stack.clone(),
+                )
+                .unwrap(),
+            )
+            .unwrap(),
+        );
+        let _ = eth_configure(&sys_loop_stack, &mut eth).unwrap();
         let ip = Ipv4Addr::new(10, 1, 12, 187);
         (ip, eth)
     };
@@ -183,8 +191,9 @@ fn main() -> Result<(), ServerError> {
             sys_loop_stack,
             &nvs_vars.wifi_ssid,
             &nvs_vars.wifi_pwd,
-        )?;
-        (wifi.wifi().sta_netif().get_ip_info()?.ip, wifi)
+        )
+        .unwrap();
+        (wifi.wifi().sta_netif().get_ip_info().unwrap().ip, wifi)
     };
 
     let webrtc_certificate = WebRtcCertificate::new(
@@ -200,7 +209,6 @@ fn main() -> Result<(), ServerError> {
     let cfg = AppClientConfig::new(nvs_vars.robot_secret, nvs_vars.robot_id, ip, "".to_owned());
 
     serve_web(cfg, tls_cfg, repr, ip, webrtc_certificate);
-    Ok(())
 }
 
 #[cfg(feature = "qemu")]

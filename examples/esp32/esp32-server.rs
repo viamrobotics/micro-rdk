@@ -37,7 +37,7 @@ use {
     esp_idf_sys::esp_wifi_set_ps,
 };
 
-fn main() -> anyhow::Result<()> {
+fn main() {
     esp_idf_sys::link_patches();
 
     esp_idf_svc::log::EspLogger::initialize_default();
@@ -53,7 +53,8 @@ fn main() -> anyhow::Result<()> {
             esp_idf_sys::esp_vfs_eventfd_register(&esp_idf_sys::esp_vfs_eventfd_config_t {
                 max_fds: 5,
             })
-        })?;
+        })
+        .unwrap();
     }
 
     #[cfg(feature = "qemu")]
@@ -66,8 +67,9 @@ fn main() -> anyhow::Result<()> {
                 sys_loop_stack.clone(),
             )
             .unwrap(),
-        )?;
-        let (_, eth) = eth_configure(&sys_loop_stack, eth)?;
+        )
+        .unwrap();
+        let (_, eth) = eth_configure(&sys_loop_stack, eth).unwrap();
         let ip = Ipv4Addr::new(10, 1, 12, 187);
         (ip, eth)
     };
@@ -81,8 +83,8 @@ fn main() -> anyhow::Result<()> {
     #[allow(clippy::redundant_clone)]
     #[cfg(not(feature = "qemu"))]
     let (ip, _wifi) = {
-        let wifi = start_wifi(periph.modem, sys_loop_stack)?;
-        (wifi.wifi().sta_netif().get_ip_info()?.ip, wifi)
+        let wifi = start_wifi(periph.modem, sys_loop_stack).unwrap();
+        (wifi.wifi().sta_netif().get_ip_info().unwrap().ip, wifi)
     };
 
     let cfg = AppClientConfig::new(
@@ -104,7 +106,6 @@ fn main() -> anyhow::Result<()> {
     };
 
     serve_web(cfg, tls_cfg, repr, ip, webrtc_certificate);
-    Ok(())
 }
 
 #[cfg(feature = "qemu")]

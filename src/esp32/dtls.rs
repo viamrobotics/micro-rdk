@@ -695,18 +695,18 @@ where
     type Error = SSLError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Stream, Self::Error>>>>;
     type Stream = AsyncDtlsStream<IoPktChannel>;
-    fn accept(mut self) -> Self::Future {
+    fn accept(mut self) -> Result<Self::Future, Self::Error> {
         let transport = self.transport.take().unwrap();
 
         //TODO(npm) consider returning and error
-        self.init().unwrap();
+        self.init()?;
 
         let mut stream = AsyncDtlsStream::new(self.get_context(), transport).unwrap();
 
-        Box::pin(async move {
+        Ok(Box::pin(async move {
             Pin::new(&mut stream).accept().await?;
             Ok(stream)
-        })
+        }))
     }
     fn set_transport(&mut self, transport: IoPktChannel) {
         let _ = self.transport.insert(transport);

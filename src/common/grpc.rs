@@ -146,7 +146,6 @@ where
     R: GrpcResponse,
 {
     pub fn new(robot: Arc<Mutex<LocalRobot>>, body: R) -> Self {
-        info!("Making server");
         GrpcServer {
             response: body,
             buffer: Rc::new(RefCell::new(BytesMut::with_capacity(GRPC_BUFFER_SIZE))),

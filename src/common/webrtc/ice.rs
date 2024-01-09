@@ -2,7 +2,6 @@
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs},
     pin::Pin,
-    sync::{atomic::AtomicBool, Arc},
     time::{Duration, Instant},
 };
 
@@ -27,6 +26,7 @@ use stun_codec::{
 use crate::{common::webrtc::candidates::CandidatePairState, IceAttribute};
 
 use super::{
+    api::AtomicSync,
     candidates::{Candidate, CandidatePair, CandidateType},
     io::IoPktChannel,
 };
@@ -210,7 +210,7 @@ impl ICEAgent {
     }
 
     /// run the ice agent, processing incoming STUN packet and emitting STUN request
-    pub async fn run(&mut self, done: Arc<AtomicBool>) {
+    pub(crate) async fn run(&mut self, done: AtomicSync) {
         log::debug!("Running ICE Agent");
 
         let error = loop {
@@ -226,7 +226,7 @@ impl ICEAgent {
                     self.state = ICEAgentState::Connected;
                     // this is a work around to tell the WebRTCAPI that signaling can be
                     // stopped and DTLS should be started
-                    done.store(true, std::sync::atomic::Ordering::Relaxed);
+                    done.done();
                 }
             }
 

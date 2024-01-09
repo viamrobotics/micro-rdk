@@ -126,8 +126,8 @@ impl DtlsConnector for WebRtcNoOp {
     type Error = Infallible;
     type Stream = WebRtcNoOp;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Stream, Self::Error>>>>;
-    fn accept(self) -> Self::Future {
-        Box::pin(futures_lite::future::pending())
+    fn accept(self) -> Result<Self::Future, Self::Error> {
+        Ok(Box::pin(futures_lite::future::pending()))
     }
     fn set_transport(&mut self, _: crate::common::webrtc::io::IoPktChannel) {}
 }
