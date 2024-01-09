@@ -47,7 +47,7 @@ The following instructions should be used for viewing server logs from an esp32 
 To see server logs for an esp32, use the `monitor` command on `espflash`:
 
 ```
-cargo espflash monitor
+espflash monitor
 ```
 
 #### Without espflash
