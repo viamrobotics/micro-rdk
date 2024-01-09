@@ -103,9 +103,9 @@ pub struct HCSR04Sensor {
     // The PinDriver used to listen for digital interrupts and measure
     // the length of the echo pulse.
     //
-    // TODO: It would be nice to use Esp32GPIOPin here instead,
-    // however, that type forces the pin into `InputOutput` mode which
-    // appears not to work with digital interrupts.
+    // TODO(RSDK-6279): It would be nice to use Esp32GPIOPin here
+    // instead, however, that type forces the pin into `InputOutput`
+    // mode which appears not to work with digital interrupts.
     echo_interrupt_pin: RefCell<PinDriver<'static, AnyIOPin, Input>>,
 
     // How long we will wait for an echo pulse before concluding that there is no
@@ -289,6 +289,10 @@ impl SensorT<f64> for HCSR04Sensor {
         // Wait (up to timeout) for a notification from the
         // ISR. Convert any result from the notification into a
         // distance.
+        //
+        // TODO(RSDK-6278): This blocks the calling thread. It would
+        // be better to find a way to leverage an executor to avoid
+        // the blocking wait.
         match self
             .interrupt_notification
             .wait(TickType::from(self.timeout).as_millis_u32())
