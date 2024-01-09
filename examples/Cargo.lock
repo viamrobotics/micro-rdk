@@ -2925,6 +2925,7 @@ dependencies = [
  "rcgen",
  "rustls 0.20.8",
  "rustls-pemfile",
+ "scopeguard",
  "sctp-proto",
  "sdp",
  "serde",
