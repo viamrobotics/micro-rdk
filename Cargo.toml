@@ -76,6 +76,7 @@ chrono = "0.4.31"
 micro-rdk-macros = { path = "./micro-rdk-macros" }
 ignore = "=0.4.20"
 bitfield = "0.14.0"
+scopeguard = "1.2.0"
 
 [build-dependencies]
 anyhow = "1"
