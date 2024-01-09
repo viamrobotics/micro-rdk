@@ -160,7 +160,7 @@ impl HCSR04Sensor {
         echo_interrupt_pin: i32,
         timeout: Option<Duration>,
     ) -> anyhow::Result<HCSR04Sensor> {
-        // TODO: Move this into micro-rdk and unify with pin.rs
+        // TODO(RSDK-6279): Unify with esp32/pin.rs.
         init_isr_alloc_flags(esp_idf_hal::interrupt::InterruptType::Iram.into());
         enable_isr_service()?;
 
