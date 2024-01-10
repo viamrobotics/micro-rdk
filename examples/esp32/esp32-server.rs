@@ -10,7 +10,7 @@ include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 #[cfg(feature = "qemu")]
 use esp_idf_svc::eth::EspEth;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
-use esp_idf_sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT};
+use esp_idf_svc::sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT};
 use log::*;
 use micro_rdk::{
     common::{app_client::AppClientConfig, entry::RobotRepresentation},
@@ -31,14 +31,14 @@ use {
         AuthMethod, ClientConfiguration as WifiClientConfiguration,
         Configuration as WifiConfiguration,
     },
-    esp_idf_hal::{peripheral::Peripheral, prelude::Peripherals},
+    esp_idf_svc::hal::{peripheral::Peripheral, prelude::Peripherals},
     esp_idf_svc::wifi::{BlockingWifi, EspWifi},
-    esp_idf_sys as _,
-    esp_idf_sys::esp_wifi_set_ps,
+    esp_idf_svc::sys as _,
+    esp_idf_svc::sys::esp_wifi_set_ps,
 };
 
 fn main() {
-    esp_idf_sys::link_patches();
+    esp_idf_svc::sys::link_patches();
 
     esp_idf_svc::log::EspLogger::initialize_default();
     let sys_loop_stack = EspSystemEventLoop::take().unwrap();
@@ -49,8 +49,8 @@ fn main() {
     let repr = RobotRepresentation::WithRegistry(Box::<ComponentRegistry>::default());
 
     {
-        esp_idf_sys::esp!(unsafe {
-            esp_idf_sys::esp_vfs_eventfd_register(&esp_idf_sys::esp_vfs_eventfd_config_t {
+        esp_idf_svc::sys::esp!(unsafe {
+            esp_idf_svc::sys::esp_vfs_eventfd_register(&esp_idf_svc::sys::esp_vfs_eventfd_config_t {
                 max_fds: 5,
             })
         })
@@ -59,7 +59,7 @@ fn main() {
 
     #[cfg(feature = "qemu")]
     let (ip, _block_eth) = {
-        use esp_idf_hal::prelude::Peripherals;
+        use esp_idf_svc::hal::prelude::Peripherals;
         info!("creating eth object");
         let eth = esp_idf_svc::eth::EspEth::wrap(
             esp_idf_svc::eth::EthDriver::new_openeth(
@@ -127,7 +127,7 @@ fn eth_configure<'d, T>(
 
 #[cfg(not(feature = "qemu"))]
 fn start_wifi(
-    modem: impl Peripheral<P = esp_idf_hal::modem::Modem> + 'static,
+    modem: impl Peripheral<P = esp_idf_svc::hal::modem::Modem> + 'static,
     sl_stack: EspSystemEventLoop,
 ) -> anyhow::Result<Box<BlockingWifi<EspWifi<'static>>>> {
     let nvs = esp_idf_svc::nvs::EspDefaultNvsPartition::take()?;
@@ -151,6 +151,6 @@ fn start_wifi(
     wifi.wait_netif_up().unwrap();
     info!("Wifi netif up");
 
-    esp_idf_sys::esp!(unsafe { esp_wifi_set_ps(esp_idf_sys::wifi_ps_type_t_WIFI_PS_NONE) })?;
+    esp_idf_svc::sys::esp!(unsafe { esp_wifi_set_ps(esp_idf_svc::sys::wifi_ps_type_t_WIFI_PS_NONE) })?;
     Ok(Box::new(wifi))
 }

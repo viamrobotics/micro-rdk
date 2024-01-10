@@ -115,7 +115,7 @@ pub async fn serve_web_inner(
                 // only make a client if a webhook url is present
                 let mut client = HttpClient::wrap(
                     EspHttpConnection::new(&HttpConfiguration {
-                        crt_bundle_attach: Some(esp_idf_sys::esp_crt_bundle_attach),
+                        crt_bundle_attach: Some(esp_idf_svc::sys::esp_crt_bundle_attach),
                         ..Default::default()
                     })
                     .unwrap(),

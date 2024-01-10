@@ -1,13 +1,13 @@
 use bitfield::{bitfield, Bit, BitMut};
-use esp_idf_hal::gpio::AnyIOPin;
-use esp_idf_hal::gpio::Pin;
-use esp_idf_hal::ledc::{
+use esp_idf_svc::hal::gpio::AnyIOPin;
+use esp_idf_svc::hal::gpio::Pin;
+use esp_idf_svc::hal::ledc::{
     config::TimerConfig, LedcDriver, LedcTimerDriver, SpeedMode, CHANNEL0, CHANNEL1, CHANNEL2,
     CHANNEL3, CHANNEL4, CHANNEL5, CHANNEL6, CHANNEL7, TIMER0, TIMER1, TIMER2, TIMER3,
 };
-use esp_idf_hal::peripheral::Peripheral;
-use esp_idf_hal::prelude::FromValueType;
-use esp_idf_sys::{ledc_bind_channel_timer, ledc_get_freq, ledc_timer_t, EspError};
+use esp_idf_svc::hal::peripheral::Peripheral;
+use esp_idf_svc::hal::prelude::FromValueType;
+use esp_idf_svc::sys::{ledc_bind_channel_timer, ledc_get_freq, ledc_timer_t, EspError};
 use once_cell::sync::Lazy;
 use std::cell::OnceCell;
 use std::fmt::Debug;
@@ -59,7 +59,7 @@ fn get_ledc_driver_by_channel<'a>(
     timer: &LedcTimerDriver<'a>,
     pin: AnyIOPin,
 ) -> Result<LedcDriver<'a>, Esp32PwmError> {
-    esp_idf_hal::into_ref!(pin);
+    esp_idf_svc::hal::into_ref!(pin);
 
     Ok(match channel {
         PwmChannel::C0 => LedcDriver::new(unsafe { CHANNEL0::new() }, timer, pin)?,
