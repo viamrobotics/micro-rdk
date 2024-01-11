@@ -1,0 +1,38 @@
+name: Hourly ESP32 Connection Canary
+
+on:
+  workflow_call:
+    secrets:
+      MONGODB_TEST_OUTPUT_URI:
+        required: true
+      ESP32_CANARY_ROBOT:
+        required: true
+      ESP32_CANARY_API_KEY:
+        required: true
+      ESP32_CANARY_API_KEY_ID:
+        required: true
+  schedule:
+    - cron:  '0 * * * *'
+
+env:
+  MONGODB_TEST_OUTPUT_URI: ${{ secrets.MONGODB_TEST_OUTPUT_URI }}
+  ESP32_CANARY_ROBOT: ${{ secrets.ESP32_CANARY_ROBOT }}
+  ESP32_CANARY_API_KEY: ${{ secrets.ESP32_CANARY_API_KEY }}
+  ESP32_CANARY_API_KEY_ID: ${{ secrets.ESP32_CANARY_API_KEY_ID }}
+
+jobs:
+  canary:
+    runs-on: x64
+    defaults: 
+      run:
+        working-directory: ./canary
+        shell: bash
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+      - name: Run Canary
+        run: |
+          python -m pip install -r requirements.txt
+          python canary_test.py
