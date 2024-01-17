@@ -45,6 +45,8 @@ pub enum Error {
     MonitorError(String),
     #[error("Unimplemented command: {0}")]
     UnimplementedError(String),
+    #[error("Serial config error: {0}")]
+    SerialConfigError(String),
     #[error("No command received")]
     NoCommandError,
 }
