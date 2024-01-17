@@ -162,7 +162,12 @@ mod tests {
 
         let exec = NativeExecutor::new();
 
-        let grpc_client = GrpcClient::new(conn, exec, "https://app.viam.com:443");
+        let cloned_exec = exec.clone();
+
+        let grpc_client = block_on(
+            cloned_exec
+                .run(async { GrpcClient::new(conn, exec, "https://app.viam.com:443").await }),
+        );
 
         assert!(grpc_client.is_ok());
 
@@ -177,7 +182,7 @@ mod tests {
 
         let builder = AppClientBuilder::new(grpc_client, config);
 
-        let client = builder.build();
+        let client = block_on(cloned_exec.run(async { builder.build().await }));
 
         assert!(client.is_ok());
 
@@ -191,7 +196,10 @@ mod tests {
         socket.set_nonblocking(true)?;
         let conn = NativeStream::LocalPlain(socket);
         let executor = NativeExecutor::new();
-        let mut grpc_client = GrpcClient::new(conn, executor.clone(), "http://localhost")?;
+        let exec = executor.clone();
+        let mut grpc_client = block_on(
+            exec.run(async { GrpcClient::new(conn, executor, "https://app.viam.com:443").await }),
+        )?;
 
         let r = grpc_client.build_request("/proto.rpc.v1.AuthService/Authenticate", None, "")?;
 
@@ -207,7 +215,7 @@ mod tests {
 
         let body = encode_request(req)?;
 
-        let mut r = grpc_client.send_request(r, body)?.0;
+        let mut r = block_on(exec.run(async { grpc_client.send_request(r, body).await }))?.0;
         let r = r.split_off(5);
         let r = AuthenticateResponse::decode(r).unwrap();
         let jwt = format!("Bearer {}", r.access_token);
@@ -218,7 +226,7 @@ mod tests {
             "",
         )?;
 
-        let conn = block_on(executor.run(async {
+        let conn = block_on(exec.run(async {
             grpc_client
                 .send_request_bidi::<EchoBiDiRequest, EchoBiDiResponse>(
                     r,
@@ -233,7 +241,7 @@ mod tests {
 
         let (mut sender_half, mut recv_half) = conn.unwrap();
 
-        let (p, mut recv_half) = block_on(executor.run(async {
+        let (p, mut recv_half) = block_on(exec.run(async {
             let p = recv_half.next().await.unwrap().message;
             (p, recv_half)
         }));
@@ -245,7 +253,7 @@ mod tests {
             message: "hello".to_string(),
         })?;
 
-        let p = block_on(executor.run(async {
+        let p = block_on(exec.run(async {
             recv_half_ref
                 .take(5)
                 .map(|m| m.message)
@@ -258,7 +266,7 @@ mod tests {
         sender_half.send_message(EchoBiDiRequest {
             message: "123456".to_string(),
         })?;
-        let p = block_on(executor.run(async {
+        let p = block_on(exec.run(async {
             recv_half_ref
                 .take(6)
                 .map(|m| m.message)
