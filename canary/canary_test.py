@@ -21,17 +21,19 @@ async def connect(robot_address: str, api_key: str, api_key_id: str) -> Coroutin
 async def main():
     mongo_connection_str = os.environ["MONGODB_TEST_OUTPUT_URI"]
     db_client = MongoClient(mongo_connection_str)
-    db = db_client["esp32_canary"]
-    coll = db["hourly_results"]
+    db = db_client["micrordk_canary"]
+    coll = db["raw_results"]
 
     timestamp = datetime.datetime.now()
 
     default_item = {
         "_id": timestamp,
         "connection_success": False,
-        "board_api_success": False,
-        "error": "",
-        "connection_latency_ms": 0
+        "connection_error": "",
+        "connection_latency_ms": 0,
+        "board_api_successes": 0,
+        "board_api_failures": 0,
+        "connection_attempts": 5
     }
 
     robot_address = os.environ["ESP32_CANARY_ROBOT"]
@@ -41,7 +43,6 @@ async def main():
     print(f"connecting to robot at {robot_address} ...")
 
     start = time.time()
-    connection_attempts = 5
     for i in range(5):
         try:
             robot = await connect(robot_address, api_key, api_key_id)
@@ -49,7 +50,7 @@ async def main():
             break
         except Exception as e:
             if i == 4:
-                default_item["error"] = str(e)
+                default_item["connection_error"] = str(e)
                 coll.insert_one(default_item)
                 raise e
             print(e)
@@ -60,19 +61,25 @@ async def main():
     default_item["connection_latency_ms"] = connectivity_time
     default_item["connection_attempts"] = connection_attempts
 
-    try:
-        board = Board.from_robot(robot, "board")
-        board_return_value = await board.gpio_pin_by_name("32")
-        _ = await board_return_value.get()
-        await board_return_value.set(True)
-        value = await board_return_value.get()
-        if not value:
-            raise ValueError("Pin not set to high successfully")
-        default_item["board_api_success"] = True
-    except Exception as e:
-        default_item["error"] = str(e)
-        coll.insert_one(default_item)
-        raise e
+    board_api_successes = 0
+    board_api_failures = 0
+
+    board = Board.from_robot(robot, "board")
+    board_return_value = await board.gpio_pin_by_name("32")
+    for _ in range(20):
+        try:
+            _ = await board_return_value.get()
+            await board_return_value.set(True)
+            value = await board_return_value.get()
+            if not value:
+                raise ValueError("Pin not set to high successfully")
+            board_api_successes += 1
+        except Exception as e:
+            board_api_failures += 1
+            default_item["connection_error"] = str(e)
+
+    default_item["board_api_successes"] = board_api_successes
+    default_item["board_api_failures"] = board_api_failures
     
     coll.insert_one(default_item)
 
