@@ -234,7 +234,7 @@ fn flash(
         port: None,
         no_stub: false,
     };
-    let conf = Config::default();
+    let conf = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
     log::info!("Connecting...");
     let mut flasher = connect(&connect_args, &conf).map_err(|_| Error::FlashConnect)?;
     let mut f = File::open(binary_path).map_err(Error::FileError)?;
@@ -265,7 +265,7 @@ fn monitor_esp32(baud_rate: Option<u32>, log_file_path: Option<String>) -> Resul
         port: None,
         no_stub: false,
     };
-    let conf = Config::default();
+    let conf = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
     log::info!("Connecting...");
     let flasher = connect(&connect_args, &conf).map_err(|_| Error::FlashConnect)?;
     let pid = flasher.get_usb_pid().map_err(Error::EspFlashError)?;
