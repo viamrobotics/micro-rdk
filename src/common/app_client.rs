@@ -117,8 +117,8 @@ impl<'a> AppClientBuilder<'a> {
     }
     /// Consume the AppClientBuilder and returns an AppClient. This function will panic if
     /// the received config doesn't contain an fqdn field.
-    pub fn build(mut self) -> Result<AppClient<'a>, AppClientError> {
-        let jwt = self.get_jwt_token()?;
+    pub async fn build(mut self) -> Result<AppClient<'a>, AppClientError> {
+        let jwt = self.get_jwt_token().await?;
 
         Ok(AppClient {
             grpc_client: self.grpc_client,
@@ -127,7 +127,7 @@ impl<'a> AppClientBuilder<'a> {
             config: self.config,
         })
     }
-    pub fn get_jwt_token(&mut self) -> Result<String, AppClientError> {
+    pub async fn get_jwt_token(&mut self) -> Result<String, AppClientError> {
         let r = self
             .grpc_client
             .build_request("/proto.rpc.v1.AuthService/Authenticate", None, "")
@@ -148,6 +148,7 @@ impl<'a> AppClientBuilder<'a> {
         let mut r = self
             .grpc_client
             .send_request(r, body)
+            .await
             .map_err(AppClientError::AppGrpcClientError)?
             .0;
         let r = r.split_off(5);
@@ -190,7 +191,7 @@ impl<'a> AppClient<'a> {
     // returns both a response from the robot config request and the timestamp of the response
     // taken from its header for the purposes of timestamping configuration logs and returning
     // `last_reconfigured` values for resource statuses.
-    pub fn get_config(
+    pub async fn get_config(
         &mut self,
     ) -> Result<(Box<ConfigResponse>, Option<DateTime<FixedOffset>>), AppClientError> {
         let r = self
@@ -213,7 +214,7 @@ impl<'a> AppClient<'a> {
         };
         let body = encode_request(req)?;
 
-        let (mut r, headers) = self.grpc_client.send_request(r, body)?;
+        let (mut r, headers) = self.grpc_client.send_request(r, body).await?;
 
         let datetime = if let Some(date_val) = headers.get("date") {
             let date_str = date_val
@@ -229,7 +230,7 @@ impl<'a> AppClient<'a> {
         Ok((Box::new(ConfigResponse::decode(r)?), datetime))
     }
 
-    pub fn push_logs(&mut self, logs: Vec<LogEntry>) -> Result<(), AppClientError> {
+    pub async fn push_logs(&mut self, logs: Vec<LogEntry>) -> Result<(), AppClientError> {
         let r = self
             .grpc_client
             .build_request("/viam.app.v1.RobotService/Log", Some(&self.jwt), "")
@@ -242,7 +243,7 @@ impl<'a> AppClient<'a> {
 
         let body = encode_request(req)?;
 
-        self.grpc_client.send_request(r, body)?;
+        self.grpc_client.send_request(r, body).await?;
 
         Ok(())
     }

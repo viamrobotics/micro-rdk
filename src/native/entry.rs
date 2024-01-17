@@ -1,4 +1,6 @@
 #![allow(dead_code)]
+use futures_lite::future::block_on;
+
 use crate::{
     common::{
         app_client::{AppClientBuilder, AppClientConfig},
@@ -23,26 +25,28 @@ use super::{
     tls::NativeTlsServerConfig,
 };
 
-pub fn serve_web(
+pub async fn serve_web_inner(
     app_config: AppClientConfig,
     tls_server_config: NativeTlsServerConfig,
     repr: RobotRepresentation,
     ip: Ipv4Addr,
+    exec: NativeExecutor<'_>,
 ) {
     let client_connector = NativeTls::new_client();
-    let exec = NativeExecutor::new();
     let mdns = NativeMdns::new("".to_owned(), ip).unwrap();
 
     let (cfg_response, robot) = {
         let cloned_exec = exec.clone();
         let conn = client_connector.open_ssl_context(None).unwrap();
         let conn = NativeStream::TLSStream(Box::new(conn));
-        let grpc_client = GrpcClient::new(conn, cloned_exec, "https://app.viam.com:443").unwrap();
+        let grpc_client = GrpcClient::new(conn, cloned_exec, "https://app.viam.com:443")
+            .await
+            .unwrap();
         let builder = AppClientBuilder::new(Box::new(grpc_client), app_config.clone());
 
-        let mut client = builder.build().unwrap();
+        let mut client = builder.build().await.unwrap();
 
-        let (cfg_response, cfg_received_datetime) = client.get_config().unwrap();
+        let (cfg_response, cfg_received_datetime) = client.get_config().await.unwrap();
 
         let robot = match repr {
             RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
@@ -56,14 +60,20 @@ pub fn serve_web(
                     Ok(robot) => {
                         if let Some(datetime) = cfg_received_datetime {
                             let logs = vec![config_log_entry(datetime, None)];
-                            client.push_logs(logs).expect("could not push logs to app");
+                            client
+                                .push_logs(logs)
+                                .await
+                                .expect("could not push logs to app");
                         }
                         robot
                     }
                     Err(err) => {
                         if let Some(datetime) = cfg_received_datetime {
                             let logs = vec![config_log_entry(datetime, Some(&err))];
-                            client.push_logs(logs).expect("could not push logs to app");
+                            client
+                                .push_logs(logs)
+                                .await
+                                .expect("could not push logs to app");
                         }
                         panic!("{}", err)
                     }
@@ -96,7 +106,27 @@ pub fn serve_web(
         .build(&cfg_response)
         .unwrap();
 
-    srv.serve_forever(robot);
+    srv.serve(robot).await;
+}
+
+pub fn serve_web(
+    app_config: AppClientConfig,
+    tls_server_config: NativeTlsServerConfig,
+    repr: RobotRepresentation,
+    ip: Ipv4Addr,
+) {
+    let exec = NativeExecutor::new();
+    let cloned_exec = exec.clone();
+
+    let fut = cloned_exec.run(Box::pin(serve_web_inner(
+        app_config,
+        tls_server_config,
+        repr,
+        ip,
+        exec,
+    )));
+    futures_lite::pin!(fut);
+    block_on(fut);
 }
 
 #[cfg(test)]

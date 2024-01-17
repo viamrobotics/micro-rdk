@@ -4,7 +4,7 @@ use crate::esp32::exec::Esp32Executor;
 #[cfg(feature = "native")]
 use crate::native::exec::NativeExecutor;
 use bytes::{BufMut, Bytes, BytesMut};
-use futures_lite::{future::block_on, Stream};
+use futures_lite::Stream;
 use h2::{client::SendRequest, Reason, RecvStream, SendStream};
 use hyper::header::HeaderMap;
 use hyper::{http::status, Method, Request};
@@ -162,21 +162,20 @@ pub struct GrpcClient<'a> {
 
 impl<'a> Drop for GrpcClient<'a> {
     fn drop(&mut self) {
-        if let Some(task) = self.http2_task.take() {
-            //(TODO(RSDK-3061)) avoid blocking on if possible
-            block_on(self.executor.run(async {
-                task.cancel().await;
-            }));
-        }
+        let _ = self.http2_task.take();
     }
 }
 
 impl<'a> GrpcClient<'a> {
-    pub fn new<T>(io: T, executor: Executor<'a>, uri: &'a str) -> Result<Self, GrpcClientError>
+    pub async fn new<T>(
+        io: T,
+        executor: Executor<'a>,
+        uri: &'a str,
+    ) -> Result<GrpcClient<'a>, GrpcClientError>
     where
         T: AsyncRead + AsyncWrite + Unpin + 'a,
     {
-        let (http2_connection, conn) = block_on(executor.run(async {
+        let (http2_connection, conn) = {
             let builder = h2::client::Builder::new()
                 .initial_connection_window_size(4096)
                 .initial_window_size(4096)
@@ -185,7 +184,7 @@ impl<'a> GrpcClient<'a> {
                 .handshake(io);
             let conn = builder.await.unwrap();
             (conn.0, Box::new(conn.1))
-        }));
+        };
 
         let http2_task = executor.spawn(async move {
             if let Err(e) = conn.await {
@@ -256,22 +255,21 @@ impl<'a> GrpcClient<'a> {
         Ok((r, p))
     }
 
-    pub(crate) fn send_request(
+    pub(crate) async fn send_request(
         &mut self,
         r: Request<()>,
         body: Bytes,
     ) -> Result<(Bytes, HeaderMap), GrpcClientError> {
         let http2_connection = self.http2_connection.clone();
         // verify if the server can accept a new HTTP2 stream
-        let mut http2_connection =
-            block_on(self.executor.run(async { http2_connection.ready().await }))?;
+        let mut http2_connection = http2_connection.ready().await?;
 
         // send the header and let the server know more data are coming
         let (response, mut send) = http2_connection.send_request(r, false)?;
         // send the body of the request and let the server know we have nothing else to send
         send.send_data(body, true)?;
 
-        let (part, mut body) = block_on(self.executor.run(response))?.into_parts();
+        let (part, mut body) = response.await?.into_parts();
 
         if part.status != status::StatusCode::OK {
             log::error!("received status code {}", part.status.to_string());
@@ -280,13 +278,13 @@ impl<'a> GrpcClient<'a> {
         let mut response_buf = BytesMut::with_capacity(1024);
 
         // TODO read the first 5 bytes so we know how much data to expect and we can allocate appropriately
-        while let Some(chunk) = block_on(self.executor.run(async { body.data().await })) {
+        while let Some(chunk) = body.data().await {
             let chunk = chunk?;
             response_buf.put_slice(&chunk);
             let _ = body.flow_control().release_capacity(chunk.len());
         }
 
-        let trailers = block_on(self.executor.run(async { body.trailers().await }))?;
+        let trailers = body.trailers().await?;
 
         if let Some(trailers) = trailers {
             match trailers.get("grpc-status") {
