@@ -155,8 +155,10 @@ pub fn serve_web(
     _ip: Ipv4Addr,
     webrtc_certificate: WebRtcCertificate,
 ) {
+    // set the TWDT to expire after 5 minutes
     esp_idf_sys::esp!(unsafe { esp_idf_sys::esp_task_wdt_init(300, true) }).unwrap();
 
+    // Register the current task on the TWDT. The TWDT runs in the IDLE Task.
     esp_idf_sys::esp!(unsafe {
         esp_idf_sys::esp_task_wdt_add(esp_idf_sys::xTaskGetCurrentTaskHandle())
     })
