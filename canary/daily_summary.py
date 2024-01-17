@@ -1,4 +1,3 @@
-import asyncio
 import datetime
 import os
 
@@ -18,7 +17,7 @@ def main():
     db = db_client["micrordk_canary"]
     coll = db["raw_results"]
 
-    print("getting hourly results...")
+    print("getting raw results...")
 
     result_set = coll.find({ "_id": { "$gte": start_of_day, "$lt": start_of_tomorrow } })
     latency_sum = 0
@@ -40,7 +39,7 @@ def main():
             connection_failures += 1
     
     if num_results == 0:
-        raise Exception(f"no hourly canary results found for {today}")
+        raise Exception(f"no raw canary results found for {today}, please restart the canary")
 
     avg_connection_latency_ms = latency_sum / successes if successes != 0 else 0
     avg_connection_attempts = connection_attempts / num_results

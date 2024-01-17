@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import numpy as np
 import os
 import time
 
@@ -33,7 +34,9 @@ async def main():
         "connection_latency_ms": 0,
         "board_api_successes": 0,
         "board_api_failures": 0,
-        "connection_attempts": 5
+        "connection_attempts": 5,
+        "board_api_avg_latency_ms": 0,
+        "board_api_latency_ms_std_dev": 0
     }
 
     robot_address = os.environ["ESP32_CANARY_ROBOT"]
@@ -42,9 +45,10 @@ async def main():
 
     print(f"connecting to robot at {robot_address} ...")
 
-    start = time.time()
+    start = None
     for i in range(5):
         try:
+            start = time.time()
             robot = await connect(robot_address, api_key, api_key_id)
             connection_attempts = i + 1
             break
@@ -66,10 +70,13 @@ async def main():
 
     board = Board.from_robot(robot, "board")
     board_return_value = await board.gpio_pin_by_name("32")
+    latencies_ms = []
     for _ in range(20):
         try:
             _ = await board_return_value.get()
+            start = time.time()
             await board_return_value.set(True)
+            latencies_ms.append((time.time() - start) * 1000)
             value = await board_return_value.get()
             if not value:
                 raise ValueError("Pin not set to high successfully")
@@ -77,6 +84,10 @@ async def main():
         except Exception as e:
             board_api_failures += 1
             default_item["connection_error"] = str(e)
+        time.sleep(0.2)
+
+    default_item["board_api_avg_latency_ms"] = round(sum(latencies_ms) / len(latencies_ms), 3)
+    default_item["board_api_latency_ms_std_dev"] = round(np.std(np.array(latencies_ms)), 3)
 
     default_item["board_api_successes"] = board_api_successes
     default_item["board_api_failures"] = board_api_failures
