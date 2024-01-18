@@ -77,7 +77,7 @@ fn main() -> anyhow::Result<()> {
                 ));
             }
         }
-        embuild::build::LinkArgs::output_propagated("ESP_IDF")?;
+        embuild::espidf::sysenv::output();
     }
     if use_nvs {
         return Ok(());
