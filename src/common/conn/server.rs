@@ -377,21 +377,12 @@ where
                 },
             );
             let connection = connection
-                .timeout(Duration::from_secs(180))
+                .timeout(Duration::from_secs(600))
                 .await
                 .map_or(Err(ServerError::ServerConnectionTimeout), |r| r);
 
             if let Err(err) = connection {
-                if let ServerError::ServerAppClientError(AppClientError::AppGrpcClientError(
-                    GrpcClientError::ProtoError(err),
-                )) = err
-                {
-                    // Google load balancer may terminate a connection after some time
-                    // it will do so by sending a GOAWAY frame
-                    if err.is_go_away() || err.is_io() || err.is_library() {
-                        let _ = self.app_client.take();
-                    }
-                }
+                let _ = self.app_client.take();
                 continue;
             }
             if let Err(e) = match connection.unwrap() {
