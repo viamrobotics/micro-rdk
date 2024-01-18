@@ -2,10 +2,10 @@
 
 use crate::common::config::{AttributeError, Kind};
 use crate::common::i2c::I2CHandle;
-use esp_idf_svc::hal::delay::BLOCK;
-use esp_idf_svc::hal::gpio::AnyIOPin;
-use esp_idf_svc::hal::i2c::{I2cConfig, I2cDriver, I2C0, I2C1};
-use esp_idf_svc::hal::units::Hertz;
+use crate::esp_idf_svc::hal::delay::BLOCK;
+use crate::esp_idf_svc::hal::gpio::AnyIOPin;
+use crate::esp_idf_svc::hal::i2c::{I2cConfig, I2cDriver, I2C0, I2C1};
+use crate::esp_idf_svc::hal::units::Hertz;
 
 #[derive(Clone, Debug)]
 pub struct Esp32I2cConfig {

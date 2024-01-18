@@ -29,7 +29,7 @@ use super::{
 };
 
 use embedded_svc::http::client::Client as HttpClient;
-use esp_idf_svc::http::client::{Configuration as HttpConfiguration, EspHttpConnection};
+use crate::esp_idf_svc::http::client::{Configuration as HttpConfiguration, EspHttpConnection};
 use futures_lite::Future;
 
 pub async fn serve_web_inner(
@@ -115,7 +115,7 @@ pub async fn serve_web_inner(
                 // only make a client if a webhook url is present
                 let mut client = HttpClient::wrap(
                     EspHttpConnection::new(&HttpConfiguration {
-                        crt_bundle_attach: Some(esp_idf_svc::sys::esp_crt_bundle_attach),
+                        crt_bundle_attach: Some(crate::esp_idf_svc::sys::esp_crt_bundle_attach),
                         ..Default::default()
                     })
                     .unwrap(),

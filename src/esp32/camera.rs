@@ -4,10 +4,10 @@ use std::time::Duration;
 
 use crate::proto::component::camera;
 use bytes::{Bytes, BytesMut};
-use esp_idf_svc::sys::camera_config_t;
-use esp_idf_svc::sys::camera_config_t__bindgen_ty_1;
-use esp_idf_svc::sys::camera_config_t__bindgen_ty_2;
-use esp_idf_svc::systime::EspSystemTime;
+use crate::esp_idf_svc::sys::camera_config_t;
+use crate::esp_idf_svc::sys::camera_config_t__bindgen_ty_1;
+use crate::esp_idf_svc::sys::camera_config_t__bindgen_ty_2;
+use crate::esp_idf_svc::systime::EspSystemTime;
 use log::*;
 use prost::Message;
 
@@ -52,28 +52,28 @@ impl Esp32Camera {
         }
     }
     pub fn setup(&self) -> anyhow::Result<()> {
-        let ret = (unsafe { esp_idf_svc::sys::esp_camera_init(&self.config) })
-            as esp_idf_svc::sys::esp_err_t;
-        let ret = esp_idf_svc::sys::EspError::convert(ret);
+        let ret = (unsafe { crate::esp_idf_svc::sys::esp_camera_init(&self.config) })
+            as crate::esp_idf_svc::sys::esp_err_t;
+        let ret = crate::esp_idf_svc::sys::EspError::convert(ret);
         ret.map_err(|e| anyhow::anyhow!("cannot init camera {}", e))
     }
-    pub fn get_cam_frame(&self) -> Option<*mut esp_idf_svc::sys::camera_fb_t> {
-        let ptr = (unsafe { esp_idf_svc::sys::esp_camera_fb_get() })
-            as *mut esp_idf_svc::sys::camera_fb_t;
+    pub fn get_cam_frame(&self) -> Option<*mut crate::esp_idf_svc::sys::camera_fb_t> {
+        let ptr = (unsafe { crate::esp_idf_svc::sys::esp_camera_fb_get() })
+            as *mut crate::esp_idf_svc::sys::camera_fb_t;
         if ptr.is_null() {
             None
         } else {
             Some(ptr)
         }
     }
-    pub fn return_cam_frame(&self, frame: Option<*mut esp_idf_svc::sys::camera_fb_t>) {
+    pub fn return_cam_frame(&self, frame: Option<*mut crate::esp_idf_svc::sys::camera_fb_t>) {
         if let Some(ptr) = frame {
-            unsafe { esp_idf_svc::sys::esp_camera_fb_return(ptr) }
+            unsafe { crate::esp_idf_svc::sys::esp_camera_fb_return(ptr) }
         }
     }
-    pub fn debug_print_fb(&self, frame: &Option<*mut esp_idf_svc::sys::camera_fb_t>) {
+    pub fn debug_print_fb(&self, frame: &Option<*mut crate::esp_idf_svc::sys::camera_fb_t>) {
         if let Some(ptr) = frame {
-            let ptr = ptr as &*mut esp_idf_svc::sys::camera_fb_t;
+            let ptr = ptr as &*mut crate::esp_idf_svc::sys::camera_fb_t;
             unsafe {
                 println!();
                 info!("camera buf size {}", (*(*ptr)).len);

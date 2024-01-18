@@ -128,6 +128,9 @@ pub mod proto {
     }
 }
 
+#[cfg(feature = "esp32")]
+pub mod esp_idf_svc;
+
 #[macro_use]
 extern crate trackable;
 

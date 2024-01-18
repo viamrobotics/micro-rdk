@@ -6,7 +6,7 @@ macro_rules! esp32_print_heap_summary {
     () => {
         #[cfg(debug_assertions)]
         {
-            use esp_idf_svc::sys::{
+            use crate::esp_idf_svc::sys::{
                 heap_caps_get_free_size, heap_caps_get_total_size, MALLOC_CAP_8BIT,
             };
             let total = unsafe { heap_caps_get_total_size(MALLOC_CAP_8BIT) };
@@ -21,7 +21,7 @@ macro_rules! esp32_print_heap_internal_summary {
     () => {
         #[cfg(debug_assertions)]
         {
-            use esp_idf_svc::sys::{
+            use crate::esp_idf_svc::sys::{
                 heap_caps_get_free_size, heap_caps_get_total_size, MALLOC_CAP_8BIT,
                 MALLOC_CAP_INTERNAL,
             };
@@ -37,7 +37,7 @@ macro_rules! esp32_print_heap_spiram_summary {
     () => {
         #[cfg(debug_assertions)]
         {
-            use esp_idf_svc::sys::{
+            use crate::esp_idf_svc::sys::{
                 heap_caps_get_free_size, heap_caps_get_total_size, MALLOC_CAP_8BIT,
                 MALLOC_CAP_SPIRAM,
             };
@@ -53,7 +53,7 @@ macro_rules! esp32_print_stack_high_watermark {
     () => {
         #[cfg(debug_assertions)]
         {
-            use esp_idf_svc::sys::uxTaskGetStackHighWaterMark;
+            use crate::esp_idf_svc::sys::uxTaskGetStackHighWaterMark;
             log::info!("stack high watermark is {:#X}", unsafe {
                 uxTaskGetStackHighWaterMark(std::ptr::null_mut())
             });
