@@ -37,7 +37,6 @@ anyhow = {version = "1", features = ["backtrace"]}
 embedded-svc = "0.26.4"
 embedded-hal = { version = "0.2.7", features = ["unproven"]}
 micro-rdk = { path = "../", default-features = false, features = ["esp32"] }
-esp-idf-svc = { version = "= 0.47.3", features = ["experimental"] }
 log = "0.4"
 async-channel = "1.8.0"
 smol = "1.2"
