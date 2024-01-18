@@ -2,12 +2,12 @@
 use std::sync::Mutex;
 use std::time::Duration;
 
-use crate::proto::component::camera;
-use bytes::{Bytes, BytesMut};
 use crate::esp_idf_svc::sys::camera_config_t;
 use crate::esp_idf_svc::sys::camera_config_t__bindgen_ty_1;
 use crate::esp_idf_svc::sys::camera_config_t__bindgen_ty_2;
 use crate::esp_idf_svc::systime::EspSystemTime;
+use crate::proto::component::camera;
+use bytes::{Bytes, BytesMut};
 use log::*;
 use prost::Message;
 

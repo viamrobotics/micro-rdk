@@ -1,4 +1,3 @@
-use either::Either;
 use crate::esp_idf_svc::sys::{
     esp_tls_cfg, esp_tls_cfg_server, esp_tls_conn_destroy, esp_tls_conn_new_sync,
     esp_tls_conn_state_ESP_TLS_CONNECTING as ESP_TLS_CONNECTING,
@@ -8,6 +7,7 @@ use crate::esp_idf_svc::sys::{
     esp_tls_conn_state_ESP_TLS_INIT as ESP_TLS_INIT, esp_tls_init, esp_tls_server_session_create,
     esp_tls_t, EspError, ESP_TLS_ERR_SSL_WANT_READ, ESP_TLS_ERR_SSL_WANT_WRITE,
 };
+use either::Either;
 use std::{
     fmt::Debug,
     io::{Read, Write},

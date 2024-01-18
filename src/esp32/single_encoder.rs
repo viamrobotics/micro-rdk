@@ -11,7 +11,6 @@ use crate::common::encoder::{
 use crate::common::registry::{ComponentRegistry, Dependency};
 use crate::google;
 
-use core::ffi::{c_short, c_ulong};
 use crate::esp_idf_svc::hal::gpio::{AnyInputPin, PinDriver};
 use crate::esp_idf_svc::sys::pcnt_channel_edge_action_t_PCNT_CHANNEL_EDGE_ACTION_DECREASE as pcnt_count_dec;
 use crate::esp_idf_svc::sys::pcnt_channel_edge_action_t_PCNT_CHANNEL_EDGE_ACTION_INCREASE as pcnt_count_inc;
@@ -21,6 +20,7 @@ use crate::esp_idf_svc::sys::pcnt_config_t;
 use crate::esp_idf_svc::sys::pcnt_evt_type_t_PCNT_EVT_H_LIM as pcnt_evt_h_lim;
 use crate::esp_idf_svc::sys::pcnt_evt_type_t_PCNT_EVT_L_LIM as pcnt_evt_l_lim;
 use crate::esp_idf_svc::sys::{esp, EspError, ESP_OK};
+use core::ffi::{c_short, c_ulong};
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
@@ -301,7 +301,9 @@ impl SingleEncoder for Esp32SingleEncoder {
                     err => return Err(EspError::from(err).unwrap().into()),
                 }
 
-                match crate::esp_idf_svc::sys::pcnt_unit_config(&self.config as *const pcnt_config_t) {
+                match crate::esp_idf_svc::sys::pcnt_unit_config(
+                    &self.config as *const pcnt_config_t,
+                ) {
                     ESP_OK => {}
                     err => return Err(EspError::from(err).unwrap().into()),
                 }

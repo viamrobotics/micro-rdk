@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 use crate::common::analog::AnalogReader;
-use core::cell::RefCell;
 use crate::esp_idf_svc::hal::adc::{AdcChannelDriver, AdcDriver};
 use crate::esp_idf_svc::hal::gpio::ADCPin;
+use core::cell::RefCell;
 use std::rc::Rc;
 
 pub struct Esp32AnalogReader<'a, const A: u32, T: ADCPin> {

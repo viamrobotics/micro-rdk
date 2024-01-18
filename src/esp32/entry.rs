@@ -28,8 +28,8 @@ use super::{
     webhook::Webhook,
 };
 
-use embedded_svc::http::client::Client as HttpClient;
 use crate::esp_idf_svc::http::client::{Configuration as HttpConfiguration, EspHttpConnection};
+use embedded_svc::http::client::Client as HttpClient;
 use futures_lite::Future;
 
 pub async fn serve_web_inner(

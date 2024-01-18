@@ -1,6 +1,8 @@
 use super::pwm::PwmDriver;
 use crate::esp_idf_svc::hal::gpio::{AnyIOPin, InputOutput, InterruptType, Pin, PinDriver, Pull};
-use crate::esp_idf_svc::sys::{esp, gpio_install_isr_service, gpio_isr_handler_add, ESP_INTR_FLAG_IRAM};
+use crate::esp_idf_svc::sys::{
+    esp, gpio_install_isr_service, gpio_isr_handler_add, ESP_INTR_FLAG_IRAM,
+};
 use once_cell::sync::{Lazy, OnceCell};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
