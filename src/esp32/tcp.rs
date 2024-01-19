@@ -191,11 +191,11 @@ impl AsyncWrite for Esp32Stream {
         match &mut *self {
             Esp32Stream::LocalPlain(s) => match s.write(buf) {
                 Ok(s) => Poll::Ready(Ok(s)),
-                Err(_) => Poll::Pending,
+                Err(e) => Poll::Ready(Err(e)),
             },
             Esp32Stream::TLSStream(s) => match s.write(buf) {
                 Ok(s) => Poll::Ready(Ok(s)),
-                Err(_) => Poll::Pending,
+                Err(e) => Poll::Ready(Err(e)),
             },
         }
     }

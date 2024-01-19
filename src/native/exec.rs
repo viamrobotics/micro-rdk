@@ -1,6 +1,6 @@
 //! The exec module exposes helpers to execute futures on Native
 use futures_lite::{
-    future::{self, block_on},
+    future::{self},
     Future,
 };
 use smol::{LocalExecutor, Task};
@@ -54,8 +54,5 @@ where
 {
     fn execute(&self, fut: F) {
         self.executor.spawn(fut).detach();
-    }
-    fn block_on<T>(&self, fut: impl Future<Output = T>) -> T {
-        block_on(self.run(fut))
     }
 }

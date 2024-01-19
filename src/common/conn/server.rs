@@ -11,7 +11,7 @@ use crate::{
     common::{
         app_client::{AppClient, AppClientBuilder, AppClientConfig, AppClientError, AppSignaling},
         grpc::{GrpcBody, GrpcServer},
-        grpc_client::{GrpcClient, GrpcClientError},
+        grpc_client::GrpcClient,
         robot::LocalRobot,
         webrtc::{
             api::{WebRtcApi, WebRtcSdp},
@@ -24,10 +24,7 @@ use crate::{
     proto::{self, app::v1::ConfigResponse},
 };
 
-use futures_lite::{
-    future::{block_on, Boxed},
-    ready, Future,
-};
+use futures_lite::{future::Boxed, ready, Future};
 use hyper::server::conn::Http;
 
 use smol::Task;
@@ -298,11 +295,7 @@ where
             webtrc_conn: None,
         }
     }
-    pub fn serve_forever(&mut self, robot: Arc<Mutex<LocalRobot>>) {
-        let cloned_exec = self.exec.clone();
-        block_on(cloned_exec.run(Box::pin(self.serve(robot))));
-    }
-    async fn serve(&mut self, robot: Arc<Mutex<LocalRobot>>) {
+    pub async fn serve(&mut self, robot: Arc<Mutex<LocalRobot>>) {
         let cloned_robot = robot.clone();
         let mut current_prio = None;
         loop {
@@ -312,10 +305,13 @@ where
                 let conn = self.app_connector.connect().unwrap();
                 let cloned_exec = self.exec.clone();
                 let grpc_client = Box::new(
-                    GrpcClient::new(conn, cloned_exec, "https://app.viam.com:443").unwrap(),
+                    GrpcClient::new(conn, cloned_exec, "https://app.viam.com:443")
+                        .await
+                        .unwrap(),
                 );
                 let app_client = AppClientBuilder::new(grpc_client, self.app_config.clone())
                     .build()
+                    .await
                     .unwrap();
                 let _ = self.app_client.insert(app_client);
             }
@@ -380,19 +376,13 @@ where
                     }))
                 },
             );
-            let connection = connection.await;
+            let connection = connection
+                .timeout(Duration::from_secs(600))
+                .await
+                .map_or(Err(ServerError::ServerConnectionTimeout), |r| r);
 
-            if let Err(err) = connection {
-                if let ServerError::ServerAppClientError(AppClientError::AppGrpcClientError(
-                    GrpcClientError::ProtoError(err),
-                )) = err
-                {
-                    // Google load balancer may terminate a connection after some time
-                    // it will do so by sending a GOAWAY frame
-                    if err.is_go_away() || err.is_io() || err.is_library() {
-                        let _ = self.app_client.take();
-                    }
-                }
+            if connection.is_err() {
+                let _ = self.app_client.take();
                 continue;
             }
             if let Err(e) = match connection.unwrap() {

@@ -343,7 +343,8 @@ where
         local_ip: Ipv4Addr,
         dtls: D,
     ) -> Self {
-        let udp = executor.block_on(UdpSocket::bind("0.0.0.0:0")).unwrap();
+        let udp = std::net::UdpSocket::bind("0.0.0.0:0").unwrap();
+        let udp: UdpSocket = udp.try_into().unwrap();
         let transport = WebRtcTransport::new(udp);
         let tx = transport.clone();
         let rx = transport.clone();
