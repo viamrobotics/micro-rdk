@@ -162,7 +162,8 @@ pub struct GrpcClient<'a> {
 
 impl<'a> Drop for GrpcClient<'a> {
     fn drop(&mut self) {
-        let _ = self.http2_task.take();
+        let t = self.http2_task.take();
+        self.executor.spawn(t.unwrap().cancel()).detach();
     }
 }
 
