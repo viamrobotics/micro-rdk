@@ -11,7 +11,7 @@ use crate::{
     common::{
         app_client::{AppClient, AppClientBuilder, AppClientConfig, AppClientError, AppSignaling},
         grpc::{GrpcBody, GrpcServer},
-        grpc_client::{GrpcClient, GrpcClientError},
+        grpc_client::GrpcClient,
         robot::LocalRobot,
         webrtc::{
             api::{WebRtcApi, WebRtcSdp},
@@ -381,7 +381,7 @@ where
                 .await
                 .map_or(Err(ServerError::ServerConnectionTimeout), |r| r);
 
-            if let Err(err) = connection {
+            if let Err(_) = connection {
                 let _ = self.app_client.take();
                 continue;
             }
