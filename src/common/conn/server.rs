@@ -381,7 +381,7 @@ where
                 .await
                 .map_or(Err(ServerError::ServerConnectionTimeout), |r| r);
 
-            if let Err(_) = connection {
+            if connection.is_err() {
                 let _ = self.app_client.take();
                 continue;
             }
