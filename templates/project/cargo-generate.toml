@@ -1,0 +1,25 @@
+[template]
+cargo_generate_version = ">=0.10.0"
+ignore = [".git","README.md"]
+description = "Micro-Rdk template"
+
+[placeholders.mcu]
+type = "string"
+prompt = "MCU"
+choices = ["esp32"]
+default = "esp32" 
+
+[placeholders.viam]
+type = "string"
+prompt = "Viam's robot config (leave blank if you don't have a robot configured yet)"
+default = ""
+
+[placeholders.ssid]
+type = "string"
+prompt = "Enter wifi name (only 2.4 gHz network are supported)"
+default = "Viam-2G"
+
+[placeholders.pwd]
+type = "string"
+prompt = "enter the wifi password (leave black if you don't want to store it)"
+default = ""

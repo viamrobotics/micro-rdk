@@ -1,0 +1,37 @@
+[build]
+# Uncomment the relevant target for your chip here (ESP32, ESP32-S2, ESP32-S3 or ESP32-C3)
+{% if mcu != "esp32" %}#{% endif %}target = "xtensa-esp32-espidf"
+{% if mcu != "esp32s2" %}#{% endif %}target = "xtensa-esp32s2-espidf"
+{% if mcu != "esp32s3" %}#{% endif %}target = "xtensa-esp32s3-espidf"
+{% if mcu != "esp32c3" %}#{% endif %}target = "riscv32imc-esp-espidf"
+
+[target.xtensa-esp32-espidf]
+linker = "ldproxy"
+runner = "espflash --monitor"
+
+[target.xtensa-esp32s2-espidf]
+linker = "ldproxy"
+runner = "espflash --monitor"
+
+[target.xtensa-esp32s3-espidf]
+linker = "ldproxy"
+runner = "espflash --monitor"
+
+[target.riscv32imc-esp-espidf]
+linker = "ldproxy"
+runner = "espflash --monitor"
+
+# Future - necessary for the experimental "native build" of esp-idf-sys with ESP32C3
+# See also https://github.com/ivmarkov/embuild/issues/16 [build]
+
+rustflags = ["-C", "default-linker-libraries", "-C link-arg=-Wl,-Map=/tmp/map.map"]
+
+[unstable]
+
+build-std = ["std", "panic_abort"]
+#build-std-features = ["panic_immediate_abort"] # Required for older ESP-IDF versions without a realpath implementation
+
+[env]
+ESP_IDF_TOOLS_INSTALL_DIR = {value = "fromenv", force = true}
+ESP_IDF_VERSION= { value = "v4.4.1", force = true}
+MCU = { value= "esp32", force = true}

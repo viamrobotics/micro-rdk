@@ -1,0 +1,25 @@
+[template]
+cargo_generate_version = ">=0.10.0"
+ignore = [".git","README.md"]
+description = "Micro-RDK Module Template"
+
+[placeholders.mcu]
+type = "string"
+prompt = "MCU"
+choices = ["esp32", "native"]
+default = "esp32"
+
+[placeholders.starting_component]
+type = "string"
+prompt = "Select a starting component to implement (select None to start from scratch)"
+choices = [
+    "None",
+    "Base",
+    "Encoder",
+    "GenericComponent",
+    "Motor",
+    "MovementSensor",
+    "PowerSensor",
+    "Servo",
+]
+default = "None"

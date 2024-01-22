@@ -1,0 +1,13 @@
+[package]
+name = "{{project-name}}"
+version = "0.1.0"
+edition = "2021"
+authors = ["{{authors}}"]
+resolver = "2"
+
+[dependencies]
+anyhow = {version = "1", features = ["backtrace"]}
+micro-rdk = {git = "https://github.com/viamrobotics/micro-rdk.git", features = ["{{mcu}}"]}
+
+[package.metadata.com.viam]
+module = true
