@@ -8,14 +8,32 @@ pub enum MdnsError {
     MdnsInitServiceError(String),
 }
 
+pub struct NoMdns;
+
+impl Mdns for NoMdns {
+    fn add_service(
+        &mut self,
+        _: &str,
+        _: impl AsRef<str>,
+        _: impl AsRef<str>,
+        _: u16,
+        _: &[(&str, &str)],
+    ) -> Result<(), MdnsError> {
+        Ok(())
+    }
+    fn set_hostname(&mut self, _: &str) -> Result<(), MdnsError> {
+        Ok(())
+    }
+}
+
 pub trait Mdns {
     fn add_service(
         &mut self,
-        instance_name: &str,
-        service_type: impl AsRef<str>,
-        proto: impl AsRef<str>,
-        port: u16,
-        txt: &[(&str, &str)],
+        _: &str,
+        _: impl AsRef<str>,
+        _: impl AsRef<str>,
+        _: u16,
+        _: &[(&str, &str)],
     ) -> Result<(), MdnsError>;
 
     fn set_hostname(&mut self, _: &str) -> Result<(), MdnsError> {

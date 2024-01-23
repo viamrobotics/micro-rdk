@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use std::{
-    net::{Ipv4Addr, SocketAddr},
+    net::Ipv4Addr,
     rc::Rc,
     sync::{Arc, Mutex},
     task::{Context, Poll, Wake, Waker},
@@ -9,7 +9,10 @@ use std::{
 
 use crate::common::{
     app_client::{AppClientBuilder, AppClientConfig},
-    conn::server::{ViamServerBuilder, WebRtcConfiguration},
+    conn::{
+        mdns::NoMdns,
+        server::{ViamServerBuilder, WebRtcConfiguration},
+    },
     entry::RobotRepresentation,
     grpc_client::GrpcClient,
     log::config_log_entry,
@@ -18,10 +21,9 @@ use crate::common::{
 
 use super::{
     certificate::WebRtcCertificate,
-    conn::mdns::Esp32Mdns,
     dtls::Esp32DtlsBuilder,
     exec::Esp32Executor,
-    tcp::{Esp32Listener, Esp32Stream},
+    tcp::Esp32Stream,
     tls::{Esp32Tls, Esp32TlsServerConfig},
     webhook::Webhook,
 };
@@ -32,7 +34,7 @@ use futures_lite::Future;
 
 pub async fn serve_web_inner(
     app_config: AppClientConfig,
-    tls_server_config: Esp32TlsServerConfig,
+    _tls_server_config: Esp32TlsServerConfig,
     repr: RobotRepresentation,
     _ip: Ipv4Addr,
     webrtc_certificate: WebRtcCertificate,
@@ -40,7 +42,7 @@ pub async fn serve_web_inner(
 ) {
     let (mut srv, robot) = {
         let mut client_connector = Esp32Tls::new_client();
-        let mdns = Esp32Mdns::new("".to_string()).unwrap();
+        let mdns = NoMdns {};
 
         let (cfg_response, robot) = {
             let cloned_exec = exec.clone();
@@ -95,10 +97,6 @@ pub async fn serve_web_inner(
             (cfg_response, robot)
         };
 
-        let address: SocketAddr = "0.0.0.0:12346".parse().unwrap();
-        let tls = Box::new(Esp32Tls::new_server(&tls_server_config));
-        let tls_listener = Esp32Listener::new(address.into(), Some(tls)).unwrap();
-
         let webrtc_certificate = Rc::new(webrtc_certificate);
         let dtls = Esp32DtlsBuilder::new(webrtc_certificate.clone());
 
@@ -131,7 +129,6 @@ pub async fn serve_web_inner(
             Box::new(
                 ViamServerBuilder::new(mdns, cloned_exec, client_connector, app_config)
                     .with_webrtc(webrtc)
-                    .with_http2(tls_listener, 12346)
                     .build(&cfg_response)
                     .unwrap(),
             ),
