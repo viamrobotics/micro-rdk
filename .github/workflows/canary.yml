@@ -12,7 +12,7 @@ on:
       ESP32_CANARY_API_KEY_ID:
         required: true
   schedule:
-    - cron:  '0/2 * * * *'
+    - cron:  '0/5 * * * *'
 
 env:
   MONGODB_TEST_OUTPUT_URI: ${{ secrets.MONGODB_TEST_OUTPUT_URI }}
