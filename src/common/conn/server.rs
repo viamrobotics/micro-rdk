@@ -384,9 +384,11 @@ where
             let connection = match connection {
                 Ok(c) => c,
                 Err(ServerError::ServerWebRTCError(_)) => {
+                    // all webrtc errors are arising from failing to connect and doesn't require a tls renegotiation
                     continue;
                 }
                 Err(_) => {
+                    // all other errors are related to layers or timeout so we should renegotiate in this event
                     let _ = self.app_client.take();
                     continue;
                 }
