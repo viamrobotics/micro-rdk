@@ -1,0 +1,51 @@
+[package]
+name = "{{project-name}}"
+version = "0.1.6"
+edition = "2021"
+authors = ["{{authors}}"]
+resolver = "2"
+
+[patch.crates-io]
+esp-idf-sys = {git = "https://github.com/viamrobotics/esp-idf-sys.git"}
+polling = { git = "https://github.com/esp-rs-compat/polling" }
+smol = { git = "https://github.com/esp-rs-compat/smol" }
+socket2 = { git = "https://github.com/viamrobotics/socket2.git" }
+async-io = {git = "https://github.com/viamrobotics/async-io.git"}
+
+[profile.release]
+opt-level = "s"
+
+[profile.dev]
+debug = true # Symbols are nice and they don't increase the size on Flash
+opt-level = "z"
+
+
+[dependencies]
+esp-idf-sys = { version = "0.33.7", features = ["binstart"] }
+anyhow = {version = "1", features = ["backtrace"]}
+embedded-svc = "0.26.4"
+embedded-hal = { version = "0.2.7", features = ["unproven"]}
+esp-idf-svc = { version = "0.47.3", features = ["experimental"] }
+esp-idf-hal = "0.42.5"
+log = "0.4"
+async-channel = "1.8.0"
+smol = "1.2"
+futures-lite = "1.12.0"
+micro-rdk = {version = "0.1.6", git = "https://github.com/viamrobotics/micro-rdk.git", features = ["esp32"]}
+
+[build-dependencies]
+anyhow = "1"
+cargo_metadata = "0.18.1"
+const-gen = "1.3.0"
+embuild = "0.29"
+gethostname = "0.4.1"
+local-ip-address = "0.4.9"
+prost-types = "0.11"
+serde = { version="1.0.145",features=["derive"] }
+serde_json = "1.0.86"
+tokio = { version = "1", features = ["full"] }
+viam = { version = ">=0.0.7", git = "https://github.com/viamrobotics/viam-rust-sdk.git" }
+viam-rust-utils = ">=0.0.25"
+rcgen =  "0.10.0"
+ring = "0.16"
+der = {version = "0.7.7", features = ["pem", "alloc","zeroize"] }
