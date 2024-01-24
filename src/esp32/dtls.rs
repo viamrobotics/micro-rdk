@@ -351,17 +351,17 @@ pub struct Esp32Dtls<C> {
 
 #[derive(Error, Debug)]
 pub enum SSLError {
-    #[error("couldn't parse certificate")]
+    #[error("couldn't parse certificate {0}")]
     SSLCertParseFail(i32),
-    #[error("couldn't parse key")]
+    #[error("couldn't parse key {0}")]
     SSLKeyParseFail(i32),
-    #[error("ssl config failed")]
+    #[error("ssl config failed {0}")]
     SSLConfigFailure(i32),
-    #[error("srtp config failed")]
+    #[error("srtp config failed {0}")]
     SSLSrtpConfigFailure(i32),
-    #[error("entropy seed failed")]
+    #[error("entropy seed failed {0}")]
     SSLEntropySeedFailure(i32),
-    #[error("ssl other error")]
+    #[error("ssl other error {0}")]
     SSLOtherError(i32),
     #[error("ssl wants read")]
     SSLWantsRead,
