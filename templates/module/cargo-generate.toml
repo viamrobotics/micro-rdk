@@ -6,7 +6,7 @@ description = "Micro-RDK Module Template"
 [placeholders.mcu]
 type = "string"
 prompt = "MCU"
-choices = ["esp32", "native"]
+choices = ["esp32"]
 default = "esp32"
 
 [placeholders.starting_component]
