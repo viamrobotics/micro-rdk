@@ -30,7 +30,7 @@ modules.
 Run the following command to create a new git repository for your
 module (you will be promted for the name) in the current directory:
 
-`cargo generate --git https://github.com/viamrobotics/micro-rdk module-template`
+`cargo generate --git https://github.com/viamrobotics/micro-rdk templates/module`
 
 Answer the prompts (project name, target architecture, etc.), and then
 implement your modular resources within the newly formed project. The
