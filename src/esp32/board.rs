@@ -29,7 +29,7 @@ use super::{
     pin::Esp32GPIOPin,
 };
 
-use crate::esp_idf_svc::hal::{
+use crate::esp32::esp_idf_svc::hal::{
     adc::{
         attenuation::adc_atten_t_ADC_ATTEN_DB_11 as Atten11dB, config::Config, AdcChannelDriver,
         AdcDriver, ADC1,
@@ -93,7 +93,7 @@ impl EspBoard {
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
                                             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
-                                                crate::esp_idf_svc::hal::gpio::Gpio32::new()
+                                                crate::esp32::esp_idf_svc::hal::gpio::Gpio32::new()
                                             })
                                             .ok()?,
                                             adc1,
@@ -106,7 +106,7 @@ impl EspBoard {
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
                                             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
-                                                crate::esp_idf_svc::hal::gpio::Gpio33::new()
+                                                crate::esp32::esp_idf_svc::hal::gpio::Gpio33::new()
                                             })
                                             .ok()?,
                                             adc1,
@@ -119,7 +119,7 @@ impl EspBoard {
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
                                             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
-                                                crate::esp_idf_svc::hal::gpio::Gpio34::new()
+                                                crate::esp32::esp_idf_svc::hal::gpio::Gpio34::new()
                                             })
                                             .ok()?,
                                             adc1,
@@ -132,7 +132,7 @@ impl EspBoard {
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
                                             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
-                                                crate::esp_idf_svc::hal::gpio::Gpio35::new()
+                                                crate::esp32::esp_idf_svc::hal::gpio::Gpio35::new()
                                             })
                                             .ok()?,
                                             adc1,
@@ -145,7 +145,7 @@ impl EspBoard {
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
                                             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
-                                                crate::esp_idf_svc::hal::gpio::Gpio36::new()
+                                                crate::esp32::esp_idf_svc::hal::gpio::Gpio36::new()
                                             })
                                             .ok()?,
                                             adc1,
@@ -158,7 +158,7 @@ impl EspBoard {
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
                                             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
-                                                crate::esp_idf_svc::hal::gpio::Gpio37::new()
+                                                crate::esp32::esp_idf_svc::hal::gpio::Gpio37::new()
                                             })
                                             .ok()?,
                                             adc1,
@@ -171,7 +171,7 @@ impl EspBoard {
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
                                             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
-                                                crate::esp_idf_svc::hal::gpio::Gpio38::new()
+                                                crate::esp32::esp_idf_svc::hal::gpio::Gpio38::new()
                                             })
                                             .ok()?,
                                             adc1,
@@ -184,7 +184,7 @@ impl EspBoard {
                                         > = Rc::new(RefCell::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
                                             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
-                                                crate::esp_idf_svc::hal::gpio::Gpio39::new()
+                                                crate::esp32::esp_idf_svc::hal::gpio::Gpio39::new()
                                             })
                                             .ok()?,
                                             adc1,
@@ -360,12 +360,12 @@ impl Board for EspBoard {
 
         if let Some(dur) = duration {
             let dur_micros = dur.as_micros() as u64;
-            let result: crate::esp_idf_svc::sys::esp_err_t;
+            let result: crate::esp32::esp_idf_svc::sys::esp_err_t;
             unsafe {
-                result = crate::esp_idf_svc::sys::esp_sleep_enable_timer_wakeup(dur_micros);
+                result = crate::esp32::esp_idf_svc::sys::esp_sleep_enable_timer_wakeup(dur_micros);
             }
             anyhow::ensure!(
-                result == crate::esp_idf_svc::sys::ESP_OK,
+                result == crate::esp32::esp_idf_svc::sys::ESP_OK,
                 "unimplemented: EspBoard::set_power_mode: sleep duration {:?} rejected as unsupportedly long", dur
             );
             warn!("Esp32 entering deep sleep for {} microseconds!", dur_micros);
@@ -374,7 +374,7 @@ impl Board for EspBoard {
         }
 
         unsafe {
-            crate::esp_idf_svc::sys::esp_deep_sleep_start();
+            crate::esp32::esp_idf_svc::sys::esp_deep_sleep_start();
         }
     }
     fn get_i2c_by_name(&self, name: String) -> anyhow::Result<I2cHandleType> {

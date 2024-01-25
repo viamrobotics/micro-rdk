@@ -60,7 +60,7 @@ use crate::{
     google, DoCommand,
 };
 
-use crate::esp_idf_svc::hal::{
+use crate::esp32::esp_idf_svc::hal::{
     delay::TickType,
     gpio::{
         enable_isr_service, init_isr_alloc_flags, AnyIOPin, Input, InterruptType, Output,
@@ -69,7 +69,7 @@ use crate::esp_idf_svc::hal::{
     task::notification::{Notification, Notifier},
 };
 
-use crate::esp_idf_svc::sys::{esp, gpio_isr_handler_add, gpio_isr_handler_remove};
+use crate::esp32::esp_idf_svc::sys::{esp, gpio_isr_handler_add, gpio_isr_handler_remove};
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
@@ -161,7 +161,7 @@ impl HCSR04Sensor {
         timeout: Option<Duration>,
     ) -> anyhow::Result<HCSR04Sensor> {
         // TODO(RSDK-6279): Unify with esp32/pin.rs.
-        init_isr_alloc_flags(crate::esp_idf_svc::hal::interrupt::InterruptType::Iram.into());
+        init_isr_alloc_flags(crate::esp32::esp_idf_svc::hal::interrupt::InterruptType::Iram.into());
         enable_isr_service()?;
 
         let notification = Notification::new();
@@ -215,7 +215,7 @@ impl HCSR04Sensor {
     #[link_section = ".iram1.intr_srv"]
     unsafe extern "C" fn subscription_interrupt(arg: *mut core::ffi::c_void) {
         let arg: &mut IsrSharedState = &mut *(arg as *mut _);
-        let when = crate::esp_idf_svc::sys::esp_timer_get_time();
+        let when = crate::esp32::esp_idf_svc::sys::esp_timer_get_time();
         match arg
             .timestamp
             .compare_exchange(0, when, Ordering::AcqRel, Ordering::Acquire)

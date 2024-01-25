@@ -1,17 +1,17 @@
 use super::pin::PinExt;
 use super::pulse_counter::{get_unit, isr_install, isr_remove_unit};
 
-use crate::esp_idf_svc::hal::gpio::{AnyInputPin, Input, PinDriver};
-use crate::esp_idf_svc::sys::pcnt_channel_edge_action_t_PCNT_CHANNEL_EDGE_ACTION_DECREASE as pcnt_count_dec;
-use crate::esp_idf_svc::sys::pcnt_channel_edge_action_t_PCNT_CHANNEL_EDGE_ACTION_INCREASE as pcnt_count_inc;
-use crate::esp_idf_svc::sys::pcnt_channel_level_action_t_PCNT_CHANNEL_LEVEL_ACTION_INVERSE as pcnt_mode_reverse;
-use crate::esp_idf_svc::sys::pcnt_channel_level_action_t_PCNT_CHANNEL_LEVEL_ACTION_KEEP as pcnt_mode_keep;
-use crate::esp_idf_svc::sys::pcnt_channel_t_PCNT_CHANNEL_0 as pcnt_channel_0;
-use crate::esp_idf_svc::sys::pcnt_channel_t_PCNT_CHANNEL_1 as pcnt_channel_1;
-use crate::esp_idf_svc::sys::pcnt_config_t;
-use crate::esp_idf_svc::sys::pcnt_evt_type_t_PCNT_EVT_H_LIM as pcnt_evt_h_lim;
-use crate::esp_idf_svc::sys::pcnt_evt_type_t_PCNT_EVT_L_LIM as pcnt_evt_l_lim;
-use crate::esp_idf_svc::sys::{esp, EspError, ESP_OK};
+use crate::esp32::esp_idf_svc::hal::gpio::{AnyInputPin, Input, PinDriver};
+use crate::esp32::esp_idf_svc::sys::pcnt_channel_edge_action_t_PCNT_CHANNEL_EDGE_ACTION_DECREASE as pcnt_count_dec;
+use crate::esp32::esp_idf_svc::sys::pcnt_channel_edge_action_t_PCNT_CHANNEL_EDGE_ACTION_INCREASE as pcnt_count_inc;
+use crate::esp32::esp_idf_svc::sys::pcnt_channel_level_action_t_PCNT_CHANNEL_LEVEL_ACTION_INVERSE as pcnt_mode_reverse;
+use crate::esp32::esp_idf_svc::sys::pcnt_channel_level_action_t_PCNT_CHANNEL_LEVEL_ACTION_KEEP as pcnt_mode_keep;
+use crate::esp32::esp_idf_svc::sys::pcnt_channel_t_PCNT_CHANNEL_0 as pcnt_channel_0;
+use crate::esp32::esp_idf_svc::sys::pcnt_channel_t_PCNT_CHANNEL_1 as pcnt_channel_1;
+use crate::esp32::esp_idf_svc::sys::pcnt_config_t;
+use crate::esp32::esp_idf_svc::sys::pcnt_evt_type_t_PCNT_EVT_H_LIM as pcnt_evt_h_lim;
+use crate::esp32::esp_idf_svc::sys::pcnt_evt_type_t_PCNT_EVT_L_LIM as pcnt_evt_l_lim;
+use crate::esp32::esp_idf_svc::sys::{esp, EspError, ESP_OK};
 use core::ffi::{c_short, c_ulong};
 
 use std::collections::HashMap;
@@ -133,7 +133,7 @@ where
 
     fn start(&self) -> anyhow::Result<()> {
         unsafe {
-            match crate::esp_idf_svc::sys::pcnt_counter_resume(self.config.unit) {
+            match crate::esp32::esp_idf_svc::sys::pcnt_counter_resume(self.config.unit) {
                 ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
@@ -142,7 +142,7 @@ where
     }
     fn stop(&self) -> anyhow::Result<()> {
         unsafe {
-            match crate::esp_idf_svc::sys::pcnt_counter_pause(self.config.unit) {
+            match crate::esp32::esp_idf_svc::sys::pcnt_counter_pause(self.config.unit) {
                 ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
@@ -152,7 +152,7 @@ where
     fn reset(&self) -> anyhow::Result<()> {
         self.stop()?;
         unsafe {
-            match crate::esp_idf_svc::sys::pcnt_counter_clear(self.config.unit) {
+            match crate::esp32::esp_idf_svc::sys::pcnt_counter_clear(self.config.unit) {
                 ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
@@ -164,7 +164,7 @@ where
     fn get_counter_value(&self) -> anyhow::Result<i32> {
         let mut ctr: i16 = 0;
         unsafe {
-            match crate::esp_idf_svc::sys::pcnt_get_counter_value(
+            match crate::esp32::esp_idf_svc::sys::pcnt_get_counter_value(
                 self.config.unit,
                 &mut ctr as *mut c_short,
             ) {
@@ -177,7 +177,7 @@ where
     }
     fn setup_pcnt(&mut self) -> anyhow::Result<()> {
         unsafe {
-            match crate::esp_idf_svc::sys::pcnt_unit_config(&self.config as *const pcnt_config_t) {
+            match crate::esp32::esp_idf_svc::sys::pcnt_unit_config(&self.config as *const pcnt_config_t) {
                 ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
@@ -188,18 +188,18 @@ where
         self.config.pos_mode = pcnt_count_dec;
         self.config.neg_mode = pcnt_count_inc;
         unsafe {
-            match crate::esp_idf_svc::sys::pcnt_unit_config(&self.config as *const pcnt_config_t) {
+            match crate::esp32::esp_idf_svc::sys::pcnt_unit_config(&self.config as *const pcnt_config_t) {
                 ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
         }
 
         unsafe {
-            match crate::esp_idf_svc::sys::pcnt_counter_pause(self.config.unit) {
+            match crate::esp32::esp_idf_svc::sys::pcnt_counter_pause(self.config.unit) {
                 ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
-            match crate::esp_idf_svc::sys::pcnt_counter_clear(self.config.unit) {
+            match crate::esp32::esp_idf_svc::sys::pcnt_counter_clear(self.config.unit) {
                 ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
@@ -208,7 +208,7 @@ where
         isr_install()?;
 
         esp!(unsafe {
-            crate::esp_idf_svc::sys::pcnt_isr_handler_add(
+            crate::esp32::esp_idf_svc::sys::pcnt_isr_handler_add(
                 self.config.unit,
                 Some(Self::irq_handler),
                 self.pulse_counter.as_mut() as *mut PulseStorage as *mut _,
@@ -216,11 +216,11 @@ where
         })?;
 
         unsafe {
-            match crate::esp_idf_svc::sys::pcnt_event_enable(self.config.unit, pcnt_evt_h_lim) {
+            match crate::esp32::esp_idf_svc::sys::pcnt_event_enable(self.config.unit, pcnt_evt_h_lim) {
                 ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
-            match crate::esp_idf_svc::sys::pcnt_event_enable(self.config.unit, pcnt_evt_l_lim) {
+            match crate::esp32::esp_idf_svc::sys::pcnt_event_enable(self.config.unit, pcnt_evt_l_lim) {
                 ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
@@ -233,7 +233,7 @@ where
     unsafe extern "C" fn irq_handler(arg: *mut core::ffi::c_void) {
         let arg: &mut PulseStorage = &mut *(arg as *mut _);
         let mut status = 0;
-        crate::esp_idf_svc::sys::pcnt_get_event_status(arg.unit, &mut status as *mut c_ulong);
+        crate::esp32::esp_idf_svc::sys::pcnt_get_event_status(arg.unit, &mut status as *mut c_ulong);
         if status & pcnt_evt_h_lim != 0 {
             arg.acc.fetch_add(1, Ordering::Relaxed);
         }

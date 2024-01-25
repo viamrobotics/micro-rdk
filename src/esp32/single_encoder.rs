@@ -11,15 +11,15 @@ use crate::common::encoder::{
 use crate::common::registry::{ComponentRegistry, Dependency};
 use crate::google;
 
-use crate::esp_idf_svc::hal::gpio::{AnyInputPin, PinDriver};
-use crate::esp_idf_svc::sys::pcnt_channel_edge_action_t_PCNT_CHANNEL_EDGE_ACTION_DECREASE as pcnt_count_dec;
-use crate::esp_idf_svc::sys::pcnt_channel_edge_action_t_PCNT_CHANNEL_EDGE_ACTION_INCREASE as pcnt_count_inc;
-use crate::esp_idf_svc::sys::pcnt_channel_level_action_t_PCNT_CHANNEL_LEVEL_ACTION_KEEP as pcnt_mode_keep;
-use crate::esp_idf_svc::sys::pcnt_channel_t_PCNT_CHANNEL_0 as pcnt_channel_0;
-use crate::esp_idf_svc::sys::pcnt_config_t;
-use crate::esp_idf_svc::sys::pcnt_evt_type_t_PCNT_EVT_H_LIM as pcnt_evt_h_lim;
-use crate::esp_idf_svc::sys::pcnt_evt_type_t_PCNT_EVT_L_LIM as pcnt_evt_l_lim;
-use crate::esp_idf_svc::sys::{esp, EspError, ESP_OK};
+use crate::esp32::esp_idf_svc::hal::gpio::{AnyInputPin, PinDriver};
+use crate::esp32::esp_idf_svc::sys::pcnt_channel_edge_action_t_PCNT_CHANNEL_EDGE_ACTION_DECREASE as pcnt_count_dec;
+use crate::esp32::esp_idf_svc::sys::pcnt_channel_edge_action_t_PCNT_CHANNEL_EDGE_ACTION_INCREASE as pcnt_count_inc;
+use crate::esp32::esp_idf_svc::sys::pcnt_channel_level_action_t_PCNT_CHANNEL_LEVEL_ACTION_KEEP as pcnt_mode_keep;
+use crate::esp32::esp_idf_svc::sys::pcnt_channel_t_PCNT_CHANNEL_0 as pcnt_channel_0;
+use crate::esp32::esp_idf_svc::sys::pcnt_config_t;
+use crate::esp32::esp_idf_svc::sys::pcnt_evt_type_t_PCNT_EVT_H_LIM as pcnt_evt_h_lim;
+use crate::esp32::esp_idf_svc::sys::pcnt_evt_type_t_PCNT_EVT_L_LIM as pcnt_evt_l_lim;
+use crate::esp32::esp_idf_svc::sys::{esp, EspError, ESP_OK};
 use core::ffi::{c_short, c_ulong};
 
 use std::collections::HashMap;
@@ -122,7 +122,7 @@ impl Esp32SingleEncoder {
 
     pub fn start(&self) -> anyhow::Result<()> {
         unsafe {
-            match crate::esp_idf_svc::sys::pcnt_counter_resume(self.config.unit) {
+            match crate::esp32::esp_idf_svc::sys::pcnt_counter_resume(self.config.unit) {
                 ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
@@ -131,7 +131,7 @@ impl Esp32SingleEncoder {
     }
     pub fn stop(&self) -> anyhow::Result<()> {
         unsafe {
-            match crate::esp_idf_svc::sys::pcnt_counter_pause(self.config.unit) {
+            match crate::esp32::esp_idf_svc::sys::pcnt_counter_pause(self.config.unit) {
                 ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
@@ -141,7 +141,7 @@ impl Esp32SingleEncoder {
     pub fn reset(&self) -> anyhow::Result<()> {
         self.stop()?;
         unsafe {
-            match crate::esp_idf_svc::sys::pcnt_counter_clear(self.config.unit) {
+            match crate::esp32::esp_idf_svc::sys::pcnt_counter_clear(self.config.unit) {
                 ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
@@ -153,7 +153,7 @@ impl Esp32SingleEncoder {
     pub fn get_counter_value(&self) -> anyhow::Result<i32> {
         let mut ctr: i16 = 0;
         unsafe {
-            match crate::esp_idf_svc::sys::pcnt_get_counter_value(
+            match crate::esp32::esp_idf_svc::sys::pcnt_get_counter_value(
                 self.config.unit,
                 &mut ctr as *mut c_short,
             ) {
@@ -170,18 +170,18 @@ impl Esp32SingleEncoder {
     }
     pub fn setup_pcnt(&mut self) -> anyhow::Result<()> {
         unsafe {
-            match crate::esp_idf_svc::sys::pcnt_unit_config(&self.config as *const pcnt_config_t) {
+            match crate::esp32::esp_idf_svc::sys::pcnt_unit_config(&self.config as *const pcnt_config_t) {
                 ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
         }
 
         unsafe {
-            match crate::esp_idf_svc::sys::pcnt_counter_pause(self.config.unit) {
+            match crate::esp32::esp_idf_svc::sys::pcnt_counter_pause(self.config.unit) {
                 ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
-            match crate::esp_idf_svc::sys::pcnt_counter_clear(self.config.unit) {
+            match crate::esp32::esp_idf_svc::sys::pcnt_counter_clear(self.config.unit) {
                 ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
@@ -190,7 +190,7 @@ impl Esp32SingleEncoder {
         isr_install()?;
 
         esp!(unsafe {
-            crate::esp_idf_svc::sys::pcnt_isr_handler_add(
+            crate::esp32::esp_idf_svc::sys::pcnt_isr_handler_add(
                 self.config.unit,
                 Some(Self::irq_handler),
                 self.pulse_counter.as_mut() as *mut PulseStorage as *mut _,
@@ -198,25 +198,25 @@ impl Esp32SingleEncoder {
         })?;
 
         unsafe {
-            match crate::esp_idf_svc::sys::pcnt_set_filter_value(
+            match crate::esp32::esp_idf_svc::sys::pcnt_set_filter_value(
                 self.config.unit,
                 MAX_GLITCH_MICROSEC * 80,
             ) {
                 ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
-            match crate::esp_idf_svc::sys::pcnt_filter_enable(self.config.unit) {
+            match crate::esp32::esp_idf_svc::sys::pcnt_filter_enable(self.config.unit) {
                 ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
         }
 
         unsafe {
-            match crate::esp_idf_svc::sys::pcnt_event_enable(self.config.unit, pcnt_evt_h_lim) {
+            match crate::esp32::esp_idf_svc::sys::pcnt_event_enable(self.config.unit, pcnt_evt_h_lim) {
                 ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
-            match crate::esp_idf_svc::sys::pcnt_event_enable(self.config.unit, pcnt_evt_l_lim) {
+            match crate::esp32::esp_idf_svc::sys::pcnt_event_enable(self.config.unit, pcnt_evt_l_lim) {
                 ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
@@ -230,7 +230,7 @@ impl Esp32SingleEncoder {
     unsafe extern "C" fn irq_handler(arg: *mut core::ffi::c_void) {
         let arg: &mut PulseStorage = &mut *(arg as *mut _);
         let mut status = 0;
-        crate::esp_idf_svc::sys::pcnt_get_event_status(arg.unit, &mut status as *mut c_ulong);
+        crate::esp32::esp_idf_svc::sys::pcnt_get_event_status(arg.unit, &mut status as *mut c_ulong);
         if arg.moving_forwards.load(Ordering::Relaxed) {
             if status & pcnt_evt_h_lim != 0 {
                 arg.acc.fetch_add(1, Ordering::SeqCst);
@@ -296,12 +296,12 @@ impl SingleEncoder for Esp32SingleEncoder {
         let isr_is_installed = isr_installed();
         if reconfigure && isr_is_installed {
             unsafe {
-                match crate::esp_idf_svc::sys::pcnt_counter_pause(self.config.unit) {
+                match crate::esp32::esp_idf_svc::sys::pcnt_counter_pause(self.config.unit) {
                     ESP_OK => {}
                     err => return Err(EspError::from(err).unwrap().into()),
                 }
 
-                match crate::esp_idf_svc::sys::pcnt_unit_config(
+                match crate::esp32::esp_idf_svc::sys::pcnt_unit_config(
                     &self.config as *const pcnt_config_t,
                 ) {
                     ESP_OK => {}
@@ -309,29 +309,29 @@ impl SingleEncoder for Esp32SingleEncoder {
                 }
             }
             unsafe {
-                match crate::esp_idf_svc::sys::pcnt_set_filter_value(
+                match crate::esp32::esp_idf_svc::sys::pcnt_set_filter_value(
                     self.config.unit,
                     MAX_GLITCH_MICROSEC * 80,
                 ) {
                     ESP_OK => {}
                     err => return Err(EspError::from(err).unwrap().into()),
                 }
-                match crate::esp_idf_svc::sys::pcnt_filter_enable(self.config.unit) {
+                match crate::esp32::esp_idf_svc::sys::pcnt_filter_enable(self.config.unit) {
                     ESP_OK => {}
                     err => return Err(EspError::from(err).unwrap().into()),
                 }
             }
 
             unsafe {
-                match crate::esp_idf_svc::sys::pcnt_event_enable(self.config.unit, pcnt_evt_h_lim) {
+                match crate::esp32::esp_idf_svc::sys::pcnt_event_enable(self.config.unit, pcnt_evt_h_lim) {
                     ESP_OK => {}
                     err => return Err(EspError::from(err).unwrap().into()),
                 }
-                match crate::esp_idf_svc::sys::pcnt_event_enable(self.config.unit, pcnt_evt_l_lim) {
+                match crate::esp32::esp_idf_svc::sys::pcnt_event_enable(self.config.unit, pcnt_evt_l_lim) {
                     ESP_OK => {}
                     err => return Err(EspError::from(err).unwrap().into()),
                 }
-                match crate::esp_idf_svc::sys::pcnt_counter_resume(self.config.unit) {
+                match crate::esp32::esp_idf_svc::sys::pcnt_counter_resume(self.config.unit) {
                     ESP_OK => {}
                     err => return Err(EspError::from(err).unwrap().into()),
                 }
@@ -353,7 +353,7 @@ impl Drop for Esp32SingleEncoder {
     fn drop(&mut self) {
         if isr_installed() {
             unsafe {
-                crate::esp_idf_svc::sys::pcnt_isr_handler_remove(self.config.unit);
+                crate::esp32::esp_idf_svc::sys::pcnt_isr_handler_remove(self.config.unit);
             }
             isr_remove_unit();
         }

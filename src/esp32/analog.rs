@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 use crate::common::analog::AnalogReader;
-use crate::esp_idf_svc::hal::adc::{AdcChannelDriver, AdcDriver};
-use crate::esp_idf_svc::hal::gpio::ADCPin;
+use crate::esp32::esp_idf_svc::hal::adc::{AdcChannelDriver, AdcDriver};
+use crate::esp32::esp_idf_svc::hal::gpio::ADCPin;
 use core::cell::RefCell;
 use std::rc::Rc;
 

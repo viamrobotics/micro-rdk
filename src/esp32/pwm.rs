@@ -1,12 +1,12 @@
-use crate::esp_idf_svc::hal::gpio::AnyIOPin;
-use crate::esp_idf_svc::hal::gpio::Pin;
-use crate::esp_idf_svc::hal::ledc::{
+use crate::esp32::esp_idf_svc::hal::gpio::AnyIOPin;
+use crate::esp32::esp_idf_svc::hal::gpio::Pin;
+use crate::esp32::esp_idf_svc::hal::ledc::{
     config::TimerConfig, LedcDriver, LedcTimerDriver, SpeedMode, CHANNEL0, CHANNEL1, CHANNEL2,
     CHANNEL3, CHANNEL4, CHANNEL5, CHANNEL6, CHANNEL7, TIMER0, TIMER1, TIMER2, TIMER3,
 };
-use crate::esp_idf_svc::hal::peripheral::Peripheral;
-use crate::esp_idf_svc::hal::prelude::FromValueType;
-use crate::esp_idf_svc::sys::{ledc_bind_channel_timer, ledc_get_freq, ledc_timer_t, EspError};
+use crate::esp32::esp_idf_svc::hal::peripheral::Peripheral;
+use crate::esp32::esp_idf_svc::hal::prelude::FromValueType;
+use crate::esp32::esp_idf_svc::sys::{ledc_bind_channel_timer, ledc_get_freq, ledc_timer_t, EspError};
 use bitfield::{bitfield, Bit, BitMut};
 use once_cell::sync::Lazy;
 use std::cell::OnceCell;
@@ -59,7 +59,7 @@ fn get_ledc_driver_by_channel<'a>(
     timer: &LedcTimerDriver<'a>,
     pin: AnyIOPin,
 ) -> Result<LedcDriver<'a>, Esp32PwmError> {
-    crate::esp_idf_svc::hal::into_ref!(pin);
+    crate::esp32::esp_idf_svc::hal::into_ref!(pin);
 
     Ok(match channel {
         PwmChannel::C0 => LedcDriver::new(unsafe { CHANNEL0::new() }, timer, pin)?,

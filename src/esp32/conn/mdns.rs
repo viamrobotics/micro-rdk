@@ -1,4 +1,4 @@
-use crate::esp_idf_svc::mdns::EspMdns;
+use crate::esp32::esp_idf_svc::mdns::EspMdns;
 
 use crate::common::conn::mdns::{Mdns, MdnsError};
 

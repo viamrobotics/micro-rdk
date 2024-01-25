@@ -9,9 +9,9 @@ include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
 use log::*;
 #[cfg(feature = "qemu")]
-use micro_rdk::esp_idf_svc::eth::EspEth;
-use micro_rdk::esp_idf_svc::eventloop::EspSystemEventLoop;
-use micro_rdk::esp_idf_svc::sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT};
+use micro_rdk::esp32::esp_idf_svc::eth::EspEth;
+use micro_rdk::esp32::esp_idf_svc::eventloop::EspSystemEventLoop;
+use micro_rdk::esp32::esp_idf_svc::sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT};
 use micro_rdk::{
     common::{app_client::AppClientConfig, entry::RobotRepresentation},
     esp32::{certificate::WebRtcCertificate, entry::serve_web, tls::Esp32TlsServerConfig},
@@ -31,15 +31,15 @@ use {
         AuthMethod, ClientConfiguration as WifiClientConfiguration,
         Configuration as WifiConfiguration,
     },
-    micro_rdk::esp_idf_svc::hal::{peripheral::Peripheral, prelude::Peripherals},
-    micro_rdk::esp_idf_svc::sys::esp_wifi_set_ps,
-    micro_rdk::esp_idf_svc::wifi::{BlockingWifi, EspWifi},
+    micro_rdk::esp32::esp_idf_svc::hal::{peripheral::Peripheral, prelude::Peripherals},
+    micro_rdk::esp32::esp_idf_svc::sys::esp_wifi_set_ps,
+    micro_rdk::esp32::esp_idf_svc::wifi::{BlockingWifi, EspWifi},
 };
 
 fn main() {
-    micro_rdk::esp_idf_svc::sys::link_patches();
+    micro_rdk::esp32::esp_idf_svc::sys::link_patches();
 
-    micro_rdk::esp_idf_svc::log::EspLogger::initialize_default();
+    micro_rdk::esp32::esp_idf_svc::log::EspLogger::initialize_default();
     let sys_loop_stack = EspSystemEventLoop::take().unwrap();
 
     #[cfg(not(feature = "qemu"))]
@@ -48,9 +48,9 @@ fn main() {
     let repr = RobotRepresentation::WithRegistry(Box::<ComponentRegistry>::default());
 
     {
-        micro_rdk::esp_idf_svc::sys::esp!(unsafe {
-            micro_rdk::esp_idf_svc::sys::esp_vfs_eventfd_register(
-                &micro_rdk::esp_idf_svc::sys::esp_vfs_eventfd_config_t { max_fds: 5 },
+        micro_rdk::esp32::esp_idf_svc::sys::esp!(unsafe {
+            micro_rdk::esp32::esp_idf_svc::sys::esp_vfs_eventfd_register(
+                &micro_rdk::esp32::esp_idf_svc::sys::esp_vfs_eventfd_config_t { max_fds: 5 },
             )
         })
         .unwrap();
@@ -58,10 +58,10 @@ fn main() {
 
     #[cfg(feature = "qemu")]
     let (ip, _block_eth) = {
-        use micro_rdk::esp_idf_svc::hal::prelude::Peripherals;
+        use micro_rdk::esp32::esp_idf_svc::hal::prelude::Peripherals;
         info!("creating eth object");
-        let eth = micro_rdk::esp_idf_svc::eth::EspEth::wrap(
-            micro_rdk::esp_idf_svc::eth::EthDriver::new_openeth(
+        let eth = micro_rdk::esp32::esp_idf_svc::eth::EspEth::wrap(
+            micro_rdk::esp32::esp_idf_svc::eth::EthDriver::new_openeth(
                 Peripherals::take().unwrap().mac,
                 sys_loop_stack.clone(),
             )
@@ -108,13 +108,13 @@ fn main() {
 }
 
 #[cfg(feature = "qemu")]
-use micro_rdk::esp_idf_svc::eth::BlockingEth;
+use micro_rdk::esp32::esp_idf_svc::eth::BlockingEth;
 #[cfg(feature = "qemu")]
 fn eth_configure<'d, T>(
     sl_stack: &EspSystemEventLoop,
-    eth: micro_rdk::esp_idf_svc::eth::EspEth<'d, T>,
+    eth: micro_rdk::esp32::esp_idf_svc::eth::EspEth<'d, T>,
 ) -> anyhow::Result<(Ipv4Addr, Box<BlockingEth<EspEth<'d, T>>>)> {
-    let mut eth = micro_rdk::esp_idf_svc::eth::BlockingEth::wrap(eth, sl_stack.clone())?;
+    let mut eth = micro_rdk::esp32::esp_idf_svc::eth::BlockingEth::wrap(eth, sl_stack.clone())?;
     eth.start()?;
     eth.wait_netif_up()?;
 
@@ -126,10 +126,10 @@ fn eth_configure<'d, T>(
 
 #[cfg(not(feature = "qemu"))]
 fn start_wifi(
-    modem: impl Peripheral<P = micro_rdk::esp_idf_svc::hal::modem::Modem> + 'static,
+    modem: impl Peripheral<P = micro_rdk::esp32::esp_idf_svc::hal::modem::Modem> + 'static,
     sl_stack: EspSystemEventLoop,
 ) -> anyhow::Result<Box<BlockingWifi<EspWifi<'static>>>> {
-    let nvs = micro_rdk::esp_idf_svc::nvs::EspDefaultNvsPartition::take()?;
+    let nvs = micro_rdk::esp32::esp_idf_svc::nvs::EspDefaultNvsPartition::take()?;
     let mut wifi = BlockingWifi::wrap(EspWifi::new(modem, sl_stack.clone(), Some(nvs))?, sl_stack)?;
     let wifi_configuration = WifiConfiguration::Client(WifiClientConfiguration {
         ssid: SSID.into(),
@@ -150,8 +150,8 @@ fn start_wifi(
     wifi.wait_netif_up().unwrap();
     info!("Wifi netif up");
 
-    micro_rdk::esp_idf_svc::sys::esp!(unsafe {
-        esp_wifi_set_ps(micro_rdk::esp_idf_svc::sys::wifi_ps_type_t_WIFI_PS_NONE)
+    micro_rdk::esp32::esp_idf_svc::sys::esp!(unsafe {
+        esp_wifi_set_ps(micro_rdk::esp32::esp_idf_svc::sys::wifi_ps_type_t_WIFI_PS_NONE)
     })?;
     Ok(Box::new(wifi))
 }
