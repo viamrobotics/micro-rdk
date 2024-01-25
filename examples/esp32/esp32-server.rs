@@ -7,11 +7,11 @@ const PASS: &str = env!("MICRO_RDK_WIFI_PASSWORD");
 
 include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
+use log::*;
 #[cfg(feature = "qemu")]
 use micro_rdk::esp_idf_svc::eth::EspEth;
 use micro_rdk::esp_idf_svc::eventloop::EspSystemEventLoop;
 use micro_rdk::esp_idf_svc::sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT};
-use log::*;
 use micro_rdk::{
     common::{app_client::AppClientConfig, entry::RobotRepresentation},
     esp32::{certificate::WebRtcCertificate, entry::serve_web, tls::Esp32TlsServerConfig},
@@ -32,8 +32,8 @@ use {
         Configuration as WifiConfiguration,
     },
     micro_rdk::esp_idf_svc::hal::{peripheral::Peripheral, prelude::Peripherals},
-    micro_rdk::esp_idf_svc::wifi::{BlockingWifi, EspWifi},
     micro_rdk::esp_idf_svc::sys::esp_wifi_set_ps,
+    micro_rdk::esp_idf_svc::wifi::{BlockingWifi, EspWifi},
 };
 
 fn main() {
@@ -49,9 +49,9 @@ fn main() {
 
     {
         micro_rdk::esp_idf_svc::sys::esp!(unsafe {
-            micro_rdk::esp_idf_svc::sys::esp_vfs_eventfd_register(&micro_rdk::esp_idf_svc::sys::esp_vfs_eventfd_config_t {
-                max_fds: 5,
-            })
+            micro_rdk::esp_idf_svc::sys::esp_vfs_eventfd_register(
+                &micro_rdk::esp_idf_svc::sys::esp_vfs_eventfd_config_t { max_fds: 5 },
+            )
         })
         .unwrap();
     }
@@ -150,6 +150,8 @@ fn start_wifi(
     wifi.wait_netif_up().unwrap();
     info!("Wifi netif up");
 
-    micro_rdk::esp_idf_svc::sys::esp!(unsafe { esp_wifi_set_ps(micro_rdk::esp_idf_svc::sys::wifi_ps_type_t_WIFI_PS_NONE) })?;
+    micro_rdk::esp_idf_svc::sys::esp!(unsafe {
+        esp_wifi_set_ps(micro_rdk::esp_idf_svc::sys::wifi_ps_type_t_WIFI_PS_NONE)
+    })?;
     Ok(Box::new(wifi))
 }

@@ -36,10 +36,10 @@ use {
         AuthMethod, ClientConfiguration as WifiClientConfiguration,
         Configuration as WifiConfiguration,
     },
-    micro_rdk::esp_idf_svc::hal::{peripheral::Peripheral, prelude::Peripherals},
-    micro_rdk::esp_idf_svc::wifi::{BlockingWifi, EspWifi},
-    micro_rdk::esp_idf_svc::sys::esp_wifi_set_ps,
     micro_rdk::common::registry::ComponentRegistry,
+    micro_rdk::esp_idf_svc::hal::{peripheral::Peripheral, prelude::Peripherals},
+    micro_rdk::esp_idf_svc::sys::esp_wifi_set_ps,
+    micro_rdk::esp_idf_svc::wifi::{BlockingWifi, EspWifi},
 };
 
 #[derive(Debug, Error)]
@@ -145,7 +145,9 @@ fn main() {
     let repr = RobotRepresentation::WithRegistry(Box::new(ComponentRegistry::default()));
 
     micro_rdk::esp_idf_svc::sys::esp!(unsafe {
-        micro_rdk::esp_idf_svc::sys::esp_vfs_eventfd_register(&micro_rdk::esp_idf_svc::sys::esp_vfs_eventfd_config_t { max_fds: 5 })
+        micro_rdk::esp_idf_svc::sys::esp_vfs_eventfd_register(
+            &micro_rdk::esp_idf_svc::sys::esp_vfs_eventfd_config_t { max_fds: 5 },
+        )
     })
     .unwrap();
 
@@ -256,6 +258,8 @@ fn start_wifi(
     wifi.wait_netif_up()?;
     info!("Wifi netif up");
 
-    micro_rdk::esp_idf_svc::sys::esp!(unsafe { esp_wifi_set_ps(micro_rdk::esp_idf_svc::sys::wifi_ps_type_t_WIFI_PS_NONE) })?;
+    micro_rdk::esp_idf_svc::sys::esp!(unsafe {
+        esp_wifi_set_ps(micro_rdk::esp_idf_svc::sys::wifi_ps_type_t_WIFI_PS_NONE)
+    })?;
     Ok(Box::new(wifi))
 }
