@@ -68,7 +68,7 @@ fn main() -> anyhow::Result<()> {
     }
     {% endif %}
 
-    embuild::build::LinkArgs::output_propagated("ESP_IDF")?;
+    embuild::espidf::sysenv::output();
 
     let (cert_der, kp_der, fp) = generate_dtls_certificate()?;
 
