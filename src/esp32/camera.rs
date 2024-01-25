@@ -66,7 +66,10 @@ impl Esp32Camera {
             Some(ptr)
         }
     }
-    pub fn return_cam_frame(&self, frame: Option<*mut crate::esp32::esp_idf_svc::sys::camera_fb_t>) {
+    pub fn return_cam_frame(
+        &self,
+        frame: Option<*mut crate::esp32::esp_idf_svc::sys::camera_fb_t>,
+    ) {
         if let Some(ptr) = frame {
             unsafe { crate::esp32::esp_idf_svc::sys::esp_camera_fb_return(ptr) }
         }

@@ -177,7 +177,9 @@ where
     }
     fn setup_pcnt(&mut self) -> anyhow::Result<()> {
         unsafe {
-            match crate::esp32::esp_idf_svc::sys::pcnt_unit_config(&self.config as *const pcnt_config_t) {
+            match crate::esp32::esp_idf_svc::sys::pcnt_unit_config(
+                &self.config as *const pcnt_config_t,
+            ) {
                 ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
@@ -188,7 +190,9 @@ where
         self.config.pos_mode = pcnt_count_dec;
         self.config.neg_mode = pcnt_count_inc;
         unsafe {
-            match crate::esp32::esp_idf_svc::sys::pcnt_unit_config(&self.config as *const pcnt_config_t) {
+            match crate::esp32::esp_idf_svc::sys::pcnt_unit_config(
+                &self.config as *const pcnt_config_t,
+            ) {
                 ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
@@ -216,11 +220,17 @@ where
         })?;
 
         unsafe {
-            match crate::esp32::esp_idf_svc::sys::pcnt_event_enable(self.config.unit, pcnt_evt_h_lim) {
+            match crate::esp32::esp_idf_svc::sys::pcnt_event_enable(
+                self.config.unit,
+                pcnt_evt_h_lim,
+            ) {
                 ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
-            match crate::esp32::esp_idf_svc::sys::pcnt_event_enable(self.config.unit, pcnt_evt_l_lim) {
+            match crate::esp32::esp_idf_svc::sys::pcnt_event_enable(
+                self.config.unit,
+                pcnt_evt_l_lim,
+            ) {
                 ESP_OK => {}
                 err => return Err(EspError::from(err).unwrap().into()),
             }
@@ -233,7 +243,10 @@ where
     unsafe extern "C" fn irq_handler(arg: *mut core::ffi::c_void) {
         let arg: &mut PulseStorage = &mut *(arg as *mut _);
         let mut status = 0;
-        crate::esp32::esp_idf_svc::sys::pcnt_get_event_status(arg.unit, &mut status as *mut c_ulong);
+        crate::esp32::esp_idf_svc::sys::pcnt_get_event_status(
+            arg.unit,
+            &mut status as *mut c_ulong,
+        );
         if status & pcnt_evt_h_lim != 0 {
             arg.acc.fetch_add(1, Ordering::Relaxed);
         }

@@ -6,7 +6,9 @@ use crate::esp32::esp_idf_svc::hal::ledc::{
 };
 use crate::esp32::esp_idf_svc::hal::peripheral::Peripheral;
 use crate::esp32::esp_idf_svc::hal::prelude::FromValueType;
-use crate::esp32::esp_idf_svc::sys::{ledc_bind_channel_timer, ledc_get_freq, ledc_timer_t, EspError};
+use crate::esp32::esp_idf_svc::sys::{
+    ledc_bind_channel_timer, ledc_get_freq, ledc_timer_t, EspError,
+};
 use bitfield::{bitfield, Bit, BitMut};
 use once_cell::sync::Lazy;
 use std::cell::OnceCell;
