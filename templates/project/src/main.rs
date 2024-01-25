@@ -17,7 +17,6 @@ use micro_rdk::{
     esp_idf_svc::{
         hal::{peripheral::Peripheral, prelude::Peripherals},
         wifi::{BlockingWifi, EspWifi},
-        sys as _,
         sys::esp_wifi_set_ps,
     },
     esp32::{certificate::WebRtcCertificate, entry::serve_web, tls::Esp32TlsServerConfig},

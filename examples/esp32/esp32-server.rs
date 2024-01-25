@@ -33,7 +33,6 @@ use {
     },
     micro_rdk::esp_idf_svc::hal::{peripheral::Peripheral, prelude::Peripherals},
     micro_rdk::esp_idf_svc::wifi::{BlockingWifi, EspWifi},
-    micro_rdk::esp_idf_svc::sys as _,
     micro_rdk::esp_idf_svc::sys::esp_wifi_set_ps,
 };
 
