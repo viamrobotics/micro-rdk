@@ -6,7 +6,6 @@ include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
 use log::*;
 
-use esp32::esp_idf_svc::eventloop::EspSystemEventLoop;
 use micro_rdk::esp32::esp_idf_svc::sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT};
 use micro_rdk::{
     common::{
@@ -16,6 +15,7 @@ use micro_rdk::{
     },
     esp32::esp_idf_svc::{
         hal::{peripheral::Peripheral, prelude::Peripherals},
+        eventloop::EspSystemEventLoop,
         wifi::{BlockingWifi, EspWifi},
         sys::esp_wifi_set_ps,
     },
@@ -48,7 +48,7 @@ extern "C" {
 fn main() -> anyhow::Result<()> {
     micro_rdk::esp32::esp_idf_svc::sys::link_patches();
 
-    esp32::esp_idf_svc::log::EspLogger::initialize_default();
+    micro_rdk::esp32::esp_idf_svc::log::EspLogger::initialize_default();
     let sys_loop_stack = EspSystemEventLoop::take().unwrap();
     {
         micro_rdk::esp32::esp_idf_svc::sys::esp!(unsafe {
@@ -101,7 +101,7 @@ fn start_wifi(
     modem: impl Peripheral<P = micro_rdk::esp32::esp_idf_svc::hal::modem::Modem> + 'static,
     sl_stack: EspSystemEventLoop,
 ) -> anyhow::Result<Box<BlockingWifi<EspWifi<'static>>>> {
-    let nvs = esp32::esp_idf_svc::nvs::EspDefaultNvsPartition::take()?;
+    let nvs = micro_rdk::esp32::esp_idf_svc::nvs::EspDefaultNvsPartition::take()?;
     let mut wifi = BlockingWifi::wrap(EspWifi::new(modem, sl_stack.clone(), Some(nvs))?, sl_stack)?;
     let wifi_configuration = WifiConfiguration::Client(WifiClientConfiguration {
         ssid: SSID.into(),
@@ -121,6 +121,6 @@ fn start_wifi(
 
     wifi.wait_netif_up().unwrap();
 
-    micro_rdk::esp32::esp_idf_svc::sys::esp!(unsafe { esp_wifi_set_ps(esp_idf_sys::wifi_ps_type_t_WIFI_PS_NONE) })?;
+    micro_rdk::esp32::esp_idf_svc::sys::esp!(unsafe { esp_wifi_set_ps(micro_rdk::esp32::esp_idf_svc::sys::wifi_ps_type_t_WIFI_PS_NONE) })?;
     Ok(Box::new(wifi))
 }
