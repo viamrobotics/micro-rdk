@@ -77,8 +77,10 @@ fn main() -> anyhow::Result<()> {
                 ));
             }
         }
-        embuild::espidf::sysenv::output();
+        embuild::build::CfgArgs::output_propagated("MICRO_RDK")?;
+        embuild::build::LinkArgs::output_propagated("MICRO_RDK")?;
     }
+
     if use_nvs {
         return Ok(());
     }

@@ -8,6 +8,7 @@ repository = "https://github.com/viamrobotics/micro-rdk"
 resolver = "2"
 version = "0.1.6"
 rust-version = "1.71"
+links = "micro_rdk"
 
 [lib]
 crate-type = ["lib"]
