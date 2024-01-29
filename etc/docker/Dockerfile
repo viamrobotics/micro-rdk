@@ -4,8 +4,8 @@ RUN apt update && apt-get install -y --no-install-recommends git libudev-dev mak
 RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 RUN cargo binstall cargo-espflash --install-path /usr/ -y
 RUN cargo binstall espup --install-path /usr/ -y
-RUN cargo install ldproxy --root /usr/ 
-
+RUN cargo install ldproxy --root /usr/
+RUN cargo install sccache --root /usr/
 
 WORKDIR /qemu
 RUN git clone --depth 1 --branch esp-develop https://github.com/espressif/qemu
@@ -62,7 +62,8 @@ RUN RUST_VERSION=$RUST_VERSION \
 COPY --from=builder /usr/cargo-espflash /usr/bin
 COPY --from=builder /usr/bin/ldproxy /usr/bin
 COPY --from=builder /usr/espup /usr/bin
-   
+COPY --from=builder /usr/bin/sccache /usr/bin
+
 WORKDIR /host/
 
 RUN useradd -s /bin/bash -m testbot && \
@@ -95,7 +96,9 @@ RUN rm -rf $CARGO_HOME/registry
 RUN echo "PATH=$PATH" >> ~/.bash_profile && \
     echo ". $ESP_ROOT/export-esp.sh" >> ~/.bash_profile && \
     echo ". $IDF_PATH/export.sh"  >> ~/.bash_profile && \
-    echo "CARGO_HOME=/host/.cargo-docker-registry" >> ~/.bash_profile
+    echo "CARGO_HOME=/host/.cargo-docker-registry" >> ~/.bash_profile && \
+    echo "[[ -v SCCACHE ]] && export RUSTC_WRAPPER=/usr/bin/sccache" >> ~/.bash_profile && \
+    echo "[[ -v SCCACHE ]] && export SCCACHE_DIR=/host/.sccache" >> ~/.bash_profile
 
 USER root
 
