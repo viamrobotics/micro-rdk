@@ -30,4 +30,4 @@ jobs:
       - name: Run Canary
         run: |
           python -m pip install -r requirements.txt
-          python canary_summary.py
+          python daily_summary.py
