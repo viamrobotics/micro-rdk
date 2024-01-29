@@ -28,8 +28,10 @@ use super::{
     webhook::Webhook,
 };
 
+use crate::esp32::esp_idf_svc::http::client::{
+    Configuration as HttpConfiguration, EspHttpConnection,
+};
 use embedded_svc::http::client::Client as HttpClient;
-use esp_idf_svc::http::client::{Configuration as HttpConfiguration, EspHttpConnection};
 use futures_lite::Future;
 
 pub async fn serve_web_inner(
@@ -115,7 +117,9 @@ pub async fn serve_web_inner(
                 // only make a client if a webhook url is present
                 let mut client = HttpClient::wrap(
                     EspHttpConnection::new(&HttpConfiguration {
-                        crt_bundle_attach: Some(esp_idf_sys::esp_crt_bundle_attach),
+                        crt_bundle_attach: Some(
+                            crate::esp32::esp_idf_svc::sys::esp_crt_bundle_attach,
+                        ),
                         ..Default::default()
                     })
                     .unwrap(),
@@ -153,11 +157,16 @@ pub fn serve_web(
     webrtc_certificate: WebRtcCertificate,
 ) {
     // set the TWDT to expire after 5 minutes
-    esp_idf_sys::esp!(unsafe { esp_idf_sys::esp_task_wdt_init(300, true) }).unwrap();
+    crate::esp32::esp_idf_svc::sys::esp!(unsafe {
+        crate::esp32::esp_idf_svc::sys::esp_task_wdt_init(300, true)
+    })
+    .unwrap();
 
     // Register the current task on the TWDT. The TWDT runs in the IDLE Task.
-    esp_idf_sys::esp!(unsafe {
-        esp_idf_sys::esp_task_wdt_add(esp_idf_sys::xTaskGetCurrentTaskHandle())
+    crate::esp32::esp_idf_svc::sys::esp!(unsafe {
+        crate::esp32::esp_idf_svc::sys::esp_task_wdt_add(
+            crate::esp32::esp_idf_svc::sys::xTaskGetCurrentTaskHandle(),
+        )
     })
     .unwrap();
 
@@ -181,12 +190,12 @@ pub fn serve_web(
     loop {
         match fut.as_mut().poll(cx) {
             Poll::Ready(_) => {
-                unsafe { esp_idf_sys::esp_restart() };
+                unsafe { crate::esp32::esp_idf_svc::sys::esp_restart() };
             }
             Poll::Pending => {
                 unsafe {
-                    esp_idf_sys::esp_task_wdt_reset();
-                    esp_idf_sys::vTaskDelay(10)
+                    crate::esp32::esp_idf_svc::sys::esp_task_wdt_reset();
+                    crate::esp32::esp_idf_svc::sys::vTaskDelay(10)
                 };
             }
         }

@@ -6,25 +6,24 @@ include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
 use log::*;
 
-use esp_idf_svc::eventloop::EspSystemEventLoop;
-use esp_idf_sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT};
+use micro_rdk::esp32::esp_idf_svc::sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT};
 use micro_rdk::{
     common::{
         app_client::AppClientConfig,
         entry::RobotRepresentation,
         registry::{ComponentRegistry, RegistryError},
     },
+    esp32::esp_idf_svc::{
+        hal::{peripheral::Peripheral, prelude::Peripherals},
+        eventloop::EspSystemEventLoop,
+        wifi::{BlockingWifi, EspWifi},
+        sys::esp_wifi_set_ps,
+    },
     esp32::{certificate::WebRtcCertificate, entry::serve_web, tls::Esp32TlsServerConfig},
 };
-use {
-    embedded_svc::wifi::{
+use embedded_svc::wifi::{
         AuthMethod, ClientConfiguration as WifiClientConfiguration,
         Configuration as WifiConfiguration,
-    },
-    esp_idf_hal::{peripheral::Peripheral, prelude::Peripherals},
-    esp_idf_svc::wifi::{BlockingWifi, EspWifi},
-    esp_idf_sys as _,
-    esp_idf_sys::esp_wifi_set_ps,
 };
 
 macro_rules! generate_register_modules {
@@ -47,13 +46,13 @@ extern "C" {
 }
 
 fn main() -> anyhow::Result<()> {
-    esp_idf_sys::link_patches();
+    micro_rdk::esp32::esp_idf_svc::sys::link_patches();
 
-    esp_idf_svc::log::EspLogger::initialize_default();
+    micro_rdk::esp32::esp_idf_svc::log::EspLogger::initialize_default();
     let sys_loop_stack = EspSystemEventLoop::take().unwrap();
     {
-        esp_idf_sys::esp!(unsafe {
-            esp_idf_sys::esp_vfs_eventfd_register(&esp_idf_sys::esp_vfs_eventfd_config_t {
+        micro_rdk::esp32::esp_idf_svc::sys::esp!(unsafe {
+            micro_rdk::esp32::esp_idf_svc::sys::esp_vfs_eventfd_register(&micro_rdk::esp32::esp_idf_svc::sys::esp_vfs_eventfd_config_t {
                 max_fds: 5,
             })
         })?;
@@ -99,10 +98,10 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn start_wifi(
-    modem: impl Peripheral<P = esp_idf_hal::modem::Modem> + 'static,
+    modem: impl Peripheral<P = micro_rdk::esp32::esp_idf_svc::hal::modem::Modem> + 'static,
     sl_stack: EspSystemEventLoop,
 ) -> anyhow::Result<Box<BlockingWifi<EspWifi<'static>>>> {
-    let nvs = esp_idf_svc::nvs::EspDefaultNvsPartition::take()?;
+    let nvs = micro_rdk::esp32::esp_idf_svc::nvs::EspDefaultNvsPartition::take()?;
     let mut wifi = BlockingWifi::wrap(EspWifi::new(modem, sl_stack.clone(), Some(nvs))?, sl_stack)?;
     let wifi_configuration = WifiConfiguration::Client(WifiClientConfiguration {
         ssid: SSID.into(),
@@ -122,6 +121,6 @@ fn start_wifi(
 
     wifi.wait_netif_up().unwrap();
 
-    esp_idf_sys::esp!(unsafe { esp_wifi_set_ps(esp_idf_sys::wifi_ps_type_t_WIFI_PS_NONE) })?;
+    micro_rdk::esp32::esp_idf_svc::sys::esp!(unsafe { esp_wifi_set_ps(micro_rdk::esp32::esp_idf_svc::sys::wifi_ps_type_t_WIFI_PS_NONE) })?;
     Ok(Box::new(wifi))
 }

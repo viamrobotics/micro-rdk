@@ -8,6 +8,7 @@ repository = "https://github.com/viamrobotics/micro-rdk"
 resolver = "2"
 version = "0.1.6"
 rust-version = "1.71"
+links = "micro_rdk"
 
 [lib]
 crate-type = ["lib"]
@@ -21,7 +22,7 @@ async-io = {git = "https://github.com/viamrobotics/async-io.git"}
 [features]
 default = []
 camera = []
-esp32 = ["dep:esp-idf-hal", "dep:esp-idf-svc", "dep:esp-idf-sys", "dep:embedded-svc", "dep:embedded-hal"]
+esp32 = ["dep:esp-idf-svc", "dep:embedded-svc", "dep:embedded-hal"]
 native = ["dep:rustls", "dep:webpki-roots", "dep:rustls-pemfile", "dep:mdns-sd", "dep:local-ip-address", "dep:openssl", "dep:rcgen", "dep:async-std-openssl"]
 
 [dev-dependencies]
@@ -36,9 +37,7 @@ bytes = "1.2.1"
 either = "1.8.0"
 embedded-hal = { version = "0.2.7", features = ["unproven"], optional = true }
 embedded-svc = { version = "0.26.4", optional = true }
-esp-idf-hal = { version = "0.42.5", optional = true }
-esp-idf-svc = { version = "0.47.3",  optional = true }
-esp-idf-sys = { version = "0.33.7", features = ["binstart"],  optional = true }
+esp-idf-svc = { version = "= 0.47.3",  optional = true }
 futures = "0.3.28"
 futures-lite = "1.12.0"
 h2 = "0.3.22"
@@ -81,7 +80,7 @@ scopeguard = "1.2.0"
 [build-dependencies]
 anyhow = "1"
 const-gen = "1.3.0"
-embuild = "0.29"
+embuild = "0.31.3"
 
 [template]
 sub_templates = ["templates/project", "templates/module"]
