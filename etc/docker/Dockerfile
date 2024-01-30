@@ -34,11 +34,11 @@ ENV RUSTUP_HOME=/opt/rust/rustup \
 
 RUN apt update && apt dist-upgrade -y
 
-RUN apt update 
+RUN apt update
 
 RUN apt-get install -y --no-install-recommends git wget flex bison gperf python3 python3-pip python3-virtualenv cmake ninja-build ccache libffi-dev libssl-dev libudev-dev dfu-util libusb-1.0-0 openssh-client software-properties-common python3-venv sudo && \
     apt-get install -y --no-install-recommends cmake && \
-    update-alternatives --install /usr/bin/python python /usr/bin/python3 10 
+    update-alternatives --install /usr/bin/python python /usr/bin/python3 10
 
 
 RUN RUST_VERSION=$RUST_VERSION \
@@ -96,9 +96,9 @@ RUN rm -rf $CARGO_HOME/registry
 RUN echo "PATH=$PATH" >> ~/.bash_profile && \
     echo ". $ESP_ROOT/export-esp.sh" >> ~/.bash_profile && \
     echo ". $IDF_PATH/export.sh"  >> ~/.bash_profile && \
-    echo "CARGO_HOME=/host/.cargo-docker-registry" >> ~/.bash_profile && \
+    echo "CARGO_HOME=/host/.micro-rdk-docker-caches/cargo-registry" >> ~/.bash_profile && \
     echo "[[ -v SCCACHE ]] && export RUSTC_WRAPPER=/usr/bin/sccache" >> ~/.bash_profile && \
-    echo "[[ -v SCCACHE ]] && export SCCACHE_DIR=/host/.sccache" >> ~/.bash_profile
+    echo "[[ -v SCCACHE ]] && export SCCACHE_DIR=/host/.micro-rdk-docker-caches/sccache" >> ~/.bash_profile
 
 USER root
 
@@ -108,4 +108,4 @@ RUN apt-get install make build-essential pkg-config -y && apt-get autoremove -y 
 COPY --from=builder /qemu/qemu/build/qemu-system-xtensa /usr/bin
 
 RUN chmod -R a+rwx $ESP_ROOT && \
-    chown -R testbot:testbot $ESP_ROOT    
+    chown -R testbot:testbot $ESP_ROOT
