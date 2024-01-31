@@ -1,0 +1,34 @@
+[workspace]
+resolver = "2"
+
+members = [
+        "examples",
+        "micro-rdk",
+        "micro-rdk-installer",
+        "micro-rdk-macros",
+]
+
+[workspace.package]
+authors = ["Viam, inc. <contact@viam.com>"]
+description = "Viam RDK for microcontroller"
+edition = "2021"
+license = "AGPL-3.0"
+repository = "https://github.com/viamrobotics/micro-rdk"
+rust-version = "1.71"
+version = "0.1.6"
+
+[patch.crates-io]
+async-io = {git = "https://github.com/viamrobotics/async-io.git"}
+esp-idf-sys = {git = "https://github.com/viamrobotics/esp-idf-sys.git"}
+smol = { git = "https://github.com/esp-rs-compat/smol" }
+socket2 = { git = "https://github.com/viamrobotics/socket2.git" }
+
+[profile.release]
+opt-level = "s"
+
+[profile.dev]
+debug = true # Symbols are nice and they don't increase the size on Flash
+opt-level = "z"
+
+[template]
+sub_templates = ["templates/project", "templates/module"]
