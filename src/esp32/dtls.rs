@@ -15,8 +15,7 @@ use crate::common::webrtc::{
     io::IoPktChannel,
 };
 
-use core::ffi::CStr;
-use esp_idf_sys::{
+use crate::esp32::esp_idf_svc::sys::{
     mbedtls_ctr_drbg_context, mbedtls_ctr_drbg_free, mbedtls_ctr_drbg_init,
     mbedtls_ctr_drbg_random, mbedtls_ctr_drbg_seed, mbedtls_entropy_context, mbedtls_entropy_free,
     mbedtls_entropy_func, mbedtls_entropy_init, mbedtls_pk_context, mbedtls_pk_free,
@@ -31,6 +30,7 @@ use esp_idf_sys::{
     MBEDTLS_ERR_NET_SEND_FAILED, MBEDTLS_ERR_SSL_WANT_READ, MBEDTLS_ERR_SSL_WANT_WRITE,
     MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_PRESET_DEFAULT, MBEDTLS_SSL_TRANSPORT_DATAGRAM,
 };
+use core::ffi::CStr;
 use futures_lite::{AsyncRead, AsyncWrite, Future};
 use log::{log, Level};
 use thiserror::Error;
@@ -351,17 +351,17 @@ pub struct Esp32Dtls<C> {
 
 #[derive(Error, Debug)]
 pub enum SSLError {
-    #[error("couldn't parse certificate")]
+    #[error("couldn't parse certificate {0}")]
     SSLCertParseFail(i32),
-    #[error("couldn't parse key")]
+    #[error("couldn't parse key {0}")]
     SSLKeyParseFail(i32),
-    #[error("ssl config failed")]
+    #[error("ssl config failed {0}")]
     SSLConfigFailure(i32),
-    #[error("srtp config failed")]
+    #[error("srtp config failed {0}")]
     SSLSrtpConfigFailure(i32),
-    #[error("entropy seed failed")]
+    #[error("entropy seed failed {0}")]
     SSLEntropySeedFailure(i32),
-    #[error("ssl other error")]
+    #[error("ssl other error {0}")]
     SSLOtherError(i32),
     #[error("ssl wants read")]
     SSLWantsRead,

@@ -356,7 +356,7 @@ where
                     let sdp = api
                         .answer(prio)
                         .await
-                        .map_err(|e| ServerError::Other(Box::new(e)))?;
+                        .map_err(ServerError::ServerWebRTCError)?;
 
                     // When the current priority is lower than the priority of the incoming connection then
                     // we cancel and close the current webrtc connection (if any)
@@ -381,11 +381,20 @@ where
                 .await
                 .map_or(Err(ServerError::ServerConnectionTimeout), |r| r);
 
-            if connection.is_err() {
-                let _ = self.app_client.take();
-                continue;
-            }
-            if let Err(e) = match connection.unwrap() {
+            let connection = match connection {
+                Ok(c) => c,
+                Err(ServerError::ServerWebRTCError(_)) => {
+                    // all webrtc errors are arising from failing to connect and doesn't require a tls renegotiation
+                    continue;
+                }
+                Err(_) => {
+                    // all other errors are related to layers or timeout so we should renegotiate in this event
+                    let _ = self.app_client.take();
+                    continue;
+                }
+            };
+
+            if let Err(e) = match connection {
                 IncomingConnection::Http2Connection(c) => self.serve_http2(c, robot.clone()).await,
 
                 IncomingConnection::WebRtcConnection(mut c) => match c.open_data_channel().await {

@@ -1,3 +1,4 @@
+use cargo_metadata::{MetadataCommand, CargoOpt};
 use const_gen::*;
 use local_ip_address::local_ip;
 use rcgen::{date_time_ymd, CertificateParams, DistinguishedName};
@@ -46,44 +47,29 @@ pub struct Cloud {
 
 fn main() -> anyhow::Result<()> {
     println!("cargo:rerun-if-changed=viam.json");
-    let use_nvs = match env::var_os("MICRO_RDK_USE_NVS") {
-        Some(val) => {
-            let use_nvs = val.to_ascii_lowercase() == "true";
-            if !use_nvs {
-                println!("Found MICRO_RDK_USE_NVS={:?}, will not write credentials as variables to file. If this was not intended provide the value as 'true' or 'True'", val);
-            }
-            use_nvs
-        }
-        None => false,
-    };
-    if env::var("TARGET").unwrap() == "xtensa-esp32-espidf" {
-        if std::env::var_os("IDF_PATH").is_none() {
-            return Err(anyhow::anyhow!(
-                "You need to run IDF's export.sh before building"
-            ));
-        }
-        if !use_nvs {
-            if std::env::var_os("MICRO_RDK_WIFI_SSID").is_none() {
-                std::env::set_var("MICRO_RDK_WIFI_SSID", "Viam-2G");
-                println!("cargo:rustc-env=MICRO_RDK_WIFI_SSID=Viam-2G");
-            }
-            if std::env::var_os("MICRO_RDK_WIFI_PASSWORD").is_none() {
-                return Err(anyhow::anyhow!(
-                    "please set the password for WiFi {}",
-                    std::env::var_os("MICRO_RDK_WIFI_SSID")
-                        .unwrap()
-                        .to_str()
-                        .unwrap()
-                ));
-            }
-        }
-        embuild::build::CfgArgs::output_propagated("MICRO_RDK")?;
-        embuild::build::LinkArgs::output_propagated("MICRO_RDK")?;
+
+    if std::env::var_os("IDF_PATH").is_none() {
+        return Err(anyhow::anyhow!("You need to run IDF's export.sh before building"));
+    }
+    if std::env::var_os("MICRO_RDK_WIFI_SSID").is_none() {
+        std::env::set_var("MICRO_RDK_WIFI_SSID", "{{ssid}}");
+        println!("cargo:rustc-env=MICRO_RDK_WIFI_SSID={{ssid}}");
     }
 
-    if use_nvs {
-        return Ok(());
+    {% if pwd != ""  %}println!("cargo:rustc-env=MICRO_RDK_WIFI_PASSWORD={{pwd}}"); {% else %}
+    if std::env::var_os("MICRO_RDK_WIFI_PASSWORD").is_none() {
+        return Err(anyhow::anyhow!(
+            "please set the password for WiFi {}",
+            std::env::var_os("MICRO_RDK_WIFI_SSID")
+                .unwrap()
+                .to_str()
+                .unwrap()
+        ));
     }
+    {% endif %}
+
+    embuild::build::CfgArgs::output_propagated("MICRO_RDK")?;
+    embuild::build::LinkArgs::output_propagated("MICRO_RDK")?;
 
     let (cert_der, kp_der, fp) = generate_dtls_certificate()?;
 
@@ -171,6 +157,41 @@ fn main() -> anyhow::Result<()> {
     .join("\n");
     fs::write(dest_path, robot_decl).unwrap();
 
+    let metadata = MetadataCommand::new()
+        .manifest_path("Cargo.toml")
+        .features(CargoOpt::AllFeatures)
+        .exec()
+        .unwrap();
+
+    let root_package_id = metadata
+        .root_package()
+        .ok_or(anyhow::anyhow!("Failed to get ID of root package"))?
+        .id
+        .clone();
+
+    let viam_modules : Vec<_> = metadata
+        // Obtain the dependency graph from the metadata and iterate its nodes
+        .resolve.as_ref()
+        .ok_or(anyhow::anyhow!("Dependencies were not resolved"))?
+        .nodes.iter()
+        // Until we find the root node..
+        .find(|node| node.id == root_package_id)
+        .ok_or(anyhow::anyhow!("Root package not found in dependencies"))?
+        // Then iterate the root node's dependencies, selecting only those
+        // that are normal dependencies.
+        .deps.iter()
+        .filter(|dep| dep.dep_kinds.iter().any(|dk| dk.kind == cargo_metadata::DependencyKind::Normal))
+        // And which have a populated `package.metadata.com.viam` section in their Cargo.toml
+        // which has `module = true`
+        .filter(|dep| metadata[&dep.pkg].metadata["com"]["viam"]["module"].as_bool().unwrap_or(false))
+        .collect();
+
+    let mut modules_rs_content = String::new();
+    let module_name_seq = viam_modules.iter().map(|m| m.name.replace('-', "_")).collect::<Vec<_>>().join(", \n\t");
+    modules_rs_content.push_str(&format!("generate_register_modules!(\n\t{module_name_seq}\n);\n"));
+    let dest_path = Path::new(&out_dir).join("modules.rs");
+    fs::write(dest_path, modules_rs_content).unwrap();
+
     Ok(())
 }
 
@@ -193,7 +214,7 @@ fn generate_dtls_certificate() -> anyhow::Result<(Vec<u8>, Vec<u8>, String)> {
     let fp = ring::digest::digest(&ring::digest::SHA256, &cert_der)
         .as_ref()
         .iter()
-        .map(|b| format!("{:02X}", b))
+        .map(|b| format!("{b:02X}"))
         .collect::<Vec<String>>()
         .join(":");
     let fp = String::from("sha-256") + " " + &fp;
@@ -233,9 +254,9 @@ async fn read_cloud_config(config: &mut Config) -> anyhow::Result<RobotConfig> {
         os: "esp32-build".to_string(),
         host: gethostname::gethostname().to_str().unwrap().to_string(),
         ips: vec![local_ip().unwrap().to_string()],
-        version: env!("CARGO_PKG_VERSION").to_string(),
+        version: "0.0.1".to_string(),
         git_revision: "".to_string(),
-        platform: Some("esp32-build".to_string()),
+        ..Default::default()
     };
     let cfg_req = ConfigRequest {
         agent_info: Some(agent),

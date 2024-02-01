@@ -1,10 +1,10 @@
 use log::*;
 use thiserror::Error;
 
-use esp_idf_svc::eventloop::EspSystemEventLoop;
-use esp_idf_svc::nvs::{EspDefaultNvs, EspDefaultNvsPartition, EspNvs};
-use esp_idf_sys::EspError;
-use esp_idf_sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT};
+use micro_rdk::esp32::esp_idf_svc::eventloop::EspSystemEventLoop;
+use micro_rdk::esp32::esp_idf_svc::nvs::{EspDefaultNvs, EspDefaultNvsPartition, EspNvs};
+use micro_rdk::esp32::esp_idf_svc::sys::EspError;
+use micro_rdk::esp32::esp_idf_svc::sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT};
 use micro_rdk::{
     common::{app_client::AppClientConfig, entry::RobotRepresentation},
     esp32::{certificate::WebRtcCertificate, entry::serve_web, tls::Esp32TlsServerConfig},
@@ -36,11 +36,10 @@ use {
         AuthMethod, ClientConfiguration as WifiClientConfiguration,
         Configuration as WifiConfiguration,
     },
-    esp_idf_hal::{peripheral::Peripheral, prelude::Peripherals},
-    esp_idf_svc::wifi::{BlockingWifi, EspWifi},
-    esp_idf_sys as _,
-    esp_idf_sys::esp_wifi_set_ps,
     micro_rdk::common::registry::ComponentRegistry,
+    micro_rdk::esp32::esp_idf_svc::hal::{peripheral::Peripheral, prelude::Peripherals},
+    micro_rdk::esp32::esp_idf_svc::sys::esp_wifi_set_ps,
+    micro_rdk::esp32::esp_idf_svc::wifi::{BlockingWifi, EspWifi},
 };
 
 #[derive(Debug, Error)]
@@ -117,9 +116,9 @@ impl NvsStaticVars {
 }
 
 fn main() {
-    esp_idf_sys::link_patches();
+    micro_rdk::esp32::esp_idf_svc::sys::link_patches();
 
-    esp_idf_svc::log::EspLogger::initialize_default();
+    micro_rdk::esp32::esp_idf_svc::log::EspLogger::initialize_default();
     let sys_loop_stack = EspSystemEventLoop::take().unwrap();
 
     #[cfg(not(feature = "qemu"))]
@@ -145,8 +144,10 @@ fn main() {
     #[cfg(not(feature = "qemu"))]
     let repr = RobotRepresentation::WithRegistry(Box::new(ComponentRegistry::default()));
 
-    esp_idf_sys::esp!(unsafe {
-        esp_idf_sys::esp_vfs_eventfd_register(&esp_idf_sys::esp_vfs_eventfd_config_t { max_fds: 5 })
+    micro_rdk::esp32::esp_idf_svc::sys::esp!(unsafe {
+        micro_rdk::esp32::esp_idf_svc::sys::esp_vfs_eventfd_register(
+            &micro_rdk::esp32::esp_idf_svc::sys::esp_vfs_eventfd_config_t { max_fds: 5 },
+        )
     })
     .unwrap();
 
@@ -155,11 +156,11 @@ fn main() {
 
     #[cfg(feature = "qemu")]
     let (ip, _block_eth) = {
-        use esp_idf_hal::prelude::Peripherals;
+        use micro_rdk::esp32::esp_idf_svc::hal::prelude::Peripherals;
         info!("creating eth object");
         let mut eth = Box::new(
-            esp_idf_svc::eth::EspEth::wrap(
-                esp_idf_svc::eth::EthDriver::new_openeth(
+            micro_rdk::esp32::esp_idf_svc::eth::EspEth::wrap(
+                micro_rdk::esp32::esp_idf_svc::eth::EthDriver::new_openeth(
                     Peripherals::take()
                         .ok_or(ServerError::PeripheralsError)
                         .unwrap()
@@ -214,9 +215,9 @@ fn main() {
 #[cfg(feature = "qemu")]
 fn eth_configure<'d, T>(
     sl_stack: &EspSystemEventLoop,
-    eth: &mut esp_idf_svc::eth::EspEth<'d, T>,
+    eth: &mut micro_rdk::esp32::esp_idf_svc::eth::EspEth<'d, T>,
 ) -> Result<Ipv4Addr, ServerError> {
-    let mut eth = esp_idf_svc::eth::BlockingEth::wrap(eth, sl_stack.clone())?;
+    let mut eth = micro_rdk::esp32::esp_idf_svc::eth::BlockingEth::wrap(eth, sl_stack.clone())?;
     eth.start()?;
     let ip_info = eth.eth().netif().get_ip_info()?;
 
@@ -226,7 +227,7 @@ fn eth_configure<'d, T>(
 
 #[cfg(not(feature = "qemu"))]
 fn start_wifi(
-    modem: impl Peripheral<P = esp_idf_hal::modem::Modem> + 'static,
+    modem: impl Peripheral<P = micro_rdk::esp32::esp_idf_svc::hal::modem::Modem> + 'static,
     sl_stack: EspSystemEventLoop,
     ssid: &str,
     password: &str,
@@ -257,6 +258,8 @@ fn start_wifi(
     wifi.wait_netif_up()?;
     info!("Wifi netif up");
 
-    esp_idf_sys::esp!(unsafe { esp_wifi_set_ps(esp_idf_sys::wifi_ps_type_t_WIFI_PS_NONE) })?;
+    micro_rdk::esp32::esp_idf_svc::sys::esp!(unsafe {
+        esp_wifi_set_ps(micro_rdk::esp32::esp_idf_svc::sys::wifi_ps_type_t_WIFI_PS_NONE)
+    })?;
     Ok(Box::new(wifi))
 }

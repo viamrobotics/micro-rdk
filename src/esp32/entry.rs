@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use std::{
-    net::{Ipv4Addr, SocketAddr},
+    net::Ipv4Addr,
     rc::Rc,
     sync::{Arc, Mutex},
     task::{Context, Poll, Wake, Waker},
@@ -9,7 +9,10 @@ use std::{
 
 use crate::common::{
     app_client::{AppClientBuilder, AppClientConfig},
-    conn::server::{ViamServerBuilder, WebRtcConfiguration},
+    conn::{
+        mdns::NoMdns,
+        server::{ViamServerBuilder, WebRtcConfiguration},
+    },
     entry::RobotRepresentation,
     grpc_client::GrpcClient,
     log::config_log_entry,
@@ -18,21 +21,22 @@ use crate::common::{
 
 use super::{
     certificate::WebRtcCertificate,
-    conn::mdns::Esp32Mdns,
     dtls::Esp32DtlsBuilder,
     exec::Esp32Executor,
-    tcp::{Esp32Listener, Esp32Stream},
+    tcp::Esp32Stream,
     tls::{Esp32Tls, Esp32TlsServerConfig},
     webhook::Webhook,
 };
 
+use crate::esp32::esp_idf_svc::http::client::{
+    Configuration as HttpConfiguration, EspHttpConnection,
+};
 use embedded_svc::http::client::Client as HttpClient;
-use esp_idf_svc::http::client::{Configuration as HttpConfiguration, EspHttpConnection};
 use futures_lite::Future;
 
 pub async fn serve_web_inner(
     app_config: AppClientConfig,
-    tls_server_config: Esp32TlsServerConfig,
+    _tls_server_config: Esp32TlsServerConfig,
     repr: RobotRepresentation,
     _ip: Ipv4Addr,
     webrtc_certificate: WebRtcCertificate,
@@ -40,7 +44,7 @@ pub async fn serve_web_inner(
 ) {
     let (mut srv, robot) = {
         let mut client_connector = Esp32Tls::new_client();
-        let mdns = Esp32Mdns::new("".to_string()).unwrap();
+        let mdns = NoMdns {};
 
         let (cfg_response, robot) = {
             let cloned_exec = exec.clone();
@@ -95,10 +99,6 @@ pub async fn serve_web_inner(
             (cfg_response, robot)
         };
 
-        let address: SocketAddr = "0.0.0.0:12346".parse().unwrap();
-        let tls = Box::new(Esp32Tls::new_server(&tls_server_config));
-        let tls_listener = Esp32Listener::new(address.into(), Some(tls)).unwrap();
-
         let webrtc_certificate = Rc::new(webrtc_certificate);
         let dtls = Esp32DtlsBuilder::new(webrtc_certificate.clone());
 
@@ -117,7 +117,9 @@ pub async fn serve_web_inner(
                 // only make a client if a webhook url is present
                 let mut client = HttpClient::wrap(
                     EspHttpConnection::new(&HttpConfiguration {
-                        crt_bundle_attach: Some(esp_idf_sys::esp_crt_bundle_attach),
+                        crt_bundle_attach: Some(
+                            crate::esp32::esp_idf_svc::sys::esp_crt_bundle_attach,
+                        ),
                         ..Default::default()
                     })
                     .unwrap(),
@@ -131,7 +133,6 @@ pub async fn serve_web_inner(
             Box::new(
                 ViamServerBuilder::new(mdns, cloned_exec, client_connector, app_config)
                     .with_webrtc(webrtc)
-                    .with_http2(tls_listener, 12346)
                     .build(&cfg_response)
                     .unwrap(),
             ),
@@ -156,11 +157,16 @@ pub fn serve_web(
     webrtc_certificate: WebRtcCertificate,
 ) {
     // set the TWDT to expire after 5 minutes
-    esp_idf_sys::esp!(unsafe { esp_idf_sys::esp_task_wdt_init(300, true) }).unwrap();
+    crate::esp32::esp_idf_svc::sys::esp!(unsafe {
+        crate::esp32::esp_idf_svc::sys::esp_task_wdt_init(300, true)
+    })
+    .unwrap();
 
     // Register the current task on the TWDT. The TWDT runs in the IDLE Task.
-    esp_idf_sys::esp!(unsafe {
-        esp_idf_sys::esp_task_wdt_add(esp_idf_sys::xTaskGetCurrentTaskHandle())
+    crate::esp32::esp_idf_svc::sys::esp!(unsafe {
+        crate::esp32::esp_idf_svc::sys::esp_task_wdt_add(
+            crate::esp32::esp_idf_svc::sys::xTaskGetCurrentTaskHandle(),
+        )
     })
     .unwrap();
 
@@ -184,12 +190,12 @@ pub fn serve_web(
     loop {
         match fut.as_mut().poll(cx) {
             Poll::Ready(_) => {
-                unsafe { esp_idf_sys::esp_restart() };
+                unsafe { crate::esp32::esp_idf_svc::sys::esp_restart() };
             }
             Poll::Pending => {
                 unsafe {
-                    esp_idf_sys::esp_task_wdt_reset();
-                    esp_idf_sys::vTaskDelay(10)
+                    crate::esp32::esp_idf_svc::sys::esp_task_wdt_reset();
+                    crate::esp32::esp_idf_svc::sys::vTaskDelay(10)
                 };
             }
         }

@@ -1,5 +1,4 @@
-use either::Either;
-use esp_idf_sys::{
+use crate::esp32::esp_idf_svc::sys::{
     esp_tls_cfg, esp_tls_cfg_server, esp_tls_conn_destroy, esp_tls_conn_new_sync,
     esp_tls_conn_state_ESP_TLS_CONNECTING as ESP_TLS_CONNECTING,
     esp_tls_conn_state_ESP_TLS_DONE as ESP_TLS_DONE,
@@ -8,6 +7,7 @@ use esp_idf_sys::{
     esp_tls_conn_state_ESP_TLS_INIT as ESP_TLS_INIT, esp_tls_init, esp_tls_server_session_create,
     esp_tls_t, EspError, ESP_TLS_ERR_SSL_WANT_READ, ESP_TLS_ERR_SSL_WANT_WRITE,
 };
+use either::Either;
 use std::{
     fmt::Debug,
     io::{Read, Write},
@@ -96,22 +96,22 @@ impl Esp32Tls {
 
         let tls_cfg_client = Box::new(esp_tls_cfg {
             alpn_protos: alpn_ptr.as_mut_ptr(),
-            __bindgen_anon_1: esp_idf_sys::esp_tls_cfg__bindgen_ty_1 {
+            __bindgen_anon_1: crate::esp32::esp_idf_svc::sys::esp_tls_cfg__bindgen_ty_1 {
                 cacert_buf: cert.as_ptr(),
             },
-            __bindgen_anon_2: esp_idf_sys::esp_tls_cfg__bindgen_ty_2 {
+            __bindgen_anon_2: crate::esp32::esp_idf_svc::sys::esp_tls_cfg__bindgen_ty_2 {
                 cacert_bytes: cert.len() as u32,
             },
-            __bindgen_anon_3: esp_idf_sys::esp_tls_cfg__bindgen_ty_3 {
+            __bindgen_anon_3: crate::esp32::esp_idf_svc::sys::esp_tls_cfg__bindgen_ty_3 {
                 clientcert_buf: std::ptr::null(),
             },
-            __bindgen_anon_4: esp_idf_sys::esp_tls_cfg__bindgen_ty_4 {
+            __bindgen_anon_4: crate::esp32::esp_idf_svc::sys::esp_tls_cfg__bindgen_ty_4 {
                 clientcert_bytes: 0_u32,
             },
-            __bindgen_anon_5: esp_idf_sys::esp_tls_cfg__bindgen_ty_5 {
+            __bindgen_anon_5: crate::esp32::esp_idf_svc::sys::esp_tls_cfg__bindgen_ty_5 {
                 clientkey_buf: std::ptr::null(),
             },
-            __bindgen_anon_6: esp_idf_sys::esp_tls_cfg__bindgen_ty_6 {
+            __bindgen_anon_6: crate::esp32::esp_idf_svc::sys::esp_tls_cfg__bindgen_ty_6 {
                 clientkey_bytes: 0_u32,
             },
             clientkey_password: std::ptr::null(),
@@ -140,24 +140,24 @@ impl Esp32Tls {
         let mut alpn_ptr: Vec<_> = vec![ALPN_PROTOCOLS.as_ptr() as *const i8, std::ptr::null()];
         let tls_cfg_srv = Box::new(esp_tls_cfg_server {
             alpn_protos: alpn_ptr.as_mut_ptr(),
-            __bindgen_anon_1: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_1 {
+            __bindgen_anon_1: crate::esp32::esp_idf_svc::sys::esp_tls_cfg_server__bindgen_ty_1 {
                 // This is the root LE certificate in the DER format
                 cacert_buf: cfg.srv_cert[1].as_ptr(),
             },
-            __bindgen_anon_2: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_2 {
+            __bindgen_anon_2: crate::esp32::esp_idf_svc::sys::esp_tls_cfg_server__bindgen_ty_2 {
                 cacert_bytes: cfg.srv_cert[1].len() as u32,
             },
-            __bindgen_anon_3: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_3 {
+            __bindgen_anon_3: crate::esp32::esp_idf_svc::sys::esp_tls_cfg_server__bindgen_ty_3 {
                 // This is the server certificates in the PEM format
                 servercert_buf: cfg.srv_cert[0].as_ptr(),
             },
-            __bindgen_anon_4: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_4 {
+            __bindgen_anon_4: crate::esp32::esp_idf_svc::sys::esp_tls_cfg_server__bindgen_ty_4 {
                 servercert_bytes: cfg.srv_cert[0].len() as u32,
             },
-            __bindgen_anon_5: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_5 {
+            __bindgen_anon_5: crate::esp32::esp_idf_svc::sys::esp_tls_cfg_server__bindgen_ty_5 {
                 serverkey_buf: cfg.srv_key,
             },
-            __bindgen_anon_6: esp_idf_sys::esp_tls_cfg_server__bindgen_ty_6 {
+            __bindgen_anon_6: crate::esp32::esp_idf_svc::sys::esp_tls_cfg_server__bindgen_ty_6 {
                 serverkey_bytes: cfg.srv_key_len,
             },
             serverkey_password: std::ptr::null(),

@@ -5,4 +5,5 @@ Cargo.lock
 /examples/target/*
 /micro-rdk-installer/target/*
 /micro-rdk-macros/target/*
+/canary/.venv/*
 .vscode
