@@ -14,8 +14,9 @@ description = "Viam RDK for microcontroller"
 edition = "2021"
 license = "AGPL-3.0"
 repository = "https://github.com/viamrobotics/micro-rdk"
+resolver = "2"
+version = "0.1.7"
 rust-version = "1.71"
-version = "0.1.6"
 
 [patch.crates-io]
 async-io = {git = "https://github.com/viamrobotics/async-io.git"}
