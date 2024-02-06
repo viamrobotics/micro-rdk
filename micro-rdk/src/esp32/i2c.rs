@@ -51,7 +51,7 @@ impl TryFrom<&Kind> for Esp32I2cConfig {
         }
         let mut baudrate_hz: u32 = 1000000;
         if value.contains_key("baudrate_hz")? {
-            baudrate_hz = value.get("baudrate")?.unwrap().try_into()?;
+            baudrate_hz = value.get("baudrate_hz")?.unwrap().try_into()?;
         }
         let mut timeout_ns: u32 = 0;
         if value.contains_key("timeout_ns")? {
