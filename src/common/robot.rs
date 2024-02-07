@@ -1058,6 +1058,7 @@ mod tests {
                     },
                 )]),
             }),
+            ..Default::default()
         };
         component_cfgs.push(comp);
 
@@ -1080,6 +1081,7 @@ mod tests {
                     },
                 )]),
             }),
+            ..Default::default()
         };
         component_cfgs.push(comp2);
 
@@ -1102,6 +1104,7 @@ mod tests {
                     },
                 )]),
             }),
+            ..Default::default()
         };
         component_cfgs.push(comp3);
 
@@ -1122,6 +1125,7 @@ mod tests {
                     },
                 )]),
             }),
+            ..Default::default()
         };
         component_cfgs.push(comp4);
 
@@ -1182,6 +1186,7 @@ mod tests {
                     },
                 )]),
             }),
+            ..Default::default()
         };
         component_cfgs.push(comp2);
 
@@ -1204,6 +1209,7 @@ mod tests {
                     },
                 )]),
             }),
+            ..Default::default()
         };
         component_cfgs.push(comp3);
 
@@ -1224,6 +1230,7 @@ mod tests {
                     },
                 )]),
             }),
+            ..Default::default()
         };
         component_cfgs.push(comp4);
 

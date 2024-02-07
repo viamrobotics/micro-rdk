@@ -8,7 +8,8 @@ use std::{net::Ipv4Addr, pin::Pin, rc::Rc, time::SystemTime};
 use thiserror::Error;
 
 use crate::proto::{
-    app::v1::{AgentInfo, ConfigRequest, ConfigResponse, LogEntry, LogRequest},
+    app::v1::{AgentInfo, ConfigRequest, ConfigResponse, LogRequest},
+    common::v1::LogEntry,
     rpc::{
         v1::{AuthenticateRequest, AuthenticateResponse, Credentials},
         webrtc::v1::{AnswerRequest, AnswerResponse, AnswerResponseErrorStage},

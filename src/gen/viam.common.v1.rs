@@ -311,6 +311,26 @@ pub struct GetReadingsResponse {
     #[prost(map="string, message", tag="1")]
     pub readings: ::std::collections::HashMap<::prost::alloc::string::String, super::super::super::google::protobuf::Value>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct LogEntry {
+    #[prost(string, tag="1")]
+    pub host: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub level: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="3")]
+    pub time: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
+    #[prost(string, tag="4")]
+    pub logger_name: ::prost::alloc::string::String,
+    #[prost(string, tag="5")]
+    pub message: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="6")]
+    pub caller: ::core::option::Option<super::super::super::google::protobuf::Struct>,
+    #[prost(string, tag="7")]
+    pub stack: ::prost::alloc::string::String,
+    #[prost(message, repeated, tag="8")]
+    pub fields: ::prost::alloc::vec::Vec<super::super::super::google::protobuf::Struct>,
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum KinematicsFileFormat {

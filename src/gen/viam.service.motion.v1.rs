@@ -31,6 +31,37 @@ pub struct MoveResponse {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MoveOnMapNewRequest {
+    /// Name of the motion service
+    #[prost(string, tag="1")]
+    pub name: ::prost::alloc::string::String,
+    /// Specify a destination to, which can be any pose with respect to the SLAM map's origin
+    #[prost(message, optional, tag="2")]
+    pub destination: ::core::option::Option<super::super::super::common::v1::Pose>,
+    /// Component on the robot to move to the specified destination
+    #[prost(message, optional, tag="3")]
+    pub component_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
+    /// Name of the slam service from which the SLAM map is requested
+    #[prost(message, optional, tag="4")]
+    pub slam_service_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
+    /// Optional set of motion configuration options
+    #[prost(message, optional, tag="5")]
+    pub motion_configuration: ::core::option::Option<MotionConfiguration>,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MoveOnMapNewResponse {
+    /// The unique ID which identifies the execution.
+    /// Multiple plans will share the same execution_id if they were
+    /// generated due to replanning.
+    #[prost(string, tag="1")]
+    pub execution_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MoveOnMapRequest {
     /// Name of the motion service
     #[prost(string, tag="1")]
@@ -44,6 +75,12 @@ pub struct MoveOnMapRequest {
     /// Name of the slam service from which the SLAM map is requested
     #[prost(message, optional, tag="4")]
     pub slam_service_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
+    /// Optional set of motion configuration options
+    #[prost(message, optional, tag="5")]
+    pub motion_configuration: ::core::option::Option<MotionConfiguration>,
+    /// Obstacles to be considered for motion planning
+    #[prost(message, repeated, tag="6")]
+    pub obstacles: ::prost::alloc::vec::Vec<super::super::super::common::v1::Geometry>,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
@@ -51,8 +88,11 @@ pub struct MoveOnMapRequest {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MoveOnMapResponse {
-    #[prost(bool, tag="1")]
-    pub success: bool,
+    /// The unique ID which identifies the execution.
+    /// Multiple plans will share the same execution_id if they were
+    /// generated due to replanning.
+    #[prost(string, tag="1")]
+    pub execution_id: ::prost::alloc::string::String,
 }
 /// Pairs a vision service with a camera, informing the service about which camera it may use
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -116,40 +156,6 @@ pub struct MoveOnGlobeRequest {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MoveOnGlobeResponse {
-    #[prost(bool, tag="1")]
-    pub success: bool,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct MoveOnGlobeNewRequest {
-    /// Name of the motion service
-    #[prost(string, tag="1")]
-    pub name: ::prost::alloc::string::String,
-    /// Destination, encoded as a GeoPoint
-    #[prost(message, optional, tag="2")]
-    pub destination: ::core::option::Option<super::super::super::common::v1::GeoPoint>,
-    /// Optional compass heading to achieve at the destination, in degrees [0-360)
-    #[prost(double, optional, tag="3")]
-    pub heading: ::core::option::Option<f64>,
-    /// Component on the robot to move to the specified destination
-    #[prost(message, optional, tag="4")]
-    pub component_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
-    /// Name of the movement sensor which will be used to check robot location
-    #[prost(message, optional, tag="5")]
-    pub movement_sensor_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
-    /// Obstacles to be considered for motion planning
-    #[prost(message, repeated, tag="6")]
-    pub obstacles: ::prost::alloc::vec::Vec<super::super::super::common::v1::GeoObstacle>,
-    /// Optional set of motion configuration options
-    #[prost(message, optional, tag="7")]
-    pub motion_configuration: ::core::option::Option<MotionConfiguration>,
-    /// Additional arguments to the method
-    #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct MoveOnGlobeNewResponse {
     /// The unique ID which identifies the execution.
     /// Multiple plans will share the same execution_id if they were
     /// generated due to replanning.
@@ -229,8 +235,7 @@ pub struct GetPlanRequest {
     /// The name of the motion service
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
-    /// The name of the component which the MoveOnGlobeRequest
-    /// asked to be moved.
+    /// The name of the component which was requested to be moved.
     #[prost(message, optional, tag="2")]
     pub component_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
     /// If supplied, the response will only return

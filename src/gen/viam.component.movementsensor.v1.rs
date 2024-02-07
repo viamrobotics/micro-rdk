@@ -130,6 +130,14 @@ pub struct GetAccuracyRequest {
 pub struct GetAccuracyResponse {
     #[prost(map="string, float", tag="1")]
     pub accuracy: ::std::collections::HashMap<::prost::alloc::string::String, f32>,
+    #[prost(float, optional, tag="2")]
+    pub position_hdop: ::core::option::Option<f32>,
+    #[prost(float, optional, tag="3")]
+    pub position_vdop: ::core::option::Option<f32>,
+    #[prost(int32, optional, tag="4")]
+    pub position_nmea_gga_fix: ::core::option::Option<i32>,
+    #[prost(float, optional, tag="5")]
+    pub compass_degrees_error: ::core::option::Option<f32>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
