@@ -277,6 +277,16 @@ pub struct SendSessionHeartbeatRequest {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SendSessionHeartbeatResponse {
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct LogRequest {
+    #[prost(message, repeated, tag="1")]
+    pub logs: ::prost::alloc::vec::Vec<super::super::common::v1::LogEntry>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct LogResponse {
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum PeerConnectionType {

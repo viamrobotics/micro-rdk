@@ -67,15 +67,53 @@ pub struct GetInternalStateResponse {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetLatestMapInfoRequest {
-    /// Name of the SLAM algo
+pub struct GetPropertiesRequest {
+    /// Name of the slam service
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
 }
+/// Returns properties information for the named slam service
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetLatestMapInfoResponse {
-    #[prost(message, optional, tag="1")]
-    pub last_map_update: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
+pub struct GetPropertiesResponse {
+    #[prost(bool, tag="1")]
+    pub cloud_slam: bool,
+    #[prost(enumeration="MappingMode", tag="2")]
+    pub mapping_mode: i32,
+}
+/// MappingMode represnts the various form of mapping and localizing SLAM can perform.
+/// These include, creating a new map, localizing on an existiing map and updating an
+/// exisiting map.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum MappingMode {
+    Unspecified = 0,
+    CreateNewMap = 1,
+    LocalizeOnly = 2,
+    UpdateExistingMap = 3,
+}
+impl MappingMode {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            MappingMode::Unspecified => "MAPPING_MODE_UNSPECIFIED",
+            MappingMode::CreateNewMap => "MAPPING_MODE_CREATE_NEW_MAP",
+            MappingMode::LocalizeOnly => "MAPPING_MODE_LOCALIZE_ONLY",
+            MappingMode::UpdateExistingMap => "MAPPING_MODE_UPDATE_EXISTING_MAP",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "MAPPING_MODE_UNSPECIFIED" => Some(Self::Unspecified),
+            "MAPPING_MODE_CREATE_NEW_MAP" => Some(Self::CreateNewMap),
+            "MAPPING_MODE_LOCALIZE_ONLY" => Some(Self::LocalizeOnly),
+            "MAPPING_MODE_UPDATE_EXISTING_MAP" => Some(Self::UpdateExistingMap),
+            _ => None,
+        }
+    }
 }
 // @@protoc_insertion_point(module)

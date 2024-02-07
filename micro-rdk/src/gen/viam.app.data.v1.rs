@@ -142,6 +142,44 @@ pub struct TabularData {
     #[prost(message, optional, tag="4")]
     pub time_received: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
 }
+/// TabularDataBySQLRequest requests tabular data using a SQL query.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TabularDataBySqlRequest {
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+    /// sql_query accepts any valid SQL SELECT statement. Tabular data is held in a database
+    /// called "sensorData" and a table called readings, so queries should select from "readings"
+    /// or "sensorData.readings".
+    #[prost(string, tag="2")]
+    pub sql_query: ::prost::alloc::string::String,
+}
+/// TabularDataBySQLResponse provides unified tabular data and metadata, queried with SQL.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TabularDataBySqlResponse {
+    #[prost(message, repeated, tag="1")]
+    pub data: ::prost::alloc::vec::Vec<super::super::super::super::google::protobuf::Struct>,
+}
+/// TabularDataByMQLRequest requests tabular data using an MQL query.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TabularDataByMqlRequest {
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+    /// mql_binary accepts a MongoDB aggregation pipeline as a list of BSON documents, where each
+    /// document is one stage in the pipeline. The pipeline is run on the "sensorData.readings"
+    /// namespace, which holds the Viam organization's tabular data.
+    #[prost(bytes="vec", repeated, tag="3")]
+    pub mql_binary: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+}
+/// TabularDataByMQLResponse provides unified tabular data and metadata, queried with MQL.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TabularDataByMqlResponse {
+    #[prost(message, repeated, tag="1")]
+    pub data: ::prost::alloc::vec::Vec<super::super::super::super::google::protobuf::Struct>,
+}
 /// BinaryData contains data and metadata associated with binary data.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -448,12 +486,18 @@ pub struct GetDatabaseConnectionRequest {
     #[prost(string, tag="1")]
     pub organization_id: ::prost::alloc::string::String,
 }
-/// GetDatabaseConnectionResponse returns the database connection hostname endpoint.
+/// GetDatabaseConnectionResponse returns the database connection hostname endpoint. It also returns
+/// a URI that can be used to connect to the database instance through MongoDB clients, as well as
+/// information on whether the Viam organization has a database user configured.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetDatabaseConnectionResponse {
     #[prost(string, tag="1")]
     pub hostname: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub mongodb_uri: ::prost::alloc::string::String,
+    #[prost(bool, tag="3")]
+    pub has_database_user: bool,
 }
 /// AddBinaryDataToDatasetByIDsRequest adds the binary data with the given binary IDs to a dataset with dataset_id.
 #[allow(clippy::derive_partial_eq_without_eq)]

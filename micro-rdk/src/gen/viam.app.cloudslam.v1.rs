@@ -132,27 +132,6 @@ pub struct GetMappingSessionMetadataByIdResponse {
     #[prost(message, optional, tag="1")]
     pub session_metadata: ::core::option::Option<MappingMetadata>,
 }
-// UpdateMappingSessionMetadataByID
-
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct UpdateMappingSessionMetadataByIdRequest {
-    #[prost(string, tag="1")]
-    pub session_id: ::prost::alloc::string::String,
-    /// enums that represent “success”, “failed”, etc
-    #[prost(enumeration="EndStatus", tag="2")]
-    pub end_status: i32,
-    /// set at the time of job closeout and used as the package version
-    #[prost(message, optional, tag="3")]
-    pub time_cloud_run_job_ended: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
-    /// additional details on the end status if needed, such as errors
-    #[prost(string, tag="4")]
-    pub error_msg: ::prost::alloc::string::String,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct UpdateMappingSessionMetadataByIdResponse {
-}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MappingMetadata {

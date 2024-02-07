@@ -1,5 +1,7 @@
-use crate::google::protobuf::{value::Kind, Struct, Timestamp, Value};
-use crate::proto::app::v1::LogEntry;
+use crate::{
+    google::protobuf::{value::Kind, Struct, Timestamp, Value},
+    proto::common::v1::LogEntry,
+};
 use chrono::{DateTime, FixedOffset};
 use std::collections::HashMap;
 
