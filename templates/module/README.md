@@ -40,7 +40,7 @@ defined models with the Micro-RDK by invoking the appropriate methods
 on the Micro-RDK `ComponentRegistry` argument.
 
 Once you have implemented your module, you can use it in your
-Micro-RDK robot project simply by adding it as a standard dependencies
+Micro-RDK robot project simply by adding it as a standard dependency
 in the `[dependencies]` section of your robot project's `Cargo.toml`
 file. The `register_models` entry point of all dependencies produced
 by this template will be automatically invoked at startup.
