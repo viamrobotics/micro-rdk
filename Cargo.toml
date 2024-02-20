@@ -57,7 +57,7 @@ embedded-hal = { version = "0.2.7", features = ["unproven"] }
 embedded-svc = "0.26.4"
 embuild = "0.31.3"
 env_logger = "0.10.1"
-esp-idf-svc = "= 0.47.3"
+esp-idf-svc = { version = "= 0.47.3", default-features = false }
 espflash = { git = "https://github.com/viamrobotics/espflash.git", branch = "monitor_changes" }
 futures = "0.3.28"
 futures-lite = "1.12.0"

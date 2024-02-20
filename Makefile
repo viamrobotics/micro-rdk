@@ -40,7 +40,7 @@ native:
 	cargo run -p examples  --bin native-server
 
 build-qemu:
-	cargo +esp build -p examples  --bin esp32-server  --features qemu --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort && cargo espflash save-image --package examples --features qemu --merge --chip esp32 target/xtensa-esp32-espidf/debug/debug.bin -T examples/esp32/partitions.csv -s 4mb  --bin esp32-server --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
+	cargo +esp build -p examples  --bin esp32-server  --features qemu binstart --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort && cargo espflash save-image --package examples --features qemu --merge --chip esp32 target/xtensa-esp32-espidf/debug/debug.bin -T examples/esp32/partitions.csv -s 4mb  --bin esp32-server --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
 
 
 sim-local: cargo-ver build-qemu

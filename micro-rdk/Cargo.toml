@@ -15,7 +15,9 @@ links = "micro_rdk"
 crate-type = ["lib"]
 
 [features]
-default = []
+default = ["esp-idf-svc/std", "esp-idf-svc/alloc"]
+binstart = ["esp-idf-svc/binstart"]
+libstart = ["esp-idf-svc/libstart"]
 camera = []
 esp32 = ["dep:esp-idf-svc", "dep:embedded-svc", "dep:embedded-hal"]
 native = ["dep:rustls", "dep:webpki-roots", "dep:rustls-pemfile", "dep:mdns-sd", "dep:local-ip-address", "dep:openssl", "dep:rcgen", "dep:async-std-openssl"]
