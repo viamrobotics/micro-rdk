@@ -1,0 +1,26 @@
+[target.xtensa-esp32-espidf]
+linker = "ldproxy"
+runner = "espflash --monitor"
+rustflags = ["-C", "default-linker-libraries", "-Clink-args=-Wl,-Map=./esp-build.map"] 
+
+
+[target.xtensa-esp32s2-espidf]
+linker = "ldproxy"
+runner = "espflash --monitor"
+rustflags = ["-C", "default-linker-libraries"]
+
+[target.xtensa-esp32s3-espidf]
+linker = "ldproxy"
+runner = "espflash --monitor"
+rustflags = ["-C", "default-linker-libraries"]
+
+[target.riscv32imc-esp-espidf]
+linker = "ldproxy"
+runner = "espflash --monitor"
+rustflags = ["-C", "default-linker-libraries"]
+
+
+[env]
+ESP_IDF_TOOLS_INSTALL_DIR = {value = "fromenv", force = true}
+ESP_IDF_VERSION= { value = "v4.4.1", force = true}
+MCU = { value= "esp32", force = true}
