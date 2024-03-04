@@ -21,6 +21,7 @@ rustflags = ["-C", "default-linker-libraries"]
 
 
 [env]
-ESP_IDF_TOOLS_INSTALL_DIR = {value = "fromenv", force = true}
-ESP_IDF_VERSION= { value = "v4.4.1", force = true}
+CARGO_WORKSPACE_DIR = { value = "", relative = true }
+ESP_IDF_TOOLS_INSTALL_DIR = { value = "fromenv", force = true}
+ESP_IDF_SYS_ROOT_CRATE = { value = "examples" }
 MCU = { value= "esp32", force = true}

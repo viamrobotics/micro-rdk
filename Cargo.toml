@@ -4,7 +4,13 @@ resolver = "2"
 members = [
         "examples",
         "micro-rdk",
-        "micro-rdk-installer",
+#        "micro-rdk-installer",
+        "micro-rdk-macros",
+]
+
+default-members = [
+        "examples",
+        "micro-rdk",
         "micro-rdk-macros",
 ]
 
@@ -22,6 +28,7 @@ async-io = {git = "https://github.com/viamrobotics/async-io.git"}
 esp-idf-sys = {git = "https://github.com/viamrobotics/esp-idf-sys.git"}
 smol = { git = "https://github.com/esp-rs-compat/smol" }
 socket2 = { git = "https://github.com/viamrobotics/socket2.git" }
+polling = { git = "https://github.com/esp-rs-compat/polling" }
 
 [profile.release]
 opt-level = "s"
