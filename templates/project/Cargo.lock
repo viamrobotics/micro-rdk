@@ -428,8 +428,16 @@ dependencies = [
  "futures-io",
  "futures-lite 2.2.0",
  "parking",
+<<<<<<<< HEAD:templates/project/Cargo.lock
  "polling 3.3.2",
  "rustix",
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+ "polling 3.3.1",
+ "rustix 0.38.28",
+========
+ "polling 3.3.2",
+ "rustix 0.38.31",
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
  "slab",
  "tracing",
  "windows-sys 0.52.0",
@@ -479,7 +487,13 @@ dependencies = [
  "cfg-if 1.0.0",
  "event-listener 3.1.0",
  "futures-lite 1.13.0",
+<<<<<<<< HEAD:templates/project/Cargo.lock
  "rustix",
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+ "rustix 0.38.28",
+========
+ "rustix 0.38.31",
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
  "windows-sys 0.48.0",
 ]
 
@@ -495,7 +509,13 @@ dependencies = [
  "cfg-if 1.0.0",
  "futures-core",
  "futures-io",
+<<<<<<<< HEAD:templates/project/Cargo.lock
  "rustix",
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+ "rustix 0.38.28",
+========
+ "rustix 0.38.31",
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
  "signal-hook-registry",
  "slab",
  "windows-sys 0.48.0",
@@ -741,7 +761,37 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 name = "bitflags"
 version = "2.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+<<<<<<<< HEAD:templates/project/Cargo.lock
 checksum = "ed570934406eb16438a4e976b1b4500774099c13b8cb96eec99f620f05090ddf"
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+checksum = "327762f6e5a765692301e5bb513e0d9fef63be86bbc14528052b1cd3e6f03e07"
+
+[[package]]
+name = "bitvec"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1bc2832c24239b0141d5674bb9174f9d68a8b5b3f2753311927c172ca46f7e9c"
+dependencies = [
+ "funty",
+ "radium",
+ "tap",
+ "wyz",
+]
+========
+checksum = "ed570934406eb16438a4e976b1b4500774099c13b8cb96eec99f620f05090ddf"
+
+[[package]]
+name = "bitvec"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1bc2832c24239b0141d5674bb9174f9d68a8b5b3f2753311927c172ca46f7e9c"
+dependencies = [
+ "funty",
+ "radium",
+ "tap",
+ "wyz",
+]
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 
 [[package]]
 name = "block-buffer"
@@ -823,10 +873,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f30e7476521f6f8af1a1c4c0b8cc94f0bee37d91763d0ca2665f299b6cd8aec"
 
 [[package]]
+<<<<<<<< HEAD:templates/project/Cargo.lock
 name = "bytecodec"
 version = "0.4.15"
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+name = "bytemuck"
+version = "1.14.0"
+========
+name = "bytemuck"
+version = "1.14.1"
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 source = "registry+https://github.com/rust-lang/crates.io-index"
+<<<<<<<< HEAD:templates/project/Cargo.lock
 checksum = "adf4c9d0bbf32eea58d7c0f812058138ee8edaf0f2802b6d03561b504729a325"
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+checksum = "374d28ec25809ee0e23827c2ab573d729e293f281dfe393500e7ad618baa61c6"
+========
+checksum = "ed2490600f404f2b94c167e31d3ed1d5f3c225a0f3b80230053b3e0b7b962bd9"
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 dependencies = [
  "byteorder",
  "trackable 0.2.24",
@@ -1010,6 +1074,30 @@ dependencies = [
  "anstyle",
  "clap_lex",
  "strsim",
+<<<<<<<< HEAD:templates/project/Cargo.lock
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+ "terminal_size 0.2.6",
+]
+
+[[package]]
+name = "clap_complete"
+version = "4.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97aeaa95557bd02f23fbb662f981670c3d20c5a26e69f7354b28f57092437fcd"
+dependencies = [
+ "clap",
+========
+ "terminal_size 0.2.6",
+]
+
+[[package]]
+name = "clap_complete"
+version = "4.4.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df631ae429f6613fcd3a7c1adbdb65f637271e561b03680adaa6573015dfb106"
+dependencies = [
+ "clap",
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 ]
 
 [[package]]
@@ -1055,11 +1143,26 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<<< HEAD:templates/project/Cargo.lock
 name = "const-gen"
 version = "1.6.4"
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+name = "console"
+version = "0.15.7"
+========
+name = "console"
+version = "0.15.8"
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 source = "registry+https://github.com/rust-lang/crates.io-index"
+<<<<<<<< HEAD:templates/project/Cargo.lock
 checksum = "fbfc446f8d46196335995e72ee07271b558d0fab5152edc8b5c3d2a44da30e87"
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+checksum = "c926e00cc70edefdc64d3a5ff31cc65bb97a3460097762bd23afb4d8145fccf8"
+========
+checksum = "0e1f83fc076bd6dd27517eacdf25fef6c4dfe5f1d7448bafaaf3a26f13b5e4eb"
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 dependencies = [
+<<<<<<<< HEAD:templates/project/Cargo.lock
  "const-gen-derive",
 ]
 
@@ -1072,6 +1175,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+ "encode_unicode",
+ "lazy_static",
+ "libc",
+ "unicode-width",
+ "windows-sys 0.45.0",
+========
+ "encode_unicode",
+ "lazy_static",
+ "libc",
+ "unicode-width",
+ "windows-sys 0.52.0",
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 ]
 
 [[package]]
@@ -1162,6 +1278,86 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "248e3bacc7dc6baa3b21e405ee045c3047101a49145e7e9eca583ab4c2ca5345"
 
 [[package]]
+<<<<<<<< HEAD:templates/project/Cargo.lock
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+name = "crossterm"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e64e6c0fbe2c17357405f7c758c1ef960fce08bdfb2c03d88d2a18d7e09c4b67"
+dependencies = [
+ "bitflags 1.3.2",
+ "crossterm_winapi",
+ "libc",
+ "mio",
+ "parking_lot",
+ "signal-hook",
+ "signal-hook-mio",
+ "winapi",
+]
+
+[[package]]
+name = "crossterm"
+version = "0.27.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f476fe445d41c9e991fd07515a6f463074b782242ccf4a5b7b1d1012e70824df"
+dependencies = [
+ "bitflags 2.4.1",
+ "crossterm_winapi",
+ "libc",
+ "parking_lot",
+ "winapi",
+]
+
+[[package]]
+name = "crossterm_winapi"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "acdd7c62a3665c7f6830a51635d9ac9b23ed385797f70a83bb8bafe9c572ab2b"
+dependencies = [
+ "winapi",
+]
+
+[[package]]
+========
+name = "crossterm"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e64e6c0fbe2c17357405f7c758c1ef960fce08bdfb2c03d88d2a18d7e09c4b67"
+dependencies = [
+ "bitflags 1.3.2",
+ "crossterm_winapi",
+ "libc",
+ "mio",
+ "parking_lot",
+ "signal-hook",
+ "signal-hook-mio",
+ "winapi",
+]
+
+[[package]]
+name = "crossterm"
+version = "0.27.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f476fe445d41c9e991fd07515a6f463074b782242ccf4a5b7b1d1012e70824df"
+dependencies = [
+ "bitflags 2.4.2",
+ "crossterm_winapi",
+ "libc",
+ "parking_lot",
+ "winapi",
+]
+
+[[package]]
+name = "crossterm_winapi"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "acdd7c62a3665c7f6830a51635d9ac9b23ed385797f70a83bb8bafe9c572ab2b"
+dependencies = [
+ "winapi",
+]
+
+[[package]]
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 name = "crypto-bigint"
 version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1607,10 +1803,24 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<<< HEAD:templates/project/Cargo.lock
 name = "embedded-can"
 version = "0.4.1"
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+name = "env_logger"
+version = "0.10.1"
+========
+name = "env_logger"
+version = "0.10.2"
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 source = "registry+https://github.com/rust-lang/crates.io-index"
+<<<<<<<< HEAD:templates/project/Cargo.lock
 checksum = "e9d2e857f87ac832df68fa498d18ddc679175cf3d2e4aa893988e5601baf9438"
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+checksum = "95b3f3e67048839cb0d0781f445682a35113da7121f7c949db0e2be96a4fbece"
+========
+checksum = "4cd405aab171cb85d6735e5c8d9db038c17d3ca007a4d2c25f337935c3d90580"
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 dependencies = [
  "nb 1.1.0",
 ]
@@ -1809,12 +2019,52 @@ version = "0.47.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e2bd20db9af5a3b96823b38f39e6aafcc1bcfa3e5e7d9a0777101f1f301eba5"
 dependencies = [
+<<<<<<<< HEAD:templates/project/Cargo.lock
  "embassy-futures",
  "embedded-svc",
  "embuild 0.31.4",
  "enumset",
  "esp-idf-hal",
  "heapless",
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+ "addr2line 0.20.0",
+ "base64 0.21.6",
+ "binread",
+ "bytemuck",
+ "chrono",
+ "clap",
+ "clap_complete",
+ "comfy-table",
+ "crossterm 0.25.0",
+ "ctrlc",
+ "dialoguer",
+ "directories",
+ "env_logger",
+ "esp-idf-part",
+ "flate2",
+ "hex",
+ "indicatif",
+ "lazy_static",
+========
+ "addr2line 0.20.0",
+ "base64 0.21.7",
+ "binread",
+ "bytemuck",
+ "chrono",
+ "clap",
+ "clap_complete",
+ "comfy-table",
+ "crossterm 0.25.0",
+ "ctrlc",
+ "dialoguer",
+ "directories",
+ "env_logger",
+ "esp-idf-part",
+ "flate2",
+ "hex",
+ "indicatif",
+ "lazy_static",
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
  "log",
  "num_enum",
  "uncased",
@@ -2412,8 +2662,16 @@ dependencies = [
  "httparse",
  "httpdate",
  "itoa",
+<<<<<<<< HEAD:templates/project/Cargo.lock
  "pin-project-lite 0.2.13",
  "socket2 0.4.9",
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+ "pin-project-lite",
+ "socket2 0.4.10",
+========
+ "pin-project-lite",
+ "socket2 0.5.5",
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
  "tokio",
  "tower-service",
  "tracing",
@@ -2552,6 +2810,44 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f518f335dce6725a761382244631d86cf0ccb2863413590b31338feb467f9c3"
 
 [[package]]
+<<<<<<<< HEAD:templates/project/Cargo.lock
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+name = "is-terminal"
+version = "0.4.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0bad00257d07be169d870ab665980b06cdb366d792ad690bf2e76876dc503455"
+dependencies = [
+ "hermit-abi",
+ "rustix 0.38.28",
+ "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "is_ci"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "616cde7c720bb2bb5824a224687d8f77bfd38922027f01d825cd7453be5099fb"
+
+[[package]]
+========
+name = "is-terminal"
+version = "0.4.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0bad00257d07be169d870ab665980b06cdb366d792ad690bf2e76876dc503455"
+dependencies = [
+ "hermit-abi",
+ "rustix 0.38.31",
+ "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "is_ci"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "616cde7c720bb2bb5824a224687d8f77bfd38922027f01d825cd7453be5099fb"
+
+[[package]]
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 name = "itertools"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2591,9 +2887,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
+<<<<<<<< HEAD:templates/project/Cargo.lock
 name = "lazycell"
 version = "1.3.0"
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+name = "libc"
+version = "0.2.152"
+========
+name = "libc"
+version = "0.2.153"
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 source = "registry+https://github.com/rust-lang/crates.io-index"
+<<<<<<<< HEAD:templates/project/Cargo.lock
 checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
@@ -2611,6 +2916,11 @@ dependencies = [
  "cfg-if 1.0.0",
  "windows-sys 0.48.0",
 ]
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+checksum = "13e3bf6590cbc649f4d1a3eefc9d5d6eb746f5200ffb04e5e142700b8faa56e7"
+========
+checksum = "9c198f91728a82281a64e1f4f9eeb25d82cb32a5de251c6bd1b5154d63a8e7bd"
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 
 [[package]]
 name = "libredox"
@@ -2633,13 +2943,43 @@ checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
 name = "linux-raw-sys"
 version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+<<<<<<<< HEAD:templates/project/Cargo.lock
 checksum = "01cda141df6706de531b6c46c3a33ecca755538219bd484262fa09410c13539c"
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+checksum = "ef53942eb7bf7ff43a617b3e2c1c4a5ecf5944a7c1bc12d7ee39bbb15e5c1519"
+
+[[package]]
+name = "linux-raw-sys"
+version = "0.4.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c4cd1a83af159aa67994778be9070f0ae1bd732942279cabb14f86f986a21456"
+========
+checksum = "ef53942eb7bf7ff43a617b3e2c1c4a5ecf5944a7c1bc12d7ee39bbb15e5c1519"
+
+[[package]]
+name = "linux-raw-sys"
+version = "0.4.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "01cda141df6706de531b6c46c3a33ecca755538219bd484262fa09410c13539c"
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 
 [[package]]
 name = "local-ip-address"
+<<<<<<<< HEAD:templates/project/Cargo.lock
 version = "0.4.9"
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+version = "0.5.6"
+========
+version = "0.5.7"
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 source = "registry+https://github.com/rust-lang/crates.io-index"
+<<<<<<<< HEAD:templates/project/Cargo.lock
 checksum = "9eab7f092fb08006040e656c2adce6670e6a516bea831a8b2b3d0fb24d4488f5"
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+checksum = "66357e687a569abca487dc399a9c9ac19beb3f13991ed49f00c144e02cbd42ab"
+========
+checksum = "612ed4ea9ce5acfb5d26339302528a5e1e59dfed95e9e11af3c083236ff1d15d"
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 dependencies = [
  "libc",
  "neli 0.5.3",
@@ -2768,8 +3108,16 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<<< HEAD:templates/project/Cargo.lock
 name = "micro-rdk"
 version = "0.1.7"
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+name = "micro-rdk-installer"
+version = "0.1.6"
+========
+name = "micro-rdk-installer"
+version = "0.1.7"
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 dependencies = [
  "anyhow",
  "async-channel 1.9.0",
@@ -2978,7 +3326,17 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1bcece43b12349917e096cddfa66107277f123e6c96a5aea78711dc601a47152"
 dependencies = [
+<<<<<<<< HEAD:templates/project/Cargo.lock
  "serde",
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+ "bitflags 2.4.1",
+ "cfg-if 1.0.0",
+ "libc",
+========
+ "bitflags 2.4.2",
+ "cfg-if 1.0.0",
+ "libc",
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 ]
 
 [[package]]
@@ -3137,12 +3495,108 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 
 [[package]]
+<<<<<<<< HEAD:templates/project/Cargo.lock
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+name = "openssl"
+version = "0.10.62"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8cde4d2d9200ad5909f8dac647e29482e07c3a35de8a13fce7c9c7747ad9f671"
+dependencies = [
+ "bitflags 2.4.1",
+ "cfg-if 1.0.0",
+ "foreign-types",
+ "libc",
+ "once_cell",
+ "openssl-macros",
+ "openssl-sys",
+]
+
+[[package]]
+name = "openssl-macros"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a948666b637a0f465e8564c73e89d4dde00d72d4d473cc972f390fc3dcee7d9c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.48",
+]
+
+[[package]]
+========
+name = "openssl"
+version = "0.10.63"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15c9d69dd87a29568d4d017cfe8ec518706046a05184e5aea92d0af890b803c8"
+dependencies = [
+ "bitflags 2.4.2",
+ "cfg-if 1.0.0",
+ "foreign-types",
+ "libc",
+ "once_cell",
+ "openssl-macros",
+ "openssl-sys",
+]
+
+[[package]]
+name = "openssl-macros"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a948666b637a0f465e8564c73e89d4dde00d72d4d473cc972f390fc3dcee7d9c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.48",
+]
+
+[[package]]
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 name = "openssl-probe"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
+<<<<<<<< HEAD:templates/project/Cargo.lock
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+name = "openssl-sys"
+version = "0.9.98"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1665caf8ab2dc9aef43d1c0023bd904633a6a05cb30b0ad59bec2ae986e57a7"
+dependencies = [
+ "cc",
+ "libc",
+ "pkg-config",
+ "vcpkg",
+]
+
+[[package]]
+name = "option-ext"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
+
+[[package]]
+========
+name = "openssl-sys"
+version = "0.9.99"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22e1bf214306098e4832460f797824c05d25aacdf896f64a985fb0fd992454ae"
+dependencies = [
+ "cc",
+ "libc",
+ "pkg-config",
+ "vcpkg",
+]
+
+[[package]]
+name = "option-ext"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
+
+[[package]]
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 name = "ordered-float"
 version = "2.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3230,6 +3684,30 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<<< HEAD:templates/project/Cargo.lock
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+name = "pem"
+version = "3.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b8fcc794035347fb64beda2d3b462595dd2753e3f268d89c5aae77e8cf2c310"
+dependencies = [
+ "base64 0.21.6",
+ "serde",
+]
+
+[[package]]
+========
+name = "pem"
+version = "3.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b8fcc794035347fb64beda2d3b462595dd2753e3f268d89c5aae77e8cf2c310"
+dependencies = [
+ "base64 0.21.7",
+ "serde",
+]
+
+[[package]]
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 name = "pem-rfc7468"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3323,6 +3801,22 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<<< HEAD:templates/project/Cargo.lock
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+name = "pkg-config"
+version = "0.3.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69d3587f8a9e599cc7ec2c00e331f71c4e69a5f9a4b8a6efd5b07466b9736f9a"
+
+[[package]]
+========
+name = "pkg-config"
+version = "0.3.29"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2900ede94e305130c13ddd391e0ab7cbaeb783945ae07a279c268cb05109c6cb"
+
+[[package]]
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 name = "platforms"
 version = "3.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3348,8 +3842,16 @@ checksum = "545c980a3880efd47b2e262f6a4bb6daad6555cf3367aa9c4e52895f69537a41"
 dependencies = [
  "cfg-if 1.0.0",
  "concurrent-queue",
+<<<<<<<< HEAD:templates/project/Cargo.lock
  "pin-project-lite 0.2.13",
  "rustix",
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+ "pin-project-lite",
+ "rustix 0.38.28",
+========
+ "pin-project-lite",
+ "rustix 0.38.31",
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
  "tracing",
  "windows-sys 0.52.0",
 ]
@@ -3690,11 +4192,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08c74e62047bb2de4ff487b251e4a92e24f48745648451635cec7d591162d9f"
 
 [[package]]
+<<<<<<<< HEAD:templates/project/Cargo.lock
 name = "remove_dir_all"
 version = "0.8.2"
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+name = "reqwest"
+version = "0.11.23"
+========
+name = "reqwest"
+version = "0.11.24"
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 source = "registry+https://github.com/rust-lang/crates.io-index"
+<<<<<<<< HEAD:templates/project/Cargo.lock
 checksum = "23895cfadc1917fed9c6ed76a8c2903615fa3704f7493ff82b364c6540acc02b"
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+checksum = "37b1ae8d9ac08420c66222fb9096fc5de435c3c48542bc5336c51892cffafb41"
+========
+checksum = "c6920094eb85afde5e4a138be3f2de8bbdf28000f0029e72c45025a56b042251"
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 dependencies = [
+<<<<<<<< HEAD:templates/project/Cargo.lock
  "aligned",
  "cfg-if 1.0.0",
  "cvt",
@@ -3703,6 +4220,80 @@ dependencies = [
  "libc",
  "normpath",
  "windows-sys 0.45.0",
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+ "base64 0.21.6",
+ "bytes",
+ "encoding_rs",
+ "futures-core",
+ "futures-util",
+ "h2",
+ "http",
+ "http-body",
+ "hyper",
+ "hyper-rustls",
+ "hyper-tls",
+ "ipnet",
+ "js-sys",
+ "log",
+ "mime",
+ "native-tls",
+ "once_cell",
+ "percent-encoding",
+ "pin-project-lite",
+ "rustls 0.21.10",
+ "rustls-pemfile",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "system-configuration",
+ "tokio",
+ "tokio-native-tls",
+ "tokio-rustls 0.24.1",
+ "tower-service",
+ "url",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "webpki-roots 0.25.3",
+ "winreg",
+========
+ "base64 0.21.7",
+ "bytes",
+ "encoding_rs",
+ "futures-core",
+ "futures-util",
+ "h2",
+ "http",
+ "http-body",
+ "hyper",
+ "hyper-rustls",
+ "hyper-tls",
+ "ipnet",
+ "js-sys",
+ "log",
+ "mime",
+ "native-tls",
+ "once_cell",
+ "percent-encoding",
+ "pin-project-lite",
+ "rustls 0.21.10",
+ "rustls-pemfile",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "sync_wrapper",
+ "system-configuration",
+ "tokio",
+ "tokio-native-tls",
+ "tokio-rustls 0.24.1",
+ "tower-service",
+ "url",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "webpki-roots 0.25.3",
+ "winreg",
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 ]
 
 [[package]]
@@ -3819,10 +4410,50 @@ version = "0.38.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ea3e1a662af26cd7a3ba09c0297a31af215563ecf42817c98df621387f4e949"
 dependencies = [
+<<<<<<<< HEAD:templates/project/Cargo.lock
  "bitflags 2.4.2",
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+ "bitflags 1.3.2",
+ "errno",
+ "io-lifetimes",
+ "libc",
+ "linux-raw-sys 0.3.8",
+ "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "rustix"
+version = "0.38.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72e572a5e8ca657d7366229cdde4bd14c4eb5499a9573d4d366fe1b599daa316"
+dependencies = [
+ "bitflags 2.4.1",
+========
+ "bitflags 1.3.2",
+ "errno",
+ "io-lifetimes",
+ "libc",
+ "linux-raw-sys 0.3.8",
+ "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "rustix"
+version = "0.38.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ea3e1a662af26cd7a3ba09c0297a31af215563ecf42817c98df621387f4e949"
+dependencies = [
+ "bitflags 2.4.2",
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
  "errno",
  "libc",
+<<<<<<<< HEAD:templates/project/Cargo.lock
  "linux-raw-sys",
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+ "linux-raw-sys 0.4.12",
+========
+ "linux-raw-sys 0.4.13",
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
  "windows-sys 0.52.0",
 ]
 
@@ -4096,6 +4727,48 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<<< HEAD:templates/project/Cargo.lock
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+name = "serialport"
+version = "4.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f5a15d0be940df84846264b09b51b10b931fb2f275becb80934e3568a016828"
+dependencies = [
+ "bitflags 2.4.1",
+ "cfg-if 1.0.0",
+ "core-foundation-sys",
+ "io-kit-sys",
+ "libudev",
+ "mach2",
+ "nix 0.26.4",
+ "regex",
+ "scopeguard",
+ "unescaper",
+ "winapi",
+]
+
+[[package]]
+========
+name = "serialport"
+version = "4.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f5a15d0be940df84846264b09b51b10b931fb2f275becb80934e3568a016828"
+dependencies = [
+ "bitflags 2.4.2",
+ "cfg-if 1.0.0",
+ "core-foundation-sys",
+ "io-kit-sys",
+ "libudev",
+ "mach2",
+ "nix 0.26.4",
+ "regex",
+ "scopeguard",
+ "unescaper",
+ "winapi",
+]
+
+[[package]]
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 name = "sha-1"
 version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4373,6 +5046,66 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 
 [[package]]
+<<<<<<<< HEAD:templates/project/Cargo.lock
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+name = "supports-color"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6398cde53adc3c4557306a96ce67b302968513830a77a95b2b17305d9719a89"
+dependencies = [
+ "is-terminal",
+ "is_ci",
+]
+
+[[package]]
+name = "supports-hyperlinks"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f84231692eb0d4d41e4cdd0cabfdd2e6cd9e255e65f80c9aa7c98dd502b4233d"
+dependencies = [
+ "is-terminal",
+]
+
+[[package]]
+name = "supports-unicode"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4b6c2cb240ab5dd21ed4906895ee23fe5a48acdbd15a3ce388e7b62a9b66baf7"
+dependencies = [
+ "is-terminal",
+]
+
+[[package]]
+========
+name = "supports-color"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6398cde53adc3c4557306a96ce67b302968513830a77a95b2b17305d9719a89"
+dependencies = [
+ "is-terminal",
+ "is_ci",
+]
+
+[[package]]
+name = "supports-hyperlinks"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f84231692eb0d4d41e4cdd0cabfdd2e6cd9e255e65f80c9aa7c98dd502b4233d"
+dependencies = [
+ "is-terminal",
+]
+
+[[package]]
+name = "supports-unicode"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f850c19edd184a205e883199a261ed44471c81e39bd95b1357f5febbef00e77a"
+dependencies = [
+ "is-terminal",
+]
+
+[[package]]
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 name = "syn"
 version = "1.0.109"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4421,11 +5154,101 @@ dependencies = [
  "cfg-if 1.0.0",
  "fastrand 2.0.1",
  "redox_syscall",
+<<<<<<<< HEAD:templates/project/Cargo.lock
  "rustix",
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+ "rustix 0.38.28",
+========
+ "rustix 0.38.31",
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
  "windows-sys 0.52.0",
 ]
 
 [[package]]
+<<<<<<<< HEAD:templates/project/Cargo.lock
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+name = "termcolor"
+version = "1.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff1bc3d3f05aff0403e8ac0d92ced918ec05b666a43f83297ccef5bea8a3d449"
+dependencies = [
+ "winapi-util",
+]
+
+[[package]]
+name = "terminal_size"
+version = "0.1.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "633c1a546cee861a1a6d0dc69ebeca693bf4296661ba7852b9d21d159e0506df"
+dependencies = [
+ "libc",
+ "winapi",
+]
+
+[[package]]
+name = "terminal_size"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e6bf6f19e9f8ed8d4048dc22981458ebcf406d67e94cd422e5ecd73d63b3237"
+dependencies = [
+ "rustix 0.37.27",
+ "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "textwrap"
+version = "0.15.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7b3e525a49ec206798b40326a44121291b530c963cfb01018f63e135bac543d"
+dependencies = [
+ "smawk",
+ "unicode-linebreak",
+ "unicode-width",
+]
+
+[[package]]
+========
+name = "termcolor"
+version = "1.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
+dependencies = [
+ "winapi-util",
+]
+
+[[package]]
+name = "terminal_size"
+version = "0.1.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "633c1a546cee861a1a6d0dc69ebeca693bf4296661ba7852b9d21d159e0506df"
+dependencies = [
+ "libc",
+ "winapi",
+]
+
+[[package]]
+name = "terminal_size"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e6bf6f19e9f8ed8d4048dc22981458ebcf406d67e94cd422e5ecd73d63b3237"
+dependencies = [
+ "rustix 0.37.27",
+ "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "textwrap"
+version = "0.15.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7b3e525a49ec206798b40326a44121291b530c963cfb01018f63e135bac543d"
+dependencies = [
+ "smawk",
+ "unicode-linebreak",
+ "unicode-width",
+]
+
+[[package]]
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 name = "thiserror"
 version = "1.0.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4618,7 +5441,17 @@ version = "0.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "396e4d48bbb2b7554c944bde63101b5ae446cff6ec4a24227428f15eb72ef338"
 dependencies = [
+<<<<<<<< HEAD:templates/project/Cargo.lock
  "indexmap 2.2.2",
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+ "indexmap 2.1.0",
+ "serde",
+ "serde_spanned",
+========
+ "indexmap 2.2.2",
+ "serde",
+ "serde_spanned",
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
  "toml_datetime",
  "winnow",
 ]
@@ -4855,6 +5688,30 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<<< HEAD:templates/project/Cargo.lock
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+name = "twox-hash"
+version = "1.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
+dependencies = [
+ "cfg-if 0.1.10",
+ "static_assertions",
+]
+
+[[package]]
+========
+name = "twox-hash"
+version = "1.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
+dependencies = [
+ "cfg-if 1.0.0",
+ "static_assertions",
+]
+
+[[package]]
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 name = "typemap-ors"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4870,10 +5727,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42ff0bf0c66b8238c6f3b578df37d0b7848e55df8577b3f74f92a69acceeb825"
 
 [[package]]
+<<<<<<<< HEAD:templates/project/Cargo.lock
 name = "uncased"
 version = "0.9.10"
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+name = "unescaper"
+version = "0.1.3"
+========
+name = "unescaper"
+version = "0.1.4"
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 source = "registry+https://github.com/rust-lang/crates.io-index"
+<<<<<<<< HEAD:templates/project/Cargo.lock
 checksum = "e1b88fcfe09e89d3866a5c11019378088af2d24c3fbd4f0543f96b479ec90697"
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+checksum = "d8f0f68e58d297ba8b22b8b5a96a87b863ba6bb46aaf51e19a4b02c5a6dd5b7f"
+========
+checksum = "0adf6ad32eb5b3cadff915f7b770faaac8f7ff0476633aa29eb0d9584d889d34"
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 dependencies = [
  "version_check",
 ]
@@ -4947,6 +5818,74 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
+<<<<<<<< HEAD:templates/project/Cargo.lock
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+name = "update-informer"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f8811797a24ff123db3c6e1087aa42551d03d772b3724be421ad063da1f5f3f"
+dependencies = [
+ "directories",
+ "reqwest",
+ "semver",
+ "serde",
+ "serde_json",
+ "ureq",
+]
+
+[[package]]
+name = "ureq"
+version = "2.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8cdd25c339e200129fe4de81451814e5228c9b771d57378817d6117cc2b3f97"
+dependencies = [
+ "base64 0.21.6",
+ "flate2",
+ "log",
+ "once_cell",
+ "rustls 0.21.10",
+ "rustls-webpki 0.101.7",
+ "serde",
+ "serde_json",
+ "url",
+ "webpki-roots 0.25.3",
+]
+
+[[package]]
+========
+name = "update-informer"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f8811797a24ff123db3c6e1087aa42551d03d772b3724be421ad063da1f5f3f"
+dependencies = [
+ "directories",
+ "reqwest",
+ "semver",
+ "serde",
+ "serde_json",
+ "ureq",
+]
+
+[[package]]
+name = "ureq"
+version = "2.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8cdd25c339e200129fe4de81451814e5228c9b771d57378817d6117cc2b3f97"
+dependencies = [
+ "base64 0.21.7",
+ "flate2",
+ "log",
+ "once_cell",
+ "rustls 0.21.10",
+ "rustls-webpki 0.101.7",
+ "serde",
+ "serde_json",
+ "url",
+ "webpki-roots 0.25.3",
+]
+
+[[package]]
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 name = "url"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4982,7 +5921,25 @@ checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
 name = "value-bag"
 version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+<<<<<<<< HEAD:templates/project/Cargo.lock
 checksum = "126e423afe2dd9ac52142e7e9d5ce4135d7e13776c529d27fd6bc49f19e3280b"
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+checksum = "7cdbaf5e132e593e9fc1de6a15bbec912395b11fb9719e061cf64f804524c503"
+
+[[package]]
+name = "vcpkg"
+version = "0.2.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
+========
+checksum = "126e423afe2dd9ac52142e7e9d5ce4135d7e13776c529d27fd6bc49f19e3280b"
+
+[[package]]
+name = "vcpkg"
+version = "0.2.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 
 [[package]]
 name = "version_check"
@@ -5456,7 +6413,13 @@ dependencies = [
  "either",
  "home",
  "once_cell",
+<<<<<<<< HEAD:templates/project/Cargo.lock
  "rustix",
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+ "rustix 0.38.28",
+========
+ "rustix 0.38.31",
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 ]
 
 [[package]]
@@ -5511,6 +6474,7 @@ dependencies = [
 
 [[package]]
 name = "windows-sys"
+<<<<<<<< HEAD:templates/project/Cargo.lock
 version = "0.42.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a3e1820f08b8513f676f7ab6c1f99ff312fb97b553d30ff4dd86f9f15728aa7"
@@ -5535,6 +6499,18 @@ dependencies = [
 
 [[package]]
 name = "windows-sys"
+|||||||| 9fd4043:micro-rdk-installer/Cargo.lock
+version = "0.45.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75283be5efb2831d37ea142365f009c02ec203cd29a3ebecbc093d52315b66d0"
+dependencies = [
+ "windows-targets 0.42.2",
+]
+
+[[package]]
+name = "windows-sys"
+========
+>>>>>>>> origin/main:micro-rdk-installer/Cargo.lock
 version = "0.48.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "677d2418bec65e3338edb076e806bc1ec15693c5d0104683f2efe857f61056a9"
@@ -5549,21 +6525,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "282be5f36a8ce781fad8c8ae18fa3f9beff57ec1b52cb3de0789201425d9a33d"
 dependencies = [
  "windows-targets 0.52.0",
-]
-
-[[package]]
-name = "windows-targets"
-version = "0.42.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e5180c00cd44c9b1c88adb3693291f1cd93605ded80c250a75d472756b4d071"
-dependencies = [
- "windows_aarch64_gnullvm 0.42.2",
- "windows_aarch64_msvc 0.42.2",
- "windows_i686_gnu 0.42.2",
- "windows_i686_msvc 0.42.2",
- "windows_x86_64_gnu 0.42.2",
- "windows_x86_64_gnullvm 0.42.2",
- "windows_x86_64_msvc 0.42.2",
 ]
 
 [[package]]
@@ -5598,12 +6559,6 @@ dependencies = [
 
 [[package]]
 name = "windows_aarch64_gnullvm"
-version = "0.42.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "597a5118570b68bc08d8d59125332c54f1ba9d9adeedeef5b99b02ba2b0698f8"
-
-[[package]]
-name = "windows_aarch64_gnullvm"
 version = "0.48.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b38e32f0abccf9987a4e3079dfb67dcd799fb61361e53e2882c3cbaf0d905d8"
@@ -5613,12 +6568,6 @@ name = "windows_aarch64_gnullvm"
 version = "0.52.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb7764e35d4db8a7921e09562a0304bf2f93e0a51bfccee0bd0bb0b666b015ea"
-
-[[package]]
-name = "windows_aarch64_msvc"
-version = "0.42.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e08e8864a60f06ef0d0ff4ba04124db8b0fb3be5776a5cd47641e942e58c4d43"
 
 [[package]]
 name = "windows_aarch64_msvc"
@@ -5634,12 +6583,6 @@ checksum = "bbaa0368d4f1d2aaefc55b6fcfee13f41544ddf36801e793edbbfd7d7df075ef"
 
 [[package]]
 name = "windows_i686_gnu"
-version = "0.42.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c61d927d8da41da96a81f029489353e68739737d3beca43145c8afec9a31a84f"
-
-[[package]]
-name = "windows_i686_gnu"
 version = "0.48.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a75915e7def60c94dcef72200b9a8e58e5091744960da64ec734a6c6e9b3743e"
@@ -5649,12 +6592,6 @@ name = "windows_i686_gnu"
 version = "0.52.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a28637cb1fa3560a16915793afb20081aba2c92ee8af57b4d5f28e4b3e7df313"
-
-[[package]]
-name = "windows_i686_msvc"
-version = "0.42.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44d840b6ec649f480a41c8d80f9c65108b92d89345dd94027bfe06ac444d1060"
 
 [[package]]
 name = "windows_i686_msvc"
@@ -5670,12 +6607,6 @@ checksum = "ffe5e8e31046ce6230cc7215707b816e339ff4d4d67c65dffa206fd0f7aa7b9a"
 
 [[package]]
 name = "windows_x86_64_gnu"
-version = "0.42.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8de912b8b8feb55c064867cf047dda097f92d51efad5b491dfb98f6bbb70cb36"
-
-[[package]]
-name = "windows_x86_64_gnu"
 version = "0.48.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "53d40abd2583d23e4718fddf1ebec84dbff8381c07cae67ff7768bbf19c6718e"
@@ -5688,12 +6619,6 @@ checksum = "3d6fa32db2bc4a2f5abeacf2b69f7992cd09dca97498da74a151a3132c26befd"
 
 [[package]]
 name = "windows_x86_64_gnullvm"
-version = "0.42.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26d41b46a36d453748aedef1486d5c7a85db22e56aff34643984ea85514e94a3"
-
-[[package]]
-name = "windows_x86_64_gnullvm"
 version = "0.48.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b7b52767868a23d5bab768e390dc5f5c55825b6d30b86c844ff2dc7414044cc"
@@ -5703,12 +6628,6 @@ name = "windows_x86_64_gnullvm"
 version = "0.52.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1a657e1e9d3f514745a572a6846d3c7aa7dbe1658c056ed9c3344c4109a6949e"
-
-[[package]]
-name = "windows_x86_64_msvc"
-version = "0.42.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9aec5da331524158c6d1a4ac0ab1541149c0b9505fde06423b02f5ef0106b9f0"
 
 [[package]]
 name = "windows_x86_64_msvc"
