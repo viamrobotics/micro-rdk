@@ -70,6 +70,4 @@ path = "esp32-with-cred/esp32-server-with-cred.rs"
 
 [package.metadata.esp-idf-sys]
 esp_idf_tools_install_dir = "global"
-#esp_idf_tools_install_dir = "global"
-#esp_idf_sdkconfig = "examples/sdkconfig.defaults"
 esp_idf_sdkconfig_defaults = ["examples/sdkconfig.defaults", "examples/sdkconfig.defaults.esp32"]
