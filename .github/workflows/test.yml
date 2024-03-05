@@ -51,7 +51,7 @@ jobs:
           src-examples:
             - 'examples/**'
           src-cli:
-            - 'micro-rdk/micro-rdk-installer/**'
+            - 'micro-rdk-installer/**'
 
   build_cli:
     needs: changes
