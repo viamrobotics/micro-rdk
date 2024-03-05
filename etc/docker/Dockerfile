@@ -20,7 +20,7 @@ RUN git clone --depth 1 -b v4.4.4 --single-branch --recurse-submodules --shallow
 
 FROM debian:bookworm
 
-ARG RUST_VERSION=1.71.1
+ARG RUST_VERSION=1.71.0
 
 ENV DEBIAN_FRONTEND noninteractive
 ENV DEBCONF_NOWARNINGS="yes"
