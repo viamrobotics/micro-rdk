@@ -91,8 +91,7 @@ unsafe extern "C" fn mbedtls_net_read<S: Read>(
     let buf = std::slice::from_raw_parts_mut(buf as *mut _, len);
 
     match state.stream.read(buf) {
- 
- Ok(len) => len as c_int,
+        Ok(len) => len as c_int,
         Err(e) => {
             let _ = state.error.insert(e);
             if state.error.as_ref().unwrap().kind() == std::io::ErrorKind::WouldBlock {
