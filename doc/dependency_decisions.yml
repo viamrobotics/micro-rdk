@@ -83,3 +83,45 @@
     :why:
     :versions: []
     :when: 2023-01-23 16:45:08.945240400 Z
+- - :approve
+  - hmac-sha1
+  - :who:
+    :why:
+    :versions: []
+    :when: 2024-03-05 17:21:05.832231814 Z
+- - :approve
+  - io-kit-sys
+  - :who:
+    :why:
+    :versions: []
+    :when: 2024-03-05 17:21:26.527244965 Z
+- - :approve
+  - ring
+  - :who:
+    :why:
+    :versions: []
+    :when: 2024-03-05 17:22:46.289794370 Z
+- - :approve
+  - rustls-webpki
+  - :who:
+    :why:
+    :versions: []
+    :when: 2024-03-05 17:23:19.363561689 Z
+- - :approve
+  - webpki
+  - :who:
+    :why:
+    :versions: []
+    :when: 2024-03-05 17:23:34.196715846 Z
+- - :approve
+  - nourl
+  - :who:
+    :why:
+    :versions: []
+    :when: 2024-03-05 17:24:11.094217455 Z
+- - :approve
+  - nourl
+  - :who:
+    :why:
+    :versions: []
+    :when: 2024-03-05 17:24:14.400976681 Z
