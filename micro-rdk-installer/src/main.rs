@@ -191,10 +191,12 @@ fn create_nvs_partition_binary(
             .robot_credentials
             .robot_id
             .clone()
-            .unwrap_or(String::from("none")),
+            .unwrap_or(
+String::from("none")),
         storage_data.wifi.clone().unwrap().ssid
     );
-    populate_nvs_storage_from_app(&mut storage_data)?;
+    
+populate_nvs_storage_from_app(&mut storage_data)?;
     let part = &mut NVSPartition::from_storage_data(storage_data, size)?;
     Ok(NVSPartitionData::try_from(part)?.to_bytes())
 }
