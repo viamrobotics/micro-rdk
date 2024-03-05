@@ -24,16 +24,16 @@ ifneq ($(ESPFLASHVERSION),true)
 endif
 
 build:
-	cargo build  -p examples --bin esp32-server --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort
+	cargo +esp build  -p examples --bin esp32-server --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort
 
 build-native:
 	cargo build -p examples  --bin native-server
 
 native:
-	cd examples && cargo run  --bin native-server
+	cargo run -p examples  --bin native-server
 
 build-qemu:
-	cargo build -p examples  --bin esp32-server  --features qemu --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort && cargo espflash save-image --package examples --features qemu --merge --chip esp32 target/xtensa-esp32-espidf/debug/debug.bin -T examples/esp32/partitions.csv -s 4mb  --bin esp32-server --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
+	cargo +esp build -p examples  --bin esp32-server  --features qemu --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort && cargo espflash save-image --package examples --features qemu --merge --chip esp32 target/xtensa-esp32-espidf/debug/debug.bin -T examples/esp32/partitions.csv -s 4mb  --bin esp32-server --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
 
 
 sim-local: cargo-ver build-qemu
@@ -53,7 +53,7 @@ endif
 	$(QEMU_ESP32_XTENSA)/qemu-system-xtensa -nographic -machine esp32 -gdb tcp::3334 -nic user,model=open_eth,hostfwd=udp::-:61205 -drive file=target/xtensa-esp32-espidf/debug/debug.bin,if=mtd,format=raw -S
 
 upload: cargo-ver
-	cargo espflash flash --package examples --monitor --partition-table examples/esp32/partitions.csv --baud 460800 -f 80mhz --bin esp32-server --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
+	cargo +esp espflash flash --package examples --monitor --partition-table examples/esp32/partitions.csv --baud 460800 -f 80mhz --bin esp32-server --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
 
 test:
 	cargo test -p micro-rdk --lib --features native
@@ -80,10 +80,10 @@ size:
 	find . -name "esp-build.map" -exec ${IDF_PATH}/tools/idf_size.py {} \;
 
 build-esp32-bin:
-	cargo espflash save-image --package examples --merge --chip esp32 target/xtensa-esp32-espidf/esp32-server.bin -T examples/esp32/partitions.csv -s 4mb  --bin esp32-server --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort --release
+	cargo +esp espflash save-image --package examples --merge --chip esp32 target/xtensa-esp32-espidf/esp32-server.bin -T examples/esp32/partitions.csv -s 4mb  --bin esp32-server --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort --release
 
 build-esp32-with-cred-bin:
-	cargo espflash save-image --package examples --merge --chip esp32 target/xtensa-esp32-espidf/esp32-server-with-cred.bin -T examples/esp32/partitions.csv -s 4mb  --bin esp32-server-with-cred --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort --release
+	cargo +esp espflash save-image --package examples --merge --chip esp32 target/xtensa-esp32-espidf/esp32-server-with-cred.bin -T examples/esp32/partitions.csv -s 4mb  --bin esp32-server-with-cred --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort --release
 
 flash-esp32-bin:
 ifneq (,$(wildcard ./target/xtensa-esp32-espidf/esp32-server.bin))
