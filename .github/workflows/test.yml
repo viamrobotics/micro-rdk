@@ -42,12 +42,12 @@ jobs:
       with:
         filters: |
           src-esp32:
-            - 'src/esp32/**'
+            - 'micro-rdk/src/esp32/**'
           src-common:
-            - 'src/common/**'
-            - 'src/gen/**'
+            - 'micro-rdk/src/common/**'
+            - 'micro-rdk/src/gen/**'
           src-native:
-            - 'src/native/**'
+            - 'micro-rdk/src/native/**'
           src-examples:
             - 'examples/**'
           src-cli:
@@ -73,10 +73,6 @@ jobs:
       with:
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: 2
-    - name: Format
-      run: |
-        cd micro-rdk-installer
-        cargo fmt --all
     - name: Clippy Micro-RDK Installer
       run: |
         bash -c 'make clippy-cli'
@@ -106,6 +102,7 @@ jobs:
       run: |
         bash -c 'make format'       
     - name: Test
+      if : needs.changes.outputs.src-esp32 == 'true' || needs.changes.outputs.src-common == 'true' ||  needs.changes.outputs.src-native == 'true'
       run: |
         bash -c 'make test'
     - name: ESP32 Build & Clippy

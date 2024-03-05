@@ -77,6 +77,8 @@ RUN chown -R testbot:testbot $CARGO_HOME &&\
 RUN mkdir -p $ESP_ROOT && \
     chown -R testbot:testbot $ESP_ROOT
 
+RUN apt-get install -y ruby && gem install license_finder
+
 USER testbot
 
 COPY --from=builder /esp $ESP_ROOT/

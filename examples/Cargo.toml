@@ -1,31 +1,21 @@
 [package]
-build = "build.rs"
 name = "examples"
-version = "0.1.7"
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+build = "build.rs"
 publish = false
-edition = "2021"
-rust-version = "1.71"
-
-
-[profile.release]
-opt-level = "s"
-
-[profile.dev]
-debug = true # Symbols are nice and they don't increase the size on Flash
-opt-level = "z"
 
 [features]
 qemu = []
 
-[patch.crates-io]
-esp-idf-sys = {git = "https://github.com/viamrobotics/esp-idf-sys.git"}
-polling = { git = "https://github.com/esp-rs-compat/polling" }
-smol = { git = "https://github.com/esp-rs-compat/smol" }
-socket2 = { git = "https://github.com/viamrobotics/socket2.git" }
-async-io = {git = "https://github.com/viamrobotics/async-io.git"}
-
 [target.'cfg(not(target_os = "espidf"))'.dependencies]
-micro-rdk = { path = "../", features = ["native"], default-features = false }
+micro-rdk = { path = "../micro-rdk", features = ["native"], default-features = false }
 env_logger = "0.10.0"
 local-ip-address = { version = "0.4.9" }
 log = "0.4"
@@ -36,15 +26,15 @@ anyhow = { version = "1", features = ["backtrace"] }
 anyhow = {version = "1", features = ["backtrace"]}
 embedded-svc = "0.26.4"
 embedded-hal = { version = "0.2.7", features = ["unproven"]}
-micro-rdk = { path = "../", default-features = false, features = ["esp32"] }
+micro-rdk = { path = "../micro-rdk", default-features = false, features = ["esp32"] }
 log = "0.4"
 async-channel = "1.8.0"
 smol = "1.2"
 futures-lite = "1.12.0"
+reqwless = "0.5.0"
 
 
 [dependencies]
-reqwless = "0.5.0"
 serde = "1.0.145"
 serde_json = "1.0.97"
 thiserror = "1.0.47"
@@ -77,3 +67,7 @@ path = "esp32/esp32-server.rs"
 [[bin]]
 name = "esp32-server-with-cred"
 path = "esp32-with-cred/esp32-server-with-cred.rs"
+
+[package.metadata.esp-idf-sys]
+esp_idf_tools_install_dir = "global"
+esp_idf_sdkconfig_defaults = ["examples/sdkconfig.defaults", "examples/sdkconfig.defaults.esp32"]
