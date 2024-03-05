@@ -168,6 +168,7 @@ fn request_wifi(
                 .map_err(Error::WifiCredentialsError)?,
         )
     };
+    let ssid: nop = ssid.into();
     Ok(WifiCredentials { ssid, password })
 }
 
