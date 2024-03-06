@@ -18,16 +18,12 @@ qemu = []
 micro-rdk = { workspace = true, features = ["native"], default-features = false }
 env_logger.workspace = true
 local-ip-address.workspace = true
-log.workspace = true
-anyhow = { workspace = true, features = ["backtrace"] }
 
 
 [target.'cfg(target_os="espidf")'.dependencies]
-anyhow = { workspace = true, features = ["backtrace"] }
 embedded-svc.workspace = true
 embedded-hal.workspace = true
 micro-rdk = { workspace = true, features = ["esp32"] }
-log.workspace = true
 async-channel.workspace = true
 smol.workspace = true
 futures-lite.workspace = true
@@ -35,9 +31,11 @@ reqwless.workspace = true
 
 
 [dependencies]
+anyhow = { workspace = true, features = ["backtrace"] }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+log.workspace = true
 
 
 [build-dependencies]
