@@ -5,7 +5,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::bail;
 use bytecodec::{DecodeExt, EncodeExt};
 use bytes::{Bytes, BytesMut};
 use thiserror::Error;
@@ -27,7 +26,7 @@ use crate::{common::webrtc::candidates::CandidatePairState, IceAttribute};
 
 use super::{
     api::AtomicSync,
-    candidates::{Candidate, CandidatePair, CandidateType},
+    candidates::{Candidate, CandidateError, CandidatePair, CandidateType},
     io::IoPktChannel,
 };
 
@@ -58,6 +57,30 @@ pub enum IceError {
     IceCandidateChannelClosed,
     #[error("ice transport closed")]
     IceTransportClosed,
+    #[error("server is not ipv4")]
+    IceStunServerNotIPV4,
+    #[error("io error from transport")]
+    IceIoError,
+    #[error("missing xor_mapped address")]
+    IceMissingXorMappedAddress,
+    #[error("xor mapped address is ipv6")]
+    IceXorMappedAddressIsIPV6,
+    #[error("missing {0} username")]
+    IceMissingUserName(&'static str),
+    #[error("failed username check")]
+    IceFailedUsernameCheck,
+    #[error("invalid stun message")]
+    IceInvalidStunMessage,
+    #[error("no local candidate")]
+    IceNoLocalCandidates,
+    #[error("no pair for this stun response")]
+    IceNoPairForThisStunResponse,
+    #[error("can't encode stun packet")]
+    IceStunEncodingError,
+    #[error("can't decode stun packet")]
+    IceStunDecodingError,
+    #[error(transparent)]
+    IceCandidateError(#[from] CandidateError),
 }
 
 enum IceEvent {
@@ -122,7 +145,7 @@ impl ICEAgent {
 
     /// Gather local candidates, it will only generate one host and one server reflexive,
     /// relay candidates are not supported yet
-    pub async fn local_candidates(&mut self) -> anyhow::Result<()> {
+    pub async fn local_candidates(&mut self) -> Result<(), IceError> {
         if !self.local_candidates.is_empty() {
             return Ok(());
         }
@@ -147,7 +170,7 @@ impl ICEAgent {
         let stun_ip = match stun_ip {
             SocketAddr::V4(v4) => v4,
             _ => {
-                bail!("stun server is ipv6, currently unsupported");
+                return Err(IceError::IceStunServerNotIPV4);
             }
         };
 
@@ -167,31 +190,25 @@ impl ICEAgent {
             {
                 // TODO(npm) add a retry mechanism if we don't receive the stun response
                 // the error cause would be underlying io Error
-                break s.map_err(|e| {
-                    anyhow::anyhow!("didn't receive a stun response from server cause {:?}", e)
-                })?;
+                break s.map_err(|_| IceError::IceIoError)?;
             }
         };
         let mut decoder = stun_codec::MessageDecoder::<stun_codec::rfc5389::Attribute>::new();
         // TODO(npm) handle garbage stun response
-        let decoded = decoder.decode_from_bytes(&buf[..buf_len])?.unwrap();
+        let decoded = decoder
+            .decode_from_bytes(&buf[..buf_len])
+            .map_err(|_| IceError::IceStunDecodingError)?
+            .unwrap();
 
         let xor_mapped_addr =
             match decoded.get_attribute::<stun_codec::rfc5389::attributes::XorMappedAddress>() {
                 Some(addr) => addr.address(),
-                None => {
-                    return Err(anyhow::anyhow!(
-                "We didn't receive a xor_mapped_addr while we were expecting. The received message is {:?}",
-                decoded
-            ))
-                }
+                None => return Err(IceError::IceMissingXorMappedAddress),
             };
 
         let rflx_addr = match xor_mapped_addr {
             SocketAddr::V4(v4) => v4,
-            SocketAddr::V6(_) => {
-                bail!("the ice agent has an ipv6 address, currently unsupported");
-            }
+            SocketAddr::V6(_) => return Err(IceError::IceXorMappedAddressIsIPV6),
         };
 
         // the host ip was set when creating the ICEagent
@@ -413,7 +430,7 @@ impl ICEAgent {
     }
 
     /// Validate a stun message, note it doesn't check the integrity
-    fn validate_stun_message(&self, stun: &Message<IceAttribute>) -> anyhow::Result<()> {
+    fn validate_stun_message(&self, stun: &Message<IceAttribute>) -> Result<(), IceError> {
         log::debug!("processing {:?}", &stun);
         if let BINDING = stun.method() {
             let mut creds = stun
@@ -421,38 +438,26 @@ impl ICEAgent {
                 .unwrap()
                 .name()
                 .split(':');
-            let local_u = creds
-                .next()
-                .ok_or_else(|| anyhow::anyhow!("local username not found dropping stun message"))?;
-            let remote_u = creds.next().ok_or_else(|| {
-                anyhow::anyhow!("remote username not found dropping stun message")
-            })?;
+            let local_u = creds.next().ok_or(IceError::IceMissingUserName("local"))?;
+            let remote_u = creds.next().ok_or(IceError::IceMissingUserName("remote"))?;
 
             if local_u != self.local_credentials.u_frag {
-                bail!(
-                    "received unexpected local ufrag {} != {}",
-                    local_u,
-                    self.local_credentials.u_frag
-                )
+                return Err(IceError::IceFailedUsernameCheck);
             }
             if remote_u != self.remote_credentials.u_frag {
-                bail!(
-                    "received unexpected remote ufrag {} != {}",
-                    remote_u,
-                    self.remote_credentials.u_frag
-                )
+                return Err(IceError::IceFailedUsernameCheck);
             }
 
             return Ok(());
         }
-        Err(anyhow::anyhow!("unknow stun message type"))
+        Err(IceError::IceInvalidStunMessage)
     }
 
     fn process_stun_request(
         &mut self,
         stun: &Message<IceAttribute>,
         from: &SocketAddrV4,
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> Result<Vec<u8>, IceError> {
         let use_candidate = if stun
             .get_attribute::<rfc5245::attributes::UseCandidate>()
             .is_some()
@@ -483,9 +488,7 @@ impl ICEAgent {
                 log::debug!("received a peer reflexive address, we are going to add it to our list of remote candidates");
                 let prio = stun
                     .get_attribute::<rfc5245::attributes::Priority>()
-                    .ok_or_else(|| {
-                        anyhow::anyhow!("peer reflexive candidate doesn't have a priority")
-                    })?
+                    .ok_or(IceError::IceInvalidStunMessage)?
                     .prio();
                 let candidate = Candidate::new_peer_reflexive(*from, Some(prio));
 
@@ -499,9 +502,7 @@ impl ICEAgent {
             .iter()
             .enumerate()
             .position(|(_, c)| c.candidate_type() == CandidateType::Host)
-            .ok_or_else(|| {
-                anyhow::anyhow!("oops we should have a local candidate maybe too early?")
-            })?;
+            .ok_or(IceError::IceNoLocalCandidates)?;
         let pair_idx = match self
             .candidate_pairs
             .iter()
@@ -513,7 +514,8 @@ impl ICEAgent {
                 let remote_c = &self.remote_candidates[have_as_remote_candidate];
 
                 let pair =
-                    CandidatePair::new(local_c, remote_c, local_host, have_as_remote_candidate)?;
+                    CandidatePair::new(local_c, remote_c, local_host, have_as_remote_candidate)
+                        .map_err(IceError::IceCandidateError)?;
 
                 self.insert_candidate_pair(pair)
             }
@@ -531,7 +533,7 @@ impl ICEAgent {
 
             return self.stun_success_response((*from).into(), id);
         }
-        bail!("couldn't find an appropriate pair, so we are not sending the response")
+        Err(IceError::IceNoPairForThisStunResponse)
     }
 
     // send the response to a binding request
@@ -539,7 +541,7 @@ impl ICEAgent {
         &self,
         from: SocketAddr,
         id: TransactionId,
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> Result<Vec<u8>, IceError> {
         let mut message = Message::<IceAttribute>::new(MessageClass::SuccessResponse, BINDING, id);
         message.add_attribute(IceAttribute::XorMappedAddress(
             rfc5389::attributes::XorMappedAddress::new(from),
@@ -548,15 +550,17 @@ impl ICEAgent {
             stun_codec::rfc5389::attributes::MessageIntegrity::new_short_term_credential(
                 &message,
                 &self.local_credentials.pwd,
-            )?,
+            )
+            .map_err(|_| IceError::IceStunEncodingError)?,
         ));
         message.add_attribute(IceAttribute::Fingerprint(
-            stun_codec::rfc5389::attributes::Fingerprint::new(&message)?,
+            stun_codec::rfc5389::attributes::Fingerprint::new(&message)
+                .map_err(|_| IceError::IceStunEncodingError)?,
         ));
         let mut encoder = stun_codec::MessageEncoder::new();
         encoder
             .encode_into_bytes(message)
-            .map_err(|e| anyhow::anyhow!("encoding error {:?}", e))
+            .map_err(|_| IceError::IceStunEncodingError)
     }
 
     // process a response to a request
@@ -564,7 +568,7 @@ impl ICEAgent {
         &mut self,
         now: Instant,
         stun: Message<IceAttribute>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), IceError> {
         let id = stun.transaction_id();
         log::debug!("processing id {:?}", id);
         let _pair = self
@@ -576,18 +580,19 @@ impl ICEAgent {
                 }
                 None
             })
-            .ok_or_else(|| anyhow::anyhow!("Couldn't find a pair for this response"))?;
+            .ok_or(IceError::IceStunEncodingError)?;
         Ok(())
     }
 
-    fn make_stun_request(&self, id: TransactionId) -> anyhow::Result<Vec<u8>> {
+    fn make_stun_request(&self, id: TransactionId) -> Result<Vec<u8>, IceError> {
         let mut message = Message::<IceAttribute>::new(MessageClass::Request, BINDING, id);
-        message.add_attribute(IceAttribute::Username(rfc5389::attributes::Username::new(
-            format!(
+        message.add_attribute(IceAttribute::Username(
+            rfc5389::attributes::Username::new(format!(
                 "{}:{}",
                 self.remote_credentials.u_frag, self.local_credentials.u_frag
-            ),
-        )?));
+            ))
+            .map_err(|_| IceError::IceStunEncodingError)?,
+        ));
         message.add_attribute(IceAttribute::IceControlled(
             rfc5245::attributes::IceControlled::new(0),
         ));
@@ -607,7 +612,7 @@ impl ICEAgent {
         let mut encoder = stun_codec::MessageEncoder::new();
         encoder
             .encode_into_bytes(message)
-            .map_err(|e| anyhow::anyhow!("coulnd't encode stun request {:}", e))
+            .map_err(|_| IceError::IceStunEncodingError)
     }
 }
 
@@ -623,8 +628,10 @@ mod tests {
         native::exec::NativeExecutor,
     };
 
+    use super::IceError;
+
     #[test_log::test]
-    fn test_pair_form() -> Result<(), anyhow::Error> {
+    fn test_pair_form() -> Result<(), IceError> {
         let r1 = "candidate:2230659787 1 udp 2130706431 10.1.2.3 54182 typ host".to_owned();
         let r1 = TryInto::<Candidate>::try_into(r1).unwrap();
         let r2 = "candidate:830412194 1 udp 1694498815 71.167.39.185 49701 typ srflx raddr 0.0.0.0 rport 49701".to_owned();
@@ -646,10 +653,10 @@ mod tests {
         let (tx, rx) = smol::channel::unbounded();
         let ice_transport = transport.get_stun_channel().unwrap();
 
-        let our_ip = match local_ip_address::local_ip()? {
+        let our_ip = match local_ip_address::local_ip().unwrap() {
             std::net::IpAddr::V4(v4) => v4,
             _ => {
-                return Err(anyhow::anyhow!("our_ip is not an IpV4Addr"));
+                return Err(IceError::IceStunServerNotIPV4);
             }
         };
 

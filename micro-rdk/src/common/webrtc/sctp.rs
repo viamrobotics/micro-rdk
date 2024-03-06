@@ -260,7 +260,7 @@ unsafe impl<S> Send for SctpProto<S> {}
 async fn write_to_transport<S: AsyncRead + AsyncWrite + Unpin + Send>(
     mut transport: S,
     transmit: Transmit,
-) -> anyhow::Result<usize> {
+) -> Result<usize, std::io::Error> {
     let written = match transmit.payload {
         Payload::RawEncode(data) => {
             let mut ret = 0;

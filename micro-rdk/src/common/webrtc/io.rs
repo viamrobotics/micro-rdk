@@ -1,18 +1,16 @@
 #![allow(dead_code)]
-use std::{
-    fmt::Debug,
-    io::Write,
-    io::{ErrorKind, Read},
-    net::{SocketAddr, SocketAddrV4},
-    pin::Pin,
-    task::{Poll, Waker},
-};
-
-use anyhow::bail;
 use async_channel::{RecvError, SendError};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures_lite::{future::Boxed, ready, AsyncRead, AsyncWrite, FutureExt};
 use smol::net::UdpSocket;
+use std::{
+    fmt::Debug,
+    io::{ErrorKind, Read, Write},
+    net::{SocketAddr, SocketAddrV4},
+    pin::Pin,
+    task::{Poll, Waker},
+};
+use thiserror::Error;
 
 #[derive(Debug)]
 pub struct IoPkt {
@@ -21,6 +19,16 @@ pub struct IoPkt {
 }
 unsafe impl Send for IoPktChannel {}
 unsafe impl Sync for IoPktChannel {}
+
+#[derive(Error, Debug)]
+pub enum IoPktError {
+    #[error(transparent)]
+    CoulndtAddToSendQueue(#[from] SendError<IoPkt>),
+    #[error(transparent)]
+    CoulndtReceiveFromQueue(#[from] RecvError),
+    #[error("buffer too small want {0} have {1}")]
+    BufferTooSmall(usize, usize),
+}
 
 pub struct IoPktChannel {
     rx: smol::channel::Receiver<IoPkt>,
@@ -197,13 +205,13 @@ impl IoPktChannel {
         }
     }
 
-    fn get_rx_channel(&self) -> anyhow::Result<smol::channel::Receiver<IoPkt>> {
+    fn get_rx_channel(&self) -> Result<smol::channel::Receiver<IoPkt>, IoPktError> {
         Ok(self.rx.clone())
     }
-    fn get_tx_channel(&self) -> anyhow::Result<smol::channel::Sender<IoPkt>> {
+    fn get_tx_channel(&self) -> Result<smol::channel::Sender<IoPkt>, IoPktError> {
         Ok(self.transport_tx.clone())
     }
-    async fn send_pkt(&self, pkt: IoPkt) -> anyhow::Result<()> {
+    async fn send_pkt(&self, pkt: IoPkt) -> Result<(), IoPktError> {
         if self.tx.is_full() {
             log::error!("packet was dropped");
             return Ok(());
@@ -211,35 +219,32 @@ impl IoPktChannel {
         self.tx
             .send(pkt)
             .await
-            .map_err(|e| anyhow::anyhow!("error sending a pkt to a lower pipeline {:?}", e))
+            .map_err(IoPktError::CoulndtAddToSendQueue)
     }
-    pub async fn send_to(&self, payload: Bytes, to: SocketAddrV4) -> anyhow::Result<usize> {
+    pub async fn send_to(&self, payload: Bytes, to: SocketAddrV4) -> Result<usize, IoPktError> {
         let len = payload.len();
         match self.transport_tx.send(IoPkt { addr: to, payload }).await {
             Ok(_) => Ok(len),
-            Err(e) => {
-                bail!("failed to write IoPkt {:?}", e)
-            }
+            Err(e) => Err(IoPktError::CoulndtAddToSendQueue(e)),
         }
     }
-    pub async fn recv_from(&self, data: &mut BytesMut) -> anyhow::Result<(usize, SocketAddrV4)> {
+    pub async fn recv_from(
+        &self,
+        data: &mut BytesMut,
+    ) -> Result<(usize, SocketAddrV4), IoPktError> {
         match self.rx.recv().await {
             Ok(payload) => {
                 if payload.payload.len() > data.remaining_mut() {
-                    bail!(
-                        "buffer not big enough expected {:?} had {:?} discarding packet",
+                    return Err(IoPktError::BufferTooSmall(
                         payload.payload.len(),
-                        data.remaining_mut()
-                    )
-                } else {
-                    let len = payload.payload.len();
-                    data.put(payload.payload);
-                    Ok((len, payload.addr))
+                        data.remaining_mut(),
+                    ));
                 }
+                let len = payload.payload.len();
+                data.put(payload.payload);
+                Ok((len, payload.addr))
             }
-            Err(e) => {
-                bail!("unable to received packet on this channel bailling {:?}", e);
-            }
+            Err(e) => Err(IoPktError::CoulndtReceiveFromQueue(e)),
         }
     }
 }
@@ -279,10 +284,10 @@ impl WebRtcTransport {
         }
     }
 
-    pub fn get_stun_channel(&self) -> anyhow::Result<IoPktChannel> {
+    pub fn get_stun_channel(&self) -> Result<IoPktChannel, IoPktError> {
         Ok(self.stun.clone())
     }
-    pub fn get_dtls_channel(&self) -> anyhow::Result<IoPktChannel> {
+    pub fn get_dtls_channel(&self) -> Result<IoPktChannel, IoPktError> {
         Ok(self.dtls.clone())
     }
     pub async fn read_loop(&self) {

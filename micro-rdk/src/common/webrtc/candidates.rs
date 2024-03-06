@@ -6,6 +6,19 @@ use std::{
 };
 
 use stun_codec::TransactionId;
+use thiserror::Error;
+
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum CandidateError {
+    #[error("cannot parse candidate")]
+    CannotParseCandidate,
+    #[error("not UDP based")]
+    NotUDPCandidate,
+    #[error("unsupported candidate type")]
+    UnsupportedType,
+    #[error("cannot form candidate pair")]
+    CannotFormCandidatePair,
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CandidateType {
@@ -192,39 +205,51 @@ impl Display for Candidate {
 
 /// Attempt to create a candidate from a string received via signaling
 impl TryFrom<String> for Candidate {
-    type Error = anyhow::Error;
-    fn try_from(value: String) -> anyhow::Result<Self> {
+    type Error = CandidateError;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
         let split = value.split_whitespace().collect::<Vec<&str>>();
         if split.len() < 8 {
-            return Err(anyhow::anyhow!("unexpected candidate string {:?}", split));
+            return Err(CandidateError::CannotParseCandidate);
         }
 
         let fondation = split[0].to_owned();
 
-        let component = split[1].parse::<u16>()?;
+        let component = split[1]
+            .parse::<u16>()
+            .map_err(|_| CandidateError::CannotParseCandidate)?;
 
         // we reject candidate that are not over UDP
         if split[2] != "UDP" && split[2] != "udp" {
-            return Err(anyhow::anyhow!(
-                "only support UDP candidate have {:?}",
-                split[2]
-            ));
+            return Err(CandidateError::NotUDPCandidate);
         }
 
-        let priority = split[3].parse::<u32>()?;
+        let priority = split[3]
+            .parse::<u32>()
+            .map_err(|_| CandidateError::CannotParseCandidate)?;
 
         let address = split[4].to_owned();
 
         // if the candidate we receive is Ipv6 mDNS we reject it
         // mDNS candidate will be discovered as peer reflexive during connectivity check
-        let address = address.parse::<Ipv4Addr>()?;
+        let address = address
+            .parse::<Ipv4Addr>()
+            .map_err(|_| CandidateError::CannotParseCandidate)?;
 
-        let port = split[5].parse::<u16>()?;
+        let port = split[5]
+            .parse::<u16>()
+            .map_err(|_| CandidateError::CannotParseCandidate)?;
 
         let typ = split[7];
 
         let (raddr, rport) = if split.len() == 12 {
-            (Some(split[9].to_owned()), Some(split[11].parse::<u16>()?))
+            (
+                Some(split[9].to_owned()),
+                Some(
+                    split[11]
+                        .parse::<u16>()
+                        .map_err(|_| CandidateError::CannotParseCandidate)?,
+                ),
+            )
         } else {
             (None, None)
         };
@@ -269,7 +294,7 @@ impl TryFrom<String> for Candidate {
                 candidate_type: CandidateType::Relay,
                 network_type: NetworkType::UDP,
             }),
-            _ => Err(anyhow::anyhow!("unspported typ")),
+            _ => Err(CandidateError::UnsupportedType),
         }
     }
 }
@@ -320,14 +345,10 @@ impl CandidatePair {
         remote: &Candidate,
         local_idx: usize,
         remote_idx: usize,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self, CandidateError> {
         // Only support ipv4 & udp so just need to check component id is correct
         if local.component() != remote.component() {
-            return Err(anyhow::anyhow!(
-                "remote & local have different component ID cannot form a pair ({} != {})",
-                local.component(),
-                remote.component()
-            ));
+            return Err(CandidateError::CannotFormCandidatePair);
         }
         // Remote is always the controlling agent
         // 5.7.2.  Computing Pair Priority and Ordering Pairs
@@ -368,11 +389,10 @@ impl CandidatePair {
                     // Retry while pair is InProgress, Ta is set a 500ms.
                     if now - req.req_time < Duration::from_millis(250) {
                         return None;
-                    } else {
-                        self.binding_req_sent += 1;
-                        req.req_time = now;
-                        return Some(req.id);
                     }
+                    self.binding_req_sent += 1;
+                    req.req_time = now;
+                    return Some(req.id);
                 }
             }
         }

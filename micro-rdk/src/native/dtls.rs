@@ -17,7 +17,7 @@ use openssl::ssl::{
 };
 
 use crate::common::webrtc::certificate::Certificate;
-use crate::common::webrtc::dtls::{DtlsBuilder, DtlsConnector};
+use crate::common::webrtc::dtls::{DtlsBuilder, DtlsConnector, DtlsError};
 use crate::common::webrtc::io::IoPktChannel;
 
 fn dtls_log_session_key(_: &SslRef, line: &str) {
@@ -64,25 +64,34 @@ pub fn unix_time() -> i64 {
 }
 
 impl Dtls {
-    pub fn new<S: Certificate>(cert: Rc<S>) -> anyhow::Result<Self> {
-        let mut ssl_ctx_builder = SslContextBuilder::new(SslMethod::dtls())?;
+    pub fn new<S: Certificate>(cert: Rc<S>) -> Result<Self, DtlsError> {
+        let mut ssl_ctx_builder = SslContextBuilder::new(SslMethod::dtls())
+            .map_err(|e| DtlsError::DtlsError(Box::new(e)))?;
         let mut verify = SslVerifyMode::empty();
         verify.insert(SslVerifyMode::PEER);
         verify.insert(SslVerifyMode::FAIL_IF_NO_PEER_CERT);
 
-        ssl_ctx_builder.set_tlsext_use_srtp("SRTP_AES128_CM_SHA1_80")?;
+        ssl_ctx_builder
+            .set_tlsext_use_srtp("SRTP_AES128_CM_SHA1_80")
+            .map_err(|e| DtlsError::DtlsError(Box::new(e)))?;
 
         ssl_ctx_builder.set_verify_callback(verify, |_ok, _ctx| true);
         ssl_ctx_builder.set_keylog_callback(dtls_log_session_key);
 
-        let x509 = openssl::x509::X509::from_der(cert.get_der_certificate())?;
+        let x509 = openssl::x509::X509::from_der(cert.get_der_certificate())
+            .map_err(|e| DtlsError::DtlsError(Box::new(e)))?;
 
-        let pkey = PKey::private_key_from_der(cert.get_der_keypair())?;
-        ssl_ctx_builder.set_private_key(&pkey)?;
+        let pkey = PKey::private_key_from_der(cert.get_der_keypair())
+            .map_err(|e| DtlsError::DtlsError(Box::new(e)))?;
+        ssl_ctx_builder
+            .set_private_key(&pkey)
+            .map_err(|e| DtlsError::DtlsError(Box::new(e)))?;
 
         let cert0 = x509;
 
-        ssl_ctx_builder.set_certificate(&cert0)?;
+        ssl_ctx_builder
+            .set_certificate(&cert0)
+            .map_err(|e| DtlsError::DtlsError(Box::new(e)))?;
 
         let mut dtls_options = SslOptions::empty();
         dtls_options.insert(SslOptions::SINGLE_ECDH_USE);
@@ -127,7 +136,7 @@ impl DtlsConnector for Dtls {
 
 impl<C: Certificate> DtlsBuilder for NativeDtls<C> {
     type Output = Dtls;
-    fn make(&self) -> anyhow::Result<Self::Output> {
+    fn make(&self) -> Result<Self::Output, DtlsError> {
         Dtls::new(self.cert.clone())
     }
 }
