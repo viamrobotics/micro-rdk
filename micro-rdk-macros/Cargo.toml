@@ -15,14 +15,14 @@ version.workspace = true
 proc-macro = true
 
 [dependencies]
-proc-macro-crate = "2.0.0"
-proc-macro2 = "1.0.67"
-quote = "1.0.33"
-syn = "1.0.109"
+proc-macro-crate.workspace = true
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true
 
 [dev-dependencies]
-anyhow = { version = "1", features = ["backtrace"] }
-micro-rdk = { path = "../micro-rdk", features = ["native"] }
+anyhow = { workspace = true, features = ["backtrace"] }
+micro-rdk = { workspace = true, features = ["native"] }
 
 [[test]]
 name = "do-command-tests"
