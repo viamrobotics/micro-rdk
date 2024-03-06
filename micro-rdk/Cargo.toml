@@ -28,49 +28,49 @@ env_logger.workspace = true
 anyhow = { workspace = true, features = ["backtrace"] }
 async-channel.workspace = true
 async-io.workspace = true
+async-std-openssl = { workspace = true, optional = true }
+base64.workspace = true
+bitfield.workspace = true
+bytecodec.workspace = true
 bytes.workspace = true
+chrono.workspace = true
 either.workspace = true
 embedded-hal = { workspace = true, optional = true }
 embedded-svc = { workspace = true, optional = true }
 esp-idf-svc = { workspace = true, optional = true }
-futures.workspace = true
 futures-lite.workspace = true
+futures.workspace = true
 h2.workspace = true
 hyper.workspace = true
+ignore.workspace = true
 lazy_static.workspace = true
 local-ip-address = { workspace = true, optional = true }
 log.workspace = true
 mdns-sd = { workspace = true, optional = true }
+micro-rdk-macros.workspace = true
+once_cell.workspace = true
+openssl = { workspace = true, optional = true }
+pin-project-lite.workspace = true
 prost.workspace = true
-rustls = { workspace = true, optional = true }
-rustls-pemfile = { workspace = true, optional = true }
-sctp-proto.workspace = true
-smol.workspace = true
-smol-timeout.workspace = true
-sdp.workspace = true
-socket2.workspace = true
-tokio.workspace = true
-webpki-roots = { workspace = true, optional = true }
-base64.workspace = true
-serde.workspace = true
-serde_json.workspace = true
 rand.workspace = true
 rcgen = { workspace = true, optional = true }
-sha2.workspace = true
-stun_codec.workspace = true
-bytecodec.workspace = true
-trackable.workspace = true
-openssl = { workspace = true, optional = true }
-async-std-openssl = { workspace = true, optional = true }
-thiserror.workspace = true
-pin-project-lite.workspace = true
-url.workspace = true
-once_cell.workspace = true
-chrono.workspace = true
-micro-rdk-macros.workspace = true
-ignore.workspace = true
-bitfield.workspace = true
+rustls = { workspace = true, optional = true }
+rustls-pemfile = { workspace = true, optional = true }
 scopeguard.workspace = true
+sctp-proto.workspace = true
+sdp.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+smol-timeout.workspace = true
+smol.workspace = true
+socket2.workspace = true
+stun_codec.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+trackable.workspace = true
+url.workspace = true
+webpki-roots = { workspace = true, optional = true }
 
 [build-dependencies]
 anyhow.workspace = true

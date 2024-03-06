@@ -34,5 +34,5 @@ serde_json.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
-viam.workspace = true
 viam-rust-utils.workspace = true
+viam.workspace = true
