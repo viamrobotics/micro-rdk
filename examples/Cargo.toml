@@ -15,46 +15,44 @@ publish = false
 qemu = []
 
 [target.'cfg(not(target_os = "espidf"))'.dependencies]
-micro-rdk = { path = "../micro-rdk", features = ["native"], default-features = false }
-env_logger = "0.10.0"
-local-ip-address = { version = "0.4.9" }
-log = "0.4"
-anyhow = { version = "1", features = ["backtrace"] }
+env_logger.workspace = true
+local-ip-address.workspace = true
+micro-rdk = { workspace = true, features = ["native"], default-features = false }
 
 
 [target.'cfg(target_os="espidf")'.dependencies]
-anyhow = {version = "1", features = ["backtrace"]}
-embedded-svc = "0.26.4"
-embedded-hal = { version = "0.2.7", features = ["unproven"]}
-micro-rdk = { path = "../micro-rdk", default-features = false, features = ["esp32"] }
-log = "0.4"
-async-channel = "1.8.0"
-smol = "1.2"
-futures-lite = "1.12.0"
-reqwless = "0.5.0"
+async-channel.workspace = true
+embedded-hal.workspace = true
+embedded-svc.workspace = true
+futures-lite.workspace = true
+micro-rdk = { workspace = true, features = ["esp32"] }
+reqwless.workspace = true
+smol.workspace = true
 
 
 [dependencies]
-serde = "1.0.145"
-serde_json = "1.0.97"
-thiserror = "1.0.47"
+anyhow = { workspace = true, features = ["backtrace"] }
+log.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
 
 
 [build-dependencies]
-anyhow = "1"
-const-gen = "1.3.0"
-embuild = "0.31.3"
-gethostname = "0.4.1"
-local-ip-address = "0.4.9"
-prost-types = "0.11.1"
-serde = { version="1.0.145",features=["derive"] }
-serde_json = "1.0.86"
-tokio = { version = "1", features = ["full"] }
-viam = { version = ">=0.0.17", git = "https://github.com/viamrobotics/viam-rust-sdk.git" }
-viam-rust-utils = ">=0.0.25"
-rcgen = { version =  "0.10.0" }
-ring = "0.16"
-der = {version = "0.7.7", features = ["pem", "alloc","zeroize"] }
+anyhow.workspace = true
+const-gen.workspace = true
+der.workspace = true
+embuild.workspace = true
+gethostname.workspace = true
+local-ip-address.workspace = true
+prost-types.workspace = true
+rcgen.workspace = true
+ring.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["full"] }
+viam-rust-utils.workspace = true
+viam.workspace = true
 
 [[bin]]
 name = "native-server"

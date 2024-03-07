@@ -13,26 +13,26 @@ version.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.71"
-clap = { version = "=4.3.23", features = ["derive"] }
-crc32fast = "1.3.2"
-der = {version = "0.7.7", features = ["pem", "alloc","zeroize"] }
-dialoguer = "0.10.4"
-env_logger = "0.10.1"
-espflash = { git = "https://github.com/viamrobotics/espflash.git", branch = "monitor_changes" }
-gethostname = "0.4.3"
-local-ip-address = "0.5.3"
-log = "0.4.20"
-md5 = "0.7.0"
-packed_struct = "0.10.1"
-rcgen = "0.11.1"
-reqwest = "0.11.20"
-ring = "0.16.20"
-secrecy = { version = "0.8.0", features = ["serde"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-tempfile = "3.8.0"
-thiserror = "1.0.46"
-tokio = "1.29.1"
-viam = { version = ">=0.0.7", git = "https://github.com/viamrobotics/viam-rust-sdk.git" }
-viam-rust-utils = "0.1.2"
+anyhow = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+crc32fast.workspace = true
+der.workspace = true
+dialoguer.workspace = true
+env_logger.workspace = true
+espflash.workspace = true
+gethostname.workspace = true
+local-ip-address.workspace = true
+log.workspace = true
+md5.workspace = true
+packed_struct.workspace = true
+rcgen.workspace = true
+reqwest.workspace = true
+ring.workspace = true
+secrecy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+viam-rust-utils.workspace = true
+viam.workspace = true
