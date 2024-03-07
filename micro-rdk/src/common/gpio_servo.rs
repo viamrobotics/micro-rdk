@@ -208,7 +208,11 @@ where
         Ok(self.board.get_pwm_duty(self.pin) != 0.0)
     }
     fn stop(&mut self) -> anyhow::Result<()> {
-        self.board.set_pwm_duty(self.pin, 0.0)
+        // TODO
+        if self.board.set_pwm_duty(self.pin, 0.0).is_err() {
+            anyhow::bail!("todo fix")
+        }
+        Ok(())
     }
 }
 

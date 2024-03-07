@@ -556,7 +556,7 @@ where
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let value = board
             .get_digital_interrupt_value(interrupt_pin)
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?
             .into();
         let resp = component::board::v1::GetDigitalInterruptValueResponse { value };
         self.encode_message(resp)
@@ -573,7 +573,7 @@ where
             .lock()
             .unwrap()
             .get_board_status()
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let status = component::board::v1::StatusResponse {
             status: Some(status),
         };
@@ -609,7 +609,7 @@ where
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let frequency_hz = board
             .get_pwm_frequency(pin)
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::board::v1::PwmFrequencyResponse { frequency_hz };
         self.encode_message(resp)
     }
@@ -623,12 +623,12 @@ where
         };
         let reader = board
             .get_analog_reader_by_name(req.analog_reader_name)
-            .map_err(|err| ServerError::new(GrpcError::RpcUnavailable, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcUnavailable, Some(err.into())))?;
         let resp = component::board::v1::ReadAnalogReaderResponse {
             value: reader
                 .borrow_mut()
                 .read()
-                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?
+                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?
                 as i32,
         };
         self.encode_message(resp)
@@ -648,7 +648,7 @@ where
             .lock()
             .unwrap()
             .set_gpio_pin_level(pin, is_high)
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::board::v1::SetGpioResponse {};
         self.encode_message(resp)
     }
@@ -710,7 +710,7 @@ where
             .lock()
             .unwrap()
             .set_power_mode(pm, dur)
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
 
         let resp = component::board::v1::SetPowerModeResponse {};
         self.encode_message(resp)
@@ -729,7 +729,7 @@ where
             .lock()
             .unwrap()
             .get_gpio_level(pin)
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::board::v1::GetGpioResponse { high: level };
         self.encode_message(resp)
     }

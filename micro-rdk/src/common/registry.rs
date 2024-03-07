@@ -3,9 +3,17 @@ use std::collections::HashMap as Map;
 use thiserror::Error;
 
 use super::{
-    base::BaseType, board::BoardType, config::ConfigType, encoder::EncoderType,
-    generic::GenericComponentType, motor::MotorType, movement_sensor::MovementSensorType,
-    power_sensor::PowerSensorType, robot::Resource, sensor::SensorType, servo::ServoType,
+    base::BaseType,
+    board::{BoardError, BoardType},
+    config::ConfigType,
+    encoder::EncoderType,
+    generic::GenericComponentType,
+    motor::MotorType,
+    movement_sensor::MovementSensorType,
+    power_sensor::PowerSensorType,
+    robot::Resource,
+    sensor::SensorType,
+    servo::ServoType,
 };
 use crate::proto::common::v1::ResourceName;
 
@@ -83,7 +91,7 @@ impl TryFrom<ResourceName> for ResourceKey {
 pub struct Dependency(pub ResourceKey, pub Resource);
 
 /// Fn that returns a `BoardType`, `Arc<Mutex<dyn Board>>`
-type BoardConstructor = dyn Fn(ConfigType) -> anyhow::Result<BoardType>;
+type BoardConstructor = dyn Fn(ConfigType) -> Result<BoardType, BoardError>;
 
 /// Fn that returns a `MotorType`, `Arc<Mutex<dyn Motor>>`
 type MotorConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<MotorType>;
