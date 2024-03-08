@@ -6,6 +6,13 @@ ESPFLASHVERSION := $(shell [ $(ESPFLASHVERSION_MAJ) -gt 1 -a $(ESPFLASHVERSION_M
 DATE := $(shell date +%F)
 IMAGE_BASE = ghcr.io/viamrobotics/micro-rdk-dev-env
 
+default: build-esp32-bin
+
+clean:
+	cargo clean
+
+all: clean build-esp32-bin build-native build-esp32-with-cred-bin
+
 buf-clean:
 	find src/gen -type f \( -iname "*.rs" \) -delete
 

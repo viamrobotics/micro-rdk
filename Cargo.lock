@@ -2272,11 +2272,11 @@ dependencies = [
  "env_logger 0.10.2",
  "futures-lite 1.13.0",
  "gethostname",
- "local-ip-address 0.4.9",
+ "local-ip-address",
  "log",
  "micro-rdk",
  "prost-types 0.11.9",
- "rcgen 0.10.0",
+ "rcgen 0.11.3",
  "reqwless",
  "ring 0.16.20",
  "serde",
@@ -3208,24 +3208,12 @@ checksum = "01cda141df6706de531b6c46c3a33ecca755538219bd484262fa09410c13539c"
 
 [[package]]
 name = "local-ip-address"
-version = "0.4.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9eab7f092fb08006040e656c2adce6670e6a516bea831a8b2b3d0fb24d4488f5"
-dependencies = [
- "libc",
- "neli 0.5.3",
- "thiserror",
- "windows-sys 0.42.0",
-]
-
-[[package]]
-name = "local-ip-address"
 version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "612ed4ea9ce5acfb5d26339302528a5e1e59dfed95e9e11af3c083236ff1d15d"
 dependencies = [
  "libc",
- "neli 0.6.4",
+ "neli",
  "thiserror",
  "windows-sys 0.48.0",
 ]
@@ -3396,7 +3384,7 @@ dependencies = [
  "hyper",
  "ignore",
  "lazy_static",
- "local-ip-address 0.4.9",
+ "local-ip-address",
  "log",
  "mdns-sd",
  "micro-rdk-macros",
@@ -3405,7 +3393,7 @@ dependencies = [
  "pin-project-lite 0.2.13",
  "prost 0.11.9",
  "rand",
- "rcgen 0.10.0",
+ "rcgen 0.11.3",
  "rustls 0.20.9",
  "rustls-pemfile",
  "scopeguard",
@@ -3438,7 +3426,7 @@ dependencies = [
  "env_logger 0.10.2",
  "espflash",
  "gethostname",
- "local-ip-address 0.5.7",
+ "local-ip-address",
  "log",
  "md5",
  "packed_struct",
@@ -3597,16 +3585,6 @@ name = "nb"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d5439c4ad607c3c23abf66de8c8bf57ba8adcd1f129e699851a6e43935d339d"
-
-[[package]]
-name = "neli"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9053554eb5dcb7e10d9cdab1206965bde870eed5d0d341532ca035e3ba221508"
-dependencies = [
- "byteorder",
- "libc",
-]
 
 [[package]]
 name = "neli"
@@ -6318,7 +6296,7 @@ dependencies = [
  "hyper",
  "interceptor",
  "libc",
- "local-ip-address 0.5.7",
+ "local-ip-address",
  "log",
  "log4rs",
  "nalgebra",
