@@ -100,7 +100,7 @@ pub async fn serve_web_inner(
         exec.clone(),
     ));
 
-    let mut srv = ViamServerBuilder::new(mdns, cloned_exec, client_connector, app_config)
+    let mut srv = ViamServerBuilder::new(mdns, cloned_exec, client_connector, app_config, 3)
         .with_http2(tls_listener, 12346)
         .with_webrtc(webrtc)
         .build(&cfg_response)

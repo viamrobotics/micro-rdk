@@ -77,10 +77,12 @@ mod esp32 {
             (ip, eth)
         };
 
+        let mut max_connection = 3;
         unsafe {
             if !g_spiram_ok {
                 log::info!("spiram not initialized disabling cache feature of the wifi driver");
                 g_wifi_feature_caps &= !(CONFIG_FEATURE_CACHE_TX_BUF_BIT as u64);
+                max_connection = 1;
             }
         }
         #[allow(clippy::redundant_clone)]
@@ -108,7 +110,7 @@ mod esp32 {
             Esp32TlsServerConfig::new(cert, key.as_ptr(), key.len() as u32)
         };
 
-        serve_web(cfg, tls_cfg, repr, ip, webrtc_certificate);
+        serve_web(cfg, tls_cfg, repr, ip, webrtc_certificate, max_connection);
     }
 
     #[cfg(feature = "qemu")]

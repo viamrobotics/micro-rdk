@@ -479,7 +479,7 @@ where
 
     pub async fn answer(
         &mut self,
-        current_prio: &Option<u32>,
+        current_prio: u32,
     ) -> Result<(Box<WebRtcSdp>, u32), WebRtcError> {
         let offer = self
             .signaling
@@ -501,8 +501,6 @@ where
             .flatten()
             .map_or(Ok(u32::MAX), |a| a.parse::<u32>())
             .unwrap_or(u32::MAX);
-
-        let current_prio = current_prio.unwrap_or(0);
 
         // TODO use is_some_then when rust min version reach 1.70
         if current_prio >= caller_prio {

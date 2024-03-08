@@ -41,6 +41,7 @@ pub async fn serve_web_inner(
     _ip: Ipv4Addr,
     webrtc_certificate: WebRtcCertificate,
     exec: Esp32Executor<'_>,
+    max_webrtc_connection: usize,
 ) {
     let (mut srv, robot) = {
         let mut client_connector = Esp32Tls::new_client();
@@ -131,10 +132,16 @@ pub async fn serve_web_inner(
 
         (
             Box::new(
-                ViamServerBuilder::new(mdns, cloned_exec, client_connector, app_config)
-                    .with_webrtc(webrtc)
-                    .build(&cfg_response)
-                    .unwrap(),
+                ViamServerBuilder::new(
+                    mdns,
+                    cloned_exec,
+                    client_connector,
+                    app_config,
+                    max_webrtc_connection,
+                )
+                .with_webrtc(webrtc)
+                .build(&cfg_response)
+                .unwrap(),
             ),
             robot,
         )
@@ -155,6 +162,7 @@ pub fn serve_web(
     repr: RobotRepresentation,
     _ip: Ipv4Addr,
     webrtc_certificate: WebRtcCertificate,
+    max_webrtc_connection: usize,
 ) {
     // set the TWDT to expire after 5 minutes
     crate::esp32::esp_idf_svc::sys::esp!(unsafe {
@@ -180,6 +188,7 @@ pub fn serve_web(
         _ip,
         webrtc_certificate,
         exec,
+        max_webrtc_connection,
     )));
     futures_lite::pin!(fut);
 
