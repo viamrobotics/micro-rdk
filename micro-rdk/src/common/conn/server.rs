@@ -579,15 +579,6 @@ impl WebRTCTask {
         }
         true
     }
-    // fn last_error(&mut self) -> Option<ServerError> {
-    //     if !self.is_finished() {
-    //         return None;
-    //     }
-    //     if let Some(task) = self.task.take() {
-    //         return task.cancel().err();
-    //     }
-    //     None
-    // }
     async fn cancel(&mut self) -> Option<ServerError> {
         if let Some(task) = self.task.take() {
             return task.cancel().await?.err();
