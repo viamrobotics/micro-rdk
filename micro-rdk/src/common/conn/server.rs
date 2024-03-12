@@ -97,6 +97,7 @@ pub struct ViamServerBuilder<'a, M, C, T, CC = WebRtcNoOp, D = WebRtcNoOp, L = N
     exec: Executor<'a>,
     app_connector: C,
     app_config: AppClientConfig,
+    max_connections: usize,
 }
 
 impl<'a, M, C, T> ViamServerBuilder<'a, M, C, T>
@@ -105,7 +106,13 @@ where
     C: TlsClientConnector,
     T: AsyncRead + AsyncWrite + Unpin + 'static,
 {
-    pub fn new(mdns: M, exec: Executor<'a>, app_connector: C, app_config: AppClientConfig) -> Self {
+    pub fn new(
+        mdns: M,
+        exec: Executor<'a>,
+        app_connector: C,
+        app_config: AppClientConfig,
+        max_connections: usize,
+    ) -> Self {
         Self {
             mdns,
             http2_listener: NoHttp2 {},
@@ -115,6 +122,7 @@ where
             exec,
             app_connector,
             app_config,
+            max_connections,
         }
     }
 }
@@ -144,6 +152,7 @@ where
             webrtc: self.webrtc,
             app_connector: self.app_connector,
             app_config: self.app_config,
+            max_connections: self.max_connections,
         }
     }
     pub fn with_webrtc<D2, CC2>(
@@ -159,6 +168,7 @@ where
             exec: self.exec,
             app_connector: self.app_connector,
             app_config: self.app_config,
+            max_connections: self.max_connections,
         }
     }
     pub fn build(
@@ -207,6 +217,7 @@ where
             cloned_exec,
             self.app_connector,
             self.app_config,
+            self.max_connections,
         );
 
         Ok(srv)
@@ -266,7 +277,7 @@ pub struct ViamServer<'a, C, T, CC, D, L> {
     app_connector: C,
     app_config: AppClientConfig,
     app_client: Option<AppClient<'a>>,
-    webtrc_conn: Option<Task<Result<(), ServerError>>>,
+    webrtc_manager: WebRTCConnectionManager,
 }
 impl<'a, C, T, CC, D, L> ViamServer<'a, C, T, CC, D, L>
 where
@@ -284,6 +295,7 @@ where
         exec: Executor<'a>,
         app_connector: C,
         app_config: AppClientConfig,
+        max_concurent_connections: usize,
     ) -> Self {
         Self {
             http_listener,
@@ -292,12 +304,11 @@ where
             app_connector,
             app_config,
             app_client: None,
-            webtrc_conn: None,
+            webrtc_manager: WebRTCConnectionManager::new(max_concurent_connections),
         }
     }
     pub async fn serve(&mut self, robot: Arc<Mutex<LocalRobot>>) {
         let cloned_robot = robot.clone();
-        let mut current_prio = None;
         loop {
             let _ = smol::Timer::after(std::time::Duration::from_millis(300)).await;
 
@@ -347,32 +358,19 @@ where
                 async {
                     let mut api = sig.await?;
 
-                    let prio = self
-                        .webtrc_conn
-                        .as_ref()
-                        .and_then(|f| (!f.is_finished()).then_some(&current_prio))
-                        .unwrap_or(&None);
+                    let prio = self.webrtc_manager.get_lowest_prio();
 
                     let sdp = api
                         .answer(prio)
                         .await
                         .map_err(ServerError::ServerWebRTCError)?;
 
-                    // When the current priority is lower than the priority of the incoming connection then
-                    // we cancel and close the current webrtc connection (if any)
-                    if let Some(task) = self.webtrc_conn.take() {
-                        if !task.is_finished() {
-                            let _ = task.cancel().await;
-                        }
-                    }
-
-                    let _ = current_prio.insert(sdp.1);
-
                     Ok(IncomingConnection::WebRtcConnection(WebRTCConnection {
                         webrtc_api: api,
                         sdp: sdp.0,
                         server: None,
                         robot: cloned_robot.clone(),
+                        prio: sdp.1,
                     }))
                 },
             );
@@ -384,7 +382,7 @@ where
             let connection = match connection {
                 Ok(c) => c,
                 Err(ServerError::ServerWebRTCError(_)) => {
-                    // all webrtc errors are arising from failing to connect and doesn't require a tls renegotiation
+                    // all webrtc errors are arising from failing to connect and don't require a tls renegotiation
                     continue;
                 }
                 Err(_) => {
@@ -400,8 +398,9 @@ where
                 IncomingConnection::WebRtcConnection(mut c) => match c.open_data_channel().await {
                     Err(e) => Err(e),
                     Ok(_) => {
+                        let prio = c.prio;
                         let t = self.exec.spawn(async move { c.run().await });
-                        let _task = self.webtrc_conn.insert(t);
+                        self.webrtc_manager.insert_new_conn(t, prio).await;
                         Ok(())
                     }
                 },
@@ -462,6 +461,7 @@ struct WebRTCConnection<C, D, E> {
     sdp: Box<WebRtcSdp>,
     server: Option<WebRtcGrpcServer<GrpcServer<WebRtcGrpcBody>>>,
     robot: Arc<Mutex<LocalRobot>>,
+    prio: u32,
 }
 impl<C, D, E> WebRTCConnection<C, D, E>
 where
@@ -559,5 +559,68 @@ where
             *this.ip,
             this.webrtc_config.as_ref().unwrap().dtls.make().unwrap(),
         )))
+    }
+}
+
+#[derive(Default)]
+struct WebRTCTask {
+    task: Option<Task<Result<(), ServerError>>>,
+    prio: Option<u32>,
+}
+
+impl WebRTCTask {
+    fn replace(&mut self, task: Task<Result<(), ServerError>>, prio: u32) {
+        let _ = self.task.replace(task);
+        let _ = self.prio.replace(prio);
+    }
+    fn is_finished(&self) -> bool {
+        if let Some(task) = self.task.as_ref() {
+            return task.is_finished();
+        }
+        true
+    }
+    async fn cancel(&mut self) -> Option<ServerError> {
+        if let Some(task) = self.task.take() {
+            return task.cancel().await?.err();
+        }
+        None
+    }
+    fn get_prio(&self) -> u32 {
+        if !self.is_finished() {
+            return *self.prio.as_ref().unwrap_or(&0);
+        }
+        0
+    }
+}
+
+struct WebRTCConnectionManager {
+    connections: Vec<WebRTCTask>,
+}
+
+impl WebRTCConnectionManager {
+    fn new(size: usize) -> Self {
+        let mut connections = Vec::with_capacity(size);
+        connections.resize_with(size, Default::default);
+        Self { connections }
+    }
+    // return the lowest priority of active webrtc tasks or 0
+    fn get_lowest_prio(&self) -> u32 {
+        self.connections
+            .iter()
+            .min_by(|a, b| a.get_prio().cmp(&b.get_prio()))
+            .map_or(0, |c| c.get_prio())
+    }
+    // function will never fail and the lowest priority will always be replaced
+    async fn insert_new_conn(&mut self, task: Task<Result<(), ServerError>>, prio: u32) {
+        if let Some(slot) = self
+            .connections
+            .iter_mut()
+            .min_by(|a, b| a.get_prio().cmp(&b.get_prio()))
+        {
+            if let Some(last_error) = slot.cancel().await {
+                log::info!("last_error {:?}", last_error);
+            }
+            slot.replace(task, prio);
+        }
     }
 }
