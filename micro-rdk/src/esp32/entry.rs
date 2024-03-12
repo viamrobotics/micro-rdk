@@ -25,13 +25,8 @@ use super::{
     exec::Esp32Executor,
     tcp::Esp32Stream,
     tls::{Esp32Tls, Esp32TlsServerConfig},
-    webhook::Webhook,
 };
 
-use crate::esp32::esp_idf_svc::http::client::{
-    Configuration as HttpConfiguration, EspHttpConnection,
-};
-use embedded_svc::http::client::Client as HttpClient;
 use futures_lite::Future;
 
 pub async fn serve_web_inner(
@@ -110,25 +105,6 @@ pub async fn serve_web_inner(
             dtls,
             exec.clone(),
         ));
-
-        let robot_cfg = cfg_response.as_ref().config.as_ref().unwrap();
-
-        if let Ok(webhook) = Webhook::from_robot_config(robot_cfg) {
-            if webhook.has_endpoint() {
-                // only make a client if a webhook url is present
-                let mut client = HttpClient::wrap(
-                    EspHttpConnection::new(&HttpConfiguration {
-                        crt_bundle_attach: Some(
-                            crate::esp32::esp_idf_svc::sys::esp_crt_bundle_attach,
-                        ),
-                        ..Default::default()
-                    })
-                    .unwrap(),
-                );
-
-                let _ = webhook.send(&mut client);
-            }
-        }
 
         (
             Box::new(

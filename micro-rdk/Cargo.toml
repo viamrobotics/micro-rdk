@@ -69,7 +69,6 @@ stun_codec.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 trackable.workspace = true
-url.workspace = true
 webpki-roots = { workspace = true, optional = true }
 
 [build-dependencies]

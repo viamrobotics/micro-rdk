@@ -105,7 +105,6 @@ test-log = "0.2.11"
 thiserror = "1.0.47"
 tokio = { version = "1.29.1", default-features = false }
 trackable = "1.2.0"
-url = "2.4.0"
 viam = { version = ">=0.0.17", git = "https://github.com/viamrobotics/viam-rust-sdk.git" }
 viam-rust-utils = "0.1.2"
 webpki-roots = "0.22.6"

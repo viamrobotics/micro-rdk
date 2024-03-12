@@ -3410,7 +3410,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "trackable 1.3.0",
- "url",
  "webpki-roots 0.22.6",
 ]
 

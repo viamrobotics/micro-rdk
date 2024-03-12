@@ -20,7 +20,6 @@ pub mod single_encoder;
 pub mod tcp;
 pub mod tls;
 pub mod utils;
-pub mod webhook;
 pub mod conn {
     pub mod mdns;
 }
