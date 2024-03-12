@@ -7,17 +7,41 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use super::actuator::Actuator;
+use super::actuator::{Actuator, ActuatorError};
+use super::board::BoardError;
 use super::config::{AttributeError, ConfigType, Kind};
 use super::encoder::{
-    Encoder, EncoderPositionType, EncoderType, COMPONENT_NAME as EncoderCompName,
+    Encoder, EncoderError, EncoderPositionType, EncoderType, COMPONENT_NAME as EncoderCompName,
 };
 use super::generic::DoCommand;
-use super::math_utils::go_for_math;
+use super::math_utils::{go_for_math, UtilsInvalidArg};
 use super::registry::{ComponentRegistry, Dependency, ResourceKey};
 use super::robot::Resource;
+use thiserror::Error;
 
 pub static COMPONENT_NAME: &str = "motor";
+
+#[derive(Error, Debug)]
+pub enum MotorError {
+    #[error("invalid motor configuration")]
+    InvalidMotorConfig,
+    #[error(transparent)]
+    EncoderError(#[from] EncoderError),
+    #[error(transparent)]
+    BoardError(#[from] BoardError),
+    #[error("config error {0}")]
+    ConfigError(&'static str),
+    #[error("power must be between -1.0 and 1.0")]
+    PowerSetError,
+    #[error("missing encoder")]
+    MissingEncoder,
+    #[error(transparent)]
+    InvalidArgument(#[from] UtilsInvalidArg),
+    #[error(transparent)]
+    ActuatorError(#[from] ActuatorError),
+    #[error("unimplemented: {0}")]
+    MotorMethodUnimplemented(&'static str),
+}
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
@@ -60,16 +84,16 @@ pub trait Motor: Status + Actuator + DoCommand {
     /// Sets the percentage of the motor's total power that should be employed.
     /// expressed a value between `-1.0` and `1.0` where negative values indicate a backwards
     /// direction and positive values a forward direction.
-    fn set_power(&mut self, pct: f64) -> anyhow::Result<()>;
+    fn set_power(&mut self, pct: f64) -> Result<(), MotorError>;
     /// Reports the position of the robot's motor relative to its zero position.
     /// This method will return an error if position reporting is not supported.
-    fn get_position(&mut self) -> anyhow::Result<i32>;
+    fn get_position(&mut self) -> Result<i32, MotorError>;
     /// Instructs the motor to turn at a specified speed, which is expressed in RPM,
     /// for a specified number of rotations relative to its starting position.
     /// This method will return an error if position reporting is not supported.
     /// If revolutions is 0, this will run the motor at rpm indefinitely.
     /// If revolutions != 0, this will block until the number of revolutions has been completed or another operation comes in.
-    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>>;
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> Result<Option<Duration>, MotorError>;
     /// Returns an instance of MotorSupportedProperties indicating the optional properties
     /// supported by this motor
     fn get_properties(&mut self) -> MotorSupportedProperties;
@@ -93,14 +117,14 @@ pub struct MotorPinsConfig {
 }
 
 impl MotorPinsConfig {
-    pub fn detect_motor_type(&self) -> anyhow::Result<MotorPinType> {
+    pub fn detect_motor_type(&self) -> Result<MotorPinType, MotorError> {
         match self {
             x if (x.a.is_some() && x.b.is_some()) => match x.pwm {
                 Some(_) => Ok(MotorPinType::PwmAB),
                 None => Ok(MotorPinType::AB),
             },
             x if x.dir.is_some() => Ok(MotorPinType::PwmDirection),
-            _ => Err(anyhow::anyhow!("invalid pin parameters for motor")),
+            _ => Err(MotorError::InvalidMotorConfig),
         }
     }
 }
@@ -175,7 +199,10 @@ impl FakeMotor {
             max_rpm: 100.0,
         }
     }
-    pub(crate) fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<MotorType> {
+    pub(crate) fn from_config(
+        cfg: ConfigType,
+        _: Vec<Dependency>,
+    ) -> Result<MotorType, MotorError> {
         let mut motor = FakeMotor::default();
         if let Ok(pos) = cfg.get_attribute::<f64>("fake_position") {
             motor.pos = pos
@@ -196,13 +223,13 @@ impl<L> Motor for Mutex<L>
 where
     L: ?Sized + Motor,
 {
-    fn get_position(&mut self) -> anyhow::Result<i32> {
+    fn get_position(&mut self) -> Result<i32, MotorError> {
         self.get_mut().unwrap().get_position()
     }
-    fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
+    fn set_power(&mut self, pct: f64) -> Result<(), MotorError> {
         self.get_mut().unwrap().set_power(pct)
     }
-    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> Result<Option<Duration>, MotorError> {
         self.get_mut().unwrap().go_for(rpm, revolutions)
     }
     fn get_properties(&mut self) -> MotorSupportedProperties {
@@ -214,13 +241,13 @@ impl<A> Motor for Arc<Mutex<A>>
 where
     A: ?Sized + Motor,
 {
-    fn get_position(&mut self) -> anyhow::Result<i32> {
+    fn get_position(&mut self) -> Result<i32, MotorError> {
         self.lock().unwrap().get_position()
     }
-    fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
+    fn set_power(&mut self, pct: f64) -> Result<(), MotorError> {
         self.lock().unwrap().set_power(pct)
     }
-    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> Result<Option<Duration>, MotorError> {
         self.lock().unwrap().go_for(rpm, revolutions)
     }
     fn get_properties(&mut self) -> MotorSupportedProperties {
@@ -229,15 +256,15 @@ where
 }
 
 impl Motor for FakeMotor {
-    fn get_position(&mut self) -> anyhow::Result<i32> {
+    fn get_position(&mut self) -> Result<i32, MotorError> {
         Ok(self.pos as i32)
     }
-    fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
+    fn set_power(&mut self, pct: f64) -> Result<(), MotorError> {
         debug!("setting power to {}", pct);
         self.power = pct;
         Ok(())
     }
-    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> Result<Option<Duration>, MotorError> {
         // get_max_rpm
         let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions)?;
         self.set_power(pwr)?;
@@ -270,12 +297,11 @@ impl Status for FakeMotor {
 }
 
 impl Actuator for FakeMotor {
-    fn stop(&mut self) -> anyhow::Result<()> {
+    fn stop(&mut self) -> Result<(), ActuatorError> {
         debug!("stopping motor");
-        self.set_power(0.0)?;
-        Ok(())
+        self.set_power(0.0).map_err(|_| ActuatorError::CouldntStop)
     }
-    fn is_moving(&mut self) -> anyhow::Result<bool> {
+    fn is_moving(&mut self) -> Result<bool, ActuatorError> {
         Ok(self.power > 0.0)
     }
 }
@@ -304,7 +330,10 @@ impl FakeMotorWithDependency {
         r_keys
     }
 
-    pub(crate) fn from_config(_: ConfigType, deps: Vec<Dependency>) -> anyhow::Result<MotorType> {
+    pub(crate) fn from_config(
+        _: ConfigType,
+        deps: Vec<Dependency>,
+    ) -> Result<MotorType, MotorError> {
         let mut enc: Option<EncoderType> = None;
         for Dependency(_, dep) in deps {
             match dep {
@@ -322,19 +351,19 @@ impl FakeMotorWithDependency {
 }
 
 impl Motor for FakeMotorWithDependency {
-    fn get_position(&mut self) -> anyhow::Result<i32> {
+    fn get_position(&mut self) -> Result<i32, MotorError> {
         match &self.encoder {
             Some(enc) => Ok(enc.get_position(EncoderPositionType::DEGREES)?.value as i32),
             None => Ok(0),
         }
     }
-    fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
+    fn set_power(&mut self, pct: f64) -> Result<(), MotorError> {
         debug!("setting power to {}", pct);
         self.power = pct;
         Ok(())
     }
-    fn go_for(&mut self, _: f64, _: f64) -> anyhow::Result<Option<Duration>> {
-        anyhow::bail!("go_for unimplemented")
+    fn go_for(&mut self, _: f64, _: f64) -> Result<Option<Duration>, MotorError> {
+        Err(MotorError::MotorMethodUnimplemented("go_for"))
     }
     fn get_properties(&mut self) -> MotorSupportedProperties {
         MotorSupportedProperties {
@@ -351,11 +380,11 @@ impl Status for FakeMotorWithDependency {
 }
 
 impl Actuator for FakeMotorWithDependency {
-    fn stop(&mut self) -> anyhow::Result<()> {
+    fn stop(&mut self) -> Result<(), ActuatorError> {
         self.power = 0.0;
         Ok(())
     }
-    fn is_moving(&mut self) -> anyhow::Result<bool> {
+    fn is_moving(&mut self) -> Result<bool, ActuatorError> {
         Ok(self.power > 0.0)
     }
 }

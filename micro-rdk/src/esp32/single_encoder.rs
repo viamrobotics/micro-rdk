@@ -5,8 +5,8 @@ use super::pulse_counter::{get_unit, isr_install, isr_installed, isr_remove_unit
 
 use crate::common::config::{AttributeError, ConfigType};
 use crate::common::encoder::{
-    Direction, Encoder, EncoderPosition, EncoderPositionType, EncoderSupportedRepresentations,
-    EncoderType, SingleEncoder,
+    Direction, Encoder, EncoderError, EncoderPosition, EncoderPositionType,
+    EncoderSupportedRepresentations, EncoderType, SingleEncoder,
 };
 use crate::common::registry::{ComponentRegistry, Dependency};
 use crate::google;
@@ -19,7 +19,7 @@ use crate::esp32::esp_idf_svc::sys::pcnt_channel_t_PCNT_CHANNEL_0 as pcnt_channe
 use crate::esp32::esp_idf_svc::sys::pcnt_config_t;
 use crate::esp32::esp_idf_svc::sys::pcnt_evt_type_t_PCNT_EVT_H_LIM as pcnt_evt_h_lim;
 use crate::esp32::esp_idf_svc::sys::pcnt_evt_type_t_PCNT_EVT_L_LIM as pcnt_evt_l_lim;
-use crate::esp32::esp_idf_svc::sys::{esp, EspError, ESP_OK};
+use crate::esp32::esp_idf_svc::sys::{esp, ESP_OK};
 use core::ffi::{c_short, c_ulong};
 
 use std::collections::HashMap;
@@ -58,8 +58,8 @@ pub struct Esp32SingleEncoder {
 }
 
 impl Esp32SingleEncoder {
-    pub fn new(encoder_pin: impl InputPin + PinExt, dir_flip: bool) -> anyhow::Result<Self> {
-        let unit = get_unit()?;
+    pub fn new(encoder_pin: impl InputPin + PinExt, dir_flip: bool) -> Result<Self, EncoderError> {
+        let unit = get_unit();
         log::debug!("pulse counter unit received in single encoder: {:?}", unit);
         let pcnt = Box::new(PulseStorage {
             acc: Arc::new(AtomicI32::new(0)),
@@ -90,67 +90,58 @@ impl Esp32SingleEncoder {
         Ok(enc)
     }
 
-    pub(crate) fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<EncoderType> {
-        let pin_num = cfg.get_attribute::<i32>("pin").map_err(|err| {
-            anyhow::anyhow!(
-                "cannot build single encoder from config, could not parse pin: {:?}",
-                err
-            )
-        })?;
-        let pin = PinDriver::input(unsafe { AnyInputPin::new(pin_num) }).map_err(|err| {
-            anyhow::anyhow!(
-                "cannot build single encoder, could not initialize pin {:?}: {:?}",
-                pin_num,
-                err
-            )
-        })?;
+    pub(crate) fn from_config(
+        cfg: ConfigType,
+        _: Vec<Dependency>,
+    ) -> Result<EncoderType, EncoderError> {
+        let pin_num = cfg.get_attribute::<i32>("pin")?;
+        let pin = PinDriver::input(unsafe { AnyInputPin::new(pin_num) })
+            .map_err(|err| EncoderError::EncoderCodeError(err.code()))?;
         let dir_flip = match cfg.get_attribute::<bool>("dir_flip") {
             Ok(flip) => flip,
-            Err(err) => {
-                match err {
-                    AttributeError::KeyNotFound(_) => false,
-                    _ => {
-                        return Err(anyhow::anyhow!("cannot build single encoder from config, could not parse dir_flip: {:?}", err));
-                    }
+            Err(err) => match err {
+                AttributeError::KeyNotFound(_) => false,
+                _ => {
+                    return Err(EncoderError::EncoderConfigAttributeError(err));
                 }
-            }
+            },
         };
         Ok(Arc::new(Mutex::new(Esp32SingleEncoder::new(
             pin, dir_flip,
         )?)))
     }
 
-    pub fn start(&self) -> anyhow::Result<()> {
+    pub fn start(&self) -> Result<(), EncoderError> {
         unsafe {
             match crate::esp32::esp_idf_svc::sys::pcnt_counter_resume(self.config.unit) {
                 ESP_OK => {}
-                err => return Err(EspError::from(err).unwrap().into()),
+                err => return Err(EncoderError::EncoderCodeError(err)),
             }
         }
         Ok(())
     }
-    pub fn stop(&self) -> anyhow::Result<()> {
+    pub fn stop(&self) -> Result<(), EncoderError> {
         unsafe {
             match crate::esp32::esp_idf_svc::sys::pcnt_counter_pause(self.config.unit) {
                 ESP_OK => {}
-                err => return Err(EspError::from(err).unwrap().into()),
+                err => return Err(EncoderError::EncoderCodeError(err)),
             }
         }
         Ok(())
     }
-    pub fn reset(&self) -> anyhow::Result<()> {
+    pub fn reset(&self) -> Result<(), EncoderError> {
         self.stop()?;
         unsafe {
             match crate::esp32::esp_idf_svc::sys::pcnt_counter_clear(self.config.unit) {
                 ESP_OK => {}
-                err => return Err(EspError::from(err).unwrap().into()),
+                err => return Err(EncoderError::EncoderCodeError(err)),
             }
         }
         self.pulse_counter.acc.store(0, Ordering::Relaxed);
         self.start()?;
         Ok(())
     }
-    pub fn get_counter_value(&self) -> anyhow::Result<i32> {
+    pub fn get_counter_value(&self) -> Result<i32, EncoderError> {
         let mut ctr: i16 = 0;
         unsafe {
             match crate::esp32::esp_idf_svc::sys::pcnt_get_counter_value(
@@ -158,7 +149,7 @@ impl Esp32SingleEncoder {
                 &mut ctr as *mut c_short,
             ) {
                 ESP_OK => {}
-                err => return Err(EspError::from(err).unwrap().into()),
+                err => return Err(EncoderError::EncoderCodeError(err)),
             }
         }
         let sign: i32 = match self.dir {
@@ -168,24 +159,24 @@ impl Esp32SingleEncoder {
         let tot = self.pulse_counter.acc.load(Ordering::Relaxed) * 100 + (i32::from(ctr) * sign);
         Ok(tot)
     }
-    pub fn setup_pcnt(&mut self) -> anyhow::Result<()> {
+    pub fn setup_pcnt(&mut self) -> Result<(), EncoderError> {
         unsafe {
             match crate::esp32::esp_idf_svc::sys::pcnt_unit_config(
                 &self.config as *const pcnt_config_t,
             ) {
                 ESP_OK => {}
-                err => return Err(EspError::from(err).unwrap().into()),
+                err => return Err(EncoderError::EncoderCodeError(err)),
             }
         }
 
         unsafe {
             match crate::esp32::esp_idf_svc::sys::pcnt_counter_pause(self.config.unit) {
                 ESP_OK => {}
-                err => return Err(EspError::from(err).unwrap().into()),
+                err => return Err(EncoderError::EncoderCodeError(err)),
             }
             match crate::esp32::esp_idf_svc::sys::pcnt_counter_clear(self.config.unit) {
                 ESP_OK => {}
-                err => return Err(EspError::from(err).unwrap().into()),
+                err => return Err(EncoderError::EncoderCodeError(err)),
             }
         }
 
@@ -197,7 +188,8 @@ impl Esp32SingleEncoder {
                 Some(Self::irq_handler),
                 self.pulse_counter.as_mut() as *mut PulseStorage as *mut _,
             )
-        })?;
+        })
+        .map_err(|err| EncoderError::EncoderCodeError(err.code()))?;
 
         unsafe {
             match crate::esp32::esp_idf_svc::sys::pcnt_set_filter_value(
@@ -205,11 +197,11 @@ impl Esp32SingleEncoder {
                 MAX_GLITCH_MICROSEC * 80,
             ) {
                 ESP_OK => {}
-                err => return Err(EspError::from(err).unwrap().into()),
+                err => return Err(EncoderError::EncoderCodeError(err)),
             }
             match crate::esp32::esp_idf_svc::sys::pcnt_filter_enable(self.config.unit) {
                 ESP_OK => {}
-                err => return Err(EspError::from(err).unwrap().into()),
+                err => return Err(EncoderError::EncoderCodeError(err)),
             }
         }
 
@@ -219,14 +211,14 @@ impl Esp32SingleEncoder {
                 pcnt_evt_h_lim,
             ) {
                 ESP_OK => {}
-                err => return Err(EspError::from(err).unwrap().into()),
+                err => return Err(EncoderError::EncoderCodeError(err)),
             }
             match crate::esp32::esp_idf_svc::sys::pcnt_event_enable(
                 self.config.unit,
                 pcnt_evt_l_lim,
             ) {
                 ESP_OK => {}
-                err => return Err(EspError::from(err).unwrap().into()),
+                err => return Err(EncoderError::EncoderCodeError(err)),
             }
         }
 
@@ -259,27 +251,28 @@ impl Encoder for Esp32SingleEncoder {
             angle_degrees_supported: false,
         }
     }
-    fn get_position(&self, position_type: EncoderPositionType) -> anyhow::Result<EncoderPosition> {
+    fn get_position(
+        &self,
+        position_type: EncoderPositionType,
+    ) -> Result<EncoderPosition, EncoderError> {
         match position_type {
             EncoderPositionType::TICKS | EncoderPositionType::UNSPECIFIED => {
                 let count = self.get_counter_value()?;
                 Ok(EncoderPositionType::TICKS.wrap_value(count as f32))
             }
-            EncoderPositionType::DEGREES => {
-                anyhow::bail!("Esp32SingleEncoder does not support returning angular position")
-            }
+            EncoderPositionType::DEGREES => Err(EncoderError::EncoderAngularNotSupported),
         }
     }
-    fn reset_position(&mut self) -> anyhow::Result<()> {
+    fn reset_position(&mut self) -> Result<(), EncoderError> {
         self.reset()
     }
 }
 
 impl SingleEncoder for Esp32SingleEncoder {
-    fn get_direction(&self) -> anyhow::Result<Direction> {
+    fn get_direction(&self) -> Result<Direction, EncoderError> {
         Ok(self.dir)
     }
-    fn set_direction(&mut self, dir: Direction) -> anyhow::Result<()> {
+    fn set_direction(&mut self, dir: Direction) -> Result<(), EncoderError> {
         let mut reconfigure = false;
         match dir {
             Direction::Forwards | Direction::StoppedForwards => {
@@ -309,14 +302,14 @@ impl SingleEncoder for Esp32SingleEncoder {
             unsafe {
                 match crate::esp32::esp_idf_svc::sys::pcnt_counter_pause(self.config.unit) {
                     ESP_OK => {}
-                    err => return Err(EspError::from(err).unwrap().into()),
+                    err => return Err(EncoderError::EncoderCodeError(err)),
                 }
 
                 match crate::esp32::esp_idf_svc::sys::pcnt_unit_config(
                     &self.config as *const pcnt_config_t,
                 ) {
                     ESP_OK => {}
-                    err => return Err(EspError::from(err).unwrap().into()),
+                    err => return Err(EncoderError::EncoderCodeError(err)),
                 }
             }
             unsafe {
@@ -325,11 +318,11 @@ impl SingleEncoder for Esp32SingleEncoder {
                     MAX_GLITCH_MICROSEC * 80,
                 ) {
                     ESP_OK => {}
-                    err => return Err(EspError::from(err).unwrap().into()),
+                    err => return Err(EncoderError::EncoderCodeError(err)),
                 }
                 match crate::esp32::esp_idf_svc::sys::pcnt_filter_enable(self.config.unit) {
                     ESP_OK => {}
-                    err => return Err(EspError::from(err).unwrap().into()),
+                    err => return Err(EncoderError::EncoderCodeError(err)),
                 }
             }
 
@@ -339,18 +332,18 @@ impl SingleEncoder for Esp32SingleEncoder {
                     pcnt_evt_h_lim,
                 ) {
                     ESP_OK => {}
-                    err => return Err(EspError::from(err).unwrap().into()),
+                    err => return Err(EncoderError::EncoderCodeError(err)),
                 }
                 match crate::esp32::esp_idf_svc::sys::pcnt_event_enable(
                     self.config.unit,
                     pcnt_evt_l_lim,
                 ) {
                     ESP_OK => {}
-                    err => return Err(EspError::from(err).unwrap().into()),
+                    err => return Err(EncoderError::EncoderCodeError(err)),
                 }
                 match crate::esp32::esp_idf_svc::sys::pcnt_counter_resume(self.config.unit) {
                     ESP_OK => {}
-                    err => return Err(EspError::from(err).unwrap().into()),
+                    err => return Err(EncoderError::EncoderCodeError(err)),
                 }
             }
         }

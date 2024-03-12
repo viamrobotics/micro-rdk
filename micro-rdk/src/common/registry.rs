@@ -6,9 +6,9 @@ use super::{
     base::BaseType,
     board::{BoardError, BoardType},
     config::ConfigType,
-    encoder::EncoderType,
+    encoder::{EncoderError, EncoderType},
     generic::GenericComponentType,
-    motor::MotorType,
+    motor::{MotorError, MotorType},
     movement_sensor::MovementSensorType,
     power_sensor::PowerSensorType,
     robot::Resource,
@@ -94,7 +94,7 @@ pub struct Dependency(pub ResourceKey, pub Resource);
 type BoardConstructor = dyn Fn(ConfigType) -> Result<BoardType, BoardError>;
 
 /// Fn that returns a `MotorType`, `Arc<Mutex<dyn Motor>>`
-type MotorConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<MotorType>;
+type MotorConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<MotorType, MotorError>;
 
 /// Fn that returns a `SensorType`, `Arc<Mutex<dyn Sensor>>`
 type SensorConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<SensorType>;
@@ -104,7 +104,7 @@ type MovementSensorConstructor =
     dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<MovementSensorType>;
 
 /// Fn that returns an `EncoderType`, `Arc<Mutex<dyn Encoder>>`
-type EncoderConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<EncoderType>;
+type EncoderConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<EncoderType, EncoderError>;
 
 /// Fn that returns an `BaseType`, `Arc<Mutex<dyn Base>>`
 type BaseConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<BaseType>;
@@ -434,6 +434,7 @@ impl ComponentRegistry {
 #[cfg(test)]
 mod tests {
     use crate::common::generic::DoCommand;
+    use crate::common::motor::MotorError;
     use crate::google;
 
     use crate::common::{
@@ -588,14 +589,18 @@ mod tests {
         let ctor = registry.get_motor_constructor("fake".to_string());
         assert!(ctor.is_ok());
 
-        let ret = registry.register_motor("fake", &|_, _| Err(anyhow::anyhow!("not implemented")));
+        let ret = registry.register_motor("fake", &|_, _| {
+            Err(MotorError::MotorMethodUnimplemented(""))
+        });
         assert!(ret.is_err());
         assert_eq!(
             ret.err().unwrap(),
             RegistryError::ModelAlreadyRegistered("fake")
         );
 
-        let ret = registry.register_motor("fake2", &|_, _| Err(anyhow::anyhow!("not implemented")));
+        let ret = registry.register_motor("fake2", &|_, _| {
+            Err(MotorError::MotorMethodUnimplemented(""))
+        });
         assert!(ret.is_ok());
 
         let ctor = registry.get_board_constructor("fake".to_string());
@@ -632,7 +637,7 @@ mod tests {
         );
 
         assert!(ret.is_err());
-        assert_eq!(format!("{}", ret.err().unwrap()), "not implemented");
+        assert_eq!(format!("{}", ret.err().unwrap()), "unimplemented: ");
 
         let ctor = registry.get_board_constructor("fake2".to_string());
         assert!(ctor.is_ok());

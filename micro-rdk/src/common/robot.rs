@@ -28,6 +28,7 @@ use crate::{
 use log::*;
 
 use super::{
+    actuator::ActuatorError,
     base::BaseType,
     board::BoardType,
     config::{AttributeError, Component, ConfigType, DynamicComponentConfig},
@@ -84,9 +85,11 @@ pub enum RobotError {
     #[error("missing {0} dependency for {1}")]
     RobotDependencyMissing(String, String),
     #[error(transparent)]
-    RobotResourceBuildError(#[from] anyhow::Error),
+    RobotResourceBuildError(#[from] Box<dyn std::error::Error + Send + Sync>),
     #[error(transparent)]
     RobotParseConfigError(#[from] AttributeError),
+    #[error(transparent)]
+    RobotActuatorError(#[from] ActuatorError),
 }
 
 fn resource_name_from_component_cfg(cfg: &DynamicComponentConfig) -> ResourceName {
@@ -299,7 +302,9 @@ impl LocalRobot {
                 let ctor = registry
                     .get_motor_constructor(model)
                     .map_err(RobotError::RobotRegistryError)?;
-                ResourceType::Motor(ctor(cfg, deps).map_err(RobotError::RobotResourceBuildError)?)
+                ResourceType::Motor(
+                    ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
+                )
             }
             "board" => {
                 let board = get_board_from_dependencies(deps);
@@ -312,47 +317,57 @@ impl LocalRobot {
                 let ctor = registry
                     .get_sensor_constructor(model)
                     .map_err(RobotError::RobotRegistryError)?;
-                ResourceType::Sensor(ctor(cfg, deps).map_err(RobotError::RobotResourceBuildError)?)
+                ResourceType::Sensor(
+                    ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
+                )
             }
             "movement_sensor" => {
                 let ctor = registry
                     .get_movement_sensor_constructor(model)
                     .map_err(RobotError::RobotRegistryError)?;
                 ResourceType::MovementSensor(
-                    ctor(cfg, deps).map_err(RobotError::RobotResourceBuildError)?,
+                    ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
                 )
             }
             "encoder" => {
                 let ctor = registry
                     .get_encoder_constructor(model)
                     .map_err(RobotError::RobotRegistryError)?;
-                ResourceType::Encoder(ctor(cfg, deps).map_err(RobotError::RobotResourceBuildError)?)
+                ResourceType::Encoder(
+                    ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
+                )
             }
             "base" => {
                 let ctor = registry
                     .get_base_constructor(model)
                     .map_err(RobotError::RobotRegistryError)?;
-                ResourceType::Base(ctor(cfg, deps).map_err(RobotError::RobotResourceBuildError)?)
+                ResourceType::Base(
+                    ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
+                )
             }
             "power_sensor" => {
                 let ctor = registry
                     .get_power_sensor_constructor(model)
                     .map_err(RobotError::RobotRegistryError)?;
                 ResourceType::PowerSensor(
-                    ctor(cfg, deps).map_err(RobotError::RobotResourceBuildError)?,
+                    ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
                 )
             }
             "servo" => {
                 let ctor = registry
                     .get_servo_constructor(model)
                     .map_err(RobotError::RobotRegistryError)?;
-                ResourceType::Servo(ctor(cfg, deps).map_err(RobotError::RobotResourceBuildError)?)
+                ResourceType::Servo(
+                    ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
+                )
             }
             "generic" => {
                 let ctor = registry
                     .get_generic_component_constructor(model)
                     .map_err(RobotError::RobotRegistryError)?;
-                ResourceType::Generic(ctor(cfg, deps).map_err(RobotError::RobotResourceBuildError)?)
+                ResourceType::Generic(
+                    ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
+                )
             }
             &_ => {
                 return Err(RobotError::RobotComponentTypeNotSupported(
@@ -691,8 +706,8 @@ impl LocalRobot {
         }
     }
 
-    pub fn stop_all(&mut self) -> anyhow::Result<()> {
-        let mut stop_errors: Vec<anyhow::Error> = vec![];
+    pub fn stop_all(&mut self) -> Result<(), RobotError> {
+        let mut stop_errors: Vec<ActuatorError> = vec![];
         for resource in self.resources.values_mut() {
             match resource {
                 ResourceType::Base(b) => {
@@ -715,10 +730,7 @@ impl LocalRobot {
             }
         }
         if !stop_errors.is_empty() {
-            anyhow::bail!(
-                "Could not stop all robot actuators, following errors encountered: {:?}",
-                stop_errors
-            )
+            return Err(RobotError::RobotActuatorError(stop_errors.pop().unwrap()));
         }
         Ok(())
     }

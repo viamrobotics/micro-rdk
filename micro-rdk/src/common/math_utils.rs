@@ -3,8 +3,12 @@ use crate::{
     google::protobuf::{value::Kind, Struct, Value},
     proto::common,
 };
-use anyhow::bail;
 use std::{collections::HashMap, time::Duration};
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+#[error("invalid argument")]
+pub struct UtilsInvalidArg;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Vector3 {
@@ -67,7 +71,7 @@ pub(crate) fn go_for_math(
     max_rpm: f64,
     rpm: f64,
     revolutions: f64,
-) -> anyhow::Result<(f64, Option<Duration>)> {
+) -> Result<(f64, Option<Duration>), UtilsInvalidArg> {
     /*
     dir := rpm * revolutions / math.Abs(revolutions*rpm)
     powerPct := math.Abs(rpm) / maxRPM * dir
@@ -75,7 +79,7 @@ pub(crate) fn go_for_math(
     return powerPct, waitDur
         */
     if max_rpm.is_nan() || rpm.is_nan() || revolutions.is_nan() {
-        bail!("NaN in supplied input");
+        return Err(UtilsInvalidArg);
     }
 
     let rpm = rpm.clamp(-1.0 * max_rpm, max_rpm);

@@ -1,4 +1,4 @@
-use super::actuator::Actuator;
+use super::actuator::{Actuator, ActuatorError};
 use super::base::{Base, BaseType, COMPONENT_NAME as BaseCompName};
 use super::config::ConfigType;
 use super::motor::{Motor, MotorType, COMPONENT_NAME as MotorCompName};
@@ -133,10 +133,10 @@ where
     ML: Motor,
     MR: Motor,
 {
-    fn is_moving(&mut self) -> anyhow::Result<bool> {
+    fn is_moving(&mut self) -> Result<bool, ActuatorError> {
         Ok(self.motor_left.is_moving()? || self.motor_right.is_moving()?)
     }
-    fn stop(&mut self) -> anyhow::Result<()> {
+    fn stop(&mut self) -> Result<(), ActuatorError> {
         self.motor_left.stop()?;
         self.motor_right.stop()?;
         Ok(())

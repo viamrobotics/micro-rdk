@@ -1,10 +1,10 @@
 use super::single_encoder::SingleEncoderType;
 
-use crate::common::actuator::Actuator;
+use crate::common::actuator::{Actuator, ActuatorError};
 use crate::common::encoder::{
     Direction, Encoder, EncoderPositionType, EncoderSupportedRepresentations, SingleEncoder,
 };
-use crate::common::motor::{Motor, MotorSupportedProperties, MotorType};
+use crate::common::motor::{Motor, MotorError, MotorSupportedProperties, MotorType};
 use crate::common::status::Status;
 use crate::google;
 
@@ -24,7 +24,7 @@ impl SingleEncodedMotor {
 }
 
 impl Motor for SingleEncodedMotor {
-    fn set_power(&mut self, power_pct: f64) -> anyhow::Result<()> {
+    fn set_power(&mut self, power_pct: f64) -> Result<(), MotorError> {
         let dir = match power_pct {
             x if x > 0.0 => Direction::Forwards,
             x if x < 0.0 => Direction::Backwards,
@@ -41,10 +41,10 @@ impl Motor for SingleEncodedMotor {
         };
         self.motor.set_power(power_pct)?;
         log::debug!("set power in single encoded motor to {:?}", power_pct);
-        self.encoder.set_direction(dir)
+        Ok(self.encoder.set_direction(dir)?)
     }
 
-    fn get_position(&mut self) -> anyhow::Result<i32> {
+    fn get_position(&mut self) -> Result<i32, MotorError> {
         let props = self.encoder.get_properties();
         let pos_type = match props {
             EncoderSupportedRepresentations {
@@ -56,15 +56,15 @@ impl Motor for SingleEncodedMotor {
                 ..
             } => EncoderPositionType::DEGREES,
             _ => {
-                return Err(anyhow::anyhow!(
-                    "encoder for this motor does not support any known position representations"
+                return Err(MotorError::MotorMethodUnimplemented(
+                    "encoder representation not supported",
                 ));
             }
         };
         let pos = self.encoder.get_position(pos_type)?;
         Ok(pos.value as i32)
     }
-    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> Result<Option<Duration>, MotorError> {
         self.motor.go_for(rpm, revolutions)
     }
     fn get_properties(&mut self) -> MotorSupportedProperties {
@@ -75,10 +75,10 @@ impl Motor for SingleEncodedMotor {
 }
 
 impl Actuator for SingleEncodedMotor {
-    fn is_moving(&mut self) -> anyhow::Result<bool> {
+    fn is_moving(&mut self) -> Result<bool, ActuatorError> {
         self.motor.is_moving()
     }
-    fn stop(&mut self) -> anyhow::Result<()> {
+    fn stop(&mut self) -> Result<(), ActuatorError> {
         self.motor.stop()
     }
 }

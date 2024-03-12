@@ -11,7 +11,7 @@ use crate::esp32::esp_idf_svc::sys::pcnt_channel_t_PCNT_CHANNEL_1 as pcnt_channe
 use crate::esp32::esp_idf_svc::sys::pcnt_config_t;
 use crate::esp32::esp_idf_svc::sys::pcnt_evt_type_t_PCNT_EVT_H_LIM as pcnt_evt_h_lim;
 use crate::esp32::esp_idf_svc::sys::pcnt_evt_type_t_PCNT_EVT_L_LIM as pcnt_evt_l_lim;
-use crate::esp32::esp_idf_svc::sys::{esp, EspError, ESP_OK};
+use crate::esp32::esp_idf_svc::sys::{esp, ESP_OK};
 use core::ffi::{c_short, c_ulong};
 
 use std::collections::HashMap;
@@ -20,7 +20,8 @@ use std::sync::{Arc, Mutex};
 
 use crate::common::config::ConfigType;
 use crate::common::encoder::{
-    Encoder, EncoderPosition, EncoderPositionType, EncoderSupportedRepresentations, EncoderType,
+    Encoder, EncoderError, EncoderPosition, EncoderPositionType, EncoderSupportedRepresentations,
+    EncoderType,
 };
 use crate::common::registry::{ComponentRegistry, Dependency};
 use crate::common::status::Status;
@@ -61,8 +62,8 @@ where
     A: InputPin + PinExt,
     B: InputPin + PinExt,
 {
-    pub fn new(a: A, b: B) -> anyhow::Result<Self> {
-        let unit = get_unit()?;
+    pub fn new(a: A, b: B) -> Result<Self, EncoderError> {
+        let unit = get_unit();
         let pcnt = Box::new(PulseStorage {
             acc: Arc::new(AtomicI32::new(0)),
             unit,
@@ -89,79 +90,55 @@ where
         Ok(enc)
     }
 
-    pub(crate) fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<EncoderType> {
-        let pin_a_num = match cfg.get_attribute::<i32>("a") {
-            Ok(num) => num,
-            Err(err) => {
-                return Err(anyhow::anyhow!(
-                    "cannot build encoder, could not parse 'a' pin: {:?}",
-                    err
-                ))
-            }
-        };
-        let pin_b_num = match cfg.get_attribute::<i32>("b") {
-            Ok(num) => num,
-            Err(err) => {
-                return Err(anyhow::anyhow!(
-                    "cannot build encoder, could not parse 'b' pin: {:?}",
-                    err
-                ))
-            }
-        };
+    pub(crate) fn from_config(
+        cfg: ConfigType,
+        _: Vec<Dependency>,
+    ) -> Result<EncoderType, EncoderError> {
+        let pin_a_num = cfg.get_attribute::<i32>("a")?;
+
+        let pin_b_num = cfg.get_attribute::<i32>("b")?;
         let a = match PinDriver::input(unsafe { AnyInputPin::new(pin_a_num) }) {
             Ok(a) => a,
-            Err(err) => {
-                return Err(anyhow::anyhow!(
-                    "cannot build encoder, could not initialize pin {:?} as pin 'a': {:?}",
-                    pin_a_num,
-                    err
-                ))
-            }
+            Err(err) => return Err(EncoderError::EncoderCodeError(err.code())),
         };
         let b = match PinDriver::input(unsafe { AnyInputPin::new(pin_b_num) }) {
             Ok(b) => b,
-            Err(err) => {
-                return Err(anyhow::anyhow!(
-                    "cannot build encoder, could not initialize pin {:?} as pin 'b': {:?}",
-                    pin_b_num,
-                    err
-                ))
-            }
+            Err(err) => return Err(EncoderError::EncoderCodeError(err.code())),
         };
         Ok(Arc::new(Mutex::new(Esp32Encoder::new(a, b)?)))
     }
 
-    fn start(&self) -> anyhow::Result<()> {
+    fn start(&self) -> Result<(), EncoderError> {
         unsafe {
             match crate::esp32::esp_idf_svc::sys::pcnt_counter_resume(self.config.unit) {
                 ESP_OK => {}
-                err => return Err(EspError::from(err).unwrap().into()),
+                err => return Err(EncoderError::EncoderCodeError(err)),
             }
         }
         Ok(())
     }
-    fn stop(&self) -> anyhow::Result<()> {
+    fn stop(&self) -> Result<(), EncoderError> {
         unsafe {
             match crate::esp32::esp_idf_svc::sys::pcnt_counter_pause(self.config.unit) {
                 ESP_OK => {}
-                err => return Err(EspError::from(err).unwrap().into()),
+                err => return Err(EncoderError::EncoderCodeError(err)),
             }
         }
         Ok(())
     }
-    fn reset(&self) -> anyhow::Result<()> {
+    fn reset(&self) -> Result<(), EncoderError> {
         self.stop()?;
         unsafe {
             match crate::esp32::esp_idf_svc::sys::pcnt_counter_clear(self.config.unit) {
                 ESP_OK => {}
-                err => return Err(EspError::from(err).unwrap().into()),
+                err => return Err(EncoderError::EncoderCodeError(err)),
             }
         }
         self.pulse_counter.acc.store(0, Ordering::Relaxed);
         self.start()?;
         Ok(())
     }
-    fn get_counter_value(&self) -> anyhow::Result<i32> {
+    fn get_counter_value(&self) -> Result<i32, EncoderError> {
         let mut ctr: i16 = 0;
         unsafe {
             match crate::esp32::esp_idf_svc::sys::pcnt_get_counter_value(
@@ -169,19 +146,19 @@ where
                 &mut ctr as *mut c_short,
             ) {
                 ESP_OK => {}
-                err => return Err(EspError::from(err).unwrap().into()),
+                err => return Err(EncoderError::EncoderCodeError(err)),
             }
         }
         let tot = self.pulse_counter.acc.load(Ordering::Relaxed) * 100 + i32::from(ctr);
         Ok(tot)
     }
-    fn setup_pcnt(&mut self) -> anyhow::Result<()> {
+    fn setup_pcnt(&mut self) -> Result<(), EncoderError> {
         unsafe {
             match crate::esp32::esp_idf_svc::sys::pcnt_unit_config(
                 &self.config as *const pcnt_config_t,
             ) {
                 ESP_OK => {}
-                err => return Err(EspError::from(err).unwrap().into()),
+                err => return Err(EncoderError::EncoderCodeError(err)),
             }
         }
         self.config.pulse_gpio_num = self.b.pin();
@@ -194,18 +171,18 @@ where
                 &self.config as *const pcnt_config_t,
             ) {
                 ESP_OK => {}
-                err => return Err(EspError::from(err).unwrap().into()),
+                err => return Err(EncoderError::EncoderCodeError(err)),
             }
         }
 
         unsafe {
             match crate::esp32::esp_idf_svc::sys::pcnt_counter_pause(self.config.unit) {
                 ESP_OK => {}
-                err => return Err(EspError::from(err).unwrap().into()),
+                err => return Err(EncoderError::EncoderCodeError(err)),
             }
             match crate::esp32::esp_idf_svc::sys::pcnt_counter_clear(self.config.unit) {
                 ESP_OK => {}
-                err => return Err(EspError::from(err).unwrap().into()),
+                err => return Err(EncoderError::EncoderCodeError(err)),
             }
         }
 
@@ -217,7 +194,8 @@ where
                 Some(Self::irq_handler),
                 self.pulse_counter.as_mut() as *mut PulseStorage as *mut _,
             )
-        })?;
+        })
+        .map_err(|e| EncoderError::EncoderCodeError(e.code()))?;
 
         unsafe {
             match crate::esp32::esp_idf_svc::sys::pcnt_event_enable(
@@ -225,14 +203,14 @@ where
                 pcnt_evt_h_lim,
             ) {
                 ESP_OK => {}
-                err => return Err(EspError::from(err).unwrap().into()),
+                err => return Err(EncoderError::EncoderCodeError(err)),
             }
             match crate::esp32::esp_idf_svc::sys::pcnt_event_enable(
                 self.config.unit,
                 pcnt_evt_l_lim,
             ) {
                 ESP_OK => {}
-                err => return Err(EspError::from(err).unwrap().into()),
+                err => return Err(EncoderError::EncoderCodeError(err)),
             }
         }
 
@@ -267,18 +245,19 @@ where
             angle_degrees_supported: false,
         }
     }
-    fn get_position(&self, position_type: EncoderPositionType) -> anyhow::Result<EncoderPosition> {
+    fn get_position(
+        &self,
+        position_type: EncoderPositionType,
+    ) -> Result<EncoderPosition, EncoderError> {
         match position_type {
             EncoderPositionType::TICKS | EncoderPositionType::UNSPECIFIED => {
                 let count = self.get_counter_value()?;
                 Ok(EncoderPositionType::TICKS.wrap_value(count as f32))
             }
-            EncoderPositionType::DEGREES => {
-                anyhow::bail!("Esp32Encoder does not support returning angular position")
-            }
+            EncoderPositionType::DEGREES => Err(EncoderError::EncoderAngularNotSupported),
         }
     }
-    fn reset_position(&mut self) -> anyhow::Result<()> {
+    fn reset_position(&mut self) -> Result<(), EncoderError> {
         self.reset()
     }
 }

@@ -41,9 +41,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use anyhow::Context;
-
-use super::actuator::Actuator;
+use super::actuator::{Actuator, ActuatorError};
 use super::board::{Board, BoardType};
 use super::config::ConfigType;
 use super::encoder::{
@@ -51,7 +49,7 @@ use super::encoder::{
 };
 use super::math_utils::go_for_math;
 use super::motor::{
-    Motor, MotorPinType, MotorPinsConfig, MotorSupportedProperties, MotorType,
+    Motor, MotorError, MotorPinType, MotorPinsConfig, MotorSupportedProperties, MotorType,
     COMPONENT_NAME as MotorCompName,
 };
 use super::registry::{get_board_from_dependencies, ComponentRegistry, Dependency, ResourceKey};
@@ -83,7 +81,7 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 pub(crate) fn gpio_motor_from_config(
     cfg: ConfigType,
     deps: Vec<Dependency>,
-) -> anyhow::Result<MotorType> {
+) -> Result<MotorType, MotorError> {
     let mut enc: Option<EncoderType> = None;
     for Dependency(_, dep) in &deps {
         match dep {
@@ -97,11 +95,11 @@ pub(crate) fn gpio_motor_from_config(
         };
     }
     let board = get_board_from_dependencies(deps)
-        .context("gpio motor requires a board in its dependencies")?;
+        .ok_or(MotorError::ConfigError("missing board dependency"))?;
     let motor_type = if let Ok(pin_cfg) = cfg.get_attribute::<MotorPinsConfig>("pins") {
         pin_cfg.detect_motor_type()?
     } else {
-        return Err(anyhow::anyhow!("pin parameters for motor not found"));
+        return Err(MotorError::ConfigError("Motor, missing 'pin' attribute"));
     };
     let motor = match motor_type {
         MotorPinType::PwmAB => PwmABMotor::<BoardType>::from_config(cfg, board.clone())?.clone(),
@@ -144,7 +142,7 @@ where
     M: Motor,
     Enc: Encoder,
 {
-    fn get_position(&mut self) -> anyhow::Result<i32> {
+    fn get_position(&mut self) -> Result<i32, MotorError> {
         Ok(self
             .enc
             .get_position(EncoderPositionType::UNSPECIFIED)?
@@ -152,10 +150,10 @@ where
     }
 
     /// Accepts percentage as a float, e.g. `0.5` equals `50%` power.
-    fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
+    fn set_power(&mut self, pct: f64) -> Result<(), MotorError> {
         self.motor.set_power(pct)
     }
-    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> Result<Option<Duration>, MotorError> {
         self.motor.go_for(rpm, revolutions)
     }
     fn get_properties(&mut self) -> MotorSupportedProperties {
@@ -170,10 +168,10 @@ where
     M: Motor,
     Enc: Encoder,
 {
-    fn is_moving(&mut self) -> anyhow::Result<bool> {
+    fn is_moving(&mut self) -> Result<bool, ActuatorError> {
         self.motor.is_moving()
     }
-    fn stop(&mut self) -> anyhow::Result<()> {
+    fn stop(&mut self) -> Result<(), ActuatorError> {
         self.motor.stop()
     }
 }
@@ -221,7 +219,7 @@ where
         max_rpm: f64,
         dir_flip: bool,
         board: B,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self, MotorError> {
         let mut res = Self {
             board,
             a_pin,
@@ -245,22 +243,22 @@ where
         r_keys
     }
 
-    pub(crate) fn from_config(cfg: ConfigType, board: BoardType) -> anyhow::Result<MotorType> {
-        let pins = cfg
-            .get_attribute::<MotorPinsConfig>("pins")
-            .or(Err(anyhow::anyhow!(
-                "cannot build motor, could not find 'pins' attribute"
-            )))?;
+    pub(crate) fn from_config(cfg: ConfigType, board: BoardType) -> Result<MotorType, MotorError> {
+        let pins =
+            cfg.get_attribute::<MotorPinsConfig>("pins")
+                .or(Err(MotorError::ConfigError(
+                    "PwmABMotor, missing 'pin' attribute",
+                )))?;
 
         let a_pin = pins
             .a
-            .ok_or(anyhow::anyhow!("cannot build PwmABMotor, need 'a' pin"))?;
+            .ok_or(MotorError::ConfigError("PwmABMotor, need 'a' pin"))?;
         let b_pin = pins
             .b
-            .ok_or(anyhow::anyhow!("cannot build PwmABMotor, need 'b' pin"))?;
+            .ok_or(MotorError::ConfigError("PwmABMotor, need 'b' pin"))?;
         let pwm_pin = pins
             .pwm
-            .ok_or(anyhow::anyhow!("cannot build PwmABMotor, need PWM pin"))?;
+            .ok_or(MotorError::ConfigError("PwmABMotor, need 'pwm' pin"))?;
         let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm").unwrap_or(100.0);
         let dir_flip: bool = cfg.get_attribute::<bool>("dir_flip").unwrap_or_default();
 
@@ -274,9 +272,9 @@ impl<B> Motor for PwmABMotor<B>
 where
     B: Board,
 {
-    fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
+    fn set_power(&mut self, pct: f64) -> Result<(), MotorError> {
         if !(-1.0..=1.0).contains(&pct) {
-            anyhow::bail!("power outside limit, must be between -1.0 and 1.0")
+            return Err(MotorError::PowerSetError);
         }
         let set_forwards = (pct > 0.0) && !self.dir_flip;
         if set_forwards {
@@ -290,15 +288,15 @@ where
         Ok(())
     }
 
-    fn get_position(&mut self) -> anyhow::Result<i32> {
-        anyhow::bail!("position reporting not supported without an encoder")
+    fn get_position(&mut self) -> Result<i32, MotorError> {
+        Err(MotorError::MissingEncoder)
     }
 
     fn go_for(
         &mut self,
         rpm: f64,
         revolutions: f64,
-    ) -> anyhow::Result<Option<std::time::Duration>> {
+    ) -> Result<Option<std::time::Duration>, MotorError> {
         let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions)?;
         self.set_power(pwr)?;
         if dur.is_some() {
@@ -335,11 +333,11 @@ impl<B> Actuator for PwmABMotor<B>
 where
     B: Board,
 {
-    fn is_moving(&mut self) -> anyhow::Result<bool> {
+    fn is_moving(&mut self) -> Result<bool, ActuatorError> {
         Ok(self.board.get_pwm_duty(self.pwm_pin) <= 0.05)
     }
-    fn stop(&mut self) -> anyhow::Result<()> {
-        self.set_power(0.0)
+    fn stop(&mut self) -> Result<(), ActuatorError> {
+        self.set_power(0.0).map_err(|_| ActuatorError::CouldntStop)
     }
 }
 
@@ -363,7 +361,7 @@ where
         max_rpm: f64,
         dir_flip: bool,
         board: B,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self, MotorError> {
         let mut res = Self {
             board,
             dir_pin,
@@ -377,18 +375,18 @@ where
         Ok(res)
     }
 
-    pub(crate) fn from_config(cfg: ConfigType, board: BoardType) -> anyhow::Result<MotorType> {
-        let pins = cfg
-            .get_attribute::<MotorPinsConfig>("pins")
-            .or(Err(anyhow::anyhow!(
-                "cannot build motor, could not find 'pins' attribute"
-            )))?;
-        let dir_pin = pins.dir.ok_or(anyhow::anyhow!(
-            "cannot build PwmDirectionMotor, need direction pin"
-        ))?;
-        let pwm_pin = pins.pwm.ok_or(anyhow::anyhow!(
-            "cannot build PwmDirectionMotor, need PWM pin"
-        ))?;
+    pub(crate) fn from_config(cfg: ConfigType, board: BoardType) -> Result<MotorType, MotorError> {
+        let pins =
+            cfg.get_attribute::<MotorPinsConfig>("pins")
+                .or(Err(MotorError::ConfigError(
+                    "PwmDirectionMotor, missing 'pin' attribute",
+                )))?;
+        let dir_pin = pins
+            .dir
+            .ok_or(MotorError::ConfigError("PwmDirectionMotor, need 'dir' pin"))?;
+        let pwm_pin = pins
+            .pwm
+            .ok_or(MotorError::ConfigError("PwmDirectionMotor, need 'pwm' pin"))?;
         let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm").unwrap_or(100.0);
         let dir_flip: bool = cfg.get_attribute::<bool>("dir_flip").unwrap_or_default();
         Ok(Arc::new(Mutex::new(PwmDirectionMotor::new(
@@ -401,9 +399,9 @@ impl<B> Motor for PwmDirectionMotor<B>
 where
     B: Board,
 {
-    fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
+    fn set_power(&mut self, pct: f64) -> Result<(), MotorError> {
         if !(-1.0..=1.0).contains(&pct) {
-            anyhow::bail!("power outside limit, must be between -1.0 and 1.0")
+            return Err(MotorError::MissingEncoder);
         }
         let set_high = (pct > 0.0) && !self.dir_flip;
         self.board.set_gpio_pin_level(self.dir_pin, set_high)?;
@@ -411,12 +409,13 @@ where
         Ok(())
     }
 
-    fn get_position(&mut self) -> anyhow::Result<i32> {
-        anyhow::bail!("position reporting not supported without an encoder")
+    fn get_position(&mut self) -> Result<i32, MotorError> {
+        Err(MotorError::MissingEncoder)
     }
 
-    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
-        let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions)?;
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> Result<Option<Duration>, MotorError> {
+        let (pwr, dur) =
+            go_for_math(self.max_rpm, rpm, revolutions).map_err(MotorError::InvalidArgument)?;
         self.set_power(pwr)?;
         if dur.is_some() {
             return Ok(dur);
@@ -452,11 +451,11 @@ impl<B> Actuator for PwmDirectionMotor<B>
 where
     B: Board,
 {
-    fn is_moving(&mut self) -> anyhow::Result<bool> {
+    fn is_moving(&mut self) -> Result<bool, ActuatorError> {
         Ok(self.board.get_pwm_duty(self.pwm_pin) <= 0.05)
     }
-    fn stop(&mut self) -> anyhow::Result<()> {
-        self.set_power(0.0)
+    fn stop(&mut self) -> Result<(), ActuatorError> {
+        self.set_power(0.0).map_err(|_| ActuatorError::CouldntStop)
     }
 }
 
@@ -485,7 +484,7 @@ where
         max_rpm: f64,
         dir_flip: bool,
         board: B,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self, MotorError> {
         let mut res = Self {
             board,
             a_pin,
@@ -502,18 +501,18 @@ where
         Ok(res)
     }
 
-    pub(crate) fn from_config(cfg: ConfigType, board: BoardType) -> anyhow::Result<MotorType> {
-        let pins = cfg
-            .get_attribute::<MotorPinsConfig>("pins")
-            .or(Err(anyhow::anyhow!(
-                "cannot build motor, could not find 'pins' attribute"
-            )))?;
+    pub(crate) fn from_config(cfg: ConfigType, board: BoardType) -> Result<MotorType, MotorError> {
+        let pins =
+            cfg.get_attribute::<MotorPinsConfig>("pins")
+                .or(Err(MotorError::ConfigError(
+                    "ABMotor, missing 'pin' attribute",
+                )))?;
         let a_pin = pins
             .a
-            .ok_or(anyhow::anyhow!("cannot build AbMotor, need 'a' pin"))?;
+            .ok_or(MotorError::ConfigError("ABMotor, need 'a' pin"))?;
         let b_pin = pins
             .b
-            .ok_or(anyhow::anyhow!("cannot build AbMotor, need 'b' pin"))?;
+            .ok_or(MotorError::ConfigError("ABMotor, need 'b' pin"))?;
         let max_rpm: f64 = cfg.get_attribute::<f64>("max_rpm").unwrap_or(100.0);
         let dir_flip: bool = cfg.get_attribute::<bool>("dir_flip").unwrap_or_default();
         Ok(Arc::new(Mutex::new(AbMotor::new(
@@ -526,12 +525,12 @@ impl<B> Motor for AbMotor<B>
 where
     B: Board,
 {
-    fn set_power(&mut self, pct: f64) -> anyhow::Result<()> {
+    fn set_power(&mut self, pct: f64) -> Result<(), MotorError> {
         if !(-1.0..=1.0).contains(&pct) {
-            anyhow::bail!("power outside limit, must be between -1.0 and 1.0")
+            return Err(MotorError::PowerSetError);
         }
         if pct.abs() <= 0.001 {
-            return self.stop();
+            return Ok(self.stop()?);
         }
         let (pwm_pin, high_pin) = if (pct >= 0.001) == self.dir_flip {
             (self.b_pin, self.a_pin)
@@ -549,11 +548,11 @@ where
         Ok(())
     }
 
-    fn get_position(&mut self) -> anyhow::Result<i32> {
-        anyhow::bail!("position reporting not supported without an encoder")
+    fn get_position(&mut self) -> Result<i32, MotorError> {
+        Err(MotorError::MissingEncoder)
     }
 
-    fn go_for(&mut self, rpm: f64, revolutions: f64) -> anyhow::Result<Option<Duration>> {
+    fn go_for(&mut self, rpm: f64, revolutions: f64) -> Result<Option<Duration>, MotorError> {
         let (pwr, dur) = go_for_math(self.max_rpm, rpm, revolutions)?;
         self.set_power(pwr)?;
         if dur.is_some() {
@@ -590,11 +589,11 @@ impl<B> Actuator for AbMotor<B>
 where
     B: Board,
 {
-    fn is_moving(&mut self) -> anyhow::Result<bool> {
+    fn is_moving(&mut self) -> Result<bool, ActuatorError> {
         Ok(self.is_on)
     }
 
-    fn stop(&mut self) -> anyhow::Result<()> {
+    fn stop(&mut self) -> Result<(), ActuatorError> {
         self.board.set_pwm_duty(self.pwm_pin, 0.0)?;
         self.board.set_gpio_pin_level(self.a_pin, false)?;
         self.board.set_gpio_pin_level(self.b_pin, false)?;
