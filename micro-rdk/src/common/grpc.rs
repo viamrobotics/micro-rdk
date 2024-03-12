@@ -783,7 +783,7 @@ where
             .lock()
             .unwrap()
             .get_generic_readings()
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = proto::common::v1::GetReadingsResponse { readings };
         self.encode_message(resp)
     }
@@ -820,7 +820,7 @@ where
             .lock()
             .unwrap()
             .get_position()
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::movement_sensor::v1::GetPositionResponse::from(position);
         self.encode_message(resp)
     }
@@ -841,7 +841,7 @@ where
             .lock()
             .unwrap()
             .get_linear_velocity()
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let l_vel_msg = proto::common::v1::Vector3::from(l_vel);
         let resp = component::movement_sensor::v1::GetLinearVelocityResponse {
             linear_velocity: Some(l_vel_msg),
@@ -865,7 +865,7 @@ where
             .lock()
             .unwrap()
             .get_angular_velocity()
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let a_vel_msg = proto::common::v1::Vector3::from(a_vel);
         let resp = component::movement_sensor::v1::GetAngularVelocityResponse {
             angular_velocity: Some(a_vel_msg),
@@ -892,7 +892,7 @@ where
             .lock()
             .unwrap()
             .get_linear_acceleration()
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let l_acc_msg = proto::common::v1::Vector3::from(l_acc);
         let resp = component::movement_sensor::v1::GetLinearAccelerationResponse {
             linear_acceleration: Some(l_acc_msg),
@@ -916,7 +916,7 @@ where
             .lock()
             .unwrap()
             .get_compass_heading()
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::movement_sensor::v1::GetCompassHeadingResponse { value: heading };
         self.encode_message(resp)
     }
@@ -1108,7 +1108,7 @@ where
             .lock()
             .unwrap()
             .get_voltage()
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?
             .into();
         self.encode_message(resp)
     }
@@ -1129,7 +1129,7 @@ where
             .lock()
             .unwrap()
             .get_current()
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?
             .into();
         self.encode_message(resp)
     }
@@ -1151,7 +1151,7 @@ where
                 .lock()
                 .unwrap()
                 .get_power()
-                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?,
+                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?,
         };
         self.encode_message(resp)
     }

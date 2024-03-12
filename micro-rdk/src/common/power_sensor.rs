@@ -7,7 +7,7 @@ use crate::{
 
 use super::{
     generic::DoCommand,
-    sensor::{GenericReadingsResult, Readings},
+    sensor::{GenericReadingsResult, Readings, SensorError},
     status::Status,
 };
 
@@ -56,19 +56,19 @@ impl From<Current> for component::power_sensor::v1::GetCurrentResponse {
 }
 
 pub trait PowerSensor: Status + Readings + DoCommand {
-    fn get_voltage(&mut self) -> anyhow::Result<Voltage>;
+    fn get_voltage(&mut self) -> Result<Voltage, SensorError>;
 
-    fn get_current(&mut self) -> anyhow::Result<Current>;
+    fn get_current(&mut self) -> Result<Current, SensorError>;
 
     /// returns the power reading in watts
-    fn get_power(&mut self) -> anyhow::Result<f64>;
+    fn get_power(&mut self) -> Result<f64, SensorError>;
 }
 
 pub type PowerSensorType = Arc<Mutex<dyn PowerSensor>>;
 
 pub fn get_power_sensor_generic_readings(
     ps: &mut dyn PowerSensor,
-) -> anyhow::Result<GenericReadingsResult> {
+) -> Result<GenericReadingsResult, SensorError> {
     let voltage = ps.get_voltage()?;
     let current = ps.get_current()?;
     let power = ps.get_power()?;
@@ -109,15 +109,15 @@ impl<P> PowerSensor for Mutex<P>
 where
     P: ?Sized + PowerSensor,
 {
-    fn get_current(&mut self) -> anyhow::Result<Current> {
+    fn get_current(&mut self) -> Result<Current, SensorError> {
         self.get_mut().unwrap().get_current()
     }
 
-    fn get_voltage(&mut self) -> anyhow::Result<Voltage> {
+    fn get_voltage(&mut self) -> Result<Voltage, SensorError> {
         self.get_mut().unwrap().get_voltage()
     }
 
-    fn get_power(&mut self) -> anyhow::Result<f64> {
+    fn get_power(&mut self) -> Result<f64, SensorError> {
         self.get_mut().unwrap().get_power()
     }
 }
@@ -126,15 +126,15 @@ impl<A> PowerSensor for Arc<Mutex<A>>
 where
     A: ?Sized + PowerSensor,
 {
-    fn get_current(&mut self) -> anyhow::Result<Current> {
+    fn get_current(&mut self) -> Result<Current, SensorError> {
         self.lock().unwrap().get_current()
     }
 
-    fn get_voltage(&mut self) -> anyhow::Result<Voltage> {
+    fn get_voltage(&mut self) -> Result<Voltage, SensorError> {
         self.lock().unwrap().get_voltage()
     }
 
-    fn get_power(&mut self) -> anyhow::Result<f64> {
+    fn get_power(&mut self) -> Result<f64, SensorError> {
         self.lock().unwrap().get_power()
     }
 }

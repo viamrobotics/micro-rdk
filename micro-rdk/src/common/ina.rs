@@ -22,6 +22,7 @@ use super::{
     i2c::{I2CErrors, I2cHandleType},
     power_sensor::{Current, PowerSensor, PowerSensorType, PowerSupplyType, Voltage},
     registry::{get_board_from_dependencies, ComponentRegistry, Dependency},
+    sensor::SensorError,
     status::Status,
 };
 
@@ -53,11 +54,17 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     }
 }
 
-fn ina219_from_config(cfg: ConfigType, deps: Vec<Dependency>) -> anyhow::Result<PowerSensorType> {
+fn ina219_from_config(
+    cfg: ConfigType,
+    deps: Vec<Dependency>,
+) -> Result<PowerSensorType, SensorError> {
     Ok(Arc::new(Mutex::new(from_config(Model::Ina219, cfg, deps)?)))
 }
 
-fn ina226_from_config(cfg: ConfigType, deps: Vec<Dependency>) -> anyhow::Result<PowerSensorType> {
+fn ina226_from_config(
+    cfg: ConfigType,
+    deps: Vec<Dependency>,
+) -> Result<PowerSensorType, SensorError> {
     Ok(Arc::new(Mutex::new(from_config(Model::Ina226, cfg, deps)?)))
 }
 
@@ -65,7 +72,7 @@ fn from_config(
     model: Model,
     cfg: ConfigType,
     dependencies: Vec<Dependency>,
-) -> anyhow::Result<Ina<I2cHandleType>> {
+) -> Result<Ina<I2cHandleType>, SensorError> {
     let i2c_address = cfg
         .get_attribute::<u8>("i2c_address")
         .unwrap_or(DEFAULT_I2C_ADDRESS);
@@ -84,12 +91,11 @@ fn from_config(
         .unwrap_or(DEFAULT_SHUNT_RESISTANCE_OHMS);
     let shunt_resistance_nano_ohms = (shunt_resistance_ohms * 1e9) as i64;
 
-    let i2c_name = cfg
-        .get_attribute::<String>("i2c_bus")
-        .map_err(|_| anyhow::anyhow!("i2c_bus is a required config attribute for {}", model))?;
-    let board = get_board_from_dependencies(dependencies).ok_or(anyhow::anyhow!(
-        "a board must be configured to configure an {} sensor",
-        model
+    let i2c_name = cfg.get_attribute::<String>("i2c_bus").map_err(|_| {
+        SensorError::ConfigError("i2c_bus is a required attribute for power sensor")
+    })?;
+    let board = get_board_from_dependencies(dependencies).ok_or(SensorError::ConfigError(
+        "missing board attribute for Ina sensor",
     ))?;
     let i2c_handle = board.get_i2c_by_name(i2c_name)?;
 
@@ -134,7 +140,7 @@ impl<H: I2CHandle> Ina<H> {
         i2c_address: u8,
         max_current_nano_amperes: i64,
         shunt_resistance_nano_ohms: i64,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self, SensorError> {
         let current_reading_lsb = max_current_nano_amperes / (1 << 15);
         let (unadjusted_calibration_scale, power_reading_lsb) = match model {
             Model::Ina219 => {
@@ -147,10 +153,9 @@ impl<H: I2CHandle> Ina<H> {
             / ((current_reading_lsb as f64) * (shunt_resistance_nano_ohms as f64 * 1e-9)))
             as i64;
         if calibration_scale >= (1 << 16) {
-            anyhow::bail!(
-                "ina calibrate: invalid calibration scale value {:?} exceeds limit 1 << 16, configured shunt_resistance is likely too small",
-                calibration_scale
-            );
+            return Err(SensorError::ConfigError(
+                "ina calibration scale exceeds limit of 1 << 16",
+            ));
         }
         let mut calibration_scale_bytes = (calibration_scale as u16).to_be_bytes();
         let mut res = Self {
@@ -182,7 +187,7 @@ impl<H: I2CHandle> Ina<H> {
 }
 
 impl<H: I2CHandle> PowerSensor for Ina<H> {
-    fn get_voltage(&mut self) -> anyhow::Result<Voltage> {
+    fn get_voltage(&mut self) -> Result<Voltage, SensorError> {
         let mut voltage_bytes: [u8; 2] = [0; 2];
         self.i2c_handle
             .write_read_i2c(self.i2c_address, &VOLTAGE_REGISTER, &mut voltage_bytes)?;
@@ -196,7 +201,7 @@ impl<H: I2CHandle> PowerSensor for Ina<H> {
         })
     }
 
-    fn get_current(&mut self) -> anyhow::Result<Current> {
+    fn get_current(&mut self) -> Result<Current, SensorError> {
         let current_reading_lsb = self.max_current_nano_amperes / (1 << 15);
         let mut current_amperes_bytes: [u8; 2] = [0; 2];
         self.i2c_handle.write_read_i2c(
@@ -213,7 +218,7 @@ impl<H: I2CHandle> PowerSensor for Ina<H> {
         })
     }
 
-    fn get_power(&mut self) -> anyhow::Result<f64> {
+    fn get_power(&mut self) -> Result<f64, SensorError> {
         let mut power_bytes: [u8; 2] = [0; 2];
         self.i2c_handle
             .write_read_i2c(self.i2c_address, &POWER_REGISTER, &mut power_bytes)?;

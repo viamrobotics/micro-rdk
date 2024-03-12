@@ -52,8 +52,8 @@ use crate::{
         config::{AttributeError, ConfigType},
         registry::{ComponentRegistry, Dependency},
         sensor::{
-            GenericReadingsResult, Readings, Sensor, SensorResult, SensorT, SensorType,
-            TypedReadingsResult,
+            GenericReadingsResult, Readings, Sensor, SensorError, SensorResult, SensorT,
+            SensorType, TypedReadingsResult,
         },
         status::Status,
     },
@@ -120,29 +120,20 @@ pub struct HCSR04Sensor {
 }
 
 impl HCSR04Sensor {
-    pub fn from_config(cfg: ConfigType, _deps: Vec<Dependency>) -> anyhow::Result<SensorType> {
-        let trigger_pin = cfg.get_attribute::<i32>("trigger_pin").map_err(|e| {
-            anyhow::anyhow!(
-                "HCSR04Sensor: failed to get `trigger_pin from configuration`: {:?}",
-                e
-            )
-        })?;
+    pub fn from_config(cfg: ConfigType, _deps: Vec<Dependency>) -> Result<SensorType, SensorError> {
+        let trigger_pin = cfg
+            .get_attribute::<i32>("trigger_pin")
+            .map_err(|_| SensorError::ConfigError("HCSR04Sensor: missing `trigger_pin`"))?;
 
         let echo_interrupt_pin = cfg
             .get_attribute::<i32>("echo_interrupt_pin")
-            .map_err(|e| {
-                anyhow::anyhow!(
-                    "HCSR04Sensor: failed to get `echo_interrupt_pin` from configuration: {:?}",
-                    e
-                )
-            })?;
+            .map_err(|_| SensorError::ConfigError("HCSR04Sensor: missing `echo_interrupt_pin`"))?;
 
         let timeout = cfg.get_attribute::<u32>("timeout_ms").map_or_else(
             |e| match e {
                 AttributeError::KeyNotFound(_) => Ok(None),
-                _ => Err(anyhow::anyhow!(
-                    "HCSR04Sensor: error handling `timeout_ms` value: {:?}",
-                    e
+                _ => Err(SensorError::ConfigError(
+                    "HCSR04Sensor: error handling `timeout_ms`",
                 )),
             },
             |v| Ok(Some(Duration::from_millis(v as u64))),
@@ -159,19 +150,23 @@ impl HCSR04Sensor {
         trigger_pin: i32,
         echo_interrupt_pin: i32,
         timeout: Option<Duration>,
-    ) -> anyhow::Result<HCSR04Sensor> {
+    ) -> Result<HCSR04Sensor, SensorError> {
         // TODO(RSDK-6279): Unify with esp32/pin.rs.
         init_isr_alloc_flags(crate::esp32::esp_idf_svc::hal::interrupt::InterruptType::Iram.into());
-        enable_isr_service()?;
+        enable_isr_service().map_err(|err| SensorError::SensorCodeError(err.code()))?;
 
         let notification = Notification::new();
         let notifier = notification.notifier();
 
         let sensor = Self {
-            trigger_pin: RefCell::new(PinDriver::output(unsafe { AnyIOPin::new(trigger_pin) })?),
-            echo_interrupt_pin: RefCell::new(PinDriver::input(unsafe {
-                AnyIOPin::new(echo_interrupt_pin)
-            })?),
+            trigger_pin: RefCell::new(
+                PinDriver::output(unsafe { AnyIOPin::new(trigger_pin) })
+                    .map_err(|err| SensorError::SensorCodeError(err.code()))?,
+            ),
+            echo_interrupt_pin: RefCell::new(
+                PinDriver::input(unsafe { AnyIOPin::new(echo_interrupt_pin) })
+                    .map_err(|err| SensorError::SensorCodeError(err.code()))?,
+            ),
             timeout: timeout
                 .unwrap_or(Duration::from_millis(50))
                 .clamp(Duration::from_micros(100), Duration::from_millis(100)),
@@ -185,7 +180,8 @@ impl HCSR04Sensor {
         sensor
             .echo_interrupt_pin
             .borrow_mut()
-            .set_pull(Pull::Down)?;
+            .set_pull(Pull::Down)
+            .map_err(|err| SensorError::SensorCodeError(err.code()))?;
 
         // Start the trigger pin high: the pulse is sent on the
         // falling edge, so we can just go low immediately in
@@ -193,19 +189,25 @@ impl HCSR04Sensor {
         // `get_readings` request within 10us of the prior one
         // completing, the pin will be high long enough to trigger the
         // pulse.
-        sensor.trigger_pin.borrow_mut().set_high()?;
+        sensor
+            .trigger_pin
+            .borrow_mut()
+            .set_high()
+            .map_err(|err| SensorError::SensorCodeError(err.code()))?;
 
         sensor
             .echo_interrupt_pin
             .borrow_mut()
-            .set_interrupt_type(InterruptType::AnyEdge)?;
+            .set_interrupt_type(InterruptType::AnyEdge)
+            .map_err(|err| SensorError::SensorCodeError(err.code()))?;
 
         unsafe {
             esp!(gpio_isr_handler_add(
                 echo_interrupt_pin,
                 Some(Self::subscription_interrupt),
                 Arc::as_ptr(&sensor.isr_shared_state) as *mut _,
-            ))?;
+            ))
+            .map_err(|err| SensorError::SensorCodeError(err.code()))?;
         }
 
         Ok(sensor)
@@ -255,7 +257,7 @@ impl Drop for HCSR04Sensor {
 impl Sensor for HCSR04Sensor {}
 
 impl Readings for HCSR04Sensor {
-    fn get_generic_readings(&mut self) -> anyhow::Result<GenericReadingsResult> {
+    fn get_generic_readings(&mut self) -> Result<GenericReadingsResult, SensorError> {
         Ok(self
             .get_readings()?
             .into_iter()
@@ -265,11 +267,12 @@ impl Readings for HCSR04Sensor {
 }
 
 impl SensorT<f64> for HCSR04Sensor {
-    fn get_readings(&self) -> anyhow::Result<TypedReadingsResult<f64>> {
-        // If the echo pin is already high for some reason, the state machine
-        // won't work correctly.
+    fn get_readings(&self) -> Result<TypedReadingsResult<f64>, SensorError> {
+        // If the echo pin is already high for some reason, the state machine        // won't work correctly.
         if self.echo_interrupt_pin.borrow().is_high() {
-            anyhow::bail!("HCSR04Sensor: echo pin is high before trigger sent")
+            return Err(SensorError::SensorGenericError(
+                "HCSR04Sensor : echo pin is high befor trigger is sent",
+            ));
         }
 
         // Reset the state machine: store zero to unlock the first
@@ -281,7 +284,10 @@ impl SensorT<f64> for HCSR04Sensor {
         // Drive the pin low to trigger the pulse, and ensure we put
         // it back to high after our wait.
         let mut trigger_pin = self.trigger_pin.borrow_mut();
-        trigger_pin.set_low()?;
+        trigger_pin
+            .set_low()
+            .map_err(|err| SensorError::SensorCodeError(err.code()))?;
+
         defer! {
             let _ = trigger_pin.set_high();
         }
@@ -302,10 +308,9 @@ impl SensorT<f64> for HCSR04Sensor {
                 Ok(HashMap::from([("distance".to_string(), distance)]))
             }
             _ => {
-                anyhow::bail!(
-                    "HCSR04Sensor: no echo heard after {:?}; nearest obstacle may be out of range",
-                    self.timeout,
-                )
+                return Err(SensorError::SensorGenericError(
+                    "HCSR04Sensor no echo heard obstacle may be out of range",
+                ));
             }
         }
     }

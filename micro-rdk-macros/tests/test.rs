@@ -3,7 +3,7 @@ use micro_rdk::common::movement_sensor::{
     GeoPosition, MovementSensor, MovementSensorSupportedMethods,
 };
 use micro_rdk::common::power_sensor::{Current, PowerSensor, PowerSupplyType, Voltage};
-use micro_rdk::common::sensor::Readings;
+use micro_rdk::common::sensor::{Readings, SensorError};
 use micro_rdk::common::status::Status;
 use micro_rdk::google::protobuf::value::Kind;
 use micro_rdk_macros::{DoCommand, MovementSensorReadings, PowerSensorReadings};
@@ -16,7 +16,7 @@ struct TestDoCommandStruct {}
 struct TestMovementSensor {}
 
 impl MovementSensor for TestMovementSensor {
-    fn get_position(&mut self) -> anyhow::Result<GeoPosition> {
+    fn get_position(&mut self) -> Result<GeoPosition, SensorError> {
         Ok(GeoPosition {
             lat: 1.0,
             lon: 2.0,
@@ -24,7 +24,7 @@ impl MovementSensor for TestMovementSensor {
         })
     }
 
-    fn get_linear_acceleration(&mut self) -> anyhow::Result<Vector3> {
+    fn get_linear_acceleration(&mut self) -> Result<Vector3, SensorError> {
         Ok(Vector3 {
             x: 0.0,
             y: 1.0,
@@ -42,15 +42,19 @@ impl MovementSensor for TestMovementSensor {
         }
     }
 
-    fn get_linear_velocity(&mut self) -> anyhow::Result<Vector3> {
-        anyhow::bail!("unimplemented: movement_sensor_get_linear_velocity")
+    fn get_linear_velocity(&mut self) -> Result<Vector3, SensorError> {
+        Err(SensorError::SensorMethodUnimplemented(
+            "get_linear_velocity",
+        ))
     }
 
-    fn get_angular_velocity(&mut self) -> anyhow::Result<Vector3> {
-        anyhow::bail!("unimplemented: movement_sensor_get_angular_velocity")
+    fn get_angular_velocity(&mut self) -> Result<Vector3, SensorError> {
+        Err(SensorError::SensorMethodUnimplemented(
+            "get_angular_velocity",
+        ))
     }
 
-    fn get_compass_heading(&mut self) -> anyhow::Result<f64> {
+    fn get_compass_heading(&mut self) -> Result<f64, SensorError> {
         Ok(3.5)
     }
 }
@@ -67,21 +71,21 @@ impl Status for TestMovementSensor {
 struct TestPowerSensor {}
 
 impl PowerSensor for TestPowerSensor {
-    fn get_voltage(&mut self) -> anyhow::Result<Voltage> {
+    fn get_voltage(&mut self) -> Result<Voltage, SensorError> {
         Ok(Voltage {
             volts: 5.0,
             power_supply_type: PowerSupplyType::AC,
         })
     }
 
-    fn get_current(&mut self) -> anyhow::Result<Current> {
+    fn get_current(&mut self) -> Result<Current, SensorError> {
         Ok(Current {
             amperes: 6.0,
             power_supply_type: PowerSupplyType::AC,
         })
     }
 
-    fn get_power(&mut self) -> anyhow::Result<f64> {
+    fn get_power(&mut self) -> Result<f64, SensorError> {
         Ok(7.0)
     }
 }
@@ -103,7 +107,7 @@ fn do_command_derive() {
 
 #[test]
 fn movement_sensor_readings_derive() {
-    let mut a = TestMovementSensor {};
+        anyhow::bail!("unimplemented: movement_sensor_get_angular_velocity")    let mut a = TestMovementSensor {};
     let res = a.get_generic_readings();
     assert!(res.is_ok());
     let res = res.unwrap();
