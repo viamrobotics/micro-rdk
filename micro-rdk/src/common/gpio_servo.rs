@@ -27,9 +27,9 @@ use std::sync::{Arc, Mutex};
 use super::{
     actuator::{Actuator, ActuatorError},
     board::{Board, BoardType},
-    config::{AttributeError, ConfigType},
+    config::ConfigType,
     registry::{get_board_from_dependencies, ComponentRegistry, Dependency},
-    servo::{Servo, ServoType},
+    servo::{Servo, ServoError, ServoType},
     status::Status,
 };
 
@@ -55,19 +55,12 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 pub(crate) fn from_config(
     cfg: ConfigType,
     dependencies: Vec<Dependency>,
-) -> anyhow::Result<ServoType> {
-    let board = get_board_from_dependencies(dependencies).ok_or(anyhow::anyhow!(
-        "configuration for 'gpio' servo is missing the required board dependency"
-    ))?;
+) -> Result<ServoType, ServoError> {
+    let board = get_board_from_dependencies(dependencies).ok_or(
+        ServoError::ServoConfigurationError("missing board attribute"),
+    )?;
     let servo_settings = GpioServoSettings::from_config(&cfg)?;
-    let pin = cfg.get_attribute::<i32>("pin").map_err(|err| match err {
-        AttributeError::ConversionImpossibleError => {
-            anyhow::anyhow!(
-                "could not convert pin attribute to integer when configuring gpio servo"
-            )
-        }
-        _ => anyhow::anyhow!("error configuring gpio servo: {:?}", err),
-    })?;
+    let pin = cfg.get_attribute::<i32>("pin")?;
     Ok(Arc::new(Mutex::new(GpioServo::<BoardType>::new(
         board.clone(),
         pin,
@@ -88,7 +81,7 @@ pub(crate) struct GpioServoSettings {
 }
 
 impl GpioServoSettings {
-    pub fn from_config(cfg: &ConfigType) -> anyhow::Result<Self> {
+    pub fn from_config(cfg: &ConfigType) -> Result<Self, ServoError> {
         let min_angle_deg = cfg
             .get_attribute::<u32>("min_angle_deg")
             .unwrap_or(SAFE_ANGULAR_POSITION_LIMITS.0);
@@ -134,10 +127,10 @@ impl<B> GpioServo<B>
 where
     B: Board,
 {
-    pub(crate) fn new(board: B, pin: i32, settings: GpioServoSettings) -> anyhow::Result<Self> {
+    pub(crate) fn new(board: B, pin: i32, settings: GpioServoSettings) -> Result<Self, ServoError> {
         if settings.frequency == 0 {
-            return Err(anyhow::anyhow!(
-                "PWM frequency cannot be zero for 'gpio' servo"
+            return Err(ServoError::ServoConfigurationError(
+                "GpioServo: PWM frequency set to 0",
             ));
         }
         let mut res = Self {
@@ -184,7 +177,7 @@ where
     // this implementation of move_to clamps the angle to the range determined
     // by min_angle_deg and max_angle_deg, rather than raising an error for out of range
     // values
-    fn move_to(&mut self, angle_deg: u32) -> anyhow::Result<()> {
+    fn move_to(&mut self, angle_deg: u32) -> Result<(), ServoError> {
         let angle_deg = angle_deg.clamp(self.min_angle_deg, self.max_angle_deg);
         let mut duty_cycle_pct = self.angle_to_duty_pct(angle_deg);
         if self.pwm_resolution != 0 {
@@ -194,7 +187,7 @@ where
         self.board.set_pwm_duty(self.pin, duty_cycle_pct)?;
         Ok(())
     }
-    fn get_position(&mut self) -> anyhow::Result<u32> {
+    fn get_position(&mut self) -> Result<u32, ServoError> {
         let duty_pct = self.board.get_pwm_duty(self.pin);
         Ok(self.duty_pct_to_angle(duty_pct))
     }
@@ -225,11 +218,11 @@ where
 mod tests {
     use crate::common::board::{Board, FakeBoard};
     use crate::common::gpio_servo::{GpioServo, GpioServoSettings};
-    use crate::common::servo::Servo;
+    use crate::common::servo::{Servo, ServoError};
     use std::sync::{Arc, Mutex};
 
     #[test_log::test]
-    fn test_move_to_with_no_pwm_resolution() -> anyhow::Result<()> {
+    fn test_move_to_with_no_pwm_resolution() -> Result<(), ServoError> {
         let board = Arc::new(Mutex::new(FakeBoard::new(vec![])));
         let servo_settings = GpioServoSettings {
             min_angle_deg: 90,
@@ -259,7 +252,7 @@ mod tests {
     }
 
     #[test_log::test]
-    fn test_get_position() -> anyhow::Result<()> {
+    fn test_get_position() -> Result<(), ServoError> {
         let mut board = Arc::new(Mutex::new(FakeBoard::new(vec![])));
         let servo_settings = GpioServoSettings {
             min_angle_deg: 90,
@@ -283,7 +276,7 @@ mod tests {
     }
 
     #[test_log::test]
-    fn test_move_to_with_pwm_resolution() -> anyhow::Result<()> {
+    fn test_move_to_with_pwm_resolution() -> Result<(), ServoError> {
         let board = Arc::new(Mutex::new(FakeBoard::new(vec![])));
         let servo_settings = GpioServoSettings {
             min_angle_deg: 90,

@@ -3,17 +3,17 @@ use std::collections::HashMap as Map;
 use thiserror::Error;
 
 use super::{
-    base::BaseType,
+    base::{BaseError, BaseType},
     board::{BoardError, BoardType},
     config::ConfigType,
     encoder::{EncoderError, EncoderType},
-    generic::GenericComponentType,
+    generic::{GenericComponentType, GenericError},
     motor::{MotorError, MotorType},
     movement_sensor::MovementSensorType,
     power_sensor::PowerSensorType,
     robot::Resource,
     sensor::{SensorError, SensorType},
-    servo::ServoType,
+    servo::{ServoError, ServoType},
 };
 use crate::proto::common::v1::ResourceName;
 
@@ -107,10 +107,10 @@ type MovementSensorConstructor =
 type EncoderConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<EncoderType, EncoderError>;
 
 /// Fn that returns an `BaseType`, `Arc<Mutex<dyn Base>>`
-type BaseConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<BaseType>;
+type BaseConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<BaseType, BaseError>;
 
 /// Fn that returns a `ServoType`, `Arc<Mutex<dyn Servo>>`
-type ServoConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<ServoType>;
+type ServoConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<ServoType, ServoError>;
 
 /// Fn that returns a `PowerSensorType`, `Arc<Mutex<dyn PowerSensor>>`
 type PowerSensorConstructor =
@@ -118,7 +118,7 @@ type PowerSensorConstructor =
 
 /// Fn that returns a `GenericComponentType`, `Arc<Mutex<dyn GenericComponentType>>`
 type GenericComponentConstructor =
-    dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<GenericComponentType>;
+    dyn Fn(ConfigType, Vec<Dependency>) -> Result<GenericComponentType, GenericError>;
 
 type DependenciesFromConfig = dyn Fn(ConfigType) -> Vec<ResourceKey>;
 

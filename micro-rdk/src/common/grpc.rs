@@ -473,7 +473,7 @@ where
             .lock()
             .unwrap()
             .move_to(req.angle_deg)
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::servo::v1::MoveResponse {};
         self.encode_message(resp)
     }
@@ -489,7 +489,7 @@ where
             .lock()
             .unwrap()
             .get_position()
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::servo::v1::GetPositionResponse { position_deg: pos };
         self.encode_message(resp)
     }
@@ -766,7 +766,7 @@ where
             .lock()
             .unwrap()
             .do_command(req.command)
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = proto::common::v1::DoCommandResponse { result: res };
         self.encode_message(resp)
     }
@@ -1009,7 +1009,7 @@ where
                 &req.linear.unwrap_or_default(),
                 &req.angular.unwrap_or_default(),
             )
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::base::v1::SetPowerResponse {};
         self.encode_message(resp)
     }
