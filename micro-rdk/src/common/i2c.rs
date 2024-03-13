@@ -3,17 +3,35 @@
 use super::config::{AttributeError, Kind};
 use std::sync::{Arc, Mutex};
 
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum I2CErrors {
+    #[error("invalid argument: {0}")]
+    I2CInvalidArgument(&'static str),
+    #[error("ic2 bus {0} read error {1}")]
+    I2CReadError(String, i32),
+    #[error("ic2 bus {0} write error {1}")]
+    I2CWriteError(String, i32),
+    #[error("ic2 bus {0} read_write error {1}")]
+    I2CReadWriteError(String, i32),
+    #[error("{0} unimplemented")]
+    I2CUnimplemented(&'static str),
+    #[error(transparent)]
+    I2COtherError(#[from] Box<dyn std::error::Error + Send + Sync>),
+}
+
 // A trait representing blocking I2C communication for a board. TODO: replace with the
 // embedded_hal I2C trait when supporting boards beyond ESP32.
 pub trait I2CHandle {
     fn name(&self) -> String;
 
-    fn read_i2c(&mut self, _address: u8, _buffer: &mut [u8]) -> anyhow::Result<()> {
-        anyhow::bail!("read_i2c unimplemented")
+    fn read_i2c(&mut self, _address: u8, _buffer: &mut [u8]) -> Result<(), I2CErrors> {
+        Err(I2CErrors::I2CUnimplemented("read_i2c"))
     }
 
-    fn write_i2c(&mut self, _address: u8, _bytes: &[u8]) -> anyhow::Result<()> {
-        anyhow::bail!("write_i2c unimplemented")
+    fn write_i2c(&mut self, _address: u8, _bytes: &[u8]) -> Result<(), I2CErrors> {
+        Err(I2CErrors::I2CUnimplemented("write_i2c"))
     }
 
     // a transactional write and subsequent read action
@@ -22,8 +40,8 @@ pub trait I2CHandle {
         _address: u8,
         _bytes: &[u8],
         _buffer: &mut [u8],
-    ) -> anyhow::Result<()> {
-        anyhow::bail!("write_read_i2c unimplemented")
+    ) -> Result<(), I2CErrors> {
+        Err(I2CErrors::I2CUnimplemented("write_read_i2c"))
     }
 }
 
@@ -89,20 +107,20 @@ impl I2CHandle for FakeI2CHandle {
         self.name.clone()
     }
 
-    fn read_i2c(&mut self, _address: u8, buffer: &mut [u8]) -> anyhow::Result<()> {
+    fn read_i2c(&mut self, _address: u8, buffer: &mut [u8]) -> Result<(), I2CErrors> {
         for (i, x) in self.value.iter().enumerate() {
             if i < buffer.len() {
                 buffer[i] = *x;
             }
         }
-        anyhow::Ok(())
+        Ok(())
     }
 
-    fn write_i2c(&mut self, _address: u8, bytes: &[u8]) -> anyhow::Result<()> {
+    fn write_i2c(&mut self, _address: u8, bytes: &[u8]) -> Result<(), I2CErrors> {
         for (i, x) in bytes.iter().enumerate() {
             self.value[i] = *x;
         }
-        anyhow::Ok(())
+        Ok(())
     }
 }
 
@@ -114,11 +132,11 @@ where
         self.lock().unwrap().name()
     }
 
-    fn read_i2c(&mut self, address: u8, buffer: &mut [u8]) -> anyhow::Result<()> {
+    fn read_i2c(&mut self, address: u8, buffer: &mut [u8]) -> Result<(), I2CErrors> {
         self.lock().unwrap().read_i2c(address, buffer)
     }
 
-    fn write_i2c(&mut self, address: u8, bytes: &[u8]) -> anyhow::Result<()> {
+    fn write_i2c(&mut self, address: u8, bytes: &[u8]) -> Result<(), I2CErrors> {
         self.lock().unwrap().write_i2c(address, bytes)
     }
 
@@ -127,7 +145,7 @@ where
         address: u8,
         bytes: &[u8],
         buffer: &mut [u8],
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), I2CErrors> {
         self.lock().unwrap().write_read_i2c(address, bytes, buffer)
     }
 }

@@ -1,6 +1,13 @@
 #![allow(dead_code)]
 
 use super::config::{AttributeError, Kind};
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum AnalogError {
+    #[error("analog read error {0}")]
+    AnalogReadError(i32),
+}
 
 pub struct FakeAnalogReader {
     name: String,
@@ -14,13 +21,13 @@ impl FakeAnalogReader {
     fn internal_name(&self) -> String {
         self.name.clone()
     }
-    fn internal_read(&self) -> anyhow::Result<u16> {
+    fn internal_read(&self) -> Result<u16, AnalogError> {
         Ok(self.value)
     }
 }
 
 impl AnalogReader<u16> for FakeAnalogReader {
-    type Error = anyhow::Error;
+    type Error = AnalogError;
     fn name(&self) -> String {
         self.internal_name()
     }

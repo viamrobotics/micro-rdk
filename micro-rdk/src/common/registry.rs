@@ -3,9 +3,17 @@ use std::collections::HashMap as Map;
 use thiserror::Error;
 
 use super::{
-    base::BaseType, board::BoardType, config::ConfigType, encoder::EncoderType,
-    generic::GenericComponentType, motor::MotorType, movement_sensor::MovementSensorType,
-    power_sensor::PowerSensorType, robot::Resource, sensor::SensorType, servo::ServoType,
+    base::BaseType,
+    board::{BoardError, BoardType},
+    config::ConfigType,
+    encoder::EncoderType,
+    generic::GenericComponentType,
+    motor::MotorType,
+    movement_sensor::MovementSensorType,
+    power_sensor::PowerSensorType,
+    robot::Resource,
+    sensor::SensorType,
+    servo::ServoType,
 };
 use crate::proto::common::v1::ResourceName;
 
@@ -83,7 +91,7 @@ impl TryFrom<ResourceName> for ResourceKey {
 pub struct Dependency(pub ResourceKey, pub Resource);
 
 /// Fn that returns a `BoardType`, `Arc<Mutex<dyn Board>>`
-type BoardConstructor = dyn Fn(ConfigType) -> anyhow::Result<BoardType>;
+type BoardConstructor = dyn Fn(ConfigType) -> Result<BoardType, BoardError>;
 
 /// Fn that returns a `MotorType`, `Arc<Mutex<dyn Motor>>`
 type MotorConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<MotorType>;
@@ -423,7 +431,6 @@ impl ComponentRegistry {
         Err(RegistryError::ModelNotFound(model))
     }
 }
-
 #[cfg(test)]
 mod tests {
     use crate::common::generic::DoCommand;
@@ -602,14 +609,18 @@ mod tests {
         let ctor = registry.get_board_constructor("fake".to_string());
         assert!(ctor.is_ok());
 
-        let ret = registry.register_board("fake", &|_| Err(anyhow::anyhow!("not implemented")));
+        let ret = registry.register_board("fake", &|_| {
+            Err(common::board::BoardError::BoardMethodNotSupported(""))
+        });
         assert!(ret.is_err());
         assert_eq!(
             ret.err().unwrap(),
             RegistryError::ModelAlreadyRegistered("fake")
         );
 
-        let ret = registry.register_board("fake2", &|_| Err(anyhow::anyhow!("not implemented")));
+        let ret = registry.register_board("fake2", &|_| {
+            Err(common::board::BoardError::BoardMethodNotSupported(""))
+        });
         assert!(ret.is_ok());
 
         let ctor = registry.get_motor_constructor("fake2".to_string());
@@ -629,7 +640,7 @@ mod tests {
         let ret = ctor.unwrap()(ConfigType::Dynamic(&DynamicComponentConfig::default()));
 
         assert!(ret.is_err());
-        assert_eq!(format!("{}", ret.err().unwrap()), "not implemented");
+        assert_eq!(format!("{}", ret.err().unwrap()), "method:  not supported");
 
         Ok(())
     }

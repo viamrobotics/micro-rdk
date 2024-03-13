@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use crate::common::analog::AnalogReader;
+use crate::common::analog::{AnalogError, AnalogReader};
 use crate::esp32::esp_idf_svc::hal::adc::{AdcChannelDriver, AdcDriver};
 use crate::esp32::esp_idf_svc::hal::gpio::ADCPin;
 use core::cell::RefCell;
@@ -23,11 +23,11 @@ impl<'a, const A: u32, T: ADCPin> Esp32AnalogReader<'a, A, T> {
             driver,
         }
     }
-    fn inner_read(&mut self) -> anyhow::Result<u16> {
+    fn inner_read(&mut self) -> Result<u16, AnalogError> {
         self.driver
             .borrow_mut()
             .read_raw(&mut self.channel)
-            .map_err(|e| anyhow::anyhow!(format!("error while reading analog reader {e}")))
+            .map_err(|e| AnalogError::AnalogReadError(e.code()))
     }
     fn inner_name(&self) -> String {
         self.name.clone()
@@ -35,7 +35,7 @@ impl<'a, const A: u32, T: ADCPin> Esp32AnalogReader<'a, A, T> {
 }
 
 impl<'a, const A: u32, T: ADCPin> AnalogReader<u16> for Esp32AnalogReader<'a, A, T> {
-    type Error = anyhow::Error;
+    type Error = AnalogError;
     fn read(&mut self) -> Result<u16, Self::Error> {
         self.inner_read()
     }

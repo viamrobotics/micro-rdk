@@ -19,7 +19,7 @@ use std::sync::{Arc, Mutex};
 use super::{
     board::Board,
     config::ConfigType,
-    i2c::I2cHandleType,
+    i2c::{I2CErrors, I2cHandleType},
     power_sensor::{Current, PowerSensor, PowerSensorType, PowerSupplyType, Voltage},
     registry::{get_board_from_dependencies, ComponentRegistry, Dependency},
     status::Status,
@@ -164,7 +164,7 @@ impl<H: I2CHandle> Ina<H> {
         Ok(res)
     }
 
-    fn calibrate(&mut self, calibration_scale_bytes: &mut [u8; 2]) -> anyhow::Result<()> {
+    fn calibrate(&mut self, calibration_scale_bytes: &mut [u8; 2]) -> Result<(), I2CErrors> {
         // set scaling factor for current and power registers by writing adjusted
         // calibration scale to the appropriate register
         self.write_to_register(CALIBRATION_REGISTER, calibration_scale_bytes)?;
@@ -174,7 +174,7 @@ impl<H: I2CHandle> Ina<H> {
         self.write_to_register(CONFIG_REGISTER, &default_config_register_bytes)
     }
 
-    fn write_to_register(&mut self, register: u8, buffer: &[u8]) -> anyhow::Result<()> {
+    fn write_to_register(&mut self, register: u8, buffer: &[u8]) -> Result<(), I2CErrors> {
         let mut byte_vec: Vec<u8> = vec![register];
         byte_vec.extend_from_slice(buffer);
         self.i2c_handle.write_i2c(self.i2c_address, &byte_vec)

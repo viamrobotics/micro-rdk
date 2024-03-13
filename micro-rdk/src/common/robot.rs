@@ -138,7 +138,7 @@ impl LocalRobot {
                 .get_board_constructor(model)
                 .map_err(RobotError::RobotRegistryError)?;
             let board = constructor(ConfigType::Dynamic(config))
-                .map_err(RobotError::RobotResourceBuildError)?;
+                .map_err(|e| RobotError::RobotResourceBuildError(e.into()))?;
             (Some(board), board_key)
         } else {
             (None, None)

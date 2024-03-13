@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::common::config::{AttributeError, Kind};
-use crate::common::i2c::I2CHandle;
+use crate::common::i2c::{I2CErrors, I2CHandle};
 use crate::esp32::esp_idf_svc::hal::delay::BLOCK;
 use crate::esp32::esp_idf_svc::hal::gpio::AnyIOPin;
 use crate::esp32::esp_idf_svc::hal::i2c::{I2cConfig, I2cDriver, I2C0, I2C1};
@@ -75,7 +75,7 @@ pub struct Esp32I2C<'a> {
 }
 
 impl<'a> Esp32I2C<'a> {
-    pub fn new_from_config(conf: &Esp32I2cConfig) -> anyhow::Result<Self> {
+    pub fn new_from_config(conf: &Esp32I2cConfig) -> Result<Self, I2CErrors> {
         let name = conf.name.to_string();
         let timeout_ns = conf.timeout_ns;
         let sda = unsafe { AnyIOPin::new(conf.data_pin) };
@@ -85,7 +85,8 @@ impl<'a> Esp32I2C<'a> {
         match conf.bus.as_str() {
             "i2c0" => {
                 let i2c0 = unsafe { I2C0::new() };
-                let driver = I2cDriver::new(i2c0, sda, scl, &driver_conf)?;
+                let driver = I2cDriver::new(i2c0, sda, scl, &driver_conf)
+                    .map_err(|e| I2CErrors::I2COtherError(Box::new(e)))?;
                 Ok(Esp32I2C {
                     name,
                     driver,
@@ -94,14 +95,15 @@ impl<'a> Esp32I2C<'a> {
             }
             "i2c1" => {
                 let i2c1 = unsafe { I2C1::new() };
-                let driver = I2cDriver::new(i2c1, sda, scl, &driver_conf)?;
+                let driver = I2cDriver::new(i2c1, sda, scl, &driver_conf)
+                    .map_err(|e| I2CErrors::I2COtherError(Box::new(e)))?;
                 Ok(Esp32I2C {
                     name,
                     driver,
                     timeout_ns,
                 })
             }
-            _ => anyhow::bail!("only i2c0 or i2c1 supported, i2c bus must match either value"),
+            _ => Err(I2CErrors::I2CInvalidArgument("only i2c0 or i2c1 supported")),
         }
     }
 }
@@ -111,17 +113,17 @@ impl<'a> I2CHandle for Esp32I2C<'a> {
         self.name.clone()
     }
 
-    fn read_i2c(&mut self, address: u8, buffer: &mut [u8]) -> anyhow::Result<()> {
+    fn read_i2c(&mut self, address: u8, buffer: &mut [u8]) -> Result<(), I2CErrors> {
         match self.driver.read(address, buffer, BLOCK) {
             Ok(()) => Ok(()),
-            Err(err) => anyhow::bail!("ESP32 read_i2c failed for i2c {}: {}", self.name, err),
+            Err(err) => Err(I2CErrors::I2CReadError(self.name(), err.code())),
         }
     }
 
-    fn write_i2c(&mut self, address: u8, bytes: &[u8]) -> anyhow::Result<()> {
+    fn write_i2c(&mut self, address: u8, bytes: &[u8]) -> Result<(), I2CErrors> {
         match self.driver.write(address, bytes, BLOCK) {
             Ok(()) => Ok(()),
-            Err(err) => anyhow::bail!("ESP32 write_i2c failed for i2c {}: {}", self.name, err),
+            Err(err) => Err(I2CErrors::I2CWriteError(self.name(), err.code())),
         }
     }
 
@@ -130,10 +132,10 @@ impl<'a> I2CHandle for Esp32I2C<'a> {
         address: u8,
         bytes: &[u8],
         buffer: &mut [u8],
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), I2CErrors> {
         match self.driver.write_read(address, bytes, buffer, BLOCK) {
             Ok(()) => Ok(()),
-            Err(err) => anyhow::bail!("ESP32 write_read_i2c failed for i2c {}: {}", self.name, err),
+            Err(err) => Err(I2CErrors::I2CReadWriteError(self.name(), err.code())),
         }
     }
 }
