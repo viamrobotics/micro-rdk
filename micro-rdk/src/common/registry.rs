@@ -431,7 +431,6 @@ impl ComponentRegistry {
         Err(RegistryError::ModelNotFound(model))
     }
 }
-
 #[cfg(test)]
 mod tests {
     use crate::common::generic::DoCommand;
@@ -610,14 +609,18 @@ mod tests {
         let ctor = registry.get_board_constructor("fake".to_string());
         assert!(ctor.is_ok());
 
-        let ret = registry.register_board("fake", &|_| Err(anyhow::anyhow!("not implemented")));
+        let ret = registry.register_board("fake", &|_| {
+            Err(common::board::BoardError::BoardMethodNotSupported(""))
+        });
         assert!(ret.is_err());
         assert_eq!(
             ret.err().unwrap(),
             RegistryError::ModelAlreadyRegistered("fake")
         );
 
-        let ret = registry.register_board("fake2", &|_| Err(anyhow::anyhow!("not implemented")));
+        let ret = registry.register_board("fake2", &|_| {
+            Err(common::board::BoardError::BoardMethodNotSupported(""))
+        });
         assert!(ret.is_ok());
 
         let ctor = registry.get_motor_constructor("fake2".to_string());
@@ -637,7 +640,7 @@ mod tests {
         let ret = ctor.unwrap()(ConfigType::Dynamic(&DynamicComponentConfig::default()));
 
         assert!(ret.is_err());
-        assert_eq!(format!("{}", ret.err().unwrap()), "not implemented");
+        assert_eq!(format!("{}", ret.err().unwrap()), "method:  not supported");
 
         Ok(())
     }
