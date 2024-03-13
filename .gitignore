@@ -4,3 +4,4 @@ Cargo.lock
 /examples/viam.json
 /canary/.venv/*
 .vscode
+components_esp32.lock
