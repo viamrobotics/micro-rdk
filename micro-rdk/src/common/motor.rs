@@ -1,22 +1,32 @@
 #![allow(dead_code)]
+
+#[cfg(feature = "builtin-components")]
+use {
+    crate::google,
+    std::collections::HashMap,
+    super::encoder::{
+        Encoder, EncoderPositionType, EncoderType, COMPONENT_NAME as EncoderCompName,
+    },
+    super::math_utils::go_for_math,
+    super::{
+        config::ConfigType,
+        registry::{ComponentRegistry, Dependency, ResourceKey},
+        robot::Resource,
+    }
+};
+
 use crate::common::status::Status;
-use crate::google;
 use crate::proto::component::motor::v1::GetPropertiesResponse;
-use log::*;
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use super::actuator::{Actuator, ActuatorError};
 use super::board::BoardError;
-use super::config::{AttributeError, ConfigType, Kind};
-use super::encoder::{
-    Encoder, EncoderError, EncoderPositionType, EncoderType, COMPONENT_NAME as EncoderCompName,
-};
+use super::config::{AttributeError, Kind};
+use super::encoder::EncoderError;
 use super::generic::DoCommand;
-use super::math_utils::{go_for_math, UtilsInvalidArg};
-use super::registry::{ComponentRegistry, Dependency, ResourceKey};
-use super::robot::Resource;
+use super::math_utils::UtilsInvalidArg;
+
 use thiserror::Error;
 
 pub static COMPONENT_NAME: &str = "motor";
@@ -43,6 +53,7 @@ pub enum MotorError {
     MotorMethodUnimplemented(&'static str),
 }
 
+#[cfg(feature = "builtin-components")]
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
         .register_motor("fake", &FakeMotor::from_config)
@@ -129,6 +140,7 @@ impl MotorPinsConfig {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 #[derive(DoCommand)]
 pub struct FakeMotor {
     pos: f64,
@@ -191,6 +203,7 @@ impl TryFrom<&Kind> for MotorPinsConfig {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl FakeMotor {
     pub fn new() -> Self {
         Self {
@@ -213,6 +226,7 @@ impl FakeMotor {
         Ok(Arc::new(Mutex::new(motor)))
     }
 }
+#[cfg(feature = "builtin-components")]
 impl Default for FakeMotor {
     fn default() -> Self {
         Self::new()
@@ -255,12 +269,13 @@ where
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl Motor for FakeMotor {
     fn get_position(&mut self) -> Result<i32, MotorError> {
         Ok(self.pos as i32)
     }
     fn set_power(&mut self, pct: f64) -> Result<(), MotorError> {
-        debug!("setting power to {}", pct);
+        log::debug!("setting power to {}", pct);
         self.power = pct;
         Ok(())
     }
@@ -276,6 +291,8 @@ impl Motor for FakeMotor {
         }
     }
 }
+
+#[cfg(feature = "builtin-components")]
 impl Status for FakeMotor {
     fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
         let mut hm = HashMap::new();
@@ -296,9 +313,10 @@ impl Status for FakeMotor {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl Actuator for FakeMotor {
     fn stop(&mut self) -> Result<(), ActuatorError> {
-        debug!("stopping motor");
+        log::debug!("stopping motor");
         self.set_power(0.0).map_err(|_| ActuatorError::CouldntStop)
     }
     fn is_moving(&mut self) -> Result<bool, ActuatorError> {
@@ -306,12 +324,14 @@ impl Actuator for FakeMotor {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 #[derive(DoCommand)]
 pub struct FakeMotorWithDependency {
     encoder: Option<EncoderType>,
     power: f64,
 }
 
+#[cfg(feature = "builtin-components")]
 impl FakeMotorWithDependency {
     pub fn new(encoder: Option<EncoderType>) -> Self {
         Self {
@@ -350,6 +370,7 @@ impl FakeMotorWithDependency {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl Motor for FakeMotorWithDependency {
     fn get_position(&mut self) -> Result<i32, MotorError> {
         match &self.encoder {
@@ -358,7 +379,7 @@ impl Motor for FakeMotorWithDependency {
         }
     }
     fn set_power(&mut self, pct: f64) -> Result<(), MotorError> {
-        debug!("setting power to {}", pct);
+        log::debug!("setting power to {}", pct);
         self.power = pct;
         Ok(())
     }
@@ -372,6 +393,7 @@ impl Motor for FakeMotorWithDependency {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl Status for FakeMotorWithDependency {
     fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
         let hm = HashMap::new();
@@ -379,6 +401,7 @@ impl Status for FakeMotorWithDependency {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl Actuator for FakeMotorWithDependency {
     fn stop(&mut self) -> Result<(), ActuatorError> {
         self.power = 0.0;
@@ -389,6 +412,7 @@ impl Actuator for FakeMotorWithDependency {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;

@@ -1,15 +1,17 @@
 #![allow(dead_code)]
+#[cfg(feature = "builtin-components")]
+use {
+    super::actuator::ActuatorError,
+    crate::google,
+    std::collections::HashMap,
+    log::*
+};
+
+use super::generic::DoCommand;
 use crate::common::actuator::Actuator;
 use crate::common::status::Status;
-use crate::google;
 use crate::proto::common::v1::Vector3;
-
-use log::*;
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-
-use super::actuator::ActuatorError;
-use super::generic::DoCommand;
 
 pub static COMPONENT_NAME: &str = "base";
 
@@ -19,15 +21,18 @@ pub trait Base: Status + Actuator + DoCommand {
 
 pub type BaseType = Arc<Mutex<dyn Base>>;
 
+#[cfg(feature = "builtin-components")]
 // TODO(RSDK-5648) - Store power from set_power call on struct and register as "fake" model
 #[derive(DoCommand)]
 pub struct FakeBase {}
 
+#[cfg(feature = "builtin-components")]
 impl FakeBase {
     pub fn new() -> Self {
         FakeBase {}
     }
 }
+#[cfg(feature = "builtin-components")]
 impl Default for FakeBase {
     fn default() -> Self {
         Self::new()
@@ -52,6 +57,7 @@ where
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl Base for FakeBase {
     fn set_power(&mut self, lin: &Vector3, ang: &Vector3) -> anyhow::Result<()> {
         debug!(
@@ -62,6 +68,7 @@ impl Base for FakeBase {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl Actuator for FakeBase {
     fn is_moving(&mut self) -> Result<bool, ActuatorError> {
         Ok(false)
@@ -72,6 +79,7 @@ impl Actuator for FakeBase {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl Status for FakeBase {
     fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
         let mut hm = HashMap::new();

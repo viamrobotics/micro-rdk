@@ -1,18 +1,22 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
+use std::sync::{Arc, Mutex};
+
+use crate::google::protobuf::Struct;
+
+#[cfg(feature = "builtin-components")]
+use {
+    crate::google::protobuf::{value::Kind, Value},
+    std::collections::HashMap,
+    super::{
+        config::ConfigType,
+        registry::{ComponentRegistry, Dependency},
+    },
 };
 
-use crate::google::protobuf::{value::Kind, Struct, Value};
-
-use super::{
-    config::ConfigType,
-    registry::{ComponentRegistry, Dependency},
-    status::Status,
-};
+use super::status::Status;
 
 pub static COMPONENT_NAME: &str = "generic";
 
+#[cfg(feature = "builtin-components")]
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
         .register_generic_component("fake", &FakeGenericComponent::from_config)
@@ -56,8 +60,10 @@ impl<L> GenericComponent for Mutex<L> where L: ?Sized + GenericComponent {}
 
 impl<A> GenericComponent for Arc<Mutex<A>> where A: ?Sized + GenericComponent {}
 
+#[cfg(feature = "builtin-components")]
 pub struct FakeGenericComponent {}
 
+#[cfg(feature = "builtin-components")]
 impl FakeGenericComponent {
     pub(crate) fn from_config(
         _: ConfigType,
@@ -67,8 +73,10 @@ impl FakeGenericComponent {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl GenericComponent for FakeGenericComponent {}
 
+#[cfg(feature = "builtin-components")]
 impl DoCommand for FakeGenericComponent {
     fn do_command(&mut self, command_struct: Option<Struct>) -> anyhow::Result<Option<Struct>> {
         let mut res = HashMap::new();
@@ -94,6 +102,7 @@ impl DoCommand for FakeGenericComponent {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl Status for FakeGenericComponent {
     fn get_status(&self) -> anyhow::Result<Option<Struct>> {
         Ok(Some(Struct {

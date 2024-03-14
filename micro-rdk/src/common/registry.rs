@@ -139,23 +139,29 @@ impl Default for ComponentRegistry {
     fn default() -> Self {
         let mut r = Self::new();
         crate::common::board::register_models(&mut r);
-        crate::common::encoder::register_models(&mut r);
-        crate::common::motor::register_models(&mut r);
-        crate::common::gpio_motor::register_models(&mut r);
-        crate::common::gpio_servo::register_models(&mut r);
-        crate::common::sensor::register_models(&mut r);
-        crate::common::movement_sensor::register_models(&mut r);
-        crate::common::mpu6050::register_models(&mut r);
-        crate::common::adxl345::register_models(&mut r);
-        crate::common::generic::register_models(&mut r);
-        crate::common::ina::register_models(&mut r);
-        crate::common::wheeled_base::register_models(&mut r);
+        #[cfg(feature = "builtin-components")]
+        {
+            crate::common::encoder::register_models(&mut r);
+            crate::common::motor::register_models(&mut r);
+            crate::common::gpio_motor::register_models(&mut r);
+            crate::common::gpio_servo::register_models(&mut r);
+            crate::common::sensor::register_models(&mut r);
+            crate::common::movement_sensor::register_models(&mut r);
+            crate::common::mpu6050::register_models(&mut r);
+            crate::common::adxl345::register_models(&mut r);
+            crate::common::generic::register_models(&mut r);
+            crate::common::ina::register_models(&mut r);
+            crate::common::wheeled_base::register_models(&mut r);
+        }
         #[cfg(esp32)]
         {
             crate::esp32::board::register_models(&mut r);
-            crate::esp32::encoder::register_models(&mut r);
-            crate::esp32::hcsr04::register_models(&mut r);
-            crate::esp32::single_encoder::register_models(&mut r);
+            #[cfg(feature = "builtin-components")]
+            {
+                crate::esp32::encoder::register_models(&mut r);
+                crate::esp32::hcsr04::register_models(&mut r);
+                crate::esp32::single_encoder::register_models(&mut r);
+            }
         }
         r
     }
