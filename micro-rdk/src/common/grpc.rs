@@ -8,6 +8,7 @@ use std::{
 };
 
 use crate::{
+    common::analog::AnalogReader,
     common::board::Board,
     common::robot::LocalRobot,
     google::rpc::Status,
@@ -621,12 +622,11 @@ where
             Some(b) => b,
             None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
-        let reader = board
+        let mut reader = board
             .get_analog_reader_by_name(req.analog_reader_name)
             .map_err(|err| ServerError::new(GrpcError::RpcUnavailable, Some(err.into())))?;
         let resp = component::board::v1::ReadAnalogReaderResponse {
             value: reader
-                .borrow_mut()
                 .read()
                 .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?
                 as i32,
