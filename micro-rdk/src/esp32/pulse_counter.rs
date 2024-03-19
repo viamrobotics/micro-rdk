@@ -1,5 +1,6 @@
+use crate::common::encoder::EncoderError;
 use crate::esp32::esp_idf_svc::sys::{
-    pcnt_isr_service_install, pcnt_isr_service_uninstall, EspError, ESP_OK,
+    pcnt_isr_service_install, pcnt_isr_service_uninstall, ESP_OK,
 };
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
 use std::sync::Arc;
@@ -25,17 +26,17 @@ lazy_static::lazy_static! {
     static ref NUMBER_OF_UNITS: Arc<AtomicU32> = Arc::new(AtomicU32::new(0));
 }
 
-pub(crate) fn get_unit() -> anyhow::Result<i32> {
+pub(crate) fn get_unit() -> i32 {
     NUMBER_OF_UNITS.fetch_add(0, Ordering::Relaxed);
-    Ok(NEXT_UNIT.fetch_add(1, Ordering::SeqCst))
+    NEXT_UNIT.fetch_add(1, Ordering::SeqCst)
 }
 
-pub(crate) fn isr_install() -> anyhow::Result<()> {
+pub(crate) fn isr_install() -> Result<(), EncoderError> {
     if !ISR_INSTALLED.fetch_or(true, Ordering::SeqCst) {
         unsafe {
             match pcnt_isr_service_install(0) {
                 ESP_OK => {}
-                err => return Err(EspError::from(err).unwrap().into()),
+                err => return Err(EncoderError::EncoderCodeError(err)),
             }
         }
     }

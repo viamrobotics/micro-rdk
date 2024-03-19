@@ -25,7 +25,7 @@
 use std::sync::{Arc, Mutex};
 
 use super::{
-    actuator::Actuator,
+    actuator::{Actuator, ActuatorError},
     board::{Board, BoardType},
     config::{AttributeError, ConfigType},
     registry::{get_board_from_dependencies, ComponentRegistry, Dependency},
@@ -204,15 +204,11 @@ impl<B> Actuator for GpioServo<B>
 where
     B: Board,
 {
-    fn is_moving(&mut self) -> anyhow::Result<bool> {
+    fn is_moving(&mut self) -> Result<bool, ActuatorError> {
         Ok(self.board.get_pwm_duty(self.pin) != 0.0)
     }
-    fn stop(&mut self) -> anyhow::Result<()> {
-        // TODO
-        if self.board.set_pwm_duty(self.pin, 0.0).is_err() {
-            anyhow::bail!("todo fix")
-        }
-        Ok(())
+    fn stop(&mut self) -> Result<(), ActuatorError> {
+        Ok(self.board.set_pwm_duty(self.pin, 0.0)?)
     }
 }
 

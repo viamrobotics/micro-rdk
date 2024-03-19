@@ -3,11 +3,12 @@ use crate::common::actuator::Actuator;
 use crate::common::status::Status;
 use crate::google;
 use crate::proto::common::v1::Vector3;
-use anyhow::Ok;
+
 use log::*;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use super::actuator::ActuatorError;
 use super::generic::DoCommand;
 
 pub static COMPONENT_NAME: &str = "base";
@@ -62,10 +63,10 @@ impl Base for FakeBase {
 }
 
 impl Actuator for FakeBase {
-    fn is_moving(&mut self) -> anyhow::Result<bool> {
+    fn is_moving(&mut self) -> Result<bool, ActuatorError> {
         Ok(false)
     }
-    fn stop(&mut self) -> anyhow::Result<()> {
+    fn stop(&mut self) -> Result<(), ActuatorError> {
         debug!("Stopping base");
         Ok(())
     }

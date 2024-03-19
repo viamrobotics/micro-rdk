@@ -7,10 +7,27 @@ use crate::proto::component::encoder::v1::GetPositionResponse;
 use crate::proto::component::encoder::v1::GetPropertiesResponse;
 use crate::proto::component::encoder::v1::PositionType;
 
+use super::config::AttributeError;
 use super::config::ConfigType;
 use super::generic::DoCommand;
 use super::registry::{ComponentRegistry, Dependency};
 use super::status::Status;
+
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum EncoderError {
+    #[error("encoder: unimplemented method")]
+    EncoderMethodUnimplemented,
+    #[error("encoder doesn't support angular reporting")]
+    EncoderAngularNotSupported,
+    #[error("encoder position unspecified")]
+    EncoderUnspecified,
+    #[error(transparent)]
+    EncoderConfigAttributeError(#[from] AttributeError),
+    #[error("encoder error code: {0}")]
+    EncoderCodeError(i32),
+}
 
 pub static COMPONENT_NAME: &str = "encoder";
 
@@ -96,9 +113,12 @@ impl From<EncoderPosition> for GetPositionResponse {
 
 pub trait Encoder: Status + DoCommand {
     fn get_properties(&mut self) -> EncoderSupportedRepresentations;
-    fn get_position(&self, position_type: EncoderPositionType) -> anyhow::Result<EncoderPosition>;
-    fn reset_position(&mut self) -> anyhow::Result<()> {
-        anyhow::bail!("unimplemented: encoder_reset_position")
+    fn get_position(
+        &self,
+        position_type: EncoderPositionType,
+    ) -> Result<EncoderPosition, EncoderError>;
+    fn reset_position(&mut self) -> Result<(), EncoderError> {
+        Err(EncoderError::EncoderMethodUnimplemented)
     }
 }
 
@@ -117,8 +137,8 @@ impl Direction {
 }
 
 pub trait SingleEncoder: Encoder {
-    fn set_direction(&mut self, dir: Direction) -> anyhow::Result<()>;
-    fn get_direction(&self) -> anyhow::Result<Direction>;
+    fn set_direction(&mut self, dir: Direction) -> Result<(), EncoderError>;
+    fn get_direction(&self) -> Result<Direction, EncoderError>;
 }
 
 pub(crate) type EncoderType = Arc<Mutex<dyn Encoder>>;
@@ -138,7 +158,10 @@ impl FakeIncrementalEncoder {
     pub fn new() -> Self {
         Self { ticks: 0.0 }
     }
-    pub(crate) fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<EncoderType> {
+    pub(crate) fn from_config(
+        cfg: ConfigType,
+        _: Vec<Dependency>,
+    ) -> Result<EncoderType, EncoderError> {
         let mut enc: FakeIncrementalEncoder = Default::default();
         if let Ok(fake_ticks) = cfg.get_attribute::<f32>("fake_ticks") {
             enc.ticks = fake_ticks;
@@ -154,17 +177,18 @@ impl Encoder for FakeIncrementalEncoder {
             angle_degrees_supported: false,
         }
     }
-    fn get_position(&self, position_type: EncoderPositionType) -> anyhow::Result<EncoderPosition> {
+    fn get_position(
+        &self,
+        position_type: EncoderPositionType,
+    ) -> Result<EncoderPosition, EncoderError> {
         match position_type {
             EncoderPositionType::TICKS | EncoderPositionType::UNSPECIFIED => {
                 Ok(EncoderPositionType::TICKS.wrap_value(self.ticks))
             }
-            EncoderPositionType::DEGREES => {
-                anyhow::bail!("FakeIncrementalEncoder does not support returning angular position")
-            }
+            EncoderPositionType::DEGREES => Err(EncoderError::EncoderAngularNotSupported),
         }
     }
-    fn reset_position(&mut self) -> anyhow::Result<()> {
+    fn reset_position(&mut self) -> Result<(), EncoderError> {
         self.ticks = 0.0;
         Ok(())
     }
@@ -198,7 +222,10 @@ impl FakeEncoder {
         }
     }
 
-    pub(crate) fn from_config(cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<EncoderType> {
+    pub(crate) fn from_config(
+        cfg: ConfigType,
+        _: Vec<Dependency>,
+    ) -> Result<EncoderType, EncoderError> {
         let mut enc: FakeEncoder = Default::default();
         if let Ok(ticks_per_rotation) = cfg.get_attribute::<u32>("ticks_per_rotation") {
             enc.ticks_per_rotation = ticks_per_rotation;
@@ -217,11 +244,12 @@ impl Encoder for FakeEncoder {
             angle_degrees_supported: true,
         }
     }
-    fn get_position(&self, position_type: EncoderPositionType) -> anyhow::Result<EncoderPosition> {
+    fn get_position(
+        &self,
+        position_type: EncoderPositionType,
+    ) -> Result<EncoderPosition, EncoderError> {
         match position_type {
-            EncoderPositionType::UNSPECIFIED => {
-                anyhow::bail!("must specify position_type to get FakeEncoder position")
-            }
+            EncoderPositionType::UNSPECIFIED => Err(EncoderError::EncoderUnspecified),
             EncoderPositionType::DEGREES => Ok(position_type.wrap_value(self.angle_degrees)),
             EncoderPositionType::TICKS => {
                 let value: f32 = (self.angle_degrees / 360.0) * (self.ticks_per_rotation as f32);
@@ -246,10 +274,13 @@ where
     fn get_properties(&mut self) -> EncoderSupportedRepresentations {
         self.get_mut().unwrap().get_properties()
     }
-    fn reset_position(&mut self) -> anyhow::Result<()> {
+    fn reset_position(&mut self) -> Result<(), EncoderError> {
         self.get_mut().unwrap().reset_position()
     }
-    fn get_position(&self, position_type: EncoderPositionType) -> anyhow::Result<EncoderPosition> {
+    fn get_position(
+        &self,
+        position_type: EncoderPositionType,
+    ) -> Result<EncoderPosition, EncoderError> {
         self.lock().unwrap().get_position(position_type)
     }
 }
@@ -261,10 +292,13 @@ where
     fn get_properties(&mut self) -> EncoderSupportedRepresentations {
         self.lock().unwrap().get_properties()
     }
-    fn reset_position(&mut self) -> anyhow::Result<()> {
+    fn reset_position(&mut self) -> Result<(), EncoderError> {
         self.lock().unwrap().reset_position()
     }
-    fn get_position(&self, position_type: EncoderPositionType) -> anyhow::Result<EncoderPosition> {
+    fn get_position(
+        &self,
+        position_type: EncoderPositionType,
+    ) -> Result<EncoderPosition, EncoderError> {
         self.lock().unwrap().get_position(position_type)
     }
 }
@@ -273,11 +307,11 @@ impl<A> SingleEncoder for Mutex<A>
 where
     A: ?Sized + SingleEncoder,
 {
-    fn set_direction(&mut self, dir: Direction) -> anyhow::Result<()> {
+    fn set_direction(&mut self, dir: Direction) -> Result<(), EncoderError> {
         self.get_mut().unwrap().set_direction(dir)
     }
 
-    fn get_direction(&self) -> anyhow::Result<Direction> {
+    fn get_direction(&self) -> Result<Direction, EncoderError> {
         self.lock().unwrap().get_direction()
     }
 }
@@ -286,11 +320,11 @@ impl<A> SingleEncoder for Arc<Mutex<A>>
 where
     A: ?Sized + SingleEncoder,
 {
-    fn set_direction(&mut self, dir: Direction) -> anyhow::Result<()> {
+    fn set_direction(&mut self, dir: Direction) -> Result<(), EncoderError> {
         self.lock().unwrap().set_direction(dir)
     }
 
-    fn get_direction(&self) -> anyhow::Result<Direction> {
+    fn get_direction(&self) -> Result<Direction, EncoderError> {
         self.lock().unwrap().get_direction()
     }
 }

@@ -334,7 +334,7 @@ where
             .lock()
             .unwrap()
             .get_position()
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::motor::v1::GetPositionResponse {
             position: pos as f64,
         };
@@ -396,7 +396,7 @@ where
                 .lock()
                 .unwrap()
                 .is_moving()
-                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?,
+                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?,
         };
         self.encode_message(resp)
     }
@@ -441,7 +441,7 @@ where
             .lock()
             .unwrap()
             .set_power(req.power_pct)
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::motor::v1::SetPowerResponse {};
         self.encode_message(resp)
     }
@@ -457,7 +457,7 @@ where
             .lock()
             .unwrap()
             .stop()
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::motor::v1::StopResponse {};
         self.encode_message(resp)
     }
@@ -506,7 +506,7 @@ where
                 .lock()
                 .unwrap()
                 .is_moving()
-                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?,
+                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?,
         };
         self.encode_message(resp)
     }
@@ -522,7 +522,7 @@ where
             .lock()
             .unwrap()
             .stop()
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::servo::v1::StopResponse {};
         self.encode_message(resp)
     }
@@ -991,7 +991,7 @@ where
                 .lock()
                 .unwrap()
                 .is_moving()
-                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?,
+                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?,
         };
         self.encode_message(resp)
     }
@@ -1025,7 +1025,7 @@ where
         base.lock()
             .unwrap()
             .stop()
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::base::v1::StopResponse {};
         self.encode_message(resp)
     }
@@ -1056,7 +1056,7 @@ where
             .lock()
             .unwrap()
             .get_position(pos_type.into())
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::encoder::v1::GetPositionResponse::from(pos);
         self.encode_message(resp)
     }
@@ -1071,7 +1071,7 @@ where
         enc.lock()
             .unwrap()
             .reset_position()
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::encoder::v1::ResetPositionResponse {};
         self.encode_message(resp)
     }
