@@ -6,6 +6,9 @@ use crate::{
 use std::{collections::HashMap, time::Duration};
 use thiserror::Error;
 
+#[cfg(feature = "data")]
+use crate::proto::app::data_sync::v1::sensor_data::Data;
+
 #[derive(Error, Debug)]
 #[error("invalid argument")]
 pub struct UtilsInvalidArg;
@@ -24,6 +27,39 @@ impl Vector3 {
             y: 0.0,
             z: 0.0,
         }
+    }
+    #[cfg(feature = "data")]
+    pub fn to_data_struct(self, key: &str) -> Data {
+        let data_struct = Struct {
+            fields: HashMap::from([
+                (
+                    "x".to_string(),
+                    Value {
+                        kind: Some(Kind::NumberValue(self.x)),
+                    },
+                ),
+                (
+                    "y".to_string(),
+                    Value {
+                        kind: Some(Kind::NumberValue(self.y)),
+                    },
+                ),
+                (
+                    "z".to_string(),
+                    Value {
+                        kind: Some(Kind::NumberValue(self.z)),
+                    },
+                ),
+            ]),
+        };
+        Data::Struct(Struct {
+            fields: HashMap::from([(
+                key.to_string(),
+                Value {
+                    kind: Some(Kind::StructValue(data_struct)),
+                },
+            )]),
+        })
     }
 }
 

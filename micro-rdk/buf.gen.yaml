@@ -1,7 +1,7 @@
 version: v1
 plugins:
   - plugin: buf.build/community/neoeinstein-prost:v0.2.3
-    out: src/gen/
+    out: micro-rdk/src/gen/
     opt:
       - bytes=.viam.component.camera.v1
       - bytes=.proto.rpc.webrtc.v1
