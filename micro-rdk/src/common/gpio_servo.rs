@@ -208,7 +208,6 @@ where
         Ok(self.board.get_pwm_duty(self.pin) != 0.0)
     }
     fn stop(&mut self) -> Result<(), ActuatorError> {
-        // TODO
         Ok(self.board.set_pwm_duty(self.pin, 0.0)?)
     }
 }
