@@ -107,7 +107,7 @@ fn do_command_derive() {
 
 #[test]
 fn movement_sensor_readings_derive() {
-        anyhow::bail!("unimplemented: movement_sensor_get_angular_velocity")    let mut a = TestMovementSensor {};
+    let mut a = TestMovementSensor {};
     let res = a.get_generic_readings();
     assert!(res.is_ok());
     let res = res.unwrap();
