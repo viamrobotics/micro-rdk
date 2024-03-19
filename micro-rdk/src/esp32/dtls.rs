@@ -11,7 +11,7 @@ use std::{
 
 use crate::common::webrtc::{
     certificate::Certificate,
-    dtls::{DtlsBuilder, DtlsConnector},
+    dtls::{DtlsBuilder, DtlsConnector, DtlsError},
     io::IoPktChannel,
 };
 
@@ -393,8 +393,8 @@ impl<C: Certificate> Esp32DtlsBuilder<C> {
 
 impl<C: Certificate> DtlsBuilder for Esp32DtlsBuilder<C> {
     type Output = Esp32Dtls<C>;
-    fn make(&self) -> anyhow::Result<Self::Output> {
-        Esp32Dtls::new(self.cert.clone()).map_err(|e| anyhow::anyhow!("Ssl error {:?}", e))
+    fn make(&self) -> Result<Self::Output, DtlsError> {
+        Esp32Dtls::new(self.cert.clone()).map_err(|e| DtlsError::DtlsError(Box::new(e)))
     }
 }
 

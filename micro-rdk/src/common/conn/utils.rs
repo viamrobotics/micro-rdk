@@ -5,7 +5,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::common::webrtc::{
     certificate::{Certificate, Fingerprint},
-    dtls::{DtlsBuilder, DtlsConnector},
+    dtls::{DtlsBuilder, DtlsConnector, DtlsError},
 };
 
 use super::{
@@ -117,7 +117,7 @@ impl TlsClientConnector for WebRtcNoOp {
 
 impl DtlsBuilder for WebRtcNoOp {
     type Output = WebRtcNoOp;
-    fn make(&self) -> anyhow::Result<Self::Output> {
+    fn make(&self) -> Result<Self::Output, DtlsError> {
         Ok(WebRtcNoOp::default())
     }
 }

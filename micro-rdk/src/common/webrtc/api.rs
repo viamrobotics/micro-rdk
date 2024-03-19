@@ -45,7 +45,7 @@ use super::{
     dtls::DtlsConnector,
     exec::WebRtcExecutor,
     ice::{ICEAgent, ICECredentials},
-    io::WebRtcTransport,
+    io::{IoPktError, WebRtcTransport},
     sctp::{Channel, SctpConnector, SctpHandle},
 };
 
@@ -70,7 +70,7 @@ pub enum WebRtcError {
     #[error("webrtc grpc message encode error")]
     GprcEncodeError(#[from] EncodeError),
     #[error(transparent)]
-    Other(#[from] anyhow::Error),
+    IoPktError(#[from] IoPktError),
     #[error(transparent)]
     DtlsError(#[from] Box<dyn std::error::Error + Send + Sync>),
     #[error("the active webrtc connection has a higher priority")]
@@ -448,7 +448,7 @@ where
         let dtls_transport = self
             .transport
             .get_dtls_channel()
-            .map_err(WebRtcError::Other)?;
+            .map_err(WebRtcError::IoPktError)?;
 
         dtls.set_transport(dtls_transport);
 

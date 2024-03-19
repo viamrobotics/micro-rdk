@@ -2,6 +2,14 @@ use futures_lite::{AsyncRead, AsyncWrite, Future};
 
 use super::io::IoPktChannel;
 
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum DtlsError {
+    #[error(transparent)]
+    DtlsError(#[from] Box<dyn std::error::Error + Send + Sync>),
+}
+
 pub trait DtlsConnector {
     type Stream: AsyncRead + AsyncWrite + Send + Unpin + 'static;
     type Error: std::error::Error + Send + Sync + 'static;
@@ -13,5 +21,5 @@ pub trait DtlsConnector {
 
 pub trait DtlsBuilder {
     type Output: DtlsConnector;
-    fn make(&self) -> anyhow::Result<Self::Output>;
+    fn make(&self) -> Result<Self::Output, DtlsError>;
 }
