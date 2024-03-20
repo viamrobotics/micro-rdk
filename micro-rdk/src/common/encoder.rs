@@ -1,9 +1,9 @@
 #[cfg(feature = "builtin-components")]
 use {
-    std::collections::HashMap,
-    crate::google,
     super::config::ConfigType,
     super::registry::{ComponentRegistry, Dependency},
+    crate::google,
+    std::collections::HashMap,
 };
 
 use std::sync::Arc;

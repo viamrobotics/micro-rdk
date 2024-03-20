@@ -2,9 +2,9 @@
 
 #[cfg(feature = "builtin-components")]
 use {
-    std::collections::HashMap,
     super::config::ConfigType,
     super::registry::{ComponentRegistry, Dependency},
+    std::collections::HashMap,
 };
 
 use crate::common::status::Status;

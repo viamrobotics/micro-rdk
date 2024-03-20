@@ -1,11 +1,6 @@
 #![allow(dead_code)]
 #[cfg(feature = "builtin-components")]
-use {
-    super::actuator::ActuatorError,
-    crate::google,
-    std::collections::HashMap,
-    log::*
-};
+use {super::actuator::ActuatorError, crate::google, log::*, std::collections::HashMap};
 
 use super::generic::DoCommand;
 use crate::common::actuator::Actuator;

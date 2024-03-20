@@ -2,8 +2,6 @@
 
 #[cfg(feature = "builtin-components")]
 use {
-    crate::google,
-    std::collections::HashMap,
     super::encoder::{
         Encoder, EncoderPositionType, EncoderType, COMPONENT_NAME as EncoderCompName,
     },
@@ -12,7 +10,9 @@ use {
         config::ConfigType,
         registry::{ComponentRegistry, Dependency, ResourceKey},
         robot::Resource,
-    }
+    },
+    crate::google,
+    std::collections::HashMap,
 };
 
 use crate::common::status::Status;

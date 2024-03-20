@@ -4,12 +4,12 @@ use crate::google::protobuf::Struct;
 
 #[cfg(feature = "builtin-components")]
 use {
-    crate::google::protobuf::{value::Kind, Value},
-    std::collections::HashMap,
     super::{
         config::ConfigType,
         registry::{ComponentRegistry, Dependency},
     },
+    crate::google::protobuf::{value::Kind, Value},
+    std::collections::HashMap,
 };
 
 use super::status::Status;
