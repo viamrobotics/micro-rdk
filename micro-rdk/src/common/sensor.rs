@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use super::analog::AnalogError;
 use super::board::BoardError;
-use super::config::{AttributeError, ConfigType};
+use super::config::ConfigType;
 use super::generic::DoCommand;
 use super::i2c::I2CErrors;
 use super::registry::{ComponentRegistry, Dependency};
@@ -31,8 +31,6 @@ pub enum SensorError {
     SensorBoardError(#[from] BoardError),
     #[error("sensor error code {0}")]
     SensorCodeError(i32),
-    #[error(transparent)]
-    ConfigErrroAttributeErrror(#[from] AttributeError),
 }
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {

@@ -268,7 +268,8 @@ impl Readings for HCSR04Sensor {
 
 impl SensorT<f64> for HCSR04Sensor {
     fn get_readings(&self) -> Result<TypedReadingsResult<f64>, SensorError> {
-        // If the echo pin is already high for some reason, the state machine        // won't work correctly.
+        // If the echo pin is already high for some reason, the state machine
+        // won't work correctly.
         if self.echo_interrupt_pin.borrow().is_high() {
             return Err(SensorError::SensorGenericError(
                 "HCSR04Sensor : echo pin is high befor trigger is sent",
@@ -307,11 +308,9 @@ impl SensorT<f64> for HCSR04Sensor {
                 let distance = delta.get() as f64 / 58.0 / 100.0;
                 Ok(HashMap::from([("distance".to_string(), distance)]))
             }
-            _ => {
-                return Err(SensorError::SensorGenericError(
-                    "HCSR04Sensor no echo heard obstacle may be out of range",
-                ));
-            }
+            _ => Err(SensorError::SensorGenericError(
+                "HCSR04Sensor no echo heard obstacle may be out of range",
+            )),
         }
     }
 }

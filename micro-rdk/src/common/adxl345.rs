@@ -76,11 +76,7 @@ impl ADXL345 {
     pub fn close(&mut self) -> Result<(), SensorError> {
         // put the MPU in the sleep state
         let off_data: [u8; 2] = [STANDBY_MODE_REGISTER, 0];
-        if let Err(_) = self.i2c_handle.write_i2c(self.i2c_address, &off_data) {
-            return Err(SensorError::SensorGenericError(
-                "ADXL-345 sleep command failed",
-            ));
-        };
+        self.i2c_handle.write_i2c(self.i2c_address, &off_data)?;
         Ok(())
     }
 }

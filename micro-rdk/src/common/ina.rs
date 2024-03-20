@@ -91,9 +91,9 @@ fn from_config(
         .unwrap_or(DEFAULT_SHUNT_RESISTANCE_OHMS);
     let shunt_resistance_nano_ohms = (shunt_resistance_ohms * 1e9) as i64;
 
-    let i2c_name = cfg.get_attribute::<String>("i2c_bus").map_err(|_| {
-        SensorError::ConfigError("i2c_bus is a required attribute for power sensor")
-    })?;
+    let i2c_name = cfg
+        .get_attribute::<String>("i2c_bus")
+        .map_err(|_| SensorError::ConfigError("i2c_bus is a required attribute for ina sensor"))?;
     let board = get_board_from_dependencies(dependencies).ok_or(SensorError::ConfigError(
         "missing board attribute for Ina sensor",
     ))?;
