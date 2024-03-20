@@ -1,16 +1,14 @@
 #![allow(dead_code)]
-use core::cell::RefCell;
 use log::*;
 use std::{
     collections::HashMap,
-    rc::Rc,
     sync::{Arc, Mutex},
     time::Duration,
 };
 
 use crate::{
     common::{
-        analog::{AnalogError, AnalogReader, AnalogReaderConfig},
+        analog::{AnalogReader, AnalogReaderConfig, AnalogReaderType},
         board::{Board, BoardError, BoardType},
         config::ConfigType,
         digital_interrupt::DigitalInterruptConfig,
@@ -49,14 +47,14 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 #[derive(DoCommand)]
 pub struct EspBoard {
     pins: Vec<Esp32GPIOPin>,
-    analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = AnalogError>>>>,
+    analogs: Vec<AnalogReaderType<u16>>,
     i2cs: HashMap<String, I2cHandleType>,
 }
 
 impl EspBoard {
     pub fn new(
         pins: Vec<Esp32GPIOPin>,
-        analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = AnalogError>>>>,
+        analogs: Vec<AnalogReaderType<u16>>,
         i2cs: HashMap<String, I2cHandleType>,
     ) -> Self {
         EspBoard {
@@ -70,24 +68,22 @@ impl EspBoard {
     /// The potential approach is described in esp32/motor.rs:383
     pub(crate) fn from_config(cfg: ConfigType) -> Result<BoardType, BoardError> {
         let (analogs, mut pins, i2c_confs) = {
-            let analogs = if let Ok(analogs) =
-                cfg.get_attribute::<Vec<AnalogReaderConfig>>("analogs")
-            {
-                let analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = AnalogError>>>> = analogs
-                    .iter()
-                    .filter_map(|v| {
-                        let adc1 = Rc::new(RefCell::new(
-                            AdcDriver::new(
-                                unsafe { ADC1::new() },
-                                &Config::new().calibration(true),
-                            )
-                            .ok()?,
-                        ));
-                        let chan: Rc<RefCell<dyn AnalogReader<u16, Error = AnalogError>>> =
-                            match v.pin {
+            let analogs =
+                if let Ok(analogs) = cfg.get_attribute::<Vec<AnalogReaderConfig>>("analogs") {
+                    let analogs: Vec<AnalogReaderType<u16>> = analogs
+                        .iter()
+                        .filter_map(|v| {
+                            let adc1 = Arc::new(Mutex::new(
+                                AdcDriver::new(
+                                    unsafe { ADC1::new() },
+                                    &Config::new().calibration(true),
+                                )
+                                .ok()?,
+                            ));
+                            let chan: AnalogReaderType<u16> = match v.pin {
                                 32 => {
-                                    let p: Rc<RefCell<dyn AnalogReader<u16, Error = AnalogError>>> =
-                                        Rc::new(RefCell::new(Esp32AnalogReader::new(
+                                    let p: AnalogReaderType<u16> =
+                                        Arc::new(Mutex::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
                                             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
                                                 crate::esp32::esp_idf_svc::hal::gpio::Gpio32::new()
@@ -98,8 +94,8 @@ impl EspBoard {
                                     Some(p)
                                 }
                                 33 => {
-                                    let p: Rc<RefCell<dyn AnalogReader<u16, Error = AnalogError>>> =
-                                        Rc::new(RefCell::new(Esp32AnalogReader::new(
+                                    let p: AnalogReaderType<u16> =
+                                        Arc::new(Mutex::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
                                             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
                                                 crate::esp32::esp_idf_svc::hal::gpio::Gpio33::new()
@@ -110,8 +106,8 @@ impl EspBoard {
                                     Some(p)
                                 }
                                 34 => {
-                                    let p: Rc<RefCell<dyn AnalogReader<u16, Error = AnalogError>>> =
-                                        Rc::new(RefCell::new(Esp32AnalogReader::new(
+                                    let p: AnalogReaderType<u16> =
+                                        Arc::new(Mutex::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
                                             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
                                                 crate::esp32::esp_idf_svc::hal::gpio::Gpio34::new()
@@ -122,8 +118,8 @@ impl EspBoard {
                                     Some(p)
                                 }
                                 35 => {
-                                    let p: Rc<RefCell<dyn AnalogReader<u16, Error = AnalogError>>> =
-                                        Rc::new(RefCell::new(Esp32AnalogReader::new(
+                                    let p: AnalogReaderType<u16> =
+                                        Arc::new(Mutex::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
                                             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
                                                 crate::esp32::esp_idf_svc::hal::gpio::Gpio35::new()
@@ -134,8 +130,8 @@ impl EspBoard {
                                     Some(p)
                                 }
                                 36 => {
-                                    let p: Rc<RefCell<dyn AnalogReader<u16, Error = AnalogError>>> =
-                                        Rc::new(RefCell::new(Esp32AnalogReader::new(
+                                    let p: AnalogReaderType<u16> =
+                                        Arc::new(Mutex::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
                                             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
                                                 crate::esp32::esp_idf_svc::hal::gpio::Gpio36::new()
@@ -146,8 +142,8 @@ impl EspBoard {
                                     Some(p)
                                 }
                                 37 => {
-                                    let p: Rc<RefCell<dyn AnalogReader<u16, Error = AnalogError>>> =
-                                        Rc::new(RefCell::new(Esp32AnalogReader::new(
+                                    let p: AnalogReaderType<u16> =
+                                        Arc::new(Mutex::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
                                             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
                                                 crate::esp32::esp_idf_svc::hal::gpio::Gpio37::new()
@@ -158,8 +154,8 @@ impl EspBoard {
                                     Some(p)
                                 }
                                 38 => {
-                                    let p: Rc<RefCell<dyn AnalogReader<u16, Error = AnalogError>>> =
-                                        Rc::new(RefCell::new(Esp32AnalogReader::new(
+                                    let p: AnalogReaderType<u16> =
+                                        Arc::new(Mutex::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
                                             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
                                                 crate::esp32::esp_idf_svc::hal::gpio::Gpio38::new()
@@ -170,8 +166,8 @@ impl EspBoard {
                                     Some(p)
                                 }
                                 39 => {
-                                    let p: Rc<RefCell<dyn AnalogReader<u16, Error = AnalogError>>> =
-                                        Rc::new(RefCell::new(Esp32AnalogReader::new(
+                                    let p: AnalogReaderType<u16> =
+                                        Arc::new(Mutex::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
                                             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
                                                 crate::esp32::esp_idf_svc::hal::gpio::Gpio39::new()
@@ -187,13 +183,13 @@ impl EspBoard {
                                 }
                             }?;
 
-                        Some(chan)
-                    })
-                    .collect();
-                analogs
-            } else {
-                vec![]
-            };
+                            Some(chan)
+                        })
+                        .collect();
+                    analogs
+                } else {
+                    vec![]
+                };
             let pins = if let Ok(pins) = cfg.get_attribute::<Vec<i32>>("pins") {
                 pins.iter()
                     .filter_map(|pin| {
@@ -310,21 +306,18 @@ impl Board for EspBoard {
             digital_interrupts: HashMap::new(),
         };
         self.analogs.iter().for_each(|a| {
-            let mut borrowed = a.borrow_mut();
+            let mut analog = a.clone();
             b.analogs.insert(
-                borrowed.name(),
+                analog.name(),
                 common::v1::AnalogStatus {
-                    value: borrowed.read().unwrap_or(0).into(),
+                    value: analog.read().unwrap_or(0).into(),
                 },
             );
         });
         Ok(b)
     }
-    fn get_analog_reader_by_name(
-        &self,
-        name: String,
-    ) -> Result<Rc<RefCell<dyn AnalogReader<u16, Error = AnalogError>>>, BoardError> {
-        match self.analogs.iter().find(|a| a.borrow().name() == name) {
+    fn get_analog_reader_by_name(&self, name: String) -> Result<AnalogReaderType<u16>, BoardError> {
+        match self.analogs.iter().find(|a| a.name() == name) {
             Some(reader) => Ok(reader.clone()),
             None => Err(BoardError::AnalogReaderNotFound(name)),
         }
@@ -390,9 +383,9 @@ impl Status for EspBoard {
         let mut hm = HashMap::new();
         let mut analogs = HashMap::new();
         self.analogs.iter().for_each(|a| {
-            let mut borrowed = a.borrow_mut();
+            let mut analog = a.clone();
             analogs.insert(
-                borrowed.name(),
+                analog.name(),
                 google::protobuf::Value {
                     kind: Some(google::protobuf::value::Kind::StructValue(
                         google::protobuf::Struct {
@@ -400,7 +393,7 @@ impl Status for EspBoard {
                                 "value".to_string(),
                                 google::protobuf::Value {
                                     kind: Some(google::protobuf::value::Kind::NumberValue(
-                                        borrowed.read().unwrap_or(0).into(),
+                                        analog.read().unwrap_or(0).into(),
                                     )),
                                 },
                             )]),

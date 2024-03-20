@@ -1,4 +1,3 @@
-use crate::common::analog::AnalogReader;
 use crate::common::sensor::GenericReadingsResult;
 use crate::common::sensor::Sensor;
 use crate::common::sensor::SensorResult;
@@ -6,21 +5,19 @@ use crate::common::sensor::SensorT;
 use crate::common::sensor::TypedReadingsResult;
 use crate::common::status::Status;
 use crate::google;
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 
-use super::analog::AnalogError;
+use super::analog::AnalogReaderType;
 use super::sensor::Readings;
 use super::sensor::SensorError;
 
 #[derive(DoCommand)]
 pub struct MoistureSensor {
-    analog: Rc<RefCell<dyn AnalogReader<u16, Error = AnalogError>>>,
+    analog: AnalogReaderType<u16>,
 }
 
 impl MoistureSensor {
-    pub fn new(analog: Rc<RefCell<dyn AnalogReader<u16, Error = AnalogError>>>) -> Self {
+    pub fn new(analog: AnalogReaderType<u16>) -> Self {
         MoistureSensor { analog }
     }
 }
@@ -39,7 +36,7 @@ impl Readings for MoistureSensor {
 
 impl SensorT<f64> for MoistureSensor {
     fn get_readings(&self) -> Result<TypedReadingsResult<f64>, SensorError> {
-        let reading = self.analog.borrow_mut().read()?;
+        let reading = self.analog.lock().unwrap().read()?;
         let mut x = HashMap::new();
         x.insert("millivolts".to_string(), reading as f64);
         Ok(x)
