@@ -2,7 +2,7 @@
 
 pub mod analog;
 pub mod board;
-#[cfg(feature = "camera")]
+#[cfg(all(feature = "camera", feature = "builtin-components"))]
 pub mod camera;
 pub mod certificate;
 pub mod dtls;
@@ -15,6 +15,7 @@ pub mod exec;
 pub mod hcsr04;
 pub mod i2c;
 pub mod pin;
+#[cfg(feature = "builtin-components")]
 pub mod pulse_counter;
 pub mod pwm;
 #[cfg(feature = "builtin-components")]

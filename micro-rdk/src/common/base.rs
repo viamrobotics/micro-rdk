@@ -2,22 +2,33 @@
 #[cfg(feature = "builtin-components")]
 use {super::actuator::ActuatorError, crate::google, log::*, std::collections::HashMap};
 
-use super::generic::DoCommand;
+use super::{config::AttributeError, generic::DoCommand, motor::MotorError};
 use crate::common::actuator::Actuator;
 use crate::common::status::Status;
 use crate::proto::common::v1::Vector3;
 use std::sync::{Arc, Mutex};
+use thiserror::Error;
 
 pub static COMPONENT_NAME: &str = "base";
 
 pub trait Base: Status + Actuator + DoCommand {
-    fn set_power(&mut self, lin: &Vector3, ang: &Vector3) -> anyhow::Result<()>;
+    fn set_power(&mut self, lin: &Vector3, ang: &Vector3) -> Result<(), BaseError>;
 }
 
 pub type BaseType = Arc<Mutex<dyn Base>>;
 
-#[cfg(feature = "builtin-components")]
+#[derive(Error, Debug)]
+pub enum BaseError {
+    #[error(transparent)]
+    BaseMotorError(#[from] MotorError),
+    #[error(transparent)]
+    BaseConfigAttributeError(#[from] AttributeError),
+    #[error("config error: {0}")]
+    BaseConfigError(&'static str),
+}
+
 // TODO(RSDK-5648) - Store power from set_power call on struct and register as "fake" model
+#[cfg(feature = "builtin-components")]
 #[derive(DoCommand)]
 pub struct FakeBase {}
 
@@ -38,7 +49,7 @@ impl<L> Base for Mutex<L>
 where
     L: Base,
 {
-    fn set_power(&mut self, lin: &Vector3, ang: &Vector3) -> anyhow::Result<()> {
+    fn set_power(&mut self, lin: &Vector3, ang: &Vector3) -> Result<(), BaseError> {
         self.get_mut().unwrap().set_power(lin, ang)
     }
 }
@@ -47,14 +58,14 @@ impl<L> Base for Arc<Mutex<L>>
 where
     L: Base,
 {
-    fn set_power(&mut self, lin: &Vector3, ang: &Vector3) -> anyhow::Result<()> {
+    fn set_power(&mut self, lin: &Vector3, ang: &Vector3) -> Result<(), BaseError> {
         self.lock().unwrap().set_power(lin, ang)
     }
 }
 
 #[cfg(feature = "builtin-components")]
 impl Base for FakeBase {
-    fn set_power(&mut self, lin: &Vector3, ang: &Vector3) -> anyhow::Result<()> {
+    fn set_power(&mut self, lin: &Vector3, ang: &Vector3) -> Result<(), BaseError> {
         debug!(
             "Setting power following lin vec {:?} and ang {:?}",
             lin, ang

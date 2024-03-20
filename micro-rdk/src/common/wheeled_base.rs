@@ -1,5 +1,5 @@
 use super::actuator::{Actuator, ActuatorError};
-use super::base::{Base, BaseType, COMPONENT_NAME as BaseCompName};
+use super::base::{Base, BaseError, BaseType, COMPONENT_NAME as BaseCompName};
 use super::config::ConfigType;
 use super::motor::{Motor, MotorType, COMPONENT_NAME as MotorCompName};
 use super::registry::{ComponentRegistry, Dependency, ResourceKey};
@@ -63,7 +63,10 @@ where
         (l.clamp(-1.0, 1.0), r.clamp(-1.0, 1.0))
     }
 
-    pub(crate) fn from_config(cfg: ConfigType, deps: Vec<Dependency>) -> anyhow::Result<BaseType> {
+    pub(crate) fn from_config(
+        cfg: ConfigType,
+        deps: Vec<Dependency>,
+    ) -> Result<BaseType, BaseError> {
         let l_motor_name = cfg.get_attribute::<String>("left")?;
         let r_motor_name = cfg.get_attribute::<String>("right")?;
         let mut l_motor: Option<MotorType> = None;
@@ -85,16 +88,10 @@ where
             if let Some(r_motor) = r_motor {
                 Ok(Arc::new(Mutex::new(WheeledBase::new(r_motor, l_motor))))
             } else {
-                anyhow::bail!(
-                    "right motor for base not found in dependencies, looking for motor named {:?}",
-                    r_motor_name
-                );
+                Err(BaseError::BaseConfigError("right motor couldn't be found"))
             }
         } else {
-            anyhow::bail!(
-                "left motor for base not found in dependencies, looking for motor named {:?}",
-                l_motor_name
-            );
+            Err(BaseError::BaseConfigError("left motor couldn't be found"))
         }
     }
 
@@ -148,7 +145,7 @@ where
     ML: Motor,
     MR: Motor,
 {
-    fn set_power(&mut self, lin: &Vector3, ang: &Vector3) -> anyhow::Result<()> {
+    fn set_power(&mut self, lin: &Vector3, ang: &Vector3) -> Result<(), BaseError> {
         let (l, r) = self.differential_drive(lin.y, ang.z);
         self.motor_left.set_power(l)?;
         self.motor_right.set_power(r)?;

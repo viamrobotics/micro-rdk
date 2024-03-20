@@ -9,7 +9,7 @@ pub mod native;
 #[macro_use]
 pub extern crate micro_rdk_macros;
 
-#[cfg(feature = "esp32")]
+#[cfg(all(feature = "esp32", feature = "builtin-components"))]
 #[macro_use(defer)]
 extern crate scopeguard;
 
