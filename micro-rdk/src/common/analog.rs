@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use super::config::{AttributeError, Kind};
+use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -42,6 +43,19 @@ pub trait AnalogReader<Word> {
     fn name(&self) -> String;
 }
 
+impl<A, Word> AnalogReader<Word> for Arc<Mutex<A>>
+where
+    A: ?Sized + AnalogReader<Word>,
+{
+    type Error = A::Error;
+    fn read(&mut self) -> Result<Word, Self::Error> {
+        self.lock().unwrap().read()
+    }
+    fn name(&self) -> String {
+        self.lock().unwrap().name()
+    }
+}
+
 pub(crate) struct AnalogReaderConfig {
     pub(crate) name: String,
     pub(crate) pin: i32,
@@ -61,6 +75,8 @@ impl TryFrom<&Kind> for AnalogReaderConfig {
         Ok(Self { name, pin })
     }
 }
+
+pub type AnalogReaderType<W, E = AnalogError> = Arc<Mutex<dyn AnalogReader<W, Error = E>>>;
 
 #[cfg(test)]
 mod tests {

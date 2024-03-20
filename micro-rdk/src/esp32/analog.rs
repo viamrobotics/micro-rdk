@@ -2,12 +2,11 @@
 use crate::common::analog::{AnalogError, AnalogReader};
 use crate::esp32::esp_idf_svc::hal::adc::{AdcChannelDriver, AdcDriver};
 use crate::esp32::esp_idf_svc::hal::gpio::ADCPin;
-use core::cell::RefCell;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 pub struct Esp32AnalogReader<'a, const A: u32, T: ADCPin> {
     channel: AdcChannelDriver<'a, A, T>,
-    driver: Rc<RefCell<AdcDriver<'a, T::Adc>>>,
+    driver: Arc<Mutex<AdcDriver<'a, T::Adc>>>,
     name: String,
 }
 
@@ -15,7 +14,7 @@ impl<'a, const A: u32, T: ADCPin> Esp32AnalogReader<'a, A, T> {
     pub fn new(
         name: String,
         channel: AdcChannelDriver<'a, A, T>,
-        driver: Rc<RefCell<AdcDriver<'a, T::Adc>>>,
+        driver: Arc<Mutex<AdcDriver<'a, T::Adc>>>,
     ) -> Self {
         Self {
             name,
@@ -25,7 +24,8 @@ impl<'a, const A: u32, T: ADCPin> Esp32AnalogReader<'a, A, T> {
     }
     fn inner_read(&mut self) -> Result<u16, AnalogError> {
         self.driver
-            .borrow_mut()
+            .lock()
+            .unwrap()
             .read_raw(&mut self.channel)
             .map_err(|e| AnalogError::AnalogReadError(e.code()))
     }

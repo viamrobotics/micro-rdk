@@ -7,12 +7,11 @@ use crate::{
     proto::{common, component},
 };
 
-use core::cell::RefCell;
 use log::*;
-use std::{collections::HashMap, rc::Rc, sync::Arc, sync::Mutex, time::Duration};
+use std::{collections::HashMap, sync::Arc, sync::Mutex, time::Duration};
 
 use super::{
-    analog::{AnalogError, FakeAnalogReader},
+    analog::{AnalogReaderType, FakeAnalogReader},
     config::ConfigType,
     generic::DoCommand,
     i2c::{FakeI2CHandle, FakeI2cConfig, I2CErrors, I2CHandle, I2cHandleType},
@@ -64,10 +63,7 @@ pub trait Board: Status + DoCommand {
     fn get_gpio_level(&self, pin: i32) -> Result<bool, BoardError>;
 
     /// Get an [AnalogReader] by name
-    fn get_analog_reader_by_name(
-        &self,
-        name: String,
-    ) -> Result<Rc<RefCell<dyn AnalogReader<u16, Error = AnalogError>>>, BoardError>;
+    fn get_analog_reader_by_name(&self, name: String) -> Result<AnalogReaderType<u16>, BoardError>;
 
     /// Set the board to the indicated [PowerMode](component::board::v1::PowerMode)
     fn set_power_mode(
@@ -109,14 +105,14 @@ pub type BoardType = Arc<Mutex<dyn Board>>;
 /// A test implementation of a generic compute board
 #[derive(DoCommand)]
 pub struct FakeBoard {
-    analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = AnalogError>>>>,
+    analogs: Vec<AnalogReaderType<u16>>,
     i2cs: HashMap<String, Arc<Mutex<FakeI2CHandle>>>,
     pin_pwms: HashMap<i32, f64>,
     pin_pwm_freq: HashMap<i32, u64>,
 }
 
 impl FakeBoard {
-    pub fn new(analogs: Vec<Rc<RefCell<dyn AnalogReader<u16, Error = AnalogError>>>>) -> Self {
+    pub fn new(analogs: Vec<AnalogReaderType<u16>>) -> Self {
         let mut i2cs: HashMap<String, Arc<Mutex<FakeI2CHandle>>> = HashMap::new();
         let i2c0 = Arc::new(Mutex::new(FakeI2CHandle::new("i2c0".to_string())));
         i2cs.insert(i2c0.name(), i2c0);
@@ -135,9 +131,8 @@ impl FakeBoard {
             analog_confs
                 .iter()
                 .map(|(k, v)| {
-                    let a: Rc<RefCell<dyn AnalogReader<u16, Error = AnalogError>>> = Rc::new(
-                        RefCell::new(FakeAnalogReader::new(k.to_string(), *v as u16)),
-                    );
+                    let a: AnalogReaderType<u16> =
+                        Arc::new(Mutex::new(FakeAnalogReader::new(k.to_string(), *v as u16)));
                     a
                 })
                 .collect()
@@ -180,11 +175,11 @@ impl Board for FakeBoard {
             digital_interrupts: HashMap::new(),
         };
         self.analogs.iter().for_each(|a| {
-            let mut borrowed = a.borrow_mut();
+            let mut analog = a.clone();
             b.analogs.insert(
-                borrowed.name(),
+                analog.name(),
                 common::v1::AnalogStatus {
-                    value: borrowed.read().unwrap_or(0).into(),
+                    value: analog.read().unwrap_or(0).into(),
                 },
             );
         });
@@ -196,11 +191,8 @@ impl Board for FakeBoard {
         Ok(true)
     }
 
-    fn get_analog_reader_by_name(
-        &self,
-        name: String,
-    ) -> Result<Rc<RefCell<dyn AnalogReader<u16, Error = AnalogError>>>, BoardError> {
-        match self.analogs.iter().find(|a| a.borrow().name() == name) {
+    fn get_analog_reader_by_name(&self, name: String) -> Result<AnalogReaderType<u16>, BoardError> {
+        match self.analogs.iter().find(|a| a.name() == name) {
             Some(reader) => Ok(reader.clone()),
             None => Err(BoardError::AnalogReaderNotFound(name)),
         }
@@ -253,9 +245,9 @@ impl Status for FakeBoard {
         let mut hm = HashMap::new();
         let mut analogs = HashMap::new();
         self.analogs.iter().for_each(|a| {
-            let mut borrowed = a.borrow_mut();
+            let mut analog = a.clone();
             analogs.insert(
-                borrowed.name(),
+                analog.name(),
                 google::protobuf::Value {
                     kind: Some(google::protobuf::value::Kind::StructValue(
                         google::protobuf::Struct {
@@ -263,7 +255,7 @@ impl Status for FakeBoard {
                                 "value".to_string(),
                                 google::protobuf::Value {
                                     kind: Some(google::protobuf::value::Kind::NumberValue(
-                                        borrowed.read().unwrap_or(0).into(),
+                                        analog.read().unwrap_or(0).into(),
                                     )),
                                 },
                             )]),
@@ -302,10 +294,7 @@ where
         self.lock().unwrap().set_gpio_pin_level(pin, is_high)
     }
 
-    fn get_analog_reader_by_name(
-        &self,
-        name: String,
-    ) -> Result<Rc<RefCell<dyn AnalogReader<u16, Error = AnalogError>>>, BoardError> {
+    fn get_analog_reader_by_name(&self, name: String) -> Result<AnalogReaderType<u16>, BoardError> {
         self.lock().unwrap().get_analog_reader_by_name(name)
     }
 

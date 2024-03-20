@@ -740,6 +740,7 @@ impl LocalRobot {
 mod tests {
     use std::collections::HashMap;
 
+    use crate::common::analog::AnalogReader;
     use crate::common::board::Board;
     use crate::common::config::{DynamicComponentConfig, Kind};
     use crate::common::encoder::{Encoder, EncoderPositionType};
@@ -909,7 +910,6 @@ mod tests {
             .get_analog_reader_by_name("1".to_string())
             .unwrap()
             .clone()
-            .borrow_mut()
             .read();
 
         assert!(value.is_ok());
