@@ -27,6 +27,7 @@
 //! - [mpu6050]
 
 pub mod actuator;
+#[cfg(feature = "builtin-components")]
 pub mod adxl345;
 pub mod analog;
 pub mod app_client;
@@ -38,17 +39,22 @@ pub mod digital_interrupt;
 pub mod encoder;
 pub mod entry;
 pub mod generic;
+#[cfg(feature = "builtin-components")]
 pub mod gpio_motor;
+#[cfg(feature = "builtin-components")]
 pub mod gpio_servo;
 pub mod grpc;
 pub mod grpc_client;
 pub mod i2c;
+#[cfg(feature = "builtin-components")]
 pub mod ina;
 pub mod log;
 pub mod math_utils;
+#[cfg(feature = "builtin-components")]
 pub mod moisture_sensor;
 pub mod motor;
 pub mod movement_sensor;
+#[cfg(feature = "builtin-components")]
 pub mod mpu6050;
 pub mod power_sensor;
 pub mod registry;
@@ -56,6 +62,7 @@ pub mod robot;
 pub mod sensor;
 pub mod servo;
 pub mod status;
+#[cfg(feature = "builtin-components")]
 pub mod wheeled_base;
 pub mod webrtc {
     pub mod api;

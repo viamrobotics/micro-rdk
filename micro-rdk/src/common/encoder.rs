@@ -1,16 +1,20 @@
-use std::collections::HashMap;
+#[cfg(feature = "builtin-components")]
+use {
+    super::config::ConfigType,
+    super::registry::{ComponentRegistry, Dependency},
+    crate::google,
+    std::collections::HashMap,
+};
+
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use crate::google;
 use crate::proto::component::encoder::v1::GetPositionResponse;
 use crate::proto::component::encoder::v1::GetPropertiesResponse;
 use crate::proto::component::encoder::v1::PositionType;
 
 use super::config::AttributeError;
-use super::config::ConfigType;
 use super::generic::DoCommand;
-use super::registry::{ComponentRegistry, Dependency};
 use super::status::Status;
 
 use thiserror::Error;
@@ -31,6 +35,7 @@ pub enum EncoderError {
 
 pub static COMPONENT_NAME: &str = "encoder";
 
+#[cfg(feature = "builtin-components")]
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
         .register_encoder("fake", &FakeEncoder::from_config)
@@ -143,17 +148,20 @@ pub trait SingleEncoder: Encoder {
 
 pub(crate) type EncoderType = Arc<Mutex<dyn Encoder>>;
 
+#[cfg(feature = "builtin-components")]
 #[derive(DoCommand)]
 pub struct FakeIncrementalEncoder {
     pub ticks: f32,
 }
 
+#[cfg(feature = "builtin-components")]
 impl Default for FakeIncrementalEncoder {
     fn default() -> Self {
         Self::new()
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl FakeIncrementalEncoder {
     pub fn new() -> Self {
         Self { ticks: 0.0 }
@@ -170,6 +178,7 @@ impl FakeIncrementalEncoder {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl Encoder for FakeIncrementalEncoder {
     fn get_properties(&mut self) -> EncoderSupportedRepresentations {
         EncoderSupportedRepresentations {
@@ -194,6 +203,7 @@ impl Encoder for FakeIncrementalEncoder {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl Status for FakeIncrementalEncoder {
     fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
         Ok(Some(google::protobuf::Struct {
@@ -202,18 +212,21 @@ impl Status for FakeIncrementalEncoder {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 #[derive(DoCommand)]
 pub struct FakeEncoder {
     pub angle_degrees: f32,
     pub ticks_per_rotation: u32,
 }
 
+#[cfg(feature = "builtin-components")]
 impl Default for FakeEncoder {
     fn default() -> Self {
         Self::new()
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl FakeEncoder {
     pub fn new() -> Self {
         Self {
@@ -237,6 +250,7 @@ impl FakeEncoder {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl Encoder for FakeEncoder {
     fn get_properties(&mut self) -> EncoderSupportedRepresentations {
         EncoderSupportedRepresentations {
@@ -259,6 +273,7 @@ impl Encoder for FakeEncoder {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl Status for FakeEncoder {
     fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
         Ok(Some(google::protobuf::Struct {

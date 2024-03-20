@@ -1,8 +1,13 @@
 #![allow(dead_code)]
-use super::config::ConfigType;
+
+#[cfg(feature = "builtin-components")]
+use {
+    super::config::ConfigType,
+    super::registry::{ComponentRegistry, Dependency},
+};
+
 use super::generic::DoCommand;
 use super::math_utils::Vector3;
-use super::registry::{ComponentRegistry, Dependency};
 use super::sensor::{GenericReadingsResult, Readings, SensorError};
 use super::status::Status;
 use crate::google;
@@ -15,6 +20,7 @@ use std::sync::{Arc, Mutex};
 
 pub static COMPONENT_NAME: &str = "movement_sensor";
 
+#[cfg(feature = "builtin-components")]
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
         .register_movement_sensor("fake", &FakeMovementSensor::from_config)
@@ -148,18 +154,21 @@ pub fn get_movement_sensor_generic_readings(
     Ok(res)
 }
 
+#[cfg(feature = "builtin-components")]
 #[derive(DoCommand, MovementSensorReadings)]
 pub struct FakeMovementSensor {
     pos: GeoPosition,
     linear_acc: Vector3,
 }
 
+#[cfg(feature = "builtin-components")]
 impl Default for FakeMovementSensor {
     fn default() -> Self {
         Self::new()
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl FakeMovementSensor {
     pub fn new() -> Self {
         FakeMovementSensor {
@@ -208,6 +217,7 @@ impl FakeMovementSensor {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl MovementSensor for FakeMovementSensor {
     fn get_position(&mut self) -> Result<GeoPosition, SensorError> {
         Ok(self.pos)
@@ -246,6 +256,7 @@ impl MovementSensor for FakeMovementSensor {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl Status for FakeMovementSensor {
     fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
         Ok(Some(google::protobuf::Struct {

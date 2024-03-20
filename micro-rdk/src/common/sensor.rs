@@ -1,17 +1,22 @@
 #![allow(dead_code)]
 
+#[cfg(feature = "builtin-components")]
+use {
+    super::config::ConfigType,
+    super::registry::{ComponentRegistry, Dependency},
+    std::collections::HashMap,
+};
+
 use crate::common::status::Status;
 use crate::google;
-
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use super::analog::AnalogError;
 use super::board::BoardError;
-use super::config::ConfigType;
+
 use super::generic::DoCommand;
 use super::i2c::I2CErrors;
-use super::registry::{ComponentRegistry, Dependency};
+
 use thiserror::Error;
 pub static COMPONENT_NAME: &str = "sensor";
 
@@ -33,6 +38,7 @@ pub enum SensorError {
     SensorCodeError(i32),
 }
 
+#[cfg(feature = "builtin-components")]
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
         .register_sensor("fake", &FakeSensor::from_config)
@@ -72,11 +78,13 @@ impl From<SensorResult<f64>> for google::protobuf::Value {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 #[derive(DoCommand)]
 pub struct FakeSensor {
     fake_reading: f64,
 }
 
+#[cfg(feature = "builtin-components")]
 impl FakeSensor {
     pub fn new() -> Self {
         FakeSensor {
@@ -94,14 +102,17 @@ impl FakeSensor {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl Default for FakeSensor {
     fn default() -> Self {
         Self::new()
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl Sensor for FakeSensor {}
 
+#[cfg(feature = "builtin-components")]
 impl Readings for FakeSensor {
     fn get_generic_readings(&mut self) -> Result<GenericReadingsResult, SensorError> {
         Ok(self
@@ -112,6 +123,7 @@ impl Readings for FakeSensor {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl SensorT<f64> for FakeSensor {
     fn get_readings(&self) -> Result<TypedReadingsResult<f64>, SensorError> {
         let mut x = HashMap::new();
@@ -142,6 +154,7 @@ where
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl Status for FakeSensor {
     fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
         Ok(Some(google::protobuf::Struct {
