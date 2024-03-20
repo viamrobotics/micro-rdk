@@ -3,7 +3,7 @@ use super::config::ConfigType;
 use super::generic::DoCommand;
 use super::math_utils::Vector3;
 use super::registry::{ComponentRegistry, Dependency};
-use super::sensor::{GenericReadingsResult, Readings};
+use super::sensor::{GenericReadingsResult, Readings, SensorError};
 use super::status::Status;
 use crate::google;
 use crate::google::protobuf::{value::Kind, Struct, Value};
@@ -101,11 +101,11 @@ impl From<GeoPosition> for movement_sensor::v1::GetPositionResponse {
 // A trait for implementing a movement sensor component driver. TODO: add
 // get_orientation and get_accuracy if/when they become supportable.
 pub trait MovementSensor: Status + Readings + DoCommand {
-    fn get_position(&mut self) -> anyhow::Result<GeoPosition>;
-    fn get_linear_velocity(&mut self) -> anyhow::Result<Vector3>;
-    fn get_angular_velocity(&mut self) -> anyhow::Result<Vector3>;
-    fn get_linear_acceleration(&mut self) -> anyhow::Result<Vector3>;
-    fn get_compass_heading(&mut self) -> anyhow::Result<f64>;
+    fn get_position(&mut self) -> Result<GeoPosition, SensorError>;
+    fn get_linear_velocity(&mut self) -> Result<Vector3, SensorError>;
+    fn get_angular_velocity(&mut self) -> Result<Vector3, SensorError>;
+    fn get_linear_acceleration(&mut self) -> Result<Vector3, SensorError>;
+    fn get_compass_heading(&mut self) -> Result<f64, SensorError>;
     fn get_properties(&self) -> MovementSensorSupportedMethods;
 }
 
@@ -113,7 +113,7 @@ pub type MovementSensorType = Arc<Mutex<dyn MovementSensor>>;
 
 pub fn get_movement_sensor_generic_readings(
     ms: &mut dyn MovementSensor,
-) -> anyhow::Result<GenericReadingsResult> {
+) -> Result<GenericReadingsResult, SensorError> {
     let mut res = std::collections::HashMap::new();
     let supported_methods = ms.get_properties();
     if supported_methods.position_supported {
@@ -178,7 +178,7 @@ impl FakeMovementSensor {
     pub(crate) fn from_config(
         cfg: ConfigType,
         _: Vec<Dependency>,
-    ) -> anyhow::Result<MovementSensorType> {
+    ) -> Result<MovementSensorType, SensorError> {
         let mut fake_pos: GeoPosition = Default::default();
         if let Ok(fake_lat) = cfg.get_attribute::<f64>("fake_lat") {
             fake_pos.lat = fake_lat
@@ -209,11 +209,11 @@ impl FakeMovementSensor {
 }
 
 impl MovementSensor for FakeMovementSensor {
-    fn get_position(&mut self) -> anyhow::Result<GeoPosition> {
+    fn get_position(&mut self) -> Result<GeoPosition, SensorError> {
         Ok(self.pos)
     }
 
-    fn get_linear_acceleration(&mut self) -> anyhow::Result<Vector3> {
+    fn get_linear_acceleration(&mut self) -> Result<Vector3, SensorError> {
         Ok(self.linear_acc)
     }
 
@@ -227,16 +227,22 @@ impl MovementSensor for FakeMovementSensor {
         }
     }
 
-    fn get_linear_velocity(&mut self) -> anyhow::Result<Vector3> {
-        anyhow::bail!("unimplemented: movement_sensor_get_linear_velocity")
+    fn get_linear_velocity(&mut self) -> Result<Vector3, SensorError> {
+        Err(SensorError::SensorMethodUnimplemented(
+            "get_linear_velocity",
+        ))
     }
 
-    fn get_angular_velocity(&mut self) -> anyhow::Result<Vector3> {
-        anyhow::bail!("unimplemented: movement_sensor_get_angular_velocity")
+    fn get_angular_velocity(&mut self) -> Result<Vector3, SensorError> {
+        Err(SensorError::SensorMethodUnimplemented(
+            "get_angular_velocity",
+        ))
     }
 
-    fn get_compass_heading(&mut self) -> anyhow::Result<f64> {
-        anyhow::bail!("unimplemented: movement_sensor_get_compass_heading")
+    fn get_compass_heading(&mut self) -> Result<f64, SensorError> {
+        Err(SensorError::SensorMethodUnimplemented(
+            "get_compass_heading",
+        ))
     }
 }
 
@@ -252,23 +258,23 @@ impl<A> MovementSensor for Mutex<A>
 where
     A: ?Sized + MovementSensor,
 {
-    fn get_position(&mut self) -> anyhow::Result<GeoPosition> {
+    fn get_position(&mut self) -> Result<GeoPosition, SensorError> {
         self.get_mut().unwrap().get_position()
     }
 
-    fn get_linear_acceleration(&mut self) -> anyhow::Result<Vector3> {
+    fn get_linear_acceleration(&mut self) -> Result<Vector3, SensorError> {
         self.get_mut().unwrap().get_linear_acceleration()
     }
 
-    fn get_linear_velocity(&mut self) -> anyhow::Result<Vector3> {
+    fn get_linear_velocity(&mut self) -> Result<Vector3, SensorError> {
         self.get_mut().unwrap().get_linear_velocity()
     }
 
-    fn get_angular_velocity(&mut self) -> anyhow::Result<Vector3> {
+    fn get_angular_velocity(&mut self) -> Result<Vector3, SensorError> {
         self.get_mut().unwrap().get_angular_velocity()
     }
 
-    fn get_compass_heading(&mut self) -> anyhow::Result<f64> {
+    fn get_compass_heading(&mut self) -> Result<f64, SensorError> {
         self.get_mut().unwrap().get_compass_heading()
     }
 
@@ -281,23 +287,23 @@ impl<A> MovementSensor for Arc<Mutex<A>>
 where
     A: ?Sized + MovementSensor,
 {
-    fn get_position(&mut self) -> anyhow::Result<GeoPosition> {
+    fn get_position(&mut self) -> Result<GeoPosition, SensorError> {
         self.lock().unwrap().get_position()
     }
 
-    fn get_linear_acceleration(&mut self) -> anyhow::Result<Vector3> {
+    fn get_linear_acceleration(&mut self) -> Result<Vector3, SensorError> {
         self.lock().unwrap().get_linear_acceleration()
     }
 
-    fn get_linear_velocity(&mut self) -> anyhow::Result<Vector3> {
+    fn get_linear_velocity(&mut self) -> Result<Vector3, SensorError> {
         self.lock().unwrap().get_linear_velocity()
     }
 
-    fn get_angular_velocity(&mut self) -> anyhow::Result<Vector3> {
+    fn get_angular_velocity(&mut self) -> Result<Vector3, SensorError> {
         self.lock().unwrap().get_angular_velocity()
     }
 
-    fn get_compass_heading(&mut self) -> anyhow::Result<f64> {
+    fn get_compass_heading(&mut self) -> Result<f64, SensorError> {
         self.lock().unwrap().get_compass_heading()
     }
 

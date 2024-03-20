@@ -12,7 +12,7 @@ use super::{
     movement_sensor::MovementSensorType,
     power_sensor::PowerSensorType,
     robot::Resource,
-    sensor::SensorType,
+    sensor::{SensorError, SensorType},
     servo::ServoType,
 };
 use crate::proto::common::v1::ResourceName;
@@ -97,11 +97,11 @@ type BoardConstructor = dyn Fn(ConfigType) -> Result<BoardType, BoardError>;
 type MotorConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<MotorType, MotorError>;
 
 /// Fn that returns a `SensorType`, `Arc<Mutex<dyn Sensor>>`
-type SensorConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<SensorType>;
+type SensorConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<SensorType, SensorError>;
 
 /// Fn that returns a `MovementSensorType`, `Arc<Mutex<dyn MovementSensor>>`
 type MovementSensorConstructor =
-    dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<MovementSensorType>;
+    dyn Fn(ConfigType, Vec<Dependency>) -> Result<MovementSensorType, SensorError>;
 
 /// Fn that returns an `EncoderType`, `Arc<Mutex<dyn Encoder>>`
 type EncoderConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<EncoderType, EncoderError>;
@@ -114,7 +114,7 @@ type ServoConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<Se
 
 /// Fn that returns a `PowerSensorType`, `Arc<Mutex<dyn PowerSensor>>`
 type PowerSensorConstructor =
-    dyn Fn(ConfigType, Vec<Dependency>) -> anyhow::Result<PowerSensorType>;
+    dyn Fn(ConfigType, Vec<Dependency>) -> Result<PowerSensorType, SensorError>;
 
 /// Fn that returns a `GenericComponentType`, `Arc<Mutex<dyn GenericComponentType>>`
 type GenericComponentConstructor =
@@ -437,6 +437,7 @@ mod tests {
     use crate::common::motor::MotorError;
     use crate::google;
 
+    use crate::common::sensor::SensorError;
     use crate::common::{
         self,
         config::{ConfigType, DynamicComponentConfig},
@@ -457,7 +458,10 @@ mod tests {
         pub fn new() -> Self {
             Self {}
         }
-        pub fn from_config(_cfg: ConfigType, _: Vec<Dependency>) -> anyhow::Result<SensorType> {
+        pub fn from_config(
+            _cfg: ConfigType,
+            _: Vec<Dependency>,
+        ) -> Result<SensorType, SensorError> {
             Ok(Arc::new(Mutex::new(Self {})))
         }
     }
@@ -470,7 +474,7 @@ mod tests {
     impl Sensor for TestSensor {}
 
     impl Readings for TestSensor {
-        fn get_generic_readings(&mut self) -> anyhow::Result<GenericReadingsResult> {
+        fn get_generic_readings(&mut self) -> Result<GenericReadingsResult, SensorError> {
             Ok(self
                 .get_readings()?
                 .into_iter()
@@ -480,7 +484,7 @@ mod tests {
     }
 
     impl SensorT<f64> for TestSensor {
-        fn get_readings(&self) -> anyhow::Result<TypedReadingsResult<f64>> {
+        fn get_readings(&self) -> Result<TypedReadingsResult<f64>, SensorError> {
             let mut x = std::collections::HashMap::new();
             x.insert("test_sensor".to_string(), 42.0);
             Ok(x)

@@ -10,15 +10,17 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use super::analog::AnalogError;
 use super::sensor::Readings;
+use super::sensor::SensorError;
 
 #[derive(DoCommand)]
 pub struct MoistureSensor {
-    analog: Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>,
+    analog: Rc<RefCell<dyn AnalogReader<u16, Error = AnalogError>>>,
 }
 
 impl MoistureSensor {
-    pub fn new(analog: Rc<RefCell<dyn AnalogReader<u16, Error = anyhow::Error>>>) -> Self {
+    pub fn new(analog: Rc<RefCell<dyn AnalogReader<u16, Error = AnalogError>>>) -> Self {
         MoistureSensor { analog }
     }
 }
@@ -26,7 +28,7 @@ impl MoistureSensor {
 impl Sensor for MoistureSensor {}
 
 impl Readings for MoistureSensor {
-    fn get_generic_readings(&mut self) -> anyhow::Result<GenericReadingsResult> {
+    fn get_generic_readings(&mut self) -> Result<GenericReadingsResult, SensorError> {
         Ok(self
             .get_readings()?
             .into_iter()
@@ -36,7 +38,7 @@ impl Readings for MoistureSensor {
 }
 
 impl SensorT<f64> for MoistureSensor {
-    fn get_readings(&self) -> anyhow::Result<TypedReadingsResult<f64>> {
+    fn get_readings(&self) -> Result<TypedReadingsResult<f64>, SensorError> {
         let reading = self.analog.borrow_mut().read()?;
         let mut x = HashMap::new();
         x.insert("millivolts".to_string(), reading as f64);
