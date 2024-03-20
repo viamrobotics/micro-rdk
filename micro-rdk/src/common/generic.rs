@@ -2,6 +2,8 @@ use std::sync::{Arc, Mutex};
 
 use crate::google::protobuf::Struct;
 
+use super::status::Status;
+
 #[cfg(feature = "builtin-components")]
 use {
     super::{
@@ -12,12 +14,6 @@ use {
     std::collections::HashMap,
 };
 
-use super::{
-    config::ConfigType,
-    registry::{ComponentRegistry, Dependency},
-    status::Status,
-};
-use crate::google::protobuf::{value::Kind, Struct, Value};
 use thiserror::Error;
 
 pub static COMPONENT_NAME: &str = "generic";

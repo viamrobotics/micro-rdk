@@ -2,11 +2,12 @@
 #[cfg(feature = "builtin-components")]
 use {super::actuator::ActuatorError, crate::google, log::*, std::collections::HashMap};
 
-use super::generic::DoCommand;
+use super::{config::AttributeError, generic::DoCommand, motor::MotorError};
 use crate::common::actuator::Actuator;
 use crate::common::status::Status;
 use crate::proto::common::v1::Vector3;
 use std::sync::{Arc, Mutex};
+use thiserror::Error;
 
 pub static COMPONENT_NAME: &str = "base";
 
