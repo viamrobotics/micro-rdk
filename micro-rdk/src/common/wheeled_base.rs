@@ -88,10 +88,10 @@ where
             if let Some(r_motor) = r_motor {
                 Ok(Arc::new(Mutex::new(WheeledBase::new(r_motor, l_motor))))
             } else {
-                return Err(BaseError::BaseConfigError("right motor couldn't be found"));
+                Err(BaseError::BaseConfigError("right motor couldn't be found"))
             }
         } else {
-            return Err(BaseError::BaseConfigError("left motor couldn't be found"));
+            Err(BaseError::BaseConfigError("left motor couldn't be found"))
         }
     }
 
