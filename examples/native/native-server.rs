@@ -8,7 +8,7 @@ mod native {
         native::{entry::serve_web, tls::NativeTlsServerConfig},
     };
 
-    pub(crate) fn main_native() -> anyhow::Result<()> {
+    pub(crate) fn main_native() {
         env_logger::init();
 
         let repr = RobotRepresentation::WithRegistry(Box::default());
@@ -32,19 +32,12 @@ mod native {
         );
 
         serve_web(app_config, cfg, repr, ip);
-
-        Ok(())
     }
 }
 
-fn main() -> anyhow::Result<()> {
-    #[allow(unused_assignments, unused_mut)]
-    let mut ret = Ok(());
-
+fn main() {
     #[cfg(not(target_os = "espidf"))]
     {
         ret = native::main_native();
     }
-
-    ret
 }

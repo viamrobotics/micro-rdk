@@ -48,7 +48,7 @@ pub fn get_board_from_dependencies(deps: Vec<Dependency>) -> Option<BoardType> {
 pub struct ResourceKey(pub &'static str, pub String);
 
 impl ResourceKey {
-    pub fn new(model: &str, name: String) -> Result<Self, anyhow::Error> {
+    pub fn new(model: &str, name: String) -> Result<Self, RegistryError> {
         let model_str = match model {
             "motor" => crate::common::motor::COMPONENT_NAME,
             "board" => crate::common::board::COMPONENT_NAME,
@@ -60,7 +60,7 @@ impl ResourceKey {
             "power_sensor" => crate::common::power_sensor::COMPONENT_NAME,
             "generic" => crate::common::generic::COMPONENT_NAME,
             &_ => {
-                anyhow::bail!("component type {} is not supported yet", model.to_string());
+                return Err(RegistryError::ModelNotFound(model.to_string()));
             }
         };
         Ok(Self(model_str, name))
@@ -68,7 +68,7 @@ impl ResourceKey {
 }
 
 impl TryFrom<ResourceName> for ResourceKey {
-    type Error = anyhow::Error;
+    type Error = RegistryError;
     fn try_from(value: ResourceName) -> Result<Self, Self::Error> {
         let comp_type: &str = &value.subtype;
         let comp_name = match comp_type {
@@ -81,7 +81,7 @@ impl TryFrom<ResourceName> for ResourceKey {
             "power_sensor" => crate::common::power_sensor::COMPONENT_NAME,
             "generic" => crate::common::generic::COMPONENT_NAME,
             _ => {
-                anyhow::bail!("component type {} is not supported yet", comp_type);
+                return Err(RegistryError::ModelNotFound(comp_type.to_string()));
             }
         };
         Ok(Self(comp_name, value.name))

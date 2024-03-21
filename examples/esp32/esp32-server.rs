@@ -28,6 +28,7 @@ mod esp32 {
     }
 
     use micro_rdk::common::registry::ComponentRegistry;
+    use micro_rdk::esp32::esp_idf_svc::sys::EspError;
 
     #[cfg(not(feature = "qemu"))]
     use {
@@ -119,7 +120,7 @@ mod esp32 {
     fn eth_configure<'d, T>(
         sl_stack: &EspSystemEventLoop,
         eth: micro_rdk::esp32::esp_idf_svc::eth::EspEth<'d, T>,
-    ) -> anyhow::Result<(Ipv4Addr, Box<BlockingEth<EspEth<'d, T>>>)> {
+    ) -> Result<(Ipv4Addr, Box<BlockingEth<EspEth<'d, T>>>), EspError> {
         let mut eth = micro_rdk::esp32::esp_idf_svc::eth::BlockingEth::wrap(eth, sl_stack.clone())?;
         eth.start()?;
         eth.wait_netif_up()?;
@@ -134,7 +135,7 @@ mod esp32 {
     fn start_wifi(
         modem: impl Peripheral<P = micro_rdk::esp32::esp_idf_svc::hal::modem::Modem> + 'static,
         sl_stack: EspSystemEventLoop,
-    ) -> anyhow::Result<Box<BlockingWifi<EspWifi<'static>>>> {
+    ) -> Result<Box<BlockingWifi<EspWifi<'static>>>, EspError> {
         let nvs = micro_rdk::esp32::esp_idf_svc::nvs::EspDefaultNvsPartition::take()?;
         let mut wifi =
             BlockingWifi::wrap(EspWifi::new(modem, sl_stack.clone(), Some(nvs))?, sl_stack)?;

@@ -1193,7 +1193,7 @@ where
                 .lock()
                 .unwrap()
                 .get_status(req)
-                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?,
+                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?,
         };
         self.encode_message(status).map(|_| duration)
     }
@@ -1214,7 +1214,7 @@ where
                 .lock()
                 .unwrap()
                 .get_status(req)
-                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?,
+                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?,
         };
         self.encode_message(status)
     }
@@ -1235,7 +1235,7 @@ where
                 .lock()
                 .unwrap()
                 .get_frame(msg)
-                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
             let len = msg.len().to_be_bytes();
             buffer[1] = len[0];
             buffer[2] = len[1];
@@ -1269,7 +1269,7 @@ where
             .lock()
             .unwrap()
             .get_resource_names()
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err)))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let rr = robot::v1::ResourceNamesResponse { resources: rr };
         self.encode_message(rr)
     }
@@ -1411,11 +1411,14 @@ impl GrpcError {
 pub struct ServerError {
     grpc_error: GrpcError,
     #[source]
-    cause: Option<anyhow::Error>,
+    cause: Option<Box<dyn std::error::Error + Send + Sync>>,
 }
 
 impl ServerError {
-    pub fn new(grpc_error: GrpcError, cause: Option<anyhow::Error>) -> Self {
+    pub fn new(
+        grpc_error: GrpcError,
+        cause: Option<Box<dyn std::error::Error + Send + Sync>>,
+    ) -> Self {
         Self { grpc_error, cause }
     }
 

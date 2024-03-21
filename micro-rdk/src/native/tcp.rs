@@ -28,7 +28,7 @@ pub struct NativeListener {
 
 impl NativeListener {
     /// Creates a new Tcplistener
-    pub fn new(addr: SockAddr, tls: Option<Box<NativeTls>>) -> anyhow::Result<Self> {
+    pub fn new(addr: SockAddr, tls: Option<Box<NativeTls>>) -> Result<Self, std::io::Error> {
         let socket = Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP))?;
         socket.set_reuse_address(true)?;
         socket.set_nodelay(true)?;

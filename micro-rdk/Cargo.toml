@@ -28,7 +28,6 @@ test-log.workspace = true
 env_logger.workspace = true
 
 [dependencies]
-anyhow = { workspace = true, features = ["backtrace"] }
 async-channel.workspace = true
 async-io.workspace = true
 async-std-openssl = { workspace = true, optional = true }

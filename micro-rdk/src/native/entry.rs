@@ -69,13 +69,14 @@ pub async fn serve_web_inner(
                     }
                     Err(err) => {
                         if let Some(datetime) = cfg_received_datetime {
-                            let logs = vec![config_log_entry(datetime, Some(&err))];
+                            let logs = vec![config_log_entry(datetime, Some(err))];
                             client
                                 .push_logs(logs)
                                 .await
                                 .expect("could not push logs to app");
                         }
-                        panic!("{}", err)
+                        //TODO shouldn't panic here
+                        panic!("couldn't build robot");
                     }
                 };
                 Arc::new(Mutex::new(r))
@@ -89,7 +90,7 @@ pub async fn serve_web_inner(
     let tls = Box::new(NativeTls::new_server(tls_server_config));
     let tls_listener = NativeListener::new(address.into(), Some(tls)).unwrap();
 
-    let webrtc_certificate = Rc::new(WebRtcCertificate::new().unwrap());
+    let webrtc_certificate = Rc::new(WebRtcCertificate::new());
     let dtls = NativeDtls::new(webrtc_certificate.clone());
 
     let cloned_exec = exec.clone();

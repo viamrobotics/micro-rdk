@@ -42,6 +42,7 @@ use super::{
     },
     sensor::SensorType,
     servo::{Servo, ServoType},
+    status::StatusError,
 };
 use thiserror::Error;
 
@@ -187,7 +188,7 @@ impl LocalRobot {
         config_resp: &ConfigResponse,
         registry: Box<ComponentRegistry>,
         build_time: Option<DateTime<FixedOffset>>,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self, RobotError> {
         let mut robot = LocalRobot {
             resources: ResourceMap::new(),
             // Use date time pulled off gRPC header as the `build_time` returned in the status of
@@ -382,7 +383,7 @@ impl LocalRobot {
     pub fn get_status(
         &mut self,
         mut msg: robot::v1::GetStatusRequest,
-    ) -> anyhow::Result<Vec<robot::v1::Status>> {
+    ) -> Result<Vec<robot::v1::Status>, StatusError> {
         let last_reconfigured_proto = self.build_time.map(|bt| google::protobuf::Timestamp {
             seconds: bt.timestamp(),
             nanos: bt.timestamp_subsec_nanos() as i32,
@@ -556,7 +557,7 @@ impl LocalRobot {
         }
         Ok(vec)
     }
-    pub fn get_resource_names(&self) -> anyhow::Result<Vec<common::v1::ResourceName>> {
+    pub fn get_resource_names(&self) -> Result<Vec<common::v1::ResourceName>, RobotError> {
         let mut name = Vec::with_capacity(self.resources.len());
         for k in self.resources.keys() {
             name.push(k.clone());

@@ -174,7 +174,7 @@ impl Esp32Tls {
     pub fn open_ssl_context(
         &mut self,
         socket: Option<TcpStream>,
-    ) -> anyhow::Result<Esp32TlsStream> {
+    ) -> Result<Esp32TlsStream, std::io::Error> {
         Esp32TlsStream::new(socket, &mut self.tls_cfg)
     }
 }
@@ -186,10 +186,13 @@ impl Esp32TlsStream {
     fn new(
         socket: Option<TcpStream>,
         tls_cfg: &mut Either<Box<esp_tls_cfg_server>, Box<esp_tls_cfg>>,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self, std::io::Error> {
         let p = unsafe { esp_tls_init() };
         if p.is_null() {
-            return Err(anyhow::anyhow!("failed to allocate TLS struct"));
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "couldn't allocate tls context",
+            ));
         }
         let tls_context = ManuallyDrop::new(p);
         match tls_cfg {
@@ -201,9 +204,8 @@ impl Esp32TlsStream {
                         fd,
                         *tls_context,
                     )) {
-                        log::error!("can't create TLS context ''{}''", err);
                         esp_tls_conn_destroy(*tls_context);
-                        Err(anyhow::anyhow!(err))
+                        Err(std::io::Error::new(std::io::ErrorKind::Other, err))
                     } else {
                         Ok(Self {
                             tls_context,
@@ -222,18 +224,22 @@ impl Esp32TlsStream {
                         *tls_context,
                     )
                 } {
-                    -1 => Err(anyhow::anyhow!(
-                        "Failed to established connection to app.viam.com"
+                    -1 => Err(std::io::Error::new(
+                        std::io::ErrorKind::ConnectionRefused,
+                        "app.viam.com",
                     )),
                     1 => {
-                        log::info!("Connected to app.viam.com");
+                        log::debug!("Connected to app.viam.com");
                         Ok(Self {
                             tls_context,
                             socket,
                         })
                     }
-                    0 => Err(anyhow::anyhow!("connection to app.viam.com in progress")),
-                    n => Err(anyhow::anyhow!("Unexpected error '{}'", n)),
+                    0 => Err(std::io::Error::new(
+                        std::io::ErrorKind::NotConnected,
+                        "app.viam.com",
+                    )),
+                    _ => Err(std::io::Error::new(std::io::ErrorKind::Other, "unexpected")),
                 }
             }
         }

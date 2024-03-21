@@ -24,7 +24,7 @@ pub struct Esp32Listener {
 
 impl Esp32Listener {
     /// Creates a new Tcplistener
-    pub fn new(addr: SockAddr, tls: Option<Box<Esp32Tls>>) -> anyhow::Result<Self> {
+    pub fn new(addr: SockAddr, tls: Option<Box<Esp32Tls>>) -> Result<Self, std::io::Error> {
         let socket = Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP))?;
         socket.set_reuse_address(true)?;
         socket.set_nodelay(true)?;
@@ -40,15 +40,12 @@ impl Esp32Listener {
     }
 
     /// Accept the next incoming connection. Will block until a connection is established
-    pub fn accept(&mut self) -> anyhow::Result<Esp32Stream> {
+    pub fn accept(&mut self) -> Result<Esp32Stream, std::io::Error> {
         let (conn, _) = self.listener.accept()?;
-        conn.set_nonblocking(true)
-            .expect("cannot set tcp port in non-blocking mode");
+        conn.set_nonblocking(true)?;
         let stream = match &mut self.tls {
             Some(tls) => {
-                info!("opening TLS ctx");
                 let stream = tls.open_ssl_context(Some(conn))?;
-                info!("handshake done");
                 Esp32Stream::TLSStream(Box::new(stream))
             }
             None => Esp32Stream::LocalPlain(conn),
