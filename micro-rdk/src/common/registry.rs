@@ -498,7 +498,9 @@ mod tests {
     }
 
     impl Status for TestSensor {
-        fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+        fn get_status(
+            &self,
+        ) -> Result<Option<google::protobuf::Struct>, crate::common::status::StatusError> {
             Ok(Some(google::protobuf::Struct {
                 fields: HashMap::new(),
             }))

@@ -2,6 +2,7 @@
 use crate::common::i2c::I2cHandleType;
 use crate::common::math_utils::Vector3;
 use crate::common::movement_sensor::{MovementSensor, MovementSensorSupportedMethods};
+use crate::common::status::StatusError;
 use crate::google;
 
 use super::board::Board;
@@ -148,7 +149,7 @@ impl MovementSensor for ADXL345 {
 }
 
 impl Status for ADXL345 {
-    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
         Ok(Some(google::protobuf::Struct {
             fields: HashMap::new(),
         }))

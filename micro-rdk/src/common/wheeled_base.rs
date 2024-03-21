@@ -4,7 +4,7 @@ use super::config::ConfigType;
 use super::motor::{Motor, MotorType, COMPONENT_NAME as MotorCompName};
 use super::registry::{ComponentRegistry, Dependency, ResourceKey};
 use super::robot::Resource;
-use super::status::Status;
+use super::status::{Status, StatusError};
 use crate::google;
 use crate::proto::common::v1::Vector3;
 use std::collections::HashMap;
@@ -113,7 +113,7 @@ where
     ML: Motor,
     MR: Motor,
 {
-    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
         let mut hm = HashMap::new();
         hm.insert(
             "is_moving".to_string(),

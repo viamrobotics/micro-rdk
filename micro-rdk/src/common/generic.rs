@@ -123,7 +123,9 @@ impl DoCommand for FakeGenericComponent {
 
 #[cfg(feature = "builtin-components")]
 impl Status for FakeGenericComponent {
-    fn get_status(&self) -> anyhow::Result<Option<Struct>> {
+    fn get_status(
+        &self,
+    ) -> Result<Option<crate::google::protobuf::Struct>, crate::common::status::StatusError> {
         Ok(Some(Struct {
             fields: HashMap::new(),
         }))

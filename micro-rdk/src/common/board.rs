@@ -2,6 +2,7 @@
 
 #![allow(dead_code)]
 use crate::{
+    common::status::StatusError,
     common::{analog::AnalogReader, status::Status},
     google,
     proto::{common, component},
@@ -241,7 +242,7 @@ impl Board for FakeBoard {
 }
 
 impl Status for FakeBoard {
-    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
         let mut hm = HashMap::new();
         let mut analogs = HashMap::new();
         self.analogs.iter().for_each(|a| {
