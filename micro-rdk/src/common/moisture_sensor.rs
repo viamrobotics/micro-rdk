@@ -4,7 +4,9 @@ use crate::common::sensor::SensorResult;
 use crate::common::sensor::SensorT;
 use crate::common::sensor::TypedReadingsResult;
 use crate::common::status::Status;
+use crate::common::status::StatusError;
 use crate::google;
+
 use std::collections::HashMap;
 
 use super::analog::AnalogReaderType;
@@ -44,7 +46,7 @@ impl SensorT<f64> for MoistureSensor {
 }
 
 impl Status for MoistureSensor {
-    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
         Ok(Some(google::protobuf::Struct {
             fields: HashMap::new(),
         }))

@@ -5,7 +5,7 @@ use crate::common::encoder::{
     Direction, Encoder, EncoderPositionType, EncoderSupportedRepresentations, SingleEncoder,
 };
 use crate::common::motor::{Motor, MotorError, MotorSupportedProperties, MotorType};
-use crate::common::status::Status;
+use crate::common::status::{Status, StatusError};
 use crate::google;
 
 use std::collections::HashMap;
@@ -84,7 +84,7 @@ impl Actuator for SingleEncodedMotor {
 }
 
 impl Status for SingleEncodedMotor {
-    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
         let mut hm = HashMap::new();
         let pos = self
             .encoder

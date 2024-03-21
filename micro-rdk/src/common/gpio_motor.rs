@@ -55,6 +55,8 @@ use super::motor::{
 use super::registry::{get_board_from_dependencies, ComponentRegistry, Dependency, ResourceKey};
 use super::robot::Resource;
 use super::status::Status;
+use crate::common::status::StatusError;
+
 use crate::google;
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
@@ -181,7 +183,7 @@ where
     M: Motor,
     Enc: Encoder,
 {
-    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
         let mut hm = HashMap::new();
         let pos = self
             .enc
@@ -316,7 +318,7 @@ impl<B> Status for PwmABMotor<B>
 where
     B: Board,
 {
-    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
         let mut hm = HashMap::new();
         let pos = 0.0;
         hm.insert(
@@ -434,7 +436,7 @@ impl<B> Status for PwmDirectionMotor<B>
 where
     B: Board,
 {
-    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
         let mut hm = HashMap::new();
         let pos = 0.0;
         hm.insert(
@@ -572,7 +574,7 @@ impl<B> Status for AbMotor<B>
 where
     B: Board,
 {
-    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
         let mut hm = HashMap::new();
         let pos = 0.0;
         hm.insert(

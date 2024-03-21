@@ -22,6 +22,7 @@
 //!
 //! ```
 
+use crate::common::status::StatusError;
 use std::sync::{Arc, Mutex};
 
 use super::{
@@ -209,7 +210,7 @@ impl<B> Status for GpioServo<B>
 where
     B: Board,
 {
-    fn get_status(&self) -> anyhow::Result<Option<crate::google::protobuf::Struct>> {
+    fn get_status(&self) -> Result<Option<crate::google::protobuf::Struct>, StatusError> {
         Ok(None)
     }
 }

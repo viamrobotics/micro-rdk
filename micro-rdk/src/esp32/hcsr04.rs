@@ -55,7 +55,7 @@ use crate::{
             GenericReadingsResult, Readings, Sensor, SensorError, SensorResult, SensorT,
             SensorType, TypedReadingsResult,
         },
-        status::Status,
+        status::{Status, StatusError},
     },
     google, DoCommand,
 };
@@ -316,7 +316,7 @@ impl SensorT<f64> for HCSR04Sensor {
 }
 
 impl Status for HCSR04Sensor {
-    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
         Ok(Some(google::protobuf::Struct {
             fields: HashMap::new(),
         }))

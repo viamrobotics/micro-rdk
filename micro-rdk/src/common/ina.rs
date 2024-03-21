@@ -13,6 +13,8 @@
 /// The calibration register is programmed to measure current and power properly.
 /// The calibration register is set to: calibratescale / (current_lsb * sense_resistor)
 use crate::common::i2c::I2CHandle;
+use crate::common::status::StatusError;
+
 use core::fmt;
 use std::sync::{Arc, Mutex};
 
@@ -228,7 +230,7 @@ impl<H: I2CHandle> PowerSensor for Ina<H> {
 }
 
 impl<H: I2CHandle> Status for Ina<H> {
-    fn get_status(&self) -> anyhow::Result<Option<crate::google::protobuf::Struct>> {
+    fn get_status(&self) -> Result<Option<crate::google::protobuf::Struct>, StatusError> {
         Ok(None)
     }
 }

@@ -24,7 +24,7 @@ use crate::common::encoder::{
     EncoderType,
 };
 use crate::common::registry::{ComponentRegistry, Dependency};
-use crate::common::status::Status;
+use crate::common::status::{Status, StatusError};
 use crate::google;
 
 use embedded_hal::digital::v2::InputPin;
@@ -267,7 +267,7 @@ where
     A: InputPin + PinExt,
     B: InputPin + PinExt,
 {
-    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
         Ok(Some(google::protobuf::Struct {
             fields: HashMap::new(),
         }))

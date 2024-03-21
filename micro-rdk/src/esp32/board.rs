@@ -14,7 +14,7 @@ use crate::{
         digital_interrupt::DigitalInterruptConfig,
         i2c::I2cHandleType,
         registry::ComponentRegistry,
-        status::Status,
+        status::{Status, StatusError},
     },
     google,
     proto::{common, component},
@@ -379,7 +379,7 @@ impl Board for EspBoard {
 }
 
 impl Status for EspBoard {
-    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
         let mut hm = HashMap::new();
         let mut analogs = HashMap::new();
         self.analogs.iter().for_each(|a| {

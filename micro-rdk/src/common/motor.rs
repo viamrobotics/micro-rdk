@@ -11,6 +11,7 @@ use {
         registry::{ComponentRegistry, Dependency, ResourceKey},
         robot::Resource,
     },
+    crate::common::status::StatusError,
     crate::google,
     std::collections::HashMap,
 };
@@ -294,7 +295,7 @@ impl Motor for FakeMotor {
 
 #[cfg(feature = "builtin-components")]
 impl Status for FakeMotor {
-    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
         let mut hm = HashMap::new();
         hm.insert(
             "position".to_string(),
@@ -395,7 +396,7 @@ impl Motor for FakeMotorWithDependency {
 
 #[cfg(feature = "builtin-components")]
 impl Status for FakeMotorWithDependency {
-    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
         let hm = HashMap::new();
         Ok(Some(google::protobuf::Struct { fields: hm }))
     }

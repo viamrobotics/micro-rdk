@@ -87,7 +87,9 @@ impl Actuator for FakeBase {
 
 #[cfg(feature = "builtin-components")]
 impl Status for FakeBase {
-    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+    fn get_status(
+        &self,
+    ) -> Result<Option<google::protobuf::Struct>, crate::common::status::StatusError> {
         let mut hm = HashMap::new();
         hm.insert(
             "is_moving".to_string(),

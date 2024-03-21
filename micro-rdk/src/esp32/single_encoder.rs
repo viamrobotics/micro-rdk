@@ -26,7 +26,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Arc, Mutex};
 
-use crate::common::status::Status;
+use crate::common::status::{Status, StatusError};
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
@@ -352,7 +352,7 @@ impl SingleEncoder for Esp32SingleEncoder {
 }
 
 impl Status for Esp32SingleEncoder {
-    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
         Ok(Some(google::protobuf::Struct {
             fields: HashMap::new(),
         }))

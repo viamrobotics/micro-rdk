@@ -205,7 +205,9 @@ impl Encoder for FakeIncrementalEncoder {
 
 #[cfg(feature = "builtin-components")]
 impl Status for FakeIncrementalEncoder {
-    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+    fn get_status(
+        &self,
+    ) -> Result<Option<google::protobuf::Struct>, crate::common::status::StatusError> {
         Ok(Some(google::protobuf::Struct {
             fields: HashMap::new(),
         }))
@@ -275,7 +277,9 @@ impl Encoder for FakeEncoder {
 
 #[cfg(feature = "builtin-components")]
 impl Status for FakeEncoder {
-    fn get_status(&self) -> anyhow::Result<Option<google::protobuf::Struct>> {
+    fn get_status(
+        &self,
+    ) -> Result<Option<google::protobuf::Struct>, crate::common::status::StatusError> {
         Ok(Some(google::protobuf::Struct {
             fields: HashMap::new(),
         }))
