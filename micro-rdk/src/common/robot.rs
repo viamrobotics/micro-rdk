@@ -64,6 +64,24 @@ pub enum ResourceType {
 pub type Resource = ResourceType;
 pub type ResourceMap = HashMap<ResourceName, Resource>;
 
+#[cfg(feature = "data")]
+impl ResourceType {
+    pub fn component_type(&self) -> String {
+        match self {
+            Self::Base(_) => "rdk:component:base",
+            Self::Board(_) => "rdk:component:board",
+            Self::Encoder(_) => "rdk:component:encoder",
+            Self::Generic(_) => "rdk:component:generic",
+            Self::Motor(_) => "rdk:component:motor",
+            Self::MovementSensor(_) => "rdk:component:movement_sensor",
+            Self::PowerSensor(_) => "rdk:component:power_sensor",
+            Self::Sensor(_) => "rdk:component:sensor",
+            Self::Servo(_) => "rdk:component:servo",
+        }
+        .to_string()
+    }
+}
+
 #[derive(Default)]
 pub struct LocalRobot {
     resources: ResourceMap,

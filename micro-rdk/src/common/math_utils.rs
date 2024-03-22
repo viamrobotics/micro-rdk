@@ -6,6 +6,12 @@ use crate::{
 use std::{collections::HashMap, time::Duration};
 use thiserror::Error;
 
+#[cfg(feature = "data")]
+use crate::{
+    google::protobuf::Timestamp,
+    proto::app::data_sync::v1::{sensor_data, SensorData, SensorMetadata},
+};
+
 #[derive(Error, Debug)]
 #[error("invalid argument")]
 pub struct UtilsInvalidArg;
@@ -23,6 +29,53 @@ impl Vector3 {
             x: 0.0,
             y: 0.0,
             z: 0.0,
+        }
+    }
+    #[cfg(feature = "data")]
+    pub fn to_sensor_data(self, key: &str) -> SensorData {
+        let data_struct = Struct {
+            fields: HashMap::from([
+                (
+                    "x".to_string(),
+                    Value {
+                        kind: Some(Kind::NumberValue(self.x)),
+                    },
+                ),
+                (
+                    "y".to_string(),
+                    Value {
+                        kind: Some(Kind::NumberValue(self.y)),
+                    },
+                ),
+                (
+                    "z".to_string(),
+                    Value {
+                        kind: Some(Kind::NumberValue(self.z)),
+                    },
+                ),
+            ]),
+        };
+
+        let current_date = chrono::offset::Local::now().fixed_offset();
+        SensorData {
+            metadata: Some(SensorMetadata {
+                time_received: Some(Timestamp {
+                    seconds: current_date.timestamp(),
+                    nanos: current_date.timestamp_subsec_nanos() as i32,
+                }),
+                time_requested: Some(Timestamp {
+                    seconds: current_date.timestamp(),
+                    nanos: current_date.timestamp_subsec_nanos() as i32,
+                }),
+            }),
+            data: Some(sensor_data::Data::Struct(Struct {
+                fields: HashMap::from([(
+                    key.to_string(),
+                    Value {
+                        kind: Some(Kind::StructValue(data_struct)),
+                    },
+                )]),
+            })),
         }
     }
 }

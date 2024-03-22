@@ -18,6 +18,14 @@ use super::generic::DoCommand;
 use super::i2c::I2CErrors;
 
 use thiserror::Error;
+
+#[cfg(feature = "data")]
+use crate::google::protobuf::Timestamp;
+#[cfg(feature = "data")]
+use crate::proto::app::data_sync::v1::SensorMetadata;
+#[cfg(feature = "data")]
+use crate::proto::app::data_sync::v1::{sensor_data::Data, SensorData};
+
 pub static COMPONENT_NAME: &str = "sensor";
 
 #[derive(Debug, Error)]
@@ -55,6 +63,37 @@ pub type TypedReadingsResult<T> = ::std::collections::HashMap<String, T>;
 
 pub trait Readings {
     fn get_generic_readings(&mut self) -> Result<GenericReadingsResult, SensorError>;
+}
+
+#[cfg(feature = "data")]
+pub fn get_sensor_readings_data(sensor: &mut dyn Readings) -> Result<SensorData, SensorError> {
+    let readings = sensor.get_generic_readings()?;
+    let data_struct = Data::Struct(google::protobuf::Struct {
+        fields: HashMap::from([(
+            "readings".to_string(),
+            google::protobuf::Value {
+                kind: Some(google::protobuf::value::Kind::StructValue(
+                    google::protobuf::Struct { fields: readings },
+                )),
+            },
+        )]),
+    });
+
+    let current_date = chrono::offset::Local::now().fixed_offset();
+
+    Ok(SensorData {
+        metadata: Some(SensorMetadata {
+            time_received: Some(Timestamp {
+                seconds: current_date.timestamp(),
+                nanos: current_date.timestamp_subsec_nanos() as i32,
+            }),
+            time_requested: Some(Timestamp {
+                seconds: current_date.timestamp(),
+                nanos: current_date.timestamp_subsec_nanos() as i32,
+            }),
+        }),
+        data: Some(data_struct),
+    })
 }
 
 pub trait Sensor: Readings + Status + DoCommand {}
