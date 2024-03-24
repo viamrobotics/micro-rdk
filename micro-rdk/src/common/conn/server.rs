@@ -14,7 +14,7 @@ use crate::{
         grpc_client::GrpcClient,
         robot::LocalRobot,
         webrtc::{
-            api::{WebRtcApi, WebRtcSdp},
+            api::{WebRtcApi, WebRtcError, WebRtcSdp},
             certificate::Certificate,
             dtls::{DtlsBuilder, DtlsConnector},
             exec::WebRtcExecutor,
@@ -24,11 +24,12 @@ use crate::{
     proto::{self, app::v1::ConfigResponse},
 };
 
+use async_io::Timer;
+use futures_lite::prelude::*;
 use futures_lite::{future::Boxed, ready, Future};
-use hyper::server::conn::Http;
+use hyper::{rt, server::conn::http2};
 
-use smol::Task;
-use smol_timeout::TimeoutExt;
+use async_executor::Task;
 use std::{
     fmt::Debug,
     marker::PhantomData,
@@ -49,7 +50,7 @@ type Executor<'a> = Esp32Executor<'a>;
 pub trait TlsClientConnector {
     type Stream: AsyncRead + AsyncWrite + Unpin + 'static;
 
-    fn connect(&mut self) -> Result<Self::Stream, ServerError>;
+    fn connect(&mut self) -> impl std::future::Future<Output = Result<Self::Stream, ServerError>>;
 }
 
 pub struct RobotCloudConfig {
@@ -104,7 +105,7 @@ impl<'a, M, C, T> ViamServerBuilder<'a, M, C, T>
 where
     M: Mdns,
     C: TlsClientConnector,
-    T: AsyncRead + AsyncWrite + Unpin + 'static,
+    T: rt::Read + rt::Write + Unpin + 'static,
 {
     pub fn new(
         mdns: M,
@@ -131,7 +132,7 @@ impl<'a, M, C, T, CC, D, L> ViamServerBuilder<'a, M, C, T, CC, D, L>
 where
     M: Mdns,
     C: TlsClientConnector,
-    T: AsyncRead + AsyncWrite + Unpin + 'static,
+    T: rt::Read + rt::Write + Unpin + 'static,
     CC: Certificate + 'a,
     D: DtlsBuilder,
     D::Output: 'a,
@@ -226,7 +227,7 @@ where
 
 pub trait Http2Connector: std::fmt::Debug {
     type Stream;
-    fn accept(&mut self) -> std::io::Result<Self::Stream>;
+    fn accept(&mut self) -> impl std::future::Future<Output = std::io::Result<Self::Stream>>;
 }
 
 #[derive(Debug)]
@@ -282,7 +283,7 @@ pub struct ViamServer<'a, C, T, CC, D, L> {
 impl<'a, C, T, CC, D, L> ViamServer<'a, C, T, CC, D, L>
 where
     C: TlsClientConnector,
-    T: AsyncRead + AsyncWrite + Unpin + 'static,
+    T: rt::Read + rt::Write + Unpin + 'static,
     CC: Certificate + 'a,
     D: DtlsBuilder,
     D::Output: 'a,
@@ -310,10 +311,10 @@ where
     pub async fn serve(&mut self, robot: Arc<Mutex<LocalRobot>>) {
         let cloned_robot = robot.clone();
         loop {
-            let _ = smol::Timer::after(std::time::Duration::from_millis(300)).await;
+            let _ = async_io::Timer::after(std::time::Duration::from_millis(300)).await;
 
             if self.app_client.is_none() {
-                let conn = self.app_connector.connect().unwrap();
+                let conn = self.app_connector.connect().await.unwrap();
                 let cloned_exec = self.exec.clone();
                 let grpc_client = Box::new(
                     GrpcClient::new(conn, cloned_exec, "https://app.viam.com:443")
@@ -330,13 +331,13 @@ where
             let sig = if let Some(webrtc_config) = self.webrtc_config.as_ref() {
                 let ip = self.app_config.get_ip();
                 let signaling = self.app_client.as_mut().unwrap().connect_signaling();
-                futures::future::Either::Left(WebRTCSignalingAnswerer {
+                futures_util::future::Either::Left(WebRTCSignalingAnswerer {
                     webrtc_config: Some(webrtc_config),
                     future: signaling,
                     ip,
                 })
             } else {
-                futures::future::Either::Right(WebRTCSignalingAnswerer::<
+                futures_util::future::Either::Right(WebRTCSignalingAnswerer::<
                     '_,
                     '_,
                     CC,
@@ -375,9 +376,11 @@ where
                 },
             );
             let connection = connection
-                .timeout(Duration::from_secs(600))
-                .await
-                .map_or(Err(ServerError::ServerConnectionTimeout), |r| r);
+                .or(async {
+                    Timer::after(Duration::from_secs(600)).await;
+                    Err(ServerError::ServerConnectionTimeout)
+                })
+                .await;
 
             let connection = match connection {
                 Ok(c) => c,
@@ -418,16 +421,14 @@ where
         U: Http2Connector<Stream = T>,
     {
         let srv = GrpcServer::new(robot.clone(), GrpcBody::new());
-        let connection = c.accept().map_err(|e| ServerError::Other(e.into()))?;
+        let connection = c.accept().await.map_err(|e| ServerError::Other(e.into()))?;
 
         Box::new(
-            Http::new()
-                .with_executor(self.exec.clone())
-                .http2_only(true)
-                .http2_initial_stream_window_size(2048)
-                .http2_initial_connection_window_size(2048)
-                .http2_max_send_buf_size(4096)
-                .http2_max_concurrent_streams(1)
+            http2::Builder::new(self.exec.clone())
+                .initial_connection_window_size(2048)
+                .initial_stream_window_size(2048)
+                .max_send_buf_size(4096)
+                .max_concurrent_streams(1)
                 .serve_connection(connection, srv),
         )
         .await
@@ -463,6 +464,7 @@ struct WebRTCConnection<C, D, E> {
     robot: Arc<Mutex<LocalRobot>>,
     prio: u32,
 }
+
 impl<C, D, E> WebRTCConnection<C, D, E>
 where
     C: Certificate,
@@ -472,18 +474,28 @@ where
     async fn open_data_channel(&mut self) -> Result<(), ServerError> {
         self.webrtc_api
             .run_ice_until_connected(&self.sdp)
-            .timeout(std::time::Duration::from_secs(10))
+            .or(async {
+                Timer::after(Duration::from_secs(10)).await;
+                Err(WebRtcError::OperationTiemout)
+            })
             .await
-            .ok_or(ServerError::ServerConnectionTimeout)?
-            .map_err(|e| ServerError::Other(e.into()))?;
+            .map_err(|e| match e {
+                WebRtcError::OperationTiemout => ServerError::ServerConnectionTimeout,
+                _ => ServerError::Other(e.into()),
+            })?;
 
         let c = self
             .webrtc_api
             .open_data_channel()
-            .timeout(std::time::Duration::from_secs(10))
+            .or(async {
+                Timer::after(Duration::from_secs(10)).await;
+                Err(WebRtcError::OperationTiemout)
+            })
             .await
-            .ok_or(ServerError::ServerConnectionTimeout)?
-            .map_err(|e| ServerError::Other(e.into()))?;
+            .map_err(|e| match e {
+                WebRtcError::OperationTiemout => ServerError::ServerConnectionTimeout,
+                _ => ServerError::Other(e.into()),
+            })?;
         let srv = WebRtcGrpcServer::new(
             c,
             GrpcServer::new(self.robot.clone(), WebRtcGrpcBody::default()),
@@ -497,16 +509,10 @@ where
         }
         let srv = self.server.as_mut().unwrap();
         loop {
-            let req = srv.next_request().timeout(Duration::from_secs(30)).await;
-            match req {
-                Some(e) => {
-                    if let Err(e) = e {
-                        return Err(ServerError::Other(Box::new(e)));
-                    }
-                }
-                None => {
-                    return Err(ServerError::ServerConnectionTimeout);
-                }
+            let req = srv.next_request().await; //.timeout(Duration::from_secs(30)).await;
+
+            if let Err(e) = req {
+                return Err(ServerError::Other(Box::new(e)));
             }
         }
     }

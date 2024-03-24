@@ -13,7 +13,7 @@ use async_channel::Sender;
 use bytes::Bytes;
 use thiserror::Error;
 
-use futures_lite::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use futures_lite::{future::poll_fn, AsyncRead, AsyncWrite};
 use sctp_proto::{
     Association, AssociationHandle, ClientConfig, DatagramEvent, Endpoint, EndpointConfig, Event,
     Payload, ServerConfig, StreamEvent, StreamId, Transmit,
@@ -115,7 +115,7 @@ pub struct SctpConnector<S> {
 
 impl<S> SctpConnector<S>
 where
-    S: AsyncRead + AsyncWrite + Unpin + Send,
+    S: AsyncRead + AsyncWrite + Send,
 {
     pub fn new(transport: S, channel_send: Sender<Channel>) -> Self {
         let endpoint_cfg = EndpointConfig::new();
@@ -135,11 +135,12 @@ where
 
         let mut buf = [0; 300];
 
-        let len = self
-            .transport
-            .read(&mut buf)
-            .await
-            .map_err(SctpError::SctpIoError)?;
+        let len = {
+            let mut transport = unsafe { std::pin::Pin::new_unchecked(&mut self.transport) };
+            poll_fn(|cx| transport.as_mut().poll_read(cx, &mut buf))
+                .await
+                .map_err(SctpError::SctpIoError)?
+        };
 
         if len == 0 {
             return Err(SctpError::SctpErrorCannotAssociate);
@@ -160,9 +161,14 @@ where
             let _ = match pkt.payload {
                 Payload::RawEncode(data) => {
                     let mut ret = 0;
-                    for payload in data {
-                        ret += self.transport.write(&payload).await?;
-                    }
+                    {
+                        for payload in data {
+                            let mut transport =
+                                unsafe { std::pin::Pin::new_unchecked(&mut self.transport) };
+                            ret +=
+                                poll_fn(|cx| transport.as_mut().poll_write(cx, &payload)).await?;
+                        }
+                    };
                     ret
                 }
                 _ => {
@@ -197,9 +203,14 @@ where
             let _ = match pkt.payload {
                 Payload::RawEncode(data) => {
                     let mut ret = 0;
-                    for payload in data {
-                        ret += self.transport.write(&payload).await?;
-                    }
+                    {
+                        for payload in data {
+                            let mut transport =
+                                unsafe { std::pin::Pin::new_unchecked(&mut self.transport) };
+                            ret +=
+                                poll_fn(|cx| transport.as_mut().poll_write(cx, &payload)).await?;
+                        }
+                    };
                     ret
                 }
                 _ => {
@@ -235,7 +246,7 @@ impl SctpHandle {
     }
 }
 
-/// Where S implements AsyncRead + AsyncWrite + Unpin + Send
+/// Where S implements AsyncRead + AsyncWrite + Send
 pub struct SctpProto<S> {
     endpoint: Endpoint,
     transport: S,
@@ -257,37 +268,38 @@ impl<S> Drop for SctpProto<S> {
 
 unsafe impl<S> Send for SctpProto<S> {}
 
-async fn write_to_transport<S: AsyncRead + AsyncWrite + Unpin + Send>(
-    mut transport: S,
-    transmit: Transmit,
-) -> Result<usize, std::io::Error> {
-    let written = match transmit.payload {
-        Payload::RawEncode(data) => {
-            let mut ret = 0;
-            for payload in data {
-                ret += transport.write(&payload).await?;
-            }
-            ret
-        }
-        Payload::PartialDecode(data) => {
-            log::error!(
-                "received a Partial decoded but don't know what to do with it {:?}",
-                data
-            );
-            0
-        }
-    };
-    Ok(written)
-}
-
 impl<S> SctpProto<S>
 where
-    S: AsyncRead + AsyncWrite + Unpin + Send,
+    S: AsyncRead + AsyncWrite + Send,
 {
     fn close(&mut self) -> Result<(), SctpError> {
         self.sctp_event_tx
             .send_blocking(SctpEvent::Disconnect)
             .map_err(|_| SctpError::SctpErrorEventQueueFull)
+    }
+
+    async fn write_to_transport(&mut self, transmit: Transmit) -> Result<usize, std::io::Error> {
+        let written = match transmit.payload {
+            Payload::RawEncode(data) => {
+                let mut ret = 0;
+                {
+                    for payload in data {
+                        let mut transport =
+                            unsafe { std::pin::Pin::new_unchecked(&mut self.transport) };
+                        ret += poll_fn(|cx| transport.as_mut().poll_write(cx, &payload)).await?;
+                    }
+                };
+                ret
+            }
+            Payload::PartialDecode(data) => {
+                log::error!(
+                    "received a Partial decoded but don't know what to do with it {:?}",
+                    data
+                );
+                0
+            }
+        };
+        Ok(written)
     }
 
     fn process_association_events(&mut self) -> Result<(), SctpError> {
@@ -332,7 +344,7 @@ where
                             let stream = channel.rx_channel.lock().unwrap();
 
                             if let Some(waker) = stream.waker.as_ref() {
-                                waker.clone().wake();
+                                waker.wake_by_ref();
                             }
                         }
                     }
@@ -364,7 +376,7 @@ where
             }
         }
         if let Some(pkt) = self.endpoint.poll_transmit() {
-            let _ = write_to_transport(&mut self.transport, pkt).await;
+            let _ = self.write_to_transport(pkt).await;
         }
         Ok(())
     }
@@ -377,7 +389,7 @@ where
                 .poll_transmit(Instant::now())
         };
         if let Some(pkt) = pkt {
-            let _ = write_to_transport(&mut self.transport, pkt).await;
+            let _ = self.write_to_transport(pkt).await;
         }
 
         Ok(())
@@ -388,7 +400,7 @@ where
             let mut buf = [0; 1500];
             let timeout = sctp_timeout
                 .take()
-                .map_or_else(smol::Timer::never, smol::Timer::at);
+                .map_or_else(async_io::Timer::never, async_io::Timer::at);
             let event = futures_lite::future::or(
                 async {
                     match self.sctp_event_rx.recv().await {
@@ -398,11 +410,16 @@ where
                 },
                 futures_lite::future::or(
                     async {
-                        let r = self.transport.read(&mut buf).await;
-                        if r.is_err() {
+                        let len = {
+                            let mut transport =
+                                unsafe { std::pin::Pin::new_unchecked(&mut self.transport) };
+                            poll_fn(|cx| transport.as_mut().poll_read(cx, &mut buf)).await
+                        };
+
+                        if len.is_err() {
                             return SctpEvent::Disconnect;
                         }
-                        let len = r.unwrap();
+                        let len = len.unwrap();
                         if len == 0 {
                             return SctpEvent::Disconnect;
                         }

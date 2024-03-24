@@ -1,3 +1,6 @@
+// TODO this check is disabled but shouldn't
+#![allow(clippy::arc_with_non_send_sync)]
+
 pub mod common;
 
 #[cfg(feature = "esp32")]

@@ -74,6 +74,7 @@ pub mod webrtc {
     pub mod ice;
     pub mod io;
     pub mod sctp;
+    pub mod udp_mux;
 }
 pub mod conn {
     pub mod errors;

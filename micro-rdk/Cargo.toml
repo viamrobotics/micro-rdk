@@ -28,10 +28,22 @@ data = []
 test-log.workspace = true
 env_logger.workspace = true
 
+[target.'cfg(not(target_os = "espidf"))'.dependencies]
+async-std-openssl = { workspace = true, optional = true }
+futures-rustls.workspace = true
+local-ip-address = { workspace = true, optional = true }
+mdns-sd = { workspace = true, optional = true }
+openssl = { workspace = true, optional = true }
+rcgen = { workspace = true, optional = true }
+rustls = { workspace = true, optional = true }
+rustls-pemfile = { workspace = true, optional = true }
+webpki-roots = { workspace = true, optional = true }
+
 [dependencies]
 async-channel.workspace = true
+async-executor.workspace = true
 async-io.workspace = true
-async-std-openssl = { workspace = true, optional = true }
+atomic-waker.workspace = true
 base64.workspace = true
 bitfield.workspace = true
 bytecodec.workspace = true
@@ -42,37 +54,30 @@ embedded-hal = { workspace = true, optional = true }
 embedded-svc = { workspace = true, optional = true }
 esp-idf-svc = { workspace = true, optional = true }
 futures-lite.workspace = true
-futures.workspace = true
+futures-util.workspace = true
 h2.workspace = true
+http-body-util.workspace = true
 hyper.workspace = true
 ignore.workspace = true
 lazy_static.workspace = true
-local-ip-address = { workspace = true, optional = true }
 log.workspace = true
-mdns-sd = { workspace = true, optional = true }
 micro-rdk-macros.workspace = true
 once_cell.workspace = true
-openssl = { workspace = true, optional = true }
 pin-project-lite.workspace = true
 prost.workspace = true
 rand.workspace = true
-rcgen = { workspace = true, optional = true }
-rustls = { workspace = true, optional = true }
-rustls-pemfile = { workspace = true, optional = true }
 scopeguard.workspace = true
 sctp-proto.workspace = true
 sdp.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
-smol-timeout.workspace = true
-smol.workspace = true
 socket2.workspace = true
 stun_codec.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 trackable.workspace = true
-webpki-roots = { workspace = true, optional = true }
+
 
 [build-dependencies]
 const-gen.workspace = true

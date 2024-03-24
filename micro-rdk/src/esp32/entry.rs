@@ -24,22 +24,28 @@ use super::{
     dtls::Esp32DtlsBuilder,
     exec::Esp32Executor,
     tcp::Esp32Stream,
-    tls::{Esp32Tls, Esp32TlsServerConfig},
+    tls::{Esp32TLS, Esp32TLSServerConfig},
 };
 
+use async_io::Timer;
 use futures_lite::Future;
 
 pub async fn serve_web_inner(
     app_config: AppClientConfig,
-    _tls_server_config: Esp32TlsServerConfig,
+    _tls_server_config: Esp32TLSServerConfig,
     repr: RobotRepresentation,
     _ip: Ipv4Addr,
     webrtc_certificate: WebRtcCertificate,
     exec: Esp32Executor<'_>,
     max_webrtc_connection: usize,
 ) {
+    // TODO(NPM) this is a workaround so that async-io thread has started before we
+    // instantiate the Async<TCPStream> for the connection to app.viam.com
+    // otherwise there is a chance a race happens and will listen to events before full
+    // initialization is done
+    let _ = Timer::after(std::time::Duration::from_millis(60)).await;
     let (mut srv, robot) = {
-        let mut client_connector = Esp32Tls::new_client();
+        let mut client_connector = Esp32TLS::new_client();
         let mdns = NoMdns {};
 
         let (cfg_response, robot) = {
@@ -85,7 +91,7 @@ pub async fn serve_web_inner(
                                     .await
                                     .expect("could not push logs to app");
                             }
-                            //TODO shouldn't panic here
+                            //TODO shouldn't panic here, when we support offline mode and reloading configuration this should be removed
                             panic!("couldn't build robot");
                         }
                     };
@@ -135,7 +141,7 @@ impl Wake for Esp32Waker {
 }
 pub fn serve_web(
     app_config: AppClientConfig,
-    tls_server_config: Esp32TlsServerConfig,
+    tls_server_config: Esp32TLSServerConfig,
     repr: RobotRepresentation,
     _ip: Ipv4Addr,
     webrtc_certificate: WebRtcCertificate,

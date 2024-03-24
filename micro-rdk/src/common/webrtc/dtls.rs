@@ -1,8 +1,8 @@
 use futures_lite::{AsyncRead, AsyncWrite, Future};
 
-use super::io::IoPktChannel;
-
 use thiserror::Error;
+
+use super::udp_mux::UdpMux;
 
 #[derive(Error, Debug)]
 pub enum DtlsError {
@@ -11,12 +11,12 @@ pub enum DtlsError {
 }
 
 pub trait DtlsConnector {
-    type Stream: AsyncRead + AsyncWrite + Send + Unpin + 'static;
+    type Stream: AsyncRead + AsyncWrite + Send + 'static;
     type Error: std::error::Error + Send + Sync + 'static;
     type Future: Future<Output = Result<Self::Stream, Self::Error>>;
 
     fn accept(self) -> Result<Self::Future, Self::Error>;
-    fn set_transport(&mut self, transport: IoPktChannel);
+    fn set_transport(&mut self, transport: UdpMux);
 }
 
 pub trait DtlsBuilder {

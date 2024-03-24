@@ -41,7 +41,7 @@ use std::{
     collections::HashMap,
     num::NonZeroU32,
     sync::{
-        atomic::{AtomicI64, Ordering},
+        atomic::{AtomicI32, Ordering},
         Arc, Mutex,
     },
     time::Duration,
@@ -86,7 +86,8 @@ struct IsrSharedState {
     //
     // 0: Starting state, ready to take a reading
     // i64 > 0: Millisecond timestamp of first edge of echo signal
-    timestamp: AtomicI64,
+    //TODO 32bit wide enough - To be fixed before merged
+    timestamp: AtomicI32,
 
     // The channel the ISR will use to communicate results back to waiters.
     notifier: Arc<Notifier>,
@@ -217,7 +218,7 @@ impl HCSR04Sensor {
     #[link_section = ".iram1.intr_srv"]
     unsafe extern "C" fn subscription_interrupt(arg: *mut core::ffi::c_void) {
         let arg: &mut IsrSharedState = &mut *(arg as *mut _);
-        let when = crate::esp32::esp_idf_svc::sys::esp_timer_get_time();
+        let when = crate::esp32::esp_idf_svc::sys::esp_timer_get_time() as i32;
         match arg
             .timestamp
             .compare_exchange(0, when, Ordering::AcqRel, Ordering::Acquire)

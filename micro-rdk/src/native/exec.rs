@@ -1,9 +1,9 @@
 //! The exec module exposes helpers to execute futures on Native
+use async_executor::{LocalExecutor, Task};
 use futures_lite::{
     future::{self},
     Future,
 };
-use smol::{LocalExecutor, Task};
 use std::rc::Rc;
 
 use crate::common::webrtc::exec::WebRtcExecutor;

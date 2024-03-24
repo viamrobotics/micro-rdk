@@ -26,8 +26,6 @@ embedded-hal.workspace = true
 embedded-svc.workspace = true
 futures-lite.workspace = true
 micro-rdk = { workspace = true, features = ["esp32", "binstart"], default-features = true }
-reqwless.workspace = true
-smol.workspace = true
 
 
 [dependencies]

@@ -16,17 +16,16 @@ use crate::{
 };
 use bytes::{BufMut, BytesMut};
 use futures_lite::{future, Future};
+use hyper::body::{Body as BBody, Frame};
 use hyper::{
-    body::{self, Bytes, HttpBody},
+    body::{self, Bytes},
     http::HeaderValue,
     service::Service,
-    Body, HeaderMap, Request, Response,
+    HeaderMap, Request, Response,
 };
 use log::*;
 use prost::Message;
-use smol_timeout::TimeoutExt;
 use std::cell::RefCell;
-use std::error::Error;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
@@ -97,21 +96,22 @@ impl Drop for GrpcBody {
     }
 }
 
-impl HttpBody for GrpcBody {
+impl BBody for GrpcBody {
     type Data = Bytes;
     type Error = hyper::http::Error;
 
-    fn poll_data(
+    fn poll_frame(
         self: Pin<&mut Self>,
-        _: &mut Context<'_>,
-    ) -> Poll<Option<Result<Self::Data, Self::Error>>> {
-        Poll::Ready(self.get_mut().data.take().map(Ok))
-    }
-    fn poll_trailers(
-        self: Pin<&mut Self>,
-        _: &mut Context<'_>,
-    ) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
-        Poll::Ready(Ok(self.get_mut().trailers.take()))
+        _cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<body::Frame<Self::Data>, Self::Error>>> {
+        let this = self.get_mut();
+        if let Some(data) = this.data.take() {
+            return Poll::Ready(Some(Ok(Frame::data(data))));
+        }
+        if let Some(trailer) = this.trailers.take() {
+            return Poll::Ready(Some(Ok(Frame::trailers(trailer))));
+        }
+        Poll::Pending
     }
 }
 
@@ -1316,16 +1316,16 @@ where
             .map(|dur| (self.response.get_data().split_off(5), dur))
     }
 }
-
-impl<R> Service<Request<Body>> for GrpcServer<R>
+use http_body_util::BodyExt;
+impl<R> Service<Request<body::Incoming>> for GrpcServer<R>
 where
-    R: GrpcResponse + HttpBody + Clone + 'static,
+    R: GrpcResponse + BBody + Clone + 'static,
 {
     type Response = Response<R>;
     type Error = GrpcError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
 
-    fn call(&mut self, req: Request<Body>) -> Self::Future {
+    fn call(&self, req: Request<body::Incoming>) -> Self::Future {
         #[cfg(debug_assertions)]
         debug!("clone in Servive GRPC");
         {
@@ -1336,9 +1336,12 @@ where
         log::debug!("processing {:?}", req);
         Box::pin(async move {
             let (path, body) = req.into_parts();
-            let msg = body::to_bytes(body)
+            let msg = body
+                .collect()
                 .await
-                .map_err(|_| GrpcError::RpcFailedPrecondition)?;
+                .map_err(|_| GrpcError::RpcFailedPrecondition)?
+                .to_bytes();
+
             let path = match path.uri.path_and_query() {
                 Some(path) => path.as_str(),
                 None => return Err(GrpcError::RpcInvalidArgument),
@@ -1350,10 +1353,6 @@ where
                 .body(svc.response.clone())
                 .map_err(|_| GrpcError::RpcFailedPrecondition)
         })
-    }
-
-    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
     }
 }
 impl<R> Drop for GrpcServer<R> {
@@ -1467,65 +1466,11 @@ impl<T> Service<T> for MakeSvcGrpcServer {
     type Error = GrpcError;
     type Future = future::Ready<Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Ok(()).into()
-    }
-
-    fn call(&mut self, _: T) -> Self::Future {
+    fn call(&self, _: T) -> Self::Future {
         {
             info!("reserve memory");
             RefCell::borrow_mut(&self.server.buffer).reserve(10240);
         }
         future::ready(Ok(self.server.clone()))
-    }
-}
-
-pub struct Timeout<T> {
-    inner: T,
-    timeout: Duration,
-}
-
-impl<T> Timeout<T> {
-    #[allow(dead_code)]
-    pub fn new(inner: T, timeout: Duration) -> Timeout<T> {
-        Timeout { inner, timeout }
-    }
-}
-
-// The error returned if processing a request timed out
-#[derive(Debug)]
-pub struct Expired;
-
-impl std::fmt::Display for Expired {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "expired")
-    }
-}
-
-impl<T> Service<Request<Body>> for Timeout<T>
-where
-    T: Service<Request<Body>>,
-    T::Error: Into<Box<dyn Error + Send + Sync>> + 'static,
-    T::Future: 'static,
-{
-    type Response = T::Response;
-    type Error = Box<dyn Error + Send + Sync>;
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
-
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.inner.poll_ready(cx).map_err(Into::into)
-    }
-
-    fn call(&mut self, req: Request<Body>) -> Self::Future {
-        let fut = self.inner.call(req);
-        let timeout = self.timeout;
-        let f = async move {
-            if let Some(req) = fut.timeout(timeout).await {
-                return req.map_err(Into::into);
-            }
-            info!("timeout");
-            Err(Box::new(GrpcError::RpcDeadlineExceeded))
-        };
-        Box::pin(f)
     }
 }
