@@ -53,18 +53,18 @@ where
         &mut self,
         requests: Vec<DataCaptureUploadRequest>,
     ) -> Result<Vec<DataCaptureUploadRequest>, DataStoreError> {
-        self.lock().unwrap().store_upload_requests(requests)
+        self.get_mut().unwrap().store_upload_requests(requests)
     }
 
     fn read_messages<'a>(
         &mut self,
         number_of_messages: usize,
     ) -> Result<&'a [DataCaptureUploadRequest], DataStoreError> {
-        self.lock().unwrap().read_messages(number_of_messages)
+        self.get_mut().unwrap().read_messages(number_of_messages)
     }
 
     fn clear(&mut self) {
-        self.lock().unwrap().clear()
+        self.get_mut().unwrap().clear()
     }
 }
 
@@ -135,7 +135,6 @@ impl StaticMemoryDataStore {
             .iter()
             .position(|&x| x.0 > new_first_message_end_idx)
             .map(|s| s + 1);
-        println!("{:?}", new_second_message_ptr);
         if let Some(new_second_message_ptr) = new_second_message_ptr {
             if new_second_message_ptr > self.read_message_ptr {
                 return Err(DataStoreError::DataTooLarge);
@@ -212,7 +211,6 @@ impl DataStore for StaticMemoryDataStore {
                         }
                     }
                     DATA_OFFSETS[0] = (self.writer_index, wrap_idx);
-                    println!("{}", wrap_idx);
                     self.adjust_overlap_index(wrap_idx)?;
                     wrap_idx
                 };
@@ -448,7 +446,6 @@ mod tests {
                 })),
             }],
         };
-        println!("{:?}", msg.encoded_len());
         assert!(store.store_upload_requests(vec![msg]).is_ok());
         unsafe {
             assert_eq!((1023975, 2271), DATA_OFFSETS[0]);
