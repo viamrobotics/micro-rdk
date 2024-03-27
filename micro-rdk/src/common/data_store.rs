@@ -36,10 +36,10 @@ pub trait DataStore {
         &mut self,
         requests: Vec<DataCaptureUploadRequest>,
     ) -> Result<Vec<DataCaptureUploadRequest>, DataStoreError>;
-    fn read_messages<'a>(
-        &mut self,
-        number_of_messages: usize,
-    ) -> Result<&'a [DataCaptureUploadRequest], DataStoreError>;
+    /// Attempts to read a number of byte-encoded DataCaptureUploadRequests. May return less than
+    /// the requested number of messages if there are less messages remaining than requested
+    fn read_messages(&mut self, number_of_messages: usize)
+        -> Result<Vec<BytesMut>, DataStoreError>;
     /// WARNING: implementations of clear are meant to reset the entire data store. Must
     /// only be called when it is guaranteed that no other process has access to the data store.
     fn clear(&mut self);
@@ -56,10 +56,10 @@ where
         self.get_mut().unwrap().store_upload_requests(requests)
     }
 
-    fn read_messages<'a>(
+    fn read_messages(
         &mut self,
         number_of_messages: usize,
-    ) -> Result<&'a [DataCaptureUploadRequest], DataStoreError> {
+    ) -> Result<Vec<BytesMut>, DataStoreError> {
         self.get_mut().unwrap().read_messages(number_of_messages)
     }
 
@@ -79,10 +79,10 @@ where
         self.lock().unwrap().store_upload_requests(requests)
     }
 
-    fn read_messages<'a>(
+    fn read_messages(
         &mut self,
         number_of_messages: usize,
-    ) -> Result<&'a [DataCaptureUploadRequest], DataStoreError> {
+    ) -> Result<Vec<BytesMut>, DataStoreError> {
         self.lock().unwrap().read_messages(number_of_messages)
     }
 
@@ -100,7 +100,6 @@ where
 /// will be overwritten
 #[derive(Clone, Copy)]
 struct StaticMemoryDataStore {
-    reader_index: usize,
     writer_index: usize,
     write_message_ptr: usize,
     read_message_ptr: usize,
@@ -117,7 +116,6 @@ impl StaticMemoryDataStore {
         };
         let writer_index = unsafe { DATA_OFFSETS[last_message_ptr].1 };
         Arc::new(Mutex::new(StaticMemoryDataStore {
-            reader_index: 0,
             writer_index,
             write_message_ptr: last_message_ptr + 1,
             read_message_ptr: 0,
@@ -162,6 +160,7 @@ impl DataStore for StaticMemoryDataStore {
     ) -> Result<Vec<DataCaptureUploadRequest>, DataStoreError> {
         let mut return_remaining = false;
         let mut res = vec![];
+        let mut wrap = false;
         for req in requests {
             // if we've previously overtaken the read pointer, the rest of the requests should simply be returned
             if return_remaining {
@@ -176,13 +175,17 @@ impl DataStore for StaticMemoryDataStore {
                 if self.writer_index + encode_len < DATA_STORE.len() {
                     self.write_message_ptr + 1
                 } else {
+                    wrap = true;
                     1
                 }
             };
-
-            // we are about to overtake the read pointer, stop writing
-            if new_write_msg_ptr == self.read_message_ptr {
+            // we are about to overtake the read pointer (or we've already overtaken it
+            // by wrapping around to the front of DATA_STORE), stop writing
+            if (!wrap && (new_write_msg_ptr == self.read_message_ptr))
+                || (wrap && (self.read_message_ptr == 0))
+            {
                 return_remaining = true;
+                res.push(req);
                 continue;
             }
 
@@ -220,16 +223,27 @@ impl DataStore for StaticMemoryDataStore {
         Ok(res)
     }
 
-    fn read_messages<'a>(
+    fn read_messages(
         &mut self,
         number_of_messages: usize,
-    ) -> Result<&'a [DataCaptureUploadRequest], DataStoreError> {
-        // advance reader temporarily for testing write
-        self.read_message_ptr += number_of_messages;
+    ) -> Result<Vec<BytesMut>, DataStoreError> {
+        let mut res = vec![];
         unsafe {
-            self.reader_index = DATA_OFFSETS[self.read_message_ptr].0;
+            for _ in 0..number_of_messages {
+                let (curr_msg_start, curr_msg_end) = DATA_OFFSETS[self.read_message_ptr];
+                let curr_msg = &DATA_STORE[curr_msg_start..curr_msg_end];
+                let mut b = BytesMut::with_capacity(curr_msg.len());
+                b.resize(curr_msg.len(), 0);
+                b.copy_from_slice(curr_msg);
+                res.push(b);
+                if self.read_message_ptr + 1 == self.write_message_ptr {
+                    break;
+                } else {
+                    self.read_message_ptr += 1;
+                }
+            }
         }
-        Err(DataStoreError::Unimplemented)
+        Ok(res)
     }
 
     fn clear(&mut self) {
@@ -237,7 +251,6 @@ impl DataStore for StaticMemoryDataStore {
             DATA_STORE = [0xFF; 1024000];
             DATA_OFFSETS = [(0, 0); 25600];
         }
-        self.reader_index = 0;
         self.writer_index = 0;
         self.write_message_ptr = 0;
         self.read_message_ptr = 0;
@@ -460,7 +473,7 @@ mod tests {
         let store_clone = get_reference_to_static_data_store();
         let mut store = store_clone.lock().unwrap();
         store.clear();
-        let num_of_initial_messages: usize = 3;
+        let num_of_initial_messages: usize = 24977;
 
         let mut requests = vec![];
         for _ in 0..num_of_initial_messages {
@@ -489,38 +502,98 @@ mod tests {
         }
         let res = store.store_upload_requests(requests);
         assert!(res.is_ok());
-        assert_eq!(res.unwrap().len(), 0);
+        let res = res.unwrap();
+        assert_eq!(res.len(), 2);
 
-        let _ = store.read_messages(4);
+        let _ = store.read_messages(1);
 
-        let mut requests = vec![];
-        for _ in 0..2 {
-            requests.push(DataCaptureUploadRequest {
-                metadata: None,
-                sensor_contents: vec![SensorData {
-                    metadata: None,
-                    data: Some(Data::Struct(Struct {
-                        fields: HashMap::from([
-                            (
-                                "thing_1".to_string(),
-                                Value {
-                                    kind: Some(Kind::NumberValue(245.01)),
-                                },
-                            ),
-                            (
-                                "thing_2".to_string(),
-                                Value {
-                                    kind: Some(Kind::BoolValue(true)),
-                                },
-                            ),
-                        ]),
-                    })),
-                }],
-            });
-        }
-        let res = store.store_upload_requests(requests);
+        let res = store.store_upload_requests(res);
         assert!(res.is_ok());
         assert_eq!(res.unwrap().len(), 1);
         store.clear()
+    }
+
+    #[test_log::test]
+    fn test_read_messages() {
+        let store_clone = get_reference_to_static_data_store();
+        let mut store = store_clone.lock().unwrap();
+
+        let mut requests = vec![];
+        store.clear();
+        let msg_1 = DataCaptureUploadRequest {
+            metadata: None,
+            sensor_contents: vec![],
+        };
+        requests.push(msg_1);
+        let msg_2 = DataCaptureUploadRequest {
+            metadata: Some(UploadMetadata {
+                part_id: "part_id".to_string(),
+                component_type: "component_a".to_string(),
+                component_name: "test_comp".to_string(),
+                method_name: "do_it".to_string(),
+                r#type: DataType::TabularSensor.into(),
+                ..Default::default()
+            }),
+            sensor_contents: vec![],
+        };
+        requests.push(msg_2);
+        let msg_3 = DataCaptureUploadRequest {
+            metadata: None,
+            sensor_contents: vec![SensorData {
+                metadata: None,
+                data: Some(Data::Struct(Struct {
+                    fields: HashMap::from([
+                        (
+                            "thing_1".to_string(),
+                            Value {
+                                kind: Some(Kind::NumberValue(245.01)),
+                            },
+                        ),
+                        (
+                            "thing_2".to_string(),
+                            Value {
+                                kind: Some(Kind::BoolValue(true)),
+                            },
+                        ),
+                    ]),
+                })),
+            }],
+        };
+        requests.push(msg_3);
+        let res = store.store_upload_requests(requests);
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap().len(), 0);
+
+        let msgs_as_bytes = store.read_messages(2);
+        assert!(msgs_as_bytes.is_ok());
+        let mut msgs_as_bytes = msgs_as_bytes.unwrap();
+        assert_eq!(msgs_as_bytes.len(), 2);
+
+        let msg_1_bytes = &mut msgs_as_bytes[0];
+        let msg_1 = DataCaptureUploadRequest::decode(msg_1_bytes);
+        assert!(msg_1.is_ok());
+        let msg_1 = msg_1.unwrap();
+        assert!(msg_1.metadata.is_none());
+        assert_eq!(msg_1.sensor_contents.len(), 0);
+
+        let msg_2_bytes = &mut msgs_as_bytes[1];
+        let msg_2 = DataCaptureUploadRequest::decode(msg_2_bytes);
+        assert!(msg_2.is_ok());
+        let msg_2 = msg_2.unwrap();
+        assert_eq!(msg_2.sensor_contents.len(), 0);
+        let msg_2_md = msg_2.metadata;
+        assert!(msg_2_md.is_some());
+        let msg_2_md = msg_2_md.unwrap();
+        let expected_metadata = UploadMetadata {
+            part_id: "part_id".to_string(),
+            component_type: "component_a".to_string(),
+            component_name: "test_comp".to_string(),
+            method_name: "do_it".to_string(),
+            r#type: DataType::TabularSensor.into(),
+            ..Default::default()
+        };
+        assert_eq!(msg_2_md, expected_metadata);
+
+        store.clear();
     }
 }
