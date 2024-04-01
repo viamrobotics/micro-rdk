@@ -14,13 +14,13 @@ clean:
 all: clean build-esp32-bin build-native build-esp32-with-cred-bin
 
 buf-clean:
-	find src/gen -type f \( -iname "*.rs" \) -delete
+	find micro-rdk/src/gen -type f \( -iname "*.rs" \) -delete
 
 buf: buf-clean
-	buf generate buf.build/viamrobotics/goutils --template buf.gen.yaml
-	buf generate buf.build/googleapis/googleapis --template buf.gen.yaml --path google/rpc --path google/api
-	buf generate buf.build/viamrobotics/api --template buf.gen.yaml
-	buf generate buf.build/protocolbuffers/wellknowntypes --template buf.gen.yaml 
+	buf generate buf.build/viamrobotics/goutils --template micro-rdk/buf.gen.yaml
+	buf generate buf.build/googleapis/googleapis --template micro-rdk/buf.gen.yaml --path google/rpc --path google/api
+	buf generate buf.build/viamrobotics/api --template micro-rdk/buf.gen.yaml
+	buf generate buf.build/protocolbuffers/wellknowntypes --template micro-rdk/buf.gen.yaml 
 
 license-finder:
 	license_finder
