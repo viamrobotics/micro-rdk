@@ -88,12 +88,14 @@ fn main() -> anyhow::Result<()> {
         let key = ROBOT_SRV_DER_KEY;
         Esp32TlsServerConfig::new(cert, key.as_ptr(), key.len() as u32)
     };
+    
+    let max_connection = 3;
 
     let mut registry = Box::<ComponentRegistry>::default();
     register_modules(&mut registry)?;
     let repr = RobotRepresentation::WithRegistry(registry);
 
-    serve_web(cfg, tls_cfg, repr, ip, webrtc_certificate);
+    serve_web(cfg, tls_cfg, repr, ip, webrtc_certificate, max_connection);
     Ok(())
 }
 
