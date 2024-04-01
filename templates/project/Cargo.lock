@@ -2797,7 +2797,7 @@ dependencies = [
 [[package]]
 name = "micro-rdk"
 version = "0.1.7"
-source = "git+https://github.com/viamrobotics/micro-rdk.git#7403b39f6508adcdd32927fbbb69ce524100926d"
+source = "git+https://github.com/viamrobotics/micro-rdk.git#bbded3ca5ce1ef028f540115761f7c0f3f0da4c8"
 dependencies = [
  "anyhow",
  "async-channel 1.9.0",
