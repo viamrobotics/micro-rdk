@@ -21,5 +21,6 @@ choices = [
     "MovementSensor",
     "PowerSensor",
     "Servo",
+    "Sensor",
 ]
 default = "None"

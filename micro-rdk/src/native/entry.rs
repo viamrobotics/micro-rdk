@@ -192,17 +192,22 @@ mod tests {
 
     #[test_log::test]
     #[ignore]
-    fn test_client_bidi() -> anyhow::Result<()> {
+    fn test_client_bidi() {
         let socket = TcpStream::connect("localhost:7888").unwrap();
-        socket.set_nonblocking(true)?;
+        socket.set_nonblocking(true).unwrap();
         let conn = NativeStream::LocalPlain(socket);
         let executor = NativeExecutor::new();
         let exec = executor.clone();
-        let mut grpc_client = block_on(
+        let grpc_client = block_on(
             exec.run(async { GrpcClient::new(conn, executor, "https://app.viam.com:443").await }),
-        )?;
+        );
+        assert!(grpc_client.is_ok());
+        let mut grpc_client = grpc_client.unwrap();
 
-        let r = grpc_client.build_request("/proto.rpc.v1.AuthService/Authenticate", None, "")?;
+        let r = grpc_client.build_request("/proto.rpc.v1.AuthService/Authenticate", None, "");
+
+        assert!(r.is_ok());
+        let r = r.unwrap();
 
         let cred = Credentials {
             r#type: "robot-secret".to_owned(),
@@ -214,9 +219,13 @@ mod tests {
             credentials: Some(cred),
         };
 
-        let body = encode_request(req)?;
+        let body = encode_request(req);
+        assert!(body.is_ok());
+        let body = body.unwrap();
 
-        let mut r = block_on(exec.run(async { grpc_client.send_request(r, body).await }))?.0;
+        let r = block_on(exec.run(async { grpc_client.send_request(r, body).await }));
+        assert!(r.is_ok());
+        let mut r = r.unwrap().0;
         let r = r.split_off(5);
         let r = AuthenticateResponse::decode(r).unwrap();
         let jwt = format!("Bearer {}", r.access_token);
@@ -225,7 +234,9 @@ mod tests {
             "/proto.rpc.examples.echo.v1.EchoService/EchoBiDi",
             Some(&jwt),
             "",
-        )?;
+        );
+        assert!(r.is_ok());
+        let r = r.unwrap();
 
         let conn = block_on(exec.run(async {
             grpc_client
@@ -250,9 +261,11 @@ mod tests {
 
         let recv_half_ref = recv_half.by_ref();
 
-        sender_half.send_message(EchoBiDiRequest {
-            message: "hello".to_string(),
-        })?;
+        sender_half
+            .send_message(EchoBiDiRequest {
+                message: "hello".to_string(),
+            })
+            .unwrap();
 
         let p = block_on(exec.run(async {
             recv_half_ref
@@ -264,9 +277,11 @@ mod tests {
 
         assert_eq!("hello", p);
 
-        sender_half.send_message(EchoBiDiRequest {
-            message: "123456".to_string(),
-        })?;
+        sender_half
+            .send_message(EchoBiDiRequest {
+                message: "123456".to_string(),
+            })
+            .unwrap();
         let p = block_on(exec.run(async {
             recv_half_ref
                 .take(6)
@@ -276,6 +291,5 @@ mod tests {
         }));
 
         assert_eq!("123456", p);
-        Ok(())
     }
 }

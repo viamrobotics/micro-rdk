@@ -115,54 +115,71 @@ mod tests {
     }
 
     #[test_log::test]
-    fn test_go_for_math_none_duration() -> anyhow::Result<()> {
+    fn test_go_for_math_none_duration() {
         // taken from rdk/components/motor/gpio/basic_test.go
-        let (pwr, dur) = go_for_math(200.0, 50.0, 0.0)?;
+        let r = go_for_math(200.0, 50.0, 0.0);
+        assert!(r.is_ok());
+        let (pwr, dur) = r.unwrap();
         assert_eq!(pwr, 0.25);
         assert_eq!(dur, None);
 
-        let (pwr, dur) = go_for_math(200.0, 50.0, 0.0)?;
+        let r = go_for_math(200.0, 50.0, 0.0);
+        assert!(r.is_ok());
+        let (pwr, dur) = r.unwrap();
         assert_eq!(pwr, 0.25);
         assert_eq!(dur, None);
 
-        let (pwr, dur) = go_for_math(200.0, -50.0, 0.0)?;
+        let r = go_for_math(200.0, -50.0, 0.0);
+        assert!(r.is_ok());
+        let (pwr, dur) = r.unwrap();
         assert_eq!(pwr, -0.25);
         assert_eq!(dur, None);
-
-        Ok(())
     }
 
     #[test_log::test]
-    fn test_go_for_math_some_duration() -> anyhow::Result<()> {
+    fn test_go_for_math_some_duration() {
         // taken from rdk/components/motor/gpio/basic_test.go
 
-        let (pwr, dur) = go_for_math(100.0, 100.0, 100.0)?;
+        let r = go_for_math(100.0, 100.0, 100.0);
+        assert!(r.is_ok());
+        let (pwr, dur) = r.unwrap();
         assert_eq!(pwr, 1.0);
         assert_eq!(dur, Some(Duration::from_secs(60)));
 
-        let (pwr, dur) = go_for_math(100.0, -100.0, 100.0)?;
+        let r = go_for_math(100.0, -100.0, 100.0);
+        assert!(r.is_ok());
+        let (pwr, dur) = r.unwrap();
         assert_eq!(pwr, -1.0);
         assert_eq!(dur, Some(Duration::from_secs(60)));
 
-        let (pwr, dur) = go_for_math(100.0, -1000.0, 100.0)?;
+        let r = go_for_math(100.0, -1000.0, 100.0);
+        assert!(r.is_ok());
+        let (pwr, dur) = r.unwrap();
         assert_eq!(pwr, -1.0);
         assert_eq!(dur, Some(Duration::from_secs(60)));
 
-        let (pwr, dur) = go_for_math(100.0, 1000.0, 200.0)?;
+        let r = go_for_math(100.0, 1000.0, 200.0);
+        assert!(r.is_ok());
+        let (pwr, dur) = r.unwrap();
         assert_eq!(pwr, 1.0);
         assert_eq!(dur, Some(Duration::from_secs(120)));
 
-        let (pwr, dur) = go_for_math(100.0, 1000.0, 50.0)?;
+        let r = go_for_math(100.0, 1000.0, 50.0);
+        assert!(r.is_ok());
+        let (pwr, dur) = r.unwrap();
         assert_eq!(pwr, 1.0);
         assert_eq!(dur, Some(Duration::from_secs(30)));
 
-        let (pwr, dur) = go_for_math(200.0, 100.0, 50.0)?;
+        let r = go_for_math(200.0, 100.0, 50.0);
+        assert!(r.is_ok());
+        let (pwr, dur) = r.unwrap();
         assert_eq!(pwr, 0.5);
         assert_eq!(dur, Some(Duration::from_secs(30)));
 
-        let (pwr, dur) = go_for_math(200.0, 100.0, -50.0)?;
+        let r = go_for_math(200.0, 100.0, -50.0);
+        assert!(r.is_ok());
+        let (pwr, dur) = r.unwrap();
         assert_eq!(pwr, -0.5);
         assert_eq!(dur, Some(Duration::from_secs(30)));
-        Ok(())
     }
 }

@@ -38,6 +38,6 @@ mod native {
 fn main() {
     #[cfg(not(target_os = "espidf"))]
     {
-        ret = native::main_native();
+        native::main_native();
     }
 }

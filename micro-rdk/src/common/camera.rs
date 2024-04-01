@@ -8,7 +8,14 @@ use prost::Message;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum CameraError {}
+pub enum CameraError {
+    #[error("cannot build camera {0}")]
+    CameraInitError(#[from] Box<dyn std::error::Error + Sync + Send>),
+    #[error("frame too big for buffer")]
+    CameraFrameTooBig,
+    #[error("couldn't get frame")]
+    CameraCouldntGetFrame,
+}
 
 pub static COMPONENT_NAME: &str = "camera";
 

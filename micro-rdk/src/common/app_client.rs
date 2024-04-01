@@ -29,8 +29,6 @@ use super::{
 pub enum AppClientError {
     #[error("wrong credentials")]
     AppWrongCredentials,
-    // #[error(transparent)]
-    // AppOtherError(#[from] anyhow::Error),
     #[error(transparent)]
     AppEncodeError(#[from] EncodeError),
     #[error(transparent)]

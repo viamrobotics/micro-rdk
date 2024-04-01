@@ -510,7 +510,7 @@ mod tests {
     impl DoCommand for TestSensor {}
 
     #[test_log::test]
-    fn test_driver() -> anyhow::Result<()> {
+    fn test_driver() {
         use crate::proto::app::v1::{ComponentConfig, ConfigResponse, RobotConfig};
         let components = vec![
             ComponentConfig {
@@ -562,7 +562,9 @@ mod tests {
         assert!(ctor.is_ok());
 
         // make robot
-        let robot = LocalRobot::from_cloud_config(&cfg_resp, Box::new(registry), None)?;
+        let robot = LocalRobot::from_cloud_config(&cfg_resp, Box::new(registry), None);
+        assert!(robot.is_ok());
+        let robot = robot.unwrap();
 
         // get test value from sensor
         let test_sensor = robot
@@ -582,12 +584,10 @@ mod tests {
                 kind: Some(google::protobuf::value::Kind::NumberValue(42.0))
             }
         );
-
-        Ok(())
     }
 
     #[test_log::test]
-    fn test_registry() -> anyhow::Result<()> {
+    fn test_registry() {
         let mut registry = ComponentRegistry::new();
 
         let ctor = registry.get_motor_constructor("fake".to_string());
@@ -658,7 +658,5 @@ mod tests {
 
         assert!(ret.is_err());
         assert_eq!(format!("{}", ret.err().unwrap()), "method:  not supported");
-
-        Ok(())
     }
 }

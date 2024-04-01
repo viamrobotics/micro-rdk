@@ -21,7 +21,6 @@ quote.workspace = true
 syn.workspace = true
 
 [dev-dependencies]
-anyhow = { workspace = true, features = ["backtrace"] }
 micro-rdk = { workspace = true, features = ["native"] }
 
 [[test]]

@@ -6,6 +6,9 @@ include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
 use log::*;
 
+use embedded_svc::wifi::{
+    AuthMethod, ClientConfiguration as WifiClientConfiguration, Configuration as WifiConfiguration,
+};
 use micro_rdk::esp32::esp_idf_svc::sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT};
 use micro_rdk::{
     common::{
@@ -14,22 +17,18 @@ use micro_rdk::{
         registry::{ComponentRegistry, RegistryError},
     },
     esp32::esp_idf_svc::{
-        hal::{peripheral::Peripheral, prelude::Peripherals},
         eventloop::EspSystemEventLoop,
-        wifi::{BlockingWifi, EspWifi},
+        hal::{peripheral::Peripheral, prelude::Peripherals},
         sys::esp_wifi_set_ps,
+        wifi::{BlockingWifi, EspWifi},
     },
     esp32::{certificate::WebRtcCertificate, entry::serve_web, tls::Esp32TlsServerConfig},
-};
-use embedded_svc::wifi::{
-        AuthMethod, ClientConfiguration as WifiClientConfiguration,
-        Configuration as WifiConfiguration,
 };
 
 macro_rules! generate_register_modules {
     ($($module:ident),*) => {
         #[allow(unused_variables)]
-        fn register_modules(registry: &mut ComponentRegistry) -> anyhow::Result<(), RegistryError> {
+        fn register_modules(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {
             $(
                 log::info!("registering micro-rdk module '{}'", stringify!($module));
                 $module::register_models(registry)?;
@@ -45,17 +44,18 @@ extern "C" {
     pub static g_spiram_ok: bool;
 }
 
-fn main() -> anyhow::Result<()> {
+fn main() {
     micro_rdk::esp32::esp_idf_svc::sys::link_patches();
 
     micro_rdk::esp32::esp_idf_svc::log::EspLogger::initialize_default();
     let sys_loop_stack = EspSystemEventLoop::take().unwrap();
     {
         micro_rdk::esp32::esp_idf_svc::sys::esp!(unsafe {
-            micro_rdk::esp32::esp_idf_svc::sys::esp_vfs_eventfd_register(&micro_rdk::esp32::esp_idf_svc::sys::esp_vfs_eventfd_config_t {
-                max_fds: 5,
-            })
-        })?;
+            micro_rdk::esp32::esp_idf_svc::sys::esp_vfs_eventfd_register(
+                &micro_rdk::esp32::esp_idf_svc::sys::esp_vfs_eventfd_config_t { max_fds: 5 },
+            )
+        })
+        .unwrap();
     }
 
     let periph = Peripherals::take().unwrap();
@@ -68,8 +68,8 @@ fn main() -> anyhow::Result<()> {
     }
 
     let (ip, _wifi) = {
-        let wifi = start_wifi(periph.modem, sys_loop_stack)?;
-        (wifi.wifi().sta_netif().get_ip_info()?.ip, wifi)
+        let wifi = start_wifi(periph.modem, sys_loop_stack).unwrap();
+        (wifi.wifi().sta_netif().get_ip_info().unwrap().ip, wifi)
     };
     let cfg = AppClientConfig::new(
         ROBOT_SECRET.to_owned(),
@@ -90,17 +90,16 @@ fn main() -> anyhow::Result<()> {
     };
 
     let mut registry = Box::<ComponentRegistry>::default();
-    register_modules(&mut registry)?;
+    register_modules(&mut registry).unwrap();
     let repr = RobotRepresentation::WithRegistry(registry);
 
-    serve_web(cfg, tls_cfg, repr, ip, webrtc_certificate);
-    Ok(())
+    serve_web(cfg, tls_cfg, repr, ip, webrtc_certificate, 1);
 }
 
 fn start_wifi(
     modem: impl Peripheral<P = micro_rdk::esp32::esp_idf_svc::hal::modem::Modem> + 'static,
     sl_stack: EspSystemEventLoop,
-) -> anyhow::Result<Box<BlockingWifi<EspWifi<'static>>>> {
+) -> Result<Box<BlockingWifi<EspWifi<'static>>>, micro_rdk::esp32::esp_idf_svc::sys::EspError> {
     let nvs = micro_rdk::esp32::esp_idf_svc::nvs::EspDefaultNvsPartition::take()?;
     let mut wifi = BlockingWifi::wrap(EspWifi::new(modem, sl_stack.clone(), Some(nvs))?, sl_stack)?;
     let wifi_configuration = WifiConfiguration::Client(WifiClientConfiguration {
@@ -121,6 +120,8 @@ fn start_wifi(
 
     wifi.wait_netif_up().unwrap();
 
-    micro_rdk::esp32::esp_idf_svc::sys::esp!(unsafe { esp_wifi_set_ps(micro_rdk::esp32::esp_idf_svc::sys::wifi_ps_type_t_WIFI_PS_NONE) })?;
+    micro_rdk::esp32::esp_idf_svc::sys::esp!(unsafe {
+        esp_wifi_set_ps(micro_rdk::esp32::esp_idf_svc::sys::wifi_ps_type_t_WIFI_PS_NONE)
+    })?;
     Ok(Box::new(wifi))
 }

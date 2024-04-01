@@ -6,7 +6,6 @@ authors = ["{{authors}}"]
 resolver = "2"
 
 [dependencies]
-anyhow = {version = "1", features = ["backtrace"]}
 micro-rdk = {git = "https://github.com/viamrobotics/micro-rdk.git", features = ["{{mcu}}"], version = "0.1.7"}
 
 [package.metadata.com.viam]

@@ -3362,7 +3362,6 @@ dependencies = [
 name = "micro-rdk"
 version = "0.1.7"
 dependencies = [
- "anyhow",
  "async-channel 1.9.0",
  "async-io 1.12.0",
  "async-std-openssl",
@@ -3446,7 +3445,6 @@ dependencies = [
 name = "micro-rdk-macros"
 version = "0.1.7"
 dependencies = [
- "anyhow",
  "micro-rdk",
  "proc-macro-crate 2.0.2",
  "proc-macro2",

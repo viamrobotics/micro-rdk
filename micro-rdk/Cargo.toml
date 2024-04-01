@@ -74,6 +74,5 @@ trackable.workspace = true
 webpki-roots = { workspace = true, optional = true }
 
 [build-dependencies]
-anyhow.workspace = true
 const-gen.workspace = true
 embuild.workspace = true

@@ -161,12 +161,11 @@ mod tests {
     use super::get_linear_acceleration_from_reading;
 
     #[test_log::test]
-    fn test_read_linear_acceleration() -> anyhow::Result<()> {
+    fn test_read_linear_acceleration() {
         let reading: [u8; 6] = [12, 0, 208, 255, 239, 0];
         let lin_acc = get_linear_acceleration_from_reading(&reading);
         assert_eq!(lin_acc.x, 459.84375);
         assert_eq!(lin_acc.y, -1839.375);
         assert_eq!(lin_acc.z, 9158.5546875);
-        Ok(())
     }
 }

@@ -197,7 +197,7 @@ mod tests {
     use super::{get_angular_velocity_from_reading, get_linear_acceleration_from_reading};
 
     #[test_log::test]
-    fn test_read_linear_acceleration() -> anyhow::Result<()> {
+    fn test_read_linear_acceleration() {
         let reading: [u8; 14] = [64, 0, 32, 0, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         let lin_acc = get_linear_acceleration_from_reading(&reading);
         assert_eq!(lin_acc.x, 9.81);
@@ -210,11 +210,10 @@ mod tests {
         assert_eq!(lin_acc.x, 9.81);
         assert!((lin_acc.y - -19.3134375).abs() < 0.000001);
         assert_eq!(lin_acc.z, 2.4525);
-        Ok(())
     }
 
     #[test_log::test]
-    fn test_read_angular_velocity() -> anyhow::Result<()> {
+    fn test_read_angular_velocity() {
         let reading: [u8; 14] = [0, 0, 0, 0, 0, 0, 0, 0, 64, 0, 32, 0, 16, 0];
         let ang_vel = get_angular_velocity_from_reading(&reading);
         assert_eq!(ang_vel.x, 125.0);
@@ -226,6 +225,5 @@ mod tests {
         assert_eq!(ang_vel.x, 125.0);
         assert_eq!(ang_vel.y, -246.09375);
         assert_eq!(ang_vel.z, 31.25);
-        Ok(())
     }
 }

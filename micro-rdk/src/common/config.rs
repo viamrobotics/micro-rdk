@@ -369,7 +369,7 @@ mod tests {
 
     use crate::common::config::{AttributeError, Component, DynamicComponentConfig, Kind};
     #[test_log::test]
-    fn test_config_component() -> anyhow::Result<()> {
+    fn test_config_component() {
         let robot_config: [DynamicComponentConfig; 3] = [
             DynamicComponentConfig {
                 name: "board".to_owned(),
@@ -517,7 +517,5 @@ mod tests {
 
         assert_eq!(val.as_ref().ok(), None);
         assert_eq!(val.err().unwrap(), AttributeError::ParseNumError);
-
-        Ok(())
     }
 }

@@ -7,7 +7,7 @@ use std::{
 };
 
 #[cfg(feature = "camera")]
-use crate::camera::{Camera, CameraType};
+use crate::common::camera::{Camera, CameraType};
 
 use crate::{
     common::actuator::Actuator,

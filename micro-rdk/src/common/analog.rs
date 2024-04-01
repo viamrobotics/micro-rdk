@@ -86,7 +86,7 @@ mod tests {
 
     use super::AnalogReaderConfig;
     #[test_log::test]
-    fn test_analog_reader_config() -> anyhow::Result<()> {
+    fn test_analog_reader_config() {
         let robot_config: &[DynamicComponentConfig] = &[DynamicComponentConfig {
             name: "board".to_owned(),
             namespace: "rdk".to_owned(),
@@ -129,6 +129,5 @@ mod tests {
         assert_eq!(val[1].name, "string");
         assert_eq!(val[0].pin, 12);
         assert_eq!(val[1].pin, 11);
-        Ok(())
     }
 }
