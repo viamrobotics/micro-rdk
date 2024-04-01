@@ -88,8 +88,15 @@ fn main() -> anyhow::Result<()> {
         let key = ROBOT_SRV_DER_KEY;
         Esp32TlsServerConfig::new(cert, key.as_ptr(), key.len() as u32)
     };
-    
-    let max_connection = 3;
+
+    let mut max_connection = 3;
+    unsafe {
+        if !g_spiram_ok {
+            log::info!("spiram not initialized disabling cache feature of the wifi driver");
+            g_wifi_feature_caps &= !(CONFIG_FEATURE_CACHE_TX_BUF_BIT as u64);
+            max_connection = 1;
+        }
+    }
 
     let mut registry = Box::<ComponentRegistry>::default();
     register_modules(&mut registry)?;
