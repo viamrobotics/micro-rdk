@@ -78,8 +78,8 @@ impl UdpMuxer {
     }
     pub(crate) fn get_stun_mux(&self) -> Option<UdpMux> {
         let state = &mut self.mux.lock().unwrap()[STUN];
-        if !state.interest {
-            state.interest = true;
+        if !state.is_listening {
+            state.is_listening = true;
             Some(UdpMux {
                 muxer: self.clone(),
                 direction: STUN,
@@ -91,8 +91,8 @@ impl UdpMuxer {
     }
     pub(crate) fn get_dtls_mux(&self) -> Option<UdpMux> {
         let state = &mut self.mux.lock().unwrap()[DTLS];
-        if !state.interest {
-            state.interest = true;
+        if !state.is_listening {
+            state.is_listening = true;
             Some(UdpMux {
                 muxer: self.clone(),
                 direction: DTLS,
@@ -141,7 +141,7 @@ impl UdpMuxer {
     fn yield_or_discard(&self, dir: usize, _len: u16) -> Result<bool> {
         let socket = self.socket.as_ref().get_ref();
         let mux = &mut self.mux.lock().unwrap()[dir];
-        if !mux.interest {
+        if !mux.is_listening {
             let mut buf = [0_u8; 1];
             let _ = socket.recv_from(&mut buf)?;
             return Ok(true);
@@ -249,12 +249,12 @@ impl UdpMuxer {
 #[derive(Default)]
 struct MuxState {
     waker: Option<Waker>, // waker is present if a consumer has yield because it's waiting it's turn on the socket
-    interest: bool,       // whether a consumer has a read interest
+    is_listening: bool,   // whether there is a consumer listening
 }
 
 pub struct UdpMux {
     muxer: UdpMuxer,
-    direction: usize, // symbolize the interest a consumer has on particular messages
+    direction: usize, // symbolize the interest a consumer has on a particular message type
     peer_addr: Option<SocketAddr>,
 }
 
@@ -271,7 +271,7 @@ impl UdpMux {
 impl Drop for UdpMux {
     fn drop(&mut self) {
         let state = &mut self.muxer.mux.lock().unwrap()[self.direction];
-        state.interest = false;
+        state.is_listening = false;
         let _ = state.waker.take();
     }
 }
@@ -370,11 +370,11 @@ mod tests {
             let other_dtls = muxer.get_dtls_mux();
             assert!(other_dtls.is_none());
             let dtls_mux = muxer.mux.lock().unwrap();
-            assert!(dtls_mux[DTLS].interest);
+            assert!(dtls_mux[DTLS].is_listening);
         }
         {
             let dtls_mux = muxer.mux.lock().unwrap();
-            assert!(!dtls_mux[DTLS].interest);
+            assert!(!dtls_mux[DTLS].is_listening);
         }
         {
             let stun = muxer.get_stun_mux();
@@ -382,11 +382,11 @@ mod tests {
             let other_stun = muxer.get_stun_mux();
             assert!(other_stun.is_none());
             let stun_mux = muxer.mux.lock().unwrap();
-            assert!(stun_mux[STUN].interest);
+            assert!(stun_mux[STUN].is_listening);
         }
         {
             let stun_mux = muxer.mux.lock().unwrap();
-            assert!(!stun_mux[STUN].interest);
+            assert!(!stun_mux[STUN].is_listening);
         }
     }
 
