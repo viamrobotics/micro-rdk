@@ -21,7 +21,7 @@ edition = "2021"
 license = "AGPL-3.0"
 repository = "https://github.com/viamrobotics/micro-rdk"
 version = "0.1.7"
-rust-version = "1.71"
+rust-version = "1.75"
 
 
 [profile.release]
