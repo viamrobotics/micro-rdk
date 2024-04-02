@@ -18,6 +18,13 @@ use super::generic::DoCommand;
 use super::i2c::I2CErrors;
 
 use thiserror::Error;
+
+#[cfg(feature = "data")]
+use crate::{
+    google::protobuf::Timestamp,
+    proto::app::data_sync::v1::{sensor_data::Data, SensorData, SensorMetadata},
+};
+
 pub static COMPONENT_NAME: &str = "sensor";
 
 #[derive(Debug, Error)]
@@ -51,10 +58,46 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 pub type GenericReadingsResult =
     ::std::collections::HashMap<::prost::alloc::string::String, google::protobuf::Value>;
 
+#[cfg(feature = "data")]
+impl From<GenericReadingsResult> for Data {
+    fn from(value: GenericReadingsResult) -> Self {
+        Data::Struct(google::protobuf::Struct {
+            fields: HashMap::from([(
+                "readings".to_string(),
+                google::protobuf::Value {
+                    kind: Some(google::protobuf::value::Kind::StructValue(
+                        google::protobuf::Struct { fields: value },
+                    )),
+                },
+            )]),
+        })
+    }
+}
+
 pub type TypedReadingsResult<T> = ::std::collections::HashMap<String, T>;
 
 pub trait Readings {
     fn get_generic_readings(&mut self) -> Result<GenericReadingsResult, SensorError>;
+    #[cfg(feature = "data")]
+    fn get_readings_data(&mut self) -> Result<SensorData, SensorError> {
+        let reading_requested_dt = chrono::offset::Local::now().fixed_offset();
+        let readings = self.get_generic_readings()?;
+        let reading_received_dt = chrono::offset::Local::now().fixed_offset();
+
+        Ok(SensorData {
+            metadata: Some(SensorMetadata {
+                time_received: Some(Timestamp {
+                    seconds: reading_requested_dt.timestamp(),
+                    nanos: reading_requested_dt.timestamp_subsec_nanos() as i32,
+                }),
+                time_requested: Some(Timestamp {
+                    seconds: reading_received_dt.timestamp(),
+                    nanos: reading_received_dt.timestamp_subsec_nanos() as i32,
+                }),
+            }),
+            data: Some(readings.into()),
+        })
+    }
 }
 
 pub trait Sensor: Readings + Status + DoCommand {}

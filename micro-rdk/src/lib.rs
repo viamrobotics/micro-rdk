@@ -49,6 +49,14 @@ pub mod proto {
                 include!("gen/viam.app.packages.v1.rs");
             }
         }
+        #[cfg(feature = "data")]
+        pub mod data_sync {
+            pub mod v1 {
+                #![allow(clippy::derive_partial_eq_without_eq)]
+                #![allow(clippy::large_enum_variant)]
+                include!("gen/viam.app.datasync.v1.rs");
+            }
+        }
     }
 
     pub mod rpc {
