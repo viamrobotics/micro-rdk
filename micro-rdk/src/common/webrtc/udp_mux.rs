@@ -153,6 +153,9 @@ impl UdpMuxer {
         Ok(false)
     }
 
+    // will peek at the next available message on the socket
+    // if it's size is less than the minimum header size the packet is discarded
+    // otherwise the type and length will be returned
     fn peek(&self) -> Result<(u16, usize)> {
         let socket = self.socket.as_ref().get_ref();
         let mut buf = [0_u8; 13];

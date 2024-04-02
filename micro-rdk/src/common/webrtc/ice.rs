@@ -201,8 +201,7 @@ impl ICEAgent {
             };
         };
         let mut decoder = stun_codec::MessageDecoder::<stun_codec::rfc5389::Attribute>::new();
-        // TODO(npm) handle garbage stun response
-        log::debug!("{} {:02X?}", buf_len, buf);
+
         let decoded = decoder
             .decode_from_bytes(&buf[..buf_len])
             .map_err(|_| IceError::IceStunDecodingError)?
@@ -222,7 +221,7 @@ impl ICEAgent {
         // the host ip was set when creating the ICEagent
         let our_ip = SocketAddrV4::new(self.local_ip, rflx_addr.port());
 
-        log::debug!("Host candidate is a local ip of {:?}", our_ip);
+        log::info!("Host candidate is a local ip of {:?}", our_ip);
 
         let local_cand = Candidate::new_host_candidate(our_ip);
 
