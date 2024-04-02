@@ -11,14 +11,14 @@ pub struct WebRtcCertificate {
 }
 
 impl WebRtcCertificate {
-    pub fn new() -> anyhow::Result<Self> {
+    pub fn new() -> Self {
         let mut param: CertificateParams = Default::default();
         param.not_before = date_time_ymd(2021, 5, 19);
         param.not_after = date_time_ymd(4096, 1, 1);
         param.distinguished_name = DistinguishedName::new();
         param.alg = &rcgen::PKCS_ECDSA_P256_SHA256;
 
-        let kp = rcgen::KeyPair::generate(&rcgen::PKCS_ECDSA_P256_SHA256)?;
+        let kp = rcgen::KeyPair::generate(&rcgen::PKCS_ECDSA_P256_SHA256).unwrap();
         let kp_der = kp.serialize_der();
 
         param.key_pair = Some(kp);
@@ -34,11 +34,17 @@ impl WebRtcCertificate {
             .join(":");
         let fingerprint = Fingerprint::new("sha-256".to_owned(), fp_hashed);
 
-        Ok(Self {
+        Self {
             serialized_der: cert_der,
             key_pair: kp_der,
             fingerprint,
-        })
+        }
+    }
+}
+
+impl Default for WebRtcCertificate {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

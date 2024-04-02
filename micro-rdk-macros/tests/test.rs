@@ -4,7 +4,7 @@ use micro_rdk::common::movement_sensor::{
 };
 use micro_rdk::common::power_sensor::{Current, PowerSensor, PowerSupplyType, Voltage};
 use micro_rdk::common::sensor::{Readings, SensorError};
-use micro_rdk::common::status::Status;
+use micro_rdk::common::status::{Status, StatusError};
 use micro_rdk::google::protobuf::value::Kind;
 use micro_rdk_macros::{DoCommand, MovementSensorReadings, PowerSensorReadings};
 use std::collections::HashMap;
@@ -60,7 +60,7 @@ impl MovementSensor for TestMovementSensor {
 }
 
 impl Status for TestMovementSensor {
-    fn get_status(&self) -> anyhow::Result<Option<micro_rdk::google::protobuf::Struct>> {
+    fn get_status(&self) -> Result<Option<micro_rdk::google::protobuf::Struct>, StatusError> {
         Ok(Some(micro_rdk::google::protobuf::Struct {
             fields: HashMap::new(),
         }))
@@ -91,7 +91,7 @@ impl PowerSensor for TestPowerSensor {
 }
 
 impl Status for TestPowerSensor {
-    fn get_status(&self) -> anyhow::Result<Option<micro_rdk::google::protobuf::Struct>> {
+    fn get_status(&self) -> Result<Option<micro_rdk::google::protobuf::Struct>, StatusError> {
         Ok(Some(micro_rdk::google::protobuf::Struct {
             fields: HashMap::new(),
         }))

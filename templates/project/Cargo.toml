@@ -21,7 +21,6 @@ opt-level = "z"
 
 
 [dependencies]
-anyhow = {version = "1", features = ["backtrace"]}
 embedded-svc = "0.26.4"
 embedded-hal = { version = "0.2.7", features = ["unproven"]}
 log = "0.4"

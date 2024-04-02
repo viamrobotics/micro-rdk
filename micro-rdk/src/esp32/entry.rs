@@ -79,13 +79,14 @@ pub async fn serve_web_inner(
                         }
                         Err(err) => {
                             if let Some(datetime) = cfg_received_datetime {
-                                let logs = vec![config_log_entry(datetime, Some(&err))];
+                                let logs = vec![config_log_entry(datetime, Some(err))];
                                 client
                                     .push_logs(logs)
                                     .await
                                     .expect("could not push logs to app");
                             }
-                            panic!("{}", err)
+                            //TODO shouldn't panic here
+                            panic!("couldn't build robot");
                         }
                     };
                     Arc::new(Mutex::new(r))

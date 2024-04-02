@@ -31,7 +31,6 @@ smol.workspace = true
 
 
 [dependencies]
-anyhow = { workspace = true, features = ["backtrace"] }
 log.workspace = true
 serde.workspace = true
 serde_json.workspace = true

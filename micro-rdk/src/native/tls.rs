@@ -52,7 +52,10 @@ impl NativeTls {
     }
 
     /// open the a TLS (SSL) context either in client or in server mode
-    pub fn open_ssl_context(&self, socket: Option<TcpStream>) -> anyhow::Result<NativeTlsStream> {
+    pub fn open_ssl_context(
+        &self,
+        socket: Option<TcpStream>,
+    ) -> Result<NativeTlsStream, std::io::Error> {
         NativeTlsStream::new(socket, &self.server_config)
     }
 }
@@ -91,7 +94,7 @@ impl NativeTlsStream {
     fn new(
         socket: Option<TcpStream>,
         tls_cfg: &Option<NativeTlsServerConfig>,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self, std::io::Error> {
         let (stream, socket) = if let Some(tls_cfg) = tls_cfg {
             let cert_chain =
                 rustls_pemfile::certs(&mut BufReader::new(tls_cfg.srv_cert.as_slice()))
@@ -103,11 +106,14 @@ impl NativeTlsStream {
             let mut cfg = ServerConfig::builder()
                 .with_safe_default_cipher_suites()
                 .with_safe_default_kx_groups()
-                .with_protocol_versions(&[&rustls::version::TLS12])?
+                .with_protocol_versions(&[&rustls::version::TLS12])
+                .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?
                 .with_no_client_auth()
-                .with_single_cert(cert_chain, rustls::PrivateKey(tls_cfg.srv_key.clone()))?;
+                .with_single_cert(cert_chain, rustls::PrivateKey(tls_cfg.srv_key.clone()))
+                .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
             cfg.alpn_protocols = vec!["h2".as_bytes().to_vec()];
-            let mut conn = ServerConnection::new(Arc::new(cfg))?;
+            let mut conn = ServerConnection::new(Arc::new(cfg))
+                .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
             let mut socket = socket.unwrap();
             socket.set_nonblocking(false)?;
             let _r = conn.complete_io::<TcpStream>(&mut socket).unwrap();
@@ -132,7 +138,13 @@ impl NativeTlsStream {
                 .with_no_client_auth();
             cfg.alpn_protocols = vec!["h2".as_bytes().to_vec()];
             cfg.key_log = log;
-            let mut conn = ClientConnection::new(Arc::new(cfg), "app.viam.com".try_into()?)?;
+            let mut conn = ClientConnection::new(
+                Arc::new(cfg),
+                "app.viam.com"
+                    .try_into()
+                    .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?,
+            )
+            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
             let mut socket = TcpStream::connect("app.viam.com:443")?;
             conn.complete_io::<TcpStream>(&mut socket)?;
             socket.set_nonblocking(true)?;

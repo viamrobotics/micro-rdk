@@ -5,7 +5,9 @@ use crate::{
 use chrono::{DateTime, FixedOffset};
 use std::collections::HashMap;
 
-pub fn config_log_entry(time: DateTime<FixedOffset>, err: Option<&anyhow::Error>) -> LogEntry {
+use super::robot::RobotError;
+
+pub fn config_log_entry(time: DateTime<FixedOffset>, err: Option<RobotError>) -> LogEntry {
     let secs = time.timestamp();
     let nanos = time.timestamp_subsec_nanos();
     let level = match err {

@@ -421,7 +421,7 @@ mod tests {
     use crate::common::config::{Component, DynamicComponentConfig, Kind};
     use crate::common::motor::{ConfigType, FakeMotor, MotorPinType, MotorPinsConfig};
     #[test_log::test]
-    fn test_motor_config() -> anyhow::Result<()> {
+    fn test_motor_config() {
         let robot_config: [Option<DynamicComponentConfig>; 1] = [Some(DynamicComponentConfig {
             name: "motor".to_owned(),
             namespace: "rdk".to_owned(),
@@ -462,8 +462,6 @@ mod tests {
 
         let dyn_conf = ConfigType::Dynamic(robot_config[0].as_ref().unwrap());
         assert!(FakeMotor::from_config(dyn_conf, Vec::new()).is_ok());
-
-        Ok(())
     }
 
     #[test_log::test]

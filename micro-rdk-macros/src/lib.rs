@@ -16,11 +16,12 @@
 //!
 //! # Example using `MovementSensorReadings`
 //!
-//! ```ignore
+//! ```
 //! use std::collections::HashMap;
 //! use micro_rdk::common::{
 //!     movement_sensor::{MovementSensor, MovementSensorSupportedMethods},
-//!     status::Status,
+//!     status::{Status,StatusError},
+//!     sensor::SensorError,
 //! };
 //! use micro_rdk::{DoCommand, MovementSensorReadings};
 //!
@@ -28,22 +29,22 @@
 //! pub struct MyMovementSensor {}
 //!
 //! impl MovementSensor for MyMovementSensor {
-//!     fn get_angular_velocity(&mut self) -> anyhow::Result<micro_rdk::common::math_utils::Vector3> {
-//!         anyhow::bail!("unimplemented")
+//!     fn get_angular_velocity(&mut self) -> Result<micro_rdk::common::math_utils::Vector3, SensorError> {
+//!         Err(SensorError::SensorMethodUnimplemented("get_angular_velocity"))
 //!     }
-//!     fn get_compass_heading(&mut self) -> anyhow::Result<f64> {
+//!     fn get_compass_heading(&mut self) -> Result<f64, SensorError> {
 //!         Ok(25.0)
 //!     }
 //!     fn get_linear_acceleration(
 //!         &mut self,
-//!     ) -> anyhow::Result<micro_rdk::common::math_utils::Vector3> {
-//!         anyhow::bail!("unimplemented")
+//!     ) -> Result<micro_rdk::common::math_utils::Vector3, SensorError> {
+//!         Err(SensorError::SensorMethodUnimplemented("get_linear_acceleration"))
 //!     }
-//!     fn get_linear_velocity(&mut self) -> anyhow::Result<micro_rdk::common::math_utils::Vector3> {
-//!         anyhow::bail!("unimplemented")
+//!     fn get_linear_velocity(&mut self) -> Result<micro_rdk::common::math_utils::Vector3, SensorError> {
+//!         Err(SensorError::SensorMethodUnimplemented("get_linear_velocity"))
 //!     }
-//!     fn get_position(&mut self) -> anyhow::Result<micro_rdk::common::movement_sensor::GeoPosition> {
-//!         anyhow::bail!("unimplemented")
+//!     fn get_position(&mut self) -> Result<micro_rdk::common::movement_sensor::GeoPosition, SensorError> {
+//!         Err(SensorError::SensorMethodUnimplemented("get_position"))
 //!     }
 //!     fn get_properties(&self) -> MovementSensorSupportedMethods {
 //!         MovementSensorSupportedMethods {
@@ -57,7 +58,7 @@
 //! }
 //!
 //! impl Status for MyMovementSensor {
-//!     fn get_status(&self) -> anyhow::Result<Option<micro_rdk::google::protobuf::Struct>> {
+//!     fn get_status(&self) -> Result<Option<micro_rdk::google::protobuf::Struct>, StatusError> {
 //!         Ok(Some(micro_rdk::google::protobuf::Struct {
 //!             fields: HashMap::new(),
 //!         }))

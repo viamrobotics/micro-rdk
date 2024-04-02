@@ -1,7 +1,7 @@
 #![allow(dead_code)]
-use std::sync::Mutex;
 use std::time::Duration;
 
+use crate::common::camera::{Camera, CameraError};
 use crate::esp32::esp_idf_svc::sys::camera_config_t;
 use crate::esp32::esp_idf_svc::sys::camera_config_t__bindgen_ty_1;
 use crate::esp32::esp_idf_svc::sys::camera_config_t__bindgen_ty_2;
@@ -51,11 +51,11 @@ impl Esp32Camera {
             last_grab: t.now(),
         }
     }
-    pub fn setup(&self) -> anyhow::Result<()> {
+    pub fn setup(&self) -> Result<(), CameraError> {
         let ret = (unsafe { crate::esp32::esp_idf_svc::sys::esp_camera_init(&self.config) })
             as crate::esp32::esp_idf_svc::sys::esp_err_t;
         let ret = crate::esp32::esp_idf_svc::sys::EspError::convert(ret);
-        ret.map_err(|e| anyhow::anyhow!("cannot init camera {}", e))
+        ret.map_err(|e| CameraError::CameraInitError(e.into()))
     }
     pub fn get_cam_frame(&self) -> Option<*mut crate::esp32::esp_idf_svc::sys::camera_fb_t> {
         let ptr = (unsafe { crate::esp32::esp_idf_svc::sys::esp_camera_fb_get() })
@@ -92,7 +92,7 @@ impl Esp32Camera {
     }
 }
 impl Camera for Esp32Camera {
-    fn get_frame(&mut self, mut buffer: BytesMut) -> anyhow::Result<BytesMut> {
+    fn get_frame(&mut self, mut buffer: BytesMut) -> Result<BytesMut, CameraError> {
         if let Some(ptr) = self.get_cam_frame() {
             let buf = unsafe {
                 let buf = (*ptr).buf;
@@ -101,7 +101,7 @@ impl Camera for Esp32Camera {
             };
             if buf.len() > buffer.capacity() {
                 self.return_cam_frame(Some(ptr));
-                return Err(anyhow::anyhow!("oops too big"));
+                return Err(CameraError::CameraFrameTooBig);
             }
             let bytes = Bytes::from(buf);
             let msg = camera::v1::GetImageResponse {
@@ -112,6 +112,6 @@ impl Camera for Esp32Camera {
             self.return_cam_frame(Some(ptr));
             return Ok(buffer);
         }
-        Err(anyhow::anyhow!("cannot get frame"))
+        Err(CameraError::CameraCouldntGetFrame)
     }
 }

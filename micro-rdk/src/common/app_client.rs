@@ -1,5 +1,4 @@
 #![allow(unused)]
-use anyhow::Context;
 use bytes::{BufMut, Bytes, BytesMut};
 use chrono::{format::ParseError, DateTime, FixedOffset};
 use futures_lite::Future;
@@ -30,8 +29,6 @@ use super::{
 pub enum AppClientError {
     #[error("wrong credentials")]
     AppWrongCredentials,
-    #[error(transparent)]
-    AppOtherError(#[from] anyhow::Error),
     #[error(transparent)]
     AppEncodeError(#[from] EncodeError),
     #[error(transparent)]

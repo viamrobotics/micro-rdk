@@ -48,7 +48,7 @@ pub fn get_board_from_dependencies(deps: Vec<Dependency>) -> Option<BoardType> {
 pub struct ResourceKey(pub &'static str, pub String);
 
 impl ResourceKey {
-    pub fn new(model: &str, name: String) -> Result<Self, anyhow::Error> {
+    pub fn new(model: &str, name: String) -> Result<Self, RegistryError> {
         let model_str = match model {
             "motor" => crate::common::motor::COMPONENT_NAME,
             "board" => crate::common::board::COMPONENT_NAME,
@@ -60,7 +60,7 @@ impl ResourceKey {
             "power_sensor" => crate::common::power_sensor::COMPONENT_NAME,
             "generic" => crate::common::generic::COMPONENT_NAME,
             &_ => {
-                anyhow::bail!("component type {} is not supported yet", model.to_string());
+                return Err(RegistryError::ModelNotFound(model.to_string()));
             }
         };
         Ok(Self(model_str, name))
@@ -68,7 +68,7 @@ impl ResourceKey {
 }
 
 impl TryFrom<ResourceName> for ResourceKey {
-    type Error = anyhow::Error;
+    type Error = RegistryError;
     fn try_from(value: ResourceName) -> Result<Self, Self::Error> {
         let comp_type: &str = &value.subtype;
         let comp_name = match comp_type {
@@ -81,7 +81,7 @@ impl TryFrom<ResourceName> for ResourceKey {
             "power_sensor" => crate::common::power_sensor::COMPONENT_NAME,
             "generic" => crate::common::generic::COMPONENT_NAME,
             _ => {
-                anyhow::bail!("component type {} is not supported yet", comp_type);
+                return Err(RegistryError::ModelNotFound(comp_type.to_string()));
             }
         };
         Ok(Self(comp_name, value.name))
@@ -510,7 +510,7 @@ mod tests {
     impl DoCommand for TestSensor {}
 
     #[test_log::test]
-    fn test_driver() -> anyhow::Result<()> {
+    fn test_driver() {
         use crate::proto::app::v1::{ComponentConfig, ConfigResponse, RobotConfig};
         let components = vec![
             ComponentConfig {
@@ -562,7 +562,9 @@ mod tests {
         assert!(ctor.is_ok());
 
         // make robot
-        let robot = LocalRobot::from_cloud_config(&cfg_resp, Box::new(registry), None)?;
+        let robot = LocalRobot::from_cloud_config(&cfg_resp, Box::new(registry), None);
+        assert!(robot.is_ok());
+        let robot = robot.unwrap();
 
         // get test value from sensor
         let test_sensor = robot
@@ -582,12 +584,10 @@ mod tests {
                 kind: Some(google::protobuf::value::Kind::NumberValue(42.0))
             }
         );
-
-        Ok(())
     }
 
     #[test_log::test]
-    fn test_registry() -> anyhow::Result<()> {
+    fn test_registry() {
         let mut registry = ComponentRegistry::new();
 
         let ctor = registry.get_motor_constructor("fake".to_string());
@@ -658,7 +658,5 @@ mod tests {
 
         assert!(ret.is_err());
         assert_eq!(format!("{}", ret.err().unwrap()), "method:  not supported");
-
-        Ok(())
     }
 }
