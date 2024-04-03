@@ -15,6 +15,9 @@ use futures_lite::{ready, AsyncRead, AsyncWrite, Future, FutureExt};
 enum MuxDirection {
     DTLS,
     STUN,
+    // This is the default value it's a placeholder so we panic if for some reason we try
+    // to index with this.
+    //TODO remove once testing is done
     NODIR,
 }
 
