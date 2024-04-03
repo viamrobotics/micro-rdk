@@ -1,6 +1,7 @@
 use std::{
     io::Result,
     net::{SocketAddr, UdpSocket},
+    ops::{Index, IndexMut},
     pin::Pin,
     sync::{Arc, Mutex},
     task::{Context, Poll, Waker},
@@ -10,8 +11,32 @@ use async_io::{Async, Readable};
 
 use futures_lite::{ready, AsyncRead, AsyncWrite, Future, FutureExt};
 
-const DTLS: usize = 0;
-const STUN: usize = 1;
+#[derive(Clone, Copy, PartialEq)]
+enum MuxDirection {
+    DTLS,
+    STUN,
+    NODIR,
+}
+
+impl Index<MuxDirection> for [MuxState] {
+    type Output = MuxState;
+    fn index(&self, index: MuxDirection) -> &Self::Output {
+        match index {
+            MuxDirection::DTLS => &self[0],
+            MuxDirection::STUN => &self[1],
+            MuxDirection::NODIR => panic!(),
+        }
+    }
+}
+impl IndexMut<MuxDirection> for [MuxState] {
+    fn index_mut(&mut self, index: MuxDirection) -> &mut Self::Output {
+        match index {
+            MuxDirection::DTLS => &mut self[0],
+            MuxDirection::STUN => &mut self[1],
+            MuxDirection::NODIR => panic!(),
+        }
+    }
+}
 
 #[derive(Clone)]
 pub(crate) struct UdpMuxer {
@@ -29,7 +54,7 @@ impl Drop for UdpMuxer {
 
 struct UdpMuxReadable<'a> {
     muxer: &'a UdpMuxer,
-    dir: usize,
+    dir: MuxDirection,
     readable: Readable<'a, UdpSocket>,
     ran_once: bool,
 }
@@ -62,7 +87,7 @@ impl<'a> Drop for UdpMuxReadable<'a> {
 }
 
 impl UdpMuxer {
-    fn readable_udp_muxer(&self, dir: usize) -> UdpMuxReadable<'_> {
+    fn readable_udp_muxer(&self, dir: MuxDirection) -> UdpMuxReadable<'_> {
         UdpMuxReadable {
             muxer: self,
             dir,
@@ -77,12 +102,12 @@ impl UdpMuxer {
         }
     }
     pub(crate) fn get_stun_mux(&self) -> Option<UdpMux> {
-        let state = &mut self.mux.lock().unwrap()[STUN];
+        let state = &mut self.mux.lock().unwrap()[MuxDirection::STUN];
         if !state.is_listening {
             state.is_listening = true;
             Some(UdpMux {
                 muxer: self.clone(),
-                direction: STUN,
+                direction: MuxDirection::STUN,
                 peer_addr: None,
             })
         } else {
@@ -90,22 +115,22 @@ impl UdpMuxer {
         }
     }
     pub(crate) fn get_dtls_mux(&self) -> Option<UdpMux> {
-        let state = &mut self.mux.lock().unwrap()[DTLS];
+        let state = &mut self.mux.lock().unwrap()[MuxDirection::DTLS];
         if !state.is_listening {
             state.is_listening = true;
             Some(UdpMux {
                 muxer: self.clone(),
-                direction: DTLS,
+                direction: MuxDirection::DTLS,
                 peer_addr: None,
             })
         } else {
             None
         }
     }
-    async fn recv_from(&self, dir: usize, buf: &mut [u8]) -> Result<(usize, SocketAddr)> {
+    async fn recv_from(&self, dir: MuxDirection, buf: &mut [u8]) -> Result<(usize, SocketAddr)> {
         loop {
             let r = match self.peek() {
-                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => (0, 0),
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => (0, MuxDirection::NODIR),
                 Ok(s) => s,
                 Err(e) => return Err(e),
             };
@@ -122,7 +147,7 @@ impl UdpMuxer {
         }
     }
 
-    fn register_waker(&self, waker: Waker, dir: usize) {
+    fn register_waker(&self, waker: Waker, dir: MuxDirection) {
         let mux = &mut self.mux.lock().unwrap()[dir];
         if let Some(w) = mux.waker.take() {
             if w.will_wake(&waker) {
@@ -133,12 +158,12 @@ impl UdpMuxer {
         }
         mux.waker = Some(waker);
     }
-    fn deregister_waker(&self, dir: usize) {
+    fn deregister_waker(&self, dir: MuxDirection) {
         let mux = &mut self.mux.lock().unwrap()[dir];
         let _ = mux.waker.take();
     }
 
-    fn yield_or_discard(&self, dir: usize, _len: u16) -> Result<bool> {
+    fn yield_or_discard(&self, dir: MuxDirection, _len: u16) -> Result<bool> {
         let socket = self.socket.as_ref().get_ref();
         let mux = &mut self.mux.lock().unwrap()[dir];
         if !mux.is_listening {
@@ -156,27 +181,27 @@ impl UdpMuxer {
     // will peek at the next available message on the socket
     // if it's size is less than the minimum header size the packet is discarded
     // otherwise the type and length will be returned
-    fn peek(&self) -> Result<(u16, usize)> {
+    fn peek(&self) -> Result<(u16, MuxDirection)> {
         let socket = self.socket.as_ref().get_ref();
         let mut buf = [0_u8; 13];
         let (len, _) = socket.peek_from(&mut buf)?;
         if len != 13 {
             let _ = socket.recv_from(&mut buf)?;
-            return Ok((0, 0));
+            return Ok((0, MuxDirection::NODIR));
         }
         Ok(self.read_header(buf))
     }
 
-    fn read_header(&self, hdr: [u8; 13]) -> (u16, usize) {
+    fn read_header(&self, hdr: [u8; 13]) -> (u16, MuxDirection) {
         let msg_type = hdr[0];
         if msg_type < 2 {
             // stun message
             let len: u16 = u16::from_be_bytes(hdr[2..4].try_into().unwrap());
-            (len, STUN)
+            (len, MuxDirection::STUN)
         } else {
             // assume DTLS record
             let len: u16 = u16::from_be_bytes(hdr[11..13].try_into().unwrap());
-            (len, DTLS)
+            (len, MuxDirection::DTLS)
         }
     }
     async fn send_to(&self, buf: &[u8], peer: SocketAddr) -> Result<usize> {
@@ -196,13 +221,13 @@ impl UdpMuxer {
     fn poll_recv_from(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-        dir: usize,
+        dir: MuxDirection,
         buf: &mut [u8],
     ) -> Poll<Result<(usize, SocketAddr)>> {
         self.register_waker(cx.waker().clone(), dir);
         loop {
             let r = match self.peek() {
-                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => (0, 0),
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => (0, MuxDirection::NODIR),
                 Ok(s) => s,
                 Err(e) => return Poll::Ready(Err(e)),
             };
@@ -254,7 +279,7 @@ struct MuxState {
 
 pub struct UdpMux {
     muxer: UdpMuxer,
-    direction: usize, // symbolize the interest a consumer has on a particular message type
+    direction: MuxDirection, // symbolize the interest a consumer has on a particular message type
     peer_addr: Option<SocketAddr>,
 }
 
@@ -330,10 +355,7 @@ mod tests {
     use futures_util::FutureExt;
     use rand::Rng;
 
-    use crate::common::webrtc::udp_mux::UdpMuxer;
-
-    const DTLS: usize = 0;
-    const STUN: usize = 1;
+    use crate::common::webrtc::udp_mux::{MuxDirection, UdpMuxer};
 
     fn dtls_packet(len: u16, typ: u8) -> Bytes {
         let mut buf = BytesMut::with_capacity(len as usize + 13);
@@ -370,11 +392,11 @@ mod tests {
             let other_dtls = muxer.get_dtls_mux();
             assert!(other_dtls.is_none());
             let dtls_mux = muxer.mux.lock().unwrap();
-            assert!(dtls_mux[DTLS].is_listening);
+            assert!(dtls_mux[MuxDirection::DTLS].is_listening);
         }
         {
             let dtls_mux = muxer.mux.lock().unwrap();
-            assert!(!dtls_mux[DTLS].is_listening);
+            assert!(!dtls_mux[MuxDirection::DTLS].is_listening);
         }
         {
             let stun = muxer.get_stun_mux();
@@ -382,11 +404,11 @@ mod tests {
             let other_stun = muxer.get_stun_mux();
             assert!(other_stun.is_none());
             let stun_mux = muxer.mux.lock().unwrap();
-            assert!(stun_mux[STUN].is_listening);
+            assert!(stun_mux[MuxDirection::STUN].is_listening);
         }
         {
             let stun_mux = muxer.mux.lock().unwrap();
-            assert!(!stun_mux[STUN].is_listening);
+            assert!(!stun_mux[MuxDirection::STUN].is_listening);
         }
     }
 

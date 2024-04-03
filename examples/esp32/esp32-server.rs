@@ -140,10 +140,10 @@ mod esp32 {
         let mut wifi =
             BlockingWifi::wrap(EspWifi::new(modem, sl_stack.clone(), Some(nvs))?, sl_stack)?;
         let wifi_configuration = WifiConfiguration::Client(WifiClientConfiguration {
-            ssid: SSID.into(),
+            ssid: SSID.try_into().unwrap(),
             bssid: None,
             auth_method: AuthMethod::WPA2Personal,
-            password: PASS.into(),
+            password: PASS.try_into().unwrap(),
             channel: None,
         });
 
