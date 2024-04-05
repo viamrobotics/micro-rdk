@@ -13,7 +13,7 @@ use async_channel::Sender;
 use bytes::Bytes;
 use thiserror::Error;
 
-use futures_lite::{future::poll_fn, AsyncRead, AsyncWrite};
+use futures_lite::{future::poll_fn, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use sctp_proto::{
     Association, AssociationHandle, ClientConfig, DatagramEvent, Endpoint, EndpointConfig, Event,
     Payload, ServerConfig, StreamEvent, StreamId, Transmit,
@@ -115,7 +115,7 @@ pub struct SctpConnector<S> {
 
 impl<S> SctpConnector<S>
 where
-    S: AsyncRead + AsyncWrite + Send,
+    S: AsyncRead + AsyncWrite + Send + Unpin,
 {
     pub fn new(transport: S, channel_send: Sender<Channel>) -> Self {
         let endpoint_cfg = EndpointConfig::new();
@@ -135,12 +135,11 @@ where
 
         let mut buf = [0; 300];
 
-        let len = {
-            let mut transport = unsafe { std::pin::Pin::new_unchecked(&mut self.transport) };
-            poll_fn(|cx| transport.as_mut().poll_read(cx, &mut buf))
-                .await
-                .map_err(SctpError::SctpIoError)?
-        };
+        let len = self
+            .transport
+            .read(&mut buf)
+            .await
+            .map_err(SctpError::SctpIoError)?;
 
         if len == 0 {
             return Err(SctpError::SctpErrorCannotAssociate);
@@ -163,10 +162,7 @@ where
                     let mut ret = 0;
                     {
                         for payload in data {
-                            let mut transport =
-                                unsafe { std::pin::Pin::new_unchecked(&mut self.transport) };
-                            ret +=
-                                poll_fn(|cx| transport.as_mut().poll_write(cx, &payload)).await?;
+                            ret += self.transport.write(&payload).await?;
                         }
                     };
                     ret
@@ -205,10 +201,7 @@ where
                     let mut ret = 0;
                     {
                         for payload in data {
-                            let mut transport =
-                                unsafe { std::pin::Pin::new_unchecked(&mut self.transport) };
-                            ret +=
-                                poll_fn(|cx| transport.as_mut().poll_write(cx, &payload)).await?;
+                            ret += self.transport.write(&payload).await?;
                         }
                     };
                     ret
@@ -270,7 +263,7 @@ unsafe impl<S> Send for SctpProto<S> {}
 
 impl<S> SctpProto<S>
 where
-    S: AsyncRead + AsyncWrite + Send,
+    S: AsyncRead + AsyncWrite + Send + Unpin,
 {
     fn close(&mut self) -> Result<(), SctpError> {
         self.sctp_event_tx

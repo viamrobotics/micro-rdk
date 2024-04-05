@@ -11,7 +11,7 @@ pub enum DtlsError {
 }
 
 pub trait DtlsConnector {
-    type Stream: AsyncRead + AsyncWrite + Send + 'static;
+    type Stream: AsyncRead + AsyncWrite + Send + Unpin + 'static;
     type Error: std::error::Error + Send + Sync + 'static;
     type Future: Future<Output = Result<Self::Stream, Self::Error>>;
 
