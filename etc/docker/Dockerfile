@@ -84,8 +84,6 @@ USER testbot
 
 COPY --from=builder /esp $ESP_ROOT/
 
-RUN git config --global --add safe.directory $ESP_ROOT/esp-idf
-
 ENV IDF_PATH=$ESP_ROOT/esp-idf
 
 RUN $IDF_PATH/tools/idf_tools.py --non-interactive install required  && $IDF_PATH/tools/idf_tools.py --non-interactive install cmake   && $IDF_PATH/tools/idf_tools.py --non-interactive install-python-env  && rm -rf $IDF_TOOLS_PATH/dist
@@ -93,6 +91,8 @@ RUN $IDF_PATH/tools/idf_tools.py --non-interactive install required  && $IDF_PAT
 RUN espup install -s -f $ESP_ROOT/export-esp.sh -v ${RUST_VERSION}
 RUN rustup component add clippy-preview
 RUN rustup component add rustfmt
+
+RUN git config --global --add safe.directory '*'
 
 RUN rm -rf $CARGO_HOME/registry
 
@@ -112,3 +112,5 @@ COPY --from=builder /qemu/qemu/build/qemu-system-xtensa /usr/bin
 
 RUN chmod -R a+rwx $ESP_ROOT && \
     chown -R testbot:testbot $ESP_ROOT
+
+RUN git config --global --add safe.directory '*'

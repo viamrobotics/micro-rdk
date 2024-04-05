@@ -221,8 +221,6 @@ impl ICEAgent {
         // the host ip was set when creating the ICEagent
         let our_ip = SocketAddrV4::new(self.local_ip, rflx_addr.port());
 
-        log::info!("Host candidate is a local ip of {:?}", our_ip);
-
         let local_cand = Candidate::new_host_candidate(our_ip);
 
         self.local_candidates.push(local_cand);
@@ -297,7 +295,13 @@ impl ICEAgent {
                     .map_err(|_| IceError::IceTransportClosed)
             });
 
-            let event = match futures_lite::future::or(f1, f2).await {
+            let event = match futures_lite::future::or(f1, f2)
+                .or(async {
+                    Timer::after(Duration::from_millis(500)).await;
+                    Err(IceError::IceCandidateChannelClosed)
+                })
+                .await
+            {
                 Ok(r) => r,
                 Err(IceError::IceCandidateChannelClosed) => {
                     continue;
@@ -369,9 +373,10 @@ impl ICEAgent {
     /// the generated TransactionId
     /// 3) Otherwise it moves to the next candidate pair
     fn next_stun_request(&mut self) -> Option<(TransactionId, SocketAddrV4)> {
+        let instant = Instant::now();
         for pair in &mut self.candidate_pairs {
             log::debug!("processing pair {:?}", pair);
-            let id = pair.create_new_binding_request(Instant::now());
+            let id = pair.create_new_binding_request(instant);
             if let Some(id) = id {
                 log::debug!(
                     "will attempt to make a stun request from {:?} to {:?}",

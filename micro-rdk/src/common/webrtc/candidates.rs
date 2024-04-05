@@ -331,7 +331,7 @@ pub struct CandidatePair {
     nominated: bool,
     /// track the current binding request that was sent at least once
     /// this request will be sent again if no response was received after at least Ta*1ms
-    current_binding_request: Option<BindingRequests>,
+    pub(crate) current_binding_request: Option<BindingRequests>,
     /// binding request received on this pair
     pub(crate) binding_req_recv: u32,
     binding_req_sent: u32,
@@ -387,12 +387,14 @@ impl CandidatePair {
             CandidatePairState::InProgress | CandidatePairState::Succeeded => {
                 if let Some(req) = self.current_binding_request.as_mut() {
                     // Retry while pair is InProgress, Ta is set a 500ms.
-                    if now - req.req_time < Duration::from_millis(250) {
+                    if now - req.req_time < Duration::from_millis(500) {
                         return None;
                     }
-                    self.binding_req_sent += 1;
-                    req.req_time = now;
-                    return Some(req.id);
+                    if !req.resp_recv {
+                        self.binding_req_sent += 1;
+                        req.req_time = now;
+                        return Some(req.id);
+                    }
                 }
             }
         }
@@ -419,9 +421,9 @@ impl CandidatePair {
     }
     /// Check if a binding response belongs to this Pair
     pub fn binding_response(&mut self, _now: &Instant, id: &TransactionId) -> bool {
-        if let Some(req) = self.current_binding_request.as_ref() {
+        if let Some(req) = self.current_binding_request.as_mut() {
             if req.id == *id {
-                self.current_binding_request = None;
+                req.resp_recv = true;
                 self.binding_req_recv += 1;
                 self.state = CandidatePairState::Succeeded;
                 log::debug!("Pair succeeded {:?}", self);
