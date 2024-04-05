@@ -12,6 +12,7 @@ use async_io::{Async, Readable};
 use futures_lite::{ready, AsyncRead, AsyncWrite, Future, FutureExt};
 
 #[derive(Clone, Copy, PartialEq)]
+#[allow(clippy::upper_case_acronyms)]
 enum MuxDirection {
     DTLS,
     STUN,
