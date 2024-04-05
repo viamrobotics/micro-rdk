@@ -16,7 +16,8 @@ use crate::{
 };
 use bytes::{BufMut, BytesMut};
 use futures_lite::{future, Future};
-use hyper::body::{Body as BBody, Frame};
+use http_body_util::BodyExt;
+use hyper::body::{Body, Frame};
 use hyper::{
     body::{self, Bytes},
     http::HeaderValue,
@@ -96,7 +97,7 @@ impl Drop for GrpcBody {
     }
 }
 
-impl BBody for GrpcBody {
+impl Body for GrpcBody {
     type Data = Bytes;
     type Error = hyper::http::Error;
 
@@ -1316,10 +1317,10 @@ where
             .map(|dur| (self.response.get_data().split_off(5), dur))
     }
 }
-use http_body_util::BodyExt;
+
 impl<R> Service<Request<body::Incoming>> for GrpcServer<R>
 where
-    R: GrpcResponse + BBody + Clone + 'static,
+    R: GrpcResponse + Body + Clone + 'static,
 {
     type Response = Response<R>;
     type Error = GrpcError;

@@ -41,7 +41,7 @@ use std::{
     collections::HashMap,
     num::NonZeroU32,
     sync::{
-        atomic::{AtomicI32, Ordering},
+        atomic::{AtomicU32, Ordering},
         Arc, Mutex,
     },
     time::Duration,
@@ -87,7 +87,7 @@ struct IsrSharedState {
     // 0: Starting state, ready to take a reading
     // i64 > 0: Millisecond timestamp of first edge of echo signal
     //TODO 32bit wide enough - To be fixed before merged
-    timestamp: AtomicI32,
+    timestamp: AtomicU32,
 
     // The channel the ISR will use to communicate results back to waiters.
     notifier: Arc<Notifier>,
@@ -137,7 +137,7 @@ impl HCSR04Sensor {
                     "HCSR04Sensor: error handling `timeout_ms`",
                 )),
             },
-            |v| Ok(Some(Duration::from_millis(v as u64))),
+            |v| Ok(Some(Duration::from_millis(v.into()))),
         )?;
 
         Ok(Arc::new(Mutex::new(HCSR04Sensor::new(
@@ -218,7 +218,7 @@ impl HCSR04Sensor {
     #[link_section = ".iram1.intr_srv"]
     unsafe extern "C" fn subscription_interrupt(arg: *mut core::ffi::c_void) {
         let arg: &mut IsrSharedState = &mut *(arg as *mut _);
-        let when = crate::esp32::esp_idf_svc::sys::esp_timer_get_time() as i32;
+        let when = crate::esp32::esp_idf_svc::sys::esp_timer_get_time() as u32;
         match arg
             .timestamp
             .compare_exchange(0, when, Ordering::AcqRel, Ordering::Acquire)
@@ -232,10 +232,10 @@ impl HCSR04Sensor {
                 // don't notify, the waiter will time out and return
                 // an error, and the state machine will be reset on
                 // the next `get_readings` call.
-                if let Ok(delta) = u32::try_from(when - prior) {
-                    if let Some(nz) = NonZeroU32::new(delta) {
-                        arg.notifier.notify_and_yield(nz);
-                    }
+                // If prior > when delta will equal 0
+                let delta = when.saturating_sub(prior);
+                if let Some(nz) = NonZeroU32::new(delta) {
+                    arg.notifier.notify_and_yield(nz);
                 }
             }
         }

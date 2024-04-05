@@ -297,13 +297,14 @@ impl ICEAgent {
 
             let event = match futures_lite::future::or(f1, f2)
                 .or(async {
+                    // TODO we should take the min time for next candidate pair check
                     Timer::after(Duration::from_millis(500)).await;
-                    Err(IceError::IceCandidateChannelClosed)
+                    Err(IceError::IceTimeout)
                 })
                 .await
             {
                 Ok(r) => r,
-                Err(IceError::IceCandidateChannelClosed) => {
+                Err(IceError::IceCandidateChannelClosed) | Err(IceError::IceTimeout) => {
                     continue;
                 }
                 Err(e) => {

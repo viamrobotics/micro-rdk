@@ -243,13 +243,11 @@ mod esp32 {
             EspWifi::new(modem, sl_stack.clone(), Some(nvs.clone()))?,
             sl_stack,
         )?;
-        let ssid_heapless = ssid.into();
-        let password_heapless = password.into();
         let wifi_configuration = WifiConfiguration::Client(WifiClientConfiguration {
-            ssid: ssid_heapless,
+            ssid: ssid.try_into().unwrap(),
             bssid: None,
             auth_method: AuthMethod::WPA2Personal,
-            password: password_heapless,
+            password: password.try_into().unwrap(),
             channel: None,
         });
         debug!("setting wifi configuration...");

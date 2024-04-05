@@ -509,7 +509,13 @@ where
         }
         let srv = self.server.as_mut().unwrap();
         loop {
-            let req = srv.next_request().await; //.timeout(Duration::from_secs(30)).await;
+            let req = srv
+                .next_request()
+                .or(async {
+                    Timer::after(Duration::from_secs(30)).await;
+                    Err(WebRtcError::OperationTiemout)
+                })
+                .await; //.timeout(Duration::from_secs(30)).await;
 
             if let Err(e) = req {
                 return Err(ServerError::Other(Box::new(e)));

@@ -33,7 +33,7 @@ opt-level = "z"
 
 [workspace.dependencies]
 anyhow = "1.0.71"
-async-channel = "=2.1.1"
+async-channel = "2"
 async-executor = "1"
 async-io = "2"
 async-std-openssl = "0.6.3"
