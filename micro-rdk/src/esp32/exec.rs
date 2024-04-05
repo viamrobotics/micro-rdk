@@ -2,55 +2,47 @@
 use crate::common::webrtc::exec::WebRtcExecutor;
 use async_executor::{LocalExecutor, Task};
 use futures_lite::{
-    future::{self},
+    future::{self, block_on},
     Future,
 };
-use std::rc::Rc;
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 /// This executor is local and bounded to the CPU that created it usually you would create it after spwaning a thread on a specific core
-pub struct Esp32Executor<'a> {
-    /// A local executor
-    executor: Rc<LocalExecutor<'a>>,
+pub struct Esp32Executor {}
+
+std::thread_local! {
+    static EX: LocalExecutor<'static> = LocalExecutor::new();
 }
 
-impl<'a> Esp32Executor<'a> {
+impl Esp32Executor {
     /// Return a new executor bounded to the current core.
     pub fn new() -> Self {
-        Esp32Executor {
-            executor: Rc::new(LocalExecutor::new()),
-        }
+        Self {}
     }
-    /// Spawn a future onto the local executor
-    pub fn spawn<T: 'a>(&self, future: impl Future<Output = T> + 'a) -> Task<T> {
-        self.executor.spawn(future)
+    // Spawn a future onto the local executor
+    pub fn spawn<T: 'static>(&self, future: impl Future<Output = T> + 'static) -> Task<T> {
+        EX.with(|e| e.spawn(future))
     }
-    /// Run a future until it's completion
-    pub async fn run<T>(&self, future: impl Future<Output = T>) -> T {
-        self.executor.run(future).await
-    }
-}
 
-impl<'a> Default for Esp32Executor<'a> {
-    fn default() -> Self {
-        Self::new()
+    pub fn run_forever<T>(&self, future: impl Future<Output = T>) -> T {
+        EX.with(|e| block_on(e.run(future)))
     }
 }
 
 /// helper trait for hyper to spwan future onto a local executor
-impl<F> hyper::rt::Executor<F> for Esp32Executor<'_>
+impl<F> hyper::rt::Executor<F> for Esp32Executor
 where
     F: future::Future + 'static,
 {
     fn execute(&self, fut: F) {
-        self.executor.spawn(fut).detach();
+        EX.with(|e| e.spawn(fut)).detach();
     }
 }
 
-impl<F> WebRtcExecutor<F> for Esp32Executor<'_>
+impl<F> WebRtcExecutor<F> for Esp32Executor
 where
     F: future::Future + 'static,
 {
     fn execute(&self, fut: F) {
-        self.executor.spawn(fut).detach();
+        EX.with(|e| e.spawn(fut)).detach();
     }
 }

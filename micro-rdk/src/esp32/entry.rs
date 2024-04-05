@@ -4,7 +4,7 @@ use std::{
     net::Ipv4Addr,
     rc::Rc,
     sync::{Arc, Mutex},
-    task::{Context, Poll, Wake, Waker},
+    time::Duration,
 };
 
 use crate::common::{
@@ -28,7 +28,6 @@ use super::{
 };
 
 use async_io::Timer;
-use futures_lite::Future;
 
 pub async fn serve_web_inner(
     app_config: AppClientConfig,
@@ -36,7 +35,7 @@ pub async fn serve_web_inner(
     repr: RobotRepresentation,
     _ip: Ipv4Addr,
     webrtc_certificate: WebRtcCertificate,
-    exec: Esp32Executor<'_>,
+    exec: Esp32Executor,
     max_webrtc_connection: usize,
 ) {
     // TODO(NPM) this is a workaround so that async-io thread has started before we
@@ -44,101 +43,91 @@ pub async fn serve_web_inner(
     // otherwise there is a chance a race happens and will listen to events before full
     // initialization is done
     let _ = Timer::after(std::time::Duration::from_millis(60)).await;
-    let (mut srv, robot) = {
-        let mut client_connector = Esp32TLS::new_client();
-        let mdns = NoMdns {};
 
-        let (cfg_response, robot) = {
-            let cloned_exec = exec.clone();
-            let conn = client_connector.open_ssl_context(None).unwrap();
-            let conn = Esp32Stream::TLSStream(Box::new(conn));
-            let grpc_client = Box::new(
-                GrpcClient::new(conn, cloned_exec, "https://app.viam.com:443")
-                    .await
-                    .unwrap(),
-            );
+    let mut client_connector = Esp32TLS::new_client();
+    let mdns = NoMdns {};
 
-            let builder = AppClientBuilder::new(grpc_client, app_config.clone());
+    let (cfg_response, robot) = {
+        let cloned_exec = exec.clone();
+        let conn = client_connector.open_ssl_context(None).unwrap();
+        let conn = Esp32Stream::TLSStream(Box::new(conn));
+        let grpc_client = Box::new(
+            GrpcClient::new(conn, cloned_exec, "https://app.viam.com:443")
+                .await
+                .unwrap(),
+        );
 
-            let mut client = builder.build().await.unwrap();
+        let builder = AppClientBuilder::new(grpc_client, app_config.clone());
 
-            let (cfg_response, cfg_received_datetime) = client.get_config().await.unwrap();
+        let mut client = builder.build().await.unwrap();
 
-            let robot = match repr {
-                RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
-                RobotRepresentation::WithRegistry(registry) => {
-                    log::info!("building robot from config");
-                    let r = match LocalRobot::from_cloud_config(
-                        &cfg_response,
-                        registry,
-                        cfg_received_datetime,
-                    ) {
-                        Ok(robot) => {
-                            if let Some(datetime) = cfg_received_datetime {
-                                let logs = vec![config_log_entry(datetime, None)];
-                                client
-                                    .push_logs(logs)
-                                    .await
-                                    .expect("could not push logs to app");
-                            }
-                            robot
+        let (cfg_response, cfg_received_datetime) = client.get_config().await.unwrap();
+
+        let robot = match repr {
+            RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
+            RobotRepresentation::WithRegistry(registry) => {
+                log::info!("building robot from config");
+                let r = match LocalRobot::from_cloud_config(
+                    &cfg_response,
+                    registry,
+                    cfg_received_datetime,
+                ) {
+                    Ok(robot) => {
+                        if let Some(datetime) = cfg_received_datetime {
+                            let logs = vec![config_log_entry(datetime, None)];
+                            client
+                                .push_logs(logs)
+                                .await
+                                .expect("could not push logs to app");
                         }
-                        Err(err) => {
-                            if let Some(datetime) = cfg_received_datetime {
-                                let logs = vec![config_log_entry(datetime, Some(err))];
-                                client
-                                    .push_logs(logs)
-                                    .await
-                                    .expect("could not push logs to app");
-                            }
-                            //TODO shouldn't panic here, when we support offline mode and reloading configuration this should be removed
-                            panic!("couldn't build robot");
+                        robot
+                    }
+                    Err(err) => {
+                        if let Some(datetime) = cfg_received_datetime {
+                            let logs = vec![config_log_entry(datetime, Some(err))];
+                            client
+                                .push_logs(logs)
+                                .await
+                                .expect("could not push logs to app");
                         }
-                    };
-                    Arc::new(Mutex::new(r))
-                }
-            };
-
-            (cfg_response, robot)
+                        //TODO shouldn't panic here, when we support offline mode and reloading configuration this should be removed
+                        panic!("couldn't build robot");
+                    }
+                };
+                Arc::new(Mutex::new(r))
+            }
         };
 
-        let webrtc_certificate = Rc::new(webrtc_certificate);
-        let dtls = Esp32DtlsBuilder::new(webrtc_certificate.clone());
-
-        let cloned_exec = exec.clone();
-
-        let webrtc = Box::new(WebRtcConfiguration::new(
-            webrtc_certificate,
-            dtls,
-            exec.clone(),
-        ));
-
-        (
-            Box::new(
-                ViamServerBuilder::new(
-                    mdns,
-                    cloned_exec,
-                    client_connector,
-                    app_config,
-                    max_webrtc_connection,
-                )
-                .with_webrtc(webrtc)
-                .build(&cfg_response)
-                .unwrap(),
-            ),
-            robot,
-        )
+        (cfg_response, robot)
     };
+
+    let webrtc_certificate = Rc::new(webrtc_certificate);
+    let dtls = Esp32DtlsBuilder::new(webrtc_certificate.clone());
+
+    let cloned_exec = exec.clone();
+
+    let webrtc = Box::new(WebRtcConfiguration::new(
+        webrtc_certificate,
+        dtls,
+        exec.clone(),
+    ));
+
+    let mut srv = Box::new(
+        ViamServerBuilder::new(
+            mdns,
+            cloned_exec,
+            client_connector,
+            app_config,
+            max_webrtc_connection,
+        )
+        .with_webrtc(webrtc)
+        .build(&cfg_response)
+        .unwrap(),
+    );
 
     srv.serve(robot).await;
 }
 
-struct Esp32Waker;
-
-impl Wake for Esp32Waker {
-    fn wake(self: Arc<Self>) {}
-    fn wake_by_ref(self: &Arc<Self>) {}
-}
 pub fn serve_web(
     app_config: AppClientConfig,
     tls_server_config: Esp32TLSServerConfig,
@@ -164,7 +153,16 @@ pub fn serve_web(
     let exec = Esp32Executor::new();
     let cloned_exec = exec.clone();
 
-    let fut = cloned_exec.run(Box::pin(serve_web_inner(
+    cloned_exec
+        .spawn(async {
+            loop {
+                Timer::after(Duration::from_secs(150)).await;
+                unsafe { crate::esp32::esp_idf_svc::sys::esp_task_wdt_reset() };
+            }
+        })
+        .detach();
+
+    cloned_exec.run_forever(Box::pin(serve_web_inner(
         app_config,
         tls_server_config,
         repr,
@@ -173,23 +171,4 @@ pub fn serve_web(
         exec,
         max_webrtc_connection,
     )));
-    futures_lite::pin!(fut);
-
-    let waker = Waker::from(Arc::new(Esp32Waker));
-
-    let cx = &mut Context::from_waker(&waker);
-
-    loop {
-        match fut.as_mut().poll(cx) {
-            Poll::Ready(_) => {
-                unsafe { crate::esp32::esp_idf_svc::sys::esp_restart() };
-            }
-            Poll::Pending => {
-                unsafe {
-                    crate::esp32::esp_idf_svc::sys::esp_task_wdt_reset();
-                    crate::esp32::esp_idf_svc::sys::vTaskDelay(10)
-                };
-            }
-        }
-    }
 }

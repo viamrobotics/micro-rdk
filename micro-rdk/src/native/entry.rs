@@ -1,6 +1,4 @@
 #![allow(dead_code)]
-use futures_lite::future::block_on;
-
 use crate::{
     common::{
         app_client::{AppClientBuilder, AppClientConfig},
@@ -30,8 +28,9 @@ pub async fn serve_web_inner(
     tls_server_config: NativeTlsServerConfig,
     repr: RobotRepresentation,
     ip: Ipv4Addr,
-    exec: NativeExecutor<'_>,
+    exec: NativeExecutor,
 ) {
+    log::info!("web start");
     let client_connector = NativeTls::new_client();
     let mdns = NativeMdns::new("".to_owned(), ip).unwrap();
 
@@ -43,7 +42,7 @@ pub async fn serve_web_inner(
             .await
             .unwrap();
         let builder = AppClientBuilder::new(Box::new(grpc_client), app_config.clone());
-
+        log::info!("build client start");
         let mut client = builder.build().await.unwrap();
 
         let (cfg_response, cfg_received_datetime) = client.get_config().await.unwrap();
@@ -119,15 +118,13 @@ pub fn serve_web(
     let exec = NativeExecutor::new();
     let cloned_exec = exec.clone();
 
-    let fut = cloned_exec.run(Box::pin(serve_web_inner(
+    cloned_exec.run_forever(Box::pin(serve_web_inner(
         app_config,
         tls_server_config,
         repr,
         ip,
         exec,
     )));
-    futures_lite::pin!(fut);
-    block_on(fut);
 }
 
 #[cfg(test)]
@@ -146,6 +143,7 @@ mod tests {
     use async_io::Async;
     use futures_lite::future::block_on;
     use futures_lite::StreamExt;
+    use http_body_util::BodyExt;
     use prost::Message;
 
     use std::net::{Ipv4Addr, TcpStream};
@@ -153,6 +151,10 @@ mod tests {
     #[test_log::test]
     #[ignore]
     fn test_app_client() {
+        let exec = NativeExecutor::new();
+        exec.run_forever(async { test_app_client_inner().await });
+    }
+    async fn test_app_client_inner() {
         let tls = Box::new(NativeTls::new_client());
         let conn = tls.open_ssl_context(None);
         let conn = block_on(conn);
@@ -164,12 +166,7 @@ mod tests {
 
         let exec = NativeExecutor::new();
 
-        let cloned_exec = exec.clone();
-
-        let grpc_client = block_on(
-            cloned_exec
-                .run(async { GrpcClient::new(conn, exec, "https://app.viam.com:443").await }),
-        );
+        let grpc_client = GrpcClient::new(conn, exec, "https://app.viam.com:443").await;
 
         assert!(grpc_client.is_ok());
 
@@ -184,7 +181,7 @@ mod tests {
 
         let builder = AppClientBuilder::new(grpc_client, config);
 
-        let client = block_on(cloned_exec.run(async { builder.build().await }));
+        let client = builder.build().await;
 
         assert!(client.is_ok());
 
@@ -194,23 +191,20 @@ mod tests {
     #[test_log::test]
     #[ignore]
     fn test_client_bidi() {
+        let exec = NativeExecutor::new();
+        exec.run_forever(async { test_client_bidi_inner().await });
+    }
+    async fn test_client_bidi_inner() {
         let socket = TcpStream::connect("localhost:7888").unwrap();
         let socket = Async::new(socket);
         assert!(socket.is_ok());
         let socket = socket.unwrap();
         let conn = NativeStream::LocalPlain(socket);
         let executor = NativeExecutor::new();
-        let exec = executor.clone();
-        let grpc_client = block_on(
-            exec.run(async { GrpcClient::new(conn, executor, "https://app.viam.com:443").await }),
-        );
+
+        let grpc_client = GrpcClient::new(conn, executor, "https://app.viam.com:443").await;
         assert!(grpc_client.is_ok());
         let mut grpc_client = grpc_client.unwrap();
-
-        let r = grpc_client.build_request("/proto.rpc.v1.AuthService/Authenticate", None, "");
-
-        assert!(r.is_ok());
-        let r = r.unwrap();
 
         let cred = Credentials {
             r#type: "robot-secret".to_owned(),
@@ -225,41 +219,47 @@ mod tests {
         let body = encode_request(req);
         assert!(body.is_ok());
         let body = body.unwrap();
+        let r = grpc_client.build_request(
+            "/proto.rpc.v1.AuthService/Authenticate",
+            None,
+            "",
+            http_body_util::Full::new(body)
+                .map_err(|never| match never {})
+                .boxed(),
+        );
 
-        let r = block_on(exec.run(async { grpc_client.send_request(r, body).await }));
+        assert!(r.is_ok());
+        let r = r.unwrap();
+
+        let r = grpc_client.send_request(r).await;
         assert!(r.is_ok());
         let mut r = r.unwrap().0;
         let r = r.split_off(5);
         let r = AuthenticateResponse::decode(r).unwrap();
         let jwt = format!("Bearer {}", r.access_token);
 
+        let (sender, receiver) = async_channel::bounded::<bytes::Bytes>(1);
         let r = grpc_client.build_request(
             "/proto.rpc.examples.echo.v1.EchoService/EchoBiDi",
             Some(&jwt),
             "",
+            BodyExt::boxed(http_body_util::StreamBody::new(
+                receiver.map(|b| Ok(hyper::body::Frame::data(b))),
+            )),
         );
         assert!(r.is_ok());
         let r = r.unwrap();
 
-        let conn = block_on(exec.run(async {
-            grpc_client
-                .send_request_bidi::<EchoBiDiRequest, EchoBiDiResponse>(
-                    r,
-                    Some(EchoBiDiRequest {
-                        message: "1".to_string(),
-                    }),
-                )
-                .await
-        }));
+        let conn = grpc_client
+            .send_request_bidi::<EchoBiDiRequest, EchoBiDiResponse>(r, sender)
+            .await;
 
         assert!(conn.is_ok());
 
         let (mut sender_half, mut recv_half) = conn.unwrap();
 
-        let (p, mut recv_half) = block_on(exec.run(async {
-            let p = recv_half.next().await.unwrap().message;
-            (p, recv_half)
-        }));
+        let p = recv_half.next().await.unwrap().message;
+
         assert_eq!("1", p);
 
         let recv_half_ref = recv_half.by_ref();
@@ -268,15 +268,14 @@ mod tests {
             .send_message(EchoBiDiRequest {
                 message: "hello".to_string(),
             })
+            .await
             .unwrap();
 
-        let p = block_on(exec.run(async {
-            recv_half_ref
-                .take(5)
-                .map(|m| m.message)
-                .collect::<String>()
-                .await
-        }));
+        let p = recv_half_ref
+            .take(5)
+            .map(|m| m.message)
+            .collect::<String>()
+            .await;
 
         assert_eq!("hello", p);
 
@@ -284,15 +283,13 @@ mod tests {
             .send_message(EchoBiDiRequest {
                 message: "123456".to_string(),
             })
+            .await
             .unwrap();
-        let p = block_on(exec.run(async {
-            recv_half_ref
-                .take(6)
-                .map(|m| m.message)
-                .collect::<String>()
-                .await
-        }));
-
+        let p = recv_half_ref
+            .take(6)
+            .map(|m| m.message)
+            .collect::<String>()
+            .await;
         assert_eq!("123456", p);
     }
 }

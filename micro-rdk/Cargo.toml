@@ -55,7 +55,6 @@ embedded-svc = { workspace = true, optional = true }
 esp-idf-svc = { workspace = true, optional = true }
 futures-lite.workspace = true
 futures-util.workspace = true
-h2.workspace = true
 http-body-util.workspace = true
 hyper.workspace = true
 ignore.workspace = true

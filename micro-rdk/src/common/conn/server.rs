@@ -40,15 +40,14 @@ use std::{
     task::Poll,
     time::Duration,
 };
-use tokio::io::{AsyncRead, AsyncWrite};
 
 #[cfg(feature = "native")]
-type Executor<'a> = NativeExecutor<'a>;
+type Executor = NativeExecutor;
 #[cfg(feature = "esp32")]
-type Executor<'a> = Esp32Executor<'a>;
+type Executor = Esp32Executor;
 
 pub trait TlsClientConnector {
-    type Stream: AsyncRead + AsyncWrite + Unpin + 'static;
+    type Stream: rt::Read + rt::Write + Unpin + 'static;
 
     fn connect(&mut self) -> impl std::future::Future<Output = Result<Self::Stream, ServerError>>;
 }
@@ -89,19 +88,19 @@ impl From<&proto::app::v1::CloudConfig> for RobotCloudConfig {
     }
 }
 
-pub struct ViamServerBuilder<'a, M, C, T, CC = WebRtcNoOp, D = WebRtcNoOp, L = NoHttp2> {
+pub struct ViamServerBuilder<M, C, T, CC = WebRtcNoOp, D = WebRtcNoOp, L = NoHttp2> {
     mdns: M,
-    webrtc: Option<Box<WebRtcConfiguration<'a, D, CC>>>,
+    webrtc: Option<Box<WebRtcConfiguration<D, CC>>>,
     port: u16, // gRPC/HTTP2 port
     http2_listener: L,
     _marker: PhantomData<T>,
-    exec: Executor<'a>,
+    exec: Executor,
     app_connector: C,
     app_config: AppClientConfig,
     max_connections: usize,
 }
 
-impl<'a, M, C, T> ViamServerBuilder<'a, M, C, T>
+impl<M, C, T> ViamServerBuilder<M, C, T>
 where
     M: Mdns,
     C: TlsClientConnector,
@@ -109,7 +108,7 @@ where
 {
     pub fn new(
         mdns: M,
-        exec: Executor<'a>,
+        exec: Executor,
         app_connector: C,
         app_config: AppClientConfig,
         max_connections: usize,
@@ -128,14 +127,14 @@ where
     }
 }
 
-impl<'a, M, C, T, CC, D, L> ViamServerBuilder<'a, M, C, T, CC, D, L>
+impl<M, C, T, CC, D, L> ViamServerBuilder<M, C, T, CC, D, L>
 where
     M: Mdns,
     C: TlsClientConnector,
     T: rt::Read + rt::Write + Unpin + 'static,
-    CC: Certificate + 'a,
+    CC: Certificate + 'static,
     D: DtlsBuilder,
-    D::Output: 'a,
+    D::Output: 'static,
     L: AsyncableTcpListener<T>,
     L::Output: Http2Connector<Stream = T>,
 {
@@ -143,7 +142,7 @@ where
         self,
         http2_listener: L2,
         port: u16,
-    ) -> ViamServerBuilder<'a, M, C, T2, CC, D, L2> {
+    ) -> ViamServerBuilder<M, C, T2, CC, D, L2> {
         ViamServerBuilder {
             mdns: self.mdns,
             port,
@@ -158,8 +157,8 @@ where
     }
     pub fn with_webrtc<D2, CC2>(
         self,
-        webrtc: Box<WebRtcConfiguration<'a, D2, CC2>>,
-    ) -> ViamServerBuilder<'a, M, C, T, CC2, D2, L> {
+        webrtc: Box<WebRtcConfiguration<D2, CC2>>,
+    ) -> ViamServerBuilder<M, C, T, CC2, D2, L> {
         ViamServerBuilder {
             mdns: self.mdns,
             webrtc: Some(webrtc),
@@ -175,7 +174,7 @@ where
     pub fn build(
         mut self,
         config: &ConfigResponse,
-    ) -> Result<ViamServer<'a, C, T, CC, D, L>, ServerError> {
+    ) -> Result<ViamServer<C, T, CC, D, L>, ServerError> {
         let cfg: RobotCloudConfig = config
             .config
             .as_ref()
@@ -273,8 +272,8 @@ where
 
 pub struct ViamServer<'a, C, T, CC, D, L> {
     http_listener: HttpListener<L, T>,
-    webrtc_config: Option<Box<WebRtcConfiguration<'a, D, CC>>>,
-    exec: Executor<'a>,
+    webrtc_config: Option<Box<WebRtcConfiguration<D, CC>>>,
+    exec: Executor,
     app_connector: C,
     app_config: AppClientConfig,
     app_client: Option<AppClient<'a>>,
@@ -284,16 +283,16 @@ impl<'a, C, T, CC, D, L> ViamServer<'a, C, T, CC, D, L>
 where
     C: TlsClientConnector,
     T: rt::Read + rt::Write + Unpin + 'static,
-    CC: Certificate + 'a,
+    CC: Certificate + 'static,
     D: DtlsBuilder,
-    D::Output: 'a,
+    D::Output: 'static,
     L: AsyncableTcpListener<T>,
     L::Output: Http2Connector<Stream = T>,
 {
     fn new(
         http_listener: HttpListener<L, T>,
-        webrtc_config: Option<Box<WebRtcConfiguration<'a, D, CC>>>,
-        exec: Executor<'a>,
+        webrtc_config: Option<Box<WebRtcConfiguration<D, CC>>>,
+        exec: Executor,
         app_connector: C,
         app_config: AppClientConfig,
         max_concurent_connections: usize,
@@ -339,7 +338,6 @@ where
             } else {
                 futures_util::future::Either::Right(WebRTCSignalingAnswerer::<
                     '_,
-                    '_,
                     CC,
                     D,
                     futures_lite::future::Pending<Result<AppSignaling, AppClientError>>,
@@ -384,12 +382,13 @@ where
 
             let connection = match connection {
                 Ok(c) => c,
-                Err(ServerError::ServerWebRTCError(_)) => {
-                    // all webrtc errors are arising from failing to connect and don't require a tls renegotiation
+                Err(ServerError::ServerWebRTCError(_))
+                | Err(ServerError::ServerConnectionTimeout) => {
+                    // all webrtc/timeout errors don't require a tls renegotiation
                     continue;
                 }
                 Err(_) => {
-                    // all other errors are related to layers or timeout so we should renegotiate in this event
+                    // http2 layer related errors (GOAWAY etc...) so we should renegotiate in this event
                     let _ = self.app_client.take();
                     continue;
                 }
@@ -442,18 +441,18 @@ pub enum IncomingConnection<L, U> {
 }
 
 #[derive(Clone)]
-pub struct WebRtcConfiguration<'a, D, CC> {
+pub struct WebRtcConfiguration<D, CC> {
     pub dtls: D,
     pub cert: Rc<CC>,
-    pub exec: Executor<'a>,
+    pub exec: Executor,
 }
 
-impl<'a, D, CC> WebRtcConfiguration<'a, D, CC>
+impl<D, CC> WebRtcConfiguration<D, CC>
 where
     D: DtlsBuilder,
     CC: Certificate,
 {
-    pub fn new(cert: Rc<CC>, dtls: D, exec: Executor<'a>) -> Self {
+    pub fn new(cert: Rc<CC>, dtls: D, exec: Executor) -> Self {
         Self { dtls, cert, exec }
     }
 }
@@ -525,22 +524,18 @@ where
 }
 
 pin_project_lite::pin_project! {
-    struct WebRTCSignalingAnswerer<'a,'b, C,D,F> {
+    struct WebRTCSignalingAnswerer<'b, C,D,F> {
         #[pin]
         future: F,
-        webrtc_config: Option<&'b WebRtcConfiguration<'a,D,C>>,
+        webrtc_config: Option<&'b WebRtcConfiguration<D,C>>,
         ip: Ipv4Addr,
     }
 }
 
-impl<'a, 'b, C, D, F> WebRTCSignalingAnswerer<'a, 'b, C, D, F> {
-    fn default() -> WebRTCSignalingAnswerer<
-        'a,
-        'b,
-        C,
-        D,
-        impl Future<Output = Result<AppSignaling, AppClientError>>,
-    > {
+impl<'b, C, D, F> WebRTCSignalingAnswerer<'b, C, D, F> {
+    fn default(
+    ) -> WebRTCSignalingAnswerer<'b, C, D, impl Future<Output = Result<AppSignaling, AppClientError>>>
+    {
         WebRTCSignalingAnswerer {
             future: futures_lite::future::pending::<Result<AppSignaling, AppClientError>>(),
             webrtc_config: None,
@@ -549,13 +544,13 @@ impl<'a, 'b, C, D, F> WebRTCSignalingAnswerer<'a, 'b, C, D, F> {
     }
 }
 
-impl<'a, 'b, C, D, F> Future for WebRTCSignalingAnswerer<'a, 'b, C, D, F>
+impl<'b, C, D, F> Future for WebRTCSignalingAnswerer<'b, C, D, F>
 where
     F: Future<Output = Result<AppSignaling, AppClientError>>,
     C: Certificate,
     D: DtlsBuilder,
 {
-    type Output = Result<WebRtcApi<C, D::Output, Executor<'a>>, ServerError>;
+    type Output = Result<WebRtcApi<C, D::Output, Executor>, ServerError>;
     fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
         let r = ready!(this.future.poll(cx));

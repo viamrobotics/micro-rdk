@@ -3,21 +3,23 @@
 use crate::esp32::exec::Esp32Executor;
 #[cfg(feature = "native")]
 use crate::native::exec::NativeExecutor;
+use async_channel::Sender;
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_lite::Stream;
-use h2::{client::SendRequest, Reason, RecvStream, SendStream};
+use http_body_util::combinators::BoxBody;
+use http_body_util::BodyExt;
+use hyper::body::{Body, Incoming};
+use hyper::client::conn::http2::SendRequest;
 use hyper::header::HeaderMap;
+use hyper::rt;
 use hyper::{http::status, Method, Request};
 
 use async_executor::Task;
 use std::{marker::PhantomData, task::Poll};
 use thiserror::Error;
-use tokio::io::{AsyncRead, AsyncWrite};
 
 #[derive(Error, Debug)]
 pub enum GrpcClientError {
-    #[error(transparent)]
-    ProtoError(#[from] h2::Error),
     #[error(transparent)]
     ConversionError(#[from] std::num::TryFromIntError),
     #[error(transparent)]
@@ -25,33 +27,31 @@ pub enum GrpcClientError {
     #[error("http request error {0}")]
     HttpStatusError(status::StatusCode),
     #[error(transparent)]
+    HyperError(#[from] hyper::Error),
+    #[error(transparent)]
     HyperHttpError(#[from] hyper::http::Error),
     #[error("grpc error code {code:?}, message {message:?}")]
     GrpcError { code: i8, message: String },
+    #[error(transparent)]
+    ErrorSendingToAStream(#[from] async_channel::SendError<Bytes>),
 }
 
 pub(crate) struct GrpcMessageSender<T> {
-    sender_half: SendStream<Bytes>,
+    sender_half: Sender<Bytes>,
     _marker: PhantomData<T>,
-}
-
-impl<T> Drop for GrpcMessageSender<T> {
-    fn drop(&mut self) {
-        self.sender_half.send_reset(Reason::CANCEL);
-    }
 }
 
 impl<T> GrpcMessageSender<T>
 where
     T: prost::Message + std::default::Default,
 {
-    pub(crate) fn new(sender_half: SendStream<Bytes>) -> Self {
+    pub(crate) fn new(sender_half: Sender<Bytes>) -> Self {
         Self {
             sender_half,
             _marker: PhantomData,
         }
     }
-    pub(crate) fn send_message(&mut self, message: T) -> Result<(), GrpcClientError> {
+    pub(crate) async fn send_message(&mut self, message: T) -> Result<(), GrpcClientError> {
         let body: Bytes = {
             let mut buf = BytesMut::with_capacity(message.encoded_len() + 5);
             buf.put_u8(0);
@@ -62,34 +62,28 @@ where
             buf.into()
         };
         self.sender_half
-            .send_data(body, false)
-            .map_err(GrpcClientError::ProtoError)
+            .send(body)
+            .await
+            .map_err(GrpcClientError::ErrorSendingToAStream)
     }
-    pub(crate) fn send_empty_body(&mut self) -> Result<(), GrpcClientError> {
+    pub(crate) async fn send_empty_body(&mut self) -> Result<(), GrpcClientError> {
         self.sender_half
-            .send_data(Bytes::new(), false)
-            .map_err(GrpcClientError::ProtoError)
+            .send(Bytes::new())
+            .await
+            .map_err(GrpcClientError::ErrorSendingToAStream)
     }
 }
 
 pub(crate) struct GrpcMessageStream<T> {
-    receiver_half: RecvStream,
+    receiver_half: Incoming,
     _marker: PhantomData<T>,
     buffer: Bytes,
-}
-
-impl<T> Drop for GrpcMessageStream<T> {
-    fn drop(&mut self) {
-        let capa = self.receiver_half.flow_control().used_capacity();
-        let _ = self.receiver_half.flow_control().release_capacity(capa);
-        self.buffer.clear();
-    }
 }
 
 impl<T> Unpin for GrpcMessageStream<T> {}
 
 impl<T> GrpcMessageStream<T> {
-    pub(crate) fn new(receiver_half: RecvStream) -> Self {
+    pub(crate) fn new(receiver_half: Incoming) -> Self {
         Self {
             receiver_half,
             _marker: PhantomData,
@@ -112,7 +106,7 @@ where
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
         if self.buffer.is_empty() {
-            let chunk = match self.receiver_half.poll_data(cx) {
+            let chunk = match std::pin::Pin::new(&mut self.receiver_half).poll_frame(cx) {
                 Poll::Pending => return Poll::Pending,
                 Poll::Ready(r) => match r {
                     Some(r) => match r {
@@ -122,7 +116,7 @@ where
                     None => return Poll::Ready(None),
                 },
             };
-            self.buffer = chunk;
+            self.buffer = chunk.into_data().unwrap();
         }
 
         // Split off the length prefixed message containing the compressed flag (B0) and the message length (B1-B4)
@@ -133,10 +127,6 @@ where
         let len = u32::from_be_bytes(delim.as_ref().try_into().unwrap());
 
         let message = self.buffer.split_to(len as usize);
-        let _ = self
-            .receiver_half
-            .flow_control()
-            .release_capacity(message.len() + 5);
 
         let message = match T::decode(message) {
             Err(e) => {
@@ -149,45 +139,39 @@ where
     }
 }
 #[cfg(feature = "native")]
-type Executor<'a> = NativeExecutor<'a>;
+type Executor = NativeExecutor;
 #[cfg(feature = "esp32")]
-type Executor<'a> = Esp32Executor<'a>;
+type Executor = Esp32Executor;
 pub struct GrpcClient<'a> {
-    executor: Executor<'a>,
-    http2_connection: SendRequest<Bytes>,
+    executor: Executor,
+    http2_connection: SendRequest<BoxBody<Bytes, hyper::Error>>,
     #[allow(dead_code)]
     http2_task: Option<Task<()>>,
     uri: &'a str,
 }
 
-impl<'a> Drop for GrpcClient<'a> {
-    fn drop(&mut self) {
-        let t = self.http2_task.take();
-        self.executor.spawn(t.unwrap().cancel()).detach();
-    }
-}
-
 impl<'a> GrpcClient<'a> {
     pub async fn new<T>(
         io: T,
-        executor: Executor<'a>,
+        executor: Executor,
         uri: &'a str,
     ) -> Result<GrpcClient<'a>, GrpcClientError>
     where
-        T: AsyncRead + AsyncWrite + Unpin + 'a,
+        T: rt::Read + rt::Write + Unpin + 'static,
     {
         let (http2_connection, conn) = {
-            let builder = h2::client::Builder::new()
+            let client = hyper::client::conn::http2::Builder::new(executor.clone())
+                .initial_stream_window_size(4096)
                 .initial_connection_window_size(4096)
-                .initial_window_size(4096)
-                .max_concurrent_reset_streams(1)
-                .max_concurrent_streams(1)
-                .handshake(io);
-            let conn = builder.await.unwrap();
-            (conn.0, Box::new(conn.1))
+                .max_concurrent_reset_streams(2)
+                .max_send_buf_size(4096)
+                .handshake(io)
+                .await
+                .unwrap();
+            (client.0, Box::new(client.1))
         };
 
-        let http2_task = executor.spawn(async move {
+        let http2_task = executor.spawn(async {
             if let Err(e) = conn.await {
                 log::error!("GrpcClient failed with {:?}", e);
             }
@@ -200,12 +184,13 @@ impl<'a> GrpcClient<'a> {
         })
     }
 
-    pub(crate) fn build_request(
+    pub(crate) fn build_request<B: Body>(
         &self,
         path: &str,
         jwt: Option<&str>,
         rpc_host: &str,
-    ) -> Result<Request<()>, GrpcClientError> {
+        body: B,
+    ) -> Result<Request<B>, GrpcClientError> {
         let mut uri = self.uri.to_owned();
         uri.push_str(path);
 
@@ -220,33 +205,27 @@ impl<'a> GrpcClient<'a> {
             r = r.header("authorization", jwt);
         };
 
-        r.body(()).map_err(GrpcClientError::HyperHttpError)
+        r.body(body).map_err(GrpcClientError::HyperHttpError)
     }
 
     pub(crate) async fn send_request_bidi<R, P>(
         &mut self,
-        r: Request<()>,
-        message: Option<R>, // we shouldn't need this to get server headers when initiating a
-                            // bidi stream
+        r: Request<BoxBody<Bytes, hyper::Error>>,
+        sender: Sender<Bytes>, // we shouldn't need this to get server headers when initiating a
+                               // bidi stream
     ) -> Result<(GrpcMessageSender<R>, GrpcMessageStream<P>), GrpcClientError>
     where
         R: prost::Message + std::default::Default,
         P: prost::Message + std::default::Default,
     {
-        let http2_connection = self.http2_connection.clone();
-        let mut http2_connection = http2_connection.ready().await?;
+        let mut http2_connection = self.http2_connection.clone();
+        http2_connection.ready().await?;
 
-        let (response, send) = http2_connection.send_request(r, false)?;
+        let response = http2_connection.send_request(r).await?;
 
-        let mut r: GrpcMessageSender<R> = GrpcMessageSender::new(send);
+        let r: GrpcMessageSender<R> = GrpcMessageSender::new(sender);
 
-        if let Some(message) = message {
-            r.send_message(message)?;
-        } else {
-            r.send_empty_body()?
-        }
-
-        let (part, body) = response.await?.into_parts();
+        let (part, body) = response.into_parts();
 
         if part.status != status::StatusCode::OK {
             return Err(GrpcClientError::HttpStatusError(part.status));
@@ -258,34 +237,27 @@ impl<'a> GrpcClient<'a> {
 
     pub(crate) async fn send_request(
         &mut self,
-        r: Request<()>,
-        body: Bytes,
+        r: Request<BoxBody<Bytes, hyper::Error>>,
     ) -> Result<(Bytes, HeaderMap), GrpcClientError> {
-        let http2_connection = self.http2_connection.clone();
+        let mut http2_connection = self.http2_connection.clone();
         // verify if the server can accept a new HTTP2 stream
-        let mut http2_connection = http2_connection.ready().await?;
+        // TODO Error handling
+        http2_connection.ready().await.unwrap();
 
         // send the header and let the server know more data are coming
-        let (response, mut send) = http2_connection.send_request(r, false)?;
+        let response = http2_connection.send_request(r).await?;
         // send the body of the request and let the server know we have nothing else to send
-        send.send_data(body, true)?;
 
-        let (part, mut body) = response.await?.into_parts();
+        let (part, body) = response.into_parts();
 
         if part.status != status::StatusCode::OK {
             log::error!("received status code {}", part.status.to_string());
+            return Err(GrpcClientError::HttpStatusError(part.status));
         }
 
-        let mut response_buf = BytesMut::with_capacity(1024);
+        let body = body.collect().await?;
 
-        // TODO read the first 5 bytes so we know how much data to expect and we can allocate appropriately
-        while let Some(chunk) = body.data().await {
-            let chunk = chunk?;
-            response_buf.put_slice(&chunk);
-            let _ = body.flow_control().release_capacity(chunk.len());
-        }
-
-        let trailers = body.trailers().await?;
+        let trailers = body.trailers();
 
         if let Some(trailers) = trailers {
             match trailers.get("grpc-status") {
@@ -318,6 +290,6 @@ impl<'a> GrpcClient<'a> {
                 }
             }
         }
-        Ok((response_buf.into(), part.headers))
+        Ok((body.to_bytes(), part.headers))
     }
 }

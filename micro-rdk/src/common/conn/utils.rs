@@ -20,6 +20,38 @@ pub struct WebRtcNoOp {
     fp: Fingerprint,
 }
 
+impl rt::Read for WebRtcNoOp {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        _: &mut std::task::Context<'_>,
+        _: rt::ReadBufCursor<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
+        Poll::Pending
+    }
+}
+
+impl rt::Write for WebRtcNoOp {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        _: &mut std::task::Context<'_>,
+        _: &[u8],
+    ) -> Poll<Result<usize, std::io::Error>> {
+        Poll::Pending
+    }
+    fn poll_flush(
+        self: Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
+        Poll::Pending
+    }
+    fn poll_shutdown(
+        self: Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
+        Poll::Pending
+    }
+}
+
 impl AsyncRead for WebRtcNoOp {
     fn poll_read(
         self: Pin<&mut Self>,
