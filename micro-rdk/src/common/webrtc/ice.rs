@@ -177,8 +177,7 @@ impl ICEAgent {
             }
         };
 
-        let mut buf = BytesMut::with_capacity(256);
-        unsafe { buf.set_len(256) };
+        let mut buf = BytesMut::zeroed(256);
         let (buf_len, _addr) = loop {
             let _r = self
                 .transport

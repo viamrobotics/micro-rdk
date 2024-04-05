@@ -515,7 +515,7 @@ where
                     Timer::after(Duration::from_secs(30)).await;
                     Err(WebRtcError::OperationTiemout)
                 })
-                .await; //.timeout(Duration::from_secs(30)).await;
+                .await;
 
             if let Err(e) = req {
                 return Err(ServerError::Other(Box::new(e)));
