@@ -7,13 +7,18 @@ use crate::esp32::esp_idf_svc::sys::{
     esp_tls_conn_state_ESP_TLS_INIT as ESP_TLS_INIT, esp_tls_init, esp_tls_server_session_create,
     esp_tls_t, EspError, ESP_TLS_ERR_SSL_WANT_READ, ESP_TLS_ERR_SSL_WANT_WRITE,
 };
+use async_io::Async;
 use either::Either;
+use esp_idf_svc::sys::esp_tls_get_conn_sockfd;
+use futures_lite::{ready, AsyncRead, AsyncWrite};
+
 use std::{
     fmt::Debug,
     io::{Read, Write},
     mem::ManuallyDrop,
     net::TcpStream,
-    os::{raw::c_char, unix::prelude::AsRawFd},
+    os::{fd::FromRawFd, raw::c_char, unix::prelude::AsRawFd},
+    task::Poll,
 };
 
 use crate::common::conn::errors::ServerError;
@@ -21,20 +26,20 @@ use crate::common::conn::server::TlsClientConnector;
 
 use super::tcp::Esp32Stream;
 
-unsafe impl Sync for Esp32Tls {}
-unsafe impl Send for Esp32Tls {}
+unsafe impl Sync for Esp32TLS {}
+unsafe impl Send for Esp32TLS {}
 
 /// structure to store tls configuration
 #[derive(Clone)]
-pub struct Esp32Tls {
+pub struct Esp32TLS {
     #[allow(dead_code)]
     alpn_ptr: Vec<*const c_char>,
     tls_cfg: Either<Box<esp_tls_cfg_server>, Box<esp_tls_cfg>>,
 }
 
-impl TlsClientConnector for Esp32Tls {
+impl TlsClientConnector for Esp32TLS {
     type Stream = Esp32Stream;
-    fn connect(&mut self) -> Result<Self::Stream, ServerError> {
+    async fn connect(&mut self) -> Result<Self::Stream, ServerError> {
         Ok(Esp32Stream::TLSStream(Box::new(
             self.open_ssl_context(None)
                 .map_err(|e| ServerError::Other(e.into()))?,
@@ -43,23 +48,23 @@ impl TlsClientConnector for Esp32Tls {
 }
 
 /// TCP like stream for encrypted communication over TLS
-pub struct Esp32TlsStream {
+pub struct Esp32TLSStream {
     tls_context: ManuallyDrop<*mut esp_tls_t>,
-    socket: Option<TcpStream>, // may store the raw socket
+    socket: Async<TcpStream>, // may store the raw socket
 }
 
-pub struct Esp32TlsServerConfig {
+pub struct Esp32TLSServerConfig {
     srv_cert: [Vec<u8>; 2],
     srv_key: *const u8,
     srv_key_len: u32,
 }
 
-impl Esp32TlsServerConfig {
+impl Esp32TLSServerConfig {
     // An Esp32TlsServerConfig takes a certificate and key bytearray (in the form of a pointer and length)
     // The PEM certificate has two parts: the first is the certificate chain and the second is the
     // certificate authority.
     pub fn new(srv_cert: [Vec<u8>; 2], srv_key: *const u8, srv_key_len: u32) -> Self {
-        Esp32TlsServerConfig {
+        Esp32TLSServerConfig {
             srv_cert,
             srv_key,
             srv_key_len,
@@ -67,7 +72,7 @@ impl Esp32TlsServerConfig {
     }
 }
 
-impl Debug for Esp32TlsStream {
+impl Debug for Esp32TLSStream {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Esp32TlsStream")
             .field(
@@ -88,7 +93,7 @@ impl Debug for Esp32TlsStream {
 static ALPN_PROTOCOLS: &[u8] = b"h2\0";
 static APP_VIAM_HOSTNAME: &[u8] = b"app.viam.com\0";
 
-impl Esp32Tls {
+impl Esp32TLS {
     pub fn new_client() -> Self {
         let mut alpn_ptr: Vec<_> = vec![ALPN_PROTOCOLS.as_ptr() as *const i8, std::ptr::null()];
         // this is a root certificate to validate the server's certificate
@@ -136,7 +141,7 @@ impl Esp32Tls {
         }
     }
     /// Creates a TLS object ready to accept connection or connect to a server
-    pub fn new_server(cfg: &Esp32TlsServerConfig) -> Self {
+    pub fn new_server(cfg: &Esp32TLSServerConfig) -> Self {
         let mut alpn_ptr: Vec<_> = vec![ALPN_PROTOCOLS.as_ptr() as *const i8, std::ptr::null()];
         let tls_cfg_srv = Box::new(esp_tls_cfg_server {
             alpn_protos: alpn_ptr.as_mut_ptr(),
@@ -173,18 +178,18 @@ impl Esp32Tls {
     /// open the a TLS (SSL) context either in client or in server mode
     pub fn open_ssl_context(
         &mut self,
-        socket: Option<TcpStream>,
-    ) -> Result<Esp32TlsStream, std::io::Error> {
-        Esp32TlsStream::new(socket, &mut self.tls_cfg)
+        socket: Option<Async<TcpStream>>,
+    ) -> Result<Esp32TLSStream, std::io::Error> {
+        Esp32TLSStream::new(socket, &mut self.tls_cfg)
     }
 }
 
 /// Esp32TlsStream represents a properly established TLS connection to a server or a client. It can be use bye Esp32TCPStream since it
 /// implements std::io::{Read,Write}
-impl Esp32TlsStream {
+impl Esp32TLSStream {
     /// based on a role and a configuration, attempt the setup an SSL context
     fn new(
-        socket: Option<TcpStream>,
+        socket: Option<Async<TcpStream>>,
         tls_cfg: &mut Either<Box<esp_tls_cfg_server>, Box<esp_tls_cfg>>,
     ) -> Result<Self, std::io::Error> {
         let p = unsafe { esp_tls_init() };
@@ -209,7 +214,7 @@ impl Esp32TlsStream {
                     } else {
                         Ok(Self {
                             tls_context,
-                            socket,
+                            socket: socket.unwrap(),
                         })
                     }
                 }
@@ -229,7 +234,12 @@ impl Esp32TlsStream {
                         "app.viam.com",
                     )),
                     1 => {
-                        log::debug!("Connected to app.viam.com");
+                        let socket: Async<TcpStream> = unsafe {
+                            let mut fd: i32 = 0;
+                            esp_idf_svc::sys::esp!(esp_tls_get_conn_sockfd(*tls_context, &mut fd))
+                                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+                            TcpStream::from_raw_fd(fd).try_into().unwrap()
+                        };
                         Ok(Self {
                             tls_context,
                             socket,
@@ -244,19 +254,7 @@ impl Esp32TlsStream {
             }
         }
     }
-}
-
-impl Drop for Esp32TlsStream {
-    fn drop(&mut self) {
-        log::error!("dropping the tls stream");
-        if let Some(err) = EspError::from(unsafe { esp_tls_conn_destroy(*self.tls_context) }) {
-            log::error!("error while dropping the tls connection '{}'", err);
-        }
-    }
-}
-
-impl Read for Esp32TlsStream {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+    fn inner_read(&self, buf: &mut [u8]) -> std::io::Result<usize> {
         let read_fn = match unsafe { self.tls_context.read_unaligned().read } {
             Some(f) => f,
             None => {
@@ -283,10 +281,7 @@ impl Read for Esp32TlsStream {
             },
         }
     }
-}
-
-impl Write for Esp32TlsStream {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+    fn inner_write(&self, buf: &[u8]) -> std::io::Result<usize> {
         let write_fn = match unsafe { self.tls_context.read_unaligned().write } {
             Some(f) => f,
             None => {
@@ -312,11 +307,75 @@ impl Write for Esp32TlsStream {
             n => Ok(n as usize),
         }
     }
+}
+
+impl Drop for Esp32TLSStream {
+    fn drop(&mut self) {
+        log::error!("dropping the tls stream");
+        if let Some(err) = EspError::from(unsafe { esp_tls_conn_destroy(*self.tls_context) }) {
+            log::error!("error while dropping the tls connection '{}'", err);
+        }
+    }
+}
+
+impl AsyncWrite for Esp32TLSStream {
+    fn poll_write(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &[u8],
+    ) -> std::task::Poll<std::io::Result<usize>> {
+        loop {
+            match self.inner_write(buf) {
+                Ok(s) => return Poll::Ready(Ok(s)),
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
+                Err(e) => return Poll::Ready(Err(e)),
+            }
+            let _ = ready!(self.socket.poll_writable(cx));
+        }
+    }
+    fn poll_close(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        std::pin::Pin::new(&mut self.socket).poll_close(cx)
+    }
+    fn poll_flush(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        std::pin::Pin::new(&mut self.socket).poll_flush(cx)
+    }
+}
+
+impl AsyncRead for Esp32TLSStream {
+    fn poll_read(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &mut [u8],
+    ) -> std::task::Poll<std::io::Result<usize>> {
+        loop {
+            match self.inner_read(buf) {
+                Ok(s) => return Poll::Ready(Ok(s)),
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
+                Err(e) => return Poll::Ready(Err(e)),
+            }
+            let _ = ready!(self.socket.poll_readable(cx));
+        }
+    }
+}
+
+impl Read for Esp32TLSStream {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.inner_read(buf)
+    }
+}
+
+impl Write for Esp32TLSStream {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.inner_write(buf)
+    }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        match &mut self.socket {
-            Some(s) => s.flush(),
-            None => Ok(()),
-        }
+        self.socket.as_ref().flush()
     }
 }

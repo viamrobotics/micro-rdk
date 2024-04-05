@@ -1,11 +1,13 @@
 use std::{convert::Infallible, io, pin::Pin, task::Poll};
 
 use futures_lite::Future;
+use hyper::rt;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::common::webrtc::{
     certificate::{Certificate, Fingerprint},
     dtls::{DtlsBuilder, DtlsConnector, DtlsError},
+    udp_mux::UdpMux,
 };
 
 use super::{
@@ -108,9 +110,41 @@ impl AsyncWrite for NoHttp2 {
     }
 }
 
+impl rt::Read for NoHttp2 {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        _: &mut std::task::Context<'_>,
+        _: rt::ReadBufCursor<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
+        Poll::Pending
+    }
+}
+
+impl rt::Write for NoHttp2 {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        _: &mut std::task::Context<'_>,
+        _: &[u8],
+    ) -> Poll<Result<usize, std::io::Error>> {
+        Poll::Pending
+    }
+    fn poll_flush(
+        self: Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
+        Poll::Pending
+    }
+    fn poll_shutdown(
+        self: Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
+        Poll::Pending
+    }
+}
+
 impl TlsClientConnector for WebRtcNoOp {
     type Stream = WebRtcNoOp;
-    fn connect(&mut self) -> Result<Self::Stream, ServerError> {
+    async fn connect(&mut self) -> Result<Self::Stream, ServerError> {
         Err(ServerError::ServerConnectionNotConfigured)
     }
 }
@@ -129,7 +163,7 @@ impl DtlsConnector for WebRtcNoOp {
     fn accept(self) -> Result<Self::Future, Self::Error> {
         Ok(Box::pin(futures_lite::future::pending()))
     }
-    fn set_transport(&mut self, _: crate::common::webrtc::io::IoPktChannel) {}
+    fn set_transport(&mut self, _: UdpMux) {}
 }
 
 impl Certificate for WebRtcNoOp {
@@ -146,7 +180,7 @@ impl Certificate for WebRtcNoOp {
 
 impl Http2Connector for NoHttp2 {
     type Stream = NoHttp2;
-    fn accept(&mut self) -> std::io::Result<Self::Stream> {
+    async fn accept(&mut self) -> std::io::Result<Self::Stream> {
         Err(io::Error::from(io::ErrorKind::NotConnected))
     }
 }

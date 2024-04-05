@@ -12,7 +12,7 @@ use std::{
 use crate::common::webrtc::{
     certificate::Certificate,
     dtls::{DtlsBuilder, DtlsConnector, DtlsError},
-    io::IoPktChannel,
+    udp_mux::UdpMux,
 };
 
 use crate::esp32::esp_idf_svc::sys::{
@@ -345,7 +345,7 @@ impl SSLContext {
 
 pub struct Esp32Dtls<C> {
     context: Box<SSLContext>,
-    transport: Option<IoPktChannel>,
+    transport: Option<UdpMux>,
     certificate: Rc<C>,
 }
 
@@ -694,11 +694,10 @@ where
 {
     type Error = SSLError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Stream, Self::Error>>>>;
-    type Stream = AsyncDtlsStream<IoPktChannel>;
+    type Stream = AsyncDtlsStream<UdpMux>;
     fn accept(mut self) -> Result<Self::Future, Self::Error> {
         let transport = self.transport.take().unwrap();
 
-        //TODO(npm) consider returning and error
         self.init()?;
 
         let mut stream = AsyncDtlsStream::new(self.get_context(), transport).unwrap();
@@ -708,7 +707,7 @@ where
             Ok(stream)
         }))
     }
-    fn set_transport(&mut self, transport: IoPktChannel) {
+    fn set_transport(&mut self, transport: UdpMux) {
         let _ = self.transport.insert(transport);
     }
 }

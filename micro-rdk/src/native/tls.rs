@@ -1,13 +1,10 @@
-use std::{
-    io::{BufReader, Read, Write},
-    net::TcpStream,
-    sync::Arc,
-};
+use std::{io::BufReader, net::TcpStream, sync::Arc};
 
-use rustls::{
-    ClientConfig, ClientConnection, KeyLogFile, OwnedTrustAnchor, RootCertStore, ServerConfig,
-    ServerConnection, StreamOwned,
-};
+use async_io::Async;
+use futures_lite::AsyncRead;
+use futures_lite::AsyncWrite;
+use futures_rustls::{TlsAcceptor, TlsConnector};
+use rustls::{ClientConfig, KeyLogFile, OwnedTrustAnchor, RootCertStore, ServerConfig};
 
 /// structure to store tls configuration
 #[derive(Clone)]
@@ -15,16 +12,8 @@ pub struct NativeTls {
     server_config: Option<NativeTlsServerConfig>,
 }
 
-enum NativeTlsStreamRole {
-    Server(StreamOwned<ServerConnection, TcpStream>),
-    Client(StreamOwned<ClientConnection, TcpStream>),
-}
-
 /// TCP like stream for encrypted communication over TLS
-pub struct NativeTlsStream {
-    socket: Option<TcpStream>, // may store the raw socket
-    stream: Box<NativeTlsStreamRole>,
-}
+pub struct NativeTlsStream(futures_rustls::TlsStream<Async<TcpStream>>);
 
 #[derive(Clone, Debug, Default)]
 pub struct NativeTlsServerConfig {
@@ -52,19 +41,20 @@ impl NativeTls {
     }
 
     /// open the a TLS (SSL) context either in client or in server mode
-    pub fn open_ssl_context(
+    pub async fn open_ssl_context(
         &self,
         socket: Option<TcpStream>,
     ) -> Result<NativeTlsStream, std::io::Error> {
-        NativeTlsStream::new(socket, &self.server_config)
+        NativeTlsStream::accept_or_connect(socket, &self.server_config).await
     }
 }
 
 impl TlsClientConnector for NativeTls {
     type Stream = NativeStream;
-    fn connect(&mut self) -> Result<Self::Stream, ServerError> {
+    async fn connect(&mut self) -> Result<Self::Stream, ServerError> {
         Ok(NativeStream::TLSStream(Box::new(
             self.open_ssl_context(None)
+                .await
                 .map_err(|e| ServerError::Other(e.into()))?,
         )))
     }
@@ -87,15 +77,13 @@ impl KeyLog for Key {
     }
 }
 
-/// Esp32TlsStream represents a properly established TLS connection to a server or a client. It can be use bye Esp32TCPStream since it
-/// implements std::io::{Read,Write}
 impl NativeTlsStream {
     /// based on a role and a configuration, attempt the setup an SSL context
-    fn new(
+    async fn accept_or_connect(
         socket: Option<TcpStream>,
         tls_cfg: &Option<NativeTlsServerConfig>,
     ) -> Result<Self, std::io::Error> {
-        let (stream, socket) = if let Some(tls_cfg) = tls_cfg {
+        let stream = if let Some(tls_cfg) = tls_cfg {
             let cert_chain =
                 rustls_pemfile::certs(&mut BufReader::new(tls_cfg.srv_cert.as_slice()))
                     .unwrap()
@@ -112,14 +100,11 @@ impl NativeTlsStream {
                 .with_single_cert(cert_chain, rustls::PrivateKey(tls_cfg.srv_key.clone()))
                 .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
             cfg.alpn_protocols = vec!["h2".as_bytes().to_vec()];
-            let mut conn = ServerConnection::new(Arc::new(cfg))
-                .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
-            let mut socket = socket.unwrap();
-            socket.set_nonblocking(false)?;
-            let _r = conn.complete_io::<TcpStream>(&mut socket).unwrap();
-            socket.set_nonblocking(true)?;
-            let stream = StreamOwned::new(conn, socket);
-            (NativeTlsStreamRole::Server(stream), None)
+            let stream = async_io::Async::new(socket.unwrap())?;
+            let conn = TlsAcceptor::from(Arc::new(cfg));
+            let stream = conn.accept(stream).await?;
+
+            futures_rustls::TlsStream::Server(stream)
         } else {
             let mut root_certs = RootCertStore::empty();
             root_certs.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(
@@ -138,48 +123,61 @@ impl NativeTlsStream {
                 .with_no_client_auth();
             cfg.alpn_protocols = vec!["h2".as_bytes().to_vec()];
             cfg.key_log = log;
-            let mut conn = ClientConnection::new(
-                Arc::new(cfg),
-                "app.viam.com"
-                    .try_into()
-                    .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?,
-            )
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
-            let mut socket = TcpStream::connect("app.viam.com:443")?;
-            conn.complete_io::<TcpStream>(&mut socket)?;
-            socket.set_nonblocking(true)?;
-            let stream = StreamOwned::new(conn, socket);
-            (NativeTlsStreamRole::Client(stream), None)
+            let stream = async_io::Async::new(TcpStream::connect("app.viam.com:443")?)?;
+            let conn = TlsConnector::from(Arc::new(cfg));
+            let stream = conn
+                .connect(
+                    "app.viam.com"
+                        .try_into()
+                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?,
+                    stream,
+                )
+                .await
+                .unwrap();
+
+            futures_rustls::TlsStream::Client(stream)
         };
-        Ok(Self {
-            socket,
-            stream: Box::new(stream),
-        })
+        Ok(NativeTlsStream(stream))
     }
 }
 
-impl Read for NativeTlsStream {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        match &mut *self.stream {
-            NativeTlsStreamRole::Server(r) => r.read(buf),
-            NativeTlsStreamRole::Client(r) => r.read(buf),
-        }
+impl AsyncRead for NativeTlsStream {
+    fn poll_read(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &mut [u8],
+    ) -> std::task::Poll<std::io::Result<usize>> {
+        let s = &mut std::pin::Pin::into_inner(self).0;
+        futures_lite::pin!(s);
+        s.poll_read(cx, buf)
     }
 }
 
-impl Write for NativeTlsStream {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        match &mut *self.stream {
-            NativeTlsStreamRole::Server(r) => r.write(buf),
-            NativeTlsStreamRole::Client(r) => r.write(buf),
-        }
+impl AsyncWrite for NativeTlsStream {
+    fn poll_write(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &[u8],
+    ) -> std::task::Poll<std::io::Result<usize>> {
+        let s = &mut std::pin::Pin::into_inner(self).0;
+        futures_lite::pin!(s);
+        s.poll_write(cx, buf)
     }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        match &mut self.socket {
-            Some(s) => s.flush(),
-            None => Ok(()),
-        }
+    fn poll_flush(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        let s = &mut std::pin::Pin::into_inner(self).0;
+        futures_lite::pin!(s);
+        s.poll_flush(cx)
+    }
+    fn poll_close(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        let s = &mut std::pin::Pin::into_inner(self).0;
+        futures_lite::pin!(s);
+        s.poll_close(cx)
     }
 }
 

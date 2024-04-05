@@ -2,7 +2,7 @@
 use std::{
     fmt::Debug,
     io::{self, Cursor},
-    net::Ipv4Addr,
+    net::{Ipv4Addr, UdpSocket},
     pin::Pin,
     rc::Rc,
     sync::{atomic::AtomicBool, Arc},
@@ -23,9 +23,10 @@ use crate::{
     },
 };
 
+use async_io::Timer;
+use atomic_waker::AtomicWaker;
 use base64::{engine::general_purpose, Engine};
-use futures::task::AtomicWaker;
-use futures_lite::{Future, StreamExt};
+use futures_lite::{Future, FutureExt, StreamExt};
 use prost::{DecodeError, EncodeError};
 use sdp::{
     description::{
@@ -35,8 +36,6 @@ use sdp::{
     MediaDescription, SessionDescription,
 };
 use serde::{Deserialize, Serialize};
-use smol::net::UdpSocket;
-use smol_timeout::TimeoutExt;
 use thiserror::Error;
 
 use super::{
@@ -45,7 +44,7 @@ use super::{
     dtls::DtlsConnector,
     exec::WebRtcExecutor,
     ice::{ICEAgent, ICECredentials},
-    io::{IoPktError, WebRtcTransport},
+    io::WebRtcTransport,
     sctp::{Channel, SctpConnector, SctpHandle},
 };
 
@@ -70,13 +69,13 @@ pub enum WebRtcError {
     #[error("webrtc grpc message encode error")]
     GprcEncodeError(#[from] EncodeError),
     #[error(transparent)]
-    IoPktError(#[from] IoPktError),
-    #[error(transparent)]
     DtlsError(#[from] Box<dyn std::error::Error + Send + Sync>),
     #[error("the active webrtc connection has a higher priority")]
     CurrentConnectionHigherPrority(),
     #[error("cannot parse candidate")]
     CannotParseCandidate,
+    #[error("Operation timeout")]
+    OperationTiemout,
 }
 
 pub(crate) struct WebRtcSignalingChannel {
@@ -319,6 +318,7 @@ pub struct WebRtcApi<S, D, E> {
     local_ip: Ipv4Addr,
     dtls: Option<D>,
     sctp_handle: Option<SctpHandle>,
+    ice_agent: AtomicSync,
 }
 
 impl<C, D, E> Drop for WebRtcApi<C, D, E> {
@@ -326,6 +326,7 @@ impl<C, D, E> Drop for WebRtcApi<C, D, E> {
         if let Some(s) = self.sctp_handle.as_mut() {
             let _ = s.close();
         }
+        self.ice_agent.done();
     }
 }
 
@@ -343,14 +344,9 @@ where
         local_ip: Ipv4Addr,
         dtls: D,
     ) -> Self {
-        let udp = std::net::UdpSocket::bind("0.0.0.0:0").unwrap();
-        let udp: UdpSocket = udp.try_into().unwrap();
-        let transport = WebRtcTransport::new(udp);
-        let tx = transport.clone();
-        let rx = transport.clone();
-        executor.execute(Box::pin(async move { tx.read_loop().await }));
+        let udp = Arc::new(async_io::Async::<UdpSocket>::bind(([0, 0, 0, 0], 0)).unwrap());
 
-        executor.execute(Box::pin(async move { rx.write_loop().await }));
+        let transport = WebRtcTransport::new(udp);
 
         Self {
             executor,
@@ -367,13 +363,14 @@ where
             local_ip,
             dtls: Some(dtls),
             sctp_handle: None,
+            ice_agent: AtomicSync::default(),
         }
     }
 
     pub async fn run_ice_until_connected(&mut self, answer: &WebRtcSdp) -> Result<(), WebRtcError> {
-        let (tx, rx) = smol::channel::bounded(1);
+        let (tx, rx) = async_channel::bounded(1);
 
-        //(TODO(RSDK-3060)) implement ICEError
+        // TODO(NPM) consider returning an error? We should not take the channel more than once....
         let ice_transport = self.transport.get_stun_channel().unwrap();
         let mut ice_agent = ICEAgent::new(
             rx,
@@ -409,34 +406,37 @@ where
             .send_done(self.uuid.as_ref().unwrap().clone())?;
         let sync = AtomicSync::default();
         let sync_clone = sync.clone();
+        let die_clone = self.ice_agent.clone();
         self.executor.execute(Box::pin(async move {
-            ice_agent.run(sync).await;
+            ice_agent.run(sync, die_clone).await;
         }));
 
         while !sync_clone.get() {
-            if let Some(candidate) = self
+            let candidate = self
                 .signaling
                 .as_mut()
                 .ok_or(WebRtcError::SignalingDisconnected())?
                 .next_remote_candidate()
-                .timeout(Duration::from_millis(50))
-                .await
-            {
-                match candidate {
-                    Ok(candidate) => {
-                        if let Some(c) = candidate {
-                            tx.send(c).await.unwrap();
-                        } else {
-                            break;
-                        }
+                .or(async {
+                    Timer::after(Duration::from_millis(50)).await;
+                    Err(WebRtcError::CannotParseCandidate)
+                })
+                .await;
+            match candidate {
+                Ok(candidate) => {
+                    if let Some(c) = candidate {
+                        tx.send(c).await.unwrap();
+                    } else {
+                        break;
                     }
-                    Err(WebRtcError::CannotParseCandidate) => continue,
-                    Err(e) => {
-                        return Err(e);
-                    }
+                }
+                Err(WebRtcError::CannotParseCandidate) => continue,
+                Err(e) => {
+                    return Err(e);
                 }
             }
         }
+
         sync_clone.await;
         let _ = self.signaling.take();
         Ok(())
@@ -445,10 +445,8 @@ where
     pub async fn open_data_channel(&mut self) -> Result<Channel, WebRtcError> {
         let mut dtls = self.dtls.take().unwrap();
 
-        let dtls_transport = self
-            .transport
-            .get_dtls_channel()
-            .map_err(WebRtcError::IoPktError)?;
+        // TODO(NPM) consider returning an error? We should not take the channel more than once....
+        let dtls_transport = self.transport.get_dtls_channel().unwrap();
 
         dtls.set_transport(dtls_transport);
 
@@ -493,7 +491,7 @@ where
         let attribute = offer
             .sdp
             .media_descriptions
-            .get(0)
+            .first()
             .ok_or_else(|| WebRtcError::InvalidSDPOffer("no media description".to_owned()))?;
 
         let caller_prio = attribute

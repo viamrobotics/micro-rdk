@@ -18,17 +18,12 @@ use openssl::ssl::{
 
 use crate::common::webrtc::certificate::Certificate;
 use crate::common::webrtc::dtls::{DtlsBuilder, DtlsConnector, DtlsError};
-use crate::common::webrtc::io::IoPktChannel;
+use crate::common::webrtc::udp_mux::UdpMux;
 
 fn dtls_log_session_key(_: &SslRef, line: &str) {
     log::info!("Loggin key data");
     if let Ok(file) = std::env::var("SSLKEYLOGFILE") {
-        if let Ok(mut file) = OpenOptions::new()
-            .write(true)
-            .append(true)
-            .truncate(false)
-            .open(file)
-        {
+        if let Ok(mut file) = OpenOptions::new().append(true).truncate(false).open(file) {
             let _ = file.write(line.as_bytes()).unwrap();
             let _ = file.write(b"\n").unwrap();
         }
@@ -47,12 +42,12 @@ impl<C: Certificate> NativeDtls<C> {
 
 pub struct Dtls {
     pub context: SslContext,
-    transport: Option<IoPktChannel>,
+    transport: Option<UdpMux>,
 }
 
 impl Drop for Dtls {
     fn drop(&mut self) {
-        log::info!("dropped dtls");
+        log::error!("dropped dtls");
     }
 }
 
@@ -110,26 +105,27 @@ impl Dtls {
 
 impl DtlsConnector for Dtls {
     type Error = openssl::ssl::Error;
-    type Stream = SslStream<IoPktChannel>;
+    type Stream = SslStream<UdpMux>;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Stream, Self::Error>>>>;
-    fn accept(self) -> Result<Self::Future, Self::Error> {
+    fn accept(mut self) -> Result<Self::Future, Self::Error> {
         let mut ssl = Ssl::new(&self.context).unwrap();
         ssl.set_accept_state();
         let eckey = EcKey::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         ssl.set_tmp_ecdh(&eckey).unwrap();
         log::error!("accepting");
 
-        let transport = self.transport.as_ref().unwrap().clone();
+        let transport = self.transport.take().unwrap();
 
         let mut stream = async_std_openssl::SslStream::new(ssl, transport).unwrap();
 
         Ok(Box::pin(async move {
-            let pin = Pin::new(&mut stream);
+            let pin = unsafe { std::pin::Pin::new_unchecked(&mut stream) };
             pin.accept().await?;
+
             Ok(stream)
         }))
     }
-    fn set_transport(&mut self, transport: IoPktChannel) {
+    fn set_transport(&mut self, transport: UdpMux) {
         let _ = self.transport.insert(transport);
     }
 }

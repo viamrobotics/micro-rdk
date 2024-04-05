@@ -251,8 +251,13 @@ where
                         i.saturating_duration_since(Instant::now())
                     }))
             })
-            .map(|(k, v)| (*k, v.1.map_or_else(smol::Timer::never, smol::Timer::at)))
-            .unwrap_or((0, smol::Timer::never()));
+            .map(|(k, v)| {
+                (
+                    *k,
+                    v.1.map_or_else(async_io::Timer::never, async_io::Timer::at),
+                )
+            })
+            .unwrap_or((0, async_io::Timer::never()));
 
         let id = futures_lite::future::or(async { self.next_rpc_call().await }, async {
             next_stream.1.await;

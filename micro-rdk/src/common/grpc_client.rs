@@ -9,7 +9,7 @@ use h2::{client::SendRequest, Reason, RecvStream, SendStream};
 use hyper::header::HeaderMap;
 use hyper::{http::status, Method, Request};
 
-use smol::Task;
+use async_executor::Task;
 use std::{marker::PhantomData, task::Poll};
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};

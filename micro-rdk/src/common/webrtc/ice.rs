@@ -1,20 +1,21 @@
 #![allow(dead_code)]
 use std::{
+    io,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs},
     pin::Pin,
     time::{Duration, Instant},
 };
 
+use async_io::Timer;
 use bytecodec::{DecodeExt, EncodeExt};
 use bytes::{Bytes, BytesMut};
 use thiserror::Error;
 
-use futures_lite::Future;
+use futures_lite::{Future, FutureExt};
 use rand::{
     distributions::{Alphanumeric, DistString},
     thread_rng,
 };
-use smol_timeout::TimeoutExt;
 
 use stun_codec::{
     rfc5245,
@@ -27,7 +28,7 @@ use crate::{common::webrtc::candidates::CandidatePairState, IceAttribute};
 use super::{
     api::AtomicSync,
     candidates::{Candidate, CandidateError, CandidatePair, CandidateType},
-    io::IoPktChannel,
+    udp_mux::UdpMux,
 };
 
 #[derive(Clone, Debug)]
@@ -79,6 +80,8 @@ pub enum IceError {
     IceStunEncodingError,
     #[error("can't decode stun packet")]
     IceStunDecodingError,
+    #[error("ice operation timeout")]
+    IceTimeout,
     #[error(transparent)]
     IceCandidateError(#[from] CandidateError),
 }
@@ -101,8 +104,8 @@ enum IceEvent {
 pub struct ICEAgent {
     pub(crate) local_candidates: Vec<Candidate>,
     remote_candidates: Vec<Candidate>,
-    remote_candidates_chan: smol::channel::Receiver<Candidate>,
-    transport: IoPktChannel,
+    remote_candidates_chan: async_channel::Receiver<Candidate>,
+    transport: UdpMux,
     candidate_pairs: Vec<CandidatePair>,
     local_credentials: ICECredentials,
     remote_credentials: ICECredentials,
@@ -124,8 +127,8 @@ enum ICEAgentState {
 
 impl ICEAgent {
     pub(crate) fn new(
-        remote_candidates_chan: smol::channel::Receiver<Candidate>,
-        transport: IoPktChannel,
+        remote_candidates_chan: async_channel::Receiver<Candidate>,
+        transport: UdpMux,
         local_credentials: ICECredentials,
         remote_credentials: ICECredentials,
         local_ip: Ipv4Addr,
@@ -174,27 +177,30 @@ impl ICEAgent {
             }
         };
 
-        let mut buf = BytesMut::with_capacity(256);
+        let mut buf = BytesMut::zeroed(256);
         let (buf_len, _addr) = loop {
             let _r = self
                 .transport
-                .send_to(bytes.clone(), stun_ip)
+                .send_to(&bytes, stun_ip.into())
                 .await
                 .unwrap();
 
-            if let Some(s) = self
+            match self
                 .transport
                 .recv_from(&mut buf)
-                .timeout(Duration::from_secs(1))
+                .or(async {
+                    Timer::after(Duration::from_secs(1)).await;
+                    Err(io::Error::new(io::ErrorKind::TimedOut, ""))
+                })
                 .await
             {
-                // TODO(npm) add a retry mechanism if we don't receive the stun response
-                // the error cause would be underlying io Error
-                break s.map_err(|_| IceError::IceIoError)?;
-            }
+                Ok(rsp) => break rsp,
+                Err(e) if e.kind() == io::ErrorKind::TimedOut => continue,
+                Err(_) => return Err(IceError::IceIoError),
+            };
         };
         let mut decoder = stun_codec::MessageDecoder::<stun_codec::rfc5389::Attribute>::new();
-        // TODO(npm) handle garbage stun response
+
         let decoded = decoder
             .decode_from_bytes(&buf[..buf_len])
             .map_err(|_| IceError::IceStunDecodingError)?
@@ -214,8 +220,6 @@ impl ICEAgent {
         // the host ip was set when creating the ICEagent
         let our_ip = SocketAddrV4::new(self.local_ip, rflx_addr.port());
 
-        log::debug!("Host candidate is a local ip of {:?}", our_ip);
-
         let local_cand = Candidate::new_host_candidate(our_ip);
 
         self.local_candidates.push(local_cand);
@@ -227,10 +231,12 @@ impl ICEAgent {
     }
 
     /// run the ice agent, processing incoming STUN packet and emitting STUN request
-    pub(crate) async fn run(&mut self, done: AtomicSync) {
+    // TODO remove dependency on &mut self so ICEAgent can be closed without relying on the AtomicSync
+    pub(crate) async fn run(&mut self, done: AtomicSync, stop: AtomicSync) {
         log::debug!("Running ICE Agent");
 
         let error = loop {
+            let stop = stop.clone();
             for pair in &mut self.candidate_pairs {
                 pair.update_pair_status();
                 // TODO(npm) check for nomination flag before we are actually connected
@@ -250,13 +256,14 @@ impl ICEAgent {
             let req = self.next_stun_request();
             if let Some(req) = req {
                 if let Ok(msg) = self.make_stun_request(req.0) {
-                    if self.transport.send_to(msg.into(), req.1).await.is_err() {
+                    if self.transport.send_to(&msg, req.1.into()).await.is_err() {
                         break IceError::IceTransportClosed;
                     }
                 }
             }
 
-            let mut buf = BytesMut::with_capacity(256);
+            let mut buf = BytesMut::zeroed(256);
+
             let f1: Pin<Box<dyn Future<Output = Result<IceEvent, IceError>> + Send>> =
                 if !self.remote_candidates_chan.is_closed() {
                     Box::pin(async {
@@ -267,19 +274,36 @@ impl ICEAgent {
                             .map_err(|_| IceError::IceCandidateChannelClosed)
                     })
                 } else {
-                    Box::pin(futures_lite::future::pending())
+                    Box::pin(async {
+                        stop.await;
+                        Err(IceError::IceTransportClosed)
+                    })
                 };
             let f2 = Box::pin(async {
                 self.transport
                     .recv_from(&mut buf)
                     .await
-                    .map(IceEvent::StunPacketReceived)
+                    .map(|(len, addr)| {
+                        //TODO deal with IpV6
+                        let addr = match addr {
+                            SocketAddr::V4(addr) => addr,
+                            _ => panic!(),
+                        };
+                        IceEvent::StunPacketReceived((len, addr))
+                    })
                     .map_err(|_| IceError::IceTransportClosed)
             });
 
-            let event = match futures_lite::future::or(f1, f2).await {
+            let event = match futures_lite::future::or(f1, f2)
+                .or(async {
+                    // TODO we should take the min time for next candidate pair check
+                    Timer::after(Duration::from_millis(500)).await;
+                    Err(IceError::IceTimeout)
+                })
+                .await
+            {
                 Ok(r) => r,
-                Err(e) if e == IceError::IceCandidateChannelClosed => {
+                Err(IceError::IceCandidateChannelClosed) | Err(IceError::IceTimeout) => {
                     continue;
                 }
                 Err(e) => {
@@ -298,9 +322,9 @@ impl ICEAgent {
                         )
                     }
                 }
-                IceEvent::StunPacketReceived((_len, addr)) => {
+                IceEvent::StunPacketReceived((len, addr)) => {
                     let mut decoder = stun_codec::MessageDecoder::<IceAttribute>::new();
-                    let decoded = match decoder.decode_from_bytes(&buf).unwrap() {
+                    let decoded = match decoder.decode_from_bytes(&buf[..len]).unwrap() {
                         Ok(e) => e,
                         Err(e) => {
                             log::error!("dropping stun msg {:?}", e);
@@ -314,7 +338,7 @@ impl ICEAgent {
                         MessageClass::Request => {
                             log::debug!("processing a stun request");
                             if let Ok(msg) = self.process_stun_request(&decoded, &addr) {
-                                if self.transport.send_to(msg.into(), addr).await.is_err() {
+                                if self.transport.send_to(&msg, addr.into()).await.is_err() {
                                     break IceError::IceTransportClosed;
                                 }
                             }
@@ -349,9 +373,10 @@ impl ICEAgent {
     /// the generated TransactionId
     /// 3) Otherwise it moves to the next candidate pair
     fn next_stun_request(&mut self) -> Option<(TransactionId, SocketAddrV4)> {
+        let instant = Instant::now();
         for pair in &mut self.candidate_pairs {
             log::debug!("processing pair {:?}", pair);
-            let id = pair.create_new_binding_request(Instant::now());
+            let id = pair.create_new_binding_request(instant);
             if let Some(id) = id {
                 log::debug!(
                     "will attempt to make a stun request from {:?} to {:?}",
@@ -618,8 +643,10 @@ impl ICEAgent {
 
 #[cfg(test)]
 mod tests {
+    use async_io::Async;
     use futures_lite::future::block_on;
-    use smol::net::UdpSocket;
+    use std::net::UdpSocket;
+    use std::sync::Arc;
 
     use crate::common::webrtc::ice::{ICEAgent, ICECredentials};
 
@@ -641,16 +668,13 @@ mod tests {
 
         let executor = NativeExecutor::default();
 
-        let udp = block_on(executor.run(async { UdpSocket::bind("0.0.0.0:0").await.unwrap() }));
+        let udp = block_on(
+            executor.run(async { Async::new(UdpSocket::bind("0.0.0.0:0").unwrap()).unwrap() }),
+        );
 
-        let transport = WebRtcTransport::new(udp);
-        let tx = transport.clone();
-        let rx = transport.clone();
-        executor.spawn(async move { tx.read_loop().await }).detach();
-        executor
-            .spawn(async move { rx.write_loop().await })
-            .detach();
-        let (tx, rx) = smol::channel::unbounded();
+        let transport = WebRtcTransport::new(Arc::new(udp));
+
+        let (tx, rx) = async_channel::unbounded();
         let ice_transport = transport.get_stun_channel().unwrap();
 
         let our_ip = match local_ip_address::local_ip().unwrap() {

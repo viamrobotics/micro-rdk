@@ -21,14 +21,8 @@ edition = "2021"
 license = "AGPL-3.0"
 repository = "https://github.com/viamrobotics/micro-rdk"
 version = "0.1.7"
-rust-version = "1.71"
+rust-version = "1.75"
 
-[patch.crates-io]
-async-io = {git = "https://github.com/viamrobotics/async-io.git"}
-esp-idf-sys = {git = "https://github.com/viamrobotics/esp-idf-sys.git"}
-smol = { git = "https://github.com/esp-rs-compat/smol" }
-socket2 = { git = "https://github.com/viamrobotics/socket2.git" }
-polling = { git = "https://github.com/esp-rs-compat/polling" }
 
 [profile.release]
 opt-level = "s"
@@ -39,9 +33,11 @@ opt-level = "z"
 
 [workspace.dependencies]
 anyhow = "1.0.71"
-async-channel = "1.8.0"
-async-io = "=1.12.0"
+async-channel = "2"
+async-executor = "1"
+async-io = "2"
 async-std-openssl = "0.6.3"
+atomic-waker = "1.1.2"
 base64 = "0.21.0"
 bitfield = "0.14.0"
 bytecodec = "0.4.15"
@@ -54,16 +50,19 @@ der = { version = "0.7.7", features = ["pem", "alloc", "zeroize"] }
 dialoguer = "0.10.4"
 either = "1.8.0"
 embedded-hal = { version = "0.2.7", features = ["unproven"] }
-embedded-svc = "0.26.4"
+embedded-svc = "0.27"
 embuild = "0.31.3"
 env_logger = "0.10.1"
-esp-idf-svc = { version = "= 0.47.3", default-features = false }
+esp-idf-svc = { version = "=0.48.1", default-features = false }
 espflash = { git = "https://github.com/viamrobotics/espflash.git", branch = "monitor_changes" }
 futures = "0.3.28"
-futures-lite = "1.12.0"
+futures-lite = "1"
+futures-rustls = "=0.22.0"
+futures-util = "0.3.30"
 gethostname = "0.4.3"
-h2 = "0.3.22"
-hyper = { version = "0.14.20", default-features = false, features = ["server", "stream", "http2"] }
+h2 = "0.4.3"
+http-body-util = "0.1.1"
+hyper = { version = "1.2", default-features = false, features = ["server", "http2"] }
 ignore = "=0.4.20"
 lazy_static = "1.4.0"
 local-ip-address = "0.5.3"
@@ -95,8 +94,6 @@ secrecy = { version = "0.8.0", features = ["serde"] }
 serde = { version = "1.0.156", features = ["derive"] }
 serde_json = "1.0.97"
 sha2 = "0.10.6"
-smol = "1.2"
-smol-timeout = "0.6.0"
 socket2 = "0.4.9"
 stun_codec = { version = "0.3.0" , git = "https://github.com/viamrobotics/stun_codec"}
 syn = "1.0.109"

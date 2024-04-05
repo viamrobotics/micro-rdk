@@ -37,7 +37,7 @@ pub async fn serve_web_inner(
 
     let (cfg_response, robot) = {
         let cloned_exec = exec.clone();
-        let conn = client_connector.open_ssl_context(None).unwrap();
+        let conn = client_connector.open_ssl_context(None).await.unwrap();
         let conn = NativeStream::TLSStream(Box::new(conn));
         let grpc_client = GrpcClient::new(conn, cloned_exec, "https://app.viam.com:443")
             .await
@@ -75,7 +75,7 @@ pub async fn serve_web_inner(
                                 .await
                                 .expect("could not push logs to app");
                         }
-                        //TODO shouldn't panic here
+                        //TODO shouldn't panic here, when we support offline mode and reloading configuration this should be removed
                         panic!("couldn't build robot");
                     }
                 };
@@ -143,6 +143,7 @@ mod tests {
     use crate::proto::rpc::examples::echo::v1::{EchoBiDiRequest, EchoBiDiResponse};
     use crate::proto::rpc::v1::{AuthenticateRequest, AuthenticateResponse, Credentials};
 
+    use async_io::Async;
     use futures_lite::future::block_on;
     use futures_lite::StreamExt;
     use prost::Message;
@@ -154,7 +155,7 @@ mod tests {
     fn test_app_client() {
         let tls = Box::new(NativeTls::new_client());
         let conn = tls.open_ssl_context(None);
-
+        let conn = block_on(conn);
         assert!(conn.is_ok());
 
         let conn = conn.unwrap();
@@ -194,7 +195,9 @@ mod tests {
     #[ignore]
     fn test_client_bidi() {
         let socket = TcpStream::connect("localhost:7888").unwrap();
-        socket.set_nonblocking(true).unwrap();
+        let socket = Async::new(socket);
+        assert!(socket.is_ok());
+        let socket = socket.unwrap();
         let conn = NativeStream::LocalPlain(socket);
         let executor = NativeExecutor::new();
         let exec = executor.clone();

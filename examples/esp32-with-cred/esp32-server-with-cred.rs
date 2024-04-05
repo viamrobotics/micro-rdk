@@ -11,7 +11,7 @@ mod esp32 {
     };
     use micro_rdk::{
         common::{app_client::AppClientConfig, entry::RobotRepresentation},
-        esp32::{certificate::WebRtcCertificate, entry::serve_web, tls::Esp32TlsServerConfig},
+        esp32::{certificate::WebRtcCertificate, entry::serve_web, tls::Esp32TLSServerConfig},
     };
 
     extern "C" {
@@ -211,7 +211,7 @@ mod esp32 {
 
         let cert: [Vec<u8>; 2] = [nvs_vars.robot_srv_pem_chain, nvs_vars.robot_srv_pem_ca];
         let key = nvs_vars.robot_srv_der_key;
-        let tls_cfg = Esp32TlsServerConfig::new(cert, key.as_ptr(), key.len() as u32);
+        let tls_cfg = Esp32TLSServerConfig::new(cert, key.as_ptr(), key.len() as u32);
 
         let cfg = AppClientConfig::new(nvs_vars.robot_secret, nvs_vars.robot_id, ip, "".to_owned());
 
@@ -243,13 +243,11 @@ mod esp32 {
             EspWifi::new(modem, sl_stack.clone(), Some(nvs.clone()))?,
             sl_stack,
         )?;
-        let ssid_heapless = ssid.into();
-        let password_heapless = password.into();
         let wifi_configuration = WifiConfiguration::Client(WifiClientConfiguration {
-            ssid: ssid_heapless,
+            ssid: ssid.try_into().unwrap(),
             bssid: None,
             auth_method: AuthMethod::WPA2Personal,
-            password: password_heapless,
+            password: password.try_into().unwrap(),
             channel: None,
         });
         debug!("setting wifi configuration...");

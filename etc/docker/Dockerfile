@@ -1,11 +1,12 @@
-FROM rust:1.74-bookworm AS builder
+FROM rust:1.75-bookworm AS builder
 RUN apt update && apt-get install -y --no-install-recommends git libudev-dev make bzip2 gcc libgcrypt20 libgcrypt20-dev  ninja-build libudev-dev sudo wget git flex bison gperf ccache libffi-dev libssl-dev dfu-util libusb-1.0-0 cmake pkg-config libglib2.0-dev libpixman-1-dev software-properties-common openssh-client libslirp-dev python3-venv
 
-RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
-RUN cargo binstall cargo-espflash --install-path /usr/ -y
-RUN cargo binstall espup --install-path /usr/ -y
-RUN cargo install ldproxy --root /usr/
-RUN cargo install sccache --root /usr/
+RUN export TARGET=$(rustc -vV | sed -En 's/^host: //p') && \
+    curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash && \ 
+    cargo binstall --pkg-url='https://github.com/esp-rs/espflash/releases/download/v{ version }/{ name }-{ target }{ archive-suffix }' --pkg-fmt='zip' cargo-espflash@2.1.0 --install-path /usr -y --target $TARGET && \
+    cargo binstall --pkg-url='https://github.com/esp-rs/espup/releases/download/v{ version }/{ name }-{ target }{ archive-suffix }' --pkg-fmt='zip' espup@0.11 --install-path /usr -y --target $TARGET && \
+    cargo binstall --pkg-url='https://github.com/esp-rs/embuild/releases/download/{ name }-v{ version }/{ name }-{ target }{ archive-suffix }' --pkg-fmt='zip' ldproxy@0.3.2 --install-path /usr -y --target $TARGET && \
+    cargo binstall --pkg-url='https://github.com/mozilla/sccache/releases/download/v{ version }/{ name }-v{ version }-{ target }{ archive-suffix }' --pkg-fmt='tgz' sccache@0.7.7 --install-path /usr -y --target $TARGET
 
 WORKDIR /qemu
 RUN git clone --depth 1 --branch esp-develop https://github.com/espressif/qemu
@@ -20,7 +21,7 @@ RUN git clone --depth 1 -b v4.4.4 --single-branch --recurse-submodules --shallow
 
 FROM debian:bookworm
 
-ARG RUST_VERSION=1.71.0
+ARG RUST_VERSION=1.75.0
 
 ENV DEBIAN_FRONTEND noninteractive
 ENV DEBCONF_NOWARNINGS="yes"
@@ -60,9 +61,9 @@ RUN RUST_VERSION=$RUST_VERSION \
     chmod -R a+w $RUSTUP_HOME $CARGO_HOME
 
 COPY --from=builder /usr/cargo-espflash /usr/bin
-COPY --from=builder /usr/bin/ldproxy /usr/bin
+COPY --from=builder /usr/ldproxy /usr/bin
 COPY --from=builder /usr/espup /usr/bin
-COPY --from=builder /usr/bin/sccache /usr/bin
+COPY --from=builder /usr/sccache /usr/bin
 
 WORKDIR /host/
 
@@ -83,8 +84,6 @@ USER testbot
 
 COPY --from=builder /esp $ESP_ROOT/
 
-RUN git config --global --add safe.directory $ESP_ROOT/esp-idf
-
 ENV IDF_PATH=$ESP_ROOT/esp-idf
 
 RUN $IDF_PATH/tools/idf_tools.py --non-interactive install required  && $IDF_PATH/tools/idf_tools.py --non-interactive install cmake   && $IDF_PATH/tools/idf_tools.py --non-interactive install-python-env  && rm -rf $IDF_TOOLS_PATH/dist
@@ -92,6 +91,8 @@ RUN $IDF_PATH/tools/idf_tools.py --non-interactive install required  && $IDF_PAT
 RUN espup install -s -f $ESP_ROOT/export-esp.sh -v ${RUST_VERSION}
 RUN rustup component add clippy-preview
 RUN rustup component add rustfmt
+
+RUN git config --global --add safe.directory '*'
 
 RUN rm -rf $CARGO_HOME/registry
 
@@ -111,3 +112,5 @@ COPY --from=builder /qemu/qemu/build/qemu-system-xtensa /usr/bin
 
 RUN chmod -R a+rwx $ESP_ROOT && \
     chown -R testbot:testbot $ESP_ROOT
+
+RUN git config --global --add safe.directory '*'

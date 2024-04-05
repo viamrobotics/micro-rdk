@@ -18,7 +18,7 @@ mod esp32 {
     };
     use micro_rdk::{
         common::{app_client::AppClientConfig, entry::RobotRepresentation},
-        esp32::{certificate::WebRtcCertificate, entry::serve_web, tls::Esp32TlsServerConfig},
+        esp32::{certificate::WebRtcCertificate, entry::serve_web, tls::Esp32TLSServerConfig},
     };
     #[cfg(feature = "qemu")]
     use std::net::Ipv4Addr;
@@ -108,7 +108,7 @@ mod esp32 {
         let tls_cfg = {
             let cert = [ROBOT_SRV_PEM_CHAIN.to_vec(), ROBOT_SRV_PEM_CA.to_vec()];
             let key = ROBOT_SRV_DER_KEY;
-            Esp32TlsServerConfig::new(cert, key.as_ptr(), key.len() as u32)
+            Esp32TLSServerConfig::new(cert, key.as_ptr(), key.len() as u32)
         };
 
         serve_web(cfg, tls_cfg, repr, ip, webrtc_certificate, max_connection);
@@ -140,10 +140,10 @@ mod esp32 {
         let mut wifi =
             BlockingWifi::wrap(EspWifi::new(modem, sl_stack.clone(), Some(nvs))?, sl_stack)?;
         let wifi_configuration = WifiConfiguration::Client(WifiClientConfiguration {
-            ssid: SSID.into(),
+            ssid: SSID.try_into().unwrap(),
             bssid: None,
             auth_method: AuthMethod::WPA2Personal,
-            password: PASS.into(),
+            password: PASS.try_into().unwrap(),
             channel: None,
         });
 

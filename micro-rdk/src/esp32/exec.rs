@@ -1,10 +1,10 @@
 //! The exec module exposes helpers to execute futures on an ESP32
 use crate::common::webrtc::exec::WebRtcExecutor;
+use async_executor::{LocalExecutor, Task};
 use futures_lite::{
     future::{self},
     Future,
 };
-use smol::{LocalExecutor, Task};
 use std::rc::Rc;
 #[derive(Clone, Debug)]
 /// This executor is local and bounded to the CPU that created it usually you would create it after spwaning a thread on a specific core
