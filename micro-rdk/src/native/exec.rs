@@ -27,12 +27,6 @@ impl NativeExecutor {
     pub fn run_forever<T>(&self, future: impl Future<Output = T>) -> T {
         EX.with(|e| block_on(e.run(future)))
     }
-
-    // pub async fn run<T>(&self, future: impl Future<Output = T>) {
-    //     EX.with(move |e| async {
-    //         let _ = e.run(future).await;
-    //     })
-    // }
 }
 
 /// helper trait for hyper to spwan future onto a local executor
@@ -41,7 +35,6 @@ where
     F: future::Future + 'static,
 {
     fn execute(&self, fut: F) {
-        EX.with(|e| log::debug!("{:?}", e));
         EX.with(|e| e.spawn(fut)).detach();
     }
 }
@@ -51,7 +44,6 @@ where
     F: future::Future + 'static,
 {
     fn execute(&self, fut: F) {
-        EX.with(|e| log::debug!("{:?}", e));
         EX.with(|e| e.spawn(fut)).detach();
     }
 }
