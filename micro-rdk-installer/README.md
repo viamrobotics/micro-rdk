@@ -14,8 +14,6 @@ These download links are for the latest release of the installer by architecture
 
 Only necessary as an alternative to the previous Download step
 
-Requirements: rust (1.67.0 or higher), Cargo (1.67.0 or higher)
-
 1. `git clone https://github.com/viamrobotics/micro-rdk.git`
 2. cd micro-rdk/micro-rdk-installer
 2.`cargo build`
