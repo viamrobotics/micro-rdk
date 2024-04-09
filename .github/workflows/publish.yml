@@ -30,7 +30,7 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: 1.70.0
+        toolchain: 1.75.0
         override: true
         target: ${{ matrix.job.target }}
         default: true
@@ -86,7 +86,7 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: 1.70.0
+        toolchain: 1.75.0
         override: true
         target: aarch64-unknown-linux-gnu
         default: true
@@ -114,7 +114,7 @@ jobs:
     - name: Build esp32 binary
       run: |
         bash -c 'git config --global --add safe.directory "$ESP_ROOT"/esp-idf && export MICRO_RDK_USE_NVS=true && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && make build-esp32-with-cred-bin'
-        cp examples/target/xtensa-esp32-espidf/esp32-server-with-cred.bin  micro-rdk-esp32-server.bin
+        cp target/xtensa-esp32-espidf/esp32-server-with-cred.bin  micro-rdk-esp32-server.bin
     - name: Upload release
       uses: actions/upload-artifact@v2
       with:
