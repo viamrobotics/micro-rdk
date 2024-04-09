@@ -223,7 +223,7 @@ impl WebRtcSignalingChannel {
                 sdp: answer,
             })),
         };
-        match self.signaling_tx.send_message(answer) {
+        match self.signaling_tx.send_message(answer).await {
             Err(e) => {
                 log::error!("error sending signaling message: {:?}", e);
                 Err(WebRtcError::SignalingDisconnected())
@@ -231,7 +231,7 @@ impl WebRtcSignalingChannel {
             Ok(_) => Ok(()),
         }
     }
-    pub(crate) fn send_local_candidate(
+    pub(crate) async fn send_local_candidate(
         &mut self,
         candidate: &Candidate,
         ufrag: String,
@@ -248,7 +248,7 @@ impl WebRtcSignalingChannel {
                 }),
             })),
         };
-        match self.signaling_tx.send_message(answer) {
+        match self.signaling_tx.send_message(answer).await {
             Err(_) => Err(WebRtcError::SignalingDisconnected()),
             Ok(_) => Ok(()),
         }
@@ -290,12 +290,12 @@ impl WebRtcSignalingChannel {
             }
         }
     }
-    pub fn send_done(&mut self, uuid: String) -> Result<(), WebRtcError> {
+    pub async fn send_done(&mut self, uuid: String) -> Result<(), WebRtcError> {
         let answer = AnswerResponse {
             uuid,
             stage: Some(answer_response::Stage::Done(AnswerResponseDoneStage {})),
         };
-        match self.signaling_tx.send_message(answer) {
+        match self.signaling_tx.send_message(answer).await {
             Err(_) => Err(WebRtcError::SignalingDisconnected()),
             Ok(_) => Ok(()),
         }
@@ -303,9 +303,9 @@ impl WebRtcSignalingChannel {
 }
 
 #[cfg(feature = "native")]
-type Executor<'a> = NativeExecutor<'a>;
+type Executor = NativeExecutor;
 #[cfg(feature = "esp32")]
-type Executor<'a> = Esp32Executor<'a>;
+type Executor = Esp32Executor;
 
 pub struct WebRtcApi<S, D, E> {
     executor: E,
@@ -398,12 +398,14 @@ where
                     c,
                     self.local_creds.u_frag.clone(),
                     self.uuid.as_ref().unwrap().clone(),
-                )?;
+                )
+                .await?;
         }
         self.signaling
             .as_mut()
             .ok_or(WebRtcError::SignalingDisconnected())?
-            .send_done(self.uuid.as_ref().unwrap().clone())?;
+            .send_done(self.uuid.as_ref().unwrap().clone())
+            .await?;
         let sync = AtomicSync::default();
         let sync_clone = sync.clone();
         let die_clone = self.ice_agent.clone();

@@ -2,7 +2,6 @@ use std::{convert::Infallible, io, pin::Pin, task::Poll};
 
 use futures_lite::Future;
 use hyper::rt;
-use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::common::webrtc::{
     certificate::{Certificate, Fingerprint},
@@ -20,34 +19,34 @@ pub struct WebRtcNoOp {
     fp: Fingerprint,
 }
 
-impl AsyncRead for WebRtcNoOp {
+impl rt::Read for WebRtcNoOp {
     fn poll_read(
         self: Pin<&mut Self>,
         _: &mut std::task::Context<'_>,
-        _: &mut tokio::io::ReadBuf<'_>,
-    ) -> Poll<io::Result<()>> {
+        _: rt::ReadBufCursor<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
         Poll::Pending
     }
 }
 
-impl AsyncWrite for WebRtcNoOp {
-    fn poll_flush(
-        self: Pin<&mut Self>,
-        _: &mut std::task::Context<'_>,
-    ) -> Poll<Result<(), io::Error>> {
-        Poll::Pending
-    }
+impl rt::Write for WebRtcNoOp {
     fn poll_write(
         self: Pin<&mut Self>,
         _: &mut std::task::Context<'_>,
         _: &[u8],
-    ) -> Poll<Result<usize, io::Error>> {
+    ) -> Poll<Result<usize, std::io::Error>> {
+        Poll::Pending
+    }
+    fn poll_flush(
+        self: Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
         Poll::Pending
     }
     fn poll_shutdown(
         self: Pin<&mut Self>,
-        _: &mut std::task::Context<'_>,
-    ) -> Poll<Result<(), io::Error>> {
+        _cx: &mut std::task::Context<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
         Poll::Pending
     }
 }
@@ -79,36 +78,6 @@ impl futures_lite::AsyncWrite for WebRtcNoOp {
 
 #[derive(Debug)]
 pub struct NoHttp2 {}
-impl AsyncRead for NoHttp2 {
-    fn poll_read(
-        self: Pin<&mut Self>,
-        _: &mut std::task::Context<'_>,
-        _: &mut tokio::io::ReadBuf<'_>,
-    ) -> Poll<io::Result<()>> {
-        Poll::Pending
-    }
-}
-impl AsyncWrite for NoHttp2 {
-    fn poll_flush(
-        self: Pin<&mut Self>,
-        _: &mut std::task::Context<'_>,
-    ) -> Poll<Result<(), io::Error>> {
-        Poll::Pending
-    }
-    fn poll_shutdown(
-        self: Pin<&mut Self>,
-        _: &mut std::task::Context<'_>,
-    ) -> Poll<Result<(), io::Error>> {
-        Poll::Pending
-    }
-    fn poll_write(
-        self: Pin<&mut Self>,
-        _: &mut std::task::Context<'_>,
-        _: &[u8],
-    ) -> Poll<Result<usize, io::Error>> {
-        Poll::Pending
-    }
-}
 
 impl rt::Read for NoHttp2 {
     fn poll_read(

@@ -643,6 +643,7 @@ impl ICEAgent {
 
 #[cfg(test)]
 mod tests {
+    use async_executor::Executor;
     use async_io::Async;
     use futures_lite::future::block_on;
     use std::net::UdpSocket;
@@ -650,10 +651,7 @@ mod tests {
 
     use crate::common::webrtc::ice::{ICEAgent, ICECredentials};
 
-    use crate::{
-        common::webrtc::{candidates::Candidate, io::WebRtcTransport},
-        native::exec::NativeExecutor,
-    };
+    use crate::common::webrtc::{candidates::Candidate, io::WebRtcTransport};
 
     use super::IceError;
 
@@ -666,7 +664,7 @@ mod tests {
         let r3 = "candidate:830412194 1 udp 1694498815 71.167.39.185 49701 typ relay raddr 0.0.0.0 rport 49701".to_owned();
         let r3 = TryInto::<Candidate>::try_into(r3).unwrap();
 
-        let executor = NativeExecutor::default();
+        let executor = Executor::new();
 
         let udp = block_on(
             executor.run(async { Async::new(UdpSocket::bind("0.0.0.0:0").unwrap()).unwrap() }),
