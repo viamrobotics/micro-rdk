@@ -27,7 +27,7 @@ the ESP32.
 - Discord: <https://discord.gg/viam>
 - Support: <https://support.viam.com>
 
-If you have a bug or an idea, please open an issue in our [JIRA project](https://viam.atlassian.net/).
+If you have a bug or an idea, please open an issue in our [here](https://viam.atlassian.net/servicedesk/customer/portal/7).
 
 ## (In)stability Notice
 
