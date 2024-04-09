@@ -30,7 +30,6 @@ pub async fn serve_web_inner(
     ip: Ipv4Addr,
     exec: NativeExecutor,
 ) {
-    log::info!("web start");
     let client_connector = NativeTls::new_client();
     let mdns = NativeMdns::new("".to_owned(), ip).unwrap();
 
@@ -118,7 +117,7 @@ pub fn serve_web(
     let exec = NativeExecutor::new();
     let cloned_exec = exec.clone();
 
-    cloned_exec.run_forever(Box::pin(serve_web_inner(
+    cloned_exec.block_on(Box::pin(serve_web_inner(
         app_config,
         tls_server_config,
         repr,
@@ -152,7 +151,7 @@ mod tests {
     #[ignore]
     fn test_app_client() {
         let exec = NativeExecutor::new();
-        exec.run_forever(async { test_app_client_inner().await });
+        exec.block_on(async { test_app_client_inner().await });
     }
     async fn test_app_client_inner() {
         let tls = Box::new(NativeTls::new_client());
@@ -192,7 +191,7 @@ mod tests {
     #[ignore]
     fn test_client_bidi() {
         let exec = NativeExecutor::new();
-        exec.run_forever(async { test_client_bidi_inner().await });
+        exec.block_on(async { test_client_bidi_inner().await });
     }
     async fn test_client_bidi_inner() {
         let socket = TcpStream::connect("localhost:7888").unwrap();

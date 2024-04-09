@@ -6,7 +6,6 @@ use futures_lite::{
     Future,
 };
 #[derive(Clone, Debug, Default)]
-/// This executor is local and bounded to the CPU that created it usually you would create it after spwaning a thread on a specific core
 pub struct Esp32Executor {}
 
 std::thread_local! {
@@ -23,7 +22,7 @@ impl Esp32Executor {
         EX.with(|e| e.spawn(future))
     }
 
-    pub fn run_forever<T>(&self, future: impl Future<Output = T>) -> T {
+    pub fn block_on<T>(&self, future: impl Future<Output = T>) -> T {
         EX.with(|e| block_on(e.run(future)))
     }
 }

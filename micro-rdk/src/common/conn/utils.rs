@@ -2,7 +2,6 @@ use std::{convert::Infallible, io, pin::Pin, task::Poll};
 
 use futures_lite::Future;
 use hyper::rt;
-use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::common::webrtc::{
     certificate::{Certificate, Fingerprint},
@@ -52,38 +51,6 @@ impl rt::Write for WebRtcNoOp {
     }
 }
 
-impl AsyncRead for WebRtcNoOp {
-    fn poll_read(
-        self: Pin<&mut Self>,
-        _: &mut std::task::Context<'_>,
-        _: &mut tokio::io::ReadBuf<'_>,
-    ) -> Poll<io::Result<()>> {
-        Poll::Pending
-    }
-}
-
-impl AsyncWrite for WebRtcNoOp {
-    fn poll_flush(
-        self: Pin<&mut Self>,
-        _: &mut std::task::Context<'_>,
-    ) -> Poll<Result<(), io::Error>> {
-        Poll::Pending
-    }
-    fn poll_write(
-        self: Pin<&mut Self>,
-        _: &mut std::task::Context<'_>,
-        _: &[u8],
-    ) -> Poll<Result<usize, io::Error>> {
-        Poll::Pending
-    }
-    fn poll_shutdown(
-        self: Pin<&mut Self>,
-        _: &mut std::task::Context<'_>,
-    ) -> Poll<Result<(), io::Error>> {
-        Poll::Pending
-    }
-}
-
 impl futures_lite::AsyncRead for WebRtcNoOp {
     fn poll_read(
         self: Pin<&mut Self>,
@@ -111,36 +78,6 @@ impl futures_lite::AsyncWrite for WebRtcNoOp {
 
 #[derive(Debug)]
 pub struct NoHttp2 {}
-impl AsyncRead for NoHttp2 {
-    fn poll_read(
-        self: Pin<&mut Self>,
-        _: &mut std::task::Context<'_>,
-        _: &mut tokio::io::ReadBuf<'_>,
-    ) -> Poll<io::Result<()>> {
-        Poll::Pending
-    }
-}
-impl AsyncWrite for NoHttp2 {
-    fn poll_flush(
-        self: Pin<&mut Self>,
-        _: &mut std::task::Context<'_>,
-    ) -> Poll<Result<(), io::Error>> {
-        Poll::Pending
-    }
-    fn poll_shutdown(
-        self: Pin<&mut Self>,
-        _: &mut std::task::Context<'_>,
-    ) -> Poll<Result<(), io::Error>> {
-        Poll::Pending
-    }
-    fn poll_write(
-        self: Pin<&mut Self>,
-        _: &mut std::task::Context<'_>,
-        _: &[u8],
-    ) -> Poll<Result<usize, io::Error>> {
-        Poll::Pending
-    }
-}
 
 impl rt::Read for NoHttp2 {
     fn poll_read(

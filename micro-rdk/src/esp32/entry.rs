@@ -162,7 +162,7 @@ pub fn serve_web(
         })
         .detach();
 
-    cloned_exec.run_forever(Box::pin(serve_web_inner(
+    cloned_exec.block_on(Box::pin(serve_web_inner(
         app_config,
         tls_server_config,
         repr,

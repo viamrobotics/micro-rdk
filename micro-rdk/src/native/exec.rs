@@ -24,7 +24,7 @@ impl NativeExecutor {
         EX.with(|e| e.spawn(future))
     }
 
-    pub fn run_forever<T>(&self, future: impl Future<Output = T>) -> T {
+    pub fn block_on<T>(&self, future: impl Future<Output = T>) -> T {
         EX.with(|e| block_on(e.run(future)))
     }
 }

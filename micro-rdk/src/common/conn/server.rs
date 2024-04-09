@@ -524,17 +524,17 @@ where
 }
 
 pin_project_lite::pin_project! {
-    struct WebRTCSignalingAnswerer<'b, C,D,F> {
+    struct WebRTCSignalingAnswerer<'a, C,D,F> {
         #[pin]
         future: F,
-        webrtc_config: Option<&'b WebRtcConfiguration<D,C>>,
+        webrtc_config: Option<&'a WebRtcConfiguration<D,C>>,
         ip: Ipv4Addr,
     }
 }
 
-impl<'b, C, D, F> WebRTCSignalingAnswerer<'b, C, D, F> {
+impl<'a, C, D, F> WebRTCSignalingAnswerer<'a, C, D, F> {
     fn default(
-    ) -> WebRTCSignalingAnswerer<'b, C, D, impl Future<Output = Result<AppSignaling, AppClientError>>>
+    ) -> WebRTCSignalingAnswerer<'a, C, D, impl Future<Output = Result<AppSignaling, AppClientError>>>
     {
         WebRTCSignalingAnswerer {
             future: futures_lite::future::pending::<Result<AppSignaling, AppClientError>>(),
@@ -544,7 +544,7 @@ impl<'b, C, D, F> WebRTCSignalingAnswerer<'b, C, D, F> {
     }
 }
 
-impl<'b, C, D, F> Future for WebRTCSignalingAnswerer<'b, C, D, F>
+impl<'a, C, D, F> Future for WebRTCSignalingAnswerer<'a, C, D, F>
 where
     F: Future<Output = Result<AppSignaling, AppClientError>>,
     C: Certificate,

@@ -211,8 +211,7 @@ impl<'a> GrpcClient<'a> {
     pub(crate) async fn send_request_bidi<R, P>(
         &mut self,
         r: Request<BoxBody<Bytes, hyper::Error>>,
-        sender: Sender<Bytes>, // we shouldn't need this to get server headers when initiating a
-                               // bidi stream
+        sender: Sender<Bytes>,
     ) -> Result<(GrpcMessageSender<R>, GrpcMessageStream<P>), GrpcClientError>
     where
         R: prost::Message + std::default::Default,
@@ -241,8 +240,7 @@ impl<'a> GrpcClient<'a> {
     ) -> Result<(Bytes, HeaderMap), GrpcClientError> {
         let mut http2_connection = self.http2_connection.clone();
         // verify if the server can accept a new HTTP2 stream
-        // TODO Error handling
-        http2_connection.ready().await.unwrap();
+        http2_connection.ready().await?;
 
         // send the header and let the server know more data are coming
         let response = http2_connection.send_request(r).await?;

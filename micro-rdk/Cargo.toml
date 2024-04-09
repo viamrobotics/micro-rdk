@@ -74,7 +74,6 @@ sha2.workspace = true
 socket2.workspace = true
 stun_codec.workspace = true
 thiserror.workspace = true
-tokio.workspace = true
 trackable.workspace = true
 
 
