@@ -23,6 +23,7 @@ camera = []
 esp32 = ["dep:esp-idf-svc", "dep:embedded-svc", "dep:embedded-hal", "esp-idf-svc/std", "esp-idf-svc/alloc"]
 native = ["dep:rustls", "dep:webpki-roots", "dep:rustls-pemfile", "dep:mdns-sd", "dep:local-ip-address", "dep:openssl", "dep:rcgen", "dep:async-std-openssl"]
 data = []
+provisioning = []
 
 [dev-dependencies]
 test-log.workspace = true
