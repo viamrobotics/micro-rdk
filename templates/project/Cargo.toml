@@ -1,16 +1,10 @@
 [package]
 name = "{{project-name}}"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2021"
 authors = ["{{authors}}"]
 resolver = "2"
-
-[patch.crates-io]
-esp-idf-sys = {git = "https://github.com/viamrobotics/esp-idf-sys.git"}
-polling = { git = "https://github.com/esp-rs-compat/polling" }
-smol = { git = "https://github.com/esp-rs-compat/smol" }
-socket2 = { git = "https://github.com/viamrobotics/socket2.git" }
-async-io = {git = "https://github.com/viamrobotics/async-io.git"}
+rust-version = "1.75"
 
 [profile.release]
 opt-level = "s"
@@ -21,13 +15,12 @@ opt-level = "z"
 
 
 [dependencies]
-embedded-svc = "0.26.4"
+embedded-svc = "0.27"
 embedded-hal = { version = "0.2.7", features = ["unproven"]}
 log = "0.4"
 async-channel = "1.8.0"
-smol = "1.2"
 futures-lite = "1.12.0"
-micro-rdk = {version = "0.1.7", git = "https://github.com/viamrobotics/micro-rdk.git", features = ["esp32"]}
+micro-rdk = {version = "0.1.8", git = "https://github.com/viamrobotics/micro-rdk.git", features = ["esp32", "binstart"], rev = "c669b06" }
 
 [build-dependencies]
 anyhow = "1"

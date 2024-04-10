@@ -147,40 +147,6 @@ impl rt::Read for NativeStream {
     }
 }
 
-/// Implement AsyncRead trait for NativeStream
-impl tokio::io::AsyncRead for NativeStream {
-    fn poll_read(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut tokio::io::ReadBuf<'_>,
-    ) -> Poll<std::io::Result<()>> {
-        match &mut *self {
-            NativeStream::LocalPlain(s) => {
-                futures_lite::pin!(s);
-                match ready!(s.poll_read(cx, buf.initialize_unfilled())) {
-                    Ok(s) => {
-                        buf.advance(s);
-                        Poll::Ready(Ok(()))
-                    }
-
-                    Err(e) => Poll::Ready(Err(e)),
-                }
-            }
-            NativeStream::TLSStream(s) => {
-                futures_lite::pin!(s);
-                match ready!(s.poll_read(cx, buf.initialize_unfilled())) {
-                    Ok(s) => {
-                        buf.advance(s);
-                        Poll::Ready(Ok(()))
-                    }
-
-                    Err(e) => Poll::Ready(Err(e)),
-                }
-            }
-        }
-    }
-}
-
 impl rt::Write for NativeStream {
     fn poll_write(
         mut self: Pin<&mut Self>,
@@ -224,65 +190,6 @@ impl rt::Write for NativeStream {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Result<(), std::io::Error>> {
-        match &mut *self {
-            NativeStream::LocalPlain(s) => {
-                futures_lite::pin!(s);
-                s.poll_close(cx)
-            }
-            NativeStream::TLSStream(s) => {
-                futures_lite::pin!(s);
-                s.poll_close(cx)
-            }
-        }
-    }
-}
-
-/// Implement AsyncWrite trait for NativeStream
-impl tokio::io::AsyncWrite for NativeStream {
-    fn poll_write(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
-        match &mut *self {
-            NativeStream::LocalPlain(s) => {
-                futures_lite::pin!(s);
-
-                match ready!(s.poll_write(cx, buf)) {
-                    Ok(s) => Poll::Ready(Ok(s)),
-                    Err(_) => Poll::Pending,
-                }
-            }
-            NativeStream::TLSStream(s) => {
-                futures_lite::pin!(s);
-                match ready!(s.poll_write(cx, buf)) {
-                    Ok(s) => Poll::Ready(Ok(s)),
-                    Err(_) => Poll::Pending,
-                }
-            }
-        }
-    }
-
-    fn poll_flush(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<io::Result<()>> {
-        match &mut *self {
-            NativeStream::LocalPlain(s) => {
-                futures_lite::pin!(s);
-                s.poll_flush(cx)
-            }
-            NativeStream::TLSStream(s) => {
-                futures_lite::pin!(s);
-                s.poll_flush(cx)
-            }
-        }
-    }
-
-    fn poll_shutdown(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<io::Result<()>> {
         match &mut *self {
             NativeStream::LocalPlain(s) => {
                 futures_lite::pin!(s);

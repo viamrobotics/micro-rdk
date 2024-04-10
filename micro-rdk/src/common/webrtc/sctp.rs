@@ -499,6 +499,7 @@ enum SctpState {
 
 #[cfg(test)]
 mod tests {
+    use async_executor::Executor;
     use std::net::SocketAddr;
     use std::pin::Pin;
     use std::sync::Arc;
@@ -506,7 +507,6 @@ mod tests {
     use std::time::Duration;
 
     use crate::common::webrtc::sctp::SctpConnector;
-    use crate::native::exec::NativeExecutor;
     use async_io::{Async, Timer};
     use futures_lite::future::block_on;
     use futures_lite::AsyncReadExt;
@@ -606,7 +606,7 @@ mod tests {
 
     #[test_log::test]
     fn test_sctp() {
-        let local_ex = NativeExecutor::new();
+        let local_ex = Arc::new(Executor::new());
 
         let cloned = local_ex.clone();
         let cloned2 = local_ex.clone();
@@ -617,7 +617,7 @@ mod tests {
         block_on(local_ex.run(async move { run_client(cloned2).await }));
     }
 
-    async fn run_server_echo(exec: NativeExecutor<'_>) {
+    async fn run_server_echo(exec: Arc<Executor<'_>>) {
         let socket = std::net::UdpSocket::bind("127.0.0.1:63332");
 
         assert!(socket.is_ok());
@@ -661,7 +661,7 @@ mod tests {
         }
     }
 
-    async fn run_client(exec: NativeExecutor<'_>) {
+    async fn run_client(exec: Arc<Executor<'_>>) {
         // let server spawn
         Timer::after(Duration::from_millis(100)).await;
         let socket = std::net::UdpSocket::bind("127.0.0.1:63333").unwrap();

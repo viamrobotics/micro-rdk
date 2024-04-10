@@ -1,7 +1,11 @@
 #![allow(unused)]
 use bytes::{BufMut, Bytes, BytesMut};
 use chrono::{format::ParseError, DateTime, FixedOffset};
-use futures_lite::Future;
+use futures_lite::{Future, StreamExt};
+use http_body_util::BodyExt;
+use http_body_util::Full;
+use http_body_util::StreamBody;
+use hyper::body::Frame;
 use prost::{DecodeError, EncodeError, Message};
 use std::{net::Ipv4Addr, pin::Pin, rc::Rc, time::SystemTime};
 use thiserror::Error;
@@ -126,11 +130,6 @@ impl<'a> AppClientBuilder<'a> {
         })
     }
     pub async fn get_jwt_token(&mut self) -> Result<String, AppClientError> {
-        let r = self
-            .grpc_client
-            .build_request("/proto.rpc.v1.AuthService/Authenticate", None, "")
-            .map_err(AppClientError::AppGrpcClientError)?;
-
         let cred = Credentials {
             r#type: "robot-secret".to_owned(),
             payload: self.config.robot_secret.clone(),
@@ -142,10 +141,19 @@ impl<'a> AppClientBuilder<'a> {
         };
 
         let body = encode_request(req)?;
+        let mut r = self
+            .grpc_client
+            .build_request(
+                "/proto.rpc.v1.AuthService/Authenticate",
+                None,
+                "",
+                Full::new(body).map_err(|never| match never {}).boxed(),
+            )
+            .map_err(AppClientError::AppGrpcClientError)?;
 
         let mut r = self
             .grpc_client
-            .send_request(r, body)
+            .send_request(r)
             .await
             .map_err(AppClientError::AppGrpcClientError)?
             .0;
@@ -169,18 +177,20 @@ pub(crate) struct AppSignaling(
 
 impl<'a> AppClient<'a> {
     pub(crate) async fn connect_signaling(&mut self) -> Result<AppSignaling, AppClientError> {
+        let (sender, receiver) = async_channel::bounded::<Bytes>(1);
         let r = self
             .grpc_client
             .build_request(
                 "/proto.rpc.webrtc.v1.SignalingService/Answer",
                 Some(&self.jwt),
                 &self.config.rpc_host,
+                BodyExt::boxed(StreamBody::new(receiver.map(|b| Ok(Frame::data(b))))),
             )
             .map_err(AppClientError::AppGrpcClientError)?;
 
         let (tx, rx) = self
             .grpc_client
-            .send_request_bidi::<AnswerResponse, AnswerRequest>(r, None)
+            .send_request_bidi::<AnswerResponse, AnswerRequest>(r, sender)
             .await
             .map_err(AppClientError::AppGrpcClientError)?;
         Ok(AppSignaling(tx, rx))
@@ -192,11 +202,6 @@ impl<'a> AppClient<'a> {
     pub async fn get_config(
         &mut self,
     ) -> Result<(Box<ConfigResponse>, Option<DateTime<FixedOffset>>), AppClientError> {
-        let r = self
-            .grpc_client
-            .build_request("/viam.app.v1.RobotService/Config", Some(&self.jwt), "")
-            .map_err(AppClientError::AppGrpcClientError)?;
-
         let agent = AgentInfo {
             os: "esp32".to_string(),
             host: "esp32".to_string(),
@@ -212,7 +217,17 @@ impl<'a> AppClient<'a> {
         };
         let body = encode_request(req)?;
 
-        let (mut r, headers) = self.grpc_client.send_request(r, body).await?;
+        let r = self
+            .grpc_client
+            .build_request(
+                "/viam.app.v1.RobotService/Config",
+                Some(&self.jwt),
+                "",
+                BodyExt::boxed(Full::new(body).map_err(|never| match never {})),
+            )
+            .map_err(AppClientError::AppGrpcClientError)?;
+
+        let (mut r, headers) = self.grpc_client.send_request(r).await?;
 
         let datetime = if let Some(date_val) = headers.get("date") {
             let date_str = date_val
@@ -229,19 +244,22 @@ impl<'a> AppClient<'a> {
     }
 
     pub async fn push_logs(&mut self, logs: Vec<LogEntry>) -> Result<(), AppClientError> {
-        let r = self
-            .grpc_client
-            .build_request("/viam.app.v1.RobotService/Log", Some(&self.jwt), "")
-            .map_err(AppClientError::AppGrpcClientError)?;
-
         let req = LogRequest {
             id: self.config.robot_id.clone(),
             logs,
         };
 
         let body = encode_request(req)?;
-
-        self.grpc_client.send_request(r, body).await?;
+        let r = self
+            .grpc_client
+            .build_request(
+                "/viam.app.v1.RobotService/Log",
+                Some(&self.jwt),
+                "",
+                BodyExt::boxed(Full::new(body).map_err(|never| match never {})),
+            )
+            .map_err(AppClientError::AppGrpcClientError)?;
+        self.grpc_client.send_request(r).await?;
 
         Ok(())
     }
