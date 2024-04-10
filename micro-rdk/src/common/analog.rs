@@ -115,6 +115,7 @@ mod tests {
                     ]),
                 ),
             ])),
+            ..Default::default()
         }];
 
         let val = robot_config[0].get_attribute::<Vec<AnalogReaderConfig>>("analogs");

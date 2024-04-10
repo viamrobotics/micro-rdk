@@ -441,6 +441,7 @@ mod tests {
                     ])),
                 ),
             ])),
+            ..Default::default()
         })];
 
         let val = robot_config[0]
@@ -485,6 +486,7 @@ mod tests {
                         ])),
                     ),
                 ])),
+                ..Default::default()
             }),
             Some(DynamicComponentConfig {
                 name: "motor".to_owned(),
@@ -503,6 +505,7 @@ mod tests {
                         ])),
                     ),
                 ])),
+                ..Default::default()
             }),
             Some(DynamicComponentConfig {
                 name: "motor2".to_owned(),
@@ -521,6 +524,7 @@ mod tests {
                         )])),
                     ),
                 ])),
+                ..Default::default()
             }),
             Some(DynamicComponentConfig {
                 name: "motor3".to_owned(),
@@ -539,6 +543,7 @@ mod tests {
                         ])),
                     ),
                 ])),
+                ..Default::default()
             }),
         ];
 

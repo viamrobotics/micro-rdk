@@ -27,6 +27,8 @@ use crate::{
 };
 use log::*;
 
+#[cfg(feature = "data")]
+use super::data_collector::{DataCollectionError, DataCollector, DataCollectorConfig};
 use super::{
     actuator::ActuatorError,
     base::BaseType,
@@ -44,6 +46,7 @@ use super::{
     servo::{Servo, ServoType},
     status::StatusError,
 };
+
 use thiserror::Error;
 
 static NAMESPACE_PREFIX: &str = "rdk:builtin:";
@@ -86,6 +89,8 @@ impl ResourceType {
 pub struct LocalRobot {
     resources: ResourceMap,
     build_time: Option<DateTime<FixedOffset>>,
+    #[cfg(feature = "data")]
+    data_collector_configs: Vec<(ResourceName, DataCollectorConfig)>,
 }
 
 #[derive(Error, Debug)]
@@ -108,6 +113,10 @@ pub enum RobotError {
     RobotParseConfigError(#[from] AttributeError),
     #[error(transparent)]
     RobotActuatorError(#[from] ActuatorError),
+    #[error("resource not found with name {0} and component_type {1}")]
+    ResourceNotFound(String, String),
+    #[error(transparent)]
+    DataCollectorInitError(#[from] DataCollectionError),
 }
 
 fn resource_name_from_component_cfg(cfg: &DynamicComponentConfig) -> ResourceName {
@@ -171,7 +180,7 @@ impl LocalRobot {
         while resource_to_build > 0 && num_iteration < max_iteration {
             num_iteration += 1;
             let cfg = &mut components[iter.next().unwrap()];
-            if let Some(cfg) = cfg.as_ref() {
+            if let Some(cfg) = cfg.as_mut() {
                 // capture the error and make it available to LocalRobot so it can be pushed in the logs?
                 if self
                     .build_resource(cfg, board.clone(), board_key.clone(), &mut registry)
@@ -211,6 +220,8 @@ impl LocalRobot {
             // Use date time pulled off gRPC header as the `build_time` returned in the status of
             // every resource as `last_reconfigured`.
             build_time,
+            #[cfg(feature = "data")]
+            data_collector_configs: vec![],
         };
 
         let components: Result<Vec<Option<DynamicComponentConfig>>, AttributeError> = config_resp
@@ -230,7 +241,7 @@ impl LocalRobot {
 
     fn build_resource(
         &mut self,
-        config: &DynamicComponentConfig,
+        config: &mut DynamicComponentConfig,
         board: Option<BoardType>,
         board_name: Option<ResourceKey>,
         registry: &mut ComponentRegistry,
@@ -245,6 +256,11 @@ impl LocalRobot {
                 board_name.as_ref().unwrap().clone(),
                 ResourceType::Board(b.clone()),
             ));
+        }
+        #[cfg(feature = "data")]
+        for cfg in config.data_collector_configs.drain(0..) {
+            self.data_collector_configs
+                .push((new_resource_name.clone(), cfg));
         }
         self.insert_resource(
             model,
@@ -395,6 +411,22 @@ impl LocalRobot {
         };
         self.resources.insert(r_name, res);
         Ok(())
+    }
+
+    #[cfg(feature = "data")]
+    pub fn data_collectors(&self) -> Result<Vec<DataCollector>, RobotError> {
+        let mut res = Vec::new();
+        for (r_name, conf) in &self.data_collector_configs {
+            let resource = self.resources.get(&r_name).ok_or_else(|| {
+                RobotError::ResourceNotFound(r_name.name.clone(), r_name.r#type.clone())
+            })?;
+            res.push(DataCollector::from_config(
+                r_name.name.clone(),
+                resource.clone(),
+                conf,
+            )?);
+        }
+        Ok(res)
     }
 
     pub fn get_status(
@@ -761,6 +793,7 @@ mod tests {
     use crate::common::analog::AnalogReader;
     use crate::common::board::Board;
     use crate::common::config::{DynamicComponentConfig, Kind};
+    use crate::common::data_collector::DataCollectorConfig;
     use crate::common::encoder::{Encoder, EncoderPositionType};
     use crate::common::i2c::I2CHandle;
     use crate::common::motor::Motor;
@@ -773,6 +806,21 @@ mod tests {
 
     #[test_log::test]
     fn test_robot_from_components() {
+        #[cfg(feature = "data")]
+        let conf = {
+            let kind_map = HashMap::from([
+                (
+                    "method".to_string(),
+                    Kind::StringValue("Readings".to_string()),
+                ),
+                ("capture_frequency_hz".to_string(), Kind::NumberValue(100.0)),
+            ]);
+            let conf_kind = Kind::StructValue(kind_map);
+            let conf = DataCollectorConfig::try_from(&conf_kind);
+            assert!(conf.is_ok());
+            conf.unwrap()
+        };
+
         let robot_config: Vec<Option<DynamicComponentConfig>> = vec![
             Some(DynamicComponentConfig {
                 name: "board".to_owned(),
@@ -810,6 +858,7 @@ mod tests {
                         ]),
                     ),
                 ])),
+                ..Default::default()
             }),
             Some(DynamicComponentConfig {
                 name: "motor".to_owned(),
@@ -832,6 +881,7 @@ mod tests {
                         ])),
                     ),
                 ])),
+                ..Default::default()
             }),
             Some(DynamicComponentConfig {
                 name: "sensor".to_owned(),
@@ -842,6 +892,7 @@ mod tests {
                     "fake_value".to_owned(),
                     Kind::StringValue("11.12".to_owned()),
                 )])),
+                ..Default::default()
             }),
             Some(DynamicComponentConfig {
                 name: "m_sensor".to_owned(),
@@ -871,6 +922,38 @@ mod tests {
                         Kind::StringValue("100.4".to_owned()),
                     ),
                 ])),
+                ..Default::default()
+            }),
+            #[cfg(feature = "data")]
+            Some(DynamicComponentConfig {
+                name: "m_sensor_2".to_owned(),
+                namespace: "rdk".to_owned(),
+                r#type: "movement_sensor".to_owned(),
+                model: "rdk:builtin:fake".to_owned(),
+                attributes: Some(HashMap::from([
+                    ("fake_lat".to_owned(), Kind::StringValue("68.86".to_owned())),
+                    (
+                        "fake_lon".to_owned(),
+                        Kind::StringValue("-85.44".to_owned()),
+                    ),
+                    (
+                        "fake_alt".to_owned(),
+                        Kind::StringValue("3000.1".to_owned()),
+                    ),
+                    (
+                        "lin_acc_x".to_owned(),
+                        Kind::StringValue("200.2".to_owned()),
+                    ),
+                    (
+                        "lin_acc_y".to_owned(),
+                        Kind::StringValue("-100.3".to_owned()),
+                    ),
+                    (
+                        "lin_acc_z".to_owned(),
+                        Kind::StringValue("100.4".to_owned()),
+                    ),
+                ])),
+                data_collector_configs: vec![conf],
             }),
             Some(DynamicComponentConfig {
                 name: "enc1".to_owned(),
@@ -884,6 +967,7 @@ mod tests {
                         Kind::StringValue("2".to_owned()),
                     ),
                 ])),
+                ..Default::default()
             }),
             Some(DynamicComponentConfig {
                 name: "enc2".to_owned(),
@@ -894,6 +978,7 @@ mod tests {
                     "fake_ticks".to_owned(),
                     Kind::StringValue("3.0".to_owned()),
                 )])),
+                ..Default::default()
             }),
         ];
 
@@ -901,6 +986,21 @@ mod tests {
 
         let ret = robot.process_components(robot_config, Box::default());
         ret.unwrap();
+
+        #[cfg(feature = "data")]
+        {
+            let data_collectors = robot.data_collectors();
+            assert!(data_collectors.is_ok());
+            let mut data_collectors = data_collectors.unwrap();
+            assert_eq!(data_collectors.len(), 1);
+            let collector = data_collectors.pop().unwrap();
+            assert_eq!(collector.name().as_str(), "m_sensor_2");
+            assert_eq!(
+                collector.component_type().as_str(),
+                "rdk:component:movement_sensor"
+            );
+            assert_eq!(collector.time_interval(), 10);
+        }
 
         let motor = robot.get_motor_by_name("motor".to_string());
 

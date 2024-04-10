@@ -1,4 +1,6 @@
 #![allow(dead_code)]
+#[cfg(feature = "data")]
+use crate::common::data_collector::DataCollectorConfig;
 use crate::google;
 use crate::proto::{app::v1::ComponentConfig, common::v1::ResourceName};
 
@@ -265,6 +267,8 @@ pub struct DynamicComponentConfig {
     pub r#type: String,
     pub model: String,
     pub attributes: Option<HashMap<String, Kind>>,
+    #[cfg(feature = "data")]
+    pub data_collector_configs: Vec<DataCollectorConfig>,
 }
 
 impl TryFrom<&ComponentConfig> for DynamicComponentConfig {
@@ -283,12 +287,45 @@ impl TryFrom<&ComponentConfig> for DynamicComponentConfig {
             }
             attrs_opt = Some(attrs);
         }
+        #[cfg(feature = "data")]
+        let data_collector_configs = if !value.service_configs.is_empty() {
+            if let Some(data_service_cfg) = value
+                .service_configs
+                .iter()
+                .find(|cfg| cfg.r#type == *"rdk:service:data_manager")
+            {
+                let data_service_attributes_struct =
+                    &data_service_cfg.attributes.as_ref().unwrap().fields;
+
+                let capture_methods_val =
+                    data_service_attributes_struct.get(&("capture_methods".to_string()));
+                match capture_methods_val {
+                    Some(capture_methods_val) => {
+                        if let Some(capture_methods_proto) = capture_methods_val.kind.as_ref() {
+                            let capture_methods_kind: Kind = capture_methods_proto.try_into()?;
+                            let capture_methods: Vec<DataCollectorConfig> =
+                                (&capture_methods_kind).try_into()?;
+                            capture_methods
+                        } else {
+                            vec![]
+                        }
+                    }
+                    None => vec![],
+                }
+            } else {
+                vec![]
+            }
+        } else {
+            vec![]
+        };
         Ok(Self {
             name: value.name.to_string(),
             namespace: value.namespace.to_string(),
             r#type: value.r#type.to_string(),
             model: value.model.to_string(),
             attributes: attrs_opt,
+            #[cfg(feature = "data")]
+            data_collector_configs,
         })
     }
 }
@@ -384,6 +421,7 @@ mod tests {
                         Kind::StringValue("13".to_owned()),
                     ]),
                 )])),
+                ..Default::default()
             },
             DynamicComponentConfig {
                 name: "motor".to_owned(),
@@ -401,6 +439,7 @@ mod tests {
                     ),
                     ("board".to_owned(), Kind::StringValue("board".to_owned())),
                 ])),
+                ..Default::default()
             },
             DynamicComponentConfig {
                 name: "motor".to_owned(),
@@ -430,6 +469,7 @@ mod tests {
                         )])),
                     ),
                 ])),
+                ..Default::default()
             },
         ];
 
