@@ -2209,7 +2209,7 @@ dependencies = [
 
 [[package]]
 name = "examples"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "anyhow",
  "async-channel 2.2.0",
@@ -3409,7 +3409,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "async-channel 2.2.0",
  "async-executor",
@@ -3463,7 +3463,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-installer"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "anyhow",
  "clap",
@@ -3492,7 +3492,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-macros"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "micro-rdk",
  "proc-macro-crate 2.0.2",

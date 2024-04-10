@@ -66,7 +66,7 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: micro-rdk-installer-${{ matrix.job.file_suffix }}
-        path: micro-rdk-installer/micro-rdk-installer-${{ matrix.job.file_suffix }}
+        path: micro-rdk-installer-${{ matrix.job.file_suffix }}
 
   # github-actions does not have a runner that supports arm64 linux and cross-compilation does not seem to work for the ring crate
   build-installer-arm64-linux:
@@ -98,7 +98,7 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: micro-rdk-installer-arm64-linux
-        path: micro-rdk-installer/micro-rdk-installer-arm64-linux
+        path: micro-rdk-installer-arm64-linux
       
 
   build-micro-RDK:
