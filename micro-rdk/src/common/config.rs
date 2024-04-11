@@ -405,6 +405,7 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::common::config::{AttributeError, Component, DynamicComponentConfig, Kind};
+
     #[test_log::test]
     fn test_config_component() {
         let robot_config: [DynamicComponentConfig; 3] = [
@@ -557,5 +558,93 @@ mod tests {
 
         assert_eq!(val.as_ref().ok(), None);
         assert_eq!(val.err().unwrap(), AttributeError::ParseNumError);
+    }
+
+    #[cfg(feature = "data")]
+    #[test_log::test]
+    fn test_data_collector_config_parsing() {
+        use crate::proto::app::v1::{ComponentConfig, ResourceLevelServiceConfig};
+        use crate::{
+            common::data_collector::CollectionMethod,
+            google::protobuf::{value::Kind as PKind, ListValue, Struct, Value},
+        };
+
+        let comp_config = ComponentConfig {
+            service_configs: vec![
+                ResourceLevelServiceConfig {
+                    r#type: "rdk:service:some_service".to_string(),
+                    attributes: None,
+                },
+                ResourceLevelServiceConfig {
+                    r#type: "rdk:service:data_manager".to_string(),
+                    attributes: Some(Struct {
+                        fields: HashMap::from([(
+                            "capture_methods".to_string(),
+                            Value {
+                                kind: Some(PKind::ListValue(ListValue {
+                                    values: vec![
+                                        Value {
+                                            kind: Some(PKind::StructValue(Struct {
+                                                fields: HashMap::from([
+                                                    (
+                                                        "method".to_string(),
+                                                        Value {
+                                                            kind: Some(PKind::StringValue(
+                                                                "Readings".to_string(),
+                                                            )),
+                                                        },
+                                                    ),
+                                                    (
+                                                        "capture_frequency_hz".to_string(),
+                                                        Value {
+                                                            kind: Some(PKind::NumberValue(100.0)),
+                                                        },
+                                                    ),
+                                                ]),
+                                            })),
+                                        },
+                                        Value {
+                                            kind: Some(PKind::StructValue(Struct {
+                                                fields: HashMap::from([
+                                                    (
+                                                        "method".to_string(),
+                                                        Value {
+                                                            kind: Some(PKind::StringValue(
+                                                                "Readings".to_string(),
+                                                            )),
+                                                        },
+                                                    ),
+                                                    (
+                                                        "capture_frequency_hz".to_string(),
+                                                        Value {
+                                                            kind: Some(PKind::NumberValue(200.0)),
+                                                        },
+                                                    ),
+                                                ]),
+                                            })),
+                                        },
+                                    ],
+                                })),
+                            },
+                        )]),
+                    }),
+                },
+            ],
+            ..Default::default()
+        };
+
+        let comp_config_parsed = DynamicComponentConfig::try_from(&comp_config);
+        assert!(comp_config_parsed.is_ok());
+        let comp_config_parsed = comp_config_parsed.unwrap();
+        let data_coll_cfgs = comp_config_parsed.data_collector_configs;
+        assert_eq!(data_coll_cfgs.len(), 2);
+
+        let data_coll = &data_coll_cfgs[0];
+        assert_eq!(data_coll.capture_frequency_hz, 100.0);
+        assert!(matches!(data_coll.method, CollectionMethod::Readings));
+
+        let data_coll = &data_coll_cfgs[1];
+        assert_eq!(data_coll.capture_frequency_hz, 200.0);
+        assert!(matches!(data_coll.method, CollectionMethod::Readings));
     }
 }
