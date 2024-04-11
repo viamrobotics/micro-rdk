@@ -115,6 +115,7 @@ pub enum RobotError {
     RobotActuatorError(#[from] ActuatorError),
     #[error("resource not found with name {0} and component_type {1}")]
     ResourceNotFound(String, String),
+    #[cfg(feature = "data")]
     #[error(transparent)]
     DataCollectorInitError(#[from] DataCollectionError),
 }
@@ -793,6 +794,7 @@ mod tests {
     use crate::common::analog::AnalogReader;
     use crate::common::board::Board;
     use crate::common::config::{DynamicComponentConfig, Kind};
+    #[cfg(feature = "data")]
     use crate::common::data_collector::DataCollectorConfig;
     use crate::common::encoder::{Encoder, EncoderPositionType};
     use crate::common::i2c::I2CHandle;
