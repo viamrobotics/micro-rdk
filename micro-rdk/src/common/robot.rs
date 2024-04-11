@@ -417,7 +417,7 @@ impl LocalRobot {
     pub fn data_collectors(&self) -> Result<Vec<DataCollector>, RobotError> {
         let mut res = Vec::new();
         for (r_name, conf) in &self.data_collector_configs {
-            let resource = self.resources.get(&r_name).ok_or_else(|| {
+            let resource = self.resources.get(r_name).ok_or_else(|| {
                 RobotError::ResourceNotFound(r_name.name.clone(), r_name.r#type.clone())
             })?;
             res.push(DataCollector::from_config(
