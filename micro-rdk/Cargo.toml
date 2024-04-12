@@ -75,7 +75,7 @@ socket2.workspace = true
 stun_codec.workspace = true
 thiserror.workspace = true
 trackable.workspace = true
-
+ringbuf.workspace = true
 
 [build-dependencies]
 const-gen.workspace = true

@@ -56,7 +56,7 @@ impl TryFrom<&Kind> for DataCollectorConfig {
 
 /// A CollectionMethod is an enum whose values are associated with
 /// a method on one or more component traits
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CollectionMethod {
     Readings,
     // MovementSensor methods
@@ -76,6 +76,23 @@ impl Display for CollectionMethod {
                 Self::LinearVelocity => "linearvelocity",
             },
             f,
+        )
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ResourceMethodKey {
+    pub r_name: String,
+    pub component_type: String,
+    pub method: CollectionMethod,
+}
+
+impl Display for ResourceMethodKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ResourceMethodKey ({}:{}, {})",
+            self.component_type, self.r_name, &self.method
         )
     }
 }
@@ -202,12 +219,12 @@ impl DataCollector {
         Ok(SensorData {
             metadata: Some(SensorMetadata {
                 time_received: Some(Timestamp {
-                    seconds: reading_requested_dt.timestamp(),
-                    nanos: reading_requested_dt.timestamp_subsec_nanos() as i32,
-                }),
-                time_requested: Some(Timestamp {
                     seconds: reading_received_dt.timestamp(),
                     nanos: reading_received_dt.timestamp_subsec_nanos() as i32,
+                }),
+                time_requested: Some(Timestamp {
+                    seconds: reading_requested_dt.timestamp(),
+                    nanos: reading_requested_dt.timestamp_subsec_nanos() as i32,
                 }),
             }),
             data: Some(data),
