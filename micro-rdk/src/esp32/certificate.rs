@@ -4,6 +4,7 @@ use std::{
     mem::MaybeUninit,
 };
 
+use chrono::{NaiveDate, NaiveDateTime};
 use esp_idf_svc::sys::{
     mbedtls_ctr_drbg_context, mbedtls_ctr_drbg_free, mbedtls_ctr_drbg_init,
     mbedtls_ctr_drbg_random, mbedtls_ctr_drbg_seed, mbedtls_ecp_gen_key,
@@ -16,7 +17,8 @@ use esp_idf_svc::sys::{
     mbedtls_x509write_crt_set_issuer_key, mbedtls_x509write_crt_set_issuer_name,
     mbedtls_x509write_crt_set_md_alg, mbedtls_x509write_crt_set_subject_key,
     mbedtls_x509write_crt_set_subject_name, mbedtls_x509write_crt_set_validity,
-    mbedtls_x509write_crt_set_version, SHA_TYPE_SHA2_256,
+    mbedtls_x509write_crt_set_version, MBEDTLS_ERR_PK_BAD_INPUT_DATA, MBEDTLS_X509_CRT_VERSION_3,
+    SHA_TYPE_SHA2_256,
 };
 
 use crate::common::webrtc::certificate::{Certificate, Fingerprint};
@@ -24,7 +26,7 @@ use crate::common::webrtc::certificate::{Certificate, Fingerprint};
 #[derive(Clone)]
 pub struct WebRtcCertificate {
     serialized_der: Vec<u8>,
-    key_pair: Vec<u8>,
+    priv_key: Vec<u8>,
     fingerprint: Fingerprint,
 }
 
@@ -32,7 +34,7 @@ impl<'a> WebRtcCertificate {
     pub fn new(serialized_der: Vec<u8>, key_pair: Vec<u8>, fingerprint: &'a str) -> Self {
         Self {
             serialized_der,
-            key_pair,
+            priv_key: key_pair,
             fingerprint: Fingerprint::try_from(fingerprint).unwrap(),
         }
     }
@@ -43,7 +45,7 @@ impl Certificate for WebRtcCertificate {
         &self.serialized_der
     }
     fn get_der_keypair(&self) -> &'_ [u8] {
-        &self.key_pair
+        &self.priv_key
     }
     fn get_fingerprint(&self) -> &'_ Fingerprint {
         &self.fingerprint
@@ -110,15 +112,15 @@ impl Debug for MbedTLSError {
 // TODO consider moving this function in it's own rust wrapper to be reused elsewhere
 // or patch esp-idf-sys upstream to expose it via the bindings
 extern "C" {
-    fn esp_sha(sha_tyep: esp_idf_svc::sys::SHA_TYPE, input: *const u8, len: usize, output: *mut u8);
+    fn esp_sha(sha_type: esp_idf_svc::sys::SHA_TYPE, input: *const u8, len: usize, output: *mut u8);
 }
 
 pub struct GeneratedWebRtcCertificateBuilder {
     oid_cn: String,
     oid_c: String,
     oid_o: String,
-    not_before: String,
-    not_after: String,
+    not_before: NaiveDateTime,
+    not_after: NaiveDateTime,
     drbg_context: mbedtls_ctr_drbg_context,
     entropy: mbedtls_entropy_context,
     kp_context: mbedtls_pk_context,
@@ -138,11 +140,11 @@ impl GeneratedWebRtcCertificateBuilder {
         self.oid_o = org;
         self
     }
-    pub fn with_notbefore(&mut self, not_before: String) -> &mut Self {
+    pub fn with_notbefore(&mut self, not_before: NaiveDateTime) -> &mut Self {
         self.not_before = not_before;
         self
     }
-    pub fn with_notafter(&mut self, not_after: String) -> &mut Self {
+    pub fn with_notafter(&mut self, not_after: NaiveDateTime) -> &mut Self {
         self.not_after = not_after;
         self
     }
@@ -157,10 +159,16 @@ impl GeneratedWebRtcCertificateBuilder {
             ))
         }?;
 
+        let key_type_info =
+            unsafe { mbedtls_pk_info_from_type(mbedtls_pk_type_t_MBEDTLS_PK_ECKEY) };
+        if key_type_info.is_null() {
+            return Err(MbedTLSError(MBEDTLS_ERR_PK_BAD_INPUT_DATA));
+        }
+
         unsafe {
             MbedTLSError::to_unit_result(mbedtls_pk_setup(
                 &mut self.kp_context as *mut mbedtls_pk_context,
-                mbedtls_pk_info_from_type(mbedtls_pk_type_t_MBEDTLS_PK_ECKEY),
+                key_type_info,
             ))
         }?;
 
@@ -186,7 +194,7 @@ impl GeneratedWebRtcCertificateBuilder {
             );
             mbedtls_x509write_crt_set_version(
                 &mut self.crt_context as *mut mbedtls_x509write_cert,
-                2,
+                MBEDTLS_X509_CRT_VERSION_3 as i32,
             );
             mbedtls_x509write_crt_set_md_alg(
                 &mut self.crt_context as *mut mbedtls_x509write_cert,
@@ -215,8 +223,8 @@ impl GeneratedWebRtcCertificateBuilder {
             ))
         }?;
 
-        let not_before = CString::new(self.not_before.clone()).unwrap();
-        let not_after = CString::new(self.not_after.clone()).unwrap();
+        let not_before = CString::new(self.not_after.format("%Y%m%d%H%M%S").to_string()).unwrap();
+        let not_after = CString::new(self.not_after.format("%Y%m%d%H%M%S").to_string()).unwrap();
 
         unsafe {
             MbedTLSError::to_unit_result(mbedtls_x509write_crt_set_validity(
@@ -232,13 +240,13 @@ impl GeneratedWebRtcCertificateBuilder {
             MbedTLSError::to_result(mbedtls_x509write_crt_der(
                 &mut self.crt_context as *mut mbedtls_x509write_cert,
                 work_buffer.as_mut_ptr(),
-                2048,
+                work_buffer.len(),
                 Some(mbedtls_ctr_drbg_random),
                 &mut self.drbg_context as *mut _ as *mut c_void,
             ))
         }?;
         let der_certificate = work_buffer[2048 - ret as usize..].to_vec();
-        assert_eq!(der_certificate.len(), ret as usize);
+        debug_assert_eq!(der_certificate.len(), ret as usize);
 
         unsafe {
             esp_sha(
@@ -254,24 +262,23 @@ impl GeneratedWebRtcCertificateBuilder {
             .map(|b| format!("{:02X}", b))
             .collect::<Vec<String>>()
             .join(":");
-        assert_eq!(der_fp.len(), 95);
+        debug_assert_eq!(der_fp.len(), 95);
+        let fingerprint = Fingerprint::new("sha-256".to_owned(), der_fp);
 
         let ret = unsafe {
             MbedTLSError::to_result(mbedtls_pk_write_key_der(
                 &mut self.kp_context as *mut _,
                 work_buffer.as_mut_ptr(),
-                2048,
+                work_buffer.len(),
             ))
         }?;
 
-        let der_kp = work_buffer[2048 - ret as usize..].to_vec();
-        assert_eq!(der_kp.len(), ret as usize);
-
-        let fingerprint = Fingerprint::new("sha-256".to_owned(), der_fp);
+        let der_pk = work_buffer[2048 - ret as usize..].to_vec();
+        debug_assert_eq!(der_pk.len(), ret as usize);
 
         Ok(WebRtcCertificate {
             serialized_der: der_certificate,
-            key_pair: der_kp,
+            priv_key: der_pk,
             fingerprint,
         })
     }
@@ -301,11 +308,17 @@ impl Default for GeneratedWebRtcCertificateBuilder {
         };
 
         Self {
-            oid_cn: String::from("VIAM Webrtc"),
+            oid_cn: String::from("VIAM WebRTC"),
             oid_c: String::from("US"),
             oid_o: String::from("VIAM"),
-            not_before: String::from("20240101000000"),
-            not_after: String::from("20340101000000"),
+            not_before: NaiveDate::from_ymd_opt(2024, 1, 1)
+                .unwrap()
+                .and_hms_opt(0, 0, 0)
+                .unwrap(),
+            not_after: NaiveDate::from_ymd_opt(2034, 1, 1)
+                .unwrap()
+                .and_hms_opt(0, 0, 0)
+                .unwrap(),
             drbg_context,
             entropy,
             kp_context,
