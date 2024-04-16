@@ -159,9 +159,14 @@ impl DataCollector {
     pub fn from_config(
         name: String,
         resource: ResourceType,
-        conf: DataCollectorConfig,
+        conf: &DataCollectorConfig,
     ) -> Result<Self, DataCollectionError> {
-        Self::new(name, resource, conf.method, conf.capture_frequency_hz)
+        Self::new(
+            name,
+            resource,
+            conf.method.clone(),
+            conf.capture_frequency_hz,
+        )
     }
 
     pub fn name(&self) -> String {
@@ -300,7 +305,7 @@ mod tests {
         let conf_kind = Kind::StructValue(kind_map);
         let conf =
             DataCollectorConfig::try_from(&conf_kind).expect("data collector config parse failed");
-        let mut coll = DataCollector::from_config("fake".to_string(), resource, conf)?;
+        let mut coll = DataCollector::from_config("fake".to_string(), resource, &conf)?;
         let data = coll.call_method()?.data;
         assert!(data.is_some());
         let data = data.unwrap();

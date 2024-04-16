@@ -1,4 +1,6 @@
 #![allow(dead_code)]
+#[cfg(feature = "data")]
+use crate::common::data_collector::DataCollectorConfig;
 use crate::google;
 use crate::proto::{app::v1::ComponentConfig, common::v1::ResourceName};
 
@@ -265,6 +267,8 @@ pub struct DynamicComponentConfig {
     pub r#type: String,
     pub model: String,
     pub attributes: Option<HashMap<String, Kind>>,
+    #[cfg(feature = "data")]
+    pub data_collector_configs: Vec<DataCollectorConfig>,
 }
 
 impl TryFrom<&ComponentConfig> for DynamicComponentConfig {
@@ -283,12 +287,45 @@ impl TryFrom<&ComponentConfig> for DynamicComponentConfig {
             }
             attrs_opt = Some(attrs);
         }
+        #[cfg(feature = "data")]
+        let data_collector_configs = if !value.service_configs.is_empty() {
+            if let Some(data_service_cfg) = value
+                .service_configs
+                .iter()
+                .find(|cfg| cfg.r#type == *"rdk:service:data_manager")
+            {
+                let data_service_attributes_struct =
+                    &data_service_cfg.attributes.as_ref().unwrap().fields;
+
+                let capture_methods_val =
+                    data_service_attributes_struct.get(&("capture_methods".to_string()));
+                match capture_methods_val {
+                    Some(capture_methods_val) => {
+                        if let Some(capture_methods_proto) = capture_methods_val.kind.as_ref() {
+                            let capture_methods_kind: Kind = capture_methods_proto.try_into()?;
+                            let capture_methods: Vec<DataCollectorConfig> =
+                                (&capture_methods_kind).try_into()?;
+                            capture_methods
+                        } else {
+                            vec![]
+                        }
+                    }
+                    None => vec![],
+                }
+            } else {
+                vec![]
+            }
+        } else {
+            vec![]
+        };
         Ok(Self {
             name: value.name.to_string(),
             namespace: value.namespace.to_string(),
             r#type: value.r#type.to_string(),
             model: value.model.to_string(),
             attributes: attrs_opt,
+            #[cfg(feature = "data")]
+            data_collector_configs,
         })
     }
 }
@@ -368,6 +405,7 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::common::config::{AttributeError, Component, DynamicComponentConfig, Kind};
+
     #[test_log::test]
     fn test_config_component() {
         let robot_config: [DynamicComponentConfig; 3] = [
@@ -384,6 +422,7 @@ mod tests {
                         Kind::StringValue("13".to_owned()),
                     ]),
                 )])),
+                ..Default::default()
             },
             DynamicComponentConfig {
                 name: "motor".to_owned(),
@@ -401,6 +440,7 @@ mod tests {
                     ),
                     ("board".to_owned(), Kind::StringValue("board".to_owned())),
                 ])),
+                ..Default::default()
             },
             DynamicComponentConfig {
                 name: "motor".to_owned(),
@@ -430,6 +470,7 @@ mod tests {
                         )])),
                     ),
                 ])),
+                ..Default::default()
             },
         ];
 
@@ -517,5 +558,93 @@ mod tests {
 
         assert_eq!(val.as_ref().ok(), None);
         assert_eq!(val.err().unwrap(), AttributeError::ParseNumError);
+    }
+
+    #[cfg(feature = "data")]
+    #[test_log::test]
+    fn test_data_collector_config_parsing() {
+        use crate::proto::app::v1::{ComponentConfig, ResourceLevelServiceConfig};
+        use crate::{
+            common::data_collector::CollectionMethod,
+            google::protobuf::{value::Kind as PKind, ListValue, Struct, Value},
+        };
+
+        let comp_config = ComponentConfig {
+            service_configs: vec![
+                ResourceLevelServiceConfig {
+                    r#type: "rdk:service:some_service".to_string(),
+                    attributes: None,
+                },
+                ResourceLevelServiceConfig {
+                    r#type: "rdk:service:data_manager".to_string(),
+                    attributes: Some(Struct {
+                        fields: HashMap::from([(
+                            "capture_methods".to_string(),
+                            Value {
+                                kind: Some(PKind::ListValue(ListValue {
+                                    values: vec![
+                                        Value {
+                                            kind: Some(PKind::StructValue(Struct {
+                                                fields: HashMap::from([
+                                                    (
+                                                        "method".to_string(),
+                                                        Value {
+                                                            kind: Some(PKind::StringValue(
+                                                                "Readings".to_string(),
+                                                            )),
+                                                        },
+                                                    ),
+                                                    (
+                                                        "capture_frequency_hz".to_string(),
+                                                        Value {
+                                                            kind: Some(PKind::NumberValue(100.0)),
+                                                        },
+                                                    ),
+                                                ]),
+                                            })),
+                                        },
+                                        Value {
+                                            kind: Some(PKind::StructValue(Struct {
+                                                fields: HashMap::from([
+                                                    (
+                                                        "method".to_string(),
+                                                        Value {
+                                                            kind: Some(PKind::StringValue(
+                                                                "Readings".to_string(),
+                                                            )),
+                                                        },
+                                                    ),
+                                                    (
+                                                        "capture_frequency_hz".to_string(),
+                                                        Value {
+                                                            kind: Some(PKind::NumberValue(200.0)),
+                                                        },
+                                                    ),
+                                                ]),
+                                            })),
+                                        },
+                                    ],
+                                })),
+                            },
+                        )]),
+                    }),
+                },
+            ],
+            ..Default::default()
+        };
+
+        let comp_config_parsed = DynamicComponentConfig::try_from(&comp_config);
+        assert!(comp_config_parsed.is_ok());
+        let comp_config_parsed = comp_config_parsed.unwrap();
+        let data_coll_cfgs = comp_config_parsed.data_collector_configs;
+        assert_eq!(data_coll_cfgs.len(), 2);
+
+        let data_coll = &data_coll_cfgs[0];
+        assert_eq!(data_coll.capture_frequency_hz, 100.0);
+        assert!(matches!(data_coll.method, CollectionMethod::Readings));
+
+        let data_coll = &data_coll_cfgs[1];
+        assert_eq!(data_coll.capture_frequency_hz, 200.0);
+        assert!(matches!(data_coll.method, CollectionMethod::Readings));
     }
 }
