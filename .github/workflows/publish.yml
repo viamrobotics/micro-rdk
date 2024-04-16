@@ -102,7 +102,7 @@ jobs:
       
 
   build-micro-RDK:
-    runs-on: [x64, qemu-host]
+    runs-on: [X64]
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
     needs: tests

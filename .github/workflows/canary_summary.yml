@@ -13,7 +13,7 @@ env:
 
 jobs:
   canary:
-    runs-on: x64
+    runs-on: X64
     defaults: 
       run:
         working-directory: ./canary
