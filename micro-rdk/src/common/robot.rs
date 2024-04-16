@@ -181,7 +181,7 @@ impl LocalRobot {
         while resource_to_build > 0 && num_iteration < max_iteration {
             num_iteration += 1;
             let cfg = &mut components[iter.next().unwrap()];
-            if let Some(cfg) = cfg.as_mut() {
+            if let Some(cfg) = cfg.as_ref() {
                 // capture the error and make it available to LocalRobot so it can be pushed in the logs?
                 if self
                     .build_resource(cfg, board.clone(), board_key.clone(), &mut registry)
@@ -242,7 +242,7 @@ impl LocalRobot {
 
     fn build_resource(
         &mut self,
-        config: &mut DynamicComponentConfig,
+        config: &DynamicComponentConfig,
         board: Option<BoardType>,
         board_name: Option<ResourceKey>,
         registry: &mut ComponentRegistry,
@@ -259,9 +259,9 @@ impl LocalRobot {
             ));
         }
         #[cfg(feature = "data")]
-        for cfg in config.data_collector_configs.drain(0..) {
+        for cfg in config.data_collector_configs.iter() {
             self.data_collector_configs
-                .push((new_resource_name.clone(), cfg));
+                .push((new_resource_name.clone(), cfg.clone()));
         }
         self.insert_resource(
             model,
