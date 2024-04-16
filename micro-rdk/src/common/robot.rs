@@ -794,11 +794,6 @@ mod tests {
     use crate::common::analog::AnalogReader;
     use crate::common::board::Board;
     use crate::common::config::{DynamicComponentConfig, Kind};
-    #[cfg(feature = "data")]
-    use {
-        crate::common::data_collector::DataCollectorConfig,
-        std::time::Duration,
-    };
     use crate::common::encoder::{Encoder, EncoderPositionType};
     use crate::common::i2c::I2CHandle;
     use crate::common::motor::Motor;
@@ -808,6 +803,8 @@ mod tests {
     use crate::google;
     use crate::google::protobuf::Struct;
     use crate::proto::app::v1::{ComponentConfig, ConfigResponse, RobotConfig};
+    #[cfg(feature = "data")]
+    use {crate::common::data_collector::DataCollectorConfig, std::time::Duration};
 
     #[test_log::test]
     fn test_robot_from_components() {
