@@ -22,7 +22,7 @@ env:
 
 jobs:
   canary:
-    runs-on: X64
+    runs-on: "ubuntu-latest"
     defaults: 
       run:
         working-directory: ./canary

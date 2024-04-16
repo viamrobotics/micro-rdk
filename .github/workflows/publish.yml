@@ -102,7 +102,7 @@ jobs:
       
 
   build-micro-RDK:
-    runs-on: [X64]
+    runs-on: ubuntu-latest
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
     needs: tests
