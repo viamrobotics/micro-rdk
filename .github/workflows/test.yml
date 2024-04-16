@@ -14,7 +14,7 @@ on:
 jobs:
   changes:
     name: Calculate changes
-    runs-on: [X64]
+    runs-on: ubuntu-latest
     outputs:
       src-esp32: ${{ steps.changes.outputs.src-esp32 }}
       src-native: ${{ steps.changes.outputs.src-native }}
@@ -57,7 +57,7 @@ jobs:
     needs: changes
     name: Tests, Format, Clippy Micro-RDK installer
     if: ${{ needs.changes.outputs.src-cli == 'true'}}
-    runs-on: [X64]
+    runs-on: ubuntu-latest
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
       
@@ -81,7 +81,7 @@ jobs:
   test_and_build:
     needs: changes
     name: Tests, Format, Clippy Micro-Rdk
-    runs-on: [X64]
+    runs-on: ubuntu-latest
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
     timeout-minutes: 20
