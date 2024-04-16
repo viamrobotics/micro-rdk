@@ -1,58 +1,49 @@
 //! The exec module exposes helpers to execute futures on Native
 use async_executor::{LocalExecutor, Task};
 use futures_lite::{
-    future::{self},
+    future::{self, block_on},
     Future,
 };
-use std::rc::Rc;
 
 use crate::common::webrtc::exec::WebRtcExecutor;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 /// This executor is local and bounded to the CPU that created it usually you would create it after spwaning a thread on a specific core
-pub struct NativeExecutor<'a> {
-    /// A local executor
-    executor: Rc<LocalExecutor<'a>>,
+pub struct NativeExecutor {}
+
+std::thread_local! {
+    static EX: LocalExecutor<'static> = LocalExecutor::new();
 }
 
-impl<'a> NativeExecutor<'a> {
-    /// Return a new executor bounded to the current core.
+impl NativeExecutor {
     pub fn new() -> Self {
-        NativeExecutor {
-            executor: Rc::new(LocalExecutor::new()),
-        }
+        Self {}
     }
-    /// Spawn a future onto the local executor
-    pub fn spawn<T: 'a>(&self, future: impl Future<Output = T> + 'a) -> Task<T> {
-        self.executor.spawn(future)
+    // Spawn a future onto the local executor
+    pub fn spawn<T: 'static>(&self, future: impl Future<Output = T> + 'static) -> Task<T> {
+        EX.with(|e| e.spawn(future))
     }
-    /// Run a future until it's completion
-    pub async fn run<T>(&self, future: impl Future<Output = T>) -> T {
-        self.executor.run(future).await
-    }
-}
 
-impl<'a> Default for NativeExecutor<'a> {
-    fn default() -> Self {
-        Self::new()
+    pub fn block_on<T>(&self, future: impl Future<Output = T>) -> T {
+        EX.with(|e| block_on(e.run(future)))
     }
 }
 
 /// helper trait for hyper to spwan future onto a local executor
-impl<F> hyper::rt::Executor<F> for NativeExecutor<'_>
+impl<F> hyper::rt::Executor<F> for NativeExecutor
 where
     F: future::Future + 'static,
 {
     fn execute(&self, fut: F) {
-        self.executor.spawn(fut).detach();
+        EX.with(|e| e.spawn(fut)).detach();
     }
 }
 
-impl<F> WebRtcExecutor<F> for NativeExecutor<'_>
+impl<F> WebRtcExecutor<F> for NativeExecutor
 where
     F: future::Future + 'static,
 {
     fn execute(&self, fut: F) {
-        self.executor.spawn(fut).detach();
+        EX.with(|e| e.spawn(fut)).detach();
     }
 }

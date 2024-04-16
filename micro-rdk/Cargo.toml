@@ -55,7 +55,6 @@ embedded-svc = { workspace = true, optional = true }
 esp-idf-svc = { workspace = true, optional = true }
 futures-lite.workspace = true
 futures-util.workspace = true
-h2.workspace = true
 http-body-util.workspace = true
 hyper.workspace = true
 ignore.workspace = true
@@ -75,9 +74,8 @@ sha2.workspace = true
 socket2.workspace = true
 stun_codec.workspace = true
 thiserror.workspace = true
-tokio.workspace = true
 trackable.workspace = true
-
+ringbuf.workspace = true
 
 [build-dependencies]
 const-gen.workspace = true

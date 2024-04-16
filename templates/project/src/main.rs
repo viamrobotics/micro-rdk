@@ -22,7 +22,7 @@ use micro_rdk::{
         sys::esp_wifi_set_ps,
         wifi::{BlockingWifi, EspWifi},
     },
-    esp32::{certificate::WebRtcCertificate, entry::serve_web, tls::Esp32TlsServerConfig},
+    esp32::{certificate::WebRtcCertificate, entry::serve_web, tls::Esp32TLSServerConfig},
 };
 
 macro_rules! generate_register_modules {
@@ -60,10 +60,12 @@ fn main() {
 
     let periph = Peripherals::take().unwrap();
 
+    let mut max_connection = 3;
     unsafe {
         if !g_spiram_ok {
             log::info!("spiram not initialized disabling cache feature of the wifi driver");
             g_wifi_feature_caps &= !(CONFIG_FEATURE_CACHE_TX_BUF_BIT as u64);
+            max_connection = 1;
         }
     }
 
@@ -86,14 +88,14 @@ fn main() {
     let tls_cfg = {
         let cert = [ROBOT_SRV_PEM_CHAIN.to_vec(), ROBOT_SRV_PEM_CA.to_vec()];
         let key = ROBOT_SRV_DER_KEY;
-        Esp32TlsServerConfig::new(cert, key.as_ptr(), key.len() as u32)
+        Esp32TLSServerConfig::new(cert, key.as_ptr(), key.len() as u32)
     };
 
     let mut registry = Box::<ComponentRegistry>::default();
     register_modules(&mut registry).unwrap();
     let repr = RobotRepresentation::WithRegistry(registry);
 
-    serve_web(cfg, tls_cfg, repr, ip, webrtc_certificate, 1);
+    serve_web(cfg, tls_cfg, repr, ip, webrtc_certificate, max_connection);
 }
 
 fn start_wifi(
@@ -103,10 +105,10 @@ fn start_wifi(
     let nvs = micro_rdk::esp32::esp_idf_svc::nvs::EspDefaultNvsPartition::take()?;
     let mut wifi = BlockingWifi::wrap(EspWifi::new(modem, sl_stack.clone(), Some(nvs))?, sl_stack)?;
     let wifi_configuration = WifiConfiguration::Client(WifiClientConfiguration {
-        ssid: SSID.into(),
+        ssid: SSID.try_into().unwrap(),
         bssid: None,
         auth_method: AuthMethod::WPA2Personal,
-        password: PASS.into(),
+        password: PASS.try_into().unwrap(),
         channel: None,
     });
 

@@ -384,9 +384,9 @@ dependencies = [
 
 [[package]]
 name = "async-executor"
-version = "1.8.0"
+version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17ae5ebefcc48e7452b4987947920dac9450be1110cadf34d1b8c116bdbaf97c"
+checksum = "5f98c37cf288e302c16ef6c8472aad1e034c6c84ce5ea7b8101c98eb4a802fee"
 dependencies = [
  "async-lock 3.3.0",
  "async-task",
@@ -1121,13 +1121,13 @@ checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
 
 [[package]]
 name = "comfy-table"
-version = "7.1.0"
+version = "7.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c64043d6c7b7a4c58e39e7efccfdea7b93d885a795d0c054a69dbbf4dd52686"
+checksum = "b34115915337defe99b2aff5c2ce6771e5fbc4079f4b506301f5cf394c8452f7"
 dependencies = [
  "crossterm 0.27.0",
- "strum 0.25.0",
- "strum_macros 0.25.3",
+ "strum 0.26.2",
+ "strum_macros 0.26.2",
  "unicode-width",
 ]
 
@@ -2209,7 +2209,7 @@ dependencies = [
 
 [[package]]
 name = "examples"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "anyhow",
  "async-channel 2.2.0",
@@ -2930,6 +2930,7 @@ dependencies = [
  "pin-project-lite",
  "smallvec",
  "tokio",
+ "want",
 ]
 
 [[package]]
@@ -3408,7 +3409,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "async-channel 2.2.0",
  "async-executor",
@@ -3430,7 +3431,6 @@ dependencies = [
  "futures-lite 1.13.0",
  "futures-rustls",
  "futures-util",
- "h2 0.4.3",
  "http-body-util",
  "hyper 1.2.0",
  "ignore",
@@ -3445,6 +3445,7 @@ dependencies = [
  "prost 0.11.9",
  "rand",
  "rcgen 0.11.3",
+ "ringbuf",
  "rustls 0.20.9",
  "rustls-pemfile",
  "scopeguard",
@@ -3457,14 +3458,13 @@ dependencies = [
  "stun_codec",
  "test-log",
  "thiserror",
- "tokio",
  "trackable 1.3.0",
  "webpki-roots 0.22.6",
 ]
 
 [[package]]
 name = "micro-rdk-installer"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "anyhow",
  "clap",
@@ -3493,7 +3493,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-macros"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "micro-rdk",
  "proc-macro-crate 2.0.2",
@@ -4668,6 +4668,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ringbuf"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "79abed428d1fd2a128201cec72c5f6938e2da607c6f3745f769fabea399d950a"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
 name = "rtcp"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5326,6 +5335,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "strum"
+version = "0.26.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d8cec3501a5194c432b2b7976db6b7d10ec95c253208b45f83f7136aa985e29"
+
+[[package]]
 name = "strum_macros"
 version = "0.24.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5343,6 +5358,19 @@ name = "strum_macros"
 version = "0.25.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23dc1fa9ac9c169a78ba62f0b841814b7abae11bdd047b9c58f893439e309ea0"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "rustversion",
+ "syn 2.0.52",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.26.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6cf59daf282c0a494ba14fd21610a0325f9f90ec9d1231dea26bcb1d696c946"
 dependencies = [
  "heck",
  "proc-macro2",
