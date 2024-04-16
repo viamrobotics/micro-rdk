@@ -794,8 +794,6 @@ mod tests {
     use crate::common::analog::AnalogReader;
     use crate::common::board::Board;
     use crate::common::config::{DynamicComponentConfig, Kind};
-    #[cfg(feature = "data")]
-    use crate::common::data_collector::DataCollectorConfig;
     use crate::common::encoder::{Encoder, EncoderPositionType};
     use crate::common::i2c::I2CHandle;
     use crate::common::motor::Motor;
@@ -805,6 +803,8 @@ mod tests {
     use crate::google;
     use crate::google::protobuf::Struct;
     use crate::proto::app::v1::{ComponentConfig, ConfigResponse, RobotConfig};
+    #[cfg(feature = "data")]
+    use {crate::common::data_collector::DataCollectorConfig, std::time::Duration};
 
     #[test_log::test]
     fn test_robot_from_components() {
@@ -1001,7 +1001,7 @@ mod tests {
                 collector.component_type().as_str(),
                 "rdk:component:movement_sensor"
             );
-            assert_eq!(collector.time_interval(), 10);
+            assert_eq!(collector.time_interval(), Duration::from_millis(10));
         }
 
         let motor = robot.get_motor_by_name("motor".to_string());
