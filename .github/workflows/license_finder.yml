@@ -10,7 +10,7 @@ on:
 jobs:
   license_finder:
     name: Audit 3rd-Party Licenses
-    runs-on: [x64, qemu-host]
+    runs-on: [X64]
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
     timeout-minutes: 10
