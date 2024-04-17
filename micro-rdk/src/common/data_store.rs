@@ -71,7 +71,7 @@ pub trait DataStore {
         collector_key: &ResourceMethodKey,
     ) -> Result<BytesMut, DataStoreError>;
 
-    /// Initializes from resource-method keys with a separate memory region dedicated to each key.
+    /// Initializes from resource-method keys.
     fn from_resource_method_keys(
         collector_keys: Vec<ResourceMethodKey>,
     ) -> Result<Self, DataStoreError>

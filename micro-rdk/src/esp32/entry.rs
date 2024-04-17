@@ -50,9 +50,6 @@ pub async fn serve_web_inner(
     let mut client_connector = Esp32TLS::new_client();
     let mdns = NoMdns {};
 
-    #[cfg(feature = "data")]
-    let part_id = app_config.get_robot_id();
-
     let (cfg_response, robot) = {
         let cloned_exec = exec.clone();
         let conn = client_connector.open_ssl_context(None).unwrap();
@@ -109,11 +106,12 @@ pub async fn serve_web_inner(
 
     #[cfg(feature = "data")]
     // TODO: Spawn data task here. May have to move the initialization below to the task itself
+    // TODO: Support implementers of the DataStore trait other than StaticMemoryDataStore in a way that is configurable
     {
         let _data_manager_svc = DataManager::<StaticMemoryDataStore>::from_robot_and_config(
             &cfg_response,
+            &app_config,
             robot.clone(),
-            part_id,
         );
     }
 

@@ -7,6 +7,7 @@ use crate::google::protobuf::value::Kind;
 use crate::proto::app::data_sync::v1::SensorData;
 use crate::proto::app::v1::ConfigResponse;
 
+use super::app_client::AppClientConfig;
 use super::data_collector::ResourceMethodKey;
 use super::data_store::{DataStoreError, WriteMode};
 use super::robot::{LocalRobot, RobotError};
@@ -26,12 +27,22 @@ pub enum DataManagerError {
     ImproperTimeInterval(u64, u64),
     #[error("data service config does not exist or is improperly configured")]
     ConfigError,
+    #[error("multiple data manager configurations detected")]
+    MultipleConfigError,
     #[error(transparent)]
     InitializationRobotError(#[from] RobotError),
 }
 
 fn get_data_sync_interval(cfg: &ConfigResponse) -> Result<Option<Duration>, DataManagerError> {
     let robot_config = cfg.config.clone().ok_or(DataManagerError::ConfigError)?;
+    let num_configs_detected = robot_config
+        .services
+        .iter()
+        .filter(|svc_cfg| svc_cfg.r#type == *"data_manager")
+        .count();
+    if num_configs_detected > 1 {
+        return Err(DataManagerError::MultipleConfigError);
+    }
     Ok(
         if let Some(data_cfg) = robot_config
             .services
@@ -88,9 +99,10 @@ where
 
     pub fn from_robot_and_config(
         cfg: &ConfigResponse,
+        app_config: &AppClientConfig,
         robot: Arc<Mutex<LocalRobot>>,
-        part_id: String,
     ) -> Result<Option<Self>, DataManagerError> {
+        let part_id = app_config.get_robot_id();
         let sync_interval = get_data_sync_interval(cfg)?;
         if let Some(sync_interval) = sync_interval {
             let collectors = robot.lock().unwrap().data_collectors()?;
