@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::time::Duration;
 
 use crate::google::protobuf::Timestamp;
 use crate::proto::app::data_sync::v1::{SensorData, SensorMetadata};
@@ -115,7 +116,7 @@ pub struct DataCollector {
     component_type: String,
     resource: ResourceType,
     method: CollectionMethod,
-    time_interval_ms: u64,
+    time_interval: Duration,
 }
 
 fn resource_method_pair_is_valid(resource: &ResourceType, method: &CollectionMethod) -> bool {
@@ -140,6 +141,7 @@ impl DataCollector {
         capture_frequency_hz: f32,
     ) -> Result<Self, DataCollectionError> {
         let time_interval_ms = (1000.0 / capture_frequency_hz) as u64;
+        let time_interval = Duration::from_millis(time_interval_ms);
         let component_type = resource.component_type();
         if !resource_method_pair_is_valid(&resource, &method) {
             return Err(DataCollectionError::UnsupportedMethod(
@@ -152,16 +154,21 @@ impl DataCollector {
             component_type,
             resource,
             method,
-            time_interval_ms,
+            time_interval,
         })
     }
 
     pub fn from_config(
         name: String,
         resource: ResourceType,
-        conf: DataCollectorConfig,
+        conf: &DataCollectorConfig,
     ) -> Result<Self, DataCollectionError> {
-        Self::new(name, resource, conf.method, conf.capture_frequency_hz)
+        Self::new(
+            name,
+            resource,
+            conf.method.clone(),
+            conf.capture_frequency_hz,
+        )
     }
 
     pub fn name(&self) -> String {
@@ -172,8 +179,8 @@ impl DataCollector {
         self.component_type.to_string()
     }
 
-    pub fn time_interval(&self) -> u64 {
-        self.time_interval_ms
+    pub fn time_interval(&self) -> Duration {
+        self.time_interval
     }
 
     pub fn method_str(&self) -> String {
@@ -230,12 +237,21 @@ impl DataCollector {
             data: Some(data),
         })
     }
+
+    pub fn resource_method_key(&self) -> ResourceMethodKey {
+        ResourceMethodKey {
+            r_name: self.name(),
+            component_type: self.component_type(),
+            method: self.method.clone(),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
+    use std::time::Duration;
 
     use super::{CollectionMethod, DataCollectionError, DataCollector, DataCollectorConfig};
     use crate::common::config::{AttributeError, Kind};
@@ -300,7 +316,8 @@ mod tests {
         let conf_kind = Kind::StructValue(kind_map);
         let conf =
             DataCollectorConfig::try_from(&conf_kind).expect("data collector config parse failed");
-        let mut coll = DataCollector::from_config("fake".to_string(), resource, conf)?;
+        let mut coll = DataCollector::from_config("fake".to_string(), resource, &conf)?;
+        assert_eq!(coll.time_interval(), Duration::from_millis(10));
         let data = coll.call_method()?.data;
         assert!(data.is_some());
         let data = data.unwrap();
