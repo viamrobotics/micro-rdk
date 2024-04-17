@@ -223,7 +223,7 @@ impl GeneratedWebRtcCertificateBuilder {
             ))
         }?;
 
-        let not_before = CString::new(self.not_after.format("%Y%m%d%H%M%S").to_string()).unwrap();
+        let not_before = CString::new(self.not_before.format("%Y%m%d%H%M%S").to_string()).unwrap();
         let not_after = CString::new(self.not_after.format("%Y%m%d%H%M%S").to_string()).unwrap();
 
         unsafe {
