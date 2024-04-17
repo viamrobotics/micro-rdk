@@ -1,14 +1,20 @@
 #![allow(dead_code)]
-use std::{pin::Pin, rc::Rc, sync::Mutex};
+use std::{marker::PhantomData, pin::Pin, rc::Rc, task::Poll};
 
 use bytes::{BufMut, Bytes, BytesMut};
-use futures_lite::Future;
+use futures_lite::{Future, FutureExt};
 use http_body_util::BodyExt;
-use hyper::{body::Incoming, header::CONTENT_TYPE, http, service::Service, Request, Response};
+use hyper::{
+    body::Incoming, header::CONTENT_TYPE, http, rt, server::conn::http2, service::Service, Request,
+    Response,
+};
 use prost::Message;
 
 use crate::{
-    common::grpc::{GrpcBody, GrpcError, GrpcResponse},
+    common::{
+        grpc::{GrpcBody, GrpcError, GrpcResponse},
+        webrtc::api::AtomicSync,
+    },
     proto::provisioning::{
         self,
         v1::{
@@ -51,7 +57,8 @@ impl ProvisioningServiceBuilder {
             provisioning_info: Rc::new(self.provisioning_info),
             last_connection_attempt: Rc::new(self.last_connection_attempt),
             reason: Rc::new(self.reason),
-            storage: Rc::new(Mutex::new(storage)),
+            storage,
+            credential_ready: AtomicSync::default(),
         }
     }
 }
@@ -84,7 +91,8 @@ struct ProvisioningService<S> {
     provisioning_info: Rc<Option<ProvisioningInfo>>,
     last_connection_attempt: Rc<Option<NetworkInfo>>,
     reason: Rc<ProvisioningReason>,
-    storage: Rc<Mutex<S>>,
+    storage: S,
+    credential_ready: AtomicSync,
 }
 
 impl<S> ProvisioningService<S>
@@ -121,7 +129,7 @@ where
             resp.errors
                 .push("stored credentials are invalid".to_owned())
         }
-        resp.has_smart_machine_credentials = self.storage.lock().unwrap().has_stored_credentials();
+        resp.has_smart_machine_credentials = self.storage.has_stored_credentials();
         let len = resp.encoded_len();
         let mut buffer = BytesMut::with_capacity(5 + len);
         buffer.put_u8(0);
@@ -136,10 +144,7 @@ where
     fn set_smart_machine_credentials(&self, body: Bytes) -> Result<Bytes, GrpcError> {
         let creds =
             SetSmartMachineCredentialsRequest::decode(body).map_err(|_| GrpcError::RpcInternal)?;
-        self.storage
-            .lock()
-            .unwrap()
-            .store_robot_credentials(creds.cloud.unwrap())?;
+        self.storage.store_robot_credentials(creds.cloud.unwrap())?;
         let resp = SetSmartMachineCredentialsResponse::default();
 
         let len = resp.encoded_len();
@@ -150,6 +155,7 @@ where
             .map_err(|_| GrpcError::RpcInternal)?;
         debug_assert_eq!(buffer.len(), 5 + len);
         debug_assert_eq!(buffer.capacity(), 5 + len);
+
         Ok(buffer.freeze())
     }
 
@@ -169,8 +175,8 @@ where
             .body(resp)
     }
 
-    fn get_robot_credential(&self) -> Result<(String, String), S::Error> {
-        self.storage.lock().unwrap().get_robot_credentials()
+    fn get_credential_ready(&self) -> AtomicSync {
+        self.credential_ready.clone()
     }
 }
 
@@ -187,6 +193,67 @@ where
         Box::pin(async move { svc.process_request(req).await })
     }
 }
+#[pin_project::pin_project]
+struct ProvisoningServer<I, S, E>
+where
+    S: Storage + Clone + 'static,
+    GrpcError: From<S::Error>,
+{
+    _exec: PhantomData<E>,
+    _stream: PhantomData<I>,
+    _storage: PhantomData<S>,
+    #[pin]
+    connection: http2::Connection<I, ProvisioningService<S>, E>,
+    credential_ready: AtomicSync,
+}
+
+impl<I, S, E> Future for ProvisoningServer<I, S, E>
+where
+    S: Storage + Clone + 'static,
+    I: rt::Read + rt::Write + std::marker::Unpin + 'static,
+    GrpcError: From<S::Error>,
+    E: rt::bounds::Http2ServerConnExec<
+        <ProvisioningService<S> as Service<Request<Incoming>>>::Future,
+        GrpcBody,
+    >,
+{
+    type Output = Result<(), hyper::Error>;
+    fn poll(
+        self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        let this = self.project();
+
+        match this.connection.poll(cx) {
+            Poll::Pending => futures_lite::ready!(this.credential_ready.poll(cx)),
+            Poll::Ready(c) => return Poll::Ready(c),
+        }
+        Poll::Ready(Ok(()))
+    }
+}
+
+impl<I, S, E> ProvisoningServer<I, S, E>
+where
+    S: Storage + Clone + 'static,
+    I: rt::Read + rt::Write + std::marker::Unpin + 'static,
+    GrpcError: From<S::Error>,
+    E: rt::bounds::Http2ServerConnExec<
+        <ProvisioningService<S> as Service<Request<Incoming>>>::Future,
+        GrpcBody,
+    >,
+{
+    fn new(service: ProvisioningService<S>, executor: E, stream: I) -> Self {
+        let credential_ready = service.get_credential_ready();
+        let connection = http2::Builder::new(executor).serve_connection(stream, service);
+        Self {
+            _exec: PhantomData::default(),
+            _stream: PhantomData::default(),
+            _storage: PhantomData::default(),
+            connection,
+            credential_ready,
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -201,7 +268,7 @@ mod tests {
     use http_body_util::Full;
     use hyper::{
         header::{CONTENT_TYPE, TE},
-        server, Method,
+        Method,
     };
     use prost::Message;
 
@@ -209,8 +276,8 @@ mod tests {
         common::{
             app_client::encode_request,
             provisioning::{
-                server::{ProvisioningInfo, ProvisioningServiceBuilder},
-                storage::MemoryCredentialStorage,
+                server::{ProvisioningInfo, ProvisioningServiceBuilder, ProvisoningServer},
+                storage::{MemoryCredentialStorage, Storage},
             },
         },
         native::{exec::NativeExecutor, tcp::NativeStream},
@@ -236,9 +303,8 @@ mod tests {
 
             let stream = NativeStream::LocalPlain(stream);
 
-            let r = server::conn::http2::Builder::new(ex.clone())
-                .serve_connection(stream, srv.clone())
-                .await;
+            let r = ProvisoningServer::new(srv.clone(), ex.clone(), stream).await;
+
             assert!(r.is_ok());
         }
     }
@@ -440,20 +506,21 @@ mod tests {
         provisioning_info.set_model("a-model".to_owned());
         provisioning_info.set_manufacturer("a-manufacturer".to_owned());
 
+        let storage = MemoryCredentialStorage::default();
+
         let srv = ProvisioningServiceBuilder::new()
             .with_provisioning_info(provisioning_info)
-            .build(MemoryCredentialStorage::default());
-        let cloned_srv = srv.clone();
+            .build(storage.clone());
 
         let cloned = exec.clone();
         exec.spawn(async move {
-            run_provisioning_server(cloned, cloned_srv).await;
+            run_provisioning_server(cloned, srv).await;
         })
         .detach();
 
         exec.block_on(async { test_provisioning_server_inner(exec.clone()).await });
 
-        let cred = srv.get_robot_credential().unwrap();
+        let cred = storage.get_robot_credentials().unwrap();
 
         assert_eq!(&cred.0, "an-id");
         assert_eq!(&cred.1, "a-secret");
