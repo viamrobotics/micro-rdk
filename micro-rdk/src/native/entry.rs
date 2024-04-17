@@ -8,9 +8,7 @@ use crate::{
         log::config_log_entry,
         robot::LocalRobot,
     },
-    native::exec::NativeExecutor,
-    native::tcp::NativeStream,
-    native::tls::NativeTls,
+    native::{exec::NativeExecutor, tcp::NativeStream, tls::NativeTls},
 };
 use std::{
     net::{Ipv4Addr, SocketAddr},
@@ -23,6 +21,9 @@ use super::{
     tls::NativeTlsServerConfig,
 };
 
+#[cfg(feature = "data")]
+use crate::common::{data_manager::DataManager, data_store::StaticMemoryDataStore};
+
 pub async fn serve_web_inner(
     app_config: AppClientConfig,
     tls_server_config: NativeTlsServerConfig,
@@ -32,6 +33,9 @@ pub async fn serve_web_inner(
 ) {
     let client_connector = NativeTls::new_client();
     let mdns = NativeMdns::new("".to_owned(), ip).unwrap();
+
+    #[cfg(feature = "data")]
+    let part_id = app_config.get_robot_id();
 
     let (cfg_response, robot) = {
         let cloned_exec = exec.clone();
@@ -83,6 +87,14 @@ pub async fn serve_web_inner(
 
         (cfg_response, robot)
     };
+
+    #[cfg(feature = "data")]
+    // TODO: Spawn data task here. May have to move the initialization below to the task itself
+    let _data_manager_svc = DataManager::<StaticMemoryDataStore>::from_robot_and_config(
+        &cfg_response,
+        robot.clone(),
+        part_id,
+    );
 
     let address: SocketAddr = "0.0.0.0:12346".parse().unwrap();
     let tls = Box::new(NativeTls::new_server(tls_server_config));

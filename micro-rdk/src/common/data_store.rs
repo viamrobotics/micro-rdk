@@ -70,6 +70,13 @@ pub trait DataStore {
         &mut self,
         collector_key: &ResourceMethodKey,
     ) -> Result<BytesMut, DataStoreError>;
+
+    /// Initializes from resource-method keys with a separate memory region dedicated to each key.
+    fn from_resource_method_keys(
+        collector_keys: Vec<ResourceMethodKey>,
+    ) -> Result<Self, DataStoreError>
+    where
+        Self: std::marker::Sized;
 }
 
 /// StaticMemoryDataStore is an entity that governs the static bytes memory
@@ -180,6 +187,12 @@ impl DataStore for StaticMemoryDataStore {
         }
         cons.pop_slice(&mut msg_bytes);
         Ok(msg_bytes)
+    }
+
+    fn from_resource_method_keys(
+        collector_keys: Vec<ResourceMethodKey>,
+    ) -> Result<Self, DataStoreError> {
+        Self::new(collector_keys)
     }
 }
 

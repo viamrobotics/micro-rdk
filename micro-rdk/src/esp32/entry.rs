@@ -19,6 +19,9 @@ use crate::common::{
     robot::LocalRobot,
 };
 
+#[cfg(feature = "data")]
+use crate::common::{data_manager::DataManager, data_store::StaticMemoryDataStore};
+
 use super::{
     certificate::WebRtcCertificate,
     dtls::Esp32DtlsBuilder,
@@ -46,6 +49,9 @@ pub async fn serve_web_inner(
 
     let mut client_connector = Esp32TLS::new_client();
     let mdns = NoMdns {};
+
+    #[cfg(feature = "data")]
+    let part_id = app_config.get_robot_id();
 
     let (cfg_response, robot) = {
         let cloned_exec = exec.clone();
@@ -100,6 +106,16 @@ pub async fn serve_web_inner(
 
         (cfg_response, robot)
     };
+
+    #[cfg(feature = "data")]
+    // TODO: Spawn data task here. May have to move the initialization below to the task itself
+    {
+        let _data_manager_svc = DataManager::<StaticMemoryDataStore>::from_robot_and_config(
+            &cfg_response,
+            robot.clone(),
+            part_id,
+        );
+    }
 
     let webrtc_certificate = Rc::new(webrtc_certificate);
     let dtls = Esp32DtlsBuilder::new(webrtc_certificate.clone());

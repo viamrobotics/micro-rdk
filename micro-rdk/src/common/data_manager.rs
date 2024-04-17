@@ -1,11 +1,15 @@
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crate::common::data_collector::{DataCollectionError, DataCollector};
 use crate::common::data_store::DataStore;
+use crate::google::protobuf::value::Kind;
 use crate::proto::app::data_sync::v1::SensorData;
+use crate::proto::app::v1::ConfigResponse;
 
 use super::data_collector::ResourceMethodKey;
 use super::data_store::{DataStoreError, WriteMode};
+use super::robot::{LocalRobot, RobotError};
 use async_io::Timer;
 use bytes::BytesMut;
 use thiserror::Error;
@@ -20,6 +24,37 @@ pub enum DataManagerError {
     StoreError(#[from] DataStoreError),
     #[error("queried time interval {0} is not a multiple of minimum time_interval{1}")]
     ImproperTimeInterval(u64, u64),
+    #[error("data service config does not exist or is improperly configured")]
+    ConfigError,
+    #[error(transparent)]
+    InitializationRobotError(#[from] RobotError),
+}
+
+fn get_data_sync_interval(cfg: &ConfigResponse) -> Result<Option<Duration>, DataManagerError> {
+    let robot_config = cfg.config.clone().ok_or(DataManagerError::ConfigError)?;
+    Ok(
+        if let Some(data_cfg) = robot_config
+            .services
+            .iter()
+            .find(|svc_cfg| svc_cfg.r#type == *"data_manager")
+        {
+            let attrs = data_cfg
+                .attributes
+                .clone()
+                .ok_or(DataManagerError::ConfigError)?;
+            let sync_interval_mins = attrs
+                .fields
+                .get("sync_interval_mins")
+                .ok_or(DataManagerError::ConfigError)?;
+            if let Some(Kind::NumberValue(sync_interval_mins)) = sync_interval_mins.kind {
+                Some(Duration::from_secs((sync_interval_mins * 60.0) as u64))
+            } else {
+                return Err(DataManagerError::ConfigError);
+            }
+        } else {
+            None
+        },
+    )
 }
 
 pub struct DataManager<StoreType> {
@@ -49,6 +84,24 @@ where
             min_interval,
             part_id,
         })
+    }
+
+    pub fn from_robot_and_config(
+        cfg: &ConfigResponse,
+        robot: Arc<Mutex<LocalRobot>>,
+        part_id: String,
+    ) -> Result<Option<Self>, DataManagerError> {
+        let sync_interval = get_data_sync_interval(cfg)?;
+        if let Some(sync_interval) = sync_interval {
+            let collectors = robot.lock().unwrap().data_collectors()?;
+            let collector_keys: Vec<ResourceMethodKey> =
+                collectors.iter().map(|c| c.resource_method_key()).collect();
+            let store = StoreType::from_resource_method_keys(collector_keys)?;
+            let data_manager_svc = DataManager::new(collectors, store, sync_interval, part_id)?;
+            Ok(Some(data_manager_svc))
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn sync_interval_ms(&self) -> u64 {
@@ -252,6 +305,11 @@ mod tests {
             _write_mode: WriteMode,
         ) -> Result<(), DataStoreError> {
             Err(DataStoreError::Unimplemented)
+        }
+        fn from_resource_method_keys(
+            _collector_keys: Vec<ResourceMethodKey>,
+        ) -> Result<Self, DataStoreError> {
+            Ok(Self {})
         }
     }
 
@@ -540,6 +598,11 @@ mod tests {
                 }
                 None => Ok(BytesMut::with_capacity(0)),
             }
+        }
+        fn from_resource_method_keys(
+            _collector_keys: Vec<ResourceMethodKey>,
+        ) -> Result<Self, DataStoreError> {
+            Ok(Self::new())
         }
     }
 
