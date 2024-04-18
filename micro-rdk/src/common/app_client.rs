@@ -10,6 +10,7 @@ use prost::{DecodeError, EncodeError, Message};
 use std::{net::Ipv4Addr, pin::Pin, rc::Rc, time::SystemTime};
 use thiserror::Error;
 
+use crate::proto::app::data_sync::v1::DataCaptureUploadRequest;
 use crate::proto::{
     app::v1::{AgentInfo, ConfigRequest, ConfigResponse, LogRequest},
     common::v1::LogEntry,
@@ -254,6 +255,23 @@ impl<'a> AppClient<'a> {
             .grpc_client
             .build_request(
                 "/viam.app.v1.RobotService/Log",
+                Some(&self.jwt),
+                "",
+                BodyExt::boxed(Full::new(body).map_err(|never| match never {})),
+            )
+            .map_err(AppClientError::AppGrpcClientError)?;
+        self.grpc_client.send_request(r).await?;
+
+        Ok(())
+    }
+
+    #[cfg(feature = "data")]
+    pub async fn upload_data(&mut self, data_req: DataCaptureUploadRequest) -> Result<(), AppClientError> {
+        let body = encode_request(data_req)?;
+        let r = self
+            .grpc_client
+            .build_request(
+                "/viam.app.datasync.v1.DataSyncService/DataCaptureUpload",
                 Some(&self.jwt),
                 "",
                 BodyExt::boxed(Full::new(body).map_err(|never| match never {})),

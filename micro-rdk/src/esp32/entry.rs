@@ -104,17 +104,6 @@ pub async fn serve_web_inner(
         (cfg_response, robot)
     };
 
-    #[cfg(feature = "data")]
-    // TODO: Spawn data task here. May have to move the initialization below to the task itself
-    // TODO: Support implementers of the DataStore trait other than StaticMemoryDataStore in a way that is configurable
-    {
-        let _data_manager_svc = DataManager::<StaticMemoryDataStore>::from_robot_and_config(
-            &cfg_response,
-            &app_config,
-            robot.clone(),
-        );
-    }
-
     let webrtc_certificate = Rc::new(webrtc_certificate);
     let dtls = Esp32DtlsBuilder::new(webrtc_certificate.clone());
 
@@ -125,6 +114,9 @@ pub async fn serve_web_inner(
         dtls,
         exec.clone(),
     ));
+
+    #[cfg(feature = "data")]
+    let part_id = app_config.get_robot_id();
 
     let mut srv = Box::new(
         ViamServerBuilder::new(
@@ -139,7 +131,31 @@ pub async fn serve_web_inner(
         .unwrap(),
     );
 
-    srv.serve(robot).await;
+    #[cfg(feature = "data")]
+    // TODO: Support implementers of the DataStore trait other than StaticMemoryDataStore in a way that is configurable
+    let data_manager_svc = DataManager::<StaticMemoryDataStore>::from_robot_and_config(
+        &cfg_response,
+        part_id,
+        robot.clone(),
+        srv.signaling_client()
+    ).expect("could not create data manager");
+
+    #[cfg(feature = "data")]
+    let data_future = async move {
+        if let Some(mut data_manager_svc) = data_manager_svc {
+            if let Err(err) = data_manager_svc.run().await {
+                log::error!("error running data manager: {:?}", err)
+            }
+        }
+    };
+    #[cfg(not(feature = "data"))]
+    let data_future = async move {};
+
+    let server_future = async move {
+        srv.serve(robot).await;
+    };
+
+    futures_lite::future::zip(server_future, data_future).await;
 }
 
 pub fn serve_web(

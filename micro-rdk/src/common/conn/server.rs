@@ -276,7 +276,7 @@ pub struct ViamServer<'a, C, T, CC, D, L> {
     exec: Executor,
     app_connector: C,
     app_config: AppClientConfig,
-    app_client: Option<AppClient<'a>>,
+    app_client: Arc<futures_util::lock::Mutex<Option<AppClient<'a>>>>,
     webrtc_manager: WebRTCConnectionManager,
 }
 impl<'a, C, T, CC, D, L> ViamServer<'a, C, T, CC, D, L>
@@ -303,16 +303,21 @@ where
             exec,
             app_connector,
             app_config,
-            app_client: None,
+            app_client: Arc::new(futures_util::lock::Mutex::new(None)),
             webrtc_manager: WebRTCConnectionManager::new(max_concurent_connections),
         }
     }
+
+    pub fn signaling_client(&self) -> Arc<futures_util::lock::Mutex<Option<AppClient<'a>>>> {
+        self.app_client.clone()
+    } 
+
     pub async fn serve(&mut self, robot: Arc<Mutex<LocalRobot>>) {
         let cloned_robot = robot.clone();
         loop {
             let _ = async_io::Timer::after(std::time::Duration::from_millis(300)).await;
 
-            if self.app_client.is_none() {
+            if self.app_client.lock().await.is_none() {
                 let conn = self.app_connector.connect().await.unwrap();
                 let cloned_exec = self.exec.clone();
                 let grpc_client = Box::new(
@@ -324,12 +329,13 @@ where
                     .build()
                     .await
                     .unwrap();
-                let _ = self.app_client.insert(app_client);
+                let _ = self.app_client.lock().await.insert(app_client);
             }
-
+            let mut app_client_guard = self.app_client.lock().await;
+            let app_client = app_client_guard.as_mut().unwrap();
             let sig = if let Some(webrtc_config) = self.webrtc_config.as_ref() {
                 let ip = self.app_config.get_ip();
-                let signaling = self.app_client.as_mut().unwrap().connect_signaling();
+                let signaling = app_client.connect_signaling();
                 futures_util::future::Either::Left(WebRTCSignalingAnswerer {
                     webrtc_config: Some(webrtc_config),
                     future: signaling,
@@ -389,7 +395,7 @@ where
                 }
                 Err(_) => {
                     // http2 layer related errors (GOAWAY etc...) so we should renegotiate in this event
-                    let _ = self.app_client.take();
+                    let _ = self.app_client.lock().await.take();
                     continue;
                 }
             };

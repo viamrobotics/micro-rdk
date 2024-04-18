@@ -85,17 +85,6 @@ pub async fn serve_web_inner(
         (cfg_response, robot)
     };
 
-    #[cfg(feature = "data")]
-    // TODO: Spawn data task here. May have to move the initialization below to the task itself
-    // TODO: Support implementers of the DataStore trait other than StaticMemoryDataStore in a way that is configurable
-    {
-        let _data_manager_svc = DataManager::<StaticMemoryDataStore>::from_robot_and_config(
-            &cfg_response,
-            &app_config,
-            robot.clone(),
-        );
-    }
-
     let address: SocketAddr = "0.0.0.0:12346".parse().unwrap();
     let tls = Box::new(NativeTls::new_server(tls_server_config));
     let tls_listener = NativeListener::new(address.into(), Some(tls)).unwrap();
@@ -111,11 +100,25 @@ pub async fn serve_web_inner(
         exec.clone(),
     ));
 
+    #[cfg(feature = "data")]
+    let part_id = app_config.get_robot_id();
+
     let mut srv = ViamServerBuilder::new(mdns, cloned_exec, client_connector, app_config, 3)
         .with_http2(tls_listener, 12346)
         .with_webrtc(webrtc)
         .build(&cfg_response)
         .unwrap();
+
+    #[cfg(feature = "data")]
+    // TODO: Support implementers of the DataStore trait other than StaticMemoryDataStore in a way that is configurable
+    {
+        let _data_manager_svc = DataManager::<StaticMemoryDataStore>::from_robot_and_config(
+            &cfg_response,
+            part_id,
+            robot.clone(),
+            srv.signaling_client()
+        );
+    }
 
     srv.serve(robot).await;
 }
