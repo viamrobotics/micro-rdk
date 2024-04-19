@@ -34,6 +34,13 @@ pub mod google {
 
 /// gRPC prototypes from definitions in [api repository](https://github.com/viamrobotics/api/tree/main/proto/viam), auto-generated
 pub mod proto {
+    #[cfg(feature = "provisioning")]
+    pub mod provisioning {
+        pub mod v1 {
+            #![allow(clippy::derive_partial_eq_without_eq)]
+            include!("gen/viam.provisioning.v1.rs");
+        }
+    }
     pub mod common {
         pub mod v1 {
             #![allow(clippy::derive_partial_eq_without_eq)]

@@ -1,9 +1,9 @@
 use core::fmt;
 use std::{
+    convert::Infallible,
     fmt::Debug,
     marker::PhantomData,
-    sync::Arc,
-    sync::Mutex,
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
@@ -1404,6 +1404,12 @@ impl GrpcError {
             message,
             details: vec![],
         }
+    }
+}
+
+impl From<Infallible> for GrpcError {
+    fn from(_: Infallible) -> Self {
+        unreachable!()
     }
 }
 
