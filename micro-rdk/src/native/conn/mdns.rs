@@ -48,9 +48,15 @@ impl Mdns for NativeMdns {
             .collect();
 
         //let properties = [("PATH", "one"), ("Path", "two"), ("PaTh", "three")];
-        let service = ServiceInfo::new(&ty_domain, instance_name, &srv_hostname, "", port, props)
-            .map_err(|e| MdnsError::MdnsAddServiceError(e.to_string()))?
-            .enable_addr_auto();
+        let service = ServiceInfo::new(
+            &ty_domain,
+            instance_name,
+            &srv_hostname,
+            format!("{}", self.ip),
+            port,
+            props,
+        )
+        .map_err(|e| MdnsError::MdnsAddServiceError(e.to_string()))?;
 
         self.inner
             .register(service)

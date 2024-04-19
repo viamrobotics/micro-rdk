@@ -168,6 +168,8 @@ where
 
     let port = listen.get_ref().local_addr()?.port();
 
+    log::info!("provisioning server run on {}:{}", ip, port);
+
     mdns.add_service(
         "provisioning",
         "_rpc",
@@ -178,6 +180,7 @@ where
     loop {
         let incoming = listen.accept().await;
         let (stream, _) = incoming?;
+        log::info!("will attempt to provision");
 
         let stream = NativeStream::LocalPlain(stream);
 
