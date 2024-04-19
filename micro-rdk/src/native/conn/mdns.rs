@@ -40,21 +40,17 @@ impl Mdns for NativeMdns {
         txt: &[(&str, &str)],
     ) -> Result<(), MdnsError> {
         let ty_domain = format!("{}.{}.local.", service_type.as_ref(), proto.as_ref());
+        let srv_hostname = format!("{}.{}", self.hostname, &ty_domain);
 
         let props: HashMap<String, String> = txt
             .iter()
             .map(|(k, v)| ((*k).into(), (*v).into()))
             .collect();
 
-        let service = ServiceInfo::new(
-            &ty_domain,
-            instance_name,
-            &self.hostname,
-            self.ip,
-            port,
-            Some(props),
-        )
-        .map_err(|e| MdnsError::MdnsAddServiceError(e.to_string()))?;
+        //let properties = [("PATH", "one"), ("Path", "two"), ("PaTh", "three")];
+        let service = ServiceInfo::new(&ty_domain, instance_name, &srv_hostname, "", port, props)
+            .map_err(|e| MdnsError::MdnsAddServiceError(e.to_string()))?
+            .enable_addr_auto();
 
         self.inner
             .register(service)

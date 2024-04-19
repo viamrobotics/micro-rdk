@@ -173,7 +173,7 @@ where
         "_rpc",
         "_tcp",
         port,
-        &[("provisioning", "")],
+        &[("provisioning", "1")],
     )?;
     loop {
         let incoming = listen.accept().await;
