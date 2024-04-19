@@ -85,4 +85,6 @@ pub mod conn {
 #[cfg(feature = "data")]
 pub mod data_collector;
 #[cfg(feature = "data")]
+pub mod data_manager;
+#[cfg(feature = "data")]
 pub mod data_store;
