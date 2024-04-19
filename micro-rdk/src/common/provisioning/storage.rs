@@ -37,7 +37,7 @@ pub trait CredentialStorage {
 
 /// Simple CrendentialStorage made for testing purposes
 #[derive(Default, Clone)]
-pub(crate) struct MemoryCredentialStorage {
+pub struct MemoryCredentialStorage {
     config: Rc<Mutex<Option<RobotCredentials>>>,
 }
 

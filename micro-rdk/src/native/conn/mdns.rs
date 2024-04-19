@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::{collections::HashMap, net::Ipv4Addr};
 
 use mdns_sd::{ServiceDaemon, ServiceInfo};
@@ -19,8 +20,16 @@ impl NativeMdns {
             ip,
         })
     }
+    pub(crate) fn daemon(&self) -> ServiceDaemon {
+        self.inner.clone()
+    }
 }
 
+impl Drop for NativeMdns {
+    fn drop(&mut self) {
+        let _ = self.daemon().shutdown();
+    }
+}
 impl Mdns for NativeMdns {
     fn add_service(
         &mut self,

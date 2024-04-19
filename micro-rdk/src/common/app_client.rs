@@ -10,6 +10,8 @@ use prost::{DecodeError, EncodeError, Message};
 use std::{net::Ipv4Addr, pin::Pin, rc::Rc, time::SystemTime};
 use thiserror::Error;
 
+use crate::proto::app::v1::CertificateRequest;
+use crate::proto::app::v1::CertificateResponse;
 use crate::proto::{
     app::v1::{AgentInfo, ConfigRequest, ConfigResponse, LogRequest},
     common::v1::LogEntry,
@@ -194,6 +196,26 @@ impl<'a> AppClient<'a> {
             .await
             .map_err(AppClientError::AppGrpcClientError)?;
         Ok(AppSignaling(tx, rx))
+    }
+
+    pub async fn get_certificates(&mut self) -> Result<CertificateResponse, AppClientError> {
+        let req = CertificateRequest {
+            id: self.config.robot_id.clone(),
+        };
+        let body = encode_request(req)?;
+        let r = self
+            .grpc_client
+            .build_request(
+                "/viam.app.v1.RobotService/Certificate",
+                Some(&self.jwt),
+                "",
+                BodyExt::boxed(Full::new(body).map_err(|never| match never {})),
+            )
+            .map_err(AppClientError::AppGrpcClientError)?;
+
+        let (mut r, headers) = self.grpc_client.send_request(r).await?;
+        let r = r.split_off(5);
+        Ok(CertificateResponse::decode(r)?)
     }
 
     // returns both a response from the robot config request and the timestamp of the response
