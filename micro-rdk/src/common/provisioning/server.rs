@@ -1,8 +1,13 @@
 #![allow(dead_code)]
-use std::{marker::PhantomData, pin::Pin, rc::Rc, task::Poll};
+use std::{
+    marker::PhantomData,
+    pin::Pin,
+    rc::Rc,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use bytes::{BufMut, Bytes, BytesMut};
-use futures_lite::{Future, FutureExt};
+use futures_lite::Future;
 use http_body_util::BodyExt;
 use hyper::{
     body::Incoming, header::CONTENT_TYPE, http, rt, server::conn::http2, service::Service, Request,
@@ -11,10 +16,7 @@ use hyper::{
 use prost::Message;
 
 use crate::{
-    common::{
-        grpc::{GrpcBody, GrpcError, GrpcResponse},
-        webrtc::api::AtomicSync,
-    },
+    common::grpc::{GrpcBody, GrpcError, GrpcResponse},
     proto::provisioning::{
         self,
         v1::{
@@ -24,8 +26,9 @@ use crate::{
     },
 };
 
-use super::storage::Storage;
+use super::storage::CredentialStorage;
 
+#[derive(Default)]
 struct ProvisioningServiceBuilder {
     last_connection_attempt: Option<NetworkInfo>,
     provisioning_info: Option<ProvisioningInfo>,
@@ -35,9 +38,7 @@ struct ProvisioningServiceBuilder {
 impl ProvisioningServiceBuilder {
     fn new() -> Self {
         Self {
-            reason: ProvisioningReason::Erased,
-            last_connection_attempt: Default::default(),
-            provisioning_info: Default::default(),
+            ..Default::default()
         }
     }
     fn with_provisioning_info(mut self, info: ProvisioningInfo) -> Self {
@@ -52,20 +53,21 @@ impl ProvisioningServiceBuilder {
         let _ = self.last_connection_attempt.insert(info);
         self
     }
-    fn build<S: Storage + Clone>(self, storage: S) -> ProvisioningService<S> {
+    fn build<S: CredentialStorage + Clone>(self, storage: S) -> ProvisioningService<S> {
         ProvisioningService {
             provisioning_info: Rc::new(self.provisioning_info),
             last_connection_attempt: Rc::new(self.last_connection_attempt),
             reason: Rc::new(self.reason),
             storage,
-            credential_ready: AtomicSync::default(),
+            credential_ready: Rc::new(AtomicBool::new(false)),
         }
     }
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Default)]
 enum ProvisioningReason {
-    Erased,
+    #[default]
+    Unprovisioned,
     InvalidCredentials,
 }
 
@@ -92,12 +94,12 @@ struct ProvisioningService<S> {
     last_connection_attempt: Rc<Option<NetworkInfo>>,
     reason: Rc<ProvisioningReason>,
     storage: S,
-    credential_ready: AtomicSync,
+    credential_ready: Rc<AtomicBool>,
 }
 
 impl<S> ProvisioningService<S>
 where
-    S: Storage + Clone,
+    S: CredentialStorage + Clone,
     GrpcError: From<S::Error>,
 {
     async fn process_request_inner(&self, req: Request<Incoming>) -> Result<Bytes, GrpcError> {
@@ -155,7 +157,7 @@ where
             .map_err(|_| GrpcError::RpcInternal)?;
         debug_assert_eq!(buffer.len(), 5 + len);
         debug_assert_eq!(buffer.capacity(), 5 + len);
-
+        self.credential_ready.store(true, Ordering::Relaxed);
         Ok(buffer.freeze())
     }
 
@@ -175,14 +177,17 @@ where
             .body(resp)
     }
 
-    fn get_credential_ready(&self) -> AtomicSync {
+    fn get_credential_ready(&self) -> Rc<AtomicBool> {
         self.credential_ready.clone()
+    }
+    fn reset_credential_ready(&self) {
+        self.credential_ready.store(false, Ordering::Relaxed);
     }
 }
 
 impl<S> Service<Request<Incoming>> for ProvisioningService<S>
 where
-    S: Storage + Clone + 'static,
+    S: CredentialStorage + Clone + 'static,
     GrpcError: From<S::Error>,
 {
     type Response = Response<GrpcBody>;
@@ -196,7 +201,7 @@ where
 #[pin_project::pin_project]
 struct ProvisoningServer<I, S, E>
 where
-    S: Storage + Clone + 'static,
+    S: CredentialStorage + Clone + 'static,
     GrpcError: From<S::Error>,
 {
     _exec: PhantomData<E>,
@@ -204,12 +209,12 @@ where
     _storage: PhantomData<S>,
     #[pin]
     connection: http2::Connection<I, ProvisioningService<S>, E>,
-    credential_ready: AtomicSync,
+    credential_ready: Rc<AtomicBool>,
 }
 
 impl<I, S, E> Future for ProvisoningServer<I, S, E>
 where
-    S: Storage + Clone + 'static,
+    S: CredentialStorage + Clone + 'static,
     I: rt::Read + rt::Write + std::marker::Unpin + 'static,
     GrpcError: From<S::Error>,
     E: rt::bounds::Http2ServerConnExec<
@@ -222,19 +227,19 @@ where
         self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
-        let this = self.project();
+        let mut this = self.project();
 
-        match this.connection.poll(cx) {
-            Poll::Pending => futures_lite::ready!(this.credential_ready.poll(cx)),
-            Poll::Ready(c) => return Poll::Ready(c),
+        if this.credential_ready.load(Ordering::Relaxed) {
+            this.connection.as_mut().graceful_shutdown();
         }
-        Poll::Ready(Ok(()))
+
+        this.connection.poll(cx)
     }
 }
 
 impl<I, S, E> ProvisoningServer<I, S, E>
 where
-    S: Storage + Clone + 'static,
+    S: CredentialStorage + Clone + 'static,
     I: rt::Read + rt::Write + std::marker::Unpin + 'static,
     GrpcError: From<S::Error>,
     E: rt::bounds::Http2ServerConnExec<
@@ -244,11 +249,12 @@ where
 {
     fn new(service: ProvisioningService<S>, executor: E, stream: I) -> Self {
         let credential_ready = service.get_credential_ready();
+        service.reset_credential_ready();
         let connection = http2::Builder::new(executor).serve_connection(stream, service);
         Self {
-            _exec: PhantomData::default(),
-            _stream: PhantomData::default(),
-            _storage: PhantomData::default(),
+            _exec: PhantomData,
+            _stream: PhantomData,
+            _storage: PhantomData,
             connection,
             credential_ready,
         }
@@ -277,7 +283,7 @@ mod tests {
             app_client::encode_request,
             provisioning::{
                 server::{ProvisioningInfo, ProvisioningServiceBuilder, ProvisoningServer},
-                storage::{MemoryCredentialStorage, Storage},
+                storage::{CredentialStorage, MemoryCredentialStorage},
             },
         },
         native::{exec::NativeExecutor, tcp::NativeStream},
@@ -309,13 +315,11 @@ mod tests {
         }
     }
 
-    async fn test_provisioning_server_inner(exec: NativeExecutor) {
-        Timer::after(Duration::from_millis(50)).await; // let server spin up
-
-        let addr = SocketAddr::new(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 56432);
-
-        let stream = async_io::Async::<TcpStream>::connect(addr).await;
+    async fn test_provisioning_server_inner(exec: NativeExecutor, addr: SocketAddr) {
+        let stream = async_io::Async::<TcpStream>::connect(addr.clone()).await;
         assert!(stream.is_ok());
+
+        let host = format!("http://{}", addr.to_string());
 
         let stream = NativeStream::LocalPlain(stream.unwrap());
 
@@ -335,11 +339,11 @@ mod tests {
         assert!(body.is_ok());
 
         let req = hyper::Request::builder()
-	    .method(Method::POST)
-	    .uri("http://127.0.0.1:56432/viam.provisioning.v1.ProvisioningService/GetSmartMachineStatus")
-	    .header(CONTENT_TYPE, "application/grpc")
-	    .header(TE,"trailers")
-	    .body(Full::new(body.unwrap()).boxed());
+            .method(Method::POST)
+            .uri(host.clone() + "/viam.provisioning.v1.ProvisioningService/GetSmartMachineStatus")
+            .header(CONTENT_TYPE, "application/grpc")
+            .header(TE, "trailers")
+            .body(Full::new(body.unwrap()).boxed());
         assert!(req.is_ok());
         let req = req.unwrap();
 
@@ -384,7 +388,7 @@ mod tests {
 
         let req = hyper::Request::builder()
             .method(Method::POST)
-            .uri("http://127.0.0.1:56432/viam.provisioning.v1.ProvisioningService/GetNetworkList")
+            .uri(host.clone() + "/viam.provisioning.v1.ProvisioningService/GetNetworkList")
             .header(CONTENT_TYPE, "application/grpc")
             .header(TE, "trailers")
             .body(Full::new(body.unwrap()).boxed());
@@ -422,7 +426,10 @@ mod tests {
 
         let req = hyper::Request::builder()
             .method(Method::POST)
-            .uri("http://127.0.0.1:56432/viam.provisioning.v1.ProvisioningService/SetSmartMachineCredentials")
+            .uri(
+                host.clone()
+                    + "/viam.provisioning.v1.ProvisioningService/SetSmartMachineCredentials",
+            )
             .header(CONTENT_TYPE, "application/grpc")
             .header(TE, "trailers")
             .body(Full::new(body.unwrap()).boxed());
@@ -453,13 +460,33 @@ mod tests {
         assert!(body.is_ok());
 
         let req = hyper::Request::builder()
-	    .method(Method::POST)
-	    .uri("http://127.0.0.1:56432/viam.provisioning.v1.ProvisioningService/GetSmartMachineStatus")
-	    .header(CONTENT_TYPE, "application/grpc")
-	    .header(TE,"trailers")
-	    .body(Full::new(body.unwrap()).boxed());
+            .method(Method::POST)
+            .uri(host.clone() + "/viam.provisioning.v1.ProvisioningService/GetSmartMachineStatus")
+            .header(CONTENT_TYPE, "application/grpc")
+            .header(TE, "trailers")
+            .body(Full::new(body.unwrap()).boxed());
         assert!(req.is_ok());
         let req = req.unwrap();
+
+        let ret = send_request.ready().await;
+        assert!(ret.is_err());
+        assert!(ret.err().unwrap().is_closed());
+
+        let stream = async_io::Async::<TcpStream>::connect(addr.clone()).await;
+        assert!(stream.is_ok());
+
+        let stream = NativeStream::LocalPlain(stream.unwrap());
+
+        let client = hyper::client::conn::http2::Builder::new(exec.clone())
+            .handshake(stream)
+            .await;
+
+        assert!(client.is_ok());
+        let (mut send_request, conn) = client.unwrap();
+        exec.spawn(async move {
+            let _ = conn.await;
+        })
+        .detach();
 
         assert!(send_request.ready().await.is_ok());
 
@@ -518,11 +545,15 @@ mod tests {
         })
         .detach();
 
-        exec.block_on(async { test_provisioning_server_inner(exec.clone()).await });
+        let addr = SocketAddr::new(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 56432);
+        exec.block_on(async {
+            Timer::after(Duration::from_millis(100)).await;
+        });
+        exec.block_on(async { test_provisioning_server_inner(exec.clone(), addr).await });
 
         let cred = storage.get_robot_credentials().unwrap();
 
-        assert_eq!(&cred.0, "an-id");
-        assert_eq!(&cred.1, "a-secret");
+        assert_eq!(cred.robot_id(), "an-id");
+        assert_eq!(cred.robot_secret(), "a-secret");
     }
 }
