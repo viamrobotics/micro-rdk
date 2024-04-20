@@ -280,7 +280,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::{
-        net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpListener, TcpStream},
+        net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
         time::Duration,
     };
 
@@ -622,7 +622,6 @@ mod tests {
             .take(8)
             .map(char::from)
             .collect::<String>();
-        let hostname = hostname + ".local.";
 
         let mdns = NativeMdns::new(hostname, ip);
         assert!(mdns.is_ok());
@@ -650,8 +649,6 @@ mod tests {
             Timer::after(Duration::from_millis(100)).await;
         });
 
-        //mdns.shutdown().unwrap();
-
         let server_addr = daemon.browse("_rpc._tcp.local.");
         assert!(server_addr.is_ok());
         let server_addr = server_addr.unwrap();
@@ -660,11 +657,11 @@ mod tests {
             while let Ok(event) = server_addr.recv_async().await {
                 match event {
                     ServiceEvent::ServiceResolved(info) => {
-                        if info.get_properties().contains_key("provisioning") {
+                        if info.get_properties().get("provisioning").is_some() {
                             let addr =
                                 (*info.get_addresses().iter().take(1).next().unwrap()).clone();
                             let port = info.get_port();
-                            return Some(SocketAddr::V4(SocketAddrV4::new(addr, port)));
+                            return Some(SocketAddr::new(addr, port));
                         }
                     }
                     _ => {}

@@ -3378,7 +3378,6 @@ checksum = "d8031297470465389c1349c399b927505d0cc4503be7a997c3541765bca82b4d"
 dependencies = [
  "flume",
  "if-addrs",
- "log",
  "polling 2.8.0",
  "socket2 0.5.6",
 ]
