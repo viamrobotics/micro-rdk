@@ -86,15 +86,29 @@ pub async fn serve_web_inner(
     };
 
     #[cfg(feature = "data")]
-    // TODO: Spawn data task here. May have to move the initialization below to the task itself
-    // TODO: Support implementers of the DataStore trait other than StaticMemoryDataStore in a way that is configurable
-    {
-        let _data_manager_svc = DataManager::<StaticMemoryDataStore>::from_robot_and_config(
+    let data_manager_svc = {
+        let data_exec = exec.clone();
+        let client_connector = NativeTls::new_client();
+        let conn = client_connector.open_ssl_context(None).await.unwrap();
+        let conn = NativeStream::TLSStream(Box::new(conn));
+        let grpc_client = Box::new(
+            GrpcClient::new(conn, data_exec, "https://app.viam.com:443")
+                .await
+                .unwrap(),
+        );
+
+        let builder = AppClientBuilder::new(grpc_client, app_config.clone());
+
+        let client = builder.build().await.unwrap();
+        // TODO: Support implementers of the DataStore trait other than StaticMemoryDataStore in a way that is configurable
+        DataManager::<StaticMemoryDataStore>::from_robot_and_config(
             &cfg_response,
             &app_config,
             robot.clone(),
-        );
-    }
+            Some(client),
+        )
+        .expect("could not create data manager")
+    };
 
     let address: SocketAddr = "0.0.0.0:12346".parse().unwrap();
     let tls = Box::new(NativeTls::new_server(tls_server_config));
@@ -117,7 +131,24 @@ pub async fn serve_web_inner(
         .build(&cfg_response)
         .unwrap();
 
-    srv.serve(robot).await;
+    // srv.serve(robot).await;
+
+    #[cfg(feature = "data")]
+    let data_future = async move {
+        if let Some(mut data_manager_svc) = data_manager_svc {
+            if let Err(err) = data_manager_svc.run().await {
+                log::error!("error running data manager: {:?}", err)
+            }
+        }
+    };
+    #[cfg(not(feature = "data"))]
+    let data_future = async move {};
+
+    let server_future = async move {
+        srv.serve(robot).await;
+    };
+
+    futures_lite::future::zip(server_future, data_future).await;
 }
 
 pub fn serve_web(

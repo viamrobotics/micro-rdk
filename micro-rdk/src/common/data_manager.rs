@@ -4,15 +4,18 @@ use std::time::Duration;
 use crate::common::data_collector::{DataCollectionError, DataCollector};
 use crate::common::data_store::DataStore;
 use crate::google::protobuf::value::Kind;
-use crate::proto::app::data_sync::v1::SensorData;
+use crate::proto::app::data_sync::v1::{
+    DataCaptureUploadRequest, DataType, SensorData, UploadMetadata,
+};
 use crate::proto::app::v1::ConfigResponse;
 
-use super::app_client::AppClientConfig;
+use super::app_client::{AppClient, AppClientConfig, AppClientError};
 use super::data_collector::ResourceMethodKey;
 use super::data_store::{DataStoreError, WriteMode};
 use super::robot::{LocalRobot, RobotError};
 use async_io::Timer;
 use bytes::BytesMut;
+use prost::{DecodeError, Message};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -31,6 +34,29 @@ pub enum DataManagerError {
     MultipleConfigError,
     #[error(transparent)]
     InitializationRobotError(#[from] RobotError),
+    #[error(transparent)]
+    ProtoDecodeError(#[from] DecodeError),
+    #[error(transparent)]
+    AppClientError(#[from] AppClientError),
+}
+
+fn read_from_store(
+    store: &mut dyn DataStore,
+    collector_key: &ResourceMethodKey,
+) -> Result<Vec<BytesMut>, DataManagerError> {
+    let mut readings_to_upload: Vec<BytesMut> = vec![];
+    loop {
+        match store.read_next_message(collector_key) {
+            Ok(msg) => {
+                if msg.is_empty() {
+                    break;
+                }
+                readings_to_upload.push(msg);
+            }
+            Err(err) => return Err(err.into()),
+        };
+    }
+    Ok(readings_to_upload)
 }
 
 fn get_data_sync_interval(cfg: &ConfigResponse) -> Result<Option<Duration>, DataManagerError> {
@@ -68,23 +94,25 @@ fn get_data_sync_interval(cfg: &ConfigResponse) -> Result<Option<Duration>, Data
     )
 }
 
-pub struct DataManager<StoreType> {
+pub struct DataManager<'a, StoreType> {
     collectors: Vec<DataCollector>,
     store: StoreType,
     sync_interval: Duration,
     min_interval: Duration,
     part_id: String,
+    app_client: Option<AppClient<'a>>,
 }
 
-impl<StoreType> DataManager<StoreType>
+impl<'a, StoreType> DataManager<'a, StoreType>
 where
     StoreType: DataStore,
 {
-    pub fn new(
+    pub fn new<'b: 'a>(
         collectors: Vec<DataCollector>,
         store: StoreType,
         sync_interval: Duration,
         part_id: String,
+        app_client: Option<AppClient<'b>>,
     ) -> Result<Self, DataManagerError> {
         let intervals = collectors.iter().map(|x| x.time_interval());
         let min_interval = intervals.min().ok_or(DataManagerError::NoCollectors)?;
@@ -94,13 +122,15 @@ where
             sync_interval,
             min_interval,
             part_id,
+            app_client,
         })
     }
 
-    pub fn from_robot_and_config(
+    pub fn from_robot_and_config<'b: 'a>(
         cfg: &ConfigResponse,
         app_config: &AppClientConfig,
         robot: Arc<Mutex<LocalRobot>>,
+        app_client: Option<AppClient<'b>>,
     ) -> Result<Option<Self>, DataManagerError> {
         let part_id = app_config.get_robot_id();
         let sync_interval = get_data_sync_interval(cfg)?;
@@ -109,7 +139,8 @@ where
             let collector_keys: Vec<ResourceMethodKey> =
                 collectors.iter().map(|c| c.resource_method_key()).collect();
             let store = StoreType::from_resource_method_keys(collector_keys)?;
-            let data_manager_svc = DataManager::new(collectors, store, sync_interval, part_id)?;
+            let data_manager_svc =
+                DataManager::new(collectors, store, sync_interval, part_id, app_client)?;
             Ok(Some(data_manager_svc))
         } else {
             Ok(None)
@@ -145,17 +176,19 @@ where
     pub async fn run(&mut self) -> Result<(), DataManagerError> {
         let mut loop_counter: u64 = 0;
         loop {
-            self.run_inner(loop_counter)?;
+            self.run_inner(loop_counter).await?;
             loop_counter += 1;
             Timer::after(self.min_interval).await;
         }
     }
 
-    fn run_inner(&mut self, loop_counter: u64) -> Result<(), DataManagerError> {
+    async fn run_inner(&mut self, loop_counter: u64) -> Result<(), DataManagerError> {
         let min_interval_ms = self.min_interval_ms();
         if (loop_counter % (self.sync_interval_ms() / min_interval_ms)) == 0 && (loop_counter != 0)
         {
-            self.sync()?;
+            if let Err(err) = self.sync().await {
+                log::error!("error uploading data: {:?}, data will be dropped", err)
+            }
         }
         for interval in self.collection_intervals() {
             if loop_counter % (interval / min_interval_ms) == 0 {
@@ -165,23 +198,30 @@ where
         Ok(())
     }
 
-    fn sync(&mut self) -> Result<(), DataManagerError> {
+    async fn sync(&mut self) -> Result<(), DataManagerError> {
+        let part_id = self.part_id();
         for collector_key in self.collectors.iter().map(|c| c.resource_method_key()) {
             // TODO: check for internet access before attempting to read from store
-            let mut readings_to_upload: Vec<BytesMut> = vec![];
-            loop {
-                match self.store.read_next_message(&collector_key) {
-                    Ok(msg) => {
-                        if msg.is_empty() {
-                            break;
-                        }
-                        readings_to_upload.push(msg);
-                    }
-                    Err(err) => return Err(err.into()),
+            let readings_to_upload = read_from_store(&mut self.store, &collector_key)?;
+            if let Some(app_client) = self.app_client.as_mut() {
+                let mut upload_request = DataCaptureUploadRequest {
+                    metadata: Some(UploadMetadata {
+                        part_id: part_id.clone(),
+                        component_type: collector_key.component_type,
+                        r#type: DataType::TabularSensor.into(),
+                        component_name: collector_key.r_name,
+                        method_name: collector_key.method.to_string(),
+                        ..Default::default()
+                    }),
+                    sensor_contents: vec![],
                 };
+                let data: Result<Vec<SensorData>, DecodeError> = readings_to_upload
+                    .into_iter()
+                    .map(SensorData::decode)
+                    .collect();
+                upload_request.sensor_contents = data?;
+                app_client.upload_data(upload_request).await?;
             }
-            // TODO: implement actual upload logic here, will likely have to change struct
-            // and make this function async
         }
         Ok(())
     }
@@ -365,6 +405,7 @@ mod tests {
             store,
             Duration::from_millis(30),
             "1".to_string(),
+            None,
         );
         assert!(data_manager.is_ok());
         let data_manager = data_manager.unwrap();
@@ -417,6 +458,7 @@ mod tests {
             store,
             Duration::from_millis(30),
             "1".to_string(),
+            None,
         );
         assert!(data_manager.is_ok());
         let mut data_manager = data_manager.unwrap();
@@ -517,6 +559,7 @@ mod tests {
             store,
             Duration::from_millis(30),
             "1".to_string(),
+            None,
         );
         assert!(data_manager.is_ok());
         let mut data_manager = data_manager.unwrap();
@@ -665,22 +708,25 @@ mod tests {
         assert!(data_coll_2.is_ok());
         let data_coll_2 = data_coll_2.unwrap();
 
-        let manager = DataManager::new(
-            vec![data_coll_1, data_coll_2],
-            ReadSavingStore::new(),
-            Duration::from_millis(65),
-            "boop".to_string(),
-        );
-        assert!(manager.is_ok());
-        let mut manager = manager.unwrap();
+        async_io::block_on(async move {
+            let manager = DataManager::new(
+                vec![data_coll_1, data_coll_2],
+                ReadSavingStore::new(),
+                Duration::from_millis(65),
+                "boop".to_string(),
+                None,
+            );
+            assert!(manager.is_ok());
+            let mut manager = manager.unwrap();
 
-        let expected_data: Vec<f64> = vec![
-            42.42, 42.42, 42.42, 24.24, 24.24, 42.42, 42.42, 42.42, 24.24,
-        ];
-        for i in 0..7 {
-            assert!(manager.run_inner(i).is_ok());
-        }
-        let read_data = get_values_from_manager(&manager);
-        assert_eq!(read_data, expected_data);
+            let expected_data: Vec<f64> = vec![
+                42.42, 42.42, 42.42, 24.24, 24.24, 42.42, 42.42, 42.42, 24.24,
+            ];
+            for i in 0..7 {
+                assert!(manager.run_inner(i).await.is_ok());
+            }
+            let read_data = get_values_from_manager(&manager);
+            assert_eq!(read_data, expected_data);
+        });
     }
 }

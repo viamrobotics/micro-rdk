@@ -26,6 +26,7 @@ impl Default for WriteMode {
     }
 }
 
+#[link_section = ".extram_bss"]
 static mut DATA_STORE: [MaybeUninit<u8>; 1024000] = [MaybeUninit::uninit(); 1024000];
 
 #[derive(Error, Debug)]

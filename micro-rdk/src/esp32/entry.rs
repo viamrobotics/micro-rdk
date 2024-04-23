@@ -22,6 +22,8 @@ use crate::common::{
 #[cfg(feature = "data")]
 use crate::common::{data_manager::DataManager, data_store::StaticMemoryDataStore};
 
+use esp_idf_svc::sys::{settimeofday, timeval};
+
 use super::{
     certificate::WebRtcCertificate,
     dtls::Esp32DtlsBuilder,
@@ -66,6 +68,23 @@ pub async fn serve_web_inner(
 
         let (cfg_response, cfg_received_datetime) = client.get_config().await.unwrap();
 
+        // XXX: Not how we want to set the time of day, just doing this because it's useful for demo purposes
+        if let Some(current_dt) = cfg_received_datetime.as_ref() {
+            let tz = chrono_tz::Tz::UTC;
+            std::env::set_var("TZ", tz.name());
+            let tv_sec = current_dt.timestamp() as i32;
+            let tv_usec = current_dt.timestamp_subsec_micros() as i32;
+            let current_timeval = timeval { tv_sec, tv_usec };
+            let res = unsafe { settimeofday(&current_timeval as *const timeval, std::ptr::null()) };
+            if res != 0 {
+                println!(
+                    "could not set time of day for timezone {:?} and timestamp {:?}",
+                    tz.name(),
+                    current_dt
+                );
+            }
+        }
+
         let robot = match repr {
             RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
             RobotRepresentation::WithRegistry(registry) => {
@@ -105,15 +124,29 @@ pub async fn serve_web_inner(
     };
 
     #[cfg(feature = "data")]
-    // TODO: Spawn data task here. May have to move the initialization below to the task itself
-    // TODO: Support implementers of the DataStore trait other than StaticMemoryDataStore in a way that is configurable
-    {
-        let _data_manager_svc = DataManager::<StaticMemoryDataStore>::from_robot_and_config(
+    let data_manager_svc = {
+        let data_exec = exec.clone();
+        let mut client_connector = Esp32TLS::new_client();
+        let conn = client_connector.open_ssl_context(None).unwrap();
+        let conn = Esp32Stream::TLSStream(Box::new(conn));
+        let grpc_client = Box::new(
+            GrpcClient::new(conn, data_exec, "https://app.viam.com:443")
+                .await
+                .unwrap(),
+        );
+
+        let builder = AppClientBuilder::new(grpc_client, app_config.clone());
+
+        let client = builder.build().await.unwrap();
+        // TODO: Support implementers of the DataStore trait other than StaticMemoryDataStore in a way that is configurable
+        DataManager::<StaticMemoryDataStore>::from_robot_and_config(
             &cfg_response,
             &app_config,
             robot.clone(),
-        );
-    }
+            Some(client),
+        )
+        .expect("could not create data manager")
+    };
 
     let webrtc_certificate = Rc::new(webrtc_certificate);
     let dtls = Esp32DtlsBuilder::new(webrtc_certificate.clone());
@@ -139,7 +172,24 @@ pub async fn serve_web_inner(
         .unwrap(),
     );
 
-    srv.serve(robot).await;
+    // srv.serve(robot).await;
+
+    #[cfg(feature = "data")]
+    let data_future = async move {
+        if let Some(mut data_manager_svc) = data_manager_svc {
+            if let Err(err) = data_manager_svc.run().await {
+                log::error!("error running data manager: {:?}", err)
+            }
+        }
+    };
+    #[cfg(not(feature = "data"))]
+    let data_future = async move {};
+
+    let server_future = async move {
+        srv.serve(robot).await;
+    };
+
+    futures_lite::future::zip(server_future, data_future).await;
 }
 
 pub fn serve_web(

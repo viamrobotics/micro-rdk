@@ -15,7 +15,7 @@ links = "micro_rdk"
 crate-type = ["lib"]
 
 [features]
-default = ["builtin-components"]
+default = ["builtin-components", "data"]
 binstart = ["esp-idf-svc/binstart"]
 libstart = ["esp-idf-svc/libstart"]
 builtin-components = []
@@ -50,6 +50,7 @@ bitfield.workspace = true
 bytecodec.workspace = true
 bytes.workspace = true
 chrono.workspace = true
+chrono-tz.workspace = true
 either.workspace = true
 embedded-hal = { workspace = true, optional = true }
 embedded-svc = { workspace = true, optional = true }
