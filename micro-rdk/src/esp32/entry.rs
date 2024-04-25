@@ -203,6 +203,7 @@ where
         let incoming = listen.accept().await;
         let (stream, _) = incoming?;
 
+        // The provisioning server is exposed over unencrypted HTTP2
         let stream = Esp32Stream::LocalPlain(stream);
 
         let ret = ProvisoningServer::new(srv.clone(), exec.clone(), stream).await;

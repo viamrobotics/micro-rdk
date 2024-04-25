@@ -182,6 +182,7 @@ where
         let (stream, _) = incoming?;
         log::info!("will attempt to provision");
 
+	// The provisioning server is exposed over unencrypted HTTP2
         let stream = NativeStream::LocalPlain(stream);
 
         let ret = ProvisoningServer::new(srv.clone(), exec.clone(), stream).await;

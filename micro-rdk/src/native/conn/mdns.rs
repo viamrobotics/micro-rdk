@@ -47,7 +47,6 @@ impl Mdns for NativeMdns {
             .map(|(k, v)| ((*k).into(), (*v).into()))
             .collect();
 
-        //let properties = [("PATH", "one"), ("Path", "two"), ("PaTh", "three")];
         let service = ServiceInfo::new(
             &ty_domain,
             instance_name,
