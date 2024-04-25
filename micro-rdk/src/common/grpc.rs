@@ -643,7 +643,10 @@ where
             None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
 
-        let pin: i32 = req.pin.parse::<i32>().unwrap();
+        let pin: i32 = req
+            .pin
+            .parse::<i32>()
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let is_high = req.high;
         board
             .lock()
@@ -661,7 +664,10 @@ where
             Some(b) => b,
             None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
-        let pin: i32 = req.pin.parse::<i32>().unwrap();
+        let pin: i32 = req
+            .pin
+            .parse::<i32>()
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
 
         // ignore error to match behavior on RDK
         let _ = board.set_pwm_duty(pin, req.duty_cycle_pct);
@@ -677,7 +683,10 @@ where
             Some(b) => b,
             None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
-        let pin: i32 = req.pin.parse::<i32>().unwrap();
+        let pin: i32 = req
+            .pin
+            .parse::<i32>()
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
 
         // ignore error to match behavior on RDK
         let _ = board.set_pwm_frequency(pin, req.frequency_hz);
@@ -725,7 +734,10 @@ where
             None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
 
-        let pin: i32 = req.pin.parse::<i32>().unwrap();
+        let pin: i32 = req
+            .pin
+            .parse::<i32>()
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let level = board
             .lock()
             .unwrap()
