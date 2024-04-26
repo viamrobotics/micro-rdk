@@ -9,7 +9,7 @@ use crate::proto::app::v1::ConfigResponse;
 
 use super::app_client::AppClientConfig;
 use super::data_collector::ResourceMethodKey;
-use super::data_store::{DataStoreError, WriteMode};
+use super::data_store::{DataStoreError, DataStoreReader, WriteMode};
 use super::robot::{LocalRobot, RobotError};
 use async_io::Timer;
 use bytes::BytesMut;
@@ -169,8 +169,9 @@ where
         for collector_key in self.collectors.iter().map(|c| c.resource_method_key()) {
             // TODO: check for internet access before attempting to read from store
             let mut readings_to_upload: Vec<BytesMut> = vec![];
+            let mut reader = self.store.get_reader(&collector_key)?;
             loop {
-                match self.store.read_next_message(&collector_key) {
+                match reader.read_next_message() {
                     Ok(msg) => {
                         if msg.is_empty() {
                             break;
@@ -181,7 +182,8 @@ where
                 };
             }
             // TODO: implement actual upload logic here, will likely have to change struct
-            // and make this function async
+            // and make this function async. Also flushing below should only occur on upload success
+            reader.flush();
         }
         Ok(())
     }
@@ -224,8 +226,10 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
     use std::collections::HashMap;
     use std::mem::MaybeUninit;
+    use std::rc::Rc;
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
@@ -233,7 +237,7 @@ mod tests {
     use ringbuf::{LocalRb, Rb};
 
     use super::DataManager;
-    use crate::common::data_store::WriteMode;
+    use crate::common::data_store::{DataStoreReader, WriteMode};
     use crate::common::encoder::EncoderError;
     use crate::common::{
         data_collector::{CollectionMethod, DataCollector, ResourceMethodKey},
@@ -301,15 +305,19 @@ mod tests {
         }
     }
 
+    struct NoOpReader {}
+
+    impl DataStoreReader for NoOpReader {
+        fn read_next_message(&mut self) -> Result<BytesMut, DataStoreError> {
+            Err(DataStoreError::Unimplemented)
+        }
+        fn flush(self) {}
+    }
+
     struct NoOpStore {}
 
     impl DataStore for NoOpStore {
-        fn read_next_message(
-            &mut self,
-            _collector_key: &ResourceMethodKey,
-        ) -> Result<bytes::BytesMut, DataStoreError> {
-            Err(DataStoreError::Unimplemented)
-        }
+        type Reader = NoOpReader;
         fn write_message(
             &mut self,
             _collector_key: &ResourceMethodKey,
@@ -322,6 +330,12 @@ mod tests {
             _collector_keys: Vec<ResourceMethodKey>,
         ) -> Result<Self, DataStoreError> {
             Ok(Self {})
+        }
+        fn get_reader(
+            &self,
+            _collector_key: &ResourceMethodKey,
+        ) -> Result<NoOpReader, DataStoreError> {
+            Ok(NoOpReader {})
         }
     }
 
@@ -556,54 +570,19 @@ mod tests {
         }
     }
 
-    struct ReadSavingStore {
-        store: LocalRb<SensorData, Vec<MaybeUninit<SensorData>>>,
-        other_store: LocalRb<SensorData, Vec<MaybeUninit<SensorData>>>,
-        read_messages: Vec<SensorData>,
+    lazy_static::lazy_static! {
+        static ref READ_MESSAGES: Mutex<Vec<SensorData>> = Mutex::new(vec![]);
     }
 
-    impl ReadSavingStore {
-        fn new() -> Self {
-            Self {
-                store: LocalRb::new(10),
-                other_store: LocalRb::new(10),
-                read_messages: Vec::new(),
-            }
-        }
-        fn read_messages(&self) -> Vec<SensorData> {
-            self.read_messages.clone()
-        }
+    struct ReadSavingStoreReader {
+        store: Rc<RefCell<LocalRb<SensorData, Vec<MaybeUninit<SensorData>>>>>,
     }
 
-    impl DataStore for ReadSavingStore {
-        fn write_message(
-            &mut self,
-            collector_key: &ResourceMethodKey,
-            message: SensorData,
-            _write_mode: WriteMode,
-        ) -> Result<(), DataStoreError> {
-            let store = if &collector_key.r_name == "r1" {
-                &mut self.store
-            } else {
-                &mut self.other_store
-            };
-            store
-                .push(message)
-                .map_err(|msg| DataStoreError::DataBufferFull(collector_key.clone(), msg))?;
-            Ok(())
-        }
-        fn read_next_message(
-            &mut self,
-            collector_key: &ResourceMethodKey,
-        ) -> Result<bytes::BytesMut, DataStoreError> {
-            let store = if &collector_key.r_name == "r1" {
-                &mut self.store
-            } else {
-                &mut self.other_store
-            };
-            match store.pop() {
+    impl DataStoreReader for ReadSavingStoreReader {
+        fn read_next_message(&mut self) -> Result<BytesMut, DataStoreError> {
+            match RefCell::borrow_mut(&self.store).pop() {
                 Some(msg) => {
-                    self.read_messages.push(msg.clone());
+                    READ_MESSAGES.lock().unwrap().push(msg.clone());
                     let mut res = BytesMut::with_capacity(11);
                     res.put(&b"ignore this"[..]);
                     Ok(res)
@@ -611,19 +590,61 @@ mod tests {
                 None => Ok(BytesMut::with_capacity(0)),
             }
         }
+        fn flush(self) {}
+    }
+
+    struct ReadSavingStore {
+        store: Rc<RefCell<LocalRb<SensorData, Vec<MaybeUninit<SensorData>>>>>,
+        other_store: Rc<RefCell<LocalRb<SensorData, Vec<MaybeUninit<SensorData>>>>>,
+    }
+
+    impl ReadSavingStore {
+        fn new() -> Self {
+            Self {
+                store: Rc::new(RefCell::new(LocalRb::new(10))),
+                other_store: Rc::new(RefCell::new(LocalRb::new(10))),
+            }
+        }
+    }
+
+    impl DataStore for ReadSavingStore {
+        type Reader = ReadSavingStoreReader;
+        fn write_message(
+            &mut self,
+            collector_key: &ResourceMethodKey,
+            message: SensorData,
+            _write_mode: WriteMode,
+        ) -> Result<(), DataStoreError> {
+            RefCell::borrow_mut(if &collector_key.r_name == "r1" {
+                &self.store
+            } else {
+                &self.other_store
+            })
+            .push(message)
+            .map_err(|msg| DataStoreError::DataBufferFull(collector_key.clone(), msg))?;
+            Ok(())
+        }
         fn from_resource_method_keys(
             _collector_keys: Vec<ResourceMethodKey>,
         ) -> Result<Self, DataStoreError> {
             Ok(Self::new())
         }
+        fn get_reader(
+            &self,
+            collector_key: &ResourceMethodKey,
+        ) -> Result<Self::Reader, DataStoreError> {
+            let store_clone = if &collector_key.r_name == "r1" {
+                self.store.clone()
+            } else {
+                self.other_store.clone()
+            };
+            Ok(ReadSavingStoreReader { store: store_clone })
+        }
     }
 
-    fn get_values_from_manager(manager: &DataManager<ReadSavingStore>) -> Vec<f64> {
-        let read_data = manager
-            .store
-            .read_messages()
-            .into_iter()
-            .map(|msg| msg.data.unwrap());
+    fn get_read_values() -> Vec<f64> {
+        let message_vec = READ_MESSAGES.lock().unwrap();
+        let read_data = message_vec.iter().map(|msg| msg.data.clone().unwrap());
         let read_data: Vec<f64> = read_data
             .into_iter()
             .map(|d| match d {
@@ -680,7 +701,7 @@ mod tests {
         for i in 0..7 {
             assert!(manager.run_inner(i).is_ok());
         }
-        let read_data = get_values_from_manager(&manager);
+        let read_data = get_read_values();
         assert_eq!(read_data, expected_data);
     }
 }

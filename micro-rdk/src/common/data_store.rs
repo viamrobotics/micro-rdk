@@ -6,8 +6,10 @@ use crate::proto::app::data_sync::v1::SensorData;
 use bytes::{Buf, BufMut, BytesMut};
 use prost::{encoding::decode_varint, length_delimiter_len, DecodeError, EncodeError, Message};
 use ringbuf::{ring_buffer::RbBase, Consumer, LocalRb, Producer};
+use scopeguard::defer;
 use std::{
     mem::MaybeUninit,
+    rc::Rc,
     sync::atomic::{AtomicBool, Ordering},
 };
 use thiserror::Error;
@@ -28,7 +30,7 @@ impl Default for WriteMode {
 
 static mut DATA_STORE: [MaybeUninit<u8>; 1024000] = [MaybeUninit::uninit(); 1024000];
 
-#[derive(Error, Debug)]
+#[derive(Clone, Error, Debug)]
 pub enum DataStoreError {
     #[error(transparent)]
     EncodingError(#[from] EncodeError),
@@ -46,6 +48,8 @@ pub enum DataStoreError {
     UnknownCollectorKey(ResourceMethodKey),
     #[error(transparent)]
     DecodeError(#[from] DecodeError),
+    #[error("buffer for {0} in use")]
+    BufferInUse(ResourceMethodKey),
     #[error("unimplemented")]
     Unimplemented,
 }
@@ -54,7 +58,18 @@ lazy_static::lazy_static! {
     static ref DATA_STORE_INITIALIZED: AtomicBool = AtomicBool::new(false);
 }
 
+/// A trait for an entity that is capable of reading from a store without consuming
+/// the messages until a command to flush the read messages is sent
+pub trait DataStoreReader {
+    /// Reads the next available message in the store for the given ResourceMethodKey. It should return
+    /// an empty BytesMut with 0 capacity when there are no available messages left.
+    fn read_next_message(&mut self) -> Result<BytesMut, DataStoreError>;
+    fn flush(self);
+}
+
 pub trait DataStore {
+    type Reader: DataStoreReader;
+
     /// Store the sensor data message in a region specified by the ResourceMethodKey. To overwrite
     /// the oldest messages if necessary, pass true for `overwrite_old_data`
     fn write_message(
@@ -64,19 +79,16 @@ pub trait DataStore {
         write_mode: WriteMode,
     ) -> Result<(), DataStoreError>;
 
-    /// Reads the next available message in the store for the given ResourceMethodKey. It should return
-    /// an empty BytesMut with 0 capacity when there are no available messages left.
-    fn read_next_message(
-        &mut self,
-        collector_key: &ResourceMethodKey,
-    ) -> Result<BytesMut, DataStoreError>;
-
     /// Initializes from resource-method keys.
     fn from_resource_method_keys(
         collector_keys: Vec<ResourceMethodKey>,
     ) -> Result<Self, DataStoreError>
     where
         Self: std::marker::Sized;
+
+    // Gets a reader that should implement `DataStoreReader`
+    fn get_reader(&self, collector_key: &ResourceMethodKey)
+        -> Result<Self::Reader, DataStoreError>;
 }
 
 /// StaticMemoryDataStore is an entity that governs the static bytes memory
@@ -87,8 +99,64 @@ pub trait DataStore {
 /// the number of collector keys). It should be treated as a global struct that should only be initialized once
 /// and is not thread-safe (all interactions should be blocking).
 pub struct StaticMemoryDataStore {
-    buffers: Vec<LocalRb<u8, &'static mut [MaybeUninit<u8>]>>,
+    buffers: Vec<Rc<LocalRb<u8, &'static mut [MaybeUninit<u8>]>>>,
+    buffer_usages: Vec<Rc<AtomicBool>>,
     collector_keys: Vec<ResourceMethodKey>,
+}
+
+pub struct StaticMemoryDataStoreReader {
+    cons: Consumer<u8, Rc<LocalRb<u8, &'static mut [MaybeUninit<u8>]>>>,
+    start_idx: usize,
+    current_idx: usize,
+    buffer_registration: Rc<AtomicBool>,
+    iteration_failure: Option<DataStoreError>,
+}
+
+impl StaticMemoryDataStoreReader {
+    fn new(
+        cons: Consumer<u8, Rc<LocalRb<u8, &'static mut [MaybeUninit<u8>]>>>,
+        buffer_registration: Rc<AtomicBool>,
+    ) -> Self {
+        let start_idx = cons.rb().head();
+        Self {
+            cons: cons,
+            start_idx,
+            current_idx: start_idx,
+            buffer_registration,
+            iteration_failure: None,
+        }
+    }
+}
+
+impl DataStoreReader for StaticMemoryDataStoreReader {
+    fn read_next_message(&mut self) -> Result<BytesMut, DataStoreError> {
+        let (left, right) = self.cons.as_slices();
+        let mut chained = Buf::chain(left, right);
+        chained.advance(self.current_idx - self.start_idx);
+        if !chained.has_remaining() {
+            return Ok(BytesMut::with_capacity(0));
+        }
+        let encoded_len = decode_varint(&mut chained)? as usize;
+        let len_len = length_delimiter_len(encoded_len);
+        if encoded_len > chained.remaining() {
+            return Err(DataStoreError::DataIntegrityError);
+        }
+
+        let mut msg_bytes = BytesMut::with_capacity(0);
+        let chained_iter = chained.into_iter().take(encoded_len);
+        msg_bytes.extend(chained_iter);
+        self.current_idx += len_len + encoded_len;
+        Ok(msg_bytes)
+    }
+    fn flush(mut self) {
+        self.cons.skip(self.current_idx - self.start_idx);
+    }
+}
+
+impl Drop for StaticMemoryDataStoreReader {
+    fn drop(&mut self) {
+        self.buffer_registration.store(false, Ordering::Relaxed);
+    }
 }
 
 impl StaticMemoryDataStore {
@@ -96,19 +164,22 @@ impl StaticMemoryDataStore {
         if !DATA_STORE_INITIALIZED.fetch_or(true, Ordering::SeqCst) {
             let len_per_buffer = unsafe { DATA_STORE.len() } / collector_keys.len();
             let mut buffers = Vec::new();
+            let mut buffer_usages = Vec::new();
             for i in 0..(collector_keys.len()) {
                 let start_idx = i * len_per_buffer;
                 let end_idx = (i + 1) * len_per_buffer;
                 unsafe {
-                    buffers.push(LocalRb::from_raw_parts(
+                    buffers.push(Rc::new(LocalRb::from_raw_parts(
                         &mut DATA_STORE[start_idx..end_idx],
                         0,
                         0,
-                    ));
+                    )));
                 }
+                buffer_usages.push(Rc::new(AtomicBool::new(false)));
             }
             return Ok(Self {
                 buffers,
+                buffer_usages,
                 collector_keys,
             });
         }
@@ -124,9 +195,33 @@ impl StaticMemoryDataStore {
             .position(|key| key == collector_key)
             .ok_or(DataStoreError::UnknownCollectorKey(collector_key.clone()))
     }
+
+    fn buffer_in_use(&self, buffer_index: usize) -> bool {
+        self.buffer_usages[buffer_index].load(Ordering::Relaxed)
+    }
+
+    fn register_buffer_usage(&self, buffer_index: usize) {
+        self.buffer_usages[buffer_index].store(true, Ordering::Relaxed);
+    }
+
+    fn unregister_buffer_usage(&self, buffer_index: usize) {
+        self.buffer_usages[buffer_index].store(false, Ordering::Relaxed);
+    }
+
+    // for testing purposes only
+    pub(crate) fn is_collector_store_empty(
+        &self,
+        collector_key: &ResourceMethodKey,
+    ) -> Result<bool, DataStoreError> {
+        let buffer_index = self.get_index_for_collector(collector_key)?;
+        let buffer = Rc::clone(&self.buffers[buffer_index]);
+        Ok(buffer.is_empty())
+    }
 }
 
 impl DataStore for StaticMemoryDataStore {
+    type Reader = StaticMemoryDataStoreReader;
+
     fn write_message(
         &mut self,
         collector_key: &ResourceMethodKey,
@@ -134,7 +229,15 @@ impl DataStore for StaticMemoryDataStore {
         write_mode: WriteMode,
     ) -> Result<(), DataStoreError> {
         let buffer_index = self.get_index_for_collector(collector_key)?;
-        let buffer = &self.buffers[buffer_index];
+        let buffer = Rc::clone(&self.buffers[buffer_index]);
+        if self.buffer_in_use(buffer_index) {
+            return Err(DataStoreError::BufferInUse(collector_key.clone()));
+        } else {
+            self.register_buffer_usage(buffer_index);
+        }
+        defer! {
+            let _ = self.unregister_buffer_usage(buffer_index);
+        }
         let encode_len = message.encoded_len();
         let total_encode_len = length_delimiter_len(encode_len) + encode_len;
 
@@ -145,7 +248,7 @@ impl DataStore for StaticMemoryDataStore {
                     message,
                 ));
             }
-            let mut cons = unsafe { Consumer::new(buffer) };
+            let mut cons = unsafe { Consumer::new(buffer.clone()) };
             let (left, right) = cons.as_slices();
             let mut chained = Buf::chain(left, right);
             let encoded_len = decode_varint(&mut chained)? as usize;
@@ -155,7 +258,7 @@ impl DataStore for StaticMemoryDataStore {
             cons.skip(encoded_len);
         }
         unsafe {
-            let mut prod = Producer::new(buffer);
+            let mut prod = Producer::new(buffer.clone());
             let (left, right) = prod.free_space_as_slices();
             let mut chained = BufMut::chain_mut(left, right);
             message.encode_length_delimited(&mut chained)?;
@@ -164,35 +267,29 @@ impl DataStore for StaticMemoryDataStore {
 
         Ok(())
     }
-    fn read_next_message(
-        &mut self,
-        collector_key: &ResourceMethodKey,
-    ) -> Result<BytesMut, DataStoreError> {
-        let buffer_index = self.get_index_for_collector(collector_key)?;
-        let buffer = &self.buffers[buffer_index];
-        if buffer.is_empty() {
-            return Ok(BytesMut::with_capacity(0));
-        }
-
-        let mut cons = unsafe { Consumer::new(buffer) };
-        let (left, right) = cons.as_slices();
-        let mut chained = Buf::chain(left, right);
-        let encoded_len = decode_varint(&mut chained)? as usize;
-        let advance = length_delimiter_len(encoded_len);
-        unsafe { cons.advance(advance) };
-
-        let mut msg_bytes = BytesMut::with_capacity(encoded_len);
-        unsafe {
-            msg_bytes.set_len(encoded_len);
-        }
-        cons.pop_slice(&mut msg_bytes);
-        Ok(msg_bytes)
-    }
 
     fn from_resource_method_keys(
         collector_keys: Vec<ResourceMethodKey>,
     ) -> Result<Self, DataStoreError> {
         Self::new(collector_keys)
+    }
+
+    fn get_reader(
+        &self,
+        collector_key: &ResourceMethodKey,
+    ) -> Result<StaticMemoryDataStoreReader, DataStoreError> {
+        let buffer_index = self.get_index_for_collector(collector_key)?;
+        if self.buffer_in_use(buffer_index) {
+            return Err(DataStoreError::BufferInUse(collector_key.clone()));
+        }
+        self.register_buffer_usage(buffer_index);
+        let buffer = Rc::clone(&self.buffers[buffer_index]);
+        let buffer_registration = Rc::clone(&self.buffer_usages[buffer_index]);
+
+        Ok(StaticMemoryDataStoreReader::new(
+            unsafe { Consumer::new(buffer) },
+            buffer_registration,
+        ))
     }
 }
 
@@ -209,6 +306,7 @@ mod tests {
     use crate::common::data_collector::{CollectionMethod, ResourceMethodKey};
     use crate::common::data_store::DataStore;
     use crate::common::data_store::DataStoreError;
+    use crate::common::data_store::DataStoreReader;
     use crate::common::data_store::WriteMode;
     use crate::common::data_store::DATA_STORE;
     use crate::google::protobuf::Timestamp;
@@ -298,13 +396,47 @@ mod tests {
         assert!(res.is_ok());
         let res = store.write_message(&thing_key, data_message, Default::default());
         assert!(res.is_ok());
+        let data_message = SensorData {
+            metadata: Some(SensorMetadata {
+                time_requested: Some(Timestamp {
+                    seconds: reading_requested_dt.timestamp(),
+                    nanos: reading_requested_dt.timestamp_subsec_nanos() as i32,
+                }),
+                time_received: Some(Timestamp {
+                    seconds: reading_received_dt.timestamp(),
+                    nanos: reading_received_dt.timestamp_subsec_nanos() as i32,
+                }),
+            }),
+            data: Some(Data::Struct(Struct {
+                fields: HashMap::from([
+                    (
+                        "thing_1".to_string(),
+                        Value {
+                            kind: Some(Kind::NumberValue(245.01)),
+                        },
+                    ),
+                    (
+                        "thing_2".to_string(),
+                        Value {
+                            kind: Some(Kind::BoolValue(true)),
+                        },
+                    ),
+                ]),
+            })),
+        };
+        let res = store.write_message(&thing_key, data_message, Default::default());
+        assert!(res.is_ok());
 
         let res = store.write_message(&thing_2_key, empty_message_2, Default::default());
         assert!(res.is_ok());
         let res = store.write_message(&thing_2_key, data_message_no_metadata, Default::default());
         assert!(res.is_ok());
 
-        let read_message = store.read_next_message(&thing_key);
+        let reader = store.get_reader(&thing_key);
+        assert!(reader.is_ok());
+        let mut reader = reader.unwrap();
+
+        let read_message = reader.read_next_message();
         assert!(read_message.is_ok());
         let mut read_message = read_message.unwrap();
         let read_message = SensorData::decode(&mut read_message);
@@ -316,7 +448,7 @@ mod tests {
         };
         assert_eq!(read_message, expected_msg);
 
-        let read_message = store.read_next_message(&thing_key);
+        let read_message = reader.read_next_message();
         assert!(read_message.is_ok());
         let mut read_message = read_message.unwrap();
         let read_message = SensorData::decode(&mut read_message);
@@ -352,7 +484,47 @@ mod tests {
         };
         assert_eq!(read_message, expected_msg);
 
-        let read_message = store.read_next_message(&thing_2_key);
+        let read_message = reader.read_next_message();
+        assert!(read_message.is_ok());
+        let mut read_message = read_message.unwrap();
+        let read_message = SensorData::decode(&mut read_message);
+        assert!(read_message.is_ok());
+        let read_message = read_message.unwrap();
+        let expected_msg = SensorData {
+            metadata: Some(SensorMetadata {
+                time_requested: Some(Timestamp {
+                    seconds: reading_requested_dt.timestamp(),
+                    nanos: reading_requested_dt.timestamp_subsec_nanos() as i32,
+                }),
+                time_received: Some(Timestamp {
+                    seconds: reading_received_dt.timestamp(),
+                    nanos: reading_received_dt.timestamp_subsec_nanos() as i32,
+                }),
+            }),
+            data: Some(Data::Struct(Struct {
+                fields: HashMap::from([
+                    (
+                        "thing_1".to_string(),
+                        Value {
+                            kind: Some(Kind::NumberValue(245.01)),
+                        },
+                    ),
+                    (
+                        "thing_2".to_string(),
+                        Value {
+                            kind: Some(Kind::BoolValue(true)),
+                        },
+                    ),
+                ]),
+            })),
+        };
+        assert_eq!(read_message, expected_msg);
+
+        let reader_2 = store.get_reader(&thing_2_key);
+        assert!(reader_2.is_ok());
+        let mut reader_2 = reader_2.unwrap();
+
+        let read_message = reader_2.read_next_message();
         assert!(read_message.is_ok());
         let mut read_message = read_message.unwrap();
         let read_message = SensorData::decode(&mut read_message);
@@ -366,7 +538,7 @@ mod tests {
         };
         assert_eq!(read_message, expected_msg);
 
-        let read_message = store.read_next_message(&thing_2_key);
+        let read_message = reader_2.read_next_message();
         assert!(read_message.is_ok());
         let mut read_message = read_message.unwrap();
         let read_message = SensorData::decode(&mut read_message);
@@ -393,10 +565,19 @@ mod tests {
         };
         assert_eq!(read_message, expected_msg);
 
-        let read_message = store.read_next_message(&thing_2_key);
+        let read_message = reader_2.read_next_message();
         assert!(read_message.is_ok());
         let read_message = read_message.unwrap();
         assert_eq!(read_message.len(), 0);
+
+        reader.flush();
+        let region_empty = store.is_collector_store_empty(&thing_key);
+        assert!(region_empty.is_ok());
+        assert!(region_empty.unwrap());
+        reader_2.flush();
+        let region_empty = store.is_collector_store_empty(&thing_2_key);
+        assert!(region_empty.is_ok());
+        assert!(region_empty.unwrap());
 
         let thing_key = ResourceMethodKey {
             r_name: "thing".to_string(),
