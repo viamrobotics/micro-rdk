@@ -199,8 +199,15 @@ mod esp32 {
                 &nvs_vars.wifi_ssid,
                 &nvs_vars.wifi_pwd,
             )
-            .unwrap();
-            (wifi.wifi().sta_netif().get_ip_info().unwrap().ip, wifi)
+            .expect("failed to start wifi");
+            (
+                wifi.wifi()
+                    .sta_netif()
+                    .get_ip_info()
+                    .expect("failed to get ip info")
+                    .ip,
+                wifi,
+            )
         };
 
         let webrtc_certificate = WebRtcCertificate::new(
