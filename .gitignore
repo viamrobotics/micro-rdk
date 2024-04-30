@@ -5,4 +5,3 @@ Cargo.lock
 /canary/.venv/*
 .vscode
 components_esp32.lock
-.envrc
