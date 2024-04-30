@@ -106,6 +106,3 @@ trackable = "1.2.0"
 viam = { version = ">=0.0.17", git = "https://github.com/viamrobotics/viam-rust-sdk.git" }
 viam-rust-utils = "0.1.2"
 webpki-roots = "0.22.6"
-
-[template]
-sub_templates = ["templates/project", "templates/module"]
