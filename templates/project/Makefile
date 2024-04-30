@@ -12,7 +12,7 @@ build-esp32-bin:
 
 flash-esp32-bin:
 ifneq (,$(wildcard target/esp32-server.bin))
-	espflash write-bin 0x0 target/esp32-server.bin -b 460800  && sleep 2 && espflash monitor
+	espflash write-bin 0x0 target/esp32-server.bin --baud 460800  && sleep 2 && espflash monitor
 else
 	$(error esp32-server.bin not found, run build-esp32-bin first)
 endif
