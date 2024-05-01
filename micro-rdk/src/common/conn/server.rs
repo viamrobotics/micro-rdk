@@ -400,9 +400,13 @@ where
                     Ok(c) => {
                         let robot = robot.clone();
                         let exec = self.exec.clone();
-                        let t = self.exec.spawn(async move { Self::serve_http2(c, exec, robot).await });
+                        let t = self
+                            .exec
+                            .spawn(async move { Self::serve_http2(c, exec, robot).await });
                         // Incoming direct HTTP2 connections take top priority.
-                        self.incoming_connection_manager.insert_new_conn(t, u32::MAX).await;
+                        self.incoming_connection_manager
+                            .insert_new_conn(t, u32::MAX)
+                            .await;
                         Ok(())
                     }
                 },
@@ -411,7 +415,9 @@ where
                     Ok(_) => {
                         let prio = c.prio;
                         let t = self.exec.spawn(async move { c.run().await });
-                        self.incoming_connection_manager.insert_new_conn(t, prio).await;
+                        self.incoming_connection_manager
+                            .insert_new_conn(t, prio)
+                            .await;
                         Ok(())
                     }
                 },
@@ -424,8 +430,7 @@ where
         connection: T,
         exec: Executor,
         robot: Arc<Mutex<LocalRobot>>,
-    ) -> Result<(), ServerError>
-    {
+    ) -> Result<(), ServerError> {
         let srv = GrpcServer::new(robot.clone(), GrpcBody::new());
         Box::new(
             http2::Builder::new(exec)
