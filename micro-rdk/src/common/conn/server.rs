@@ -437,7 +437,7 @@ where
                 .initial_connection_window_size(2048)
                 .initial_stream_window_size(2048)
                 .max_send_buf_size(4096)
-                .max_concurrent_streams(1)
+                .max_concurrent_streams(2)
                 .serve_connection(connection, srv),
         )
         .await

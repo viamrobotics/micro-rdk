@@ -9,7 +9,9 @@ mod native {
     };
 
     pub(crate) fn main_native() {
-        env_logger::init();
+        env_logger::builder()
+            .format_timestamp(Some(env_logger::TimestampPrecision::Millis))
+            .init();
 
         let repr = RobotRepresentation::WithRegistry(Box::default());
 
