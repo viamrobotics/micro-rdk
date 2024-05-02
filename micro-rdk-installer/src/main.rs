@@ -1,3 +1,4 @@
+use espflash::cli::{serial_monitor, FlashArgs, MonitorArgs};
 use log::LevelFilter;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -35,7 +36,7 @@ enum Commands {
     WriteFlash(WriteFlash),
     WriteCredentials(WriteCredentials),
     CreateNvsPartition(CreateNVSPartition),
-    Monitor(Monitor),
+    Monitor(MonitorArgs),
 }
 
 /// Write Wi-Fi and robot credentials to the NVS storage portion of a pre-compiled
@@ -117,6 +118,7 @@ struct CreateNVSPartition {
     wifi_password: Option<Secret<String>>,
 }
 
+/*
 /// Monitor a currently connected ESP32
 #[derive(Args)]
 struct Monitor {
@@ -127,6 +129,7 @@ struct Monitor {
     #[arg(long = "log-file")]
     log_file_path: Option<String>,
 }
+*/
 
 #[derive(Parser)]
 #[command(
@@ -221,9 +224,15 @@ fn write_credentials_to_app_binary(
     app_file.write_all(nvs_data).map_err(Error::FileError)?;
     Ok(())
 }
+/*
+    binary_path: PathBuf,
+    should_monitor: bool,
+    baud_rate: Option<u32>,
+    log_file_path: Option<String>,
+*/
 
 fn flash(
-    binary_path: PathBuf,
+    flash_args: FlashArgs,
     should_monitor: bool,
     baud_rate: Option<u32>,
     log_file_path: Option<String>,
@@ -258,6 +267,7 @@ fn flash(
     Ok(())
 }
 
+/*
 fn monitor_esp32(baud_rate: Option<u32>, log_file_path: Option<String>) -> Result<(), Error> {
     let connect_args = ConnectArgs {
         baud: Some(baud_rate.unwrap_or(460800)),
@@ -274,6 +284,7 @@ fn monitor_esp32(baud_rate: Option<u32>, log_file_path: Option<String>) -> Resul
         .map_err(|err| Error::MonitorError(err.to_string()))?;
     Ok(())
 }
+*/
 
 fn init_logger() {
     env_logger::Builder::new()
@@ -350,7 +361,7 @@ fn main() -> Result<(), Error> {
             )?)
             .map_err(Error::FileError)?;
         }
-        Some(Commands::Monitor(args)) => monitor_esp32(args.baud_rate, args.log_file_path.clone())?,
+        Some(Commands::Monitor(args)) => serial_monitor(args, config).unwrap(),
         None => return Err(Error::NoCommandError),
     };
     Ok(())
