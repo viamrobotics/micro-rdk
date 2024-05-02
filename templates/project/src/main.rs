@@ -70,8 +70,15 @@ fn main() {
     }
 
     let (ip, _wifi) = {
-        let wifi = start_wifi(periph.modem, sys_loop_stack).unwrap();
-        (wifi.wifi().sta_netif().get_ip_info().unwrap().ip, wifi)
+        let wifi = start_wifi(periph.modem, sys_loop_stack).expect("failed to start wifi");
+        (
+            wifi.wifi()
+                .sta_netif()
+                .get_ip_info()
+                .expect("failed to get ip info'")
+                .ip,
+            wifi,
+        )
     };
     let cfg = AppClientConfig::new(
         ROBOT_SECRET.to_owned(),
@@ -114,13 +121,13 @@ fn start_wifi(
 
     wifi.set_configuration(&wifi_configuration)?;
 
-    wifi.start().unwrap();
+    wifi.start()?;
     info!("Wifi started");
 
-    wifi.connect().unwrap();
+    wifi.connect()?;
     info!("Wifi connected");
 
-    wifi.wait_netif_up().unwrap();
+    wifi.wait_netif_up()?;
 
     micro_rdk::esp32::esp_idf_svc::sys::esp!(unsafe {
         esp_wifi_set_ps(micro_rdk::esp32::esp_idf_svc::sys::wifi_ps_type_t_WIFI_PS_NONE)

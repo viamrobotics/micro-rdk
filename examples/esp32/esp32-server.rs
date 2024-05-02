@@ -89,8 +89,15 @@ mod esp32 {
         #[allow(clippy::redundant_clone)]
         #[cfg(not(feature = "qemu"))]
         let (ip, _wifi) = {
-            let wifi = start_wifi(periph.modem, sys_loop_stack).unwrap();
-            (wifi.wifi().sta_netif().get_ip_info().unwrap().ip, wifi)
+            let wifi = start_wifi(periph.modem, sys_loop_stack).expect("failed to start wifi");
+            (
+                wifi.wifi()
+                    .sta_netif()
+                    .get_ip_info()
+                    .expect("failed to get ip info")
+                    .ip,
+                wifi,
+            )
         };
 
         let cfg = AppClientConfig::new(
@@ -149,13 +156,13 @@ mod esp32 {
 
         wifi.set_configuration(&wifi_configuration)?;
 
-        wifi.start().unwrap();
+        wifi.start()?;
         info!("Wifi started");
 
-        wifi.connect().unwrap();
+        wifi.connect()?;
         info!("Wifi connected");
 
-        wifi.wait_netif_up().unwrap();
+        wifi.wait_netif_up()?;
         info!("Wifi netif up");
 
         micro_rdk::esp32::esp_idf_svc::sys::esp!(unsafe {
