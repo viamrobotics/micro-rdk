@@ -28,7 +28,7 @@ impl Esp32Listener {
         let socket = TcpListener::bind(addr)?;
         socket.set_nonblocking(true)?;
         Ok(Self {
-            listener: Arc::new(socket.into()),
+            listener: Arc::new(socket),
             addr,
             _marker: PhantomData,
             tls,
