@@ -92,7 +92,6 @@ mod esp32 {
         robot_dtls_key_pair: Vec<u8>,
         robot_dtls_cert_fp: String,
         robot_srv_pem_chain: Vec<u8>,
-        robot_srv_pem_ca: Vec<u8>,
         robot_srv_der_key: Vec<u8>,
     }
 
@@ -113,7 +112,6 @@ mod esp32 {
                 robot_dtls_key_pair: get_blob_from_nvs(&viam_nvs, "DTLS_KEY_PAIR")?,
                 robot_dtls_cert_fp: get_str_from_nvs(&viam_nvs, "DTLS_CERT_FP")?,
                 robot_srv_pem_chain: get_blob_from_nvs(&viam_nvs, "SRV_PEM_CHAIN")?,
-                robot_srv_pem_ca: get_blob_from_nvs(&viam_nvs, "CA_CRT")?,
                 robot_srv_der_key: get_blob_from_nvs(&viam_nvs, "SRV_DER_KEY")?,
             })
         }
@@ -216,7 +214,7 @@ mod esp32 {
             &nvs_vars.robot_dtls_cert_fp,
         );
 
-        let cert: [Vec<u8>; 2] = [nvs_vars.robot_srv_pem_chain, nvs_vars.robot_srv_pem_ca];
+        let cert: Vec<u8> = nvs_vars.robot_srv_pem_chain;
         let key = nvs_vars.robot_srv_der_key;
         let tls_cfg = Esp32TLSServerConfig::new(cert, key.as_ptr(), key.len() as u32);
 
