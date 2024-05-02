@@ -34,6 +34,8 @@ pub enum GrpcClientError {
     GrpcError { code: i8, message: String },
     #[error(transparent)]
     ErrorSendingToAStream(#[from] async_channel::SendError<Bytes>),
+    #[error("frame error {0}")]
+    FrameError(String),
 }
 
 pub(crate) struct GrpcMessageSender<T> {
@@ -99,7 +101,7 @@ impl<T> Stream for GrpcMessageStream<T>
 where
     T: prost::Message + std::default::Default,
 {
-    type Item = T;
+    type Item = Result<T, GrpcClientError>;
 
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,
@@ -116,7 +118,33 @@ where
                     None => return Poll::Ready(None),
                 },
             };
-            self.buffer = chunk.into_data().unwrap();
+            self.buffer = match chunk.into_data() {
+                Ok(data) => data,
+                Err(e) => {
+                    if let Some(trailers) = e.trailers_ref() {
+                        if trailers.contains_key("grpc-message")
+                            && trailers.contains_key("grpc-status")
+                        {
+                            return Poll::Ready(Some(Err(GrpcClientError::GrpcError {
+                                code: trailers
+                                    .get("grpc-status")
+                                    .unwrap()
+                                    .to_str()
+                                    .unwrap()
+                                    .parse::<i8>()
+                                    .unwrap(),
+                                message: trailers
+                                    .get("grpc-message")
+                                    .unwrap()
+                                    .to_str()
+                                    .unwrap()
+                                    .to_owned(),
+                            })));
+                        }
+                    }
+                    return Poll::Ready(Some(Err(GrpcClientError::FrameError(format!("{:?}", e)))));
+                }
+            };
         }
 
         // Split off the length prefixed message containing the compressed flag (B0) and the message length (B1-B4)
@@ -135,7 +163,7 @@ where
             }
             Ok(m) => m,
         };
-        Poll::Ready(Some(message))
+        Poll::Ready(Some(Ok(message)))
     }
 }
 #[cfg(feature = "native")]

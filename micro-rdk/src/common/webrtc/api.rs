@@ -16,7 +16,7 @@ use crate::esp32::exec::Esp32Executor;
 #[cfg(feature = "native")]
 use crate::native::exec::NativeExecutor;
 use crate::{
-    common::grpc_client::{GrpcMessageSender, GrpcMessageStream},
+    common::grpc_client::{GrpcClientError, GrpcMessageSender, GrpcMessageStream},
     proto::rpc::webrtc::v1::{
         answer_request, answer_response, AnswerRequest, AnswerResponse, AnswerResponseDoneStage,
         AnswerResponseInitStage, AnswerResponseUpdateStage, IceCandidate,
@@ -76,6 +76,8 @@ pub enum WebRtcError {
     CannotParseCandidate,
     #[error("Operation timeout")]
     OperationTiemout,
+    #[error(transparent)]
+    GrpcClientError(#[from] GrpcClientError),
 }
 
 pub(crate) struct WebRtcSignalingChannel {
@@ -166,6 +168,7 @@ impl WebRtcSignalingChannel {
                     return Err(WebRtcError::SignalingDisconnected());
                 }
                 Some(req) => {
+                    let req = req?;
                     if let Some(stage) = req.stage.clone() {
                         match stage {
                             answer_request::Stage::Init(s) => {
@@ -257,6 +260,7 @@ impl WebRtcSignalingChannel {
         match self.signaling_rx.next().await {
             None => Err(WebRtcError::SignalingDisconnected()),
             Some(req) => {
+                let req = req?;
                 if let Some(stage) = req.stage {
                     match stage {
                         answer_request::Stage::Update(c) => {
