@@ -6,8 +6,7 @@ use std::{
 };
 
 use clap::{arg, command, Args, Parser, Subcommand};
-use dialoguer::theme::ColorfulTheme;
-use dialoguer::{Input, Password};
+use dialoguer::{theme::ColorfulTheme, Input, Password};
 use espflash::cli::{
     config::Config, connect, monitor::monitor, serial_monitor, EspflashProgress, FlashArgs,
     MonitorArgs,
