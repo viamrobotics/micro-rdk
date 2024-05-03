@@ -2138,7 +2138,6 @@ dependencies = [
 [[package]]
 name = "espflash"
 version = "3.0.1-dev"
-source = "git+https://github.com/viamrobotics/espflash.git?branch=monitor-output#c01779ce8dd9b1a0fad03ec4429600e2e76f15ad"
 dependencies = [
  "addr2line",
  "base64 0.22.1",

@@ -1,4 +1,3 @@
-use espflash::cli::{serial_monitor, FlashArgs, MonitorArgs};
 use log::LevelFilter;
 use std::{
     fs::{self, File, OpenOptions},
@@ -7,10 +6,11 @@ use std::{
 };
 
 use clap::{arg, command, Args, Parser, Subcommand};
-use dialoguer::{theme::ColorfulTheme, Input, Password};
+use dialoguer::theme::ColorfulTheme;
+use dialoguer::{Input, Password};
 use espflash::cli::{
-    config::Config, connect, monitor::monitor, serial_monitor, EspflashProgress, FlashArgs,
-    MonitorArgs,
+    config::Config, connect, monitor::monitor, serial_monitor, ConnectArgs, EspflashProgress,
+    FlashArgs, MonitorArgs,
 };
 use micro_rdk_installer::{
     error::Error,
@@ -248,8 +248,7 @@ fn flash(args: WriteFlashArgs, config: &Config, app_path: PathBuf) -> Result<(),
             args.flash_args.log_output,
             !args.monitor_args.non_interactive,
         )
-        monitor(flasher.into_interface(), None, pid, 115_200, log_file_path)
-            .map_err(|err| Error::MonitorError(err.to_string()))?;
+        .map_err(|err| Error::MonitorError(err.to_string()))?;
     }
     Ok(())
 }
@@ -270,6 +269,7 @@ fn init_logger() {
 fn main() -> Result<(), Error> {
     init_logger();
     let cli = Cli::parse();
+    let config = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
     match &cli.command {
         Some(Commands::WriteCredentials(args)) => {
             let app_path = PathBuf::from(args.binary_path.clone());
