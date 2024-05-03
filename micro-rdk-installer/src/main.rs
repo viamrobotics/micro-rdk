@@ -6,17 +6,19 @@ use std::path::PathBuf;
 use clap::{arg, command, Args, Parser, Subcommand};
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Input, Password};
-use espflash::cli::{config::Config, connect, serial_monitor, monitor::monitor, ConnectArgs, FlashArgs, MonitorArgs, EspflashProgress};
+use espflash::cli::{
+    config::Config, connect, monitor::monitor, serial_monitor, ConnectArgs, EspflashProgress,
+    FlashArgs, MonitorArgs,
+};
 use micro_rdk_installer::{
     error::Error,
     nvs::{
         data::{ViamFlashStorageData, WifiCredentials},
         metadata::read_nvs_metadata,
         partition::{NVSPartition, NVSPartitionData},
-        request::{
-            download_micro_rdk_release, populate_nvs_storage_from_app,
-        }
-    }};
+        request::{download_micro_rdk_release, populate_nvs_storage_from_app},
+    },
+};
 use secrecy::Secret;
 use serde::Deserialize;
 use tokio::runtime::Runtime;
@@ -213,12 +215,15 @@ fn write_credentials_to_app_binary(
     log_file_path: Option<String>,
 */
 
-fn flash(
-    args: WriteFlashArgs,
-    config: &Config,
-) -> Result<(), Error> {
+fn flash(args: WriteFlashArgs, config: &Config) -> Result<(), Error> {
     log::info!("Connecting...");
-    let mut flasher = connect(&args.connect_args, config, args.flash_args.no_verify, args.flash_args.no_skip).map_err(|_| Error::FlashConnect)?;
+    let mut flasher = connect(
+        &args.connect_args,
+        config,
+        args.flash_args.no_verify,
+        args.flash_args.no_skip,
+    )
+    .map_err(|_| Error::FlashConnect)?;
     // TODO rm unwrap
     let mut f = File::open(args.flash_args.bootloader.unwrap()).map_err(Error::FileError)?;
     let size = f.metadata().map_err(Error::FileError)?.len();
@@ -236,8 +241,16 @@ fn flash(
         log::info!("Starting monitor...");
         let pid = flasher.get_usb_pid().map_err(Error::EspFlashError)?;
         // monitor(flasher.into_interface(), None, pid, 115_200, flash_args.log_format, flash_args.log_output, !flash_args.non_interactive)
-        monitor(flasher.into_serial(), None, pid, 115_200, args.flash_args.log_format, args.flash_args.log_output, true)
-            .map_err(|err| Error::MonitorError(err.to_string()))?;
+        monitor(
+            flasher.into_serial(),
+            None,
+            pid,
+            115_200,
+            args.flash_args.log_format,
+            args.flash_args.log_output,
+            true,
+        )
+        .map_err(|err| Error::MonitorError(err.to_string()))?;
     }
     Ok(())
 }
@@ -320,10 +333,7 @@ fn main() -> Result<(), Error> {
                 nvs_metadata.size,
                 nvs_metadata.start_address,
             )?;
-            flash(
-                args.clone(),
-                &config,
-            )?;
+            flash(args.clone(), &config)?;
         }
         Some(Commands::CreateNvsPartition(args)) => {
             let mut file = File::create(&args.file_name).map_err(Error::FileError)?;
