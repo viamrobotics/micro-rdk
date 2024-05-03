@@ -214,13 +214,13 @@ fn write_credentials_to_app_binary(
 */
 
 fn flash(
-    write_flash_args: WriteFlashArgs,
+    args: WriteFlashArgs,
     config: &Config,
 ) -> Result<(), Error> {
     log::info!("Connecting...");
-    let mut flasher = connect(&write_flash_args.connect_args, config, write_flash_args.flash_args.no_verify, write_flash_args.flash_args.no_skip).map_err(|_| Error::FlashConnect)?;
+    let mut flasher = connect(&args.connect_args, config, args.flash_args.no_verify, args.flash_args.no_skip).map_err(|_| Error::FlashConnect)?;
     // TODO rm unwrap
-    let mut f = File::open(write_flash_args.flash_args.bootloader.unwrap()).map_err(Error::FileError)?;
+    let mut f = File::open(args.flash_args.bootloader.unwrap()).map_err(Error::FileError)?;
     let size = f.metadata().map_err(Error::FileError)?.len();
     let mut buffer = Vec::with_capacity(
         size.try_into()
@@ -232,11 +232,11 @@ fn flash(
         .write_bin_to_flash(0x00, &buffer, Some(&mut EspflashProgress::default()))
         .map_err(Error::EspFlashError)?;
     log::info!("Flashing completed.");
-    if write_flash_args.flash_args.monitor {
+    if args.flash_args.monitor {
         log::info!("Starting monitor...");
         let pid = flasher.get_usb_pid().map_err(Error::EspFlashError)?;
         // monitor(flasher.into_interface(), None, pid, 115_200, flash_args.log_format, flash_args.log_output, !flash_args.non_interactive)
-        monitor(flasher.into_serial(), None, pid, 115_200, write_flash_args.flash_args.log_format, write_flash_args.flash_args.log_output, true)
+        monitor(flasher.into_serial(), None, pid, 115_200, args.flash_args.log_format, args.flash_args.log_output, true)
             .map_err(|err| Error::MonitorError(err.to_string()))?;
     }
     Ok(())
