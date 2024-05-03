@@ -208,12 +208,6 @@ fn write_credentials_to_app_binary(
     app_file.write_all(nvs_data).map_err(Error::FileError)?;
     Ok(())
 }
-/*
-    binary_path: PathBuf,
-    should_monitor: bool,
-    baud_rate: Option<u32>,
-    log_file_path: Option<String>,
-*/
 
 fn flash(args: WriteFlashArgs, config: &Config) -> Result<(), Error> {
     log::info!("Connecting...");
