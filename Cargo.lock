@@ -2138,11 +2138,12 @@ dependencies = [
 [[package]]
 name = "espflash"
 version = "3.0.1-dev"
-source = "git+https://github.com/viamrobotics/espflash.git#15991b5c1184b06d2f243dad7479b3de661fe4d2"
+source = "git+https://github.com/viamrobotics/espflash.git?branch=monitor-output#a8c2e3c4149ac67e599db24929fe13d0a8bd98bc"
 dependencies = [
  "addr2line",
  "base64 0.22.1",
  "bytemuck",
+ "chrono",
  "clap",
  "clap_complete",
  "comfy-table",
