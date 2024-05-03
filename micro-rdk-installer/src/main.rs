@@ -1,4 +1,3 @@
-use espflash::cli::{serial_monitor, FlashArgs, MonitorArgs};
 use log::LevelFilter;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -7,14 +6,17 @@ use std::path::PathBuf;
 use clap::{arg, command, Args, Parser, Subcommand};
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Input, Password};
-use espflash::cli::{config::Config, connect, monitor::monitor, ConnectArgs, EspflashProgress};
-use micro_rdk_installer::error::Error;
-use micro_rdk_installer::nvs::data::{ViamFlashStorageData, WifiCredentials};
-use micro_rdk_installer::nvs::metadata::read_nvs_metadata;
-use micro_rdk_installer::nvs::partition::{NVSPartition, NVSPartitionData};
-use micro_rdk_installer::nvs::request::{
-    download_micro_rdk_release, populate_nvs_storage_from_app,
-};
+use espflash::cli::{config::Config, connect, serial_monitor, monitor::monitor, ConnectArgs, FlashArgs, MonitorArgs, EspflashProgress};
+use micro_rdk_installer::{
+    error::Error,
+    nvs::{
+        data::{ViamFlashStorageData, WifiCredentials},
+        metadata::read_nvs_metadata,
+        partition::{NVSPartition, NVSPartitionData},
+        request::{
+            download_micro_rdk_release, populate_nvs_storage_from_app,
+        }
+    }};
 use secrecy::Secret;
 use serde::Deserialize;
 use tokio::runtime::Runtime;
@@ -33,16 +35,16 @@ struct AppConfig {
 
 #[derive(Subcommand)]
 enum Commands {
-    WriteFlash(WriteFlash),
-    WriteCredentials(WriteCredentials),
-    CreateNvsPartition(CreateNVSPartition),
+    WriteFlash(WriteFlashArgs),
+    WriteCredentials(WriteCredentialsArgs),
+    CreateNvsPartition(CreateNVSPartitionArgs),
     Monitor(MonitorArgs),
 }
 
 /// Write Wi-Fi and robot credentials to the NVS storage portion of a pre-compiled
 /// binary running a micro-RDK server
 #[derive(Args)]
-struct WriteCredentials {
+struct WriteCredentialsArgs {
     /// File path to the JSON config of the robot, downloaded from app.viam.com
     #[arg(long = "app-config")]
     config: String,
@@ -62,29 +64,22 @@ struct WriteCredentials {
 
 /// Flash a pre-compiled binary with the micro-RDK server directly to an ESP32
 /// connected to your computer via data cable
-#[derive(Args)]
-struct WriteFlash {
+#[derive(Args, Clone)]
+struct WriteFlashArgs {
+    /// from espflash: baud, port
+    #[clap(flatten)]
+    connect_args: ConnectArgs,
+    /// from espflash: bootloader, log_output, monitor
+    #[clap(flatten)]
+    flash_args: FlashArgs,
+
     /// File path to the JSON config of the robot, downloaded from app.viam.com
     #[arg(long = "app-config")]
     config: String,
-    /// File path to the compiled micro-RDK binary. The portion reserved for the NVS
-    /// data partition will be edited with wifi and robot credentials
-    #[arg(long = "bin")]
-    binary_path: Option<String>,
     /// Version of the compiled micro-RDK server to download.
     /// See https://github.com/viamrobotics/micro-rdk/releases for the version options
     #[arg(long = "version")]
     version: Option<String>,
-    #[arg(long = "baud-rate")]
-    baud_rate: Option<u32>,
-    /// This opens the serial monitor immediately after flashing.
-    /// The micro-RDK server logs can be viewed this way
-    #[arg(long = "monitor")]
-    monitor: bool,
-    /// If monitor = true, a file will be created at the given path
-    /// containing copies of the monitor logs
-    #[arg(long = "log-file")]
-    log_file_path: Option<String>,
     /// Wi-Fi SSID to write to NVS partition of binary. If not provided, user will be
     /// prompted for it
     #[arg(long = "wifi-ssid")]
@@ -98,7 +93,7 @@ struct WriteFlash {
 /// Generate a binary of a complete NVS data partition that conatins Wi-Fi and security
 /// credentials for a robot
 #[derive(Args)]
-struct CreateNVSPartition {
+struct CreateNVSPartitionArgs {
     // File path to the JSON config of the robot, downloaded from app.viam.com
     #[arg(long = "app-config")]
     config: String,
@@ -117,19 +112,6 @@ struct CreateNVSPartition {
     #[arg(long = "wifi-password")]
     wifi_password: Option<Secret<String>>,
 }
-
-/*
-/// Monitor a currently connected ESP32
-#[derive(Args)]
-struct Monitor {
-    #[arg(long = "baud-rate")]
-    baud_rate: Option<u32>,
-    /// If supplied, a file will be created at the given path
-    /// containing copies of the monitor logs
-    #[arg(long = "log-file")]
-    log_file_path: Option<String>,
-}
-*/
 
 #[derive(Parser)]
 #[command(
@@ -232,21 +214,13 @@ fn write_credentials_to_app_binary(
 */
 
 fn flash(
-    flash_args: FlashArgs,
-    should_monitor: bool,
-    baud_rate: Option<u32>,
-    log_file_path: Option<String>,
+    write_flash_args: WriteFlashArgs,
+    config: &Config,
 ) -> Result<(), Error> {
-    let connect_args = ConnectArgs {
-        baud: Some(baud_rate.unwrap_or(460800)),
-        // let espflash auto-detect the port
-        port: None,
-        no_stub: false,
-    };
-    let conf = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
     log::info!("Connecting...");
-    let mut flasher = connect(&connect_args, &conf).map_err(|_| Error::FlashConnect)?;
-    let mut f = File::open(binary_path).map_err(Error::FileError)?;
+    let mut flasher = connect(&write_flash_args.connect_args, config, write_flash_args.flash_args.no_verify, write_flash_args.flash_args.no_skip).map_err(|_| Error::FlashConnect)?;
+    // TODO rm unwrap
+    let mut f = File::open(write_flash_args.flash_args.bootloader.unwrap()).map_err(Error::FileError)?;
     let size = f.metadata().map_err(Error::FileError)?.len();
     let mut buffer = Vec::with_capacity(
         size.try_into()
@@ -258,10 +232,11 @@ fn flash(
         .write_bin_to_flash(0x00, &buffer, Some(&mut EspflashProgress::default()))
         .map_err(Error::EspFlashError)?;
     log::info!("Flashing completed.");
-    if should_monitor {
+    if write_flash_args.flash_args.monitor {
         log::info!("Starting monitor...");
         let pid = flasher.get_usb_pid().map_err(Error::EspFlashError)?;
-        monitor(flasher.into_interface(), None, pid, 115_200, log_file_path)
+        // monitor(flasher.into_interface(), None, pid, 115_200, flash_args.log_format, flash_args.log_output, !flash_args.non_interactive)
+        monitor(flasher.into_serial(), None, pid, 115_200, write_flash_args.flash_args.log_format, write_flash_args.flash_args.log_output, true)
             .map_err(|err| Error::MonitorError(err.to_string()))?;
     }
     Ok(())
@@ -275,7 +250,6 @@ fn monitor_esp32(baud_rate: Option<u32>, log_file_path: Option<String>) -> Resul
         port: None,
         no_stub: false,
     };
-    let conf = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
     log::info!("Connecting...");
     let flasher = connect(&connect_args, &conf).map_err(|_| Error::FlashConnect)?;
     let pid = flasher.get_usb_pid().map_err(Error::EspFlashError)?;
@@ -302,6 +276,7 @@ fn init_logger() {
 fn main() -> Result<(), Error> {
     init_logger();
     let cli = Cli::parse();
+    let config = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
     match &cli.command {
         Some(Commands::WriteCredentials(args)) => {
             let app_path = PathBuf::from(args.binary_path.clone());
@@ -324,7 +299,8 @@ fn main() -> Result<(), Error> {
                 .prefix("micro-rdk-bin")
                 .tempdir()
                 .map_err(Error::FileError)?;
-            let app_path = match args.binary_path.clone() {
+            // TODO remove unwrap
+            let app_path = match &args.flash_args.bootloader {
                 Some(path) => PathBuf::from(path),
                 None => {
                     let rt = Runtime::new().map_err(Error::AsyncError)?;
@@ -345,10 +321,8 @@ fn main() -> Result<(), Error> {
                 nvs_metadata.start_address,
             )?;
             flash(
-                app_path,
-                args.monitor,
-                args.baud_rate,
-                args.log_file_path.clone(),
+                args.clone(),
+                &config,
             )?;
         }
         Some(Commands::CreateNvsPartition(args)) => {
@@ -361,7 +335,7 @@ fn main() -> Result<(), Error> {
             )?)
             .map_err(Error::FileError)?;
         }
-        Some(Commands::Monitor(args)) => serial_monitor(args, config).unwrap(),
+        Some(Commands::Monitor(args)) => serial_monitor(args, &config).unwrap(),
         None => return Err(Error::NoCommandError),
     };
     Ok(())
