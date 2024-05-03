@@ -179,7 +179,11 @@ fn create_nvs_partition_binary(
             .robot_id
             .clone()
             .unwrap_or(String::from("none")),
-        storage_data.wifi.clone().unwrap().ssid
+        storage_data
+            .wifi
+            .clone()
+            .ok_or_else(|| Error::Other("failed to get wifi data".to_string()))?
+            .ssid
     );
     populate_nvs_storage_from_app(&mut storage_data)?;
     let part = &mut NVSPartition::from_storage_data(storage_data, size)?;
@@ -218,8 +222,12 @@ fn flash(args: WriteFlashArgs, config: &Config) -> Result<(), Error> {
         args.flash_args.no_skip,
     )
     .map_err(|_| Error::FlashConnect)?;
-    // TODO rm unwrap
-    let mut f = File::open(args.flash_args.bootloader.unwrap()).map_err(Error::FileError)?;
+    let mut f = File::open(
+        args.flash_args
+            .bootloader
+            .ok_or_else(|| Error::Other("failed to resolve path to binary".to_string()))?,
+    )
+    .map_err(Error::FileError)?;
     let size = f.metadata().map_err(Error::FileError)?.len();
     let mut buffer = Vec::with_capacity(
         size.try_into()
@@ -249,24 +257,6 @@ fn flash(args: WriteFlashArgs, config: &Config) -> Result<(), Error> {
     Ok(())
 }
 
-/*
-fn monitor_esp32(baud_rate: Option<u32>, log_file_path: Option<String>) -> Result<(), Error> {
-    let connect_args = ConnectArgs {
-        baud: Some(baud_rate.unwrap_or(460800)),
-        // let espflash auto-detect the port
-        port: None,
-        no_stub: false,
-    };
-    log::info!("Connecting...");
-    let flasher = connect(&connect_args, &conf).map_err(|_| Error::FlashConnect)?;
-    let pid = flasher.get_usb_pid().map_err(Error::EspFlashError)?;
-    log::info!("Connected. Starting monitor...");
-    monitor(flasher.into_interface(), None, pid, 115_200, log_file_path)
-        .map_err(|err| Error::MonitorError(err.to_string()))?;
-    Ok(())
-}
-*/
-
 fn init_logger() {
     env_logger::Builder::new()
         .filter_level(LevelFilter::Off)
@@ -283,7 +273,6 @@ fn init_logger() {
 fn main() -> Result<(), Error> {
     init_logger();
     let cli = Cli::parse();
-    let config = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
     match &cli.command {
         Some(Commands::WriteCredentials(args)) => {
             let app_path = PathBuf::from(args.binary_path.clone());
@@ -302,11 +291,11 @@ fn main() -> Result<(), Error> {
             )?;
         }
         Some(Commands::WriteFlash(args)) => {
+            let config = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
             let tmp_dir = tempfile::Builder::new()
                 .prefix("micro-rdk-bin")
                 .tempdir()
                 .map_err(Error::FileError)?;
-            // TODO remove unwrap
             let app_path = match &args.flash_args.bootloader {
                 Some(path) => PathBuf::from(path),
                 None => {
@@ -339,7 +328,10 @@ fn main() -> Result<(), Error> {
             )?)
             .map_err(Error::FileError)?;
         }
-        Some(Commands::Monitor(args)) => serial_monitor(args, &config).unwrap(),
+        Some(Commands::Monitor(args)) => {
+            let config = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
+            serial_monitor(args, &config).map_err(|err| Error::MonitorError(err.to_string()))?
+        }
         None => return Err(Error::NoCommandError),
     };
     Ok(())
