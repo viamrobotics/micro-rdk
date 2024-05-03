@@ -9,8 +9,8 @@ use clap::{arg, command, Args, Parser, Subcommand};
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Input, Password};
 use espflash::cli::{
-    config::Config, connect, monitor::monitor, serial_monitor, ConnectArgs, EspflashProgress,
-    FlashArgs, MonitorArgs,
+    config::Config, connect, monitor::monitor, serial_monitor, EspflashProgress, FlashArgs,
+    MonitorArgs,
 };
 use micro_rdk_installer::{
     error::Error,
