@@ -7,8 +7,8 @@ use clap::{arg, command, Args, Parser, Subcommand};
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Input, Password};
 use espflash::cli::{
-    config::Config, connect, monitor::monitor, serial_monitor, ConnectArgs, EspflashProgress,
-    FlashArgs, MonitorArgs,
+    config::Config, connect, monitor::monitor, serial_monitor, EspflashProgress, FlashArgs,
+    MonitorArgs,
 };
 use micro_rdk_installer::{
     error::Error,
@@ -70,7 +70,7 @@ struct WriteCredentialsArgs {
 struct WriteFlashArgs {
     /// from espflash: baud, port
     #[clap(flatten)]
-    connect_args: ConnectArgs,
+    monitor_args: MonitorArgs,
     /// from espflash: bootloader, log_output, monitor
     #[clap(flatten)]
     flash_args: FlashArgs,
@@ -216,7 +216,7 @@ fn write_credentials_to_app_binary(
 fn flash(args: WriteFlashArgs, config: &Config) -> Result<(), Error> {
     log::info!("Connecting...");
     let mut flasher = connect(
-        &args.connect_args,
+        &args.monitor_args.connect_args,
         config,
         args.flash_args.no_verify,
         args.flash_args.no_skip,
@@ -242,7 +242,6 @@ fn flash(args: WriteFlashArgs, config: &Config) -> Result<(), Error> {
     if args.flash_args.monitor {
         log::info!("Starting monitor...");
         let pid = flasher.get_usb_pid().map_err(Error::EspFlashError)?;
-        // monitor(flasher.into_interface(), None, pid, 115_200, flash_args.log_format, flash_args.log_output, !flash_args.non_interactive)
         monitor(
             flasher.into_serial(),
             None,
@@ -250,7 +249,7 @@ fn flash(args: WriteFlashArgs, config: &Config) -> Result<(), Error> {
             115_200,
             args.flash_args.log_format,
             args.flash_args.log_output,
-            true,
+            !args.monitor_args.non_interactive,
         )
         .map_err(|err| Error::MonitorError(err.to_string()))?;
     }
