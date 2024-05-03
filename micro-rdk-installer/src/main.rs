@@ -269,7 +269,6 @@ fn init_logger() {
 fn main() -> Result<(), Error> {
     init_logger();
     let cli = Cli::parse();
-    let config = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
     match &cli.command {
         Some(Commands::WriteCredentials(args)) => {
             let app_path = PathBuf::from(args.binary_path.clone());
