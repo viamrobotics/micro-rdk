@@ -4,8 +4,7 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 
 use clap::{arg, command, Args, Parser, Subcommand};
-use dialoguer::theme::ColorfulTheme;
-use dialoguer::{Input, Password};
+use dialoguer::{theme::ColorfulTheme, Input, Password};
 use espflash::cli::{
     config::Config, connect, monitor::monitor, serial_monitor, EspflashProgress, FlashArgs,
     MonitorArgs,
@@ -37,9 +36,9 @@ struct AppConfig {
 
 #[derive(Subcommand)]
 enum Commands {
-    WriteFlash(WriteFlashArgs),
+    WriteFlash(Box<WriteFlashArgs>),
     WriteCredentials(WriteCredentialsArgs),
-    CreateNvsPartition(CreateNVSPartitionArgs),
+    CreateNvsPartition(Box<CreateNVSPartitionArgs>),
     Monitor(MonitorArgs),
 }
 
@@ -315,7 +314,7 @@ fn main() -> Result<(), Error> {
                 nvs_metadata.size,
                 nvs_metadata.start_address,
             )?;
-            flash(args.clone(), &config)?;
+            flash(*args.clone(), &config)?;
         }
         Some(Commands::CreateNvsPartition(args)) => {
             let mut file = File::create(&args.file_name).map_err(Error::FileError)?;
