@@ -146,7 +146,7 @@ impl Esp32TLS {
         let tls_cfg_srv = Box::new(esp_tls_cfg_server {
             alpn_protos: alpn_ptr.as_mut_ptr(),
             __bindgen_anon_1: crate::esp32::esp_idf_svc::sys::esp_tls_cfg_server__bindgen_ty_1 {
-                // This is the root LE certificate in the DER format
+                // The CA root is not need when a client is connecting as it's available
                 cacert_buf: std::ptr::null(),
             },
             __bindgen_anon_2: crate::esp32::esp_idf_svc::sys::esp_tls_cfg_server__bindgen_ty_2 {
