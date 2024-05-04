@@ -130,14 +130,14 @@ where
                                     .get("grpc-status")
                                     .unwrap()
                                     .to_str()
-                                    .unwrap()
+                                    .unwrap_or("")
                                     .parse::<i8>()
-                                    .unwrap(),
+                                    .unwrap_or(127), // if status code cannot be parsed return 127
                                 message: trailers
                                     .get("grpc-message")
                                     .unwrap()
                                     .to_str()
-                                    .unwrap()
+                                    .unwrap_or("couldn't parse message") // message couldn't be extracted from header
                                     .to_owned(),
                             })));
                         }
