@@ -382,7 +382,6 @@ where
 
             let connection = match connection {
                 Ok(c) => c,
-
                 Err(ServerError::ServerWebRTCError(_))
                 | Err(ServerError::ServerConnectionTimeout) => {
                     // all webrtc/timeout errors don't require a tls renegotiation
@@ -390,7 +389,6 @@ where
                 }
                 Err(_) => {
                     // http2 layer related errors (GOAWAY etc...) so we should renegotiate in this event
-
                     let _ = self.app_client.take();
                     continue;
                 }
