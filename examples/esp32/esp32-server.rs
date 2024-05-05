@@ -113,7 +113,7 @@ mod esp32 {
         );
 
         let tls_cfg = {
-            let cert = [ROBOT_SRV_PEM_CHAIN.to_vec(), ROBOT_SRV_PEM_CA.to_vec()];
+            let cert = ROBOT_SRV_PEM_CHAIN.to_vec();
             let key = ROBOT_SRV_DER_KEY;
             Esp32TLSServerConfig::new(cert, key.as_ptr(), key.len() as u32)
         };
