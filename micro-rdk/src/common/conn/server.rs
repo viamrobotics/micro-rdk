@@ -393,7 +393,6 @@ where
                     continue;
                 }
             };
-
             if let Err(e) = match connection {
                 IncomingConnection::Http2Connection(mut c) => match c.accept().await {
                     Err(e) => Err(ServerError::Other(e.into())),

@@ -269,7 +269,7 @@ mod tests {
 
         let (mut sender_half, mut recv_half) = conn.unwrap();
 
-        let p = recv_half.next().await.unwrap().message;
+        let p = recv_half.next().await.unwrap().unwrap().message;
 
         assert_eq!("1", p);
 
@@ -284,7 +284,7 @@ mod tests {
 
         let p = recv_half_ref
             .take(5)
-            .map(|m| m.message)
+            .map(|m| m.unwrap().message)
             .collect::<String>()
             .await;
 
@@ -298,7 +298,7 @@ mod tests {
             .unwrap();
         let p = recv_half_ref
             .take(6)
-            .map(|m| m.message)
+            .map(|m| m.unwrap().message)
             .collect::<String>()
             .await;
         assert_eq!("123456", p);
