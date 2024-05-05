@@ -3,9 +3,9 @@ use crate::esp32::tls::{Esp32TLS, Esp32TLSStream};
 use async_io::Async;
 use futures_lite::{io, ready, AsyncRead, AsyncWrite, Future};
 use hyper::rt;
-use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use std::fmt::Debug;
 use std::mem::MaybeUninit;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::{
     marker::PhantomData,
@@ -17,22 +17,18 @@ use std::{
 pub struct Esp32Listener {
     listener: Arc<TcpListener>,
     #[allow(dead_code)]
-    addr: SockAddr,
+    addr: SocketAddr,
     _marker: PhantomData<*const ()>,
     tls: Option<Box<Esp32TLS>>,
 }
 
 impl Esp32Listener {
     /// Creates a new Tcplistener
-    pub fn new(addr: SockAddr, tls: Option<Box<Esp32TLS>>) -> Result<Self, std::io::Error> {
-        let socket = Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP))?;
-        socket.set_reuse_address(true)?;
-        socket.set_nodelay(true)?;
-        socket.bind(&addr)?;
-        socket.listen(128)?;
+    pub fn new(addr: SocketAddr, tls: Option<Box<Esp32TLS>>) -> Result<Self, std::io::Error> {
+        let socket = TcpListener::bind(addr)?;
         socket.set_nonblocking(true)?;
         Ok(Self {
-            listener: Arc::new(socket.into()),
+            listener: Arc::new(socket),
             addr,
             _marker: PhantomData,
             tls,

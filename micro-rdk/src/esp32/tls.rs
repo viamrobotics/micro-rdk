@@ -54,7 +54,7 @@ pub struct Esp32TLSStream {
 }
 
 pub struct Esp32TLSServerConfig {
-    srv_cert: [Vec<u8>; 2],
+    srv_cert: Vec<u8>,
     srv_key: *const u8,
     srv_key_len: u32,
 }
@@ -63,7 +63,7 @@ impl Esp32TLSServerConfig {
     // An Esp32TlsServerConfig takes a certificate and key bytearray (in the form of a pointer and length)
     // The PEM certificate has two parts: the first is the certificate chain and the second is the
     // certificate authority.
-    pub fn new(srv_cert: [Vec<u8>; 2], srv_key: *const u8, srv_key_len: u32) -> Self {
+    pub fn new(srv_cert: Vec<u8>, srv_key: *const u8, srv_key_len: u32) -> Self {
         Esp32TLSServerConfig {
             srv_cert,
             srv_key,
@@ -146,18 +146,18 @@ impl Esp32TLS {
         let tls_cfg_srv = Box::new(esp_tls_cfg_server {
             alpn_protos: alpn_ptr.as_mut_ptr(),
             __bindgen_anon_1: crate::esp32::esp_idf_svc::sys::esp_tls_cfg_server__bindgen_ty_1 {
-                // This is the root LE certificate in the DER format
-                cacert_buf: cfg.srv_cert[1].as_ptr(),
+                // The CA root is not need when a client is connecting as it's available
+                cacert_buf: std::ptr::null(),
             },
             __bindgen_anon_2: crate::esp32::esp_idf_svc::sys::esp_tls_cfg_server__bindgen_ty_2 {
-                cacert_bytes: cfg.srv_cert[1].len() as u32,
+                cacert_bytes: 0,
             },
             __bindgen_anon_3: crate::esp32::esp_idf_svc::sys::esp_tls_cfg_server__bindgen_ty_3 {
                 // This is the server certificates in the PEM format
-                servercert_buf: cfg.srv_cert[0].as_ptr(),
+                servercert_buf: cfg.srv_cert.as_ptr(),
             },
             __bindgen_anon_4: crate::esp32::esp_idf_svc::sys::esp_tls_cfg_server__bindgen_ty_4 {
-                servercert_bytes: cfg.srv_cert[0].len() as u32,
+                servercert_bytes: cfg.srv_cert.len() as u32,
             },
             __bindgen_anon_5: crate::esp32::esp_idf_svc::sys::esp_tls_cfg_server__bindgen_ty_5 {
                 serverkey_buf: cfg.srv_key,
