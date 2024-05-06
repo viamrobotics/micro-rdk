@@ -214,7 +214,7 @@ fn write_credentials_to_app_binary(
     Ok(())
 }
 
-fn flash(args: WriteFlashArgs, config: &Config) -> Result<(), Error> {
+fn flash(args: WriteFlashArgs, config: &Config, app_path: PathBuf) -> Result<(), Error> {
     log::info!("Connecting...");
     let mut flasher = connect(
         &args.monitor_args.connect_args,
@@ -223,7 +223,7 @@ fn flash(args: WriteFlashArgs, config: &Config) -> Result<(), Error> {
         args.flash_args.no_skip,
     )
     .map_err(|_| Error::FlashConnect)?;
-    let mut f = File::open(args.flash_args.bootloader.unwrap()).map_err(Error::FileError)?;
+    let mut f = File::open(app_path).map_err(Error::FileError)?;
     let size = f.metadata().map_err(Error::FileError)?.len();
     let mut buffer = Vec::with_capacity(
         size.try_into()
@@ -311,7 +311,7 @@ fn main() -> Result<(), Error> {
                 nvs_metadata.size,
                 nvs_metadata.start_address,
             )?;
-            flash(*args.clone(), &config)?;
+            flash(*args.clone(), &config, app_path)?;
         }
         Some(Commands::CreateNvsPartition(args)) => {
             let mut file = File::create(&args.file_name).map_err(Error::FileError)?;
