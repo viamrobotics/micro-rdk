@@ -49,8 +49,8 @@ pub enum Error {
     SerialConfigError(String),
     #[error("No command received")]
     NoCommandError,
-    #[error("{0}")]
-    Other(String),
+    #[error("Uncategorized Error: {0}")]
+    Uncategorized(String),
 }
 
 impl From<RcgenError> for Error {
