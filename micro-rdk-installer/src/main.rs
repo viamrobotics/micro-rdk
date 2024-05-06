@@ -136,7 +136,7 @@ fn request_wifi(
         Input::with_theme(&ColorfulTheme::default())
             .with_prompt("Please enter WiFi SSID")
             .interact_text()
-            .map_err(Error::WifiCredentialsError)?
+            .unwrap()
     };
     let password: Secret<String> = if let Some(password) = wifi_password {
         password
@@ -183,7 +183,7 @@ fn create_nvs_partition_binary(
         storage_data
             .wifi
             .clone()
-            .ok_or_else(|| Error::Uncategorized("failed to get wifi data".to_string()))?
+            .ok_or(Error::NVSDataProcessingError("no wifi".to_string()))?
             .ssid
     );
     populate_nvs_storage_from_app(&mut storage_data)?;
@@ -223,12 +223,7 @@ fn flash(args: WriteFlashArgs, config: &Config) -> Result<(), Error> {
         args.flash_args.no_skip,
     )
     .map_err(|_| Error::FlashConnect)?;
-    let mut f = File::open(
-        args.flash_args
-            .bootloader
-            .ok_or_else(|| Error::Uncategorized("failed to resolve path to binary".to_string()))?,
-    )
-    .map_err(Error::FileError)?;
+    let mut f = File::open(args.flash_args.bootloader.unwrap()).map_err(Error::FileError)?;
     let size = f.metadata().map_err(Error::FileError)?.len();
     let mut buffer = Vec::with_capacity(
         size.try_into()
