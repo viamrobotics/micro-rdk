@@ -1,7 +1,9 @@
 use log::LevelFilter;
-use std::fs::{self, File, OpenOptions};
-use std::io::{Read, Seek, SeekFrom, Write};
-use std::path::PathBuf;
+use std::{
+    fs::{self, File, OpenOptions},
+    io::{Read, Seek, SeekFrom, Write},
+    path::PathBuf,
+};
 
 use clap::{arg, command, Args, Parser, Subcommand};
 use dialoguer::{theme::ColorfulTheme, Input, Password};
@@ -181,7 +183,7 @@ fn create_nvs_partition_binary(
         storage_data
             .wifi
             .clone()
-            .ok_or_else(|| Error::Other("failed to get wifi data".to_string()))?
+            .ok_or_else(|| Error::Uncategorized("failed to get wifi data".to_string()))?
             .ssid
     );
     populate_nvs_storage_from_app(&mut storage_data)?;
@@ -224,7 +226,7 @@ fn flash(args: WriteFlashArgs, config: &Config) -> Result<(), Error> {
     let mut f = File::open(
         args.flash_args
             .bootloader
-            .ok_or_else(|| Error::Other("failed to resolve path to binary".to_string()))?,
+            .ok_or_else(|| Error::Uncategorized("failed to resolve path to binary".to_string()))?,
     )
     .map_err(Error::FileError)?;
     let size = f.metadata().map_err(Error::FileError)?.len();
