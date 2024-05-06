@@ -2,3 +2,4 @@ python-dateutil
 viam-sdk
 pymongo
 numpy
+slack-sdk
