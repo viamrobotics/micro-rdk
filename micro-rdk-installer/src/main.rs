@@ -38,10 +38,28 @@ struct AppConfig {
 
 #[derive(Subcommand)]
 enum Commands {
+    WriteAppImage(Box<AppImageArgs>),
     WriteFlash(Box<WriteFlashArgs>),
     WriteCredentials(WriteCredentialsArgs),
     CreateNvsPartition(Box<CreateNVSPartitionArgs>),
     Monitor(MonitorArgs),
+}
+
+/// Flash a pre-compiled binary with the micro-RDK server directly to an ESP32
+/// connected to your computer via data cable
+#[derive(Args, Clone)]
+struct AppImageArgs {
+    /// from espflash: baud, port
+    #[clap(flatten)]
+    monitor_args: MonitorArgs,
+    /// from espflash: bootloader, log_output, monitor
+    #[clap(flatten)]
+    flash_args: FlashArgs,
+
+    /// Version of the compiled micro-RDK server to download.
+    /// See https://github.com/viamrobotics/micro-rdk/releases for the version options
+    #[arg(long = "version")]
+    version: Option<String>,
 }
 
 /// Write Wi-Fi and robot credentials to the NVS storage portion of a pre-compiled
@@ -65,8 +83,8 @@ struct WriteCredentialsArgs {
     wifi_password: Option<Secret<String>>,
 }
 
-/// Flash a pre-compiled binary with the micro-RDK server directly to an ESP32
-/// connected to your computer via data cable
+/// Flash a pre-compiled binary with the micro-RDK, the robot config, and wifi info
+/// directly to an ESP32 connected to your computer via data cable
 #[derive(Args, Clone)]
 struct WriteFlashArgs {
     /// from espflash: baud, port
@@ -197,11 +215,13 @@ fn write_credentials_to_app_binary(
     nvs_size: u64,
     nvs_start_address: u64,
 ) -> Result<(), Error> {
+    // open binary
     let mut app_file = OpenOptions::new()
         .read(true)
         .write(true)
         .open(binary_path)
         .map_err(Error::FileError)?;
+    // get binary size
     let file_len = app_file.metadata().map_err(Error::FileError)?.len();
     if (nvs_start_address + nvs_size) >= file_len {
         return Err(Error::BinaryEditError(file_len));
@@ -214,13 +234,18 @@ fn write_credentials_to_app_binary(
     Ok(())
 }
 
-fn flash(args: WriteFlashArgs, config: &Config, app_path: PathBuf) -> Result<(), Error> {
+fn flash(
+    flash_args: FlashArgs,
+    monitor_args: MonitorArgs,
+    config: &Config,
+    app_path: PathBuf,
+) -> Result<(), Error> {
     log::info!("Connecting...");
     let mut flasher = connect(
-        &args.monitor_args.connect_args,
+        &monitor_args.connect_args,
         config,
-        args.flash_args.no_verify,
-        args.flash_args.no_skip,
+        flash_args.no_verify,
+        flash_args.no_skip,
     )
     .map_err(|_| Error::FlashConnect)?;
     let mut f = File::open(app_path).map_err(Error::FileError)?;
@@ -235,7 +260,7 @@ fn flash(args: WriteFlashArgs, config: &Config, app_path: PathBuf) -> Result<(),
         .write_bin_to_flash(0x00, &buffer, Some(&mut EspflashProgress::default()))
         .map_err(Error::EspFlashError)?;
     log::info!("Flashing completed.");
-    if args.flash_args.monitor {
+    if flash_args.monitor {
         log::info!("Starting monitor...");
         let pid = flasher.get_usb_pid().map_err(Error::EspFlashError)?;
         monitor(
@@ -243,9 +268,9 @@ fn flash(args: WriteFlashArgs, config: &Config, app_path: PathBuf) -> Result<(),
             None,
             pid,
             115_200,
-            args.flash_args.log_format,
-            args.flash_args.log_output,
-            !args.monitor_args.non_interactive,
+            flash_args.log_format,
+            flash_args.log_output,
+            !monitor_args.non_interactive,
         )
         .map_err(|err| Error::MonitorError(err.to_string()))?;
     }
@@ -269,6 +294,26 @@ fn main() -> Result<(), Error> {
     init_logger();
     let cli = Cli::parse();
     match &cli.command {
+        Some(Commands::WriteAppImage(args)) => {
+            let config = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
+            let tmp_dir = tempfile::Builder::new()
+                .prefix("micro-rdk-bin")
+                .tempdir()
+                .map_err(Error::FileError)?;
+            let app_path = match &args.flash_args.bootloader {
+                Some(path) => PathBuf::from(path),
+                None => {
+                    let rt = Runtime::new().map_err(Error::AsyncError)?;
+                    rt.block_on(download_micro_rdk_release(&tmp_dir, args.version.clone()))?
+                }
+            };
+            flash(
+                args.flash_args.clone(),
+                args.monitor_args.clone(),
+                &config,
+                app_path,
+            )?;
+        }
         Some(Commands::WriteCredentials(args)) => {
             let app_path = PathBuf::from(args.binary_path.clone());
             let nvs_metadata = read_nvs_metadata(app_path.clone())?;
@@ -311,7 +356,12 @@ fn main() -> Result<(), Error> {
                 nvs_metadata.size,
                 nvs_metadata.start_address,
             )?;
-            flash(*args.clone(), &config, app_path)?;
+            flash(
+                args.flash_args.clone(),
+                args.monitor_args.clone(),
+                &config,
+                app_path,
+            )?;
         }
         Some(Commands::CreateNvsPartition(args)) => {
             let mut file = File::create(&args.file_name).map_err(Error::FileError)?;
