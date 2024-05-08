@@ -28,3 +28,5 @@ pub mod utils;
 pub mod conn {
     pub mod mdns;
 }
+#[cfg(feature = "provisioning")]
+pub mod nvs_storage;
