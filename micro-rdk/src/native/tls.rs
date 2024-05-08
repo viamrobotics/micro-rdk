@@ -107,15 +107,13 @@ impl NativeTlsStream {
             futures_rustls::TlsStream::Server(stream)
         } else {
             let mut root_certs = RootCertStore::empty();
-            root_certs.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(
-                |ta| {
-                    OwnedTrustAnchor::from_subject_spki_name_constraints(
-                        ta.subject,
-                        ta.spki,
-                        ta.name_constraints,
-                    )
-                },
-            ));
+            root_certs.add_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+                OwnedTrustAnchor::from_subject_spki_name_constraints(
+                    ta.subject,
+                    ta.spki,
+                    ta.name_constraints,
+                )
+            }));
             let log = Arc::new(KeyLogFile::new());
             let mut cfg = ClientConfig::builder()
                 .with_safe_defaults()
