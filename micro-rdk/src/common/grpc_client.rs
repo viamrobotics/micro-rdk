@@ -233,7 +233,7 @@ impl GrpcClient {
     }
 
     pub(crate) async fn send_request_bidi<R, P>(
-        &mut self,
+        &self,
         r: Request<BoxBody<Bytes, hyper::Error>>,
         sender: Sender<Bytes>,
     ) -> Result<(GrpcMessageSender<R>, GrpcMessageStream<P>), GrpcClientError>
@@ -259,7 +259,7 @@ impl GrpcClient {
     }
 
     pub(crate) async fn send_request(
-        &mut self,
+        &self,
         r: Request<BoxBody<Bytes, hyper::Error>>,
     ) -> Result<(Bytes, HeaderMap), GrpcClientError> {
         let mut http2_connection = self.http2_connection.clone();

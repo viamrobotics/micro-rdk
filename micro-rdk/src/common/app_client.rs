@@ -176,7 +176,7 @@ pub(crate) struct AppSignaling(
 );
 
 impl AppClient {
-    pub(crate) async fn connect_signaling(&mut self) -> Result<AppSignaling, AppClientError> {
+    pub(crate) async fn connect_signaling(&self) -> Result<AppSignaling, AppClientError> {
         let (sender, receiver) = async_channel::bounded::<Bytes>(1);
         let r = self
             .grpc_client
@@ -200,7 +200,7 @@ impl AppClient {
     // taken from its header for the purposes of timestamping configuration logs and returning
     // `last_reconfigured` values for resource statuses.
     pub async fn get_config(
-        &mut self,
+        &self,
     ) -> Result<(Box<ConfigResponse>, Option<DateTime<FixedOffset>>), AppClientError> {
         let agent = AgentInfo {
             os: "esp32".to_string(),
@@ -243,7 +243,7 @@ impl AppClient {
         Ok((Box::new(ConfigResponse::decode(r)?), datetime))
     }
 
-    pub async fn push_logs(&mut self, logs: Vec<LogEntry>) -> Result<(), AppClientError> {
+    pub async fn push_logs(&self, logs: Vec<LogEntry>) -> Result<(), AppClientError> {
         let req = LogRequest {
             id: self.config.robot_id.clone(),
             logs,
