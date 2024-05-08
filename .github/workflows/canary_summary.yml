@@ -5,11 +5,17 @@ on:
     secrets:
       MONGODB_TEST_OUTPUT_URI:
         required: true
+      CANARY_SLACKBOT_TOKEN:
+        required: true
+      MICRO_RDK_TEAM_CHANNEL_ID:
+        required: true
   schedule:
     - cron:  '30 23 * * *'
 
 env:
   MONGODB_TEST_OUTPUT_URI: ${{ secrets.MONGODB_TEST_OUTPUT_URI }}
+  CANARY_SLACKBOT_TOKEN: ${{ secrets.CANARY_SLACKBOT_TOKEN }}
+  MICRO_RDK_TEAM_CHANNEL_ID: ${{ secrets.MICRO_RDK_TEAM_CHANNEL_ID }}
 
 jobs:
   canary:
