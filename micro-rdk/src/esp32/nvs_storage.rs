@@ -20,8 +20,8 @@ pub enum NVSStorageError {
 }
 
 pub struct NVSStorage {
-    // esp-idf-svc partiton driver ensure that only one handle of a type can be created
-    // so inner mutability can be achieve safely with RefCell
+    // esp-idf-svc partition driver ensures that only one handle of a type can be created
+    // so inner mutability can be achieves safely with RefCell
     nvs: RefCell<EspCustomNvs>,
 }
 

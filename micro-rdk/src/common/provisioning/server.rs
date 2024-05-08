@@ -116,7 +116,6 @@ where
             "/viam.provisioning.v1.ProvisioningService/SetSmartMachineCredentials" => {
                 self.set_smart_machine_credentials(body.split_off(5))
             }
-            // "viam.provisioning.v1.ProvisioningServer/GetNetworkInfo"
             _ => Err(GrpcError::RpcUnimplemented),
         }
     }
@@ -284,7 +283,7 @@ mod tests {
             app_client::encode_request,
             provisioning::{
                 server::{ProvisioningInfo, ProvisioningServiceBuilder, ProvisoningServer},
-                storage::{MemoryCredentialStorage, RobotCredentialStorage},
+                storage::{RAMStorage, RobotCredentialStorage},
             },
         },
         native::{exec::NativeExecutor, tcp::NativeStream},
@@ -296,10 +295,7 @@ mod tests {
 
     use super::ProvisioningService;
 
-    async fn run_provisioning_server(
-        ex: NativeExecutor,
-        srv: ProvisioningService<MemoryCredentialStorage>,
-    ) {
+    async fn run_provisioning_server(ex: NativeExecutor, srv: ProvisioningService<RAMStorage>) {
         let listen = TcpListener::bind("127.0.0.1:56432");
         assert!(listen.is_ok());
         let listen: Async<TcpListener> = listen.unwrap().try_into().unwrap();
@@ -534,7 +530,7 @@ mod tests {
         provisioning_info.set_model("a-model".to_owned());
         provisioning_info.set_manufacturer("a-manufacturer".to_owned());
 
-        let storage = MemoryCredentialStorage::default();
+        let storage = RAMStorage::default();
 
         let srv = ProvisioningServiceBuilder::new()
             .with_provisioning_info(provisioning_info)
