@@ -20,10 +20,13 @@ pub enum NVSStorageError {
 }
 
 pub struct NVSStorage {
+    // esp-idf-svc partiton driver ensure that only one handle of a type can be created
+    // so inner mutability can be achieve safely with RefCell
     nvs: RefCell<EspCustomNvs>,
 }
 
 impl NVSStorage {
+    // taking partition name as argument so we can use another NVS part name if we want to.
     pub fn new(partition_name: &str) -> Result<Self, NVSStorageError> {
         let partition: EspCustomNvsPartition = EspCustomNvsPartition::take(partition_name)?;
         let nvs = EspNvs::new(partition, "VIAM_NS", true)?;
