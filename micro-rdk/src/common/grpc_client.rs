@@ -179,11 +179,7 @@ pub struct GrpcClient {
 }
 
 impl GrpcClient {
-    pub async fn new<T>(
-        io: T,
-        executor: Executor,
-        uri: &str
-    ) -> Result<GrpcClient, GrpcClientError>
+    pub async fn new<T>(io: T, executor: Executor, uri: &str) -> Result<GrpcClient, GrpcClientError>
     where
         T: rt::Read + rt::Write + Unpin + 'static,
     {
@@ -208,7 +204,7 @@ impl GrpcClient {
             executor,
             http2_connection,
             http2_task: Some(http2_task),
-            uri: uri.to_string()
+            uri: uri.to_string(),
         })
     }
 
