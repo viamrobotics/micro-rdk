@@ -170,20 +170,20 @@ where
 type Executor = NativeExecutor;
 #[cfg(feature = "esp32")]
 type Executor = Esp32Executor;
-pub struct GrpcClient<'a> {
+pub struct GrpcClient {
     executor: Executor,
     http2_connection: SendRequest<BoxBody<Bytes, hyper::Error>>,
     #[allow(dead_code)]
     http2_task: Option<Task<()>>,
-    uri: &'a str,
+    uri: String,
 }
 
-impl<'a> GrpcClient<'a> {
+impl GrpcClient {
     pub async fn new<T>(
         io: T,
         executor: Executor,
-        uri: &'a str,
-    ) -> Result<GrpcClient<'a>, GrpcClientError>
+        uri: &str
+    ) -> Result<GrpcClient, GrpcClientError>
     where
         T: rt::Read + rt::Write + Unpin + 'static,
     {
@@ -208,7 +208,7 @@ impl<'a> GrpcClient<'a> {
             executor,
             http2_connection,
             http2_task: Some(http2_task),
-            uri,
+            uri: uri.to_string()
         })
     }
 
