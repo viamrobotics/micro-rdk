@@ -270,16 +270,16 @@ where
     }
 }
 
-pub struct ViamServer<'a, C, T, CC, D, L> {
+pub struct ViamServer<C, T, CC, D, L> {
     http_listener: HttpListener<L, T>,
     webrtc_config: Option<Box<WebRtcConfiguration<D, CC>>>,
     exec: Executor,
     app_connector: C,
     app_config: AppClientConfig,
-    app_client: Option<AppClient<'a>>,
+    app_client: Option<AppClient>,
     incoming_connection_manager: IncomingConnectionManager,
 }
-impl<'a, C, T, CC, D, L> ViamServer<'a, C, T, CC, D, L>
+impl<C, T, CC, D, L> ViamServer<C, T, CC, D, L>
 where
     C: TlsClientConnector,
     T: rt::Read + rt::Write + Unpin + 'static,
