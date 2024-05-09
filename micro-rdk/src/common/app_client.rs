@@ -125,7 +125,7 @@ impl AppClientBuilder {
         let jwt = self.get_jwt_token().await?;
 
         Ok(AppClient {
-            grpc_client: self.grpc_client,
+            grpc_client: self.grpc_client.into(),
             jwt,
             ip: self.config.ip,
             config: self.config,
@@ -165,10 +165,11 @@ impl AppClientBuilder {
     }
 }
 
+#[derive(Clone)]
 pub struct AppClient {
     config: AppClientConfig,
     jwt: String,
-    grpc_client: Box<GrpcClient>,
+    grpc_client: Rc<GrpcClient>,
     ip: Ipv4Addr,
 }
 
