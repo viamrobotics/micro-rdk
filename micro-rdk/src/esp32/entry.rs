@@ -62,7 +62,7 @@ pub async fn serve_web_inner(
 
         let builder = AppClientBuilder::new(grpc_client, app_config.clone());
 
-        let mut client = builder.build().await.unwrap();
+        let client = builder.build().await.unwrap();
 
         let (cfg_response, cfg_received_datetime) = client.get_config().await.unwrap();
 

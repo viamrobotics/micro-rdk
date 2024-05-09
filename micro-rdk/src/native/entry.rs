@@ -43,7 +43,7 @@ pub async fn serve_web_inner(
             .unwrap();
         let builder = AppClientBuilder::new(Box::new(grpc_client), app_config.clone());
         log::info!("build client start");
-        let mut client = builder.build().await.unwrap();
+        let client = builder.build().await.unwrap();
 
         let (cfg_response, cfg_received_datetime) = client.get_config().await.unwrap();
 
