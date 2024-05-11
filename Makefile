@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 ESPFLASHVERSION_MAJ := $(shell expr `cargo espflash -V | grep ^cargo-espflash | sed 's/^.* //g' | cut -f1 -d. `)
 ESPFLASHVERSION_MIN := $(shell expr `cargo espflash -V | grep ^cargo-espflash | sed 's/^.* //g' | cut -f2 -d. `)
-ESPFLASHVERSION := $(shell [ $(ESPFLASHVERSION_MAJ) -gt 1 -a $(ESPFLASHVERSION_MIN) -ge 1 ] && echo true)
+ESPFLASHVERSION := $(shell [ $(ESPFLASHVERSION_MAJ) -gt 2 -a $(ESPFLASHVERSION_MIN) -ge 0 ] && echo true)
 
 DATE := $(shell date +%F)
 IMAGE_BASE = ghcr.io/viamrobotics/micro-rdk-dev-env
@@ -27,7 +27,7 @@ license-finder:
 
 cargo-ver:
 ifneq ($(ESPFLASHVERSION),true)
-		$(error Update espfash to version >2.0. Update with cargo install cargo-espflash)
+		$(error Update espfash to version >=3.0. Update with cargo install cargo-espflash)
 endif
 
 build:
@@ -66,10 +66,10 @@ test:
 	cargo test -p micro-rdk --lib --features native
 
 clippy-native:
-	cargo clippy -p micro-rdk --no-deps --features native --no-default-features -- -Dwarnings
+	cargo clippy -p micro-rdk --no-deps --features native,provisioning  -- -Dwarnings
 
 clippy-esp32:
-	cargo +esp clippy -p micro-rdk  --features esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
+	cargo +esp clippy -p micro-rdk  --features esp32,provisioning  --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
 
 clippy-cli:
 	cargo clippy -p micro-rdk-installer --no-default-features -- -Dwarnings
@@ -94,7 +94,7 @@ build-esp32-with-cred-bin:
 
 flash-esp32-bin:
 ifneq (,$(wildcard ./target/xtensa-esp32-espidf/esp32-server.bin))
-	espflash write-bin 0x0 ./target/xtensa-esp32-espidf/esp32-server.bin -b 460800  && sleep 2 && espflash monitor
+	espflash write-bin 0x0 ./target/xtensa-esp32-espidf/esp32-server.bin --baud 460800  && sleep 2 && espflash monitor
 else
 	$(error esp32-server.bin not found, run make build-esp32-bin first)
 endif

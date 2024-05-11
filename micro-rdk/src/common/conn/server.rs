@@ -26,7 +26,7 @@ use crate::{
 
 use async_io::Timer;
 use futures_lite::prelude::*;
-use futures_lite::{future::Boxed, ready, Future};
+use futures_lite::{future::Boxed, ready};
 use hyper::{rt, server::conn::http2};
 
 use async_executor::Task;
@@ -270,16 +270,16 @@ where
     }
 }
 
-pub struct ViamServer<'a, C, T, CC, D, L> {
+pub struct ViamServer<C, T, CC, D, L> {
     http_listener: HttpListener<L, T>,
     webrtc_config: Option<Box<WebRtcConfiguration<D, CC>>>,
     exec: Executor,
     app_connector: C,
     app_config: AppClientConfig,
-    app_client: Option<AppClient<'a>>,
-    webrtc_manager: WebRTCConnectionManager,
+    app_client: Option<AppClient>,
+    incoming_connection_manager: IncomingConnectionManager,
 }
-impl<'a, C, T, CC, D, L> ViamServer<'a, C, T, CC, D, L>
+impl<C, T, CC, D, L> ViamServer<C, T, CC, D, L>
 where
     C: TlsClientConnector,
     T: rt::Read + rt::Write + Unpin + 'static,
@@ -304,7 +304,7 @@ where
             app_connector,
             app_config,
             app_client: None,
-            webrtc_manager: WebRTCConnectionManager::new(max_concurent_connections),
+            incoming_connection_manager: IncomingConnectionManager::new(max_concurent_connections),
         }
     }
     pub async fn serve(&mut self, robot: Arc<Mutex<LocalRobot>>) {
@@ -357,7 +357,7 @@ where
                 async {
                     let mut api = sig.await?;
 
-                    let prio = self.webrtc_manager.get_lowest_prio();
+                    let prio = self.incoming_connection_manager.get_lowest_prio();
 
                     let sdp = api
                         .answer(prio)
@@ -393,16 +393,30 @@ where
                     continue;
                 }
             };
-
             if let Err(e) = match connection {
-                IncomingConnection::Http2Connection(c) => self.serve_http2(c, robot.clone()).await,
-
+                IncomingConnection::Http2Connection(mut c) => match c.accept().await {
+                    Err(e) => Err(ServerError::Other(e.into())),
+                    Ok(c) => {
+                        let robot = robot.clone();
+                        let exec = self.exec.clone();
+                        let t = self
+                            .exec
+                            .spawn(async move { Self::serve_http2(c, exec, robot).await });
+                        // Incoming direct HTTP2 connections take top priority.
+                        self.incoming_connection_manager
+                            .insert_new_conn(t, u32::MAX)
+                            .await;
+                        Ok(())
+                    }
+                },
                 IncomingConnection::WebRtcConnection(mut c) => match c.open_data_channel().await {
                     Err(e) => Err(e),
                     Ok(_) => {
                         let prio = c.prio;
                         let t = self.exec.spawn(async move { c.run().await });
-                        self.webrtc_manager.insert_new_conn(t, prio).await;
+                        self.incoming_connection_manager
+                            .insert_new_conn(t, prio)
+                            .await;
                         Ok(())
                     }
                 },
@@ -411,23 +425,18 @@ where
             }
         }
     }
-    async fn serve_http2<U>(
-        &self,
-        mut c: U,
+    async fn serve_http2(
+        connection: T,
+        exec: Executor,
         robot: Arc<Mutex<LocalRobot>>,
-    ) -> Result<(), ServerError>
-    where
-        U: Http2Connector<Stream = T>,
-    {
+    ) -> Result<(), ServerError> {
         let srv = GrpcServer::new(robot.clone(), GrpcBody::new());
-        let connection = c.accept().await.map_err(|e| ServerError::Other(e.into()))?;
-
         Box::new(
-            http2::Builder::new(self.exec.clone())
+            http2::Builder::new(exec)
                 .initial_connection_window_size(2048)
                 .initial_stream_window_size(2048)
                 .max_send_buf_size(4096)
-                .max_concurrent_streams(1)
+                .max_concurrent_streams(2)
                 .serve_connection(connection, srv),
         )
         .await
@@ -570,12 +579,12 @@ where
 }
 
 #[derive(Default)]
-struct WebRTCTask {
+struct IncomingConnectionTask {
     task: Option<Task<Result<(), ServerError>>>,
     prio: Option<u32>,
 }
 
-impl WebRTCTask {
+impl IncomingConnectionTask {
     fn replace(&mut self, task: Task<Result<(), ServerError>>, prio: u32) {
         let _ = self.task.replace(task);
         let _ = self.prio.replace(prio);
@@ -600,11 +609,11 @@ impl WebRTCTask {
     }
 }
 
-struct WebRTCConnectionManager {
-    connections: Vec<WebRTCTask>,
+struct IncomingConnectionManager {
+    connections: Vec<IncomingConnectionTask>,
 }
 
-impl WebRTCConnectionManager {
+impl IncomingConnectionManager {
     fn new(size: usize) -> Self {
         let mut connections = Vec::with_capacity(size);
         connections.resize_with(size, Default::default);

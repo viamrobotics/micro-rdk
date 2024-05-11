@@ -26,7 +26,7 @@ use crate::{
     },
 };
 
-use super::storage::CredentialStorage;
+use super::storage::RobotCredentialStorage;
 
 #[derive(Default)]
 pub(crate) struct ProvisioningServiceBuilder {
@@ -58,7 +58,10 @@ impl ProvisioningServiceBuilder {
         let _ = self.last_error.insert(error);
         self
     }
-    pub(crate) fn build<S: CredentialStorage + Clone>(self, storage: S) -> ProvisioningService<S> {
+    pub(crate) fn build<S: RobotCredentialStorage + Clone>(
+        self,
+        storage: S,
+    ) -> ProvisioningService<S> {
         ProvisioningService {
             provisioning_info: Rc::new(self.provisioning_info),
             last_connection_attempt: Rc::new(self.last_connection_attempt),
@@ -112,7 +115,7 @@ pub(crate) struct ProvisioningService<S> {
 
 impl<S> ProvisioningService<S>
 where
-    S: CredentialStorage + Clone,
+    S: RobotCredentialStorage + Clone,
     GrpcError: From<S::Error>,
 {
     async fn process_request_inner(&self, req: Request<Incoming>) -> Result<Bytes, GrpcError> {
@@ -203,7 +206,7 @@ where
 
 impl<S> Service<Request<Incoming>> for ProvisioningService<S>
 where
-    S: CredentialStorage + Clone + 'static,
+    S: RobotCredentialStorage + Clone + 'static,
     GrpcError: From<S::Error>,
 {
     type Response = Response<GrpcBody>;
@@ -217,7 +220,7 @@ where
 #[pin_project::pin_project]
 pub(crate) struct ProvisoningServer<I, S, E>
 where
-    S: CredentialStorage + Clone + 'static,
+    S: RobotCredentialStorage + Clone + 'static,
     GrpcError: From<S::Error>,
 {
     _exec: PhantomData<E>,
@@ -230,7 +233,7 @@ where
 
 impl<I, S, E> Future for ProvisoningServer<I, S, E>
 where
-    S: CredentialStorage + Clone + 'static,
+    S: RobotCredentialStorage + Clone + 'static,
     I: rt::Read + rt::Write + std::marker::Unpin + 'static,
     GrpcError: From<S::Error>,
     E: rt::bounds::Http2ServerConnExec<
@@ -255,7 +258,7 @@ where
 
 impl<I, S, E> ProvisoningServer<I, S, E>
 where
-    S: CredentialStorage + Clone + 'static,
+    S: RobotCredentialStorage + Clone + 'static,
     I: rt::Read + rt::Write + std::marker::Unpin + 'static,
     GrpcError: From<S::Error>,
     E: rt::bounds::Http2ServerConnExec<
@@ -302,7 +305,7 @@ mod tests {
             conn::mdns::Mdns,
             provisioning::{
                 server::{ProvisioningInfo, ProvisioningServiceBuilder, ProvisoningServer},
-                storage::{CredentialStorage, MemoryCredentialStorage},
+                storage::{RAMStorage, RobotCredentialStorage},
             },
         },
         native::{conn::mdns::NativeMdns, exec::NativeExecutor, tcp::NativeStream},
@@ -314,10 +317,7 @@ mod tests {
 
     use super::ProvisioningService;
 
-    async fn run_provisioning_server(
-        ex: NativeExecutor,
-        srv: ProvisioningService<MemoryCredentialStorage>,
-    ) {
+    async fn run_provisioning_server(ex: NativeExecutor, srv: ProvisioningService<RAMStorage>) {
         let listen = TcpListener::bind("127.0.0.1:56432");
         assert!(listen.is_ok());
         let listen: Async<TcpListener> = listen.unwrap().try_into().unwrap();
@@ -552,7 +552,7 @@ mod tests {
         provisioning_info.set_model("a-model".to_owned());
         provisioning_info.set_manufacturer("a-manufacturer".to_owned());
 
-        let storage = MemoryCredentialStorage::default();
+        let storage = RAMStorage::default();
 
         let srv = ProvisioningServiceBuilder::new()
             .with_provisioning_info(provisioning_info)

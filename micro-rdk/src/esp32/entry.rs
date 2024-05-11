@@ -38,7 +38,7 @@ use crate::common::{
     grpc::GrpcError,
     provisioning::{
         server::{ProvisioningInfo, ProvisioningServiceBuilder, ProvisoningServer},
-        storage::CredentialStorage,
+        storage::RobotCredentialStorage,
     },
 };
 #[cfg(feature = "provisioning")]
@@ -76,7 +76,7 @@ pub async fn serve_web_inner(
 
         let builder = AppClientBuilder::new(grpc_client, app_config.clone());
 
-        let mut client = builder.build().await.unwrap();
+        let client = builder.build().await.unwrap();
 
         let (cfg_response, cfg_received_datetime) = client.get_config().await.unwrap();
 
@@ -165,7 +165,7 @@ async fn serve_provisioning_async<S>(
     last_error: Option<String>,
 ) -> Result<(AppClientConfig, Esp32TLSServerConfig), Box<dyn std::error::Error>>
 where
-    S: CredentialStorage + Clone + 'static,
+    S: RobotCredentialStorage + Clone + 'static,
     S::Error: Debug,
     GrpcError: From<S::Error>,
 {
@@ -234,7 +234,7 @@ where
 
             return Ok((
                 app_config,
-                Esp32TLSServerConfig::new([tls_certs, vec![]], serv_key, serv_key_len),
+                Esp32TLSServerConfig::new(tls_certs, serv_key, serv_key_len),
             ));
         }
     }
@@ -248,7 +248,7 @@ pub fn serve_with_provisioning<S>(
     ip: Ipv4Addr,
     max_webrtc_connection: usize,
 ) where
-    S: CredentialStorage + Clone + 'static,
+    S: RobotCredentialStorage + Clone + 'static,
     S::Error: Debug,
     GrpcError: From<S::Error>,
 {

@@ -86,8 +86,15 @@ mod esp32 {
         #[allow(clippy::redundant_clone)]
         #[cfg(not(feature = "qemu"))]
         let (ip, _wifi) = {
-            let wifi = start_wifi(periph.modem, sys_loop_stack).unwrap();
-            (wifi.wifi().sta_netif().get_ip_info().unwrap().ip, wifi)
+            let wifi = start_wifi(periph.modem, sys_loop_stack).expect("failed to start wifi");
+            (
+                wifi.wifi()
+                    .sta_netif()
+                    .get_ip_info()
+                    .expect("failed to get ip info")
+                    .ip,
+                wifi,
+            )
         };
 
         #[cfg(not(feature = "provisioning"))]
@@ -109,10 +116,11 @@ mod esp32 {
             );
 
             let tls_cfg = {
-                let cert = [ROBOT_SRV_PEM_CHAIN.to_vec(), ROBOT_SRV_PEM_CA.to_vec()];
+                let cert = ROBOT_SRV_PEM_CHAIN.to_vec();
                 let key = ROBOT_SRV_DER_KEY;
                 Esp32TLSServerConfig::new(cert, key.as_ptr(), key.len() as u32)
             };
+
             micro_rdk::esp32::entry::serve_web(
                 cfg,
                 tls_cfg,
@@ -124,14 +132,12 @@ mod esp32 {
         }
         #[cfg(feature = "provisioning")]
         {
-            use micro_rdk::common::provisioning::{
-                server::ProvisioningInfo, storage::MemoryCredentialStorage,
-            };
+            use micro_rdk::common::provisioning::{server::ProvisioningInfo, storage::RAMStorage};
             let mut info = ProvisioningInfo::default();
             info.set_fragment_id("d385b480-3d19-4fad-a928-b5c18a58d0ed".to_string());
             info.set_manufacturer("viam".to_owned());
             info.set_model("test-esp32".to_owned());
-            let storage = MemoryCredentialStorage::default();
+            let storage = RAMStorage::default();
             micro_rdk::esp32::entry::serve_with_provisioning(
                 storage,
                 info,
@@ -177,13 +183,13 @@ mod esp32 {
 
         wifi.set_configuration(&wifi_configuration)?;
 
-        wifi.start().unwrap();
+        wifi.start()?;
         info!("Wifi started");
 
-        wifi.connect().unwrap();
+        wifi.connect()?;
         info!("Wifi connected");
 
-        wifi.wait_netif_up().unwrap();
+        wifi.wait_netif_up()?;
         info!("Wifi netif up");
 
         micro_rdk::esp32::esp_idf_svc::sys::esp!(unsafe {

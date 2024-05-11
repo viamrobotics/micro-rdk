@@ -173,23 +173,11 @@ async fn store_certificates_from_cloud(
         .await
         .map_err(|err| Error::CertificateRequestError(err.to_string()))?
         .into_inner();
-    let tls_cert = &certs
-        .tls_certificate
-        .split_inclusive("----END CERTIFICATE-----");
-    let srv_cert = &mut tls_cert.clone().take(2).collect::<String>();
-    srv_cert.push('\0');
-    let ca_cert = &mut tls_cert
-        .clone()
-        .take(1)
-        .map(der::Document::from_pem)
-        .filter(|s| s.is_ok())
-        .map(|s| s.unwrap().1.to_vec())
-        .collect::<Vec<Vec<u8>>>()
-        .pop()
-        .unwrap_or_default();
+
+    let srv_cert = format!("{}\0", certs.tls_certificate);
+
     let tls_private_key: &str = &certs.tls_private_key;
     let key = der::Document::from_pem(tls_private_key).map_or(vec![], |k| k.1.as_bytes().to_vec());
-    storage_data.robot_credentials.ca_crt = Some(ca_cert.clone());
     storage_data.robot_credentials.der_key = Some(key);
     storage_data.robot_credentials.pem_chain = Some(srv_cert.as_bytes().to_vec());
     Ok(())

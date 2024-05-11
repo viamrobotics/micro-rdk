@@ -34,6 +34,8 @@ pub enum GrpcClientError {
     GrpcError { code: i8, message: String },
     #[error(transparent)]
     ErrorSendingToAStream(#[from] async_channel::SendError<Bytes>),
+    #[error("frame error {0}")]
+    FrameError(String),
 }
 
 pub(crate) struct GrpcMessageSender<T> {
@@ -99,7 +101,7 @@ impl<T> Stream for GrpcMessageStream<T>
 where
     T: prost::Message + std::default::Default,
 {
-    type Item = T;
+    type Item = Result<T, GrpcClientError>;
 
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,
@@ -116,7 +118,33 @@ where
                     None => return Poll::Ready(None),
                 },
             };
-            self.buffer = chunk.into_data().unwrap();
+            self.buffer = match chunk.into_data() {
+                Ok(data) => data,
+                Err(e) => {
+                    if let Some(trailers) = e.trailers_ref() {
+                        if trailers.contains_key("grpc-message")
+                            && trailers.contains_key("grpc-status")
+                        {
+                            return Poll::Ready(Some(Err(GrpcClientError::GrpcError {
+                                code: trailers
+                                    .get("grpc-status")
+                                    .unwrap()
+                                    .to_str()
+                                    .unwrap_or("")
+                                    .parse::<i8>()
+                                    .unwrap_or(127), // if status code cannot be parsed return 127
+                                message: trailers
+                                    .get("grpc-message")
+                                    .unwrap()
+                                    .to_str()
+                                    .unwrap_or("couldn't parse message") // message couldn't be extracted from header
+                                    .to_owned(),
+                            })));
+                        }
+                    }
+                    return Poll::Ready(Some(Err(GrpcClientError::FrameError(format!("{:?}", e)))));
+                }
+            };
         }
 
         // Split off the length prefixed message containing the compressed flag (B0) and the message length (B1-B4)
@@ -135,27 +163,23 @@ where
             }
             Ok(m) => m,
         };
-        Poll::Ready(Some(message))
+        Poll::Ready(Some(Ok(message)))
     }
 }
 #[cfg(feature = "native")]
 type Executor = NativeExecutor;
 #[cfg(feature = "esp32")]
 type Executor = Esp32Executor;
-pub struct GrpcClient<'a> {
+pub struct GrpcClient {
     executor: Executor,
     http2_connection: SendRequest<BoxBody<Bytes, hyper::Error>>,
     #[allow(dead_code)]
     http2_task: Option<Task<()>>,
-    uri: &'a str,
+    uri: String,
 }
 
-impl<'a> GrpcClient<'a> {
-    pub async fn new<T>(
-        io: T,
-        executor: Executor,
-        uri: &'a str,
-    ) -> Result<GrpcClient<'a>, GrpcClientError>
+impl GrpcClient {
+    pub async fn new<T>(io: T, executor: Executor, uri: &str) -> Result<GrpcClient, GrpcClientError>
     where
         T: rt::Read + rt::Write + Unpin + 'static,
     {
@@ -180,7 +204,7 @@ impl<'a> GrpcClient<'a> {
             executor,
             http2_connection,
             http2_task: Some(http2_task),
-            uri,
+            uri: uri.to_string(),
         })
     }
 
@@ -209,7 +233,7 @@ impl<'a> GrpcClient<'a> {
     }
 
     pub(crate) async fn send_request_bidi<R, P>(
-        &mut self,
+        &self,
         r: Request<BoxBody<Bytes, hyper::Error>>,
         sender: Sender<Bytes>,
     ) -> Result<(GrpcMessageSender<R>, GrpcMessageStream<P>), GrpcClientError>
@@ -235,7 +259,7 @@ impl<'a> GrpcClient<'a> {
     }
 
     pub(crate) async fn send_request(
-        &mut self,
+        &self,
         r: Request<BoxBody<Bytes, hyper::Error>>,
     ) -> Result<(Bytes, HeaderMap), GrpcClientError> {
         let mut http2_connection = self.http2_connection.clone();

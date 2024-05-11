@@ -16,6 +16,10 @@ pub extern crate micro_rdk_macros;
 #[macro_use(defer)]
 extern crate scopeguard;
 
+#[cfg(all(feature = "data", not(feature = "builtin-components")))]
+#[macro_use(defer)]
+extern crate scopeguard;
+
 pub use micro_rdk_macros::DoCommand;
 pub use micro_rdk_macros::MovementSensorReadings;
 pub use micro_rdk_macros::PowerSensorReadings;

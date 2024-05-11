@@ -90,8 +90,8 @@ impl AppClientConfig {
     }
 }
 
-pub struct AppClientBuilder<'a> {
-    grpc_client: Box<GrpcClient<'a>>,
+pub struct AppClientBuilder {
+    grpc_client: Box<GrpcClient>,
     config: AppClientConfig,
 }
 
@@ -111,9 +111,9 @@ where
     Ok(buf.into())
 }
 
-impl<'a> AppClientBuilder<'a> {
+impl AppClientBuilder {
     /// Create a new AppClientBuilder
-    pub fn new(grpc_client: Box<GrpcClient<'a>>, config: AppClientConfig) -> Self {
+    pub fn new(grpc_client: Box<GrpcClient>, config: AppClientConfig) -> Self {
         Self {
             grpc_client,
             config,
@@ -121,7 +121,7 @@ impl<'a> AppClientBuilder<'a> {
     }
     /// Consume the AppClientBuilder and returns an AppClient. This function will panic if
     /// the received config doesn't contain an fqdn field.
-    pub async fn build(mut self) -> Result<AppClient<'a>, AppClientError> {
+    pub async fn build(mut self) -> Result<AppClient, AppClientError> {
         let jwt = self.get_jwt_token().await?;
 
         Ok(AppClient {
@@ -165,10 +165,10 @@ impl<'a> AppClientBuilder<'a> {
     }
 }
 
-pub struct AppClient<'a> {
+pub struct AppClient {
     config: AppClientConfig,
     jwt: String,
-    grpc_client: Box<GrpcClient<'a>>,
+    grpc_client: Box<GrpcClient>,
     ip: Ipv4Addr,
 }
 
@@ -177,8 +177,8 @@ pub(crate) struct AppSignaling(
     pub(crate) GrpcMessageStream<AnswerRequest>,
 );
 
-impl<'a> AppClient<'a> {
-    pub(crate) async fn connect_signaling(&mut self) -> Result<AppSignaling, AppClientError> {
+impl AppClient {
+    pub(crate) async fn connect_signaling(&self) -> Result<AppSignaling, AppClientError> {
         let (sender, receiver) = async_channel::bounded::<Bytes>(1);
         let r = self
             .grpc_client
@@ -222,7 +222,7 @@ impl<'a> AppClient<'a> {
     // taken from its header for the purposes of timestamping configuration logs and returning
     // `last_reconfigured` values for resource statuses.
     pub async fn get_config(
-        &mut self,
+        &self,
     ) -> Result<(Box<ConfigResponse>, Option<DateTime<FixedOffset>>), AppClientError> {
         let agent = AgentInfo {
             os: "esp32".to_string(),
@@ -265,7 +265,7 @@ impl<'a> AppClient<'a> {
         Ok((Box::new(ConfigResponse::decode(r)?), datetime))
     }
 
-    pub async fn push_logs(&mut self, logs: Vec<LogEntry>) -> Result<(), AppClientError> {
+    pub async fn push_logs(&self, logs: Vec<LogEntry>) -> Result<(), AppClientError> {
         let req = LogRequest {
             id: self.config.robot_id.clone(),
             logs,
@@ -287,7 +287,7 @@ impl<'a> AppClient<'a> {
     }
 }
 
-impl<'a> Drop for AppClient<'a> {
+impl Drop for AppClient {
     fn drop(&mut self) {
         log::debug!("dropping AppClient")
     }

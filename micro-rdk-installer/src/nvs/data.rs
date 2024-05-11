@@ -26,7 +26,6 @@ pub struct RobotCredentials {
     pub app_address: Option<String>,
     pub local_fqdn: Option<String>,
     pub fqdn: Option<String>,
-    pub ca_crt: Option<Vec<u8>>,
     pub der_key: Option<Vec<u8>>,
     pub robot_dtls_certificate: Option<Vec<u8>>,
     pub robot_dtls_key_pair: Option<Vec<u8>>,
@@ -41,7 +40,7 @@ pub struct ViamFlashStorageData {
 }
 
 impl ViamFlashStorageData {
-    fn to_nvs_key_value_pairs(&self, namespace_idx: u8) -> Result<[NVSKeyValuePair; 14], Error> {
+    fn to_nvs_key_value_pairs(&self, namespace_idx: u8) -> Result<[NVSKeyValuePair; 13], Error> {
         let wifi_cred = self
             .wifi
             .clone()
@@ -129,16 +128,6 @@ impl ViamFlashStorageData {
                 value: NVSValue::Bytes(self.robot_credentials.pem_chain.clone().ok_or(
                     Error::NVSDataProcessingError("pem_chain missing".to_string()),
                 )?),
-                namespace_idx,
-            },
-            NVSKeyValuePair {
-                key: "CA_CRT".to_string(),
-                value: NVSValue::Bytes(
-                    self.robot_credentials
-                        .ca_crt
-                        .clone()
-                        .ok_or(Error::NVSDataProcessingError("ca_crt missing".to_string()))?,
-                ),
                 namespace_idx,
             },
             NVSKeyValuePair {
