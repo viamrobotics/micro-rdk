@@ -1,3 +1,4 @@
+use espflash::cli::{serial_monitor, FlashArgs, MonitorArgs};
 use log::LevelFilter;
 use std::{
     fs::{self, File, OpenOptions},
@@ -247,7 +248,8 @@ fn flash(args: WriteFlashArgs, config: &Config, app_path: PathBuf) -> Result<(),
             args.flash_args.log_output,
             !args.monitor_args.non_interactive,
         )
-        .map_err(|err| Error::MonitorError(err.to_string()))?;
+        monitor(flasher.into_interface(), None, pid, 115_200, log_file_path)
+            .map_err(|err| Error::MonitorError(err.to_string()))?;
     }
     Ok(())
 }
