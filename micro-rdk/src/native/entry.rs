@@ -23,7 +23,7 @@ use crate::common::{
     grpc::GrpcError,
     provisioning::{
         server::{ProvisioningInfo, ProvisioningServiceBuilder, ProvisoningServer},
-        storage::CredentialStorage,
+        storage::RobotCredentialStorage,
     },
 };
 #[cfg(feature = "provisioning")]
@@ -144,7 +144,7 @@ async fn serve_provisioning_async<S>(
     last_error: Option<String>,
 ) -> Result<(AppClientConfig, NativeTlsServerConfig), Box<dyn std::error::Error>>
 where
-    S: CredentialStorage + Clone + 'static,
+    S: RobotCredentialStorage + Clone + 'static,
     S::Error: Debug,
     GrpcError: From<S::Error>,
 {
@@ -222,7 +222,7 @@ pub fn serve_with_provisioning<S>(
     repr: RobotRepresentation,
     ip: Ipv4Addr,
 ) where
-    S: CredentialStorage + Clone + 'static,
+    S: RobotCredentialStorage + Clone + 'static,
     S::Error: Debug,
     GrpcError: From<S::Error>,
 {
