@@ -10,8 +10,8 @@ use clap::{arg, command, Args, Parser, Subcommand};
 use dialoguer::{theme::ColorfulTheme, Input, Password};
 use esp_idf_part::PartitionTable;
 use espflash::cli::{
-    config::Config, connect, monitor::monitor, serial_monitor, EspflashProgress, FlashArgs,
-    MonitorArgs, ReadFlashArgs,
+    config::Config, connect, monitor::monitor, serial_monitor, ConnectArgs, EspflashProgress,
+    FlashArgs, MonitorArgs,
 };
 use micro_rdk_installer::{
     error::Error,
@@ -27,6 +27,7 @@ use serde::Deserialize;
 use tokio::runtime::Runtime;
 
 const PARTITION_TABLE_ADDR: u16 = 0x8000;
+const PARTITION_TABLE_SIZE: u16 = 0xc00;
 
 #[derive(Deserialize, Debug)]
 struct AppCloudConfig {
@@ -57,7 +58,7 @@ struct AppImageArgs {
     #[clap(flatten)]
     flash_args: FlashArgs,
     #[clap(flatten)]
-    monitor_args: MonitorArgs,
+    connect_args: ConnectArgs,
 
     /// Version of the compiled micro-RDK server to download.
     /// See https://github.com/viamrobotics/micro-rdk/releases for the version options
@@ -299,31 +300,36 @@ fn main() -> Result<(), Error> {
     match &cli.command {
         Some(Commands::UpdateAppImage(args)) => {
             let config = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
-            log::info!("retrieving running image");
-            let tmp_old = tempfile::Builder::new()
-                .prefix("old-bin")
-                .tempdir()
-                .map_err(Error::FileError)?;
 
-            log::info!("Retrieving running image");
-            let mut flasher =
-                connect(&args.monitor_args.connect_args, &config, false, false).unwrap();
-            let _ = flasher.read_flash(0, 0, 0x1000, 64, tmp_old.path().to_path_buf());
+            // Create a directory inside of `std::env::temp_dir()`.
+            let dir = tempfile::tempdir().unwrap();
+            let tmp_old = dir.path().join("running-app.img");
 
-            log::info!("parsing running partition table");
-            // check md5hash
-            // get download
-            let mut app_file_old = OpenOptions::new()
-                .read(true)
-                .open(tmp_old)
-                .map_err(Error::FileError)?;
-            log::info!("Extracting partition table.");
-            let mut ptable_raw = [0_u8; 0xc00];
-            let _num_read = app_file_old
-                .read_exact_at(&mut ptable_raw, PARTITION_TABLE_ADDR.into())
-                .map_err(Error::FileError)?;
+            log::info!("Retrieving running partition table");
+            let mut flasher = connect(&args.connect_args, &config, false, false).unwrap();
+            flasher
+                .read_flash(
+                    PARTITION_TABLE_ADDR.into(),
+                    PARTITION_TABLE_SIZE.into(),
+                    0x1000,
+                    64,
+                    tmp_old.clone(),
+                )
+                .map_err(|_| Error::FlashConnect)?;
 
-            let old_ptable_hash = md5::compute(ptable_raw);
+            log::info!("Parsing running partition table");
+            let mut ptable_raw = fs::read(tmp_old).map_err(Error::FileError)?;
+            log::info!("Extracting running partition table");
+
+            let old_ptable_hash = md5::compute(ptable_raw.clone());
+
+            log::info!("parsing ptable");
+            let ptable = PartitionTable::try_from_bytes(ptable_raw.clone()).unwrap();
+            log::info!(
+                "hash: {:?} \n partitions: {:?}",
+                old_ptable_hash,
+                ptable.partitions()
+            );
 
             log::info!("Retrieving new image");
             let tmp_new = tempfile::Builder::new()
@@ -338,29 +344,35 @@ fn main() -> Result<(), Error> {
                 }
             };
 
-            log::info!("Extracting partition table.");
-            let mut app_file_new = OpenOptions::new()
+            log::info!("extracting new partition table.");
+            let app_file_new = OpenOptions::new()
                 .read(true)
                 .write(true)
                 .open(app_path_new.clone())
                 .map_err(Error::FileError)?;
             let _num_read = app_file_new
-                .read_exact_at(&mut ptable_raw, PARTITION_TABLE_ADDR.into())
+                .read_at(&mut ptable_raw, PARTITION_TABLE_ADDR.into())
                 .map_err(Error::FileError)?;
-            let new_ptable_hash = md5::compute(ptable_raw);
+            let new_ptable_hash = md5::compute(ptable_raw.clone());
 
             // Compare partition tables
             if old_ptable_hash != new_ptable_hash {
                 log::error!("Partition tables do not match!");
-                log::error!("Rebuild and flash from scratch");
+                log::error!("Rebuild and flash micro-rdk from scratch");
                 return Err(Error::BinaryEditError(64));
             }
 
+            log::info!("partition tables match!");
+
             log::info!("parsing ptable");
-            let ptable = PartitionTable::try_from_bytes(ptable_raw).unwrap();
-            let nvs_partition_info = ptable.find("nvs").unwrap();
+            let ptable = PartitionTable::try_from_bytes(ptable_raw)
+                .map_err(|_| Error::PartitionTableError)?;
+            let nvs_partition_info = ptable
+                .find("nvs")
+                .expect("failed to retrieve nvs partition table entry");
             let nvs_offset = nvs_partition_info.offset();
             let nvs_size = nvs_partition_info.size();
+            log::debug!("nvs offset: {}, nvs_size: {}", nvs_offset, nvs_size);
 
             // get binary size
             let file_len = app_file_new.metadata().map_err(Error::FileError)?.len();
@@ -368,25 +380,37 @@ fn main() -> Result<(), Error> {
                 return Err(Error::BinaryEditError(file_len));
             }
 
-            let mut nvs_data = Vec::with_capacity(nvs_size.try_into().unwrap());
-            let _ = app_file_old.read_exact(&mut nvs_data);
+            // get nvs data from the old binary
+            let dir = tempfile::tempdir().unwrap();
+            let nvs_path = dir.path().join("nvs.data");
+            log::info!("extracting nvs data from device");
+            // let mut flasher = connect(&args.connect_args, &config, false, false).unwrap();
+            flasher
+                .read_flash(nvs_offset, nvs_size, 0x1000, 64, nvs_path.clone())
+                .map_err(Error::EspFlashError)?;
 
-            app_file_new
-                .seek(SeekFrom::Start(nvs_offset.into()))
+            log::info!("Writing nvs data to new image");
+            let mut nvs_file = OpenOptions::new()
+                .read(true)
+                .open(nvs_path.clone())
                 .map_err(Error::FileError)?;
-            log::info!("Writing credentials to binary.");
+            let mut nvs_dat = Vec::new();
+            let nbytes: u32 = Read::read(&mut nvs_file, &mut nvs_dat)
+                .unwrap()
+                .try_into()
+                .unwrap();
+            if nbytes != nvs_size {
+                return Err(Error::BinaryEditError(nbytes.into()));
+            }
 
-            // TODO must ensure that only specific number of bytes are written
-            app_file_new
-                .write_all(&nvs_data)
-                .map_err(Error::FileError)?;
+            write_credentials_to_app_binary(
+                app_path_new.clone(),
+                &nvs_dat,
+                nvs_size.into(),
+                nvs_offset.into(),
+            )?;
 
-            log::info!("Transferring NVS data to new image");
-
-            // calc md5hash of partition table
-            // compare to hash we have stored somewhere
-            // if it's ok, overwrite binary with upgraded micro-rdk
-            // reflash
+            log::info!("Flashing updated image to device");
             flash(args.flash_args.clone(), None, &config, app_path_new)?;
         }
         Some(Commands::WriteCredentials(args)) => {

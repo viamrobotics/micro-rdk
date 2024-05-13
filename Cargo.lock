@@ -2138,7 +2138,7 @@ dependencies = [
 [[package]]
 name = "espflash"
 version = "3.0.1-dev"
-source = "git+https://github.com/viamrobotics/espflash.git?branch=monitor-output#a8c2e3c4149ac67e599db24929fe13d0a8bd98bc"
+source = "git+https://github.com/viamrobotics/espflash.git?branch=monitor-output#c01779ce8dd9b1a0fad03ec4429600e2e76f15ad"
 dependencies = [
  "addr2line",
  "base64 0.22.1",
@@ -3483,6 +3483,7 @@ dependencies = [
  "der 0.7.9",
  "dialoguer 0.10.4",
  "env_logger 0.10.2",
+ "esp-idf-part",
  "espflash",
  "gethostname",
  "local-ip-address",
