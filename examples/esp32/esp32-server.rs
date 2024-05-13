@@ -10,15 +10,12 @@ mod esp32 {
     include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
     use log::*;
+    use micro_rdk::common::entry::RobotRepresentation;
     #[cfg(feature = "qemu")]
     use micro_rdk::esp32::esp_idf_svc::eth::EspEth;
     use micro_rdk::esp32::esp_idf_svc::eventloop::EspSystemEventLoop;
     use micro_rdk::esp32::esp_idf_svc::sys::{
         g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT,
-    };
-    use micro_rdk::{
-        common::{app_client::AppClientConfig, entry::RobotRepresentation},
-        esp32::{certificate::WebRtcCertificate, entry::serve_web, tls::Esp32TLSServerConfig},
     };
     #[cfg(feature = "qemu")]
     use std::net::Ipv4Addr;
@@ -100,25 +97,55 @@ mod esp32 {
             )
         };
 
-        let cfg = AppClientConfig::new(
-            ROBOT_SECRET.to_owned(),
-            ROBOT_ID.to_owned(),
-            ip,
-            "".to_owned(),
-        );
-        let webrtc_certificate = WebRtcCertificate::new(
-            ROBOT_DTLS_CERT.to_vec(),
-            ROBOT_DTLS_KEY_PAIR.to_vec(),
-            ROBOT_DTLS_CERT_FP,
-        );
+        #[cfg(not(feature = "provisioning"))]
+        {
+            use micro_rdk::{
+                common::app_client::AppClientConfig,
+                esp32::{certificate::WebRtcCertificate, tls::Esp32TLSServerConfig},
+            };
+            let cfg = AppClientConfig::new(
+                ROBOT_SECRET.to_owned(),
+                ROBOT_ID.to_owned(),
+                ip,
+                "".to_owned(),
+            );
+            let webrtc_certificate = WebRtcCertificate::new(
+                ROBOT_DTLS_CERT.to_vec(),
+                ROBOT_DTLS_KEY_PAIR.to_vec(),
+                ROBOT_DTLS_CERT_FP,
+            );
 
-        let tls_cfg = {
-            let cert = ROBOT_SRV_PEM_CHAIN.to_vec();
-            let key = ROBOT_SRV_DER_KEY;
-            Esp32TLSServerConfig::new(cert, key.as_ptr(), key.len() as u32)
-        };
+            let tls_cfg = {
+                let cert = ROBOT_SRV_PEM_CHAIN.to_vec();
+                let key = ROBOT_SRV_DER_KEY;
+                Esp32TLSServerConfig::new(cert, key.as_ptr(), key.len() as u32)
+            };
 
-        serve_web(cfg, tls_cfg, repr, ip, webrtc_certificate, max_connection);
+            micro_rdk::esp32::entry::serve_web(
+                cfg,
+                tls_cfg,
+                repr,
+                ip,
+                webrtc_certificate,
+                max_connection,
+            );
+        }
+        #[cfg(feature = "provisioning")]
+        {
+            use micro_rdk::common::provisioning::{server::ProvisioningInfo, storage::RAMStorage};
+            let mut info = ProvisioningInfo::default();
+            info.set_fragment_id("d385b480-3d19-4fad-a928-b5c18a58d0ed".to_string());
+            info.set_manufacturer("viam".to_owned());
+            info.set_model("test-esp32".to_owned());
+            let storage = RAMStorage::default();
+            micro_rdk::esp32::entry::serve_with_provisioning(
+                storage,
+                info,
+                repr,
+                ip,
+                max_connection,
+            );
+        }
     }
 
     #[cfg(feature = "qemu")]

@@ -3,10 +3,7 @@ mod native {
     // Generated robot config during build process
     include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
-    use micro_rdk::{
-        common::{app_client::AppClientConfig, entry::RobotRepresentation},
-        native::{entry::serve_web, tls::NativeTlsServerConfig},
-    };
+    use micro_rdk::common::entry::RobotRepresentation;
 
     pub(crate) fn main_native() {
         env_logger::builder()
@@ -19,21 +16,37 @@ mod native {
             std::net::IpAddr::V4(ip) => ip,
             _ => panic!("ouups expected ipv4"),
         };
+        #[cfg(not(feature = "provisioning"))]
+        {
+            use micro_rdk::common::app_client::AppClientConfig;
+            use micro_rdk::native::tls::NativeTlsServerConfig;
+            let cfg = {
+                let cert = ROBOT_SRV_PEM_CHAIN;
+                let key = ROBOT_SRV_DER_KEY;
+                NativeTlsServerConfig::new(cert.to_vec(), key.to_vec())
+            };
 
-        let cfg = {
-            let cert = ROBOT_SRV_PEM_CHAIN;
-            let key = ROBOT_SRV_DER_KEY;
-            NativeTlsServerConfig::new(cert.to_vec(), key.to_vec())
-        };
+            let app_config = AppClientConfig::new(
+                ROBOT_SECRET.to_owned(),
+                ROBOT_ID.to_owned(),
+                ip,
+                "".to_owned(),
+            );
 
-        let app_config = AppClientConfig::new(
-            ROBOT_SECRET.to_owned(),
-            ROBOT_ID.to_owned(),
-            ip,
-            "".to_owned(),
-        );
-
-        serve_web(app_config, cfg, repr, ip);
+            micro_rdk::native::entry::serve_web(app_config, cfg, repr, ip);
+        }
+        #[cfg(feature = "provisioning")]
+        {
+            use micro_rdk::common::provisioning::{
+                server::ProvisioningInfo, storage::MemoryCredentialStorage,
+            };
+            let mut info = ProvisioningInfo::default();
+            info.set_fragment_id("d385b480-3d19-4fad-a928-b5c18a58d0ed".to_string());
+            info.set_manufacturer("viam".to_owned());
+            info.set_model("test".to_owned());
+            let storage = MemoryCredentialStorage::default();
+            micro_rdk::native::entry::serve_with_provisioning(storage, info, repr, ip);
+        }
     }
 }
 

@@ -65,7 +65,7 @@ struct MemoryCredentialStorageInner {
 
 /// Simple CrendentialStorage made for testing purposes
 #[derive(Default, Clone)]
-pub(crate) struct RAMStorage(Rc<Mutex<MemoryCredentialStorageInner>>);
+pub struct RAMStorage(Rc<Mutex<MemoryCredentialStorageInner>>);
 
 impl RobotCredentialStorage for RAMStorage {
     type Error = Infallible;

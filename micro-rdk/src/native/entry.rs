@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+
 use crate::{
     common::{
         app_client::{AppClientBuilder, AppClientConfig},
@@ -15,6 +16,20 @@ use std::{
     rc::Rc,
     sync::{Arc, Mutex},
 };
+
+#[cfg(feature = "provisioning")]
+use crate::common::{
+    conn::mdns::Mdns,
+    grpc::GrpcError,
+    provisioning::{
+        server::{ProvisioningInfo, ProvisioningServiceBuilder, ProvisoningServer},
+        storage::RobotCredentialStorage,
+    },
+};
+#[cfg(feature = "provisioning")]
+use async_io::Async;
+#[cfg(feature = "provisioning")]
+use std::{fmt::Debug, net::TcpListener};
 
 use super::{
     certificate::WebRtcCertificate, conn::mdns::NativeMdns, dtls::NativeDtls, tcp::NativeListener,
@@ -118,6 +133,118 @@ pub async fn serve_web_inner(
         .unwrap();
 
     srv.serve(robot).await;
+}
+
+#[cfg(feature = "provisioning")]
+async fn serve_provisioning_async<S>(
+    ip: Ipv4Addr,
+    exec: NativeExecutor,
+    info: ProvisioningInfo,
+    storage: S,
+    last_error: Option<String>,
+) -> Result<(AppClientConfig, NativeTlsServerConfig), Box<dyn std::error::Error>>
+where
+    S: RobotCredentialStorage + Clone + 'static,
+    S::Error: Debug,
+    GrpcError: From<S::Error>,
+{
+    let hostname = format!(
+        "provisioning-{}-{}",
+        info.get_model(),
+        info.get_manufacturer()
+    );
+    let mut mdns = NativeMdns::new(hostname, ip)?;
+
+    let srv = ProvisioningServiceBuilder::new().with_provisioning_info(info);
+
+    let srv = if let Some(error) = last_error {
+        srv.with_last_error(error)
+    } else {
+        srv
+    };
+    let srv = srv.build(storage.clone());
+    let listen = TcpListener::bind(ip.to_string() + ":0")?;
+    let listen: Async<TcpListener> = listen.try_into()?;
+
+    let port = listen.get_ref().local_addr()?.port();
+
+    log::info!("provisioning server run on {}:{}", ip, port);
+
+    mdns.add_service(
+        "provisioning",
+        "_rpc",
+        "_tcp",
+        port,
+        &[("provisioning", "1")],
+    )?;
+    loop {
+        let incoming = listen.accept().await;
+        let (stream, _) = incoming?;
+        log::info!("will attempt to provision");
+
+        // The provisioning server is exposed over unencrypted HTTP2
+        let stream = NativeStream::LocalPlain(stream);
+
+        let ret = ProvisoningServer::new(srv.clone(), exec.clone(), stream).await;
+        if ret.is_ok() && storage.has_stored_credentials() {
+            let creds = storage.get_robot_credentials().unwrap();
+            let app_config = AppClientConfig::new(
+                creds.robot_secret().to_owned(),
+                creds.robot_id().to_owned(),
+                ip,
+                "".to_owned(),
+            );
+
+            let conn = NativeStream::TLSStream(Box::new(
+                NativeTls::new_client().open_ssl_context(None).await?,
+            ));
+            let client = GrpcClient::new(conn, exec.clone(), "https://app.viam.com:443").await?;
+            let builder = AppClientBuilder::new(Box::new(client), app_config.clone());
+
+            let mut client = builder.build().await?;
+            let certs = client.get_certificates().await?;
+
+            return Ok((
+                app_config,
+                NativeTlsServerConfig::new(
+                    certs.tls_certificate.into(),
+                    certs.tls_private_key.into(),
+                ),
+            ));
+        }
+    }
+}
+
+#[cfg(feature = "provisioning")]
+pub fn serve_with_provisioning<S>(
+    storage: S,
+    info: ProvisioningInfo,
+    repr: RobotRepresentation,
+    ip: Ipv4Addr,
+) where
+    S: RobotCredentialStorage + Clone + 'static,
+    S::Error: Debug,
+    GrpcError: From<S::Error>,
+{
+    let exec = NativeExecutor::new();
+    let cloned_exec = exec.clone();
+    let mut last_error = None;
+    let (app_config, tls_server_config) = loop {
+        match cloned_exec.block_on(serve_provisioning_async(
+            ip,
+            exec.clone(),
+            info.clone(),
+            storage.clone(),
+            last_error.clone(),
+        )) {
+            Ok(c) => break c,
+            Err(e) => {
+                log::error!("provisioning step failed with {:?}", e);
+                let _ = last_error.insert(format!("{:?}", e));
+            }
+        }
+    };
+    serve_web(app_config, tls_server_config, repr, ip)
 }
 
 pub fn serve_web(

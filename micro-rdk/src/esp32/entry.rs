@@ -32,6 +32,20 @@ use super::{
 
 use async_io::Timer;
 
+#[cfg(feature = "provisioning")]
+use crate::common::{
+    conn::mdns::Mdns,
+    grpc::GrpcError,
+    provisioning::{
+        server::{ProvisioningInfo, ProvisioningServiceBuilder, ProvisoningServer},
+        storage::RobotCredentialStorage,
+    },
+};
+#[cfg(feature = "provisioning")]
+use async_io::Async;
+#[cfg(feature = "provisioning")]
+use std::{fmt::Debug, net::TcpListener};
+
 pub async fn serve_web_inner(
     app_config: AppClientConfig,
     _tls_server_config: Esp32TLSServerConfig,
@@ -142,6 +156,137 @@ pub async fn serve_web_inner(
     srv.serve(robot).await;
 }
 
+#[cfg(feature = "provisioning")]
+async fn serve_provisioning_async<S>(
+    ip: Ipv4Addr,
+    exec: Esp32Executor,
+    info: ProvisioningInfo,
+    storage: S,
+    last_error: Option<String>,
+) -> Result<(AppClientConfig, Esp32TLSServerConfig), Box<dyn std::error::Error>>
+where
+    S: RobotCredentialStorage + Clone + 'static,
+    S::Error: Debug,
+    GrpcError: From<S::Error>,
+{
+    use super::conn::mdns::Esp32Mdns;
+    use std::ffi::CString;
+    let _ = Timer::after(std::time::Duration::from_millis(150)).await;
+    let hostname = format!(
+        "provisioning-{}-{}",
+        info.get_model(),
+        info.get_manufacturer()
+    );
+    let mut mdns = Esp32Mdns::new(hostname)?;
+
+    let srv = ProvisioningServiceBuilder::new().with_provisioning_info(info);
+
+    let srv = if let Some(error) = last_error {
+        srv.with_last_error(error)
+    } else {
+        srv
+    };
+    let srv = srv.build(storage.clone());
+    let listen = TcpListener::bind(ip.to_string() + ":0")?;
+    let listen: Async<TcpListener> = listen.try_into()?;
+
+    let port = listen.get_ref().local_addr()?.port();
+
+    mdns.add_service(
+        "provisioning",
+        "_rpc",
+        "_tcp",
+        port,
+        &[("provisioning", "")],
+    )?;
+    loop {
+        let incoming = listen.accept().await;
+        let (stream, _) = incoming?;
+
+        // The provisioning server is exposed over unencrypted HTTP2
+        let stream = Esp32Stream::LocalPlain(stream);
+
+        let ret = ProvisoningServer::new(srv.clone(), exec.clone(), stream).await;
+        if ret.is_ok() && storage.has_stored_credentials() {
+            let creds = storage.get_robot_credentials().unwrap();
+            let app_config = AppClientConfig::new(
+                creds.robot_secret().to_owned(),
+                creds.robot_id().to_owned(),
+                ip,
+                "".to_owned(),
+            );
+
+            let conn =
+                Esp32Stream::TLSStream(Box::new(Esp32TLS::new_client().open_ssl_context(None)?));
+            let client = GrpcClient::new(conn, exec.clone(), "https://app.viam.com:443").await?;
+            let builder = AppClientBuilder::new(Box::new(client), app_config.clone());
+
+            let mut client = builder.build().await?;
+            let certs = client.get_certificates().await?;
+
+            let serv_key = CString::new(certs.tls_private_key).unwrap();
+            let serv_key_len = serv_key.as_bytes_with_nul().len() as u32;
+            let serv_key: *const u8 = serv_key.into_raw() as *const u8;
+
+            let tls_certs = CString::new(certs.tls_certificate)
+                .unwrap()
+                .into_bytes_with_nul();
+
+            return Ok((
+                app_config,
+                Esp32TLSServerConfig::new(tls_certs, serv_key, serv_key_len),
+            ));
+        }
+    }
+}
+
+#[cfg(feature = "provisioning")]
+pub fn serve_with_provisioning<S>(
+    storage: S,
+    info: ProvisioningInfo,
+    repr: RobotRepresentation,
+    ip: Ipv4Addr,
+    max_webrtc_connection: usize,
+) where
+    S: RobotCredentialStorage + Clone + 'static,
+    S::Error: Debug,
+    GrpcError: From<S::Error>,
+{
+    use super::certificate::GeneratedWebRtcCertificateBuilder;
+
+    let exec = Esp32Executor::new();
+    let cloned_exec = exec.clone();
+    let mut last_error = None;
+    let (app_config, tls_server_config) = loop {
+        match cloned_exec.block_on(Box::pin(serve_provisioning_async(
+            ip,
+            exec.clone(),
+            info.clone(),
+            storage.clone(),
+            last_error.clone(),
+        ))) {
+            Ok(c) => break c,
+            Err(e) => {
+                log::error!("provisioning step failed with {:?}", e);
+                let _ = last_error.insert(format!("{:?}", e));
+            }
+        }
+    };
+    let webrtc_certificate = GeneratedWebRtcCertificateBuilder::default()
+        .build()
+        .unwrap();
+
+    serve_web(
+        app_config,
+        tls_server_config,
+        repr,
+        ip,
+        webrtc_certificate,
+        max_webrtc_connection,
+    );
+    unreachable!()
+}
+
 pub fn serve_web(
     app_config: AppClientConfig,
     tls_server_config: Esp32TLSServerConfig,
@@ -185,4 +330,5 @@ pub fn serve_web(
         exec,
         max_webrtc_connection,
     )));
+    unreachable!()
 }
