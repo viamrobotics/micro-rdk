@@ -7,8 +7,11 @@ use esp_idf_svc::{
 };
 use thiserror::Error;
 
-use crate::common::provisioning::storage::{
-    RobotCredentialStorage, RobotCredentials, WifiCredentialStorage, WifiCredentials,
+use crate::common::{
+    grpc::{GrpcError, ServerError},
+    provisioning::storage::{
+        RobotCredentialStorage, RobotCredentials, WifiCredentialStorage, WifiCredentials,
+    },
 };
 
 #[derive(Error, Debug)]
@@ -90,5 +93,11 @@ impl WifiCredentialStorage for NVSStorage {
         self.set_string("WIFI_SSID", &creds.ssid)?;
         self.set_string("WIFI_PASSWORD", &creds.pwd)?;
         Ok(())
+    }
+}
+
+impl From<NVSStorageError> for ServerError {
+    fn from(value: NVSStorageError) -> Self {
+        Self::new(GrpcError::RpcUnavailable, Some(value.into()))
     }
 }

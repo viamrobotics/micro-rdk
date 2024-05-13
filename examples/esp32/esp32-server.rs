@@ -42,7 +42,6 @@ mod esp32 {
         micro_rdk::esp32::esp_idf_svc::sys::link_patches();
 
         micro_rdk::esp32::esp_idf_svc::log::EspLogger::initialize_default();
-        let sys_loop_stack = EspSystemEventLoop::take().unwrap();
 
         #[cfg(not(feature = "qemu"))]
         let periph = Peripherals::take().unwrap();
@@ -83,22 +82,23 @@ mod esp32 {
                 max_connection = 1;
             }
         }
-        #[allow(clippy::redundant_clone)]
-        #[cfg(not(feature = "qemu"))]
-        let (ip, _wifi) = {
-            let wifi = start_wifi(periph.modem, sys_loop_stack).expect("failed to start wifi");
-            (
-                wifi.wifi()
-                    .sta_netif()
-                    .get_ip_info()
-                    .expect("failed to get ip info")
-                    .ip,
-                wifi,
-            )
-        };
 
         #[cfg(not(feature = "provisioning"))]
         {
+            let sys_loop_stack = EspSystemEventLoop::take().unwrap();
+            #[allow(clippy::redundant_clone)]
+            #[cfg(not(feature = "qemu"))]
+            let (ip, _wifi) = {
+                let wifi = start_wifi(periph.modem, sys_loop_stack).expect("failed to start wifi");
+                (
+                    wifi.wifi()
+                        .sta_netif()
+                        .get_ip_info()
+                        .expect("failed to get ip info")
+                        .ip,
+                    wifi,
+                )
+            };
             use micro_rdk::{
                 common::app_client::AppClientConfig,
                 esp32::{certificate::WebRtcCertificate, tls::Esp32TLSServerConfig},
@@ -142,7 +142,7 @@ mod esp32 {
                 storage,
                 info,
                 repr,
-                ip,
+                std::net::Ipv4Addr::new(10, 1, 12, 187),
                 max_connection,
             );
         }

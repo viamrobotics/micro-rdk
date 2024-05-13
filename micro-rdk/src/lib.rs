@@ -1,5 +1,6 @@
 // TODO this check is disabled but shouldn't
 #![allow(clippy::arc_with_non_send_sync)]
+#![feature(maybe_uninit_slice)]
 
 pub mod common;
 

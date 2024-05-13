@@ -78,6 +78,7 @@ thiserror.workspace = true
 trackable.workspace = true
 ringbuf.workspace = true
 pin-project.workspace = true
+dns-message-parser.workspace = true
 
 [build-dependencies]
 const-gen.workspace = true

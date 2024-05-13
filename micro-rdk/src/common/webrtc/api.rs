@@ -138,6 +138,11 @@ impl AtomicSync {
     fn get(&self) -> bool {
         self.0.done.load(std::sync::atomic::Ordering::Relaxed)
     }
+    pub(crate) fn reset(&self) {
+        self.0
+            .done
+            .store(false, std::sync::atomic::Ordering::Relaxed);
+    }
 }
 
 impl Future for AtomicSync {

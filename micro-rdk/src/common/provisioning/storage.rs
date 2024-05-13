@@ -1,7 +1,7 @@
 #![allow(dead_code)]
-use std::{convert::Infallible, rc::Rc, sync::Mutex};
+use std::{convert::Infallible, error::Error, fmt::Debug, rc::Rc, sync::Mutex};
 
-use crate::proto::provisioning::v1::CloudConfig;
+use crate::{common::grpc::ServerError, proto::provisioning::v1::CloudConfig};
 
 #[derive(Clone, Default)]
 pub struct RobotCredentials {
@@ -43,14 +43,14 @@ impl From<CloudConfig> for RobotCredentials {
 }
 
 pub trait WifiCredentialStorage {
-    type Error;
+    type Error: Error + Debug + Into<ServerError>;
     fn has_wifi_credentials(&self) -> bool;
     fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error>;
     fn get_wifi_credentials(&self) -> Result<WifiCredentials, Self::Error>;
 }
 
 pub trait RobotCredentialStorage {
-    type Error;
+    type Error: Error + Debug + Into<ServerError>;
     fn has_stored_credentials(&self) -> bool;
     fn store_robot_credentials(&self, cfg: CloudConfig) -> Result<(), Self::Error>;
     fn get_robot_credentials(&self) -> Result<RobotCredentials, Self::Error>;
@@ -105,5 +105,11 @@ impl WifiCredentialStorage for RAMStorage {
         let _ = inner_ref.ssid.insert(creds.ssid.clone());
         let _ = inner_ref.pwd.insert(creds.pwd.clone());
         Ok(())
+    }
+}
+
+impl From<Infallible> for ServerError {
+    fn from(_: Infallible) -> Self {
+        unreachable!()
     }
 }
