@@ -1,6 +1,6 @@
 use log::LevelFilter;
 use std::{
-    fs::{self, read, File, OpenOptions},
+    fs::{self, File, OpenOptions},
     io::{Read, Seek, SeekFrom, Write},
     os::unix::fs::FileExt,
     path::PathBuf,
@@ -434,7 +434,7 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
         PartitionTable::try_from_bytes(ptable_raw).map_err(|_| Error::PartitionTableError)?;
     let nvs_partition_info = ptable
         .find("factory")
-        .expect("failed to retrieve nvs partition table entry");
+        .ok_or_else(|| Error::PartitionTableError)?;
     let app_offset = nvs_partition_info.offset();
     let app_size = nvs_partition_info.size();
     log::debug!("app offset: {}, app_size: {}", app_offset, app_size);
@@ -442,14 +442,11 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
     // write just this data
     app_file_new
         .read_at(&mut app_segment, app_offset.into())
-        .expect("failed to extract app segment");
+        .map_err(Error::FileError)?;
     log::info!("writing new app segment to flash");
     flasher
         .write_bin_to_flash(app_offset, &app_segment, None)
-        .expect(&format!(
-            "failed to embed new app image at offset {:x}",
-            app_offset
-        ));
+        .map_err(Error::EspFlashError)?;
     log::info!("running image has been updated");
     Ok(())
 }
