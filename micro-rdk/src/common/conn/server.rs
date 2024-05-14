@@ -375,7 +375,7 @@ where
         loop {
             let _ = async_io::Timer::after(std::time::Duration::from_millis(300)).await;
 
-            async {
+            {
                 let mut guard = self.app_client.lock().await;
                 if guard.is_none() {
                     let conn = self.app_connector.connect().await.unwrap();
@@ -392,7 +392,6 @@ where
                     let _ = guard.insert(app_client);
                 }
             }
-            .await;
 
             let sig = if let Some(webrtc_config) = self.webrtc_config.as_ref() {
                 let ip = self.app_config.get_ip();
