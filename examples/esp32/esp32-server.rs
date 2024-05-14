@@ -9,10 +9,12 @@ mod esp32 {
 
     include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
+    #[cfg(not(feature = "provisioning"))]
     use log::*;
     use micro_rdk::common::entry::RobotRepresentation;
     #[cfg(feature = "qemu")]
     use micro_rdk::esp32::esp_idf_svc::eth::EspEth;
+    #[cfg(not(feature = "provisioning"))]
     use micro_rdk::esp32::esp_idf_svc::eventloop::EspSystemEventLoop;
     use micro_rdk::esp32::esp_idf_svc::sys::{
         g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT,
@@ -25,9 +27,10 @@ mod esp32 {
     }
 
     use micro_rdk::common::registry::ComponentRegistry;
+    #[cfg(not(feature = "provisioning"))]
     use micro_rdk::esp32::esp_idf_svc::sys::EspError;
 
-    #[cfg(not(feature = "qemu"))]
+    #[cfg(all(not(feature = "qemu"), not(feature = "provisioning")))]
     use {
         embedded_svc::wifi::{
             AuthMethod, ClientConfiguration as WifiClientConfiguration,
@@ -43,7 +46,7 @@ mod esp32 {
 
         micro_rdk::esp32::esp_idf_svc::log::EspLogger::initialize_default();
 
-        #[cfg(not(feature = "qemu"))]
+        #[cfg(all(not(feature = "qemu"), not(feature = "provisioning")))]
         let periph = Peripherals::take().unwrap();
 
         let repr = RobotRepresentation::WithRegistry(Box::<ComponentRegistry>::default());
@@ -165,7 +168,7 @@ mod esp32 {
         Ok((ip_info.ip, Box::new(eth)))
     }
 
-    #[cfg(not(feature = "qemu"))]
+    #[cfg(all(not(feature = "qemu"), not(feature = "provisioning")))]
     fn start_wifi(
         modem: impl Peripheral<P = micro_rdk::esp32::esp_idf_svc::hal::modem::Modem> + 'static,
         sl_stack: EspSystemEventLoop,

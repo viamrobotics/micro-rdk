@@ -193,7 +193,6 @@ where
             if self.storage.has_stored_credentials() {
                 self.credential_ready.done();
             }
-            log::info!("HAS STORED {:?}", self.storage.has_stored_credentials());
             Ok(buffer.freeze())
         } else {
             Err(ServerError::new(GrpcError::RpcUnimplemented, None))
@@ -268,11 +267,6 @@ where
         if self.wifi_manager.is_some() && self.storage.has_wifi_credentials() {
             self.credential_ready.done();
         }
-        log::info!(
-            "NOT RUNNING {} {}",
-            self.wifi_manager.is_some(),
-            self.storage.has_wifi_credentials()
-        );
         Ok(buffer.freeze())
     }
 
