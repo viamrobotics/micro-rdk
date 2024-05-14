@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 use std::{
-    net::Ipv4Addr,
     rc::Rc,
     sync::{Arc, Mutex},
     time::Duration,
@@ -11,6 +10,7 @@ use crate::common::{
     app_client::{AppClientBuilder, AppClientConfig},
     conn::{
         mdns::NoMdns,
+        network::Network,
         server::{ViamServerBuilder, WebRtcConfiguration},
     },
     entry::RobotRepresentation,
@@ -51,10 +51,10 @@ pub async fn serve_web_inner(
     app_config: AppClientConfig,
     _tls_server_config: Esp32TLSServerConfig,
     repr: RobotRepresentation,
-    _ip: Ipv4Addr,
     webrtc_certificate: WebRtcCertificate,
     exec: Esp32Executor,
     max_webrtc_connection: usize,
+    network: impl Network,
 ) {
     // TODO(NPM) this is a workaround so that async-io thread has started before we
     // instantiate the Async<TCPStream> for the connection to app.viam.com
@@ -75,7 +75,7 @@ pub async fn serve_web_inner(
                 .unwrap(),
         );
 
-        let builder = AppClientBuilder::new(grpc_client, app_config.clone());
+        let builder = AppClientBuilder::new(grpc_client, app_config.clone(), network.get_ip());
 
         let client = builder.build().await.unwrap();
 
@@ -148,6 +148,7 @@ pub async fn serve_web_inner(
             client_connector,
             app_config,
             max_webrtc_connection,
+            network,
         )
         .with_webrtc(webrtc)
         .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| unsafe {
@@ -162,7 +163,7 @@ pub async fn serve_web_inner(
 
 #[cfg(feature = "provisioning")]
 async fn serve_provisioning_async<S>(
-    ip: Ipv4Addr,
+    ip: std::net::Ipv4Addr,
     exec: Esp32Executor,
     info: ProvisioningInfo,
     storage: S,
@@ -216,14 +217,13 @@ where
             let app_config = AppClientConfig::new(
                 creds.robot_secret().to_owned(),
                 creds.robot_id().to_owned(),
-                ip,
                 "".to_owned(),
             );
 
             let conn =
                 Esp32Stream::TLSStream(Box::new(Esp32TLS::new_client().open_ssl_context(None)?));
             let client = GrpcClient::new(conn, exec.clone(), "https://app.viam.com:443").await?;
-            let builder = AppClientBuilder::new(Box::new(client), app_config.clone());
+            let builder = AppClientBuilder::new(Box::new(client), app_config.clone(), ip);
 
             let mut client = builder.build().await?;
             let certs = client.get_certificates().await?;
@@ -249,7 +249,7 @@ pub fn serve_with_provisioning<S>(
     storage: S,
     info: ProvisioningInfo,
     repr: RobotRepresentation,
-    ip: Ipv4Addr,
+    network: impl Network,
     max_webrtc_connection: usize,
 ) where
     S: RobotCredentialStorage + Clone + 'static,
@@ -263,7 +263,7 @@ pub fn serve_with_provisioning<S>(
     let mut last_error = None;
     let (app_config, tls_server_config) = loop {
         match cloned_exec.block_on(Box::pin(serve_provisioning_async(
-            ip,
+            network.get_ip(),
             exec.clone(),
             info.clone(),
             storage.clone(),
@@ -284,9 +284,9 @@ pub fn serve_with_provisioning<S>(
         app_config,
         tls_server_config,
         repr,
-        ip,
         webrtc_certificate,
         max_webrtc_connection,
+        network,
     );
     unreachable!()
 }
@@ -295,9 +295,9 @@ pub fn serve_web(
     app_config: AppClientConfig,
     tls_server_config: Esp32TLSServerConfig,
     repr: RobotRepresentation,
-    _ip: Ipv4Addr,
     webrtc_certificate: WebRtcCertificate,
     max_webrtc_connection: usize,
+    network: impl Network,
 ) {
     // set the TWDT to expire after 5 minutes
     crate::esp32::esp_idf_svc::sys::esp!(unsafe {
@@ -329,10 +329,10 @@ pub fn serve_web(
         app_config,
         tls_server_config,
         repr,
-        _ip,
         webrtc_certificate,
         exec,
         max_webrtc_connection,
+        network,
     )));
     unreachable!()
 }

@@ -3,7 +3,10 @@ mod native {
     // Generated robot config during build process
     include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
-    use micro_rdk::common::entry::RobotRepresentation;
+    use micro_rdk::common::{
+        entry::RobotRepresentation,
+        network::{ExternallyManagedNetwork, Network},
+    };
 
     pub(crate) fn main_native() {
         env_logger::builder()
@@ -12,9 +15,9 @@ mod native {
 
         let repr = RobotRepresentation::WithRegistry(Box::default());
 
-        let ip = match local_ip_address::local_ip().unwrap() {
-            std::net::IpAddr::V4(ip) => ip,
-            _ => panic!("ouups expected ipv4"),
+        let network = match local_ip_address::local_ip().unwrap() {
+            std::net::IpAddr::V4(ip) => ExternallyManagedNetwork::new(ip),
+            _ => panic!("oops expected ipv4"),
         };
         #[cfg(not(feature = "provisioning"))]
         {
@@ -26,14 +29,10 @@ mod native {
                 NativeTlsServerConfig::new(cert.to_vec(), key.to_vec())
             };
 
-            let app_config = AppClientConfig::new(
-                ROBOT_SECRET.to_owned(),
-                ROBOT_ID.to_owned(),
-                ip,
-                "".to_owned(),
-            );
+            let app_config =
+                AppClientConfig::new(ROBOT_SECRET.to_owned(), ROBOT_ID.to_owned(), "".to_owned());
 
-            micro_rdk::native::entry::serve_web(app_config, cfg, repr, ip);
+            micro_rdk::native::entry::serve_web(app_config, cfg, repr, network);
         }
         #[cfg(feature = "provisioning")]
         {

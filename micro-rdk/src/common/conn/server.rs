@@ -1,6 +1,7 @@
 use super::{
     errors::ServerError,
     mdns::Mdns,
+    network::Network,
     utils::{NoHttp2, WebRtcNoOp},
 };
 #[cfg(feature = "esp32")]
@@ -94,7 +95,7 @@ impl From<&proto::app::v1::CloudConfig> for RobotCloudConfig {
     }
 }
 
-pub struct ViamServerBuilder<M, C, T, CC = WebRtcNoOp, D = WebRtcNoOp, L = NoHttp2> {
+pub struct ViamServerBuilder<M, C, T, NetworkType, CC = WebRtcNoOp, D = WebRtcNoOp, L = NoHttp2> {
     mdns: M,
     webrtc: Option<Box<WebRtcConfiguration<D, CC>>>,
     port: u16, // gRPC/HTTP2 port
@@ -105,13 +106,15 @@ pub struct ViamServerBuilder<M, C, T, CC = WebRtcNoOp, D = WebRtcNoOp, L = NoHtt
     app_config: AppClientConfig,
     max_connections: usize,
     app_client_tasks: Vec<Box<dyn PeriodicAppClientTask>>,
+    network: NetworkType,
 }
 
-impl<M, C, T> ViamServerBuilder<M, C, T>
+impl<M, C, T, NetworkType> ViamServerBuilder<M, C, T, NetworkType>
 where
     M: Mdns,
     C: TlsClientConnector,
     T: rt::Read + rt::Write + Unpin + 'static,
+    NetworkType: Network,
 {
     pub fn new(
         mdns: M,
@@ -119,6 +122,7 @@ where
         app_connector: C,
         app_config: AppClientConfig,
         max_connections: usize,
+        network: NetworkType,
     ) -> Self {
         Self {
             mdns,
@@ -131,11 +135,12 @@ where
             app_config,
             max_connections,
             app_client_tasks: vec![],
+            network,
         }
     }
 }
 
-impl<M, C, T, CC, D, L> ViamServerBuilder<M, C, T, CC, D, L>
+impl<M, C, T, NetworkType, CC, D, L> ViamServerBuilder<M, C, T, NetworkType, CC, D, L>
 where
     M: Mdns,
     C: TlsClientConnector,
@@ -145,12 +150,13 @@ where
     D::Output: 'static,
     L: AsyncableTcpListener<T>,
     L::Output: Http2Connector<Stream = T>,
+    NetworkType: Network,
 {
     pub fn with_http2<L2, T2>(
         self,
         http2_listener: L2,
         port: u16,
-    ) -> ViamServerBuilder<M, C, T2, CC, D, L2> {
+    ) -> ViamServerBuilder<M, C, T2, NetworkType, CC, D, L2> {
         ViamServerBuilder {
             mdns: self.mdns,
             port,
@@ -162,12 +168,13 @@ where
             app_config: self.app_config,
             max_connections: self.max_connections,
             app_client_tasks: self.app_client_tasks,
+            network: self.network,
         }
     }
     pub fn with_webrtc<D2, CC2>(
         self,
         webrtc: Box<WebRtcConfiguration<D2, CC2>>,
-    ) -> ViamServerBuilder<M, C, T, CC2, D2, L> {
+    ) -> ViamServerBuilder<M, C, T, NetworkType, CC2, D2, L> {
         ViamServerBuilder {
             mdns: self.mdns,
             webrtc: Some(webrtc),
@@ -179,12 +186,13 @@ where
             app_config: self.app_config,
             max_connections: self.max_connections,
             app_client_tasks: self.app_client_tasks,
+            network: self.network,
         }
     }
     pub fn with_periodic_app_client_task(
         mut self,
         task: Box<dyn PeriodicAppClientTask>,
-    ) -> ViamServerBuilder<M, C, T, CC, D, L> {
+    ) -> ViamServerBuilder<M, C, T, NetworkType, CC, D, L> {
         ViamServerBuilder {
             mdns: self.mdns,
             webrtc: self.webrtc,
@@ -199,12 +207,13 @@ where
                 self.app_client_tasks.push(task);
                 self.app_client_tasks
             },
+            network: self.network,
         }
     }
     pub fn build(
         mut self,
         config: &ConfigResponse,
-    ) -> Result<ViamServer<C, T, CC, D, L>, ServerError> {
+    ) -> Result<ViamServer<C, T, CC, D, L, NetworkType>, ServerError> {
         let cfg: RobotCloudConfig = config
             .config
             .as_ref()
@@ -249,6 +258,7 @@ where
             self.app_config,
             self.max_connections,
             self.app_client_tasks,
+            self.network,
         );
 
         Ok(srv)
@@ -301,7 +311,7 @@ where
     }
 }
 
-pub struct ViamServer<C, T, CC, D, L> {
+pub struct ViamServer<C, T, CC, D, L, NetworkType> {
     http_listener: HttpListener<L, T>,
     webrtc_config: Option<Box<WebRtcConfiguration<D, CC>>>,
     exec: Executor,
@@ -310,8 +320,9 @@ pub struct ViamServer<C, T, CC, D, L> {
     app_client: Rc<AsyncRwLock<Option<AppClient>>>,
     incoming_connection_manager: IncomingConnectionManager,
     app_client_tasks: Vec<Box<dyn PeriodicAppClientTask>>,
+    network: NetworkType,
 }
-impl<C, T, CC, D, L> ViamServer<C, T, CC, D, L>
+impl<C, T, CC, D, L, NetworkType> ViamServer<C, T, CC, D, L, NetworkType>
 where
     C: TlsClientConnector,
     T: rt::Read + rt::Write + Unpin + 'static,
@@ -320,7 +331,9 @@ where
     D::Output: 'static,
     L: AsyncableTcpListener<T>,
     L::Output: Http2Connector<Stream = T>,
+    NetworkType: Network,
 {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         http_listener: HttpListener<L, T>,
         webrtc_config: Option<Box<WebRtcConfiguration<D, CC>>>,
@@ -329,6 +342,7 @@ where
         app_config: AppClientConfig,
         max_concurent_connections: usize,
         app_client_tasks: Vec<Box<dyn PeriodicAppClientTask>>,
+        network: NetworkType,
     ) -> Self {
         Self {
             http_listener,
@@ -339,6 +353,7 @@ where
             app_client: Default::default(),
             incoming_connection_manager: IncomingConnectionManager::new(max_concurent_connections),
             app_client_tasks,
+            network,
         }
     }
     pub async fn serve(&mut self, robot: Arc<Mutex<LocalRobot>>) {
@@ -388,29 +403,44 @@ where
 
         loop {
             let _ = async_io::Timer::after(std::time::Duration::from_millis(300)).await;
-
+            if !self.network.is_connected().unwrap_or(false) {
+                // the IP may change on reconnection (such as in the case where we are disconnected
+                // from a Wi-Fi base station), so we want to prompt the creation of a new
+                // app client
+                let _ = self.app_client.write().await.take();
+                continue;
+            }
             {
                 let urguard = self.app_client.upgradable_read().await;
                 if urguard.is_none() {
-                    let conn = self.app_connector.connect().await.unwrap();
+                    let conn = match self.app_connector.connect().await {
+                        Ok(conn) => conn,
+                        Err(err) => {
+                            log::error!("failure to connect: {:?}", err);
+                            continue;
+                        }
+                    };
                     let cloned_exec = self.exec.clone();
                     let grpc_client = Box::new(
                         GrpcClient::new(conn, cloned_exec, "https://app.viam.com:443")
                             .await
                             .unwrap(),
                     );
-                    let app_client = AppClientBuilder::new(grpc_client, self.app_config.clone())
-                        .build()
-                        .await
-                        .unwrap();
+                    let app_client = AppClientBuilder::new(
+                        grpc_client,
+                        self.app_config.clone(),
+                        self.network.get_ip(),
+                    )
+                    .build()
+                    .await
+                    .unwrap();
                     let _ = AsyncRwLockUpgradableReadGuard::upgrade(urguard)
                         .await
                         .insert(app_client);
                 }
             }
-
             let sig = if let Some(webrtc_config) = self.webrtc_config.as_ref() {
-                let ip = self.app_config.get_ip();
+                let ip = self.network.get_ip();
                 let rguard = self.app_client.read().await;
                 let signaling = rguard.as_ref().unwrap().initiate_signaling();
                 futures_util::future::Either::Left(WebRTCSignalingAnswerer {

@@ -3,7 +3,10 @@
 use crate::{
     common::{
         app_client::{AppClientBuilder, AppClientConfig},
-        conn::server::{ViamServerBuilder, WebRtcConfiguration},
+        conn::{
+            network::{ExternallyManagedNetwork, Network},
+            server::{ViamServerBuilder, WebRtcConfiguration},
+        },
         entry::RobotRepresentation,
         grpc_client::GrpcClient,
         log::config_log_entry,
@@ -13,7 +16,7 @@ use crate::{
     native::{exec::NativeExecutor, tcp::NativeStream, tls::NativeTls},
 };
 use std::{
-    net::{Ipv4Addr, SocketAddr},
+    net::SocketAddr,
     rc::Rc,
     sync::{Arc, Mutex},
 };
@@ -30,7 +33,7 @@ use crate::common::{
 #[cfg(feature = "provisioning")]
 use async_io::Async;
 #[cfg(feature = "provisioning")]
-use std::{fmt::Debug, net::TcpListener};
+use std::{fmt::Debug, net::{TcpListener, Ipv4Addr}};
 
 use super::{
     certificate::WebRtcCertificate, conn::mdns::NativeMdns, dtls::NativeDtls, tcp::NativeListener,
@@ -44,11 +47,11 @@ pub async fn serve_web_inner(
     app_config: AppClientConfig,
     tls_server_config: NativeTlsServerConfig,
     repr: RobotRepresentation,
-    ip: Ipv4Addr,
     exec: NativeExecutor,
+    network: ExternallyManagedNetwork,
 ) {
     let client_connector = NativeTls::new_client();
-    let mdns = NativeMdns::new("".to_owned(), ip).unwrap();
+    let mdns = NativeMdns::new("".to_owned(), network.get_ip()).unwrap();
 
     let (cfg_response, robot) = {
         let cloned_exec = exec.clone();
@@ -57,7 +60,8 @@ pub async fn serve_web_inner(
         let grpc_client = GrpcClient::new(conn, cloned_exec, "https://app.viam.com:443")
             .await
             .unwrap();
-        let builder = AppClientBuilder::new(Box::new(grpc_client), app_config.clone());
+        let builder =
+            AppClientBuilder::new(Box::new(grpc_client), app_config.clone(), network.get_ip());
         log::info!("build client start");
         let client = builder.build().await.unwrap();
 
@@ -127,12 +131,13 @@ pub async fn serve_web_inner(
         exec.clone(),
     ));
 
-    let mut srv = ViamServerBuilder::new(mdns, cloned_exec, client_connector, app_config, 3)
-        .with_http2(tls_listener, 12346)
-        .with_webrtc(webrtc)
-        .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| std::process::exit(0))))
-        .build(&cfg_response)
-        .unwrap();
+    let mut srv =
+        ViamServerBuilder::new(mdns, cloned_exec, client_connector, app_config, 3, network)
+            .with_http2(tls_listener, 12346)
+            .with_webrtc(webrtc)
+            .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| std::process::exit(0))))
+            .build(&cfg_response)
+            .unwrap();
 
     srv.serve(robot).await;
 }
@@ -193,7 +198,6 @@ where
             let app_config = AppClientConfig::new(
                 creds.robot_secret().to_owned(),
                 creds.robot_id().to_owned(),
-                ip,
                 "".to_owned(),
             );
 
@@ -201,7 +205,7 @@ where
                 NativeTls::new_client().open_ssl_context(None).await?,
             ));
             let client = GrpcClient::new(conn, exec.clone(), "https://app.viam.com:443").await?;
-            let builder = AppClientBuilder::new(Box::new(client), app_config.clone());
+            let builder = AppClientBuilder::new(Box::new(client), app_config.clone(), ip);
 
             let mut client = builder.build().await?;
             let certs = client.get_certificates().await?;
@@ -222,7 +226,7 @@ pub fn serve_with_provisioning<S>(
     storage: S,
     info: ProvisioningInfo,
     repr: RobotRepresentation,
-    ip: Ipv4Addr,
+    network: ExternallyManagedNetwork,
 ) where
     S: RobotCredentialStorage + Clone + 'static,
     S::Error: Debug,
@@ -233,7 +237,7 @@ pub fn serve_with_provisioning<S>(
     let mut last_error = None;
     let (app_config, tls_server_config) = loop {
         match cloned_exec.block_on(serve_provisioning_async(
-            ip,
+            network.get_ip(),
             exec.clone(),
             info.clone(),
             storage.clone(),
@@ -246,14 +250,14 @@ pub fn serve_with_provisioning<S>(
             }
         }
     };
-    serve_web(app_config, tls_server_config, repr, ip)
+    serve_web(app_config, tls_server_config, repr, network)
 }
 
 pub fn serve_web(
     app_config: AppClientConfig,
     tls_server_config: NativeTlsServerConfig,
     repr: RobotRepresentation,
-    ip: Ipv4Addr,
+    network: ExternallyManagedNetwork,
 ) {
     let exec = NativeExecutor::new();
     let cloned_exec = exec.clone();
@@ -262,8 +266,8 @@ pub fn serve_web(
         app_config,
         tls_server_config,
         repr,
-        ip,
         exec,
+        network,
     )));
 }
 
@@ -312,14 +316,9 @@ mod tests {
 
         let grpc_client = Box::new(grpc_client.unwrap());
 
-        let config = AppClientConfig::new(
-            "".to_string(),
-            "".to_string(),
-            Ipv4Addr::new(0, 0, 0, 0),
-            "".to_owned(),
-        );
+        let config = AppClientConfig::new("".to_string(), "".to_string(), "".to_owned());
 
-        let builder = AppClientBuilder::new(grpc_client, config);
+        let builder = AppClientBuilder::new(grpc_client, config, Ipv4Addr::UNSPECIFIED);
 
         let client = builder.build().await;
 

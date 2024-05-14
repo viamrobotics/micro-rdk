@@ -80,6 +80,7 @@ pub mod webrtc {
 pub mod conn {
     pub mod errors;
     pub mod mdns;
+    pub mod network;
     pub mod server;
     mod utils;
 }

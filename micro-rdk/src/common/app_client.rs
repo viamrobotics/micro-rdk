@@ -29,6 +29,7 @@ use crate::proto::{
     },
 };
 
+use super::conn::network::Network;
 use super::{
     grpc_client::{GrpcClient, GrpcClientError, GrpcMessageSender, GrpcMessageStream},
     webrtc::{
@@ -63,7 +64,6 @@ pub enum AppClientError {
 pub struct AppClientConfig {
     robot_id: String,
     robot_secret: String,
-    ip: Ipv4Addr,
     rpc_host: String,
 }
 
@@ -72,27 +72,24 @@ impl Default for AppClientConfig {
         Self {
             robot_id: "".to_owned(),
             robot_secret: "".to_owned(),
-            ip: Ipv4Addr::new(0, 0, 0, 0),
             rpc_host: "".to_owned(),
         }
     }
 }
 
 impl AppClientConfig {
-    pub fn new(robot_secret: String, robot_id: String, ip: Ipv4Addr, rpc_host: String) -> Self {
+    pub fn new(robot_secret: String, robot_id: String, rpc_host: String) -> Self {
         AppClientConfig {
             robot_id,
             robot_secret,
-            ip,
             rpc_host,
         }
     }
+
     pub fn get_robot_id(&self) -> String {
         self.robot_id.clone()
     }
-    pub fn get_ip(&self) -> Ipv4Addr {
-        self.ip
-    }
+
     pub fn set_rpc_host(&mut self, rpc_host: String) {
         self.rpc_host = rpc_host
     }
@@ -101,6 +98,7 @@ impl AppClientConfig {
 pub struct AppClientBuilder {
     grpc_client: Box<GrpcClient>,
     config: AppClientConfig,
+    ip: Ipv4Addr,
 }
 
 pub(crate) fn encode_request<T>(req: T) -> Result<Bytes, AppClientError>
@@ -121,21 +119,28 @@ where
 
 impl AppClientBuilder {
     /// Create a new AppClientBuilder
-    pub fn new(grpc_client: Box<GrpcClient>, config: AppClientConfig) -> Self {
+    pub fn new(grpc_client: Box<GrpcClient>, config: AppClientConfig, ip: Ipv4Addr) -> Self {
         Self {
             grpc_client,
             config,
+            ip,
         }
     }
+
+    pub fn get_ip(&self) -> Ipv4Addr {
+        self.ip
+    }
+
     /// Consume the AppClientBuilder and returns an AppClient. This function will panic if
     /// the received config doesn't contain an fqdn field.
     pub async fn build(mut self) -> Result<AppClient, AppClientError> {
         let jwt = self.get_jwt_token().await?;
+        let ip = self.get_ip();
 
         Ok(AppClient {
             grpc_client: self.grpc_client.into(),
             jwt,
-            ip: self.config.ip,
+            ip,
             config: self.config,
         })
     }

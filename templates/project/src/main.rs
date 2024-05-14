@@ -83,7 +83,7 @@ fn main() {
     let cfg = AppClientConfig::new(
         ROBOT_SECRET.to_owned(),
         ROBOT_ID.to_owned(),
-        ip,
+        wifi,
         "".to_owned(),
     );
     let webrtc_certificate = WebRtcCertificate::new(
