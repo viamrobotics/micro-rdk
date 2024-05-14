@@ -373,7 +373,7 @@ where
                                     duration = next_duration;
                                 }
                                 Err(e) => {
-                                    log::warn!(
+                                    log::error!(
                                         "Periodic task {} failed with error {}",
                                         task.name(),
                                         e
