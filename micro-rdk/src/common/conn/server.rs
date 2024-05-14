@@ -9,7 +9,10 @@ use crate::esp32::exec::Esp32Executor;
 use crate::native::exec::NativeExecutor;
 use crate::{
     common::{
-        app_client::{AppClient, AppClientBuilder, AppClientConfig, AppClientError, AppSignaling},
+        app_client::{
+            AppClient, AppClientBuilder, AppClientConfig, AppClientError, AppSignaling,
+            PeriodicAppClientTask,
+        },
         grpc::{GrpcBody, GrpcServer},
         grpc_client::GrpcClient,
         robot::LocalRobot,
@@ -25,6 +28,9 @@ use crate::{
 };
 
 use async_io::Timer;
+use async_lock::{
+    RwLock as AsyncRwLock, RwLockUpgradableReadGuard as AsyncRwLockUpgradableReadGuard,
+};
 use futures_lite::prelude::*;
 use futures_lite::{future::Boxed, ready};
 use hyper::{rt, server::conn::http2};
@@ -98,6 +104,7 @@ pub struct ViamServerBuilder<M, C, T, CC = WebRtcNoOp, D = WebRtcNoOp, L = NoHtt
     app_connector: C,
     app_config: AppClientConfig,
     max_connections: usize,
+    app_client_tasks: Vec<Box<dyn PeriodicAppClientTask>>,
 }
 
 impl<M, C, T> ViamServerBuilder<M, C, T>
@@ -123,6 +130,7 @@ where
             app_connector,
             app_config,
             max_connections,
+            app_client_tasks: vec![],
         }
     }
 }
@@ -153,6 +161,7 @@ where
             app_connector: self.app_connector,
             app_config: self.app_config,
             max_connections: self.max_connections,
+            app_client_tasks: self.app_client_tasks,
         }
     }
     pub fn with_webrtc<D2, CC2>(
@@ -169,6 +178,27 @@ where
             app_connector: self.app_connector,
             app_config: self.app_config,
             max_connections: self.max_connections,
+            app_client_tasks: self.app_client_tasks,
+        }
+    }
+    pub fn with_periodic_app_client_task(
+        mut self,
+        task: Box<dyn PeriodicAppClientTask>,
+    ) -> ViamServerBuilder<M, C, T, CC, D, L> {
+        ViamServerBuilder {
+            mdns: self.mdns,
+            webrtc: self.webrtc,
+            port: self.port,
+            http2_listener: self.http2_listener,
+            _marker: self._marker,
+            exec: self.exec,
+            app_connector: self.app_connector,
+            app_config: self.app_config,
+            max_connections: self.max_connections,
+            app_client_tasks: {
+                self.app_client_tasks.push(task);
+                self.app_client_tasks
+            },
         }
     }
     pub fn build(
@@ -218,6 +248,7 @@ where
             self.app_connector,
             self.app_config,
             self.max_connections,
+            self.app_client_tasks,
         );
 
         Ok(srv)
@@ -276,8 +307,9 @@ pub struct ViamServer<C, T, CC, D, L> {
     exec: Executor,
     app_connector: C,
     app_config: AppClientConfig,
-    app_client: Option<AppClient>,
+    app_client: Rc<AsyncRwLock<Option<AppClient>>>,
     incoming_connection_manager: IncomingConnectionManager,
+    app_client_tasks: Vec<Box<dyn PeriodicAppClientTask>>,
 }
 impl<C, T, CC, D, L> ViamServer<C, T, CC, D, L>
 where
@@ -296,6 +328,7 @@ where
         app_connector: C,
         app_config: AppClientConfig,
         max_concurent_connections: usize,
+        app_client_tasks: Vec<Box<dyn PeriodicAppClientTask>>,
     ) -> Self {
         Self {
             http_listener,
@@ -303,33 +336,83 @@ where
             exec,
             app_connector,
             app_config,
-            app_client: None,
+            app_client: Default::default(),
             incoming_connection_manager: IncomingConnectionManager::new(max_concurent_connections),
+            app_client_tasks,
         }
     }
     pub async fn serve(&mut self, robot: Arc<Mutex<LocalRobot>>) {
         let cloned_robot = robot.clone();
+
+        // Convert each `PeriodicAppClientTask` implementer into an async task spawned on the
+        // executor, and collect them all into `_app_client_tasks` so we don't lose track of them.
+        let _app_client_tasks: Vec<_> = self
+            .app_client_tasks
+            .drain(..)
+            .map(|mut task| {
+                // Each task gets a handle to the `RwLock` wrapped `Option` that (might) contain an
+                // `AppClient`.
+                let app_client = Rc::clone(&self.app_client);
+                self.exec.spawn(async move {
+                    // Start the wait duration per task implementer. If a task execution returns a
+                    // new duration, update `duration` to the new value so that it will be used
+                    // until next updated.
+                    let mut duration = task.get_default_period();
+                    loop {
+                        // Wait for the period to expire, then inspect the state of the `AppClient`
+                        // under the read lock. If there is currently an `AppClient` in play, let
+                        // the task use it to conduct it's business. If the task returns a new wait
+                        // duration, update `duration`. Otherwise, just sleep again and hope that an
+                        // `AppClient` will be available on the next wakeup.
+                        let _ = async_io::Timer::after(duration).await;
+                        let rguard = app_client.read().await;
+                        for app_client in rguard.as_ref().iter() {
+                            match task.invoke(app_client).await {
+                                Ok(None) => continue,
+                                Ok(Some(next_duration)) => {
+                                    duration = next_duration;
+                                }
+                                Err(e) => {
+                                    log::error!(
+                                        "Periodic task {} failed with error {}",
+                                        task.name(),
+                                        e
+                                    );
+                                }
+                            }
+                        }
+                    }
+                })
+            })
+            .collect();
+
         loop {
             let _ = async_io::Timer::after(std::time::Duration::from_millis(300)).await;
 
-            if self.app_client.is_none() {
-                let conn = self.app_connector.connect().await.unwrap();
-                let cloned_exec = self.exec.clone();
-                let grpc_client = Box::new(
-                    GrpcClient::new(conn, cloned_exec, "https://app.viam.com:443")
+            {
+                let urguard = self.app_client.upgradable_read().await;
+                if urguard.is_none() {
+                    let conn = self.app_connector.connect().await.unwrap();
+                    let cloned_exec = self.exec.clone();
+                    let grpc_client = Box::new(
+                        GrpcClient::new(conn, cloned_exec, "https://app.viam.com:443")
+                            .await
+                            .unwrap(),
+                    );
+                    let app_client = AppClientBuilder::new(grpc_client, self.app_config.clone())
+                        .build()
                         .await
-                        .unwrap(),
-                );
-                let app_client = AppClientBuilder::new(grpc_client, self.app_config.clone())
-                    .build()
-                    .await
-                    .unwrap();
-                let _ = self.app_client.insert(app_client);
+                        .unwrap();
+                    let _ = AsyncRwLockUpgradableReadGuard::upgrade(urguard)
+                        .await
+                        .insert(app_client);
+                }
             }
 
             let sig = if let Some(webrtc_config) = self.webrtc_config.as_ref() {
                 let ip = self.app_config.get_ip();
-                let signaling = self.app_client.as_mut().unwrap().connect_signaling();
+                let rguard = self.app_client.read().await;
+                let signaling = rguard.as_ref().unwrap().initiate_signaling();
                 futures_util::future::Either::Left(WebRTCSignalingAnswerer {
                     webrtc_config: Some(webrtc_config),
                     future: signaling,
@@ -389,7 +472,7 @@ where
                 }
                 Err(_) => {
                     // http2 layer related errors (GOAWAY etc...) so we should renegotiate in this event
-                    let _ = self.app_client.take();
+                    let _ = self.app_client.write().await.take();
                     continue;
                 }
             };
