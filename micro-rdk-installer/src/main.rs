@@ -1,6 +1,6 @@
 use log::LevelFilter;
 use std::{
-    fs::{self, File, OpenOptions},
+    fs::{self, read, File, OpenOptions},
     io::{Read, Seek, SeekFrom, Write},
     os::unix::fs::FileExt,
     path::PathBuf,
@@ -368,12 +368,25 @@ fn main() -> Result<(), Error> {
             let ptable = PartitionTable::try_from_bytes(ptable_raw)
                 .map_err(|_| Error::PartitionTableError)?;
             let nvs_partition_info = ptable
-                .find("nvs")
+                .find("factory")
                 .expect("failed to retrieve nvs partition table entry");
-            let nvs_offset = nvs_partition_info.offset();
-            let nvs_size = nvs_partition_info.size();
-            log::debug!("nvs offset: {}, nvs_size: {}", nvs_offset, nvs_size);
+            let app_offset = nvs_partition_info.offset();
+            let app_size = nvs_partition_info.size();
+            log::debug!("app offset: {}, app_size: {}", app_offset, app_size);
+            let mut app_segment = Vec::with_capacity(app_size as usize);
+            // write just this data
+            app_file_new
+                .read_at(&mut app_segment, app_offset.into())
+                .expect("failed to extract app segment");
+            log::info!("writing new app segment to flash");
+            flasher
+                .write_bin_to_flash(app_offset, &app_segment, None)
+                .expect(&format!(
+                    "failed to embed new app image at offset {:x}",
+                    app_offset
+                ));
 
+            /*
             // get binary size
             let file_len = app_file_new.metadata().map_err(Error::FileError)?.len();
             if (nvs_offset as u64 + nvs_size as u64) >= file_len {
@@ -412,6 +425,7 @@ fn main() -> Result<(), Error> {
 
             log::info!("Flashing updated image to device");
             flash(args.flash_args.clone(), None, &config, app_path_new)?;
+            */
         }
         Some(Commands::WriteCredentials(args)) => {
             let app_path = PathBuf::from(args.binary_path.clone());
