@@ -298,135 +298,7 @@ fn main() -> Result<(), Error> {
     init_logger();
     let cli = Cli::parse();
     match &cli.command {
-        Some(Commands::UpdateAppImage(args)) => {
-            let config = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
-
-            // Create a directory inside of `std::env::temp_dir()`.
-            let dir = tempfile::tempdir().unwrap();
-            let tmp_old = dir.path().join("running-app.img");
-
-            log::info!("Retrieving running partition table");
-            let mut flasher = connect(&args.connect_args, &config, false, false).unwrap();
-            flasher
-                .read_flash(
-                    PARTITION_TABLE_ADDR.into(),
-                    PARTITION_TABLE_SIZE.into(),
-                    0x1000,
-                    64,
-                    tmp_old.clone(),
-                )
-                .map_err(|_| Error::FlashConnect)?;
-
-            log::info!("Parsing running partition table");
-            let mut ptable_raw = fs::read(tmp_old).map_err(Error::FileError)?;
-            log::info!("Extracting running partition table");
-
-            let old_ptable_hash = md5::compute(ptable_raw.clone());
-
-            log::info!("parsing ptable");
-            let ptable = PartitionTable::try_from_bytes(ptable_raw.clone()).unwrap();
-            log::info!(
-                "hash: {:?} \n partitions: {:?}",
-                old_ptable_hash,
-                ptable.partitions()
-            );
-
-            log::info!("Retrieving new image");
-            let tmp_new = tempfile::Builder::new()
-                .prefix("micro-rdk-bin")
-                .tempdir()
-                .map_err(Error::FileError)?;
-            let app_path_new = match &args.flash_args.bootloader {
-                Some(path) => PathBuf::from(path),
-                None => {
-                    let rt = Runtime::new().map_err(Error::AsyncError)?;
-                    rt.block_on(download_micro_rdk_release(&tmp_new, args.version.clone()))?
-                }
-            };
-
-            log::info!("extracting new partition table.");
-            let app_file_new = OpenOptions::new()
-                .read(true)
-                .write(true)
-                .open(app_path_new.clone())
-                .map_err(Error::FileError)?;
-            let _num_read = app_file_new
-                .read_at(&mut ptable_raw, PARTITION_TABLE_ADDR.into())
-                .map_err(Error::FileError)?;
-            let new_ptable_hash = md5::compute(ptable_raw.clone());
-
-            // Compare partition tables
-            if old_ptable_hash != new_ptable_hash {
-                log::error!("Partition tables do not match!");
-                log::error!("Rebuild and flash micro-rdk from scratch");
-                return Err(Error::BinaryEditError(64));
-            }
-
-            log::info!("partition tables match!");
-
-            log::info!("parsing ptable");
-            let ptable = PartitionTable::try_from_bytes(ptable_raw)
-                .map_err(|_| Error::PartitionTableError)?;
-            let nvs_partition_info = ptable
-                .find("factory")
-                .expect("failed to retrieve nvs partition table entry");
-            let app_offset = nvs_partition_info.offset();
-            let app_size = nvs_partition_info.size();
-            log::debug!("app offset: {}, app_size: {}", app_offset, app_size);
-            let mut app_segment = Vec::with_capacity(app_size as usize);
-            // write just this data
-            app_file_new
-                .read_at(&mut app_segment, app_offset.into())
-                .expect("failed to extract app segment");
-            log::info!("writing new app segment to flash");
-            flasher
-                .write_bin_to_flash(app_offset, &app_segment, None)
-                .expect(&format!(
-                    "failed to embed new app image at offset {:x}",
-                    app_offset
-                ));
-
-            /*
-            // get binary size
-            let file_len = app_file_new.metadata().map_err(Error::FileError)?.len();
-            if (nvs_offset as u64 + nvs_size as u64) >= file_len {
-                return Err(Error::BinaryEditError(file_len));
-            }
-
-            // get nvs data from the old binary
-            let dir = tempfile::tempdir().unwrap();
-            let nvs_path = dir.path().join("nvs.data");
-            log::info!("extracting nvs data from device");
-            // let mut flasher = connect(&args.connect_args, &config, false, false).unwrap();
-            flasher
-                .read_flash(nvs_offset, nvs_size, 0x1000, 64, nvs_path.clone())
-                .map_err(Error::EspFlashError)?;
-
-            log::info!("Writing nvs data to new image");
-            let mut nvs_file = OpenOptions::new()
-                .read(true)
-                .open(nvs_path.clone())
-                .map_err(Error::FileError)?;
-            let mut nvs_dat = Vec::new();
-            let nbytes: u32 = Read::read(&mut nvs_file, &mut nvs_dat)
-                .unwrap()
-                .try_into()
-                .unwrap();
-            if nbytes != nvs_size {
-                return Err(Error::BinaryEditError(nbytes.into()));
-            }
-
-            write_credentials_to_app_binary(
-                app_path_new.clone(),
-                &nvs_dat,
-                nvs_size.into(),
-                nvs_offset.into(),
-            )?;
-
-            log::info!("Flashing updated image to device");
-            flash(args.flash_args.clone(), None, &config, app_path_new)?;
-            */
-        }
+        Some(Commands::UpdateAppImage(args)) => update_app_image(args)?,
         Some(Commands::WriteCredentials(args)) => {
             let app_path = PathBuf::from(args.binary_path.clone());
             let nvs_metadata = read_nvs_metadata(app_path.clone())?;
@@ -492,5 +364,92 @@ fn main() -> Result<(), Error> {
         }
         None => return Err(Error::NoCommandError),
     };
+    Ok(())
+}
+
+fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
+    let config = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
+
+    let dir = tempfile::tempdir().unwrap();
+    let tmp_old = dir.path().join("running-ptable.img");
+
+    log::info!("Retrieving running partition table");
+    let mut flasher = connect(&args.connect_args, &config, false, false).unwrap();
+    flasher
+        .read_flash(
+            PARTITION_TABLE_ADDR.into(),
+            PARTITION_TABLE_SIZE.into(),
+            0x1000,
+            64,
+            tmp_old.clone(),
+        )
+        .map_err(|_| Error::FlashConnect)?;
+
+    let mut ptable_raw = fs::read(tmp_old).map_err(Error::FileError)?;
+    let old_ptable_hash = md5::compute(ptable_raw.clone());
+
+    let ptable = PartitionTable::try_from_bytes(ptable_raw.clone()).unwrap();
+    log::info!(
+        "hash: {:?} \n partitions: {:?}",
+        old_ptable_hash,
+        ptable.partitions()
+    );
+
+    log::info!("Retrieving new image");
+    let tmp_new = tempfile::Builder::new()
+        .prefix("micro-rdk-bin")
+        .tempdir()
+        .map_err(Error::FileError)?;
+    let app_path_new = match &args.flash_args.bootloader {
+        Some(path) => PathBuf::from(path),
+        None => {
+            let rt = Runtime::new().map_err(Error::AsyncError)?;
+            rt.block_on(download_micro_rdk_release(&tmp_new, args.version.clone()))?
+        }
+    };
+
+    log::info!("Extracting new partition table");
+    let app_file_new = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(app_path_new.clone())
+        .map_err(Error::FileError)?;
+
+    let _num_read = app_file_new
+        .read_at(&mut ptable_raw, PARTITION_TABLE_ADDR.into())
+        .map_err(Error::FileError)?;
+    let new_ptable_hash = md5::compute(ptable_raw.clone());
+
+    // Compare partition tables
+    if old_ptable_hash != new_ptable_hash {
+        log::error!("partition tables do not match!");
+        log::error!("rebuild and flash micro-rdk from scratch");
+        return Err(Error::BinaryEditError(64));
+    }
+
+    log::info!("partition tables match!");
+
+    log::info!("parsing ptable");
+    let ptable =
+        PartitionTable::try_from_bytes(ptable_raw).map_err(|_| Error::PartitionTableError)?;
+    let nvs_partition_info = ptable
+        .find("factory")
+        .expect("failed to retrieve nvs partition table entry");
+    let app_offset = nvs_partition_info.offset();
+    let app_size = nvs_partition_info.size();
+    log::debug!("app offset: {}, app_size: {}", app_offset, app_size);
+    let mut app_segment = Vec::with_capacity(app_size as usize);
+    // write just this data
+    app_file_new
+        .read_at(&mut app_segment, app_offset.into())
+        .expect("failed to extract app segment");
+    log::info!("writing new app segment to flash");
+    flasher
+        .write_bin_to_flash(app_offset, &app_segment, None)
+        .expect(&format!(
+            "failed to embed new app image at offset {:x}",
+            app_offset
+        ));
+    log::info!("running image has been updated");
     Ok(())
 }
