@@ -342,7 +342,7 @@ mod tests {
 
         let grpc_client = GrpcClient::new(conn, executor, "https://app.viam.com:443").await;
         assert!(grpc_client.is_ok());
-        let mut grpc_client = grpc_client.unwrap();
+        let grpc_client = grpc_client.unwrap();
 
         let cred = Credentials {
             r#type: "robot-secret".to_owned(),

@@ -10,7 +10,7 @@ use esp_idf_svc::{
 };
 use futures_util::lock::Mutex;
 use once_cell::sync::OnceCell;
-use std::{cell::RefCell, mem::MaybeUninit, num::NonZeroI32};
+use std::{cell::RefCell, num::NonZeroI32};
 
 use crate::common::provisioning::{
     server::{NetworkInfo, WifiManager},
@@ -74,12 +74,11 @@ impl<S: WifiCredentialStorage> WifiManager for Esp32WifiProvisioning<S> {
 
 impl<S: WifiCredentialStorage> Esp32WifiProvisioning<S> {
     pub async fn new(storage: S) -> Result<Self, EspError> {
-        let mut mac_address = [MaybeUninit::<u8>::uninit(); 8];
-        let mac_address = unsafe {
+        let mut mac_address = [0_u8; 8];
+        unsafe {
             sys::esp!(sys::esp_efuse_mac_get_default(
                 mac_address.as_mut_ptr() as *mut u8
             ))?;
-            MaybeUninit::slice_assume_init_ref(&mac_address)
         };
         let ap_conf = AccessPointConfiguration {
             ssid: format!("esp32-{:02X}-{:02X}", mac_address[4], mac_address[5])
