@@ -335,24 +335,23 @@ impl AppClient {
             .map_err(AppClientError::AppGrpcClientError)?;
         let (mut response, headers_) = self.grpc_client.send_request(r).await?;
         let response = NeedsRestartResponse::decode(response.split_off(5))?;
-        if response.must_restart {
-            Ok(None)
-        } else {
-            const MIN_RESTART_DURATION: Duration = Duration::from_secs(1);
-            const DEFAULT_RESTART_DURATION: Duration = Duration::from_secs(5);
-            Ok(response
-                .restart_check_interval
-                .map_or_else(
-                    || DEFAULT_RESTART_DURATION,
-                    |d| {
-                        Duration::try_from(d).map_or_else(
-                            |e| DEFAULT_RESTART_DURATION,
-                            |d| d.max(MIN_RESTART_DURATION),
-                        )
-                    },
-                )
-                .into())
-        }
+
+        const MIN_RESTART_DURATION: Duration = Duration::from_secs(1);
+        const DEFAULT_RESTART_DURATION: Duration = Duration::from_secs(5);
+
+        // If app replied with `must_restart` true, then return `None` to indicate that restart was
+        // requested. Otherwise, if app replied with populated and sensible restart interval, return
+        // that. Failing that, return the default timeout.
+        Ok(match response.must_restart {
+            true => None,
+            false => match response.restart_check_interval {
+                None => Some(DEFAULT_RESTART_DURATION),
+                Some(d) => Some(match Duration::try_from(d) {
+                    Ok(d) => d.max(MIN_RESTART_DURATION),
+                    Err(e) => DEFAULT_RESTART_DURATION,
+                }),
+            },
+        })
     }
 }
 
@@ -362,9 +361,20 @@ impl Drop for AppClient {
     }
 }
 
+/// An object-safe trait for use with `ViamServerBuilder::with_periodic_app_client_task`. An object
+/// implementing this trait represents a periodic activity to be performed against an `AppClient`,
+/// such as checking for restarts or uploading cached data to the data service.
 pub trait PeriodicAppClientTask {
+    /// Returns the name of this task, primarily for inclusion in error messages or logging.
     fn name(&self) -> &str;
+
+    /// Returns a Duration to indicate how frequently the task would like to be invoked. The
+    /// `ViamServer` may adjust the actual `Duration` between invocations based on the return value
+    /// of `invoke`, so that services which negotiate a frequency with app can honor the request.
     fn get_default_period(&self) -> Duration;
+
+    /// A desugared `async fn` (so we can declare it in a trait) which will be periodically invoked
+    /// by the `ViamServer` per the currently negotiated `Duration`.
     fn invoke<'b, 'a: 'b>(
         &'a mut self,
         app_client: &'b AppClient,

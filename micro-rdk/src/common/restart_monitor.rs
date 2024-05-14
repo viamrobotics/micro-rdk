@@ -3,12 +3,12 @@ use futures_lite::Future;
 use std::pin::Pin;
 use std::time::Duration;
 
-pub struct RestartMonitor {
-    restart_hook: Option<Box<dyn FnOnce()>>,
+pub struct RestartMonitor<'a> {
+    restart_hook: Option<Box<dyn FnOnce() + 'a>>,
 }
 
-impl RestartMonitor {
-    pub fn new(restart_hook: impl FnOnce() + 'static) -> Self {
+impl<'a> RestartMonitor<'a> {
+    pub fn new(restart_hook: impl FnOnce() + 'a) -> Self {
         Self {
             restart_hook: Some(Box::new(restart_hook)),
         }
@@ -21,7 +21,7 @@ impl RestartMonitor {
     }
 }
 
-impl PeriodicAppClientTask for RestartMonitor {
+impl<'a> PeriodicAppClientTask for RestartMonitor<'a> {
     fn name(&self) -> &str {
         "RestartMonitor"
     }
@@ -30,17 +30,14 @@ impl PeriodicAppClientTask for RestartMonitor {
         Duration::from_secs(5)
     }
 
-    fn invoke<'b, 'a: 'b>(
-        &'a mut self,
-        app_client: &'b AppClient,
-    ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'b>> {
+    fn invoke<'c, 'b: 'c>(
+        &'b mut self,
+        app_client: &'c AppClient,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'c>> {
         Box::pin(async move {
             match app_client.check_for_restart().await {
-                Ok(None) => {
-                    self.restart();
-                }
-                Ok(Some(duration)) => Ok(Some(duration)),
-                Err(e) => Err(e),
+                Ok(None) => self.restart(),
+                other => other,
             }
         })
     }

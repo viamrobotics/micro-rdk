@@ -344,19 +344,30 @@ where
     pub async fn serve(&mut self, robot: Arc<Mutex<LocalRobot>>) {
         let cloned_robot = robot.clone();
 
+        // Convert each `PeriodicAppClientTask` implementer into an async task spawned on the
+        // executor, and collect them all into `_app_client_tasks` so we don't lose track of them.
         let _app_client_tasks: Vec<_> = self
             .app_client_tasks
             .drain(..)
             .map(|mut task| {
+                // Each task gets a handle to the `RwLock` wrapped `Option` that (might) contain an
+                // `AppClient`.
                 let app_client = Rc::clone(&self.app_client);
                 self.exec.spawn(async move {
+                    // Start the wait duration per task implementer. If a task execution returns a
+                    // new duration, update `duration` to the new value so that it will be used
+                    // until next updated.
                     let mut duration = task.get_default_period();
                     loop {
+                        // Wait for the period to expire, then inspect the state of the `AppClient`
+                        // under the read lock. If there is currently an `AppClient` in play, let
+                        // the task use it to conduct it's business. If the task returns a new wait
+                        // duration, update `duration`. Otherwise, just sleep again and hope that an
+                        // `AppClient` will be available on the next wakeup.
                         let _ = async_io::Timer::after(duration).await;
                         let rguard = app_client.read().await;
-                        if rguard.is_none() {
-                        } else {
-                            match task.invoke(rguard.as_ref().unwrap()).await {
+                        for app_client in rguard.as_ref().iter() {
+                            match task.invoke(app_client).await {
                                 Ok(None) => continue,
                                 Ok(Some(next_duration)) => {
                                     duration = next_duration;
@@ -400,10 +411,8 @@ where
 
             let sig = if let Some(webrtc_config) = self.webrtc_config.as_ref() {
                 let ip = self.app_config.get_ip();
-                let signaling = {
-                    let rguard = self.app_client.read().await;
-                    rguard.as_ref().unwrap().initiate_signaling()
-                };
+                let rguard = self.app_client.read().await;
+                let signaling = rguard.as_ref().unwrap().initiate_signaling();
                 futures_util::future::Either::Left(WebRTCSignalingAnswerer {
                     webrtc_config: Some(webrtc_config),
                     future: signaling,
