@@ -21,7 +21,6 @@ espflash.workspace = true
 gethostname.workspace = true
 local-ip-address.workspace = true
 log.workspace = true
-md5.workspace = true
 packed_struct.workspace = true
 rcgen.workspace = true
 reqwest.workspace = true

@@ -401,18 +401,29 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
         }
     };
 
-    let mut new_ptable_buf = Vec::with_capacity(PARTITION_TABLE_SIZE.into());
+    let mut new_ptable_buf = vec![0; PARTITION_TABLE_SIZE.into()];
     log::info!("Extracting new partition table");
-    let app_file_new = OpenOptions::new()
+    let mut app_file_new = OpenOptions::new()
         .read(true)
         .write(true)
         .open(app_path_new.clone())
         .map_err(Error::FileError)?;
 
-    let _num_read = app_file_new
-        .read_at(&mut new_ptable_buf, PARTITION_TABLE_ADDR.into())
+    let file_len = app_file_new.metadata().map_err(Error::FileError)?.len();
+    log::info!("new app length: {}", file_len);
+    if file_len < PARTITION_TABLE_SIZE.into() {
+        log::error!("file length is less than partition size")
+    }
+
+    app_file_new
+        .seek(SeekFrom::Start(PARTITION_TABLE_ADDR.into()))
+        .unwrap();
+    app_file_new
+        .read_exact(&mut new_ptable_buf)
         .map_err(Error::FileError)?;
-    let new_ptable = PartitionTable::try_from_bytes(new_ptable_buf.clone()).unwrap();
+    println!("{:?}", new_ptable_buf);
+    let new_ptable = PartitionTable::try_from_bytes(new_ptable_buf.clone())
+        .map_err(|_| Error::PartitionTableError)?;
 
     // Compare partition tables
     if old_ptable != new_ptable {

@@ -67,7 +67,6 @@ ignore = "=0.4.20"
 lazy_static = "1.4.0"
 local-ip-address = "0.5.3"
 log = "0.4.20"
-md5 = "0.7.0"
 mdns-sd = { version = "0.10.5", default-features = false, features = ["async"] }
 micro-rdk = { path = "./micro-rdk", default-features = false, features = [] }
 micro-rdk-macros = { path = "./micro-rdk-macros" }
