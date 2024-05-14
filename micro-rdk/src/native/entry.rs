@@ -33,7 +33,10 @@ use crate::common::{
 #[cfg(feature = "provisioning")]
 use async_io::Async;
 #[cfg(feature = "provisioning")]
-use std::{fmt::Debug, net::{TcpListener, Ipv4Addr}};
+use std::{
+    fmt::Debug,
+    net::{Ipv4Addr, TcpListener},
+};
 
 use super::{
     certificate::WebRtcCertificate, conn::mdns::NativeMdns, dtls::NativeDtls, tcp::NativeListener,
