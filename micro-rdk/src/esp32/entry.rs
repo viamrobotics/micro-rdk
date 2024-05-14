@@ -16,6 +16,7 @@ use crate::common::{
     entry::RobotRepresentation,
     grpc_client::GrpcClient,
     log::config_log_entry,
+    restart_monitor::RestartMonitor,
     robot::LocalRobot,
 };
 
@@ -149,6 +150,9 @@ pub async fn serve_web_inner(
             max_webrtc_connection,
         )
         .with_webrtc(webrtc)
+        .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| unsafe {
+            crate::esp32::esp_idf_svc::sys::esp_restart()
+        })))
         .build(&cfg_response)
         .unwrap(),
     );
