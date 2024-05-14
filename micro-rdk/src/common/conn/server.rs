@@ -28,7 +28,9 @@ use crate::{
 };
 
 use async_io::Timer;
-use async_lock::{RwLock as AsyncRwLock, RwLockUpgradableReadGuard as AsyncRwLockUpgradableReadGuard};
+use async_lock::{
+    RwLock as AsyncRwLock, RwLockUpgradableReadGuard as AsyncRwLockUpgradableReadGuard,
+};
 use futures_lite::prelude::*;
 use futures_lite::{future::Boxed, ready};
 use hyper::{rt, server::conn::http2};
@@ -390,7 +392,9 @@ where
                         .build()
                         .await
                         .unwrap();
-                    let _ = AsyncRwLockUpgradableReadGuard::upgrade(urguard).await.insert(app_client);
+                    let _ = AsyncRwLockUpgradableReadGuard::upgrade(urguard)
+                        .await
+                        .insert(app_client);
                 }
             }
 
