@@ -319,7 +319,7 @@ impl AppClient {
     /// Obtains the Duration for which we should wait before next
     /// checking for a restart. If no Duration is returned, then the
     /// app has signaled that we should restart now.
-    pub async fn check_for_restart(&mut self) -> Result<Option<Duration>, AppClientError> {
+    pub async fn check_for_restart(&self) -> Result<Option<Duration>, AppClientError> {
         let req = NeedsRestartRequest {
             id: self.config.robot_id.clone(),
         };
@@ -367,6 +367,6 @@ pub trait PeriodicAppClientTask {
     fn get_default_period(&self) -> Duration;
     fn invoke<'b, 'a: 'b>(
         &'a mut self,
-        app_client: &'b mut AppClient,
+        app_client: &'b AppClient,
     ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'b>>;
 }

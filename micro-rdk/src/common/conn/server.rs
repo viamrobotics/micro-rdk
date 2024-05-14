@@ -28,6 +28,7 @@ use crate::{
 };
 
 use async_io::Timer;
+use async_lock::{RwLock as AsyncRwLock, RwLockUpgradableReadGuard as AsyncRwLockUpgradableReadGuard};
 use futures_lite::prelude::*;
 use futures_lite::{future::Boxed, ready};
 use hyper::{rt, server::conn::http2};
@@ -304,7 +305,7 @@ pub struct ViamServer<C, T, CC, D, L> {
     exec: Executor,
     app_connector: C,
     app_config: AppClientConfig,
-    app_client: Rc<futures_util::lock::Mutex<Option<AppClient>>>,
+    app_client: Rc<AsyncRwLock<Option<AppClient>>>,
     incoming_connection_manager: IncomingConnectionManager,
     app_client_tasks: Vec<Box<dyn PeriodicAppClientTask>>,
 }
@@ -350,10 +351,10 @@ where
                     let mut duration = task.get_default_period();
                     loop {
                         let _ = async_io::Timer::after(duration).await;
-                        let mut app_client_guard = app_client.lock().await;
-                        if app_client_guard.is_none() {
+                        let rguard = app_client.read().await;
+                        if rguard.is_none() {
                         } else {
-                            match task.invoke(app_client_guard.as_mut().unwrap()).await {
+                            match task.invoke(rguard.as_ref().unwrap()).await {
                                 Ok(None) => continue,
                                 Ok(Some(next_duration)) => {
                                     duration = next_duration;
@@ -376,8 +377,8 @@ where
             let _ = async_io::Timer::after(std::time::Duration::from_millis(300)).await;
 
             {
-                let mut guard = self.app_client.lock().await;
-                if guard.is_none() {
+                let urguard = self.app_client.upgradable_read().await;
+                if urguard.is_none() {
                     let conn = self.app_connector.connect().await.unwrap();
                     let cloned_exec = self.exec.clone();
                     let grpc_client = Box::new(
@@ -389,15 +390,15 @@ where
                         .build()
                         .await
                         .unwrap();
-                    let _ = guard.insert(app_client);
+                    let _ = AsyncRwLockUpgradableReadGuard::upgrade(urguard).await.insert(app_client);
                 }
             }
 
             let sig = if let Some(webrtc_config) = self.webrtc_config.as_ref() {
                 let ip = self.app_config.get_ip();
                 let signaling = {
-                    let mut guard = self.app_client.lock().await;
-                    guard.as_mut().unwrap().initiate_signaling()
+                    let rguard = self.app_client.read().await;
+                    rguard.as_ref().unwrap().initiate_signaling()
                 };
                 futures_util::future::Either::Left(WebRTCSignalingAnswerer {
                     webrtc_config: Some(webrtc_config),
@@ -458,7 +459,7 @@ where
                 }
                 Err(_) => {
                     // http2 layer related errors (GOAWAY etc...) so we should renegotiate in this event
-                    let _ = self.app_client.lock().await.take();
+                    let _ = self.app_client.write().await.take();
                     continue;
                 }
             };

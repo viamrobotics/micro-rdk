@@ -32,7 +32,7 @@ impl PeriodicAppClientTask for RestartMonitor {
 
     fn invoke<'b, 'a: 'b>(
         &'a mut self,
-        app_client: &'b mut AppClient,
+        app_client: &'b AppClient,
     ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'b>> {
         Box::pin(async move {
             match app_client.check_for_restart().await {
