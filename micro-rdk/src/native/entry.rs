@@ -20,7 +20,7 @@ use std::{
 #[cfg(feature = "provisioning")]
 use crate::common::{
     conn::mdns::Mdns,
-    grpc::{ServerError},
+    grpc::ServerError,
     provisioning::{
         server::{ProvisioningInfo, ProvisioningServiceBuilder, ProvisoningServer},
         storage::{RobotCredentialStorage, WifiCredentialStorage},

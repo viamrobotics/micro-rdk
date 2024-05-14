@@ -144,7 +144,6 @@ where
         &[("provisioning", "")],
     )?;
 
-    
     let credential_ready = srv.get_credential_ready();
 
     let cloned_exec = exec.clone();
