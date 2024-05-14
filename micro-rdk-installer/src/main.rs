@@ -385,15 +385,8 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
         )
         .map_err(|_| Error::FlashConnect)?;
 
-    let mut ptable_raw = fs::read(tmp_old).map_err(Error::FileError)?;
-    let old_ptable_hash = md5::compute(ptable_raw.clone());
-
-    let ptable = PartitionTable::try_from_bytes(ptable_raw.clone()).unwrap();
-    log::info!(
-        "hash: {:?} \n partitions: {:?}",
-        old_ptable_hash,
-        ptable.partitions()
-    );
+    let old_ptable_buf = fs::read(tmp_old).map_err(Error::FileError)?;
+    let old_ptable = PartitionTable::try_from_bytes(old_ptable_buf.clone()).unwrap();
 
     log::info!("Retrieving new image");
     let tmp_new = tempfile::Builder::new()
@@ -408,6 +401,7 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
         }
     };
 
+    let mut new_ptable_buf = Vec::with_capacity(PARTITION_TABLE_SIZE.into());
     log::info!("Extracting new partition table");
     let app_file_new = OpenOptions::new()
         .read(true)
@@ -416,12 +410,12 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
         .map_err(Error::FileError)?;
 
     let _num_read = app_file_new
-        .read_at(&mut ptable_raw, PARTITION_TABLE_ADDR.into())
+        .read_at(&mut new_ptable_buf, PARTITION_TABLE_ADDR.into())
         .map_err(Error::FileError)?;
-    let new_ptable_hash = md5::compute(ptable_raw.clone());
+    let new_ptable = PartitionTable::try_from_bytes(new_ptable_buf.clone()).unwrap();
 
     // Compare partition tables
-    if old_ptable_hash != new_ptable_hash {
+    if old_ptable != new_ptable {
         log::error!("partition tables do not match!");
         log::error!("rebuild and flash micro-rdk from scratch");
         return Err(Error::BinaryEditError(64));
@@ -430,9 +424,7 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
     log::info!("partition tables match!");
 
     log::info!("parsing ptable");
-    let ptable =
-        PartitionTable::try_from_bytes(ptable_raw).map_err(|_| Error::PartitionTableError)?;
-    let nvs_partition_info = ptable
+    let nvs_partition_info = new_ptable
         .find("factory")
         .ok_or_else(|| Error::PartitionTableError)?;
     let app_offset = nvs_partition_info.offset();
