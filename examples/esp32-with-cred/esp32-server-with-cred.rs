@@ -177,14 +177,20 @@ mod esp32 {
         #[allow(clippy::redundant_clone)]
         #[cfg(not(feature = "qemu"))]
         let network = {
-            let mut wifi =
-                Esp32WifiNetwork::new(sys_loop_stack.clone(), SSID.to_string(), PASS.to_string())
-                    .unwrap();
+            let mut wifi = Esp32WifiNetwork::new(
+                sys_loop_stack.clone(),
+                nvs_vars.wifi_ssid.clone(),
+                nvs_vars.wifi_pwd.clone(),
+            )
+            .unwrap();
             loop {
                 match wifi.connect() {
                     Ok(()) => break,
                     Err(_) => {
-                        log::info!("wifi could not connect to SSID: {:?}, retrying...", SSID);
+                        log::info!(
+                            "wifi could not connect to SSID: {:?}, retrying...",
+                            nvs_vars.wifi_ssid
+                        );
                         std::thread::sleep(std::time::Duration::from_millis(300));
                     }
                 }
