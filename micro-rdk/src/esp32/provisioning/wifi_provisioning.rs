@@ -266,8 +266,6 @@ where
                 pwd: password.to_owned(),
             })
             .map_err(|err| Esp32WifiProvisioningError::OtherError(Box::new(err)))?;
-
-        //.map_err(|e| Box::new(e))?;
         log::info!("connection successful");
         Ok(())
     }
