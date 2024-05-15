@@ -25,6 +25,7 @@ mod esp32 {
                 board::FakeBoard,
                 robot::{LocalRobot, ResourceMap, ResourceType},
             },
+            esp32::conn::network::eth_configure,
             proto::common::v1::ResourceName,
         },
         std::{
@@ -36,14 +37,8 @@ mod esp32 {
 
     #[cfg(not(feature = "qemu"))]
     use {
-        embedded_svc::wifi::{
-            AuthMethod, ClientConfiguration as WifiClientConfiguration,
-            Configuration as WifiConfiguration,
-        },
         micro_rdk::common::registry::ComponentRegistry,
-        micro_rdk::esp32::esp_idf_svc::hal::{peripheral::Peripheral, prelude::Peripherals},
-        micro_rdk::esp32::esp_idf_svc::sys::esp_wifi_set_ps,
-        micro_rdk::esp32::esp_idf_svc::wifi::{BlockingWifi, EspWifi},
+        micro_rdk::esp32::conn::network::Esp32WifiNetwork,
     };
 
     #[derive(Debug, Error)]
@@ -52,8 +47,6 @@ mod esp32 {
         NVSKeyError(String),
         #[error("{0}")]
         EspError(EspError),
-        #[error("Error obtaining peripherals")]
-        PeripheralsError,
     }
 
     impl From<EspError> for ServerError {
@@ -123,11 +116,6 @@ mod esp32 {
         micro_rdk::esp32::esp_idf_svc::log::EspLogger::initialize_default();
         let sys_loop_stack = EspSystemEventLoop::take().unwrap();
 
-        #[cfg(not(feature = "qemu"))]
-        let periph = Peripherals::take()
-            .map_err(|_| ServerError::PeripheralsError)
-            .unwrap();
-
         #[cfg(feature = "qemu")]
         let repr = {
             let board = Arc::new(Mutex::new(FakeBoard::new(vec![])));
@@ -157,7 +145,7 @@ mod esp32 {
         let nvs_vars = NvsStaticVars::new().unwrap();
 
         #[cfg(feature = "qemu")]
-        let (ip, _block_eth) = {
+        let network = {
             use micro_rdk::esp32::esp_idf_svc::hal::prelude::Peripherals;
             info!("creating eth object");
             let mut eth = Box::new(
@@ -173,9 +161,7 @@ mod esp32 {
                 )
                 .unwrap(),
             );
-            let _ = eth_configure(&sys_loop_stack, &mut eth).unwrap();
-            let ip = Ipv4Addr::new(10, 1, 12, 187);
-            (ip, eth)
+            eth_configure(&sys_loop_stack, &mut eth).unwrap()
         };
 
         let mut max_connection = 3;
@@ -190,22 +176,26 @@ mod esp32 {
         info!("starting wifi...");
         #[allow(clippy::redundant_clone)]
         #[cfg(not(feature = "qemu"))]
-        let (ip, _wifi) = {
-            let wifi = start_wifi(
-                periph.modem,
-                sys_loop_stack,
-                &nvs_vars.wifi_ssid,
-                &nvs_vars.wifi_pwd,
+        let network = {
+            let mut wifi = Esp32WifiNetwork::new(
+                sys_loop_stack.clone(),
+                nvs_vars.wifi_ssid.clone(),
+                nvs_vars.wifi_pwd.clone(),
             )
-            .expect("failed to start wifi");
-            (
-                wifi.wifi()
-                    .sta_netif()
-                    .get_ip_info()
-                    .expect("failed to get ip info")
-                    .ip,
-                wifi,
-            )
+            .expect("could not configure wifi");
+            loop {
+                match wifi.connect() {
+                    Ok(()) => break,
+                    Err(_) => {
+                        log::info!(
+                            "wifi could not connect to SSID: {:?}, retrying...",
+                            nvs_vars.wifi_ssid
+                        );
+                        std::thread::sleep(std::time::Duration::from_millis(300));
+                    }
+                }
+            }
+            wifi
         };
 
         let webrtc_certificate = WebRtcCertificate::new(
@@ -218,59 +208,16 @@ mod esp32 {
         let key = nvs_vars.robot_srv_der_key;
         let tls_cfg = Esp32TLSServerConfig::new(cert, key.as_ptr(), key.len() as u32);
 
-        let cfg = AppClientConfig::new(nvs_vars.robot_secret, nvs_vars.robot_id, ip, "".to_owned());
+        let cfg = AppClientConfig::new(nvs_vars.robot_secret, nvs_vars.robot_id, "".to_owned());
 
-        serve_web(cfg, tls_cfg, repr, ip, webrtc_certificate, max_connection);
-    }
-
-    #[cfg(feature = "qemu")]
-    fn eth_configure<'d, T>(
-        sl_stack: &EspSystemEventLoop,
-        eth: &mut micro_rdk::esp32::esp_idf_svc::eth::EspEth<'d, T>,
-    ) -> Result<Ipv4Addr, ServerError> {
-        let mut eth = micro_rdk::esp32::esp_idf_svc::eth::BlockingEth::wrap(eth, sl_stack.clone())?;
-        eth.start()?;
-        let ip_info = eth.eth().netif().get_ip_info()?;
-
-        info!("ETH IP {:?}", ip_info.ip);
-        Ok(ip_info.ip)
-    }
-
-    #[cfg(not(feature = "qemu"))]
-    fn start_wifi(
-        modem: impl Peripheral<P = micro_rdk::esp32::esp_idf_svc::hal::modem::Modem> + 'static,
-        sl_stack: EspSystemEventLoop,
-        ssid: &str,
-        password: &str,
-    ) -> Result<Box<BlockingWifi<EspWifi<'static>>>, ServerError> {
-        let nvs = EspDefaultNvsPartition::take()?;
-        let mut wifi = BlockingWifi::wrap(
-            EspWifi::new(modem, sl_stack.clone(), Some(nvs.clone()))?,
-            sl_stack,
-        )?;
-        let wifi_configuration = WifiConfiguration::Client(WifiClientConfiguration {
-            ssid: ssid.try_into().unwrap(),
-            bssid: None,
-            auth_method: AuthMethod::WPA2Personal,
-            password: password.try_into().unwrap(),
-            channel: None,
-        });
-        debug!("setting wifi configuration...");
-        wifi.set_configuration(&wifi_configuration)?;
-
-        wifi.start()?;
-        info!("Wifi started");
-
-        wifi.connect()?;
-        info!("Wifi connected");
-
-        wifi.wait_netif_up()?;
-        info!("Wifi netif up");
-
-        micro_rdk::esp32::esp_idf_svc::sys::esp!(unsafe {
-            esp_wifi_set_ps(micro_rdk::esp32::esp_idf_svc::sys::wifi_ps_type_t_WIFI_PS_NONE)
-        })?;
-        Ok(Box::new(wifi))
+        serve_web(
+            cfg,
+            tls_cfg,
+            repr,
+            webrtc_certificate,
+            max_connection,
+            network,
+        );
     }
 }
 fn main() {
