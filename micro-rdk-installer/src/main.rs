@@ -52,8 +52,7 @@ enum Commands {
     Monitor(MonitorArgs),
 }
 
-/// Flash a pre-compiled binary with the micro-RDK server directly to an ESP32
-/// connected to your computer via data cable
+/// Flash a new micro-RDK app image directly to an ESP32's `factory` partition
 #[derive(Args, Clone)]
 struct AppImageArgs {
     /// from espflash: bootloader, log_output, monitor
@@ -372,11 +371,12 @@ fn main() -> Result<(), Error> {
 fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
     let config = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
 
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().map_err(Error::FileError)?;
     let tmp_old = dir.path().join("running-ptable.img");
 
     log::info!("Retrieving running partition table");
-    let mut flasher = connect(&args.connect_args, &config, false, false).unwrap();
+    let mut flasher =
+        connect(&args.connect_args, &config, false, false).map_err(|_| Error::FlashConnect)?;
     flasher
         .read_flash(
             PARTITION_TABLE_ADDR.into(),
@@ -388,7 +388,8 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
         .map_err(|_| Error::FlashConnect)?;
 
     let old_ptable_buf = fs::read(tmp_old).map_err(Error::FileError)?;
-    let old_ptable = PartitionTable::try_from_bytes(old_ptable_buf.clone()).unwrap();
+    let old_ptable = PartitionTable::try_from_bytes(old_ptable_buf.clone())
+        .map_err(|e| Error::PartitionTableError(e.to_string()))?;
 
     log::info!("Retrieving new image");
     let tmp_new = tempfile::Builder::new()
@@ -413,18 +414,19 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
 
     let file_len = app_file_new.metadata().map_err(Error::FileError)?.len();
     if file_len < PARTITION_TABLE_SIZE.into() {
-        log::error!("file length is less than partition size");
-        return Err(Error::PartitionTableError);
+        return Err(Error::PartitionTableError(
+            "file length is less than partition size".to_string(),
+        ));
     }
 
-    app_file_new
+    let _ = app_file_new
         .seek(SeekFrom::Start(PARTITION_TABLE_ADDR.into()))
-        .unwrap();
+        .map_err(Error::FileError)?;
     app_file_new
         .read_exact(&mut new_ptable_buf)
         .map_err(Error::FileError)?;
     let new_ptable = PartitionTable::try_from_bytes(new_ptable_buf.clone())
-        .map_err(|_| Error::PartitionTableError)?;
+        .map_err(|e| Error::PartitionTableError(e.to_string()))?;
 
     // Compare partition tables
     if old_ptable != new_ptable {
@@ -435,9 +437,12 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
 
     log::info!("Partition tables match!");
 
-    let nvs_partition_info = new_ptable
-        .find(APP_IMAGE_PARTITION_NAME)
-        .ok_or_else(|| Error::PartitionTableError)?;
+    let nvs_partition_info = new_ptable.find(APP_IMAGE_PARTITION_NAME).ok_or_else(|| {
+        Error::PartitionTableError(format!(
+            "failed to find `{}` partition",
+            APP_IMAGE_PARTITION_NAME
+        ))
+    })?;
     let app_offset = nvs_partition_info.offset();
     let app_size = nvs_partition_info.size();
     log::debug!(
