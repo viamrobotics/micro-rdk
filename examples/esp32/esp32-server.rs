@@ -70,7 +70,7 @@ mod esp32 {
         let network = {
             let mut wifi =
                 Esp32WifiNetwork::new(sys_loop_stack.clone(), SSID.to_string(), PASS.to_string())
-                    .unwrap();
+                    .expect("could not configure wifi");
             loop {
                 match wifi.connect() {
                     Ok(()) => break,

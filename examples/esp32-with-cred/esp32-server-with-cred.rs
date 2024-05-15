@@ -182,7 +182,7 @@ mod esp32 {
                 nvs_vars.wifi_ssid.clone(),
                 nvs_vars.wifi_pwd.clone(),
             )
-            .unwrap();
+            .expect("could not configure wifi");
             loop {
                 match wifi.connect() {
                     Ok(()) => break,

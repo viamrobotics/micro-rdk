@@ -12,7 +12,7 @@ mod native {
 
         let repr = RobotRepresentation::WithRegistry(Box::default());
 
-        let network = match local_ip_address::local_ip().unwrap() {
+        let network = match local_ip_address::local_ip().expect("error parsing local IP") {
             std::net::IpAddr::V4(ip) => ExternallyManagedNetwork::new(ip),
             _ => panic!("oops expected ipv4"),
         };

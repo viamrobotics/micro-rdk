@@ -37,10 +37,16 @@ impl Esp32WifiNetwork {
         password: String,
     ) -> Result<Self, NetworkError> {
         let config = WifiConfiguration::Client(WifiClientConfiguration {
-            ssid: ssid.as_str().try_into().unwrap(),
+            ssid: ssid
+                .as_str()
+                .try_into()
+                .expect("SSID to C string conversion failed"),
             bssid: None,
             auth_method: AuthMethod::WPA2Personal,
-            password: password.as_str().try_into().unwrap(),
+            password: password
+                .as_str()
+                .try_into()
+                .expect("WiFi password to C string conversion failed"),
             channel: None,
         });
         let modem = unsafe { Modem::new() };
@@ -101,7 +107,7 @@ impl Network for Esp32WifiNetwork {
             .wifi()
             .sta_netif()
             .get_ip_info()
-            .unwrap()
+            .expect("could not get IP info")
             .ip
     }
     fn is_connected(&self) -> Result<bool, NetworkError> {
@@ -121,7 +127,11 @@ pub fn eth_configure<'d, T>(
 
 impl Network for Box<BlockingEth<EspEth<'static, OpenEth>>> {
     fn get_ip(&self) -> Ipv4Addr {
-        self.eth().netif().get_ip_info().unwrap().ip
+        self.eth()
+            .netif()
+            .get_ip_info()
+            .expect("could not get IP info")
+            .ip
     }
     fn is_connected(&self) -> Result<bool, NetworkError> {
         Ok(BlockingEth::is_connected(self)?)
