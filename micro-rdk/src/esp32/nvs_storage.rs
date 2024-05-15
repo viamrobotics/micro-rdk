@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use std::cell::RefCell;
+use std::{cell::RefCell, rc::Rc};
 
 use esp_idf_svc::{
     nvs::{EspCustomNvs, EspCustomNvsPartition, EspNvs},
@@ -22,10 +22,11 @@ pub enum NVSStorageError {
     NVSKeyAbsent(&'static str),
 }
 
+#[derive(Clone)]
 pub struct NVSStorage {
     // esp-idf-svc partition driver ensures that only one handle of a type can be created
     // so inner mutability can be achieves safely with RefCell
-    nvs: RefCell<EspCustomNvs>,
+    nvs: Rc<RefCell<EspCustomNvs>>,
 }
 
 impl NVSStorage {
@@ -34,7 +35,9 @@ impl NVSStorage {
         let partition: EspCustomNvsPartition = EspCustomNvsPartition::take(partition_name)?;
         let nvs = EspNvs::new(partition, "VIAM_NS", true)?;
 
-        Ok(Self { nvs: nvs.into() })
+        Ok(Self {
+            nvs: Rc::new(nvs.into()),
+        })
     }
     fn get_string(&self, key: &'static str) -> Result<String, NVSStorageError> {
         let nvs = self.nvs.borrow_mut();

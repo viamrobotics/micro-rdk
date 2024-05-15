@@ -232,6 +232,22 @@ where
                 std::mem::size_of::<sys::dhcps_lease_t>() as u32
             ))
         }?;
+
+        let mut dns_config = sys::esp_netif_dns_info_t {
+            ip: sys::esp_ip_addr_t {
+                u_addr: sys::_ip_addr__bindgen_ty_1 { ip4: ip },
+                type_: 0, // Ipv4Type
+            },
+        };
+
+        unsafe {
+            sys::esp!(sys::esp_netif_set_dns_info(
+                handle,
+                sys::esp_netif_dns_type_t_ESP_NETIF_DNS_MAIN,
+                &mut dns_config as *mut _
+            ))
+        }?;
+
         unsafe { sys::esp!(sys::esp_netif_dhcps_start(handle)) }?;
         Ok(())
     }
