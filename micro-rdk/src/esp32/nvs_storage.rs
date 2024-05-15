@@ -92,7 +92,7 @@ impl WifiCredentialStorage for NVSStorage {
         let pwd = self.get_string("WIFI_PASSWORD")?;
         Ok(WifiCredentials { ssid, pwd })
     }
-    fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error> {
+    fn store_wifi_credentials(&self, creds: WifiCredentials) -> Result<(), Self::Error> {
         self.set_string("WIFI_SSID", &creds.ssid)?;
         self.set_string("WIFI_PASSWORD", &creds.pwd)?;
         Ok(())

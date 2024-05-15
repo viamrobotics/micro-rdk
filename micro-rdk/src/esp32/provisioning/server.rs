@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use esp_idf_svc::wifi::{ClientConfiguration, Configuration};
+use esp_idf_svc::wifi::{AuthMethod, ClientConfiguration, Configuration};
 
 use crate::{
     common::{
@@ -171,11 +171,14 @@ where
         let conf = ClientConfiguration {
             ssid: wifi_creds.ssid.as_str().try_into().unwrap(),
             password: wifi_creds.pwd.as_str().try_into().unwrap(),
+            auth_method: AuthMethod::None,
             ..Default::default()
         };
+        wifi.stop().await?;
         wifi.set_configuration(&Configuration::Client(conf))?;
         wifi.start().await?;
         wifi.connect().await?;
+        wifi.wait_netif_up().await?;
     }
 
     //We are connected let's validate the robot's credentials

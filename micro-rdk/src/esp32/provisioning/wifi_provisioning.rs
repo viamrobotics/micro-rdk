@@ -276,12 +276,6 @@ where
         }
         wifi.connect().await?;
 
-        self.storage
-            .store_wifi_credentials(&WifiCredentials {
-                ssid: ssid.to_owned(),
-                pwd: password.to_owned(),
-            })
-            .map_err(|err| Esp32WifiProvisioningError::OtherError(Box::new(err)))?;
         log::info!("connection successful");
         Ok(())
     }

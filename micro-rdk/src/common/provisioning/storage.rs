@@ -1,7 +1,10 @@
 #![allow(dead_code)]
 use std::{convert::Infallible, error::Error, fmt::Debug, rc::Rc, sync::Mutex};
 
-use crate::{common::grpc::ServerError, proto::provisioning::v1::CloudConfig};
+use crate::{
+    common::grpc::ServerError,
+    proto::provisioning::v1::{CloudConfig, SetNetworkCredentialsRequest},
+};
 
 #[derive(Clone, Default)]
 pub struct RobotCredentials {
@@ -17,6 +20,16 @@ impl RobotCredentials {
         &self.robot_id
     }
 }
+
+impl From<SetNetworkCredentialsRequest> for WifiCredentials {
+    fn from(value: SetNetworkCredentialsRequest) -> Self {
+        Self {
+            ssid: value.ssid,
+            pwd: value.psk,
+        }
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct WifiCredentials {
     pub(crate) ssid: String,
@@ -45,7 +58,7 @@ impl From<CloudConfig> for RobotCredentials {
 pub trait WifiCredentialStorage {
     type Error: Error + Debug + Into<ServerError>;
     fn has_wifi_credentials(&self) -> bool;
-    fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error>;
+    fn store_wifi_credentials(&self, creds: WifiCredentials) -> Result<(), Self::Error>;
     fn get_wifi_credentials(&self) -> Result<WifiCredentials, Self::Error>;
 }
 
@@ -59,8 +72,7 @@ pub trait RobotCredentialStorage {
 #[derive(Default)]
 struct MemoryCredentialStorageInner {
     config: Option<RobotCredentials>,
-    ssid: Option<String>,
-    pwd: Option<String>,
+    wifi_creds: Option<WifiCredentials>,
 }
 
 /// Simple CrendentialStorage made for testing purposes
@@ -90,20 +102,16 @@ impl WifiCredentialStorage for RAMStorage {
     type Error = Infallible;
     fn get_wifi_credentials(&self) -> Result<WifiCredentials, Self::Error> {
         let inner_ref = self.0.lock().unwrap();
-        let creds = WifiCredentials {
-            ssid: inner_ref.ssid.clone().unwrap_or_default(),
-            pwd: inner_ref.pwd.clone().unwrap_or_default(),
-        };
+        let creds = inner_ref.wifi_creds.clone().unwrap_or_default();
         Ok(creds)
     }
     fn has_wifi_credentials(&self) -> bool {
         let inner_ref = self.0.lock().unwrap();
-        inner_ref.ssid.is_some() && inner_ref.pwd.is_none()
+        inner_ref.wifi_creds.is_some()
     }
-    fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error> {
+    fn store_wifi_credentials(&self, creds: WifiCredentials) -> Result<(), Self::Error> {
         let mut inner_ref = self.0.lock().unwrap();
-        let _ = inner_ref.ssid.insert(creds.ssid.clone());
-        let _ = inner_ref.pwd.insert(creds.pwd.clone());
+        let _ = inner_ref.wifi_creds.insert(creds);
         Ok(())
     }
 }

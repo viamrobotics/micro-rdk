@@ -4,6 +4,7 @@ use std::{marker::PhantomData, net::Ipv4Addr, pin::Pin, rc::Rc};
 use crate::{
     common::{
         grpc::{GrpcBody, GrpcError, GrpcResponse, ServerError},
+        provisioning::storage::WifiCredentials,
         webrtc::api::AtomicSync,
     },
     proto::provisioning::{
@@ -174,12 +175,13 @@ where
     }
     async fn set_network_credential_request(&self, body: Bytes) -> Result<Bytes, ServerError> {
         if let Some(wifi_manager) = self.wifi_manager.as_ref() {
-            let creds = SetNetworkCredentialsRequest::decode(body)
-                .map_err(|e| ServerError::new(GrpcError::RpcInternal, Some(e.into())))?;
-            wifi_manager
-                .try_connect(&creds.ssid, &creds.psk)
-                .await
-                .map_err(|e| ServerError::new(GrpcError::RpcInternal, Some(e.into())))?;
+            let creds: WifiCredentials = SetNetworkCredentialsRequest::decode(body)
+                .map_err(|e| ServerError::new(GrpcError::RpcInternal, Some(e.into())))?
+                .into();
+
+            self.storage
+                .store_wifi_credentials(creds)
+                .map_err(|e| ServerError::new(GrpcError::RpcInternal, Some(Box::new(e.into()))))?;
 
             let resp = SetNetworkCredentialsResponse::default();
             let len = resp.encoded_len();

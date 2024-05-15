@@ -202,7 +202,7 @@ pub fn serve_with_provisioning<S>(
         webrtc_certificate,
         max_webrtc_connection,
     );
-    // unreachable!()
+    unreachable!()
 }
 
 pub fn serve_web(
