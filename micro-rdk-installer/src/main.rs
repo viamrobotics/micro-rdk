@@ -447,7 +447,7 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
         APP_IMAGE_PARTITION_NAME,
         app_size
     );
-    let mut app_segment = vec![EMPTY_BYTE; app_size.try_into().unwrap()];
+    let mut app_segment = vec![EMPTY_BYTE; app_size as usize];
     // write just this data
     app_file_new
         .read_at(&mut app_segment, app_offset.into())
