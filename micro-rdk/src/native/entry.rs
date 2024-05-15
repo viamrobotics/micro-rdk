@@ -63,12 +63,12 @@ pub async fn serve_web_inner(
         let grpc_client = GrpcClient::new(conn, cloned_exec, "https://app.viam.com:443")
             .await
             .unwrap();
-        let builder =
-            AppClientBuilder::new(Box::new(grpc_client), app_config.clone(), network.get_ip());
+        let builder = AppClientBuilder::new(Box::new(grpc_client), app_config.clone());
         log::info!("build client start");
         let client = builder.build().await.unwrap();
 
-        let (cfg_response, cfg_received_datetime) = client.get_config().await.unwrap();
+        let (cfg_response, cfg_received_datetime) =
+            client.get_config(network.get_ip()).await.unwrap();
 
         let robot = match repr {
             RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
@@ -208,7 +208,7 @@ where
                 NativeTls::new_client().open_ssl_context(None).await?,
             ));
             let client = GrpcClient::new(conn, exec.clone(), "https://app.viam.com:443").await?;
-            let builder = AppClientBuilder::new(Box::new(client), app_config.clone(), ip);
+            let builder = AppClientBuilder::new(Box::new(client), app_config.clone());
 
             let mut client = builder.build().await?;
             let certs = client.get_certificates().await?;
@@ -321,7 +321,7 @@ mod tests {
 
         let config = AppClientConfig::new("".to_string(), "".to_string(), "".to_owned());
 
-        let builder = AppClientBuilder::new(grpc_client, config, Ipv4Addr::UNSPECIFIED);
+        let builder = AppClientBuilder::new(grpc_client, config);
 
         let client = builder.build().await;
 

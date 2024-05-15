@@ -98,7 +98,6 @@ impl AppClientConfig {
 pub struct AppClientBuilder {
     grpc_client: Box<GrpcClient>,
     config: AppClientConfig,
-    ip: Ipv4Addr,
 }
 
 pub(crate) fn encode_request<T>(req: T) -> Result<Bytes, AppClientError>
@@ -119,28 +118,21 @@ where
 
 impl AppClientBuilder {
     /// Create a new AppClientBuilder
-    pub fn new(grpc_client: Box<GrpcClient>, config: AppClientConfig, ip: Ipv4Addr) -> Self {
+    pub fn new(grpc_client: Box<GrpcClient>, config: AppClientConfig) -> Self {
         Self {
             grpc_client,
             config,
-            ip,
         }
-    }
-
-    pub fn get_ip(&self) -> Ipv4Addr {
-        self.ip
     }
 
     /// Consume the AppClientBuilder and returns an AppClient. This function will panic if
     /// the received config doesn't contain an fqdn field.
     pub async fn build(mut self) -> Result<AppClient, AppClientError> {
         let jwt = self.get_jwt_token().await?;
-        let ip = self.get_ip();
 
         Ok(AppClient {
             grpc_client: self.grpc_client.into(),
             jwt,
-            ip,
             config: self.config,
         })
     }
@@ -183,7 +175,6 @@ pub struct AppClient {
     config: AppClientConfig,
     jwt: String,
     grpc_client: Rc<GrpcClient>,
-    ip: Ipv4Addr,
 }
 
 pub(crate) struct AppSignaling(
@@ -258,11 +249,12 @@ impl AppClient {
     // `last_reconfigured` values for resource statuses.
     pub async fn get_config(
         &self,
+        ip: Ipv4Addr,
     ) -> Result<(Box<ConfigResponse>, Option<DateTime<FixedOffset>>), AppClientError> {
         let agent = AgentInfo {
             os: "esp32".to_string(),
             host: "esp32".to_string(),
-            ips: vec![self.ip.to_string()],
+            ips: vec![ip.to_string()],
             version: env!("CARGO_PKG_VERSION").to_string(),
             git_revision: "".to_string(),
             platform: Some("esp32".to_string()),

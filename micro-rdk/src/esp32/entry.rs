@@ -75,11 +75,12 @@ pub async fn serve_web_inner(
                 .unwrap(),
         );
 
-        let builder = AppClientBuilder::new(grpc_client, app_config.clone(), network.get_ip());
+        let builder = AppClientBuilder::new(grpc_client, app_config.clone());
 
         let client = builder.build().await.unwrap();
 
-        let (cfg_response, cfg_received_datetime) = client.get_config().await.unwrap();
+        let (cfg_response, cfg_received_datetime) =
+            client.get_config(network.get_ip()).await.unwrap();
 
         let robot = match repr {
             RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
@@ -223,7 +224,7 @@ where
             let conn =
                 Esp32Stream::TLSStream(Box::new(Esp32TLS::new_client().open_ssl_context(None)?));
             let client = GrpcClient::new(conn, exec.clone(), "https://app.viam.com:443").await?;
-            let builder = AppClientBuilder::new(Box::new(client), app_config.clone(), ip);
+            let builder = AppClientBuilder::new(Box::new(client), app_config.clone());
 
             let mut client = builder.build().await?;
             let certs = client.get_certificates().await?;

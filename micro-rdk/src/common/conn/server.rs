@@ -426,14 +426,10 @@ where
                             .await
                             .unwrap(),
                     );
-                    let app_client = AppClientBuilder::new(
-                        grpc_client,
-                        self.app_config.clone(),
-                        self.network.get_ip(),
-                    )
-                    .build()
-                    .await
-                    .unwrap();
+                    let app_client = AppClientBuilder::new(grpc_client, self.app_config.clone())
+                        .build()
+                        .await
+                        .unwrap();
                     let _ = AsyncRwLockUpgradableReadGuard::upgrade(urguard)
                         .await
                         .insert(app_client);
