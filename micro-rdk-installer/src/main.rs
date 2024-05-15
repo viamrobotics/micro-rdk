@@ -28,6 +28,8 @@ use tokio::runtime::Runtime;
 
 const PARTITION_TABLE_ADDR: u16 = 0x8000;
 const PARTITION_TABLE_SIZE: u16 = 0xc00;
+const EMPTY_BYTE: u8 = 0xFF;
+const APP_IMAGE_PARTITION_NAME: &str = "factory";
 
 #[derive(Deserialize, Debug)]
 struct AppCloudConfig {
@@ -410,9 +412,9 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
         .map_err(Error::FileError)?;
 
     let file_len = app_file_new.metadata().map_err(Error::FileError)?.len();
-    log::info!("new app length: {}", file_len);
     if file_len < PARTITION_TABLE_SIZE.into() {
-        log::error!("file length is less than partition size")
+        log::error!("file length is less than partition size");
+        return Err(Error::PartitionTableError);
     }
 
     app_file_new
@@ -421,7 +423,6 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
     app_file_new
         .read_exact(&mut new_ptable_buf)
         .map_err(Error::FileError)?;
-    println!("{:?}", new_ptable_buf);
     let new_ptable = PartitionTable::try_from_bytes(new_ptable_buf.clone())
         .map_err(|_| Error::PartitionTableError)?;
 
@@ -432,24 +433,29 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
         return Err(Error::BinaryEditError(64));
     }
 
-    log::info!("partition tables match!");
+    log::info!("Partition tables match!");
 
-    log::info!("parsing ptable");
     let nvs_partition_info = new_ptable
-        .find("factory")
+        .find(APP_IMAGE_PARTITION_NAME)
         .ok_or_else(|| Error::PartitionTableError)?;
     let app_offset = nvs_partition_info.offset();
     let app_size = nvs_partition_info.size();
-    log::debug!("app offset: {}, app_size: {}", app_offset, app_size);
-    let mut app_segment = Vec::with_capacity(app_size as usize);
+    log::debug!(
+        "{} offset: {:x}, {} size: {:x}",
+        APP_IMAGE_PARTITION_NAME,
+        app_offset,
+        APP_IMAGE_PARTITION_NAME,
+        app_size
+    );
+    let mut app_segment = vec![EMPTY_BYTE; app_size.try_into().unwrap()];
     // write just this data
     app_file_new
         .read_at(&mut app_segment, app_offset.into())
         .map_err(Error::FileError)?;
-    log::info!("writing new app segment to flash");
+    log::info!("Writing new app segment to flash");
     flasher
         .write_bin_to_flash(app_offset, &app_segment, None)
         .map_err(Error::EspFlashError)?;
-    log::info!("running image has been updated");
+    log::info!("Running image has been updated");
     Ok(())
 }
