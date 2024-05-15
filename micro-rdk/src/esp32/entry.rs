@@ -162,6 +162,7 @@ pub fn serve_with_provisioning<S>(
     S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
     <S as RobotCredentialStorage>::Error: Debug,
     ServerError: From<<S as RobotCredentialStorage>::Error>,
+    <S as WifiCredentialStorage>::Error: Send + Sync + 'static,
 {
     use super::certificate::GeneratedWebRtcCertificateBuilder;
 

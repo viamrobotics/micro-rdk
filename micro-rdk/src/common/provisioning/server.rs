@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use std::{marker::PhantomData, pin::Pin, rc::Rc};
+use std::{marker::PhantomData, net::Ipv4Addr, pin::Pin, rc::Rc};
 
 use crate::{
     common::{
@@ -373,6 +373,7 @@ pub(crate) trait WifiManager {
     type Error: std::error::Error + Send + Sync + 'static;
     async fn scan_networks(&self) -> Result<Vec<NetworkInfo>, Self::Error>;
     async fn try_connect(&self, ssid: &str, password: &str) -> Result<(), Self::Error>;
+    fn get_ap_ip(&self) -> Ipv4Addr;
 }
 
 impl WifiManager for () {
@@ -382,6 +383,9 @@ impl WifiManager for () {
     }
     async fn try_connect(&self, _: &str, _: &str) -> Result<(), Self::Error> {
         Err(ServerError::new(GrpcError::RpcUnimplemented, None))
+    }
+    fn get_ap_ip(&self) -> Ipv4Addr {
+        Ipv4Addr::UNSPECIFIED
     }
 }
 

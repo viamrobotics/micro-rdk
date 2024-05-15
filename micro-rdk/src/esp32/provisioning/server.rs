@@ -18,7 +18,7 @@ use crate::{
     esp32::{
         conn::mdns::Esp32Mdns,
         exec::Esp32Executor,
-        provisioning::wifi_provisioning::{esp32_get_wifi, Esp32WifiProvisioning},
+        provisioning::wifi_provisioning::esp32_get_wifi,
         tcp::Esp32Stream,
         tls::{Esp32TLS, Esp32TLSServerConfig},
     },
@@ -31,7 +31,9 @@ use std::{
     net::{Ipv4Addr, TcpListener, UdpSocket},
 };
 
-async fn dns_server() {
+use super::wifi_provisioning::Esp32WifiProvisioningBuilder;
+
+async fn dns_server(ap_ip: Ipv4Addr) {
     let socket = async_io::Async::<UdpSocket>::bind(([0, 0, 0, 0], 53)).unwrap();
     loop {
         let mut buf = [0_u8; 512];
@@ -44,7 +46,7 @@ async fn dns_server() {
                     let rr = dns_message_parser::rr::RR::A(dns_message_parser::rr::A {
                         domain_name: q.domain_name.clone(),
                         ttl: 3600,
-                        ipv4_addr: Ipv4Addr::new(192, 168, 71, 1),
+                        ipv4_addr: ap_ip,
                     });
 
                     msg.answers.push(rr);
@@ -102,16 +104,21 @@ where
     S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
     <S as RobotCredentialStorage>::Error: Debug,
     ServerError: From<<S as RobotCredentialStorage>::Error>,
+    <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
     let _ = Timer::after(std::time::Duration::from_millis(150)).await;
 
     // Start the WiFi in AP + STA mode
-    let wifi = Esp32WifiProvisioning::new(storage.clone()).await.unwrap();
+
+    let wifi = Esp32WifiProvisioningBuilder::default()
+        .build(storage.clone())
+        .await
+        .unwrap();
 
     // Provisioning relies on DNS query to find the IP of the server. Specifically it will
     // make a request for viam.setup. All other queries are answered failed to express the lack off
     // internet
-    let dns_answerer = exec.spawn(dns_server());
+    let dns_answerer = exec.spawn(dns_server(wifi.get_ap_ip()));
 
     let hostname = format!(
         "provisioning-{}-{}",
