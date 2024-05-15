@@ -58,6 +58,7 @@ pub mod movement_sensor;
 pub mod mpu6050;
 pub mod power_sensor;
 pub mod registry;
+pub mod restart_monitor;
 pub mod robot;
 pub mod sensor;
 pub mod servo;

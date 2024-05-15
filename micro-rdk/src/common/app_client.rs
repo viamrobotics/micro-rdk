@@ -7,13 +7,21 @@ use http_body_util::Full;
 use http_body_util::StreamBody;
 use hyper::body::Frame;
 use prost::{DecodeError, EncodeError, Message};
-use std::{net::Ipv4Addr, pin::Pin, rc::Rc, time::SystemTime};
+use std::{
+    net::Ipv4Addr,
+    pin::Pin,
+    rc::Rc,
+    time::{Duration, SystemTime},
+};
 use thiserror::Error;
 
 use crate::proto::app::v1::CertificateRequest;
 use crate::proto::app::v1::CertificateResponse;
 use crate::proto::{
-    app::v1::{AgentInfo, ConfigRequest, ConfigResponse, LogRequest},
+    app::v1::{
+        AgentInfo, ConfigRequest, ConfigResponse, LogRequest, NeedsRestartRequest,
+        NeedsRestartResponse,
+    },
     common::v1::LogEntry,
     rpc::{
         v1::{AuthenticateRequest, AuthenticateResponse, Credentials},
@@ -125,7 +133,7 @@ impl AppClientBuilder {
         let jwt = self.get_jwt_token().await?;
 
         Ok(AppClient {
-            grpc_client: self.grpc_client,
+            grpc_client: self.grpc_client.into(),
             jwt,
             ip: self.config.ip,
             config: self.config,
@@ -165,10 +173,11 @@ impl AppClientBuilder {
     }
 }
 
+#[derive(Clone)]
 pub struct AppClient {
     config: AppClientConfig,
     jwt: String,
-    grpc_client: Box<GrpcClient>,
+    grpc_client: Rc<GrpcClient>,
     ip: Ipv4Addr,
 }
 
@@ -216,6 +225,27 @@ impl AppClient {
         let (mut r, headers) = self.grpc_client.send_request(r).await?;
         let r = r.split_off(5);
         Ok(CertificateResponse::decode(r)?)
+    }
+
+    pub(crate) fn initiate_signaling(
+        &self,
+    ) -> impl Future<Output = Result<AppSignaling, AppClientError>> {
+        let (sender, receiver) = async_channel::bounded::<Bytes>(1);
+        let r = self.grpc_client.build_request(
+            "/proto.rpc.webrtc.v1.SignalingService/Answer",
+            Some(&self.jwt),
+            &self.config.rpc_host,
+            BodyExt::boxed(StreamBody::new(receiver.map(|b| Ok(Frame::data(b))))),
+        );
+
+        let grpc_client = self.grpc_client.clone();
+        async move {
+            let (tx, rx) = grpc_client
+                .send_request_bidi::<AnswerResponse, AnswerRequest>(r?, sender)
+                .await
+                .map_err(AppClientError::AppGrpcClientError)?;
+            Ok(AppSignaling(tx, rx))
+        }
     }
 
     // returns both a response from the robot config request and the timestamp of the response
@@ -285,10 +315,68 @@ impl AppClient {
 
         Ok(())
     }
+
+    /// Obtains the Duration for which we should wait before next
+    /// checking for a restart. If no Duration is returned, then the
+    /// app has signaled that we should restart now.
+    pub async fn check_for_restart(&self) -> Result<Option<Duration>, AppClientError> {
+        let req = NeedsRestartRequest {
+            id: self.config.robot_id.clone(),
+        };
+        let body = encode_request(req)?;
+        let r = self
+            .grpc_client
+            .build_request(
+                "/viam.app.v1.RobotService/NeedsRestart",
+                Some(&self.jwt),
+                "",
+                BodyExt::boxed(Full::new(body).map_err(|never| match never {})),
+            )
+            .map_err(AppClientError::AppGrpcClientError)?;
+        let (mut response, headers_) = self.grpc_client.send_request(r).await?;
+        let response = NeedsRestartResponse::decode(response.split_off(5))?;
+
+        const MIN_RESTART_DURATION: Duration = Duration::from_secs(1);
+        const DEFAULT_RESTART_DURATION: Duration = Duration::from_secs(5);
+
+        // If app replied with `must_restart` true, then return `None` to indicate that restart was
+        // requested. Otherwise, if app replied with populated and sensible restart interval, return
+        // that. Failing that, return the default timeout.
+        Ok(match response.must_restart {
+            true => None,
+            false => match response.restart_check_interval {
+                None => Some(DEFAULT_RESTART_DURATION),
+                Some(d) => Some(match Duration::try_from(d) {
+                    Ok(d) => d.max(MIN_RESTART_DURATION),
+                    Err(e) => DEFAULT_RESTART_DURATION,
+                }),
+            },
+        })
+    }
 }
 
 impl Drop for AppClient {
     fn drop(&mut self) {
         log::debug!("dropping AppClient")
     }
+}
+
+/// An object-safe trait for use with `ViamServerBuilder::with_periodic_app_client_task`. An object
+/// implementing this trait represents a periodic activity to be performed against an `AppClient`,
+/// such as checking for restarts or uploading cached data to the data service.
+pub trait PeriodicAppClientTask {
+    /// Returns the name of this task, primarily for inclusion in error messages or logging.
+    fn name(&self) -> &str;
+
+    /// Returns a Duration to indicate how frequently the task would like to be invoked. The
+    /// `ViamServer` may adjust the actual `Duration` between invocations based on the return value
+    /// of `invoke`, so that services which negotiate a frequency with app can honor the request.
+    fn get_default_period(&self) -> Duration;
+
+    /// A desugared `async fn` (so we can declare it in a trait) which will be periodically invoked
+    /// by the `ViamServer` per the currently negotiated `Duration`.
+    fn invoke<'b, 'a: 'b>(
+        &'a mut self,
+        app_client: &'b AppClient,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'b>>;
 }

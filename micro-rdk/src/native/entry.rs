@@ -7,6 +7,7 @@ use crate::{
         entry::RobotRepresentation,
         grpc_client::GrpcClient,
         log::config_log_entry,
+        restart_monitor::RestartMonitor,
         robot::LocalRobot,
     },
     native::{exec::NativeExecutor, tcp::NativeStream, tls::NativeTls},
@@ -129,6 +130,7 @@ pub async fn serve_web_inner(
     let mut srv = ViamServerBuilder::new(mdns, cloned_exec, client_connector, app_config, 3)
         .with_http2(tls_listener, 12346)
         .with_webrtc(webrtc)
+        .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| std::process::exit(0))))
         .build(&cfg_response)
         .unwrap();
 
