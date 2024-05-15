@@ -3,10 +3,7 @@ mod native {
     // Generated robot config during build process
     include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
-    use micro_rdk::common::{
-        entry::RobotRepresentation,
-        network::{ExternallyManagedNetwork, Network},
-    };
+    use micro_rdk::common::{conn::network::ExternallyManagedNetwork, entry::RobotRepresentation};
 
     pub(crate) fn main_native() {
         env_logger::builder()
