@@ -94,7 +94,7 @@ struct WriteCredentialsArgs {
 struct WriteFlashArgs {
     /// from espflash: baud, port
     #[clap(flatten)]
-    monitor_args: Option<MonitorArgs>,
+    monitor_args: MonitorArgs,
     /// from espflash: bootloader, log_output, monitor
     #[clap(flatten)]
     flash_args: FlashArgs,
@@ -241,13 +241,13 @@ fn write_credentials_to_app_binary(
 
 fn flash(
     flash_args: FlashArgs,
-    monitor_args: Option<MonitorArgs>,
+    monitor_args: MonitorArgs,
     config: &Config,
     app_path: PathBuf,
 ) -> Result<(), Error> {
     log::info!("Connecting...");
     let mut flasher = connect(
-        &monitor_args.clone().unwrap().connect_args,
+        &monitor_args.clone().connect_args,
         config,
         flash_args.no_verify,
         flash_args.no_skip,
@@ -275,7 +275,7 @@ fn flash(
             115_200,
             flash_args.log_format,
             flash_args.log_output,
-            !monitor_args.unwrap().non_interactive,
+            !monitor_args.non_interactive,
         )
         .map_err(|err| Error::MonitorError(err.to_string()))?;
     }
@@ -430,9 +430,10 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
 
     // Compare partition tables
     if old_ptable != new_ptable {
-        log::error!("partition tables do not match!");
         log::error!("rebuild and flash micro-rdk from scratch");
-        return Err(Error::BinaryEditError(64));
+        return Err(Error::PartitionTableError(
+            "old and new app image partition tables do not match".to_string(),
+        ));
     }
 
     log::info!("Partition tables match!");
