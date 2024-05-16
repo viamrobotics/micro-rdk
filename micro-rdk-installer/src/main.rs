@@ -413,7 +413,7 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
         .map_err(Error::FileError)?;
 
     let file_len = app_file_new.metadata().map_err(Error::FileError)?.len();
-    if file_len < PARTITION_TABLE_SIZE.into() {
+    if file_len < (PARTITION_TABLE_ADDR as u64 + PARTITION_TABLE_SIZE as u64) {
         return Err(Error::PartitionTableError(
             "file length is less than partition size".to_string(),
         ));
