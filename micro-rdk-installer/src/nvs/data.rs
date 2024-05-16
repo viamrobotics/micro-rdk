@@ -40,7 +40,7 @@ pub struct ViamFlashStorageData {
 }
 
 impl ViamFlashStorageData {
-    fn to_nvs_key_value_pairs(&self, namespace_idx: u8) -> Result<[NVSKeyValuePair; 13], Error> {
+    fn to_nvs_key_value_pairs(&self, namespace_idx: u8) -> Result<[NVSKeyValuePair; 14], Error> {
         let wifi_cred = self
             .wifi
             .clone()
@@ -128,6 +128,11 @@ impl ViamFlashStorageData {
                 value: NVSValue::Bytes(self.robot_credentials.pem_chain.clone().ok_or(
                     Error::NVSDataProcessingError("pem_chain missing".to_string()),
                 )?),
+                namespace_idx,
+            },
+            NVSKeyValuePair {
+                key: "CA_CRT".to_string(),
+                value: NVSValue::Bytes(vec![]),
                 namespace_idx,
             },
             NVSKeyValuePair {
