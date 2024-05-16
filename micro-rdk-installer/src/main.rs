@@ -460,7 +460,11 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
         .map_err(Error::FileError)?;
     log::info!("Writing new app segment to flash");
     flasher
-        .write_bin_to_flash(app_offset, &app_segment, None)
+        .write_bin_to_flash(
+            app_offset,
+            &app_segment,
+            Some(&mut EspflashProgress::default()),
+        )
         .map_err(Error::EspFlashError)?;
     log::info!("Running image has been updated");
     Ok(())
