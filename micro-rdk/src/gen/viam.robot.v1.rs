@@ -287,6 +287,48 @@ pub struct LogRequest {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct LogResponse {
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetCloudMetadataRequest {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetCloudMetadataResponse {
+    /// Deprecated: use machine_part_id field.
+    #[deprecated]
+    #[prost(string, tag="1")]
+    pub robot_part_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub primary_org_id: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub location_id: ::prost::alloc::string::String,
+    #[prost(string, tag="4")]
+    pub machine_id: ::prost::alloc::string::String,
+    #[prost(string, tag="5")]
+    pub machine_part_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RestartModuleRequest {
+    #[prost(oneof="restart_module_request::IdOrName", tags="1, 2")]
+    pub id_or_name: ::core::option::Option<restart_module_request::IdOrName>,
+}
+/// Nested message and enum types in `RestartModuleRequest`.
+pub mod restart_module_request {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum IdOrName {
+        /// ID is for registry modules, name for local modules
+        #[prost(string, tag="1")]
+        ModuleId(::prost::alloc::string::String),
+        #[prost(string, tag="2")]
+        ModuleName(::prost::alloc::string::String),
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RestartModuleResponse {
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum PeerConnectionType {

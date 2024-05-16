@@ -5,7 +5,7 @@ use crate::{
     common::status::StatusError,
     common::{analog::AnalogReader, status::Status},
     google,
-    proto::{common, component},
+    proto::component,
 };
 
 use log::*;
@@ -56,9 +56,6 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 pub trait Board: Status + DoCommand {
     /// Set a pin to high or low
     fn set_gpio_pin_level(&mut self, pin: i32, is_high: bool) -> Result<(), BoardError>;
-
-    /// Return the current [BoardStatus](common::v1::BoardStatus) of the board
-    fn get_board_status(&self) -> Result<common::v1::BoardStatus, BoardError>;
 
     /// Get the state of a pin, high(`true`) or low(`false`)
     fn get_gpio_level(&self, pin: i32) -> Result<bool, BoardError>;
@@ -170,23 +167,6 @@ impl Board for FakeBoard {
         Ok(())
     }
 
-    fn get_board_status(&self) -> Result<common::v1::BoardStatus, BoardError> {
-        let mut b = common::v1::BoardStatus {
-            analogs: HashMap::new(),
-            digital_interrupts: HashMap::new(),
-        };
-        self.analogs.iter().for_each(|a| {
-            let mut analog = a.clone();
-            b.analogs.insert(
-                analog.name(),
-                common::v1::AnalogStatus {
-                    value: analog.read().unwrap_or(0).into(),
-                },
-            );
-        });
-        Ok(b)
-    }
-
     fn get_gpio_level(&self, pin: i32) -> Result<bool, BoardError> {
         info!("get pin {}", pin);
         Ok(true)
@@ -250,17 +230,8 @@ impl Status for FakeBoard {
             analogs.insert(
                 analog.name(),
                 google::protobuf::Value {
-                    kind: Some(google::protobuf::value::Kind::StructValue(
-                        google::protobuf::Struct {
-                            fields: HashMap::from([(
-                                "value".to_string(),
-                                google::protobuf::Value {
-                                    kind: Some(google::protobuf::value::Kind::NumberValue(
-                                        analog.read().unwrap_or(0).into(),
-                                    )),
-                                },
-                            )]),
-                        },
+                    kind: Some(google::protobuf::value::Kind::NumberValue(
+                        analog.read().unwrap_or(0).into(),
                     )),
                 },
             );
@@ -283,10 +254,6 @@ impl<A> Board for Arc<Mutex<A>>
 where
     A: ?Sized + Board,
 {
-    fn get_board_status(&self) -> Result<common::v1::BoardStatus, BoardError> {
-        self.lock().unwrap().get_board_status()
-    }
-
     fn get_gpio_level(&self, pin: i32) -> Result<bool, BoardError> {
         self.lock().unwrap().get_gpio_level(pin)
     }

@@ -129,7 +129,7 @@ pub enum PackageType {
     MlModel = 2,
     Module = 3,
     SlamMap = 4,
-    BoardDefs = 5,
+    MlTraining = 5,
 }
 impl PackageType {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -143,7 +143,7 @@ impl PackageType {
             PackageType::MlModel => "PACKAGE_TYPE_ML_MODEL",
             PackageType::Module => "PACKAGE_TYPE_MODULE",
             PackageType::SlamMap => "PACKAGE_TYPE_SLAM_MAP",
-            PackageType::BoardDefs => "PACKAGE_TYPE_BOARD_DEFS",
+            PackageType::MlTraining => "PACKAGE_TYPE_ML_TRAINING",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -154,7 +154,7 @@ impl PackageType {
             "PACKAGE_TYPE_ML_MODEL" => Some(Self::MlModel),
             "PACKAGE_TYPE_MODULE" => Some(Self::Module),
             "PACKAGE_TYPE_SLAM_MAP" => Some(Self::SlamMap),
-            "PACKAGE_TYPE_BOARD_DEFS" => Some(Self::BoardDefs),
+            "PACKAGE_TYPE_ML_TRAINING" => Some(Self::MlTraining),
             _ => None,
         }
     }

@@ -155,4 +155,65 @@ pub struct GetObjectPointCloudsResponse {
     #[prost(message, repeated, tag="2")]
     pub objects: ::prost::alloc::vec::Vec<super::super::super::common::v1::PointCloudObject>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetPropertiesRequest {
+    /// name of the vision service
+    #[prost(string, tag="1")]
+    pub name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CaptureAllFromCameraRequest {
+    /// name of the vision service
+    #[prost(string, tag="1")]
+    pub name: ::prost::alloc::string::String,
+    /// name of camera source to use as input
+    #[prost(string, tag="2")]
+    pub camera_name: ::prost::alloc::string::String,
+    /// whether or not including the image in the response
+    #[prost(bool, tag="3")]
+    pub return_image: bool,
+    /// whether or not including classifications in the response
+    #[prost(bool, tag="4")]
+    pub return_classifications: bool,
+    /// whether or not including detections in the response
+    #[prost(bool, tag="5")]
+    pub return_detections: bool,
+    /// whether or not including pcd in the response
+    #[prost(bool, tag="6")]
+    pub return_object_point_clouds: bool,
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CaptureAllFromCameraResponse {
+    #[prost(message, optional, tag="1")]
+    pub image: ::core::option::Option<super::super::super::component::camera::v1::Image>,
+    #[prost(message, repeated, tag="2")]
+    pub detections: ::prost::alloc::vec::Vec<Detection>,
+    #[prost(message, repeated, tag="3")]
+    pub classifications: ::prost::alloc::vec::Vec<Classification>,
+    #[prost(message, repeated, tag="4")]
+    pub objects: ::prost::alloc::vec::Vec<super::super::super::common::v1::PointCloudObject>,
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetPropertiesResponse {
+    /// whether or not classifactions are supported by the vision service
+    #[prost(bool, tag="1")]
+    pub classifications_supported: bool,
+    /// whether or not detections are supported by the vision service
+    #[prost(bool, tag="2")]
+    pub detections_supported: bool,
+    /// whether or not 3d segmentation is supported by the vision service
+    #[prost(bool, tag="3")]
+    pub object_point_clouds_supported: bool,
+}
 // @@protoc_insertion_point(module)

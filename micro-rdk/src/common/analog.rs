@@ -35,12 +35,26 @@ impl AnalogReader<u16> for FakeAnalogReader {
     fn read(&mut self) -> Result<u16, Self::Error> {
         self.internal_read()
     }
+    fn resolution(&self) -> AnalogResolution {
+        Default::default()
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct AnalogResolution {
+    pub min_range: f32,
+    pub max_range: f32,
+    pub step_size: f32,
 }
 
 pub trait AnalogReader<Word> {
     type Error;
     fn read(&mut self) -> Result<Word, Self::Error>;
     fn name(&self) -> String;
+    /// Returns the resolution information for converting
+    /// the raw value of `read` to voltage (units of voltage
+    /// is dependent on the implementer)
+    fn resolution(&self) -> AnalogResolution;
 }
 
 impl<A, Word> AnalogReader<Word> for Arc<Mutex<A>>
@@ -53,6 +67,9 @@ where
     }
     fn name(&self) -> String {
         self.lock().unwrap().name()
+    }
+    fn resolution(&self) -> AnalogResolution {
+        self.lock().unwrap().resolution()
     }
 }
 
