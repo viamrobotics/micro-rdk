@@ -54,15 +54,20 @@ impl NVSStorage {
         let mut nvs = self.nvs.borrow_mut();
         Ok(nvs.set_str(key, string)?)
     }
+    fn has_str(&self, key: &str) -> Result<bool, NVSStorageError> {
+        let nvs = self.nvs.borrow();
+        Ok(nvs.str_len(key)?.is_some())
+    }
     fn has_key(&self, key: &str) -> Result<bool, NVSStorageError> {
         let nvs = self.nvs.borrow();
+
         Ok(nvs.contains(key)?)
     }
 }
 impl RobotCredentialStorage for NVSStorage {
     type Error = NVSStorageError;
     fn has_stored_credentials(&self) -> bool {
-        self.has_key("ROBOT_SECRET").unwrap_or(false) && self.has_key("ROBOT_ID").unwrap_or(false)
+        self.has_str("ROBOT_SECRET").unwrap_or(false) && self.has_str("ROBOT_ID").unwrap_or(false)
     }
     fn get_robot_credentials(&self) -> Result<RobotCredentials, Self::Error> {
         let robot_secret = self.get_string("ROBOT_SECRET")?;
@@ -85,7 +90,7 @@ impl RobotCredentialStorage for NVSStorage {
 impl WifiCredentialStorage for NVSStorage {
     type Error = NVSStorageError;
     fn has_wifi_credentials(&self) -> bool {
-        self.has_key("WIFI_SSID").unwrap_or(false) && self.has_key("WIFI_PASSWORD").unwrap_or(false)
+        self.has_str("WIFI_SSID").unwrap_or(false) && self.has_str("WIFI_PASSWORD").unwrap_or(false)
     }
     fn get_wifi_credentials(&self) -> Result<WifiCredentials, Self::Error> {
         let ssid = self.get_string("WIFI_SSID")?;

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
     hal::modem::WifiModem,
@@ -17,7 +18,7 @@ use thiserror::Error;
 
 use crate::common::provisioning::{
     server::{NetworkInfo, WifiManager},
-    storage::{WifiCredentialStorage, WifiCredentials},
+    storage::WifiCredentialStorage,
 };
 
 pub(crate) fn esp32_get_system_event_loop() -> Result<&'static EspSystemEventLoop, EspError> {

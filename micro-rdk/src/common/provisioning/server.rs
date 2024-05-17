@@ -174,7 +174,7 @@ where
         }
     }
     async fn set_network_credential_request(&self, body: Bytes) -> Result<Bytes, ServerError> {
-        if let Some(wifi_manager) = self.wifi_manager.as_ref() {
+        if let Some(_wifi_manager) = self.wifi_manager.as_ref() {
             let creds: WifiCredentials = SetNetworkCredentialsRequest::decode(body)
                 .map_err(|e| ServerError::new(GrpcError::RpcInternal, Some(e.into())))?
                 .into();
