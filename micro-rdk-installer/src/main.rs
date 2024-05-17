@@ -30,6 +30,7 @@ const PARTITION_TABLE_ADDR: u32 = 0x8000;
 const PARTITION_TABLE_SIZE: u32 = 0xc00;
 const EMPTY_BYTE: u8 = 0xFF;
 const APP_IMAGE_PARTITION_NAME: &str = "factory";
+// taken from `espflash::cli::ReadFlashArgs` default values
 const DEFAULT_BLOCK_SIZE: u32 = 0x1000;
 const DEFAULT_MAX_IN_FLIGHT: u32 = 64;
 
