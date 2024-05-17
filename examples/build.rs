@@ -1,14 +1,5 @@
-use const_gen::*;
-use local_ip_address::local_ip;
-use rcgen::{date_time_ymd, CertificateParams, DistinguishedName};
 use serde::{Deserialize, Serialize};
-use std::{env, fs, path::Path};
-use tokio::runtime::Runtime;
-use viam::gen::proto::app::v1::{
-    robot_service_client::RobotServiceClient, AgentInfo, CertificateRequest, ConfigRequest,
-    RobotConfig,
-};
-use viam_rust_utils::rpc::dial::{DialOptions, RPCCredentials};
+use std::env;
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Config {
@@ -19,222 +10,36 @@ pub struct Config {
 pub struct Cloud {
     pub id: String,
     pub secret: String,
-    #[serde(default)]
-    pub location_secret: String,
-    #[serde(default)]
-    managed_by: String,
-    #[serde(default)]
-    fqdn: String,
-    #[serde(default)]
-    local_fqdn: String,
-    #[serde(default)]
-    signaling_address: String,
-    #[serde(default)]
-    signaling_insecure: bool,
-    #[serde(default)]
-    path: String,
-    #[serde(default)]
-    log_path: String,
-    app_address: String,
-    #[serde(default)]
-    refresh_interval: String,
-    #[serde(default)]
-    pub tls_certificate: String,
-    #[serde(default)]
-    pub tls_private_key: String,
+    pub app_address: String,
 }
 
-fn main() -> anyhow::Result<()> {
+fn main() {
     println!("cargo:rerun-if-changed=viam.json");
-    let use_nvs = match env::var_os("MICRO_RDK_USE_NVS") {
-        Some(val) => {
-            let use_nvs = val.to_ascii_lowercase() == "true";
-            if !use_nvs {
-                println!("Found MICRO_RDK_USE_NVS={:?}, will not write credentials as variables to file. If this was not intended provide the value as 'true' or 'True'", val);
-            }
-            use_nvs
-        }
-        None => false,
-    };
+    //    let mut has_robot_credentials = false;
     if env::var("TARGET").unwrap() == "xtensa-esp32-espidf" {
         if std::env::var_os("IDF_PATH").is_none() {
-            return Err(anyhow::anyhow!(
-                "You need to run IDF's export.sh before building"
-            ));
+            panic!("You need to run IDF's export.sh before building");
         }
-        if !use_nvs {
-            if std::env::var_os("MICRO_RDK_WIFI_SSID").is_none() {
-                std::env::set_var("MICRO_RDK_WIFI_SSID", "Viam-2G");
-                println!("cargo:rustc-env=MICRO_RDK_WIFI_SSID=Viam-2G");
-            }
-            if std::env::var_os("MICRO_RDK_WIFI_PASSWORD").is_none() {
-                return Err(anyhow::anyhow!(
-                    "please set the password for WiFi {}",
-                    std::env::var_os("MICRO_RDK_WIFI_SSID")
-                        .unwrap()
-                        .to_str()
-                        .unwrap()
-                ));
-            }
+        if std::env::var_os("MICRO_RDK_WIFI_SSID").is_none()
+            || std::env::var_os("MICRO_RDK_WIFI_PASSWORD").is_none()
+            || std::env::var_os("CARGO_FEATURE_QEMU").is_some()
+        {
+            println!("cargo:rustc-env=MICRO_RDK_WIFI_SSID=");
+            println!("cargo:rustc-env=MICRO_RDK_WIFI_PASSWORD=");
         }
-        embuild::build::CfgArgs::output_propagated("MICRO_RDK")?;
-        embuild::build::LinkArgs::output_propagated("MICRO_RDK")?;
+
+        embuild::build::CfgArgs::output_propagated("MICRO_RDK").unwrap();
+        embuild::build::LinkArgs::output_propagated("MICRO_RDK").unwrap();
     }
 
-    if use_nvs {
-        return Ok(());
-    }
-
-    let (cert_der, kp_der, fp) = generate_dtls_certificate()?;
-
-    let (robot_cfg, cfg) = if let Ok(content) = std::fs::read_to_string("viam.json") {
-        let mut cfg: Config = serde_json::from_str(content.as_str()).map_err(anyhow::Error::msg)?;
-
-        let rt = Runtime::new()?;
-        let robot_cfg = rt.block_on(read_cloud_config(&mut cfg))?;
-        rt.block_on(read_certificates(&mut cfg))?;
-        (robot_cfg, cfg)
-    } else {
-        (RobotConfig::default(), Config::default())
-    };
-
-    let cloud_cfg = robot_cfg.cloud.unwrap_or_default();
-    let robot_name = cloud_cfg.local_fqdn.split('.').next().unwrap_or("");
-    let local_fqdn = cloud_cfg.local_fqdn.replace('.', "-");
-    let fqdn = cloud_cfg.fqdn.replace('.', "-");
-
-    let srv_cert = format!("{}\0", cfg.cloud.tls_certificate);
-
-    let key = der::Document::from_pem(&cfg.cloud.tls_private_key)
-        .map_or(vec![], |k| k.1.as_bytes().to_vec());
-
-    let out_dir = env::var_os("OUT_DIR").unwrap();
-    let dest_path = Path::new(&out_dir).join("robot_secret.rs");
-    let robot_decl = vec![
-        const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            ROBOT_ID = cfg.cloud.id.as_str()
-        ),
-        const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            ROBOT_SECRET = cfg.cloud.secret.as_str()
-        ),
-        const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            LOCAL_FQDN = local_fqdn.as_str()
-        ),
-        const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            FQDN = fqdn.as_str()
-        ),
-        const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            ROBOT_NAME = robot_name
-        ),
-        const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            ROBOT_DTLS_CERT = cert_der
-        ),
-        const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            ROBOT_DTLS_KEY_PAIR = kp_der
-        ),
-        const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            ROBOT_DTLS_CERT_FP = fp
-        ),
-        const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            ROBOT_SRV_PEM_CHAIN = srv_cert.as_bytes()
-        ),
-        const_declaration!(
-            #[allow(clippy::redundant_static_lifetimes, dead_code)]
-            ROBOT_SRV_DER_KEY = key
-        ),
-    ]
-    .join("\n");
-    fs::write(dest_path, robot_decl).unwrap();
-
-    Ok(())
-}
-
-fn generate_dtls_certificate() -> anyhow::Result<(Vec<u8>, Vec<u8>, String)> {
-    let mut param: CertificateParams = CertificateParams::new(vec!["esp32".to_string()]);
-    param.not_before = date_time_ymd(2021, 5, 19);
-    param.not_after = date_time_ymd(4096, 1, 1);
-    let mut dn = DistinguishedName::new();
-    dn.push(rcgen::DnType::OrganizationName, "Viam");
-    param.distinguished_name = dn;
-    param.alg = &rcgen::PKCS_ECDSA_P256_SHA256;
-
-    let kp = rcgen::KeyPair::generate(&rcgen::PKCS_ECDSA_P256_SHA256)?;
-    let kp_der = kp.serialize_der();
-
-    param.key_pair = Some(kp);
-
-    let cert = rcgen::Certificate::from_params(param).unwrap();
-    let cert_der = cert.serialize_der().unwrap();
-    let fp = ring::digest::digest(&ring::digest::SHA256, &cert_der)
-        .as_ref()
-        .iter()
-        .map(|b| format!("{:02X}", b))
-        .collect::<Vec<String>>()
-        .join(":");
-    let fp = String::from("sha-256") + " " + &fp;
-
-    Ok((cert_der, kp_der, fp))
-}
-
-async fn read_certificates(config: &mut Config) -> anyhow::Result<()> {
-    let creds = RPCCredentials::new(
-        Some(config.cloud.id.clone()),
-        "robot-secret".to_string(),
-        config.cloud.secret.clone(),
-    );
-    let cert_req = CertificateRequest {
-        id: config.cloud.id.clone(),
-    };
-    let dial = DialOptions::builder()
-        .uri(config.cloud.app_address.clone().as_str())
-        .with_credentials(creds)
-        .disable_webrtc()
-        .connect()
-        .await?;
-    let mut app_service = RobotServiceClient::new(dial);
-    let certs = app_service.certificate(cert_req).await?.into_inner();
-    config.cloud.tls_certificate = certs.tls_certificate;
-    config.cloud.tls_private_key = certs.tls_private_key;
-    Ok(())
-}
-
-async fn read_cloud_config(config: &mut Config) -> anyhow::Result<RobotConfig> {
-    let creds = RPCCredentials::new(
-        Some(config.cloud.id.clone()),
-        "robot-secret".to_string(),
-        config.cloud.secret.clone(),
-    );
-    let agent = AgentInfo {
-        os: "esp32-build".to_string(),
-        host: gethostname::gethostname().to_str().unwrap().to_string(),
-        ips: vec![local_ip().unwrap().to_string()],
-        version: env!("CARGO_PKG_VERSION").to_string(),
-        git_revision: "".to_string(),
-        platform: Some("esp32-build".to_string()),
-    };
-    let cfg_req = ConfigRequest {
-        agent_info: Some(agent),
-        id: config.cloud.id.clone(),
-    };
-    let dial = DialOptions::builder()
-        .uri(config.cloud.app_address.clone().as_str())
-        .with_credentials(creds)
-        .disable_webrtc()
-        .connect()
-        .await?;
-    let mut app_service = RobotServiceClient::new(dial);
-    let cfg = app_service.config(cfg_req).await?.into_inner();
-    match cfg.config {
-        Some(cfg) => Ok(cfg),
-        None => anyhow::bail!("no config for robot"),
+    if let Ok(content) = std::fs::read_to_string("viam.json") {
+        if let Ok(cfg) = serde_json::from_str::<Config>(content.as_str()) {
+            println!(
+                "cargo:rustc-env=MICRO_RDK_ROBOT_SECRET={}",
+                cfg.cloud.secret
+            );
+            println!("cargo:rustc-env=MICRO_RDK_ROBOT_ID={}", cfg.cloud.id);
+            println!("cargo:rustc-cfg=has_robot_config");
+        }
     }
 }

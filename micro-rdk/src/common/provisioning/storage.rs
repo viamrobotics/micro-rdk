@@ -70,14 +70,31 @@ pub trait RobotCredentialStorage {
 }
 
 #[derive(Default)]
-struct MemoryCredentialStorageInner {
+struct RAMCredentialStorageInner {
     config: Option<RobotCredentials>,
     wifi_creds: Option<WifiCredentials>,
 }
 
 /// Simple CrendentialStorage made for testing purposes
 #[derive(Default, Clone)]
-pub struct RAMStorage(Rc<Mutex<MemoryCredentialStorageInner>>);
+pub struct RAMStorage(Rc<Mutex<RAMCredentialStorageInner>>);
+
+impl RAMStorage {
+    pub fn new(ssid: &str, pass: &str, robot_id: &str, robot_secret: &str) -> Self {
+        let config = RobotCredentials {
+            robot_id: robot_id.to_owned(),
+            robot_secret: robot_secret.to_owned(),
+        };
+        let wifi_creds = WifiCredentials {
+            ssid: ssid.to_owned(),
+            pwd: pass.to_owned(),
+        };
+        Self(Rc::new(Mutex::new(RAMCredentialStorageInner {
+            config: Some(config),
+            wifi_creds: Some(wifi_creds),
+        })))
+    }
+}
 
 impl RobotCredentialStorage for RAMStorage {
     type Error = Infallible;

@@ -4,12 +4,13 @@ use crate::{
     common::{
         app_client::{AppClientBuilder, AppClientConfig},
         conn::{
-            network::{ExternallyManagedNetwork, Network},
+            network::Network,
             server::{ViamServerBuilder, WebRtcConfiguration},
         },
         entry::RobotRepresentation,
         grpc_client::GrpcClient,
         log::config_log_entry,
+        provisioning::storage::RobotCredentials,
         restart_monitor::RestartMonitor,
         robot::LocalRobot,
     },
@@ -23,20 +24,15 @@ use std::{
 
 #[cfg(feature = "provisioning")]
 use crate::common::{
-    conn::mdns::Mdns,
     grpc::ServerError,
     provisioning::{
-        server::{ProvisioningInfo, ProvisioningServiceBuilder, ProvisoningServer},
+        server::ProvisioningInfo,
         storage::{RobotCredentialStorage, WifiCredentialStorage},
     },
 };
+
 #[cfg(feature = "provisioning")]
-use async_io::Async;
-#[cfg(feature = "provisioning")]
-use std::{
-    fmt::Debug,
-    net::{Ipv4Addr, TcpListener},
-};
+use std::fmt::Debug;
 
 use super::{
     certificate::WebRtcCertificate, conn::mdns::NativeMdns, dtls::NativeDtls, tcp::NativeListener,
@@ -47,16 +43,21 @@ use super::{
 use crate::common::{data_manager::DataManager, data_store::StaticMemoryDataStore};
 
 pub async fn serve_web_inner(
-    app_config: AppClientConfig,
-    tls_server_config: NativeTlsServerConfig,
+    robot_creds: RobotCredentials,
     repr: RobotRepresentation,
     exec: NativeExecutor,
-    network: ExternallyManagedNetwork,
+    _max_webrtc_connection: usize,
+    network: impl Network,
 ) {
+    let app_config = AppClientConfig::new(
+        robot_creds.robot_secret().to_owned(),
+        robot_creds.robot_id().to_owned(),
+        "".to_owned(),
+    );
     let client_connector = NativeTls::new_client();
     let mdns = NativeMdns::new("".to_owned(), network.get_ip()).unwrap();
 
-    let (cfg_response, robot) = {
+    let (cfg_response, robot, tls_server_config) = {
         let cloned_exec = exec.clone();
         let conn = client_connector.open_ssl_context(None).await.unwrap();
         let conn = NativeStream::TLSStream(Box::new(conn));
@@ -66,6 +67,13 @@ pub async fn serve_web_inner(
         let builder = AppClientBuilder::new(Box::new(grpc_client), app_config.clone());
         log::info!("build client start");
         let client = builder.build().await.unwrap();
+
+        let certs = client.get_certificates().await.unwrap();
+
+        let tls_config = NativeTlsServerConfig::new(
+            certs.tls_certificate.as_bytes().to_vec(),
+            certs.tls_private_key.as_bytes().to_vec(),
+        );
 
         let (cfg_response, cfg_received_datetime) =
             client.get_config(network.get_ip()).await.unwrap();
@@ -105,7 +113,7 @@ pub async fn serve_web_inner(
             }
         };
 
-        (cfg_response, robot)
+        (cfg_response, robot, tls_config)
     };
 
     #[cfg(feature = "data")]
@@ -145,132 +153,124 @@ pub async fn serve_web_inner(
     srv.serve(robot).await;
 }
 
-#[cfg(feature = "provisioning")]
-async fn serve_provisioning_async<S>(
-    ip: Ipv4Addr,
+async fn validate_robot_credentials(
     exec: NativeExecutor,
-    info: ProvisioningInfo,
+    robot_creds: &RobotCredentials,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let app_config = AppClientConfig::new(
+        robot_creds.robot_secret().to_owned(),
+        robot_creds.robot_id().to_owned(),
+        "".to_owned(),
+    );
+    let conn = NativeStream::TLSStream(Box::new(
+        NativeTls::new_client().open_ssl_context(None).await?,
+    ));
+    let client = GrpcClient::new(conn, exec.clone(), "https://app.viam.com:443").await?;
+    let builder = AppClientBuilder::new(Box::new(client), app_config.clone());
+
+    let _client = builder.build().await?;
+    Ok(())
+}
+
+#[cfg(feature = "provisioning")]
+async fn serve_async_with_external_network<S>(
+    exec: NativeExecutor,
+    info: Option<ProvisioningInfo>,
     storage: S,
-    last_error: Option<String>,
-) -> Result<(AppClientConfig, NativeTlsServerConfig), Box<dyn std::error::Error>>
+    repr: RobotRepresentation,
+    network: impl Network,
+    max_webrtc_connection: usize,
+) -> Result<(), Box<dyn std::error::Error>>
 where
     S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
     <S as RobotCredentialStorage>::Error: Debug,
     ServerError: From<<S as RobotCredentialStorage>::Error>,
+    <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
-    let hostname = format!(
-        "provisioning-{}-{}",
-        info.get_model(),
-        info.get_manufacturer()
-    );
-    let mut mdns = NativeMdns::new(hostname, ip)?;
+    use std::time::Duration;
 
-    let srv = ProvisioningServiceBuilder::new().with_provisioning_info(info);
+    use async_io::Timer;
 
-    let srv = if let Some(error) = last_error {
-        srv.with_last_error(error)
-    } else {
-        srv
-    };
-    let srv = srv.build(storage.clone());
-    let listen = TcpListener::bind(ip.to_string() + ":0")?;
-    let listen: Async<TcpListener> = listen.try_into()?;
+    use crate::common::provisioning::server::serve_provisioning_async;
 
-    let port = listen.get_ref().local_addr()?.port();
-
-    log::info!("provisioning server run on {}:{}", ip, port);
-
-    mdns.add_service(
-        "provisioning",
-        "_rpc",
-        "_tcp",
-        port,
-        &[("provisioning", "1")],
-    )?;
+    let info = info.unwrap_or_default();
+    let mut last_error: Option<Box<dyn std::error::Error>> = None;
+    let mut mdns = NativeMdns::new("".to_owned(), network.get_ip()).unwrap();
     loop {
-        let incoming = listen.accept().await;
-        let (stream, _) = incoming?;
-        log::info!("will attempt to provision");
-
-        // The provisioning server is exposed over unencrypted HTTP2
-        let stream = NativeStream::LocalPlain(stream);
-
-        let ret = ProvisoningServer::new(srv.clone(), exec.clone(), stream).await;
-        if ret.is_ok() && storage.has_stored_credentials() {
-            let creds = storage.get_robot_credentials().unwrap();
-            let app_config = AppClientConfig::new(
-                creds.robot_secret().to_owned(),
-                creds.robot_id().to_owned(),
-                "".to_owned(),
-            );
-
-            let conn = NativeStream::TLSStream(Box::new(
-                NativeTls::new_client().open_ssl_context(None).await?,
-            ));
-            let client = GrpcClient::new(conn, exec.clone(), "https://app.viam.com:443").await?;
-            let builder = AppClientBuilder::new(Box::new(client), app_config.clone());
-
-            let mut client = builder.build().await?;
-            let certs = client.get_certificates().await?;
-
-            return Ok((
-                app_config,
-                NativeTlsServerConfig::new(
-                    certs.tls_certificate.into(),
-                    certs.tls_private_key.into(),
-                ),
-            ));
+        // Credentials are present let's check we can connect
+        if storage.has_stored_credentials() && storage.has_wifi_credentials() {
+            let validated = loop {
+                // should check internet when implementing Cached Config
+                if let Err(error) = network.is_connected() {
+                    log::info!(
+                        "Externally managed network, not connected yet cause {:?}",
+                        error
+                    );
+                    Timer::after(Duration::from_secs(3)).await;
+                    continue;
+                }
+                // Assume connected to internet so any error should be forwarded to provisioning
+                if let Err(e) = validate_robot_credentials(
+                    exec.clone(),
+                    &storage.get_robot_credentials().unwrap(),
+                )
+                .await
+                {
+                    let _ = last_error.insert(e);
+                    break false;
+                }
+                break true;
+            };
+            if validated {
+                break;
+            }
+        }
+        if let Err(e) = serve_provisioning_async::<_, (), _>(
+            exec.clone(),
+            info.clone(),
+            storage.clone(),
+            last_error.take(),
+            None,
+            &mut mdns,
+        )
+        .await
+        {
+            let _ = last_error.insert(e);
         }
     }
+    serve_web_inner(
+        storage.get_robot_credentials().unwrap(),
+        repr,
+        exec,
+        max_webrtc_connection,
+        network,
+    )
+    .await;
+    Ok(())
 }
 
-#[cfg(feature = "provisioning")]
-pub fn serve_with_provisioning<S>(
-    storage: S,
-    info: ProvisioningInfo,
+pub fn serve_web_with_external_network<S>(
+    info: Option<ProvisioningInfo>,
     repr: RobotRepresentation,
-    network: ExternallyManagedNetwork,
+    max_webrtc_connection: usize,
+    storage: S,
+    network: impl Network,
 ) where
     S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
     <S as RobotCredentialStorage>::Error: Debug,
     ServerError: From<<S as RobotCredentialStorage>::Error>,
+    <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
     let exec = NativeExecutor::new();
     let cloned_exec = exec.clone();
-    let mut last_error = None;
-    let (app_config, tls_server_config) = loop {
-        match cloned_exec.block_on(serve_provisioning_async(
-            network.get_ip(),
-            exec.clone(),
-            info.clone(),
-            storage.clone(),
-            last_error.clone(),
-        )) {
-            Ok(c) => break c,
-            Err(e) => {
-                log::error!("provisioning step failed with {:?}", e);
-                let _ = last_error.insert(format!("{:?}", e));
-            }
-        }
-    };
-    serve_web(app_config, tls_server_config, repr, network)
-}
 
-pub fn serve_web(
-    app_config: AppClientConfig,
-    tls_server_config: NativeTlsServerConfig,
-    repr: RobotRepresentation,
-    network: ExternallyManagedNetwork,
-) {
-    let exec = NativeExecutor::new();
-    let cloned_exec = exec.clone();
-
-    cloned_exec.block_on(Box::pin(serve_web_inner(
-        app_config,
-        tls_server_config,
-        repr,
+    let _ = cloned_exec.block_on(Box::pin(serve_async_with_external_network(
         exec,
+        info,
+        storage,
+        repr,
         network,
+        max_webrtc_connection,
     )));
 }
 
@@ -293,7 +293,7 @@ mod tests {
     use http_body_util::BodyExt;
     use prost::Message;
 
-    use std::net::{Ipv4Addr, TcpStream};
+    use std::net::TcpStream;
 
     #[test_log::test]
     #[ignore]

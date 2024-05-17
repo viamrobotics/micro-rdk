@@ -1,4 +1,4 @@
-name: Test
+ame: Test
 
 on:
   workflow_call:
@@ -110,7 +110,6 @@ jobs:
       run: |
         bash -c 'git config --global --add safe.directory /opt/esp/esp-idf && export MICRO_RDK_WIFI_PASSWORD=0 && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && make clippy-esp32'
         bash -c 'export MICRO_RDK_WIFI_PASSWORD=0 && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && cd examples && cd ../ && make build-esp32-bin'
-        bash -c 'export MICRO_RDK_USE_NVS=true && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && make build-esp32-with-cred-bin'
 
     - name: Native Build & Clippy
       if : needs.changes.outputs.src-native == 'true' || needs.changes.outputs.src-common == 'true' || needs.changes.outputs.src-examples == 'true' 

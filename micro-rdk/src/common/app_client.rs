@@ -203,7 +203,7 @@ impl AppClient {
         Ok(AppSignaling(tx, rx))
     }
 
-    pub async fn get_certificates(&mut self) -> Result<CertificateResponse, AppClientError> {
+    pub async fn get_certificates(&self) -> Result<CertificateResponse, AppClientError> {
         let req = CertificateRequest {
             id: self.config.robot_id.clone(),
         };

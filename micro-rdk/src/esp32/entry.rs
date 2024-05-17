@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 
 use std::{
+    ffi::CString,
+    fmt::Debug,
     rc::Rc,
     sync::{Arc, Mutex},
     time::Duration,
@@ -16,6 +18,7 @@ use crate::common::{
     entry::RobotRepresentation,
     grpc_client::GrpcClient,
     log::config_log_entry,
+    provisioning::storage::RobotCredentials,
     restart_monitor::RestartMonitor,
     robot::LocalRobot,
 };
@@ -24,7 +27,7 @@ use crate::common::{
 use crate::common::{data_manager::DataManager, data_store::StaticMemoryDataStore};
 
 use super::{
-    certificate::WebRtcCertificate,
+    certificate::GeneratedWebRtcCertificateBuilder,
     dtls::Esp32DtlsBuilder,
     exec::Esp32Executor,
     tcp::Esp32Stream,
@@ -36,19 +39,13 @@ use async_io::Timer;
 #[cfg(feature = "provisioning")]
 use crate::common::{
     grpc::ServerError,
-    provisioning::server::{ProvisioningInfo, ProvisioningServiceBuilder, ProvisoningServer},
+    provisioning::server::ProvisioningInfo,
     provisioning::storage::{RobotCredentialStorage, WifiCredentialStorage},
 };
-#[cfg(feature = "provisioning")]
-use async_io::Async;
-#[cfg(feature = "provisioning")]
-use std::{fmt::Debug, net::TcpListener};
 
 pub async fn serve_web_inner(
-    app_config: AppClientConfig,
-    _tls_server_config: Esp32TLSServerConfig,
+    robot_creds: RobotCredentials,
     repr: RobotRepresentation,
-    webrtc_certificate: WebRtcCertificate,
     exec: Esp32Executor,
     max_webrtc_connection: usize,
     network: impl Network,
@@ -59,10 +56,20 @@ pub async fn serve_web_inner(
     // initialization is done
     let _ = Timer::after(std::time::Duration::from_millis(60)).await;
 
+    let webrtc_certificate = GeneratedWebRtcCertificateBuilder::default()
+        .build()
+        .unwrap();
+
+    let app_config = AppClientConfig::new(
+        robot_creds.robot_secret().to_owned(),
+        robot_creds.robot_id().to_owned(),
+        "".to_owned(),
+    );
+
     let mut client_connector = Esp32TLS::new_client();
     let mdns = NoMdns {};
 
-    let (cfg_response, robot) = {
+    let (cfg_response, robot, _tls_server_config) = {
         let cloned_exec = exec.clone();
         let conn = client_connector.open_ssl_context(None).unwrap();
         let conn = Esp32Stream::TLSStream(Box::new(conn));
@@ -75,6 +82,17 @@ pub async fn serve_web_inner(
         let builder = AppClientBuilder::new(grpc_client, app_config.clone());
 
         let client = builder.build().await.unwrap();
+
+        let certs = client.get_certificates().await.unwrap();
+
+        let serv_key = CString::new(certs.tls_private_key).unwrap();
+        let serv_key_len = serv_key.as_bytes_with_nul().len() as u32;
+        let serv_key: *const u8 = serv_key.into_raw() as *const u8;
+
+        let tls_certs = CString::new(certs.tls_certificate)
+            .unwrap()
+            .into_bytes_with_nul();
+        let tls_server_config = Esp32TLSServerConfig::new(tls_certs, serv_key, serv_key_len);
 
         let (cfg_response, cfg_received_datetime) =
             client.get_config(network.get_ip()).await.unwrap();
@@ -114,7 +132,7 @@ pub async fn serve_web_inner(
             }
         };
 
-        (cfg_response, robot)
+        (cfg_response, robot, tls_server_config)
     };
 
     #[cfg(feature = "data")]
@@ -159,146 +177,204 @@ pub async fn serve_web_inner(
     srv.serve(robot).await;
 }
 
-#[cfg(feature = "provisioning")]
-async fn serve_provisioning_async<S>(
-    ip: std::net::Ipv4Addr,
+async fn validate_robot_credentials(
     exec: Esp32Executor,
-    info: ProvisioningInfo,
+    robot_creds: &RobotCredentials,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let app_config = AppClientConfig::new(
+        robot_creds.robot_secret().to_owned(),
+        robot_creds.robot_id().to_owned(),
+        "".to_owned(),
+    );
+    let conn = Esp32Stream::TLSStream(Box::new(Esp32TLS::new_client().open_ssl_context(None)?));
+    let client = GrpcClient::new(conn, exec.clone(), "https://app.viam.com:443").await?;
+    let builder = AppClientBuilder::new(Box::new(client), app_config.clone());
+
+    let _client = builder.build().await?;
+    Ok(())
+}
+
+// Four cases:
+// 1) No Robot Credentials + WiFi without external network
+// 2) No Robot Credentials with external network\
+// 3) Robot Credentials with external network
+// 4) Robot Credentials + WiFi without external network
+
+#[cfg(feature = "provisioning")]
+async fn serve_async<S>(
+    exec: Esp32Executor,
+    info: Option<ProvisioningInfo>,
     storage: S,
-    last_error: Option<String>,
-) -> Result<(AppClientConfig, Esp32TLSServerConfig), Box<dyn std::error::Error>>
+    repr: RobotRepresentation,
+    max_webrtc_connection: usize,
+) -> Result<(), Box<dyn std::error::Error>>
 where
     S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
     <S as RobotCredentialStorage>::Error: Debug,
     ServerError: From<<S as RobotCredentialStorage>::Error>,
+    <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
-    use super::conn::mdns::Esp32Mdns;
-    use crate::common::conn::mdns::Mdns;
-    use std::ffi::CString;
-    let _ = Timer::after(std::time::Duration::from_millis(150)).await;
-    let hostname = format!(
-        "provisioning-{}-{}",
-        info.get_model(),
-        info.get_manufacturer()
-    );
-    let mut mdns = Esp32Mdns::new(hostname)?;
-
-    let srv = ProvisioningServiceBuilder::new().with_provisioning_info(info);
-
-    let srv = if let Some(error) = last_error {
-        srv.with_last_error(error)
-    } else {
-        srv
+    use crate::{
+        common::provisioning::server::serve_provisioning_async,
+        esp32::{
+            conn::mdns::Esp32Mdns, provisioning::wifi_provisioning::Esp32WifiProvisioningBuilder,
+        },
     };
-    let srv = srv.build(storage.clone());
-    let listen = TcpListener::bind(ip.to_string() + ":0")?;
-    let listen: Async<TcpListener> = listen.try_into()?;
 
-    let port = listen.get_ref().local_addr()?.port();
+    use super::conn::network::Esp32WifiNetwork;
 
-    mdns.add_service(
-        "provisioning",
-        "_rpc",
-        "_tcp",
-        port,
-        &[("provisioning", "")],
-    )?;
-    loop {
-        let incoming = listen.accept().await;
-        let (stream, _) = incoming?;
+    let mut last_error: Option<Box<dyn std::error::Error>> = None;
 
-        // The provisioning server is exposed over unencrypted HTTP2
-        let stream = Esp32Stream::LocalPlain(stream);
+    let info = info.unwrap_or_default();
 
-        let ret = ProvisoningServer::new(srv.clone(), exec.clone(), stream).await;
-        if ret.is_ok() && storage.has_stored_credentials() {
-            let creds = storage.get_robot_credentials().unwrap();
-            let app_config = AppClientConfig::new(
-                creds.robot_secret().to_owned(),
-                creds.robot_id().to_owned(),
-                "".to_owned(),
-            );
-
-            let conn =
-                Esp32Stream::TLSStream(Box::new(Esp32TLS::new_client().open_ssl_context(None)?));
-            let client = GrpcClient::new(conn, exec.clone(), "https://app.viam.com:443").await?;
-            let builder = AppClientBuilder::new(Box::new(client), app_config.clone());
-
-            let mut client = builder.build().await?;
-            let certs = client.get_certificates().await?;
-
-            let serv_key = CString::new(certs.tls_private_key).unwrap();
-            let serv_key_len = serv_key.as_bytes_with_nul().len() as u32;
-            let serv_key: *const u8 = serv_key.into_raw() as *const u8;
-
-            let tls_certs = CString::new(certs.tls_certificate)
-                .unwrap()
-                .into_bytes_with_nul();
-
-            return Ok((
-                app_config,
-                Esp32TLSServerConfig::new(tls_certs, serv_key, serv_key_len),
-            ));
+    let network = loop {
+        // Credentials are present let's check we can connect
+        if storage.has_stored_credentials() && storage.has_wifi_credentials() {
+            let mut network =
+                Esp32WifiNetwork::new(storage.get_wifi_credentials().unwrap()).await?;
+            let validated = loop {
+                // should check internet when implementing Cached Config
+                let ret = network.connect().await;
+                if let Err(error) = ret {
+                    log::info!(
+                        "Couldn't connect to {} cause : {:?}",
+                        storage.get_wifi_credentials().unwrap().ssid,
+                        error
+                    );
+                    continue;
+                }
+                // Assume connected to internet so any error should be forwarded to provisioning
+                if let Err(e) = validate_robot_credentials(
+                    exec.clone(),
+                    &storage.get_robot_credentials().unwrap(),
+                )
+                .await
+                {
+                    let _ = last_error.insert(e);
+                    break false;
+                }
+                break true;
+            };
+            if validated {
+                break network;
+            }
         }
-    }
+        // Start the WiFi in AP + STA mode
+        let wifi_manager = Esp32WifiProvisioningBuilder::default()
+            .build(storage.clone())
+            .await
+            .unwrap();
+        let mut mdns = Esp32Mdns::new("".to_owned())?;
+        if let Err(e) = serve_provisioning_async(
+            exec.clone(),
+            info.clone(),
+            storage.clone(),
+            last_error.take(),
+            Some(wifi_manager),
+            &mut mdns,
+        )
+        .await
+        {
+            let _ = last_error.insert(e);
+        }
+    };
+    serve_web_inner(
+        storage.get_robot_credentials().unwrap(),
+        repr,
+        exec,
+        max_webrtc_connection,
+        network,
+    )
+    .await;
+    Ok(())
 }
 
 #[cfg(feature = "provisioning")]
-pub fn serve_with_provisioning<S>(
+async fn serve_async_with_external_network<S>(
+    exec: Esp32Executor,
+    info: Option<ProvisioningInfo>,
     storage: S,
-    info: ProvisioningInfo,
     repr: RobotRepresentation,
     network: impl Network,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
+    <S as RobotCredentialStorage>::Error: Debug,
+    ServerError: From<<S as RobotCredentialStorage>::Error>,
+    <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
+{
+    use crate::common::provisioning::server::serve_provisioning_async;
+
+    use super::conn::mdns::Esp32Mdns;
+
+    let info = info.unwrap_or_default();
+    let mut last_error: Option<Box<dyn std::error::Error>> = None;
+
+    loop {
+        // Credentials are present let's check we can connect
+        if storage.has_stored_credentials() && storage.has_wifi_credentials() {
+            let validated = loop {
+                // should check internet when implementing Cached Config
+                if let Err(error) = network.is_connected() {
+                    log::info!(
+                        "Externally managed network, not connected yet cause {:?}",
+                        error
+                    );
+                    Timer::after(Duration::from_secs(3)).await;
+                    continue;
+                }
+                // Assume connected to internet so any error should be forwarded to provisioning
+                if let Err(e) = validate_robot_credentials(
+                    exec.clone(),
+                    &storage.get_robot_credentials().unwrap(),
+                )
+                .await
+                {
+                    let _ = last_error.insert(e);
+                    break false;
+                }
+                break true;
+            };
+            if validated {
+                break;
+            }
+        }
+        let mut mdns = Esp32Mdns::new("".to_owned())?;
+        if let Err(e) = serve_provisioning_async::<_, (), _>(
+            exec.clone(),
+            info.clone(),
+            storage.clone(),
+            last_error.take(),
+            None,
+            &mut mdns,
+        )
+        .await
+        {
+            let _ = last_error.insert(e);
+        }
+    }
+    serve_web_inner(
+        storage.get_robot_credentials().unwrap(),
+        repr,
+        exec,
+        3,
+        network,
+    )
+    .await;
+    Ok(())
+}
+
+pub fn serve_web<S>(
+    info: Option<ProvisioningInfo>,
+    repr: RobotRepresentation,
     max_webrtc_connection: usize,
+    storage: S,
 ) where
     S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
     <S as RobotCredentialStorage>::Error: Debug,
     ServerError: From<<S as RobotCredentialStorage>::Error>,
-    <S as WifiCredentialStorage>::Error: Send + Sync + 'static,
+    <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
-    use super::certificate::GeneratedWebRtcCertificateBuilder;
-
-    let exec = Esp32Executor::new();
-    let cloned_exec = exec.clone();
-    let mut last_error = None;
-    let (app_config, tls_server_config) = loop {
-        match cloned_exec.block_on(Box::pin(serve_provisioning_async(
-            network.get_ip(),
-            exec.clone(),
-            info.clone(),
-            storage.clone(),
-            last_error.clone(),
-        ))) {
-            Ok(c) => break c,
-            Err(e) => {
-                log::error!("provisioning step failed with {:?}", e);
-                let _ = last_error.insert(format!("{:?}", e));
-            }
-        }
-    };
-    let webrtc_certificate = GeneratedWebRtcCertificateBuilder::default()
-        .build()
-        .unwrap();
-
-    serve_web(
-        app_config,
-        tls_server_config,
-        repr,
-        webrtc_certificate,
-        max_webrtc_connection,
-        network,
-    );
-    unreachable!()
-}
-
-pub fn serve_web(
-    app_config: AppClientConfig,
-    tls_server_config: Esp32TLSServerConfig,
-    repr: RobotRepresentation,
-    webrtc_certificate: WebRtcCertificate,
-    max_webrtc_connection: usize,
-    network: impl Network,
-) {
     // set the TWDT to expire after 5 minutes
     crate::esp32::esp_idf_svc::sys::esp!(unsafe {
         crate::esp32::esp_idf_svc::sys::esp_task_wdt_init(300, true)
@@ -325,14 +401,13 @@ pub fn serve_web(
         })
         .detach();
 
-    cloned_exec.block_on(Box::pin(serve_web_inner(
-        app_config,
-        tls_server_config,
-        repr,
-        webrtc_certificate,
+    let e = cloned_exec.block_on(Box::pin(serve_async(
         exec,
+        info,
+        storage,
+        repr,
         max_webrtc_connection,
-        network,
     )));
+    log::error!("Failed with {:?}", e);
     unreachable!()
 }

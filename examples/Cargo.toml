@@ -13,7 +13,6 @@ publish = false
 
 [features]
 qemu = []
-provisioning = ["micro-rdk/provisioning"]
 
 [target.'cfg(not(target_os = "espidf"))'.dependencies]
 env_logger.workspace = true
@@ -26,7 +25,7 @@ async-channel.workspace = true
 embedded-hal.workspace = true
 embedded-svc.workspace = true
 futures-lite.workspace = true
-micro-rdk = { workspace = true, features = ["esp32", "binstart"], default-features = true }
+micro-rdk = { workspace = true, features = ["esp32", "binstart", "provisioning"], default-features = true }
 
 
 [dependencies]
@@ -37,20 +36,9 @@ thiserror.workspace = true
 
 
 [build-dependencies]
-anyhow.workspace = true
-const-gen.workspace = true
-der.workspace = true
 embuild.workspace = true
-gethostname.workspace = true
-local-ip-address.workspace = true
-prost-types.workspace = true
-rcgen.workspace = true
-ring.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-tokio = { workspace = true, features = ["full"] }
-viam-rust-utils.workspace = true
-viam.workspace = true
 
 [[bin]]
 name = "native-server"
@@ -60,9 +48,6 @@ path = "native/native-server.rs"
 name = "esp32-server"
 path = "esp32/esp32-server.rs"
 
-[[bin]]
-name = "esp32-server-with-cred"
-path = "esp32-with-cred/esp32-server-with-cred.rs"
 
 [package.metadata.esp-idf-sys]
 esp_idf_tools_install_dir = "global"

@@ -4,7 +4,7 @@ resolver = "2"
 members = [
         "examples",
         "micro-rdk",
-        "micro-rdk-installer",
+	"micro-rdk-installer",
         "micro-rdk-macros",
 ]
 

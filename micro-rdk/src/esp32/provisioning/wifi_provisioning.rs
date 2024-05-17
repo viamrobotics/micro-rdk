@@ -1,46 +1,24 @@
 #![allow(dead_code)]
 use esp_idf_svc::{
-    eventloop::EspSystemEventLoop,
-    hal::modem::WifiModem,
     handle::RawHandle,
     netif::EspNetif,
     sys::{self, esp_ip4_addr, ip4_addr, EspError},
-    timer::EspTaskTimerService,
     wifi::{
-        AccessPointConfiguration, AccessPointInfo, AsyncWifi, AuthMethod, ClientConfiguration,
-        Configuration, EspWifi, Protocol,
+        AccessPointConfiguration, AccessPointInfo, AuthMethod, ClientConfiguration, Configuration,
+        Protocol,
     },
 };
-use futures_util::lock::Mutex;
-use once_cell::sync::OnceCell;
+
 use std::{cell::RefCell, ffi::c_void, net::Ipv4Addr};
 use thiserror::Error;
 
-use crate::common::provisioning::{
-    server::{NetworkInfo, WifiManager},
-    storage::WifiCredentialStorage,
+use crate::{
+    common::provisioning::{
+        server::{NetworkInfo, WifiManager},
+        storage::WifiCredentialStorage,
+    },
+    esp32::conn::network::esp32_get_wifi,
 };
-
-pub(crate) fn esp32_get_system_event_loop() -> Result<&'static EspSystemEventLoop, EspError> {
-    static INSTANCE: OnceCell<EspSystemEventLoop> = OnceCell::new();
-    INSTANCE.get_or_try_init(EspSystemEventLoop::take)
-}
-pub(crate) fn esp32_get_wifi() -> Result<&'static Mutex<AsyncWifi<EspWifi<'static>>>, EspError> {
-    static INSTANCE: OnceCell<Mutex<AsyncWifi<EspWifi<'static>>>> = OnceCell::new();
-    INSTANCE.get_or_try_init(|| {
-        // Wifi shouldn't be already instantiated Does esp have a function to check status?
-        let modem = unsafe { WifiModem::new() };
-
-        let sys_loop = esp32_get_system_event_loop()?;
-
-        let wifi = EspWifi::new(modem, sys_loop.clone(), None)?;
-
-        let task_timer = EspTaskTimerService::new()?;
-
-        let wifi = AsyncWifi::wrap(wifi, sys_loop.clone(), task_timer)?;
-        Ok(Mutex::new(wifi))
-    })
-}
 
 pub struct Esp32WifiProvisioningBuilder {
     ap_ip_addr: Ipv4Addr,
