@@ -206,13 +206,13 @@ impl DataCollector {
                     .get_angular_velocity()?
                     .to_data_struct("angular_velocity"),
                 CollectionMethod::LinearAcceleration => res
-                    .get_angular_velocity()?
+                    .get_linear_acceleration()?
                     .to_data_struct("linear_acceleration"),
-                CollectionMethod::LinearVelocity => res
-                    .get_angular_velocity()?
-                    .to_data_struct("linear_velocity"),
+                CollectionMethod::LinearVelocity => {
+                    res.get_linear_velocity()?.to_data_struct("linear_velocity")
+                }
                 #[allow(unreachable_patterns)]
-                // remove when methods for other components are implemented
+                // TODO: RSDK-7127 - remove when methods for other components are implemented
                 _ => {
                     return Err(DataCollectionError::UnsupportedMethod(
                         self.method.clone(),

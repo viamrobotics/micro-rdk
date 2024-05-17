@@ -109,15 +109,34 @@ pub async fn serve_web_inner(
     };
 
     #[cfg(feature = "data")]
-    // TODO: Spawn data task here. May have to move the initialization below to the task itself
     // TODO: Support implementers of the DataStore trait other than StaticMemoryDataStore in a way that is configurable
-    {
-        let _data_manager_svc = DataManager::<StaticMemoryDataStore>::from_robot_and_config(
-            &cfg_response,
-            &app_config,
-            robot.clone(),
-        );
-    }
+    let data_manager_svc = match DataManager::<StaticMemoryDataStore>::from_robot_and_config(
+        &cfg_response,
+        &app_config,
+        robot.clone(),
+    ) {
+        Ok(svc) => svc,
+        Err(err) => {
+            log::error!("error configuring data management: {:?}", err);
+            None
+        }
+    };
+
+    #[cfg(feature = "data")]
+    let data_sync_task = data_manager_svc
+        .as_ref()
+        .map(|data_manager_svc| data_manager_svc.get_sync_task());
+
+    #[cfg(feature = "data")]
+    let data_future = Box::pin(async move {
+        if let Some(mut data_manager_svc) = data_manager_svc {
+            if let Err(err) = data_manager_svc.data_collection_task().await {
+                log::error!("error running data manager: {:?}", err)
+            }
+        }
+    });
+    #[cfg(not(feature = "data"))]
+    let data_future = async move {};
 
     let address: SocketAddr = "0.0.0.0:12346".parse().unwrap();
     let tls = Box::new(NativeTls::new_server(tls_server_config));
@@ -134,15 +153,24 @@ pub async fn serve_web_inner(
         exec.clone(),
     ));
 
-    let mut srv =
-        ViamServerBuilder::new(mdns, cloned_exec, client_connector, app_config, 3, network)
-            .with_http2(tls_listener, 12346)
-            .with_webrtc(webrtc)
-            .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| std::process::exit(0))))
-            .build(&cfg_response)
-            .unwrap();
+    let mut srv = {
+        let builder =
+            ViamServerBuilder::new(mdns, cloned_exec, client_connector, app_config, 3, network)
+                .with_http2(tls_listener, 12346)
+                .with_webrtc(webrtc)
+                .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| {
+                    std::process::exit(0)
+                })));
+        #[cfg(feature = "data")]
+        let builder = if let Some(task) = data_sync_task {
+            builder.with_periodic_app_client_task(Box::new(task))
+        } else {
+            builder
+        };
+        builder.build(&cfg_response).unwrap()
+    };
 
-    srv.serve(robot).await;
+    futures_lite::future::zip(Box::pin(srv.serve(robot)), data_future).await;
 }
 
 #[cfg(feature = "provisioning")]
