@@ -33,4 +33,4 @@ thiserror.workspace = true
 tokio.workspace = true
 viam-rust-utils.workspace = true
 viam.workspace = true
-esp-idf-part = "0.5.0"
+esp-idf-part.workspace = true

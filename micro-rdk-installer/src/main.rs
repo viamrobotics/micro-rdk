@@ -26,10 +26,12 @@ use secrecy::Secret;
 use serde::Deserialize;
 use tokio::runtime::Runtime;
 
-const PARTITION_TABLE_ADDR: u16 = 0x8000;
-const PARTITION_TABLE_SIZE: u16 = 0xc00;
+const PARTITION_TABLE_ADDR: u32 = 0x8000;
+const PARTITION_TABLE_SIZE: u32 = 0xc00;
 const EMPTY_BYTE: u8 = 0xFF;
 const APP_IMAGE_PARTITION_NAME: &str = "factory";
+const DEFAULT_BLOCK_SIZE: u32 = 0x1000;
+const DEFAULT_MAX_IN_FLIGHT: u32 = 64;
 
 #[derive(Deserialize, Debug)]
 struct AppCloudConfig {
@@ -379,10 +381,10 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
         connect(&args.connect_args, &config, false, false).map_err(|_| Error::FlashConnect)?;
     flasher
         .read_flash(
-            PARTITION_TABLE_ADDR.into(),
-            PARTITION_TABLE_SIZE.into(),
-            0x1000,
-            64,
+            PARTITION_TABLE_ADDR,
+            PARTITION_TABLE_SIZE,
+            DEFAULT_BLOCK_SIZE,
+            DEFAULT_MAX_IN_FLIGHT,
             tmp_old.clone(),
         )
         .map_err(|_| Error::FlashConnect)?;
@@ -404,11 +406,10 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
         }
     };
 
-    let mut new_ptable_buf = vec![0; PARTITION_TABLE_SIZE.into()];
+    let mut new_ptable_buf = vec![0; PARTITION_TABLE_SIZE as usize];
     log::info!("Extracting new partition table");
     let mut app_file_new = OpenOptions::new()
         .read(true)
-        .write(true)
         .open(app_path_new.clone())
         .map_err(Error::FileError)?;
 
@@ -430,22 +431,22 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
 
     // Compare partition tables
     if old_ptable != new_ptable {
-        log::error!("rebuild and flash micro-rdk from scratch");
+        log::error!(
+            "old and new partition tables do not match - rebuild and flash micro-rdk from scratch"
+        );
         return Err(Error::PartitionTableError(
-            "old and new app image partition tables do not match".to_string(),
+            "incompatible partition tables".to_string(),
         ));
     }
 
-    log::info!("Partition tables match!");
-
-    let nvs_partition_info = new_ptable.find(APP_IMAGE_PARTITION_NAME).ok_or_else(|| {
+    let app_partition_info = new_ptable.find(APP_IMAGE_PARTITION_NAME).ok_or_else(|| {
         Error::PartitionTableError(format!(
             "failed to find `{}` partition",
             APP_IMAGE_PARTITION_NAME
         ))
     })?;
-    let app_offset = nvs_partition_info.offset();
-    let app_size = nvs_partition_info.size();
+    let app_offset = app_partition_info.offset();
+    let app_size = app_partition_info.size();
     log::debug!(
         "{} offset: {:x}, {} size: {:x}",
         APP_IMAGE_PARTITION_NAME,
