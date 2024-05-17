@@ -9,45 +9,30 @@ mod esp32 {
 
     include!(concat!(env!("OUT_DIR"), "/robot_secret.rs"));
 
-    #[cfg(not(feature = "provisioning"))]
-    use log::*;
     use micro_rdk::common::entry::RobotRepresentation;
     #[cfg(feature = "qemu")]
-    use micro_rdk::esp32::esp_idf_svc::eth::EspEth;
-    #[cfg(not(feature = "provisioning"))]
+    use micro_rdk::esp32::conn::network::eth_configure;
+    #[cfg(feature = "qemu")]
+    use micro_rdk::esp32::esp_idf_svc::eth::{EspEth, EthDriver};
     use micro_rdk::esp32::esp_idf_svc::eventloop::EspSystemEventLoop;
     use micro_rdk::esp32::esp_idf_svc::sys::{
         g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT,
     };
-    #[cfg(feature = "qemu")]
-    use std::net::Ipv4Addr;
 
     extern "C" {
         pub static g_spiram_ok: bool;
     }
 
     use micro_rdk::common::registry::ComponentRegistry;
-    #[cfg(not(feature = "provisioning"))]
-    use micro_rdk::esp32::esp_idf_svc::sys::EspError;
 
-    #[cfg(all(not(feature = "qemu"), not(feature = "provisioning")))]
-    use {
-        embedded_svc::wifi::{
-            AuthMethod, ClientConfiguration as WifiClientConfiguration,
-            Configuration as WifiConfiguration,
-        },
-        micro_rdk::esp32::esp_idf_svc::hal::{peripheral::Peripheral, prelude::Peripherals},
-        micro_rdk::esp32::esp_idf_svc::sys::esp_wifi_set_ps,
-        micro_rdk::esp32::esp_idf_svc::wifi::{BlockingWifi, EspWifi},
-    };
+    #[cfg(not(feature = "qemu"))]
+    use micro_rdk::esp32::conn::network::Esp32WifiNetwork;
 
     pub(crate) fn main_esp32() {
         micro_rdk::esp32::esp_idf_svc::sys::link_patches();
 
         micro_rdk::esp32::esp_idf_svc::log::EspLogger::initialize_default();
-
-        #[cfg(all(not(feature = "qemu"), not(feature = "provisioning")))]
-        let periph = Peripherals::take().unwrap();
+        let sys_loop_stack = EspSystemEventLoop::take().unwrap();
 
         let repr = RobotRepresentation::WithRegistry(Box::<ComponentRegistry>::default());
 
@@ -61,20 +46,15 @@ mod esp32 {
         }
 
         #[cfg(feature = "qemu")]
-        let (ip, _block_eth) = {
+        let network = {
             use micro_rdk::esp32::esp_idf_svc::hal::prelude::Peripherals;
-            info!("creating eth object");
-            let eth = micro_rdk::esp32::esp_idf_svc::eth::EspEth::wrap(
-                micro_rdk::esp32::esp_idf_svc::eth::EthDriver::new_openeth(
-                    Peripherals::take().unwrap().mac,
-                    sys_loop_stack.clone(),
-                )
-                .unwrap(),
+            log::info!("creating eth object");
+            let eth = EspEth::wrap(
+                EthDriver::new_openeth(Peripherals::take().unwrap().mac, sys_loop_stack.clone())
+                    .unwrap(),
             )
             .unwrap();
-            let (_, eth) = eth_configure(&sys_loop_stack, eth).unwrap();
-            let ip = Ipv4Addr::new(10, 1, 12, 187);
-            (ip, eth)
+            eth_configure(&sys_loop_stack, eth).unwrap()
         };
 
         let mut max_connection = 3;
@@ -85,33 +65,32 @@ mod esp32 {
                 max_connection = 1;
             }
         }
+        #[allow(clippy::redundant_clone)]
+        #[cfg(not(feature = "qemu"))]
+        let network = {
+            let mut wifi =
+                Esp32WifiNetwork::new(sys_loop_stack.clone(), SSID.to_string(), PASS.to_string())
+                    .expect("could not configure wifi");
+            loop {
+                match wifi.connect() {
+                    Ok(()) => break,
+                    Err(_) => {
+                        log::info!("wifi could not connect to SSID: {:?}, retrying...", SSID);
+                        std::thread::sleep(std::time::Duration::from_millis(300));
+                    }
+                }
+            }
+            wifi
+        };
 
         #[cfg(not(feature = "provisioning"))]
         {
-            let sys_loop_stack = EspSystemEventLoop::take().unwrap();
-            #[allow(clippy::redundant_clone)]
-            #[cfg(not(feature = "qemu"))]
-            let (ip, _wifi) = {
-                let wifi = start_wifi(periph.modem, sys_loop_stack).expect("failed to start wifi");
-                (
-                    wifi.wifi()
-                        .sta_netif()
-                        .get_ip_info()
-                        .expect("failed to get ip info")
-                        .ip,
-                    wifi,
-                )
-            };
             use micro_rdk::{
                 common::app_client::AppClientConfig,
                 esp32::{certificate::WebRtcCertificate, tls::Esp32TLSServerConfig},
             };
-            let cfg = AppClientConfig::new(
-                ROBOT_SECRET.to_owned(),
-                ROBOT_ID.to_owned(),
-                ip,
-                "".to_owned(),
-            );
+            let cfg =
+                AppClientConfig::new(ROBOT_SECRET.to_owned(), ROBOT_ID.to_owned(), "".to_owned());
             let webrtc_certificate = WebRtcCertificate::new(
                 ROBOT_DTLS_CERT.to_vec(),
                 ROBOT_DTLS_KEY_PAIR.to_vec(),
@@ -128,9 +107,9 @@ mod esp32 {
                 cfg,
                 tls_cfg,
                 repr,
-                ip,
                 webrtc_certificate,
                 max_connection,
+                network,
             );
         }
         #[cfg(feature = "provisioning")]
@@ -145,60 +124,10 @@ mod esp32 {
                 storage,
                 info,
                 repr,
-                std::net::Ipv4Addr::new(10, 1, 12, 187),
+                network,
                 max_connection,
             );
         }
-    }
-
-    #[cfg(feature = "qemu")]
-    use micro_rdk::esp32::esp_idf_svc::eth::BlockingEth;
-    #[cfg(feature = "qemu")]
-    fn eth_configure<'d, T>(
-        sl_stack: &EspSystemEventLoop,
-        eth: micro_rdk::esp32::esp_idf_svc::eth::EspEth<'d, T>,
-    ) -> Result<(Ipv4Addr, Box<BlockingEth<EspEth<'d, T>>>), EspError> {
-        let mut eth = micro_rdk::esp32::esp_idf_svc::eth::BlockingEth::wrap(eth, sl_stack.clone())?;
-        eth.start()?;
-        eth.wait_netif_up()?;
-
-        let ip_info = eth.eth().netif().get_ip_info()?;
-
-        info!("ETH IP {:?}", ip_info.ip);
-        Ok((ip_info.ip, Box::new(eth)))
-    }
-
-    #[cfg(all(not(feature = "qemu"), not(feature = "provisioning")))]
-    fn start_wifi(
-        modem: impl Peripheral<P = micro_rdk::esp32::esp_idf_svc::hal::modem::Modem> + 'static,
-        sl_stack: EspSystemEventLoop,
-    ) -> Result<Box<BlockingWifi<EspWifi<'static>>>, EspError> {
-        let nvs = micro_rdk::esp32::esp_idf_svc::nvs::EspDefaultNvsPartition::take()?;
-        let mut wifi =
-            BlockingWifi::wrap(EspWifi::new(modem, sl_stack.clone(), Some(nvs))?, sl_stack)?;
-        let wifi_configuration = WifiConfiguration::Client(WifiClientConfiguration {
-            ssid: SSID.try_into().unwrap(),
-            bssid: None,
-            auth_method: AuthMethod::WPA2Personal,
-            password: PASS.try_into().unwrap(),
-            channel: None,
-        });
-
-        wifi.set_configuration(&wifi_configuration)?;
-
-        wifi.start()?;
-        info!("Wifi started");
-
-        wifi.connect()?;
-        info!("Wifi connected");
-
-        wifi.wait_netif_up()?;
-        info!("Wifi netif up");
-
-        micro_rdk::esp32::esp_idf_svc::sys::esp!(unsafe {
-            esp_wifi_set_ps(micro_rdk::esp32::esp_idf_svc::sys::wifi_ps_type_t_WIFI_PS_NONE)
-        })?;
-        Ok(Box::new(wifi))
     }
 }
 

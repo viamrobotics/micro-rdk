@@ -27,6 +27,7 @@ pub mod tls;
 pub mod utils;
 pub mod conn {
     pub mod mdns;
+    pub mod network;
 }
 #[cfg(feature = "provisioning")]
 pub mod nvs_storage;

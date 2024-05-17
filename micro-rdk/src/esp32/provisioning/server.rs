@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use bytes::Bytes;
 use esp_idf_svc::wifi::{AuthMethod, ClientConfiguration, Configuration};
 
@@ -94,7 +95,6 @@ async fn accept_connections<S, Wifi>(
 }
 
 pub(crate) async fn serve_provisioning_async<S>(
-    ip: Ipv4Addr,
     exec: Esp32Executor,
     info: ProvisioningInfo,
     storage: S,
@@ -188,7 +188,6 @@ where
     let app_config = AppClientConfig::new(
         creds.robot_secret().to_owned(),
         creds.robot_id().to_owned(),
-        ip,
         "".to_owned(),
     );
 
