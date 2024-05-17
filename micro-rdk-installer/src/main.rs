@@ -321,15 +321,15 @@ fn main() -> Result<(), Error> {
         }
         Some(Commands::WriteFlash(args)) => {
             let config = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
-            let tmp_dir = tempfile::Builder::new()
-                .prefix("micro-rdk-bin")
-                .tempdir()
-                .map_err(Error::FileError)?;
+            let tmp_path = tempfile::NamedTempFile::new()
+                .map_err(Error::FileError)?
+                .path()
+                .to_path_buf();
             let app_path = match &args.flash_args.bootloader {
                 Some(path) => PathBuf::from(path),
                 None => {
                     let rt = Runtime::new().map_err(Error::AsyncError)?;
-                    rt.block_on(download_micro_rdk_release(&tmp_dir, args.version.clone()))?
+                    rt.block_on(download_micro_rdk_release(&tmp_path, args.version.clone()))?
                 }
             };
             let nvs_metadata = read_nvs_metadata(app_path.clone())?;
@@ -374,8 +374,7 @@ fn main() -> Result<(), Error> {
 fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
     let config = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
 
-    let dir = tempfile::tempdir().map_err(Error::FileError)?;
-    let tmp_old = dir.path().join("running-ptable.img");
+    let tmp_old = tempfile::NamedTempFile::new().map_err(Error::FileError)?;
 
     log::info!("Retrieving running partition table");
     let mut flasher =
@@ -386,7 +385,7 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
             PARTITION_TABLE_SIZE,
             DEFAULT_BLOCK_SIZE,
             DEFAULT_MAX_IN_FLIGHT,
-            tmp_old.clone(),
+            tmp_old.path().to_path_buf(),
         )
         .map_err(|_| Error::FlashConnect)?;
 
@@ -395,10 +394,10 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
         .map_err(|e| Error::PartitionTableError(e.to_string()))?;
 
     log::info!("Retrieving new image");
-    let tmp_new = tempfile::Builder::new()
-        .prefix("micro-rdk-bin")
-        .tempdir()
-        .map_err(Error::FileError)?;
+    let tmp_new = tempfile::NamedTempFile::new()
+        .map_err(Error::FileError)?
+        .path()
+        .to_path_buf();
     let app_path_new = match &args.flash_args.bootloader {
         Some(path) => PathBuf::from(path),
         None => {
