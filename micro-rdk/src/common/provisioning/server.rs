@@ -338,9 +338,7 @@ where
                     self.credential_ready.done()
                 }
             }
-            None => {
-                self.credential_ready.done()
-            }
+            None => self.credential_ready.done(),
         }
 
         Ok(buffer.freeze())
