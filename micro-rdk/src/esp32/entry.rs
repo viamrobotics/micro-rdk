@@ -199,7 +199,8 @@ async fn validate_robot_credentials(
 // 2) No Robot Credentials with external network\
 // 3) Robot Credentials with external network
 // 4) Robot Credentials + WiFi without external network
-
+// The function attempts to connect to the configured Wifi network if any, it then checks the robot credentials. If Wifi credentials are absent it starts provisioning mode
+// If they are invalid or absent it will start the provisioning server. Once provision is done it invokes the main server.
 #[cfg(feature = "provisioning")]
 async fn serve_async<S>(
     exec: Esp32Executor,
@@ -289,6 +290,7 @@ where
     Ok(())
 }
 
+// serve_async variant where an external network is provided
 #[cfg(feature = "provisioning")]
 async fn serve_async_with_external_network<S>(
     exec: Esp32Executor,
@@ -296,6 +298,7 @@ async fn serve_async_with_external_network<S>(
     storage: S,
     repr: RobotRepresentation,
     network: impl Network,
+    max_webrtc_connection: usize,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
@@ -357,7 +360,7 @@ where
         storage.get_robot_credentials().unwrap(),
         repr,
         exec,
-        3,
+        max_webrtc_connection,
         network,
     )
     .await;

@@ -15,7 +15,6 @@ pub struct Cloud {
 
 fn main() {
     println!("cargo:rerun-if-changed=viam.json");
-    //    let mut has_robot_credentials = false;
     if env::var("TARGET").unwrap() == "xtensa-esp32-espidf" {
         if std::env::var_os("IDF_PATH").is_none() {
             panic!("You need to run IDF's export.sh before building");

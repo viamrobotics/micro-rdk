@@ -28,7 +28,6 @@ mod native {
                 let ram_storage = RAMStorage::new("", "", ROBOT_ID.unwrap(), ROBOT_SECRET.unwrap());
                 serve_web_with_external_network(None, repr, 3, ram_storage, network);
             }
-            //TODO what?
         }
         #[cfg(not(has_robot_config))]
         {
@@ -38,7 +37,6 @@ mod native {
             info.set_manufacturer("viam".to_owned());
             info.set_model("test-esp32".to_owned());
             let storage = RAMStorage::default();
-            log::info!("Will provision");
             serve_web_with_external_network(Some(info), repr, 3, storage, network);
         }
     }

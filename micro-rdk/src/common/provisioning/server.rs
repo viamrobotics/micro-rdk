@@ -339,7 +339,6 @@ where
                 }
             }
             None => {
-                log::error!("READY");
                 self.credential_ready.done()
             }
         }

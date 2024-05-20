@@ -75,7 +75,6 @@ mod esp32 {
             info.set_manufacturer("viam".to_owned());
             info.set_model("test-esp32".to_owned());
             let storage = RAMStorage::default();
-            log::info!("Will provision");
             serve_web(Some(info), repr, max_connection, storage);
         }
 
