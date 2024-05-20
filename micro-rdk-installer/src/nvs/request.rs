@@ -4,8 +4,7 @@ use super::data::ViamFlashStorageData;
 use rcgen::{date_time_ymd, CertificateParams, DistinguishedName};
 use std::fs::File;
 use std::io::Write;
-use std::path::PathBuf;
-use tempfile::TempDir;
+use std::path::{Path, PathBuf};
 
 use local_ip_address::local_ip;
 use tokio::runtime::Runtime;
@@ -22,7 +21,7 @@ the Viam App and preparing for flash storage
 const RELEASES_BASE_URL: &str = "https://github.com/viamrobotics/micro-rdk/releases/";
 
 pub async fn download_micro_rdk_release(
-    tmp_dir: &TempDir,
+    path: &Path,
     version: Option<String>,
 ) -> Result<PathBuf, Error> {
     let mut release_url: String = RELEASES_BASE_URL.to_owned();
@@ -34,7 +33,7 @@ pub async fn download_micro_rdk_release(
         None => release_url.push_str("latest/download/micro-rdk-esp32-server.bin"),
     };
     log::info!("Downloading micro-RDK release from {:?}", release_url);
-    let fname = tmp_dir.path().join("micro-rdk-esp32-server.bin");
+    let fname = path.to_path_buf();
     let mut dest = File::create(fname.clone()).map_err(Error::FileError)?;
     let response = reqwest::get(release_url)
         .await

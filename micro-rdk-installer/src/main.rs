@@ -2,14 +2,16 @@ use log::LevelFilter;
 use std::{
     fs::{self, File, OpenOptions},
     io::{Read, Seek, SeekFrom, Write},
+    os::unix::fs::FileExt,
     path::PathBuf,
 };
 
 use clap::{arg, command, Args, Parser, Subcommand};
 use dialoguer::{theme::ColorfulTheme, Input, Password};
+use esp_idf_part::PartitionTable;
 use espflash::cli::{
-    config::Config, connect, monitor::monitor, serial_monitor, EspflashProgress, FlashArgs,
-    MonitorArgs,
+    config::Config, connect, monitor::monitor, serial_monitor, ConnectArgs, EspflashProgress,
+    FlashArgs, MonitorArgs,
 };
 use micro_rdk_installer::{
     error::Error,
@@ -23,6 +25,14 @@ use micro_rdk_installer::{
 use secrecy::Secret;
 use serde::Deserialize;
 use tokio::runtime::Runtime;
+
+const PARTITION_TABLE_ADDR: u32 = 0x8000;
+const PARTITION_TABLE_SIZE: u32 = 0xc00;
+const EMPTY_BYTE: u8 = 0xFF;
+const APP_IMAGE_PARTITION_NAME: &str = "factory";
+// taken from `espflash::cli::ReadFlashArgs` default values
+const DEFAULT_BLOCK_SIZE: u32 = 0x1000;
+const DEFAULT_MAX_IN_FLIGHT: u32 = 64;
 
 #[derive(Deserialize, Debug)]
 struct AppCloudConfig {
@@ -38,10 +48,31 @@ struct AppConfig {
 
 #[derive(Subcommand)]
 enum Commands {
+    UpdateAppImage(Box<AppImageArgs>),
     WriteFlash(Box<WriteFlashArgs>),
     WriteCredentials(WriteCredentialsArgs),
     CreateNvsPartition(Box<CreateNVSPartitionArgs>),
     Monitor(MonitorArgs),
+}
+
+/// Flash a new micro-RDK app image directly to an ESP32's `factory` partition
+#[derive(Args, Clone)]
+struct AppImageArgs {
+    #[clap(flatten)]
+    flash_args: FlashArgs,
+    #[clap(flatten)]
+    connect_args: ConnectArgs,
+
+    /// File path to the compiled micro-RDK binary. The portion reserved for the NVS
+    /// data partition will be edited with Wi-Fi and robot credentials
+    #[arg(long = "binary-path")]
+    #[clap(conflicts_with = "version")]
+    binary_path: Option<PathBuf>,
+
+    /// Version of the compiled micro-RDK server to download.
+    /// See https://github.com/viamrobotics/micro-rdk/releases for the version options
+    #[arg(long = "version")]
+    version: Option<String>,
 }
 
 /// Write Wi-Fi and robot credentials to the NVS storage portion of a pre-compiled
@@ -65,16 +96,21 @@ struct WriteCredentialsArgs {
     wifi_password: Option<Secret<String>>,
 }
 
-/// Flash a pre-compiled binary with the micro-RDK server directly to an ESP32
-/// connected to your computer via data cable
+/// Flash a pre-compiled binary with the micro-RDK, the robot config, and wifi info
+/// directly to an ESP32 connected to your computer via data cable
 #[derive(Args, Clone)]
 struct WriteFlashArgs {
     /// from espflash: baud, port
     #[clap(flatten)]
     monitor_args: MonitorArgs,
-    /// from espflash: bootloader, log_output, monitor
     #[clap(flatten)]
     flash_args: FlashArgs,
+
+    /// File path to the compiled micro-RDK binary. The portion reserved for the NVS
+    /// data partition will be edited with Wi-Fi and robot credentials
+    #[arg(long = "binary-path")]
+    #[clap(conflicts_with = "version")]
+    binary_path: Option<PathBuf>,
 
     /// File path to the JSON config of the robot, downloaded from app.viam.com
     #[arg(long = "app-config")]
@@ -197,11 +233,13 @@ fn write_credentials_to_app_binary(
     nvs_size: u64,
     nvs_start_address: u64,
 ) -> Result<(), Error> {
+    // open binary
     let mut app_file = OpenOptions::new()
         .read(true)
         .write(true)
         .open(binary_path)
         .map_err(Error::FileError)?;
+    // get binary size
     let file_len = app_file.metadata().map_err(Error::FileError)?.len();
     if (nvs_start_address + nvs_size) >= file_len {
         return Err(Error::BinaryEditError(file_len));
@@ -214,13 +252,18 @@ fn write_credentials_to_app_binary(
     Ok(())
 }
 
-fn flash(args: WriteFlashArgs, config: &Config, app_path: PathBuf) -> Result<(), Error> {
+fn flash(
+    flash_args: FlashArgs,
+    monitor_args: MonitorArgs,
+    config: &Config,
+    app_path: PathBuf,
+) -> Result<(), Error> {
     log::info!("Connecting...");
     let mut flasher = connect(
-        &args.monitor_args.connect_args,
+        &monitor_args.clone().connect_args,
         config,
-        args.flash_args.no_verify,
-        args.flash_args.no_skip,
+        flash_args.no_verify,
+        flash_args.no_skip,
     )
     .map_err(|_| Error::FlashConnect)?;
     let mut f = File::open(app_path).map_err(Error::FileError)?;
@@ -235,7 +278,7 @@ fn flash(args: WriteFlashArgs, config: &Config, app_path: PathBuf) -> Result<(),
         .write_bin_to_flash(0x00, &buffer, Some(&mut EspflashProgress::default()))
         .map_err(Error::EspFlashError)?;
     log::info!("Flashing completed.");
-    if args.flash_args.monitor {
+    if flash_args.monitor {
         log::info!("Starting monitor...");
         let pid = flasher.get_usb_pid().map_err(Error::EspFlashError)?;
         monitor(
@@ -243,9 +286,9 @@ fn flash(args: WriteFlashArgs, config: &Config, app_path: PathBuf) -> Result<(),
             None,
             pid,
             115_200,
-            args.flash_args.log_format,
-            args.flash_args.log_output,
-            !args.monitor_args.non_interactive,
+            flash_args.log_format,
+            flash_args.log_output,
+            !monitor_args.non_interactive,
         )
         .map_err(|err| Error::MonitorError(err.to_string()))?;
     }
@@ -269,6 +312,7 @@ fn main() -> Result<(), Error> {
     init_logger();
     let cli = Cli::parse();
     match &cli.command {
+        Some(Commands::UpdateAppImage(args)) => update_app_image(args)?,
         Some(Commands::WriteCredentials(args)) => {
             let app_path = PathBuf::from(args.binary_path.clone());
             let nvs_metadata = read_nvs_metadata(app_path.clone())?;
@@ -287,15 +331,15 @@ fn main() -> Result<(), Error> {
         }
         Some(Commands::WriteFlash(args)) => {
             let config = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
-            let tmp_dir = tempfile::Builder::new()
-                .prefix("micro-rdk-bin")
-                .tempdir()
-                .map_err(Error::FileError)?;
-            let app_path = match &args.flash_args.bootloader {
+            let tmp_path = tempfile::NamedTempFile::new()
+                .map_err(Error::FileError)?
+                .path()
+                .to_path_buf();
+            let app_path = match &args.binary_path {
                 Some(path) => PathBuf::from(path),
                 None => {
                     let rt = Runtime::new().map_err(Error::AsyncError)?;
-                    rt.block_on(download_micro_rdk_release(&tmp_dir, args.version.clone()))?
+                    rt.block_on(download_micro_rdk_release(&tmp_path, args.version.clone()))?
                 }
             };
             let nvs_metadata = read_nvs_metadata(app_path.clone())?;
@@ -311,7 +355,12 @@ fn main() -> Result<(), Error> {
                 nvs_metadata.size,
                 nvs_metadata.start_address,
             )?;
-            flash(*args.clone(), &config, app_path)?;
+            flash(
+                args.flash_args.clone(),
+                args.monitor_args.clone(),
+                &config,
+                app_path,
+            )?;
         }
         Some(Commands::CreateNvsPartition(args)) => {
             let mut file = File::create(&args.file_name).map_err(Error::FileError)?;
@@ -329,5 +378,105 @@ fn main() -> Result<(), Error> {
         }
         None => return Err(Error::NoCommandError),
     };
+    Ok(())
+}
+
+fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
+    let config = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
+
+    let tmp_old = tempfile::NamedTempFile::new().map_err(Error::FileError)?;
+
+    log::info!("Retrieving running partition table");
+    let mut flasher =
+        connect(&args.connect_args, &config, false, false).map_err(|_| Error::FlashConnect)?;
+    flasher
+        .read_flash(
+            PARTITION_TABLE_ADDR,
+            PARTITION_TABLE_SIZE,
+            DEFAULT_BLOCK_SIZE,
+            DEFAULT_MAX_IN_FLIGHT,
+            tmp_old.path().to_path_buf(),
+        )
+        .map_err(|_| Error::FlashConnect)?;
+
+    let old_ptable_buf = fs::read(tmp_old).map_err(Error::FileError)?;
+    let old_ptable = PartitionTable::try_from_bytes(old_ptable_buf.clone())
+        .map_err(|e| Error::PartitionTableError(e.to_string()))?;
+
+    log::info!("Retrieving new image");
+    let tmp_new = tempfile::NamedTempFile::new()
+        .map_err(Error::FileError)?
+        .path()
+        .to_path_buf();
+    let app_path_new = match &args.binary_path {
+        Some(path) => PathBuf::from(path),
+        None => {
+            let rt = Runtime::new().map_err(Error::AsyncError)?;
+            rt.block_on(download_micro_rdk_release(&tmp_new, args.version.clone()))?
+        }
+    };
+
+    let mut new_ptable_buf = vec![0; PARTITION_TABLE_SIZE as usize];
+    log::info!("Extracting new partition table");
+    let mut app_file_new = OpenOptions::new()
+        .read(true)
+        .open(app_path_new.clone())
+        .map_err(Error::FileError)?;
+
+    let file_len = app_file_new.metadata().map_err(Error::FileError)?.len();
+    if file_len < (PARTITION_TABLE_ADDR as u64 + PARTITION_TABLE_SIZE as u64) {
+        return Err(Error::PartitionTableError(
+            "file length is less than partition size".to_string(),
+        ));
+    }
+
+    let _ = app_file_new
+        .seek(SeekFrom::Start(PARTITION_TABLE_ADDR.into()))
+        .map_err(Error::FileError)?;
+    app_file_new
+        .read_exact(&mut new_ptable_buf)
+        .map_err(Error::FileError)?;
+    let new_ptable = PartitionTable::try_from_bytes(new_ptable_buf.clone())
+        .map_err(|e| Error::PartitionTableError(e.to_string()))?;
+
+    // Compare partition tables
+    if old_ptable != new_ptable {
+        log::error!(
+            "old and new partition tables do not match - rebuild and flash micro-rdk from scratch"
+        );
+        return Err(Error::PartitionTableError(
+            "incompatible partition tables".to_string(),
+        ));
+    }
+
+    let app_partition_info = new_ptable.find(APP_IMAGE_PARTITION_NAME).ok_or_else(|| {
+        Error::PartitionTableError(format!(
+            "failed to find `{}` partition",
+            APP_IMAGE_PARTITION_NAME
+        ))
+    })?;
+    let app_offset = app_partition_info.offset();
+    let app_size = app_partition_info.size();
+    log::debug!(
+        "{} offset: {:x}, {} size: {:x}",
+        APP_IMAGE_PARTITION_NAME,
+        app_offset,
+        APP_IMAGE_PARTITION_NAME,
+        app_size
+    );
+    let mut app_segment = vec![EMPTY_BYTE; app_size as usize];
+    // write just this data
+    app_file_new
+        .read_at(&mut app_segment, app_offset.into())
+        .map_err(Error::FileError)?;
+    log::info!("Writing new app segment to flash");
+    flasher
+        .write_bin_to_flash(
+            app_offset,
+            &app_segment,
+            Some(&mut EspflashProgress::default()),
+        )
+        .map_err(Error::EspFlashError)?;
+    log::info!("Running image has been updated");
     Ok(())
 }

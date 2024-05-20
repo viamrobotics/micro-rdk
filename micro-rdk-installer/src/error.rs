@@ -47,6 +47,8 @@ pub enum Error {
     UnimplementedError(String),
     #[error("Serial config error: {0}")]
     SerialConfigError(String),
+    #[error("Partition Table Error: {0}")]
+    PartitionTableError(String),
     #[error("No command received")]
     NoCommandError,
 }
