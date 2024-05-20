@@ -58,11 +58,16 @@ enum Commands {
 /// Flash a new micro-RDK app image directly to an ESP32's `factory` partition
 #[derive(Args, Clone)]
 struct AppImageArgs {
-    /// from espflash: bootloader, log_output, monitor
     #[clap(flatten)]
     flash_args: FlashArgs,
     #[clap(flatten)]
     connect_args: ConnectArgs,
+
+    /// File path to the compiled micro-RDK binary. The portion reserved for the NVS
+    /// data partition will be edited with Wi-Fi and robot credentials
+    #[arg(long = "binary-path")]
+    #[clap(conflicts_with = "version")]
+    binary_path: Option<PathBuf>,
 
     /// Version of the compiled micro-RDK server to download.
     /// See https://github.com/viamrobotics/micro-rdk/releases for the version options
@@ -98,9 +103,14 @@ struct WriteFlashArgs {
     /// from espflash: baud, port
     #[clap(flatten)]
     monitor_args: MonitorArgs,
-    /// from espflash: bootloader, log_output, monitor
     #[clap(flatten)]
     flash_args: FlashArgs,
+
+    /// File path to the compiled micro-RDK binary. The portion reserved for the NVS
+    /// data partition will be edited with Wi-Fi and robot credentials
+    #[arg(long = "binary-path")]
+    #[clap(conflicts_with = "version")]
+    binary_path: Option<PathBuf>,
 
     /// File path to the JSON config of the robot, downloaded from app.viam.com
     #[arg(long = "app-config")]
@@ -325,7 +335,7 @@ fn main() -> Result<(), Error> {
                 .map_err(Error::FileError)?
                 .path()
                 .to_path_buf();
-            let app_path = match &args.flash_args.bootloader {
+            let app_path = match &args.binary_path {
                 Some(path) => PathBuf::from(path),
                 None => {
                     let rt = Runtime::new().map_err(Error::AsyncError)?;
@@ -398,7 +408,7 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
         .map_err(Error::FileError)?
         .path()
         .to_path_buf();
-    let app_path_new = match &args.flash_args.bootloader {
+    let app_path_new = match &args.binary_path {
         Some(path) => PathBuf::from(path),
         None => {
             let rt = Runtime::new().map_err(Error::AsyncError)?;
