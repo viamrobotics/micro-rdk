@@ -33,6 +33,7 @@ const APP_IMAGE_PARTITION_NAME: &str = "factory";
 // taken from `espflash::cli::ReadFlashArgs` default values
 const DEFAULT_BLOCK_SIZE: u32 = 0x1000;
 const DEFAULT_MAX_IN_FLIGHT: u32 = 64;
+const DEFAULT_BAUD: u32 = 115_200;
 
 #[derive(Deserialize, Debug)]
 struct AppCloudConfig {
@@ -102,7 +103,7 @@ struct WriteCredentialsArgs {
 struct WriteFlashArgs {
     /// from espflash: baud, port
     #[clap(flatten)]
-    monitor_args: MonitorArgs,
+    connect_args: ConnectArgs,
     #[clap(flatten)]
     flash_args: FlashArgs,
 
@@ -254,13 +255,13 @@ fn write_credentials_to_app_binary(
 
 fn flash(
     flash_args: FlashArgs,
-    monitor_args: MonitorArgs,
+    connect_args: ConnectArgs,
     config: &Config,
     app_path: PathBuf,
 ) -> Result<(), Error> {
     log::info!("Connecting...");
     let mut flasher = connect(
-        &monitor_args.clone().connect_args,
+        &connect_args,
         config,
         flash_args.no_verify,
         flash_args.no_skip,
@@ -285,10 +286,10 @@ fn flash(
             flasher.into_serial(),
             None,
             pid,
-            115_200,
+            DEFAULT_BAUD,
             flash_args.log_format,
             flash_args.log_output,
-            !monitor_args.non_interactive,
+            true,
         )
         .map_err(|err| Error::MonitorError(err.to_string()))?;
     }
@@ -357,7 +358,7 @@ fn main() -> Result<(), Error> {
             )?;
             flash(
                 args.flash_args.clone(),
-                args.monitor_args.clone(),
+                args.connect_args.clone(),
                 &config,
                 app_path,
             )?;
@@ -478,5 +479,19 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
         )
         .map_err(Error::EspFlashError)?;
     log::info!("Running image has been updated");
+    if args.flash_args.monitor {
+        log::info!("Starting monitor...");
+        let pid = flasher.get_usb_pid().map_err(Error::EspFlashError)?;
+        monitor(
+            flasher.into_serial(),
+            None,
+            pid,
+            DEFAULT_BAUD,
+            args.flash_args.log_format,
+            args.flash_args.log_output.clone(),
+            true,
+        )
+        .map_err(|err| Error::MonitorError(err.to_string()))?;
+    }
     Ok(())
 }
