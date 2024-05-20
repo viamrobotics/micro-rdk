@@ -70,7 +70,6 @@ mod esp32 {
         }
         #[cfg(not(has_robot_config))]
         {
-	    // Pass NVS
             let mut info = ProvisioningInfo::default();
             info.set_fragment_id("d385b480-3d19-4fad-a928-b5c18a58d0ed".to_string());
             info.set_manufacturer("viam".to_owned());
