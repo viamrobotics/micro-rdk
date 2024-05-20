@@ -63,7 +63,7 @@ upload: cargo-ver
 	cargo +esp espflash flash --package examples --monitor --partition-table examples/esp32/partitions.csv --baud 926100 -f 80mhz --bin esp32-server --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
 
 test:
-	cargo test -p micro-rdk --lib --features native
+	cargo test -p micro-rdk --lib --features native,provisioning
 
 clippy-native:
 	cargo clippy -p micro-rdk --no-deps --features native,provisioning  -- -Dwarnings

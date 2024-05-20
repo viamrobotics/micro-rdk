@@ -770,9 +770,9 @@ mod tests {
         assert!(req.is_ok());
         let req = req.unwrap();
 
-        let ret = send_request.ready().await.unwrap();
-        // assert!(ret.is_err());
-        //assert!(ret.err().unwrap().is_closed());
+        let ret = send_request.ready().await;
+        assert!(ret.is_err());
+        assert!(ret.err().unwrap().is_closed());
 
         let stream = async_io::Async::<TcpStream>::connect(addr).await;
         assert!(stream.is_ok());
