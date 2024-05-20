@@ -1,18 +1,25 @@
+use std::pin::Pin;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crate::common::data_collector::{DataCollectionError, DataCollector};
 use crate::common::data_store::DataStore;
 use crate::google::protobuf::value::Kind;
-use crate::proto::app::data_sync::v1::SensorData;
+use crate::proto::app::data_sync::v1::{
+    DataCaptureUploadRequest, DataType, SensorData, UploadMetadata,
+};
 use crate::proto::app::v1::ConfigResponse;
 
-use super::app_client::AppClientConfig;
+use super::app_client::{AppClient, AppClientConfig, AppClientError, PeriodicAppClientTask};
 use super::data_collector::ResourceMethodKey;
 use super::data_store::{DataStoreError, DataStoreReader, WriteMode};
 use super::robot::{LocalRobot, RobotError};
 use async_io::Timer;
 use bytes::BytesMut;
+use futures_lite::prelude::Future;
+use futures_util::lock::Mutex as AsyncMutex;
+use prost::Message;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -70,7 +77,7 @@ fn get_data_sync_interval(cfg: &ConfigResponse) -> Result<Option<Duration>, Data
 
 pub struct DataManager<StoreType> {
     collectors: Vec<DataCollector>,
-    store: StoreType,
+    store: Rc<AsyncMutex<StoreType>>,
     sync_interval: Duration,
     min_interval: Duration,
     part_id: String,
@@ -90,7 +97,7 @@ where
         let min_interval = intervals.min().ok_or(DataManagerError::NoCollectors)?;
         Ok(Self {
             collectors,
-            store,
+            store: Rc::new(AsyncMutex::new(store)),
             sync_interval,
             min_interval,
             part_id,
@@ -142,59 +149,33 @@ where
         intervals
     }
 
-    pub async fn run(&mut self) -> Result<(), DataManagerError> {
+    pub async fn data_collection_task(&mut self) -> Result<(), DataManagerError> {
         let mut loop_counter: u64 = 0;
         loop {
-            self.run_inner(loop_counter)?;
+            self.collect_data_inner(loop_counter).await?;
             loop_counter += 1;
             Timer::after(self.min_interval).await;
         }
     }
 
-    fn run_inner(&mut self, loop_counter: u64) -> Result<(), DataManagerError> {
+    pub async fn collect_data_inner(&mut self, loop_counter: u64) -> Result<(), DataManagerError> {
         let min_interval_ms = self.min_interval_ms();
-        if (loop_counter % (self.sync_interval_ms() / min_interval_ms)) == 0 && (loop_counter != 0)
-        {
-            self.sync()?;
-        }
         for interval in self.collection_intervals() {
             if loop_counter % (interval / min_interval_ms) == 0 {
-                self.collect_and_store_readings(interval)?;
+                self.collect_and_store_readings(interval).await?;
             }
         }
         Ok(())
     }
 
-    fn sync(&mut self) -> Result<(), DataManagerError> {
-        for collector_key in self.collectors.iter().map(|c| c.resource_method_key()) {
-            // TODO: check for internet access before attempting to read from store
-            let mut readings_to_upload: Vec<BytesMut> = vec![];
-            let mut reader = self.store.get_reader(&collector_key)?;
-            loop {
-                match reader.read_next_message() {
-                    Ok(msg) => {
-                        if msg.is_empty() {
-                            break;
-                        }
-                        readings_to_upload.push(msg);
-                    }
-                    Err(err) => return Err(err.into()),
-                };
-            }
-            // TODO: implement actual upload logic here, will likely have to change struct
-            // and make this function async. Also flushing below should only occur on upload success
-            reader.flush();
-        }
-        Ok(())
-    }
-
-    fn collect_and_store_readings(
+    async fn collect_and_store_readings(
         &mut self,
         time_interval_ms: u64,
     ) -> Result<(), DataManagerError> {
-        for (collector_key, reading) in self.collect_readings_for_interval(time_interval_ms)? {
-            self.store
-                .write_message(&collector_key, reading, WriteMode::OverwriteOldest)?
+        let readings = self.collect_readings_for_interval(time_interval_ms)?;
+        let mut store_guard = self.store.lock().await;
+        for (collector_key, reading) in readings {
+            store_guard.write_message(&collector_key, reading, WriteMode::OverwriteOldest)?;
         }
         Ok(())
     }
@@ -222,6 +203,106 @@ where
             .map(|coll| Ok((coll.resource_method_key(), coll.call_method()?)))
             .collect()
     }
+
+    pub fn get_sync_task(&self) -> DataSyncTask<StoreType> {
+        let resource_method_keys: Vec<ResourceMethodKey> = self
+            .collectors
+            .iter()
+            .map(|coll| coll.resource_method_key())
+            .collect();
+        DataSyncTask {
+            store: self.store.clone(),
+            resource_method_keys,
+            sync_interval: self.sync_interval,
+            part_id: self.part_id(),
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum DataSyncError {
+    #[error(transparent)]
+    DataStoreError(#[from] DataStoreError),
+    #[error(transparent)]
+    MessageDecodingError(#[from] prost::DecodeError),
+}
+
+pub struct DataSyncTask<StoreType> {
+    store: Rc<AsyncMutex<StoreType>>,
+    resource_method_keys: Vec<ResourceMethodKey>,
+    sync_interval: Duration,
+    part_id: String,
+}
+
+impl<StoreType> DataSyncTask<StoreType>
+where
+    StoreType: DataStore,
+{
+    async fn read_messages_for_collector(
+        &self,
+        collector_key: &ResourceMethodKey,
+    ) -> Result<Vec<SensorData>, DataSyncError> {
+        let store_lock = self.store.lock().await;
+        let mut raw_messages: Vec<BytesMut> = vec![];
+        let mut reader = store_lock.get_reader(collector_key)?;
+        loop {
+            let next_message = reader.read_next_message()?;
+            if next_message.is_empty() {
+                break;
+            }
+            raw_messages.push(next_message);
+        }
+        let data: Result<Vec<SensorData>, prost::DecodeError> =
+            raw_messages.into_iter().map(SensorData::decode).collect();
+        Ok(data?)
+    }
+
+    async fn run<'b>(&mut self, app_client: &'b AppClient) -> Result<(), AppClientError> {
+        for collector_key in self.resource_method_keys.iter() {
+            let data = match self.read_messages_for_collector(collector_key).await {
+                Ok(data) => data,
+                Err(err) => {
+                    log::error!(
+                        "error decoding readings for collector key ({:?}): {:?}",
+                        collector_key,
+                        err
+                    );
+                    continue;
+                }
+            };
+            let upload_request = DataCaptureUploadRequest {
+                metadata: Some(UploadMetadata {
+                    part_id: self.part_id.clone(),
+                    component_type: collector_key.component_type.clone(),
+                    r#type: DataType::TabularSensor.into(),
+                    component_name: collector_key.r_name.clone(),
+                    method_name: collector_key.method.to_string(),
+                    ..Default::default()
+                }),
+                sensor_contents: data,
+            };
+            app_client.upload_data(upload_request).await?;
+        }
+        Ok(())
+    }
+}
+
+impl<StoreType> PeriodicAppClientTask for DataSyncTask<StoreType>
+where
+    StoreType: DataStore,
+{
+    fn name(&self) -> &str {
+        "DataSync"
+    }
+    fn get_default_period(&self) -> Duration {
+        self.sync_interval
+    }
+    fn invoke<'b, 'a: 'b>(
+        &'a mut self,
+        app_client: &'b AppClient,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'b>> {
+        Box::pin(async move { self.run(app_client).await.map(|_| None) })
+    }
 }
 
 #[cfg(test)]
@@ -234,6 +315,7 @@ mod tests {
     use std::time::Duration;
 
     use bytes::{BufMut, BytesMut};
+    use prost::Message;
     use ringbuf::{LocalRb, Rb};
 
     use super::DataManager;
@@ -583,8 +665,8 @@ mod tests {
             match RefCell::borrow_mut(&self.store).pop() {
                 Some(msg) => {
                     READ_MESSAGES.lock().unwrap().push(msg.clone());
-                    let mut res = BytesMut::with_capacity(11);
-                    res.put(&b"ignore this"[..]);
+                    let mut res = BytesMut::with_capacity(msg.encoded_len());
+                    msg.encode(&mut res)?;
                     Ok(res)
                 }
                 None => Ok(BytesMut::with_capacity(0)),
@@ -621,7 +703,7 @@ mod tests {
                 &self.other_store
             })
             .push(message)
-            .map_err(|msg| DataStoreError::DataBufferFull(collector_key.clone(), msg))?;
+            .map_err(|_| DataStoreError::DataBufferFull(collector_key.clone()))?;
             Ok(())
         }
         fn from_resource_method_keys(
@@ -664,7 +746,7 @@ mod tests {
     }
 
     #[test_log::test]
-    fn test_run_inner() {
+    fn test_reader() {
         let resource_1 = ResourceType::Sensor(Arc::new(Mutex::new(TestSensor {})));
         let resource_2 = ResourceType::Sensor(Arc::new(Mutex::new(TestSensor2 {})));
 
@@ -676,6 +758,7 @@ mod tests {
         );
         assert!(data_coll_1.is_ok());
         let data_coll_1 = data_coll_1.unwrap();
+        let coll_key_1 = data_coll_1.resource_method_key();
 
         let data_coll_2 = DataCollector::new(
             "r2".to_string(),
@@ -685,6 +768,7 @@ mod tests {
         );
         assert!(data_coll_2.is_ok());
         let data_coll_2 = data_coll_2.unwrap();
+        let coll_key_2 = data_coll_2.resource_method_key();
 
         let manager = DataManager::new(
             vec![data_coll_1, data_coll_2],
@@ -695,13 +779,26 @@ mod tests {
         assert!(manager.is_ok());
         let mut manager = manager.unwrap();
 
-        let expected_data: Vec<f64> = vec![
-            42.42, 42.42, 42.42, 24.24, 24.24, 42.42, 42.42, 42.42, 24.24,
-        ];
-        for i in 0..7 {
-            assert!(manager.run_inner(i).is_ok());
-        }
-        let read_data = get_read_values();
-        assert_eq!(read_data, expected_data);
+        let sync_task = manager.get_sync_task();
+
+        let min_interval_ms = manager.min_interval_ms();
+
+        async_io::block_on(async move {
+            for i in 0..7 {
+                if (i == 3) || (i == 6) {
+                    let res = sync_task.read_messages_for_collector(&coll_key_1).await;
+                    assert!(res.is_ok());
+                    let res = sync_task.read_messages_for_collector(&coll_key_2).await;
+                    assert!(res.is_ok());
+                }
+                assert!(manager.collect_data_inner(i).await.is_ok())
+            }
+
+            let expected_data: Vec<f64> = vec![
+                42.42, 42.42, 42.42, 24.24, 24.24, 42.42, 42.42, 42.42, 24.24,
+            ];
+            let read_data = get_read_values();
+            assert_eq!(read_data, expected_data);
+        });
     }
 }

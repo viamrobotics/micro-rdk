@@ -28,7 +28,7 @@ impl Default for WriteMode {
     }
 }
 
-static mut DATA_STORE: [MaybeUninit<u8>; 1024000] = [MaybeUninit::uninit(); 1024000];
+static mut DATA_STORE: [MaybeUninit<u8>; 10240] = [MaybeUninit::uninit(); 10240];
 
 #[derive(Clone, Error, Debug)]
 pub enum DataStoreError {
@@ -41,7 +41,7 @@ pub enum DataStoreError {
     #[error("Data write failure")]
     DataWriteFailure,
     #[error("Buffer full")]
-    DataBufferFull(ResourceMethodKey, SensorData),
+    DataBufferFull(ResourceMethodKey),
     #[error("Current message is malformed")]
     DataIntegrityError,
     #[error("Unknown collector key: {0}")]
@@ -91,6 +91,8 @@ pub trait DataStore {
         -> Result<Self::Reader, DataStoreError>;
 }
 
+pub type StoreRegion = Rc<LocalRb<u8, &'static mut [MaybeUninit<u8>]>>;
+
 /// StaticMemoryDataStore is an entity that governs the static bytes memory
 /// reserved in DATA_STORE. The memory is segmented based according to the DataCollectors expected
 /// (identified by collector keys) and each segment view is treated as a separate ring buffer of SensorData
@@ -99,31 +101,26 @@ pub trait DataStore {
 /// the number of collector keys). It should be treated as a global struct that should only be initialized once
 /// and is not thread-safe (all interactions should be blocking).
 pub struct StaticMemoryDataStore {
-    buffers: Vec<Rc<LocalRb<u8, &'static mut [MaybeUninit<u8>]>>>,
+    buffers: Vec<StoreRegion>,
     buffer_usages: Vec<Rc<AtomicBool>>,
     collector_keys: Vec<ResourceMethodKey>,
 }
 
 pub struct StaticMemoryDataStoreReader {
-    cons: Consumer<u8, Rc<LocalRb<u8, &'static mut [MaybeUninit<u8>]>>>,
+    cons: Consumer<u8, StoreRegion>,
     start_idx: usize,
     current_idx: usize,
     buffer_registration: Rc<AtomicBool>,
-    iteration_failure: Option<DataStoreError>,
 }
 
 impl StaticMemoryDataStoreReader {
-    fn new(
-        cons: Consumer<u8, Rc<LocalRb<u8, &'static mut [MaybeUninit<u8>]>>>,
-        buffer_registration: Rc<AtomicBool>,
-    ) -> Self {
+    fn new(cons: Consumer<u8, StoreRegion>, buffer_registration: Rc<AtomicBool>) -> Self {
         let start_idx = cons.rb().head();
         Self {
-            cons: cons,
+            cons,
             start_idx,
             current_idx: start_idx,
             buffer_registration,
-            iteration_failure: None,
         }
     }
 }
@@ -209,6 +206,7 @@ impl StaticMemoryDataStore {
     }
 
     // for testing purposes only
+    #[allow(dead_code)]
     pub(crate) fn is_collector_store_empty(
         &self,
         collector_key: &ResourceMethodKey,
@@ -236,17 +234,14 @@ impl DataStore for StaticMemoryDataStore {
             self.register_buffer_usage(buffer_index);
         }
         defer! {
-            let _ = self.unregister_buffer_usage(buffer_index);
+            self.unregister_buffer_usage(buffer_index);
         }
         let encode_len = message.encoded_len();
         let total_encode_len = length_delimiter_len(encode_len) + encode_len;
 
         while total_encode_len > buffer.vacant_len() {
             if !matches!(write_mode, WriteMode::OverwriteOldest) {
-                return Err(DataStoreError::DataBufferFull(
-                    collector_key.clone(),
-                    message,
-                ));
+                return Err(DataStoreError::DataBufferFull(collector_key.clone()));
             }
             let mut cons = unsafe { Consumer::new(buffer.clone()) };
             let (left, right) = cons.as_slices();
@@ -264,7 +259,6 @@ impl DataStore for StaticMemoryDataStore {
             message.encode_length_delimited(&mut chained)?;
             prod.advance(total_encode_len);
         }
-
         Ok(())
     }
 
@@ -681,9 +675,8 @@ mod tests {
                 };
                 match res {
                     Ok(()) => unreachable!(),
-                    Err(DataStoreError::DataBufferFull(key, msg)) => {
+                    Err(DataStoreError::DataBufferFull(key)) => {
                         assert_eq!(key, collector_key.clone());
-                        assert_eq!(msg, expected_msg);
                     }
                     _ => unreachable!(),
                 }
