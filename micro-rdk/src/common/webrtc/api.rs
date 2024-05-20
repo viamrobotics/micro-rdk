@@ -135,7 +135,7 @@ impl AtomicSync {
             .store(true, std::sync::atomic::Ordering::Relaxed);
         self.0.waker.wake();
     }
-    fn get(&self) -> bool {
+    pub(crate) fn get(&self) -> bool {
         self.0.done.load(std::sync::atomic::Ordering::Relaxed)
     }
     pub(crate) fn reset(&self) {

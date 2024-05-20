@@ -331,9 +331,19 @@ where
             .map_err(|e| ServerError::new(GrpcError::RpcInternal, Some(e.into())))?;
         debug_assert_eq!(buffer.len(), 5 + len);
         debug_assert_eq!(buffer.capacity(), 5 + len);
-        if self.wifi_manager.is_some() && self.storage.has_wifi_credentials() {
-            self.credential_ready.done();
+
+        match self.wifi_manager.as_ref() {
+            Some(_) => {
+                if self.storage.has_wifi_credentials() {
+                    self.credential_ready.done()
+                }
+            }
+            None => {
+                log::error!("READY");
+                self.credential_ready.done()
+            }
         }
+
         Ok(buffer.freeze())
     }
 
@@ -406,8 +416,10 @@ where
         self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
-        let this = self.project();
-
+        let mut this = self.project();
+        if this.credential_ready.get() {
+            this.connection.as_mut().graceful_shutdown();
+        }
         this.connection.poll(cx)
     }
 }
@@ -425,6 +437,7 @@ where
 {
     pub(crate) fn new(service: ProvisioningService<S, Wifi>, executor: E, stream: I) -> Self {
         let credential_ready = service.get_credential_ready();
+        credential_ready.reset();
         let connection = http2::Builder::new(executor).serve_connection(stream, service);
         Self {
             _exec: PhantomData,
