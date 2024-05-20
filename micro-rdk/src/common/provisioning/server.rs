@@ -1,11 +1,21 @@
 #![allow(dead_code)]
-use std::{
-    marker::PhantomData,
-    pin::Pin,
-    rc::Rc,
-    sync::atomic::{AtomicBool, Ordering},
-};
+use std::{marker::PhantomData, net::Ipv4Addr, pin::Pin, rc::Rc};
 
+use crate::{
+    common::{
+        grpc::{GrpcBody, GrpcError, GrpcResponse, ServerError},
+        provisioning::storage::WifiCredentials,
+        webrtc::api::AtomicSync,
+    },
+    proto::provisioning::{
+        self,
+        v1::{
+            GetNetworkListResponse, GetSmartMachineStatusResponse, SetNetworkCredentialsRequest,
+            SetNetworkCredentialsResponse, SetSmartMachineCredentialsRequest,
+            SetSmartMachineCredentialsResponse,
+        },
+    },
+};
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_lite::Future;
 use http_body_util::BodyExt;
@@ -15,25 +25,15 @@ use hyper::{
 };
 use prost::Message;
 
-use crate::{
-    common::grpc::{GrpcBody, GrpcError, GrpcResponse},
-    proto::provisioning::{
-        self,
-        v1::{
-            GetSmartMachineStatusResponse, SetSmartMachineCredentialsRequest,
-            SetSmartMachineCredentialsResponse,
-        },
-    },
-};
-
-use super::storage::RobotCredentialStorage;
+use super::storage::{RobotCredentialStorage, WifiCredentialStorage};
 
 #[derive(Default)]
-pub(crate) struct ProvisioningServiceBuilder {
+pub(crate) struct ProvisioningServiceBuilder<Wifi = ()> {
     last_connection_attempt: Option<NetworkInfo>,
     provisioning_info: Option<ProvisioningInfo>,
     reason: ProvisioningReason,
     last_error: Option<String>,
+    wifi_manager: Option<Wifi>,
 }
 
 impl ProvisioningServiceBuilder {
@@ -42,6 +42,9 @@ impl ProvisioningServiceBuilder {
             ..Default::default()
         }
     }
+}
+
+impl<Wifi: WifiManager> ProvisioningServiceBuilder<Wifi> {
     pub(crate) fn with_provisioning_info(mut self, info: ProvisioningInfo) -> Self {
         let _ = self.provisioning_info.insert(info);
         self
@@ -58,17 +61,30 @@ impl ProvisioningServiceBuilder {
         let _ = self.last_error.insert(error);
         self
     }
+    pub(crate) fn with_wifi_manager<W: WifiManager>(
+        self,
+        wifi_manager: W,
+    ) -> ProvisioningServiceBuilder<W> {
+        ProvisioningServiceBuilder {
+            last_connection_attempt: self.last_connection_attempt,
+            provisioning_info: self.provisioning_info,
+            reason: self.reason,
+            last_error: self.last_error,
+            wifi_manager: Some(wifi_manager),
+        }
+    }
     pub(crate) fn build<S: RobotCredentialStorage + Clone>(
         self,
         storage: S,
-    ) -> ProvisioningService<S> {
+    ) -> ProvisioningService<S, Wifi> {
         ProvisioningService {
             provisioning_info: Rc::new(self.provisioning_info),
             last_connection_attempt: Rc::new(self.last_connection_attempt),
             reason: Rc::new(self.reason),
             storage,
-            credential_ready: Rc::new(AtomicBool::new(false)),
+            credential_ready: AtomicSync::default(),
             last_error: self.last_error,
+            wifi_manager: Rc::new(self.wifi_manager),
         }
     }
 }
@@ -80,8 +96,9 @@ pub(crate) enum ProvisioningReason {
     InvalidCredentials,
 }
 
-#[derive(Default)]
-pub(crate) struct NetworkInfo(provisioning::v1::NetworkInfo);
+#[derive(Default, Debug)]
+pub(crate) struct NetworkInfo(pub(crate) provisioning::v1::NetworkInfo);
+
 #[derive(Default, Clone)]
 pub struct ProvisioningInfo(provisioning::v1::ProvisioningInfo);
 
@@ -103,22 +120,37 @@ impl ProvisioningInfo {
     }
 }
 
-#[derive(Clone)]
-pub(crate) struct ProvisioningService<S> {
+pub(crate) struct ProvisioningService<S, Wifi> {
     provisioning_info: Rc<Option<ProvisioningInfo>>,
     last_connection_attempt: Rc<Option<NetworkInfo>>,
     reason: Rc<ProvisioningReason>,
     storage: S,
-    credential_ready: Rc<AtomicBool>,
+    credential_ready: AtomicSync,
     last_error: Option<String>,
+    wifi_manager: Rc<Option<Wifi>>,
 }
 
-impl<S> ProvisioningService<S>
+impl<S: Clone, Wifi> Clone for ProvisioningService<S, Wifi> {
+    fn clone(&self) -> Self {
+        Self {
+            provisioning_info: self.provisioning_info.clone(),
+            last_connection_attempt: self.last_connection_attempt.clone(),
+            reason: self.reason.clone(),
+            storage: self.storage.clone(),
+            credential_ready: self.credential_ready.clone(),
+            last_error: self.last_error.clone(),
+            wifi_manager: self.wifi_manager.clone(),
+        }
+    }
+}
+
+impl<S, Wifi> ProvisioningService<S, Wifi>
 where
-    S: RobotCredentialStorage + Clone,
-    GrpcError: From<S::Error>,
+    S: RobotCredentialStorage + WifiCredentialStorage + Clone,
+    ServerError: From<<S as RobotCredentialStorage>::Error>,
+    Wifi: WifiManager,
 {
-    async fn process_request_inner(&self, req: Request<Incoming>) -> Result<Bytes, GrpcError> {
+    async fn process_request_inner(&self, req: Request<Incoming>) -> Result<Bytes, ServerError> {
         let (parts, body) = req.into_parts();
         let mut body = body
             .collect()
@@ -132,10 +164,66 @@ where
             "/viam.provisioning.v1.ProvisioningService/SetSmartMachineCredentials" => {
                 self.set_smart_machine_credentials(body.split_off(5))
             }
-            _ => Err(GrpcError::RpcUnimplemented),
+            "/viam.provisioning.v1.ProvisioningService/GetNetworkList" => {
+                self.get_network_list().await
+            }
+            "/viam.provisioning.v1.ProvisioningService/SetNetworkCredentials" => {
+                self.set_network_credential_request(body.split_off(5)).await
+            }
+            _ => Err(ServerError::new(GrpcError::RpcUnimplemented, None)),
         }
     }
-    fn get_smart_machine_status(&self) -> Result<Bytes, GrpcError> {
+    async fn set_network_credential_request(&self, body: Bytes) -> Result<Bytes, ServerError> {
+        if let Some(_wifi_manager) = self.wifi_manager.as_ref() {
+            let creds: WifiCredentials = SetNetworkCredentialsRequest::decode(body)
+                .map_err(|e| ServerError::new(GrpcError::RpcInternal, Some(e.into())))?
+                .into();
+
+            self.storage
+                .store_wifi_credentials(creds)
+                .map_err(|e| ServerError::new(GrpcError::RpcInternal, Some(Box::new(e.into()))))?;
+
+            let resp = SetNetworkCredentialsResponse::default();
+            let len = resp.encoded_len();
+            let mut buffer = BytesMut::with_capacity(5 + len);
+            buffer.put_u8(0);
+            buffer.put_u32(len.try_into().unwrap());
+            resp.encode(&mut buffer)
+                .map_err(|e| ServerError::new(GrpcError::RpcInternal, Some(e.into())))?;
+            debug_assert_eq!(buffer.len(), 5 + len);
+            debug_assert_eq!(buffer.capacity(), 5 + len);
+            if self.storage.has_stored_credentials() {
+                self.credential_ready.done();
+            }
+            Ok(buffer.freeze())
+        } else {
+            Err(ServerError::new(GrpcError::RpcUnimplemented, None))
+        }
+    }
+    async fn get_network_list(&self) -> Result<Bytes, ServerError> {
+        if let Some(wifi_manager) = self.wifi_manager.as_ref() {
+            let networks = wifi_manager
+                .scan_networks()
+                .await
+                .map_err(|e| ServerError::new(GrpcError::RpcInternal, Some(e.into())))?;
+
+            let resp = GetNetworkListResponse {
+                networks: networks.into_iter().map(|m| m.0).collect(),
+            };
+            let len = resp.encoded_len();
+            let mut buffer = BytesMut::with_capacity(5 + len);
+            buffer.put_u8(0);
+            buffer.put_u32(len.try_into().unwrap());
+            resp.encode(&mut buffer)
+                .map_err(|e| ServerError::new(GrpcError::RpcInternal, Some(e.into())))?;
+            debug_assert_eq!(buffer.len(), 5 + len);
+            debug_assert_eq!(buffer.capacity(), 5 + len);
+            Ok(buffer.freeze())
+        } else {
+            Err(ServerError::new(GrpcError::RpcUnimplemented, None))
+        }
+    }
+    fn get_smart_machine_status(&self) -> Result<Bytes, ServerError> {
         let mut resp = GetSmartMachineStatusResponse::default();
         if let Some(info) = self.provisioning_info.as_ref() {
             resp.provisioning_info = Some(info.0.clone());
@@ -150,19 +238,21 @@ where
         if let Some(error) = self.last_error.as_ref() {
             resp.errors.push(error.clone())
         }
+
         resp.has_smart_machine_credentials = self.storage.has_stored_credentials();
         let len = resp.encoded_len();
         let mut buffer = BytesMut::with_capacity(5 + len);
         buffer.put_u8(0);
         buffer.put_u32(len.try_into().unwrap());
         resp.encode(&mut buffer)
-            .map_err(|_| GrpcError::RpcInternal)?;
+            .map_err(|e| ServerError::new(GrpcError::RpcInternal, Some(e.into())))?;
+
         debug_assert_eq!(buffer.len(), 5 + len);
         debug_assert_eq!(buffer.capacity(), 5 + len);
         Ok(buffer.freeze())
     }
 
-    fn set_smart_machine_credentials(&self, body: Bytes) -> Result<Bytes, GrpcError> {
+    fn set_smart_machine_credentials(&self, body: Bytes) -> Result<Bytes, ServerError> {
         let creds =
             SetSmartMachineCredentialsRequest::decode(body).map_err(|_| GrpcError::RpcInternal)?;
         self.storage.store_robot_credentials(creds.cloud.unwrap())?;
@@ -173,10 +263,12 @@ where
         buffer.put_u8(0);
         buffer.put_u32(len.try_into().unwrap());
         resp.encode(&mut buffer)
-            .map_err(|_| GrpcError::RpcInternal)?;
+            .map_err(|e| ServerError::new(GrpcError::RpcInternal, Some(e.into())))?;
         debug_assert_eq!(buffer.len(), 5 + len);
         debug_assert_eq!(buffer.capacity(), 5 + len);
-        self.credential_ready.store(true, Ordering::Relaxed);
+        if self.wifi_manager.is_some() && self.storage.has_wifi_credentials() {
+            self.credential_ready.done();
+        }
         Ok(buffer.freeze())
     }
 
@@ -187,7 +279,7 @@ where
         let mut resp = GrpcBody::new();
         match self.process_request_inner(req).await {
             Ok(bytes) => resp.put_data(bytes),
-            Err(e) => resp.set_status(e.to_status("".to_string()).code, None),
+            Err(e) => resp.set_status(e.status_code(), Some(e.to_string())),
         };
 
         Response::builder()
@@ -196,18 +288,19 @@ where
             .body(resp)
     }
 
-    fn get_credential_ready(&self) -> Rc<AtomicBool> {
+    pub(crate) fn get_credential_ready(&self) -> AtomicSync {
         self.credential_ready.clone()
     }
     fn reset_credential_ready(&self) {
-        self.credential_ready.store(false, Ordering::Relaxed);
+        self.credential_ready.reset()
     }
 }
 
-impl<S> Service<Request<Incoming>> for ProvisioningService<S>
+impl<S, Wifi> Service<Request<Incoming>> for ProvisioningService<S, Wifi>
 where
-    S: RobotCredentialStorage + Clone + 'static,
-    GrpcError: From<S::Error>,
+    S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
+    ServerError: From<<S as RobotCredentialStorage>::Error>,
+    Wifi: WifiManager + 'static,
 {
     type Response = Response<GrpcBody>;
     type Error = http::Error;
@@ -218,57 +311,55 @@ where
     }
 }
 #[pin_project::pin_project]
-pub(crate) struct ProvisoningServer<I, S, E>
+pub(crate) struct ProvisoningServer<I, S, E, Wifi>
 where
-    S: RobotCredentialStorage + Clone + 'static,
-    GrpcError: From<S::Error>,
+    S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
+    ServerError: From<<S as RobotCredentialStorage>::Error>,
+    Wifi: WifiManager + 'static,
 {
     _exec: PhantomData<E>,
     _stream: PhantomData<I>,
     _storage: PhantomData<S>,
     #[pin]
-    connection: http2::Connection<I, ProvisioningService<S>, E>,
-    credential_ready: Rc<AtomicBool>,
+    connection: http2::Connection<I, ProvisioningService<S, Wifi>, E>,
+    credential_ready: AtomicSync,
 }
 
-impl<I, S, E> Future for ProvisoningServer<I, S, E>
+impl<I, S, E, Wifi> Future for ProvisoningServer<I, S, E, Wifi>
 where
-    S: RobotCredentialStorage + Clone + 'static,
+    S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
+    ServerError: From<<S as RobotCredentialStorage>::Error>,
     I: rt::Read + rt::Write + std::marker::Unpin + 'static,
-    GrpcError: From<S::Error>,
     E: rt::bounds::Http2ServerConnExec<
-        <ProvisioningService<S> as Service<Request<Incoming>>>::Future,
+        <ProvisioningService<S, Wifi> as Service<Request<Incoming>>>::Future,
         GrpcBody,
     >,
+    Wifi: WifiManager + 'static,
 {
     type Output = Result<(), hyper::Error>;
     fn poll(
         self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
-        let mut this = self.project();
-
-        if this.credential_ready.load(Ordering::Relaxed) {
-            this.connection.as_mut().graceful_shutdown();
-        }
+        let this = self.project();
 
         this.connection.poll(cx)
     }
 }
 
-impl<I, S, E> ProvisoningServer<I, S, E>
+impl<I, S, E, Wifi> ProvisoningServer<I, S, E, Wifi>
 where
-    S: RobotCredentialStorage + Clone + 'static,
+    S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
+    ServerError: From<<S as RobotCredentialStorage>::Error>,
     I: rt::Read + rt::Write + std::marker::Unpin + 'static,
-    GrpcError: From<S::Error>,
     E: rt::bounds::Http2ServerConnExec<
-        <ProvisioningService<S> as Service<Request<Incoming>>>::Future,
+        <ProvisioningService<S, Wifi> as Service<Request<Incoming>>>::Future,
         GrpcBody,
     >,
+    Wifi: WifiManager + 'static,
 {
-    pub(crate) fn new(service: ProvisioningService<S>, executor: E, stream: I) -> Self {
+    pub(crate) fn new(service: ProvisioningService<S, Wifi>, executor: E, stream: I) -> Self {
         let credential_ready = service.get_credential_ready();
-        service.reset_credential_ready();
         let connection = http2::Builder::new(executor).serve_connection(stream, service);
         Self {
             _exec: PhantomData,
@@ -277,6 +368,26 @@ where
             connection,
             credential_ready,
         }
+    }
+}
+
+pub(crate) trait WifiManager {
+    type Error: std::error::Error + Send + Sync + 'static;
+    async fn scan_networks(&self) -> Result<Vec<NetworkInfo>, Self::Error>;
+    async fn try_connect(&self, ssid: &str, password: &str) -> Result<(), Self::Error>;
+    fn get_ap_ip(&self) -> Ipv4Addr;
+}
+
+impl WifiManager for () {
+    type Error = ServerError;
+    async fn scan_networks(&self) -> Result<Vec<NetworkInfo>, Self::Error> {
+        Err(ServerError::new(GrpcError::RpcUnimplemented, None))
+    }
+    async fn try_connect(&self, _: &str, _: &str) -> Result<(), Self::Error> {
+        Err(ServerError::new(GrpcError::RpcUnimplemented, None))
+    }
+    fn get_ap_ip(&self) -> Ipv4Addr {
+        Ipv4Addr::UNSPECIFIED
     }
 }
 

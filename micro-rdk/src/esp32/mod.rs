@@ -31,3 +31,8 @@ pub mod conn {
 }
 #[cfg(feature = "provisioning")]
 pub mod nvs_storage;
+#[cfg(feature = "provisioning")]
+pub mod provisioning {
+    pub mod server;
+    pub mod wifi_provisioning;
+}

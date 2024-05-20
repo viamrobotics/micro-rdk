@@ -24,10 +24,10 @@ use std::{
 #[cfg(feature = "provisioning")]
 use crate::common::{
     conn::mdns::Mdns,
-    grpc::GrpcError,
+    grpc::ServerError,
     provisioning::{
         server::{ProvisioningInfo, ProvisioningServiceBuilder, ProvisoningServer},
-        storage::RobotCredentialStorage,
+        storage::{RobotCredentialStorage, WifiCredentialStorage},
     },
 };
 #[cfg(feature = "provisioning")]
@@ -154,9 +154,9 @@ async fn serve_provisioning_async<S>(
     last_error: Option<String>,
 ) -> Result<(AppClientConfig, NativeTlsServerConfig), Box<dyn std::error::Error>>
 where
-    S: RobotCredentialStorage + Clone + 'static,
-    S::Error: Debug,
-    GrpcError: From<S::Error>,
+    S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
+    <S as RobotCredentialStorage>::Error: Debug,
+    ServerError: From<<S as RobotCredentialStorage>::Error>,
 {
     let hostname = format!(
         "provisioning-{}-{}",
@@ -231,9 +231,9 @@ pub fn serve_with_provisioning<S>(
     repr: RobotRepresentation,
     network: ExternallyManagedNetwork,
 ) where
-    S: RobotCredentialStorage + Clone + 'static,
-    S::Error: Debug,
-    GrpcError: From<S::Error>,
+    S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
+    <S as RobotCredentialStorage>::Error: Debug,
+    ServerError: From<<S as RobotCredentialStorage>::Error>,
 {
     let exec = NativeExecutor::new();
     let cloned_exec = exec.clone();
@@ -346,7 +346,7 @@ mod tests {
 
         let grpc_client = GrpcClient::new(conn, executor, "https://app.viam.com:443").await;
         assert!(grpc_client.is_ok());
-        let mut grpc_client = grpc_client.unwrap();
+        let grpc_client = grpc_client.unwrap();
 
         let cred = Credentials {
             r#type: "robot-secret".to_owned(),

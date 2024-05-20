@@ -35,12 +35,9 @@ use async_io::Timer;
 
 #[cfg(feature = "provisioning")]
 use crate::common::{
-    conn::mdns::Mdns,
-    grpc::GrpcError,
-    provisioning::{
-        server::{ProvisioningInfo, ProvisioningServiceBuilder, ProvisoningServer},
-        storage::RobotCredentialStorage,
-    },
+    grpc::ServerError,
+    provisioning::server::{ProvisioningInfo, ProvisioningServiceBuilder, ProvisoningServer},
+    provisioning::storage::{RobotCredentialStorage, WifiCredentialStorage},
 };
 #[cfg(feature = "provisioning")]
 use async_io::Async;
@@ -171,11 +168,12 @@ async fn serve_provisioning_async<S>(
     last_error: Option<String>,
 ) -> Result<(AppClientConfig, Esp32TLSServerConfig), Box<dyn std::error::Error>>
 where
-    S: RobotCredentialStorage + Clone + 'static,
-    S::Error: Debug,
-    GrpcError: From<S::Error>,
+    S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
+    <S as RobotCredentialStorage>::Error: Debug,
+    ServerError: From<<S as RobotCredentialStorage>::Error>,
 {
     use super::conn::mdns::Esp32Mdns;
+    use crate::common::conn::mdns::Mdns;
     use std::ffi::CString;
     let _ = Timer::after(std::time::Duration::from_millis(150)).await;
     let hostname = format!(
@@ -253,9 +251,10 @@ pub fn serve_with_provisioning<S>(
     network: impl Network,
     max_webrtc_connection: usize,
 ) where
-    S: RobotCredentialStorage + Clone + 'static,
-    S::Error: Debug,
-    GrpcError: From<S::Error>,
+    S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
+    <S as RobotCredentialStorage>::Error: Debug,
+    ServerError: From<<S as RobotCredentialStorage>::Error>,
+    <S as WifiCredentialStorage>::Error: Send + Sync + 'static,
 {
     use super::certificate::GeneratedWebRtcCertificateBuilder;
 
