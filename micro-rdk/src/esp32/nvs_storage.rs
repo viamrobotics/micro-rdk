@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use std::cell::RefCell;
+use std::{cell::RefCell, rc::Rc};
 
 use esp_idf_svc::{
     nvs::{EspCustomNvs, EspCustomNvsPartition, EspNvs},
@@ -7,8 +7,11 @@ use esp_idf_svc::{
 };
 use thiserror::Error;
 
-use crate::common::provisioning::storage::{
-    RobotCredentialStorage, RobotCredentials, WifiCredentialStorage, WifiCredentials,
+use crate::common::{
+    grpc::{GrpcError, ServerError},
+    provisioning::storage::{
+        RobotCredentialStorage, RobotCredentials, WifiCredentialStorage, WifiCredentials,
+    },
 };
 
 #[derive(Error, Debug)]
@@ -19,10 +22,11 @@ pub enum NVSStorageError {
     NVSKeyAbsent(&'static str),
 }
 
+#[derive(Clone)]
 pub struct NVSStorage {
     // esp-idf-svc partition driver ensures that only one handle of a type can be created
     // so inner mutability can be achieves safely with RefCell
-    nvs: RefCell<EspCustomNvs>,
+    nvs: Rc<RefCell<EspCustomNvs>>,
 }
 
 impl NVSStorage {
@@ -31,7 +35,9 @@ impl NVSStorage {
         let partition: EspCustomNvsPartition = EspCustomNvsPartition::take(partition_name)?;
         let nvs = EspNvs::new(partition, "VIAM_NS", true)?;
 
-        Ok(Self { nvs: nvs.into() })
+        Ok(Self {
+            nvs: Rc::new(nvs.into()),
+        })
     }
     fn get_string(&self, key: &'static str) -> Result<String, NVSStorageError> {
         let nvs = self.nvs.borrow_mut();
@@ -48,15 +54,20 @@ impl NVSStorage {
         let mut nvs = self.nvs.borrow_mut();
         Ok(nvs.set_str(key, string)?)
     }
+    fn has_str(&self, key: &str) -> Result<bool, NVSStorageError> {
+        let nvs = self.nvs.borrow();
+        Ok(nvs.str_len(key)?.is_some())
+    }
     fn has_key(&self, key: &str) -> Result<bool, NVSStorageError> {
         let nvs = self.nvs.borrow();
+
         Ok(nvs.contains(key)?)
     }
 }
 impl RobotCredentialStorage for NVSStorage {
     type Error = NVSStorageError;
     fn has_stored_credentials(&self) -> bool {
-        self.has_key("ROBOT_SECRET").unwrap_or(false) && self.has_key("ROBOT_ID").unwrap_or(false)
+        self.has_str("ROBOT_SECRET").unwrap_or(false) && self.has_str("ROBOT_ID").unwrap_or(false)
     }
     fn get_robot_credentials(&self) -> Result<RobotCredentials, Self::Error> {
         let robot_secret = self.get_string("ROBOT_SECRET")?;
@@ -79,16 +90,22 @@ impl RobotCredentialStorage for NVSStorage {
 impl WifiCredentialStorage for NVSStorage {
     type Error = NVSStorageError;
     fn has_wifi_credentials(&self) -> bool {
-        self.has_key("WIFI_SSID").unwrap_or(false) && self.has_key("WIFI_PASSWORD").unwrap_or(false)
+        self.has_str("WIFI_SSID").unwrap_or(false) && self.has_str("WIFI_PASSWORD").unwrap_or(false)
     }
     fn get_wifi_credentials(&self) -> Result<WifiCredentials, Self::Error> {
         let ssid = self.get_string("WIFI_SSID")?;
         let pwd = self.get_string("WIFI_PASSWORD")?;
         Ok(WifiCredentials { ssid, pwd })
     }
-    fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error> {
+    fn store_wifi_credentials(&self, creds: WifiCredentials) -> Result<(), Self::Error> {
         self.set_string("WIFI_SSID", &creds.ssid)?;
         self.set_string("WIFI_PASSWORD", &creds.pwd)?;
         Ok(())
+    }
+}
+
+impl From<NVSStorageError> for ServerError {
+    fn from(value: NVSStorageError) -> Self {
+        Self::new(GrpcError::RpcUnavailable, Some(value.into()))
     }
 }
