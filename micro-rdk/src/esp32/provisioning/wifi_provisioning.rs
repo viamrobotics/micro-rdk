@@ -265,7 +265,6 @@ where
         {
             let mut conf = self.esp_wifi_config.borrow_mut();
             let (sta, _) = conf.as_mixed_conf_mut();
-            log::info!("attempting to connect to {} {}", ssid, password);
             sta.ssid = ssid
                 .try_into()
                 .map_err(|_| Esp32WifiProvisioningError::HeaplessStringError)?;
