@@ -44,6 +44,7 @@ bitfield = "0.14.0"
 bytecodec = "0.4.15"
 bytes = "1.2.1"
 chrono = "0.4.31"
+chrono-tz = "0.8.4"
 clap = "4.5.4"
 const-gen = "1.3.0"
 crc32fast = "1.3.2"
@@ -56,6 +57,7 @@ embedded-svc = "0.27"
 embuild = "0.31.3"
 env_logger = "0.10.1"
 esp-idf-svc = { version = "=0.48.1", default-features = false }
+esp-idf-part = "0.5.0"
 espflash = { git = "https://github.com/viamrobotics/espflash.git", branch = "monitor-output" }
 futures = "0.3.28"
 futures-lite = "1"
@@ -68,7 +70,6 @@ ignore = "=0.4.20"
 lazy_static = "1.4.0"
 local-ip-address = "0.5.3"
 log = "0.4.20"
-md5 = "0.7.0"
 mdns-sd = { version = "0.10.5", default-features = false, features = ["async"] }
 micro-rdk = { path = "./micro-rdk", default-features = false, features = [] }
 micro-rdk-macros = { path = "./micro-rdk-macros" }
