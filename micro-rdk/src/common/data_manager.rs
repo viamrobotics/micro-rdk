@@ -22,6 +22,11 @@ use futures_util::lock::Mutex as AsyncMutex;
 use prost::Message;
 use thiserror::Error;
 
+// Maximum size in bytes of readings that should be sent in a single request
+// as recommended by Viam's data management team is 64K. To accommodate for
+// the smaller amount of available RAM, we've halved it
+static MAX_SENSOR_CONTENTS_SIZE: usize = 32000;
+
 #[derive(Debug, Error)]
 pub enum DataManagerError {
     #[error("no data collectors in manager")]
@@ -222,9 +227,9 @@ where
 #[derive(Debug, Error)]
 pub enum DataSyncError {
     #[error(transparent)]
-    DataStoreError(#[from] DataStoreError),
-    #[error(transparent)]
     MessageDecodingError(#[from] prost::DecodeError),
+    #[error(transparent)]
+    UploadError(#[from] AppClientError),
 }
 
 pub struct DataSyncTask<StoreType> {
@@ -234,54 +239,111 @@ pub struct DataSyncTask<StoreType> {
     part_id: String,
 }
 
+async fn upload_data<'b>(
+    app_client: &'b AppClient,
+    part_id: String,
+    collector_key: &ResourceMethodKey,
+    raw_data: &mut Vec<BytesMut>,
+) -> Result<(), DataSyncError> {
+    let data: Result<Vec<SensorData>, prost::DecodeError> =
+        raw_data.drain(..).map(SensorData::decode).collect();
+
+    let upload_request = DataCaptureUploadRequest {
+        metadata: Some(UploadMetadata {
+            part_id: part_id,
+            component_type: collector_key.component_type.clone(),
+            r#type: DataType::TabularSensor.into(),
+            component_name: collector_key.r_name.clone(),
+            method_name: collector_key.method.to_string(),
+            ..Default::default()
+        }),
+        sensor_contents: data?,
+    };
+    app_client.upload_data(upload_request).await?;
+    log::info!(
+        "successfully uploaded data, collector key: {:?}",
+        collector_key
+    );
+    Ok(())
+}
+
 impl<StoreType> DataSyncTask<StoreType>
 where
     StoreType: DataStore,
 {
-    async fn read_messages_for_collector(
-        &self,
-        collector_key: &ResourceMethodKey,
-    ) -> Result<Vec<SensorData>, DataSyncError> {
-        let store_lock = self.store.lock().await;
-        let mut raw_messages: Vec<BytesMut> = vec![];
-        let mut reader = store_lock.get_reader(collector_key)?;
-        loop {
-            let next_message = reader.read_next_message()?;
-            if next_message.is_empty() {
-                break;
-            }
-            raw_messages.push(next_message);
-        }
-        let data: Result<Vec<SensorData>, prost::DecodeError> =
-            raw_messages.into_iter().map(SensorData::decode).collect();
-        Ok(data?)
-    }
-
     async fn run<'b>(&mut self, app_client: &'b AppClient) -> Result<(), AppClientError> {
         for collector_key in self.resource_method_keys.iter() {
-            let data = match self.read_messages_for_collector(collector_key).await {
-                Ok(data) => data,
+            let store_lock = self.store.lock().await;
+            let mut current_chunk: Vec<BytesMut> = vec![];
+            let mut chunk_size_counter: usize = 0;
+            let mut reader = match store_lock.get_reader(collector_key) {
+                Ok(reader) => reader,
                 Err(err) => {
-                    log::error!(
-                        "error decoding readings for collector key ({:?}): {:?}",
-                        collector_key,
-                        err
-                    );
+                    log::error!("error acquiring store reader: {:?}", err);
                     continue;
                 }
             };
-            let upload_request = DataCaptureUploadRequest {
-                metadata: Some(UploadMetadata {
-                    part_id: self.part_id.clone(),
-                    component_type: collector_key.component_type.clone(),
-                    r#type: DataType::TabularSensor.into(),
-                    component_name: collector_key.r_name.clone(),
-                    method_name: collector_key.method.to_string(),
-                    ..Default::default()
-                }),
-                sensor_contents: data,
-            };
-            app_client.upload_data(upload_request).await?;
+            loop {
+                let next_message = match reader.read_next_message() {
+                    Ok(msg) => msg,
+                    Err(err) => {
+                        log::error!("error reading from store: {:?}", err);
+                        break;
+                    }
+                };
+                if next_message.is_empty() {
+                    break;
+                }
+                // If the amount of data becomes too big for a single upload, we want to start a new
+                // collection of upload data
+                if (chunk_size_counter + next_message.len()) > MAX_SENSOR_CONTENTS_SIZE {
+                    match upload_data(
+                        app_client,
+                        self.part_id.clone(),
+                        collector_key,
+                        &mut current_chunk,
+                    )
+                    .await
+                    {
+                        Ok(_) => {
+                            chunk_size_counter = 0;
+                            reader.flush();
+                        }
+                        Err(DataSyncError::UploadError(err)) => {
+                            // if there is an error actually uploading the data, we want to keep it in the store
+                            return Err(err);
+                        }
+                        Err(err) => {
+                            log::error!("error processing data chunk {:?}", err);
+                            chunk_size_counter = 0;
+                            reader.flush();
+                        }
+                    };
+                } else {
+                    chunk_size_counter += next_message.len();
+                    current_chunk.push(next_message);
+                }
+            }
+            if !current_chunk.is_empty() {
+                match upload_data(
+                    app_client,
+                    self.part_id.clone(),
+                    collector_key,
+                    &mut current_chunk,
+                )
+                .await
+                {
+                    Ok(_) => {
+                        reader.flush();
+                    }
+                    Err(DataSyncError::UploadError(err)) => {
+                        return Err(err);
+                    }
+                    Err(err) => {
+                        log::error!("error processing data chunk {:?}", err);
+                    }
+                };
+            }
         }
         Ok(())
     }
@@ -314,7 +376,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
-    use bytes::{BufMut, BytesMut};
+    use bytes::BytesMut;
     use prost::Message;
     use ringbuf::{LocalRb, Rb};
 
@@ -393,7 +455,7 @@ mod tests {
         fn read_next_message(&mut self) -> Result<BytesMut, DataStoreError> {
             Err(DataStoreError::Unimplemented)
         }
-        fn flush(self) {}
+        fn flush(&mut self) {}
     }
 
     struct NoOpStore {}
@@ -672,7 +734,7 @@ mod tests {
                 None => Ok(BytesMut::with_capacity(0)),
             }
         }
-        fn flush(self) {}
+        fn flush(&mut self) {}
     }
 
     struct ReadSavingStore {

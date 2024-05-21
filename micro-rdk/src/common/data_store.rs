@@ -28,7 +28,10 @@ impl Default for WriteMode {
     }
 }
 
-static mut DATA_STORE: [MaybeUninit<u8>; 10240] = [MaybeUninit::uninit(); 10240];
+const DATA_STORE_SIZE: usize = 111834;
+
+static mut DATA_STORE: [MaybeUninit<u8>; DATA_STORE_SIZE] =
+    [MaybeUninit::uninit(); DATA_STORE_SIZE];
 
 #[derive(Clone, Error, Debug)]
 pub enum DataStoreError {
@@ -64,7 +67,7 @@ pub trait DataStoreReader {
     /// Reads the next available message in the store for the given ResourceMethodKey. It should return
     /// an empty BytesMut with 0 capacity when there are no available messages left.
     fn read_next_message(&mut self) -> Result<BytesMut, DataStoreError>;
-    fn flush(self);
+    fn flush(&mut self);
 }
 
 pub trait DataStore {
@@ -145,8 +148,10 @@ impl DataStoreReader for StaticMemoryDataStoreReader {
         self.current_idx += len_len + encoded_len;
         Ok(msg_bytes)
     }
-    fn flush(mut self) {
+    fn flush(&mut self) {
         self.cons.skip(self.current_idx - self.start_idx);
+        self.start_idx = self.cons.rb().head();
+        self.current_idx = self.start_idx;
     }
 }
 

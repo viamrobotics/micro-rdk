@@ -98,6 +98,11 @@ pub async fn serve_web_inner(
         let (cfg_response, cfg_received_datetime) =
             client.get_config(network.get_ip()).await.unwrap();
 
+        // We use the received datetime from the config response and set the current time on the ESP32 to the result.
+        // This is a stopgap measure for the purposes of the data management feature to be able to supply timestamps
+        // to collected data. In the future, we want to perhaps use an NTP server to get an actual datetime, and figure
+        // out a solution for adjustments to data timestamps in the case we are offline. When that methodology has been decided on
+        // and implemented, this code can be deleted
         if let Some(current_dt) = cfg_received_datetime.as_ref() {
             let tz = chrono_tz::Tz::UTC;
             std::env::set_var("TZ", tz.name());
