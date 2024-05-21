@@ -128,7 +128,7 @@ impl<Wifi, Exec> ProvisioningServiceBuilder<Wifi, Exec> {
         Wifi: WifiManager,
     {
         // Provisioning relies on DNS query to find the IP of the server. Specifically it will
-        // make a request for viam.setup. All other queries are answered failed to express the lack off
+        // make a request for viam.setup. All other queries are answered failed to express the lack of
         // internet
         let dns_task = self
             .wifi_manager

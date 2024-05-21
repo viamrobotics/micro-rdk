@@ -27,11 +27,11 @@ impl NativeMdns {
         &mut self,
         instance_name: &str,
         service_type: impl AsRef<str>,
-        proto: impl AsRef<str>,
+        protocol: impl AsRef<str>,
         port: u16,
         txt: &[(&str, &str)],
     ) -> Result<(), MdnsError> {
-        let ty_domain = format!("{}.{}.local.", service_type.as_ref(), proto.as_ref());
+        let ty_domain = format!("{}.{}.local.", service_type.as_ref(), protocol.as_ref());
         let srv_hostname = format!("{}.{}", self.hostname, &ty_domain);
 
         let props: HashMap<String, String> = txt
@@ -71,11 +71,11 @@ impl Mdns for NativeMdns {
         &mut self,
         instance_name: &str,
         service_type: impl AsRef<str>,
-        proto: impl AsRef<str>,
+        protocol: impl AsRef<str>,
         port: u16,
         txt: &[(&str, &str)],
     ) -> Result<(), MdnsError> {
-        self.add_service(instance_name, service_type, proto, port, txt)
+        self.add_service(instance_name, service_type, protocol, port, txt)
     }
     fn set_hostname(&mut self, hostname: &str) -> Result<(), MdnsError> {
         self.set_hostname(hostname)
@@ -87,11 +87,11 @@ impl Mdns for &mut NativeMdns {
         &mut self,
         instance_name: &str,
         service_type: impl AsRef<str>,
-        proto: impl AsRef<str>,
+        protocol: impl AsRef<str>,
         port: u16,
         txt: &[(&str, &str)],
     ) -> Result<(), MdnsError> {
-        (*self).add_service(instance_name, service_type, proto, port, txt)
+        (*self).add_service(instance_name, service_type, protocol, port, txt)
     }
     fn set_hostname(&mut self, hostname: &str) -> Result<(), MdnsError> {
         (*self).set_hostname(hostname)

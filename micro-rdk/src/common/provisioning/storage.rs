@@ -6,7 +6,7 @@ use crate::{
     proto::provisioning::v1::{CloudConfig, SetNetworkCredentialsRequest},
 };
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct RobotCredentials {
     pub(crate) robot_secret: String,
     pub(crate) robot_id: String,
@@ -60,6 +60,7 @@ pub trait WifiCredentialStorage {
     fn has_wifi_credentials(&self) -> bool;
     fn store_wifi_credentials(&self, creds: WifiCredentials) -> Result<(), Self::Error>;
     fn get_wifi_credentials(&self) -> Result<WifiCredentials, Self::Error>;
+    fn reset_wifi_credentials(&self) -> Result<(), Self::Error>;
 }
 
 pub trait RobotCredentialStorage {
@@ -67,6 +68,7 @@ pub trait RobotCredentialStorage {
     fn has_stored_credentials(&self) -> bool;
     fn store_robot_credentials(&self, cfg: CloudConfig) -> Result<(), Self::Error>;
     fn get_robot_credentials(&self) -> Result<RobotCredentials, Self::Error>;
+    fn reset_robot_credentials(&self) -> Result<(), Self::Error>;
 }
 
 #[derive(Default)]
@@ -113,6 +115,11 @@ impl RobotCredentialStorage for RAMStorage {
         let cfg = inner_ref.config.clone().unwrap_or_default().clone();
         Ok(cfg)
     }
+    fn reset_robot_credentials(&self) -> Result<(), Self::Error> {
+        let mut inner_ref = self.0.lock().unwrap();
+        let _ = inner_ref.config.take();
+        Ok(())
+    }
 }
 
 impl WifiCredentialStorage for RAMStorage {
@@ -129,6 +136,11 @@ impl WifiCredentialStorage for RAMStorage {
     fn store_wifi_credentials(&self, creds: WifiCredentials) -> Result<(), Self::Error> {
         let mut inner_ref = self.0.lock().unwrap();
         let _ = inner_ref.wifi_creds.insert(creds);
+        Ok(())
+    }
+    fn reset_wifi_credentials(&self) -> Result<(), Self::Error> {
+        let mut inner_ref = self.0.lock().unwrap();
+        let _ = inner_ref.wifi_creds.take();
         Ok(())
     }
 }

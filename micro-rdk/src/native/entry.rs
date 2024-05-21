@@ -197,10 +197,15 @@ where
     let mut last_error: Option<Box<dyn std::error::Error>> = None;
     let mut mdns = NativeMdns::new("".to_owned(), network.get_ip()).unwrap();
     loop {
-        // Credentials are present let's check we can connect
-        if storage.has_stored_credentials() && storage.has_wifi_credentials() {
+        // When Credential are present either provisioning has succeeded or
+        // they where stored. We starts by checking that we have a network
+        // if so we can move ahead and confirm the robot exists
+        // Since the network is not managed by us we should just check if robot
+        // credentials are stored
+        if storage.has_stored_credentials() {
             let validated = loop {
-                // should check internet when implementing Cached Config
+                // When we have cached config we should still continue in the event the network
+                // fails
                 if let Err(error) = network.is_connected() {
                     log::info!(
                         "Externally managed network, not connected yet cause {:?}",
@@ -210,12 +215,16 @@ where
                     continue;
                 }
                 // Assume connected to internet so any error should be forwarded to provisioning
+                // Most likely the robot is destroyed
                 if let Err(e) = validate_robot_credentials(
                     exec.clone(),
                     &storage.get_robot_credentials().unwrap(),
                 )
                 .await
                 {
+                    if let Err(e) = storage.reset_robot_credentials() {
+                        log::error!("couldn't erase credentials {:?}", e);
+                    }
                     let _ = last_error.insert(e);
                     break false;
                 }

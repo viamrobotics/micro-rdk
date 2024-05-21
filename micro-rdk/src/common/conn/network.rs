@@ -9,7 +9,7 @@ pub enum NetworkError {
     #[error(transparent)]
     Esp32ConnectionError(#[from] crate::esp32::esp_idf_svc::sys::EspError),
     #[error("couldn't convert to heapless string")]
-    HeapLessStringConversionError,
+    HeaplessStringConversionError,
 }
 
 /// Reflects the representation of a network's status.

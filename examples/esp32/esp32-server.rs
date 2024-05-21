@@ -13,7 +13,7 @@ mod esp32 {
 
     use micro_rdk::common::entry::RobotRepresentation;
     use micro_rdk::common::provisioning::server::ProvisioningInfo;
-    use micro_rdk::common::provisioning::storage::RAMStorage;
+
     #[cfg(feature = "qemu")]
     use micro_rdk::esp32::conn::network::eth_configure;
     use micro_rdk::esp32::entry::serve_web;
@@ -58,6 +58,7 @@ mod esp32 {
         // then the entire provisioning step can be skipped
         #[cfg(has_robot_config)]
         {
+            use micro_rdk::common::provisioning::storage::RAMStorage;
             if SSID.is_some() && PASS.is_some() && ROBOT_ID.is_some() && ROBOT_SECRET.is_some() {
                 let ram_storage = RAMStorage::new(
                     SSID.unwrap(),
@@ -70,11 +71,12 @@ mod esp32 {
         }
         #[cfg(not(has_robot_config))]
         {
+            use micro_rdk::esp32::nvs_storage::NVSStorage;
             let mut info = ProvisioningInfo::default();
             info.set_fragment_id("d385b480-3d19-4fad-a928-b5c18a58d0ed".to_string());
             info.set_manufacturer("viam".to_owned());
             info.set_model("test-esp32".to_owned());
-            let storage = RAMStorage::default();
+            let storage = NVSStorage::new("nvs").unwrap();
             serve_web(Some(info), repr, max_connection, storage);
         }
 

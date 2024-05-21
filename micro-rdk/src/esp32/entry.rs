@@ -333,6 +333,9 @@ where
                 )
                 .await
                 {
+                    if let Err(e) = storage.reset_robot_credentials() {
+                        log::error!("couldn't erase credentials {:?}", e);
+                    }
                     let _ = last_error.insert(e);
                     break false;
                 }

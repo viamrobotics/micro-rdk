@@ -59,13 +59,13 @@ impl Esp32WifiNetwork {
                 .ssid
                 .as_str()
                 .try_into()
-                .map_err(|_| NetworkError::HeapLessStringConversionError)?,
+                .map_err(|_| NetworkError::HeaplessStringConversionError)?,
             auth_method: AuthMethod::None,
             password: wifi_creds
                 .pwd
                 .as_str()
                 .try_into()
-                .map_err(|_| NetworkError::HeapLessStringConversionError)?,
+                .map_err(|_| NetworkError::HeaplessStringConversionError)?,
             ..Default::default()
         });
         let mut wifi = esp32_get_wifi()?.lock().await;
