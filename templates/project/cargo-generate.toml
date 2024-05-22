@@ -9,17 +9,7 @@ prompt = "MCU"
 choices = ["esp32"]
 default = "esp32" 
 
-[placeholders.viam]
+[placeholders.fragid]
 type = "string"
-prompt = "Viam's robot config (leave blank if you don't have a robot configured yet)"
-default = ""
-
-[placeholders.ssid]
-type = "string"
-prompt = "Enter wifi name (only 2.4 gHz network are supported)"
-default = "Viam-2G"
-
-[placeholders.pwd]
-type = "string"
-prompt = "Enter the wifi password (leave blank if you don't want to store it)"
-default = ""
+prompt = "Enter fragment ID"
+default = "d385b480-3d19-4fad-a928-b5c18a58d0ed"
