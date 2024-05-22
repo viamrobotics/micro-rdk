@@ -10,6 +10,8 @@ pub enum NetworkError {
     Esp32ConnectionError(#[from] crate::esp32::esp_idf_svc::sys::EspError),
     #[error("couldn't convert to heapless string")]
     HeaplessStringConversionError,
+    #[error("no ip configured")]
+    NoIpConfigured,
 }
 
 /// Reflects the representation of a network's status.
