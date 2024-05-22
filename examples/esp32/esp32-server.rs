@@ -12,7 +12,6 @@ mod esp32 {
     const ROBOT_SECRET: Option<&str> = option_env!("MICRO_RDK_ROBOT_SECRET");
 
     use micro_rdk::common::entry::RobotRepresentation;
-    use micro_rdk::common::provisioning::server::ProvisioningInfo;
 
     #[cfg(feature = "qemu")]
     use micro_rdk::esp32::conn::network::eth_configure;
@@ -71,6 +70,7 @@ mod esp32 {
         }
         #[cfg(not(has_robot_config))]
         {
+            use micro_rdk::common::provisioning::server::ProvisioningInfo;
             use micro_rdk::esp32::nvs_storage::NVSStorage;
             let mut info = ProvisioningInfo::default();
             info.set_fragment_id("d385b480-3d19-4fad-a928-b5c18a58d0ed".to_string());
