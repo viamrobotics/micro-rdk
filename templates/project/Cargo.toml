@@ -23,6 +23,5 @@ futures-lite = "1"
 micro-rdk = {version = "0.1.8", git = "https://github.com/viamrobotics/micro-rdk.git", features = ["esp32", "binstart","provisioning"], rev = "e5ba39f" }
 
 [build-dependencies]
-anyhow = "1"
 cargo_metadata = "0.18"
 embuild = "0.29"
