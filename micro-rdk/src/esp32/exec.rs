@@ -1,5 +1,5 @@
 //! The exec module exposes helpers to execute futures on an ESP32
-use crate::common::webrtc::exec::WebRtcExecutor;
+use crate::common::{provisioning::server::ProvisioningExecutor, webrtc::exec::WebRtcExecutor};
 use async_executor::{LocalExecutor, Task};
 use futures_lite::{
     future::{self, block_on},
@@ -24,6 +24,12 @@ impl Esp32Executor {
 
     pub fn block_on<T>(&self, future: impl Future<Output = T>) -> T {
         EX.with(|e| block_on(e.run(future)))
+    }
+}
+
+impl ProvisioningExecutor for Esp32Executor {
+    fn spawn<F: future::Future<Output = ()> + 'static>(&self, future: F) -> Task<()> {
+        self.spawn(future)
     }
 }
 

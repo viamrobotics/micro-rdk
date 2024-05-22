@@ -63,6 +63,11 @@ impl NVSStorage {
 
         Ok(nvs.contains(key)?)
     }
+    fn erase_key(&self, key: &str) -> Result<(), NVSStorageError> {
+        let mut nvs = self.nvs.borrow_mut();
+        let _ = nvs.remove(key)?;
+        Ok(())
+    }
 }
 impl RobotCredentialStorage for NVSStorage {
     type Error = NVSStorageError;
@@ -85,6 +90,11 @@ impl RobotCredentialStorage for NVSStorage {
         self.set_string("ROBOT_ID", &cfg.id)?;
         Ok(())
     }
+    fn reset_robot_credentials(&self) -> Result<(), Self::Error> {
+        self.erase_key("ROBOT_SECRET")?;
+        self.erase_key("ROBOT_ID")?;
+        Ok(())
+    }
 }
 
 impl WifiCredentialStorage for NVSStorage {
@@ -100,6 +110,11 @@ impl WifiCredentialStorage for NVSStorage {
     fn store_wifi_credentials(&self, creds: WifiCredentials) -> Result<(), Self::Error> {
         self.set_string("WIFI_SSID", &creds.ssid)?;
         self.set_string("WIFI_PASSWORD", &creds.pwd)?;
+        Ok(())
+    }
+    fn reset_wifi_credentials(&self) -> Result<(), Self::Error> {
+        self.erase_key("WIFI_SSID")?;
+        self.erase_key("WIFI_PASSWORD")?;
         Ok(())
     }
 }

@@ -11,7 +11,7 @@ default: build-esp32-bin
 clean:
 	cargo clean
 
-all: clean build-esp32-bin build-native build-esp32-with-cred-bin
+all: clean build-esp32-bin build-native
 
 buf-clean:
 	find micro-rdk/src/gen -type f \( -iname "*.rs" \) -delete
@@ -63,7 +63,7 @@ upload: cargo-ver
 	cargo +esp espflash flash --package examples --monitor --partition-table examples/esp32/partitions.csv --baud 460800 -f 80mhz --bin esp32-server --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
 
 test:
-	cargo test -p micro-rdk --lib --features native
+	cargo test -p micro-rdk --lib --features native,provisioning
 
 clippy-native:
 	cargo clippy -p micro-rdk --no-deps --features native,provisioning  -- -Dwarnings
@@ -88,9 +88,6 @@ size:
 
 build-esp32-bin:
 	cargo +esp espflash save-image --package examples --merge --chip esp32 target/xtensa-esp32-espidf/esp32-server.bin -T examples/esp32/partitions.csv -s 4mb  --bin esp32-server --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort --release
-
-build-esp32-with-cred-bin:
-	cargo +esp espflash save-image --package examples --merge --chip esp32 target/xtensa-esp32-espidf/esp32-server-with-cred.bin -T examples/esp32/partitions.csv -s 4mb  --bin esp32-server-with-cred --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort --release
 
 flash-esp32-bin:
 ifneq (,$(wildcard ./target/xtensa-esp32-espidf/esp32-server.bin))

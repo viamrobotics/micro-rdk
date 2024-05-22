@@ -14,14 +14,11 @@ impl Esp32Mdns {
             hostname,
         })
     }
-}
-
-impl Mdns for Esp32Mdns {
     fn add_service(
         &mut self,
         instance_name: &str,
         service_type: impl AsRef<str>,
-        proto: impl AsRef<str>,
+        protocol: impl AsRef<str>,
         port: u16,
         txt: &[(&str, &str)],
     ) -> Result<(), MdnsError> {
@@ -29,11 +26,43 @@ impl Mdns for Esp32Mdns {
             .set_hostname(self.hostname.clone())
             .map_err(|e| MdnsError::MdnsAddServiceError(e.to_string()))?;
         self.inner
-            .add_service(Some(instance_name), service_type, proto, port, txt)
+            .add_service(Some(instance_name), service_type, protocol, port, txt)
             .map_err(|e| MdnsError::MdnsAddServiceError(e.to_string()))
     }
     fn set_hostname(&mut self, hostname: &str) -> Result<(), MdnsError> {
         self.hostname = hostname.to_owned();
         Ok(())
+    }
+}
+
+impl Mdns for Esp32Mdns {
+    fn add_service(
+        &mut self,
+        instance_name: &str,
+        service_type: impl AsRef<str>,
+        protocol: impl AsRef<str>,
+        port: u16,
+        txt: &[(&str, &str)],
+    ) -> Result<(), MdnsError> {
+        self.add_service(instance_name, service_type, protocol, port, txt)
+    }
+    fn set_hostname(&mut self, hostname: &str) -> Result<(), MdnsError> {
+        self.set_hostname(hostname)
+    }
+}
+
+impl Mdns for &mut Esp32Mdns {
+    fn add_service(
+        &mut self,
+        instance_name: &str,
+        service_type: impl AsRef<str>,
+        protocol: impl AsRef<str>,
+        port: u16,
+        txt: &[(&str, &str)],
+    ) -> Result<(), MdnsError> {
+        (*self).add_service(instance_name, service_type, protocol, port, txt)
+    }
+    fn set_hostname(&mut self, hostname: &str) -> Result<(), MdnsError> {
+        (*self).set_hostname(hostname)
     }
 }
