@@ -16,7 +16,7 @@ jobs:
         job:
           - { target: x86_64-unknown-linux-gnu, file_suffix: amd64-linux, os: ubuntu-latest}
           - { target: x86_64-apple-darwin, file_suffix: macos, os: macos-latest}
-          - { target: x86_64-pc-windows-gnu, file_suffix: windows.exe, os: windows-latest}    
+          # - { target: x86_64-pc-windows-gnu, file_suffix: windows.exe, os: windows-latest}
     runs-on: ${{ matrix.job.os }}
     defaults: 
       run:
@@ -50,10 +50,10 @@ jobs:
       if: ${{ matrix.job.os != 'windows-latest' }}
       run: |
         cp target/${{ matrix.job.target }}/release/micro-rdk-installer micro-rdk-installer-${{ matrix.job.file_suffix }}
-    - name: Rename result (Windows)
-      if: ${{ matrix.job.os == 'windows-latest' }}
-      run: |
-        cp target/${{ matrix.job.target }}/release/micro-rdk-installer.exe micro-rdk-installer-${{ matrix.job.file_suffix }}
+    # - name: Rename result (Windows)
+    #   if: ${{ matrix.job.os == 'windows-latest' }}
+    #   run: |
+    #     cp target/${{ matrix.job.target }}/release/micro-rdk-installer.exe micro-rdk-installer-${{ matrix.job.file_suffix }}
     - name: Check release type
       id: check-tag
       run: |
@@ -145,10 +145,10 @@ jobs:
       uses: actions/download-artifact@v3
       with:
         name: micro-rdk-installer-macos
-    - name: Download windows installer
-      uses: actions/download-artifact@v3
-      with:
-        name: micro-rdk-installer-windows.exe
+    # - name: Download windows installer
+    #   uses: actions/download-artifact@v3
+    #   with:
+    #     name: micro-rdk-installer-windows.exe
     - name: Download micro-RDK binary
       uses: actions/download-artifact@v3
       with:
@@ -158,8 +158,8 @@ jobs:
         sha256sum  micro-rdk-installer-arm64-linux  >> sha256sums.txt
         sha256sum  micro-rdk-installer-amd64-linux  >> sha256sums.txt
         sha256sum  micro-rdk-installer-macos  >> sha256sums.txt
-        sha256sum  micro-rdk-installer-windows.exe  >> sha256sums.txt
         sha256sum  micro-rdk-esp32-server.bin  >> sha256sums.txt
+#        sha256sum  micro-rdk-installer-windows.exe  >> sha256sums.txt
     - name: Publish release
       uses: marvinpinto/action-automatic-releases@latest
       with:
@@ -168,7 +168,7 @@ jobs:
           micro-rdk-installer-arm64-linux
           micro-rdk-installer-amd64-linux
           micro-rdk-installer-macos
-          micro-rdk-installer-windows.exe
           micro-rdk-esp32-server.bin
           sha256sums.txt
+#        micro-rdk-installer-windows.exe
         prerelease: ${{ steps.check-tag.outputs.match }}
