@@ -302,8 +302,8 @@ impl Default for Esp32ExternallyManagedNetwork {
 // Used when the esp32 network in managed by external code (like C)
 impl Esp32ExternallyManagedNetwork {
     pub fn new() -> Self {
-        // First we need to check if any netif interface  is connected since
-        // otherwise we may not get an IP_EVENT allowing to set the ip for the Network interface
+        // First we need to check if any netif interface is connected.
+        // if connected we may not get an IP_EVENT allowing to set the ip for the Network interface
         let help = Esp32NetifHelper::default();
         // Default to ip 0
         let ip = help
@@ -322,10 +322,10 @@ impl Esp32ExternallyManagedNetwork {
         });
 
         // Would be better to instantiate the EspSystemEventLoop but since the
-        // default eventloop will likely be already created since we have an externally managed network we
-        // won't be able to do that.
+        // default eventloop will likely be already created because we have an externally managed network we
+        // won't be able to do that. (the call to EspSystemEventLoop::take will fail with ESP_ERR_INVALID_STATE)
         // This call does two checks,
-        // 1) if the loop is no instantiated then create it
+        // 1) if the loop is not instantiated then create it
         // 2) confirm the loop is already instantiated (ESP_ERR_INVALID_STATE)
         // Any other errors are fatal
         let hnd = unsafe { esp_idf_svc::sys::esp_event_loop_create_default() };
