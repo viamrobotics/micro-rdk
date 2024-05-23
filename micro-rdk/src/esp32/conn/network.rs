@@ -166,35 +166,35 @@ impl Network for Box<BlockingEth<EspEth<'static, OpenEth>>> {
     }
 }
 
-enum ESP32NetfitHandle {
+enum ESP32NetifHandle {
     Esp32WifiSta,
     Esp32Eth,
 }
 
-impl IndexMut<ESP32NetfitHandle> for [*mut esp_idf_svc::sys::esp_netif_t; 2] {
-    fn index_mut(&mut self, index: ESP32NetfitHandle) -> &mut Self::Output {
+impl IndexMut<ESP32NetifHandle> for [*mut esp_idf_svc::sys::esp_netif_t; 2] {
+    fn index_mut(&mut self, index: ESP32NetifHandle) -> &mut Self::Output {
         match index {
-            ESP32NetfitHandle::Esp32WifiSta => &mut self[0],
-            ESP32NetfitHandle::Esp32Eth => &mut self[1],
+            ESP32NetifHandle::Esp32WifiSta => &mut self[0],
+            ESP32NetifHandle::Esp32Eth => &mut self[1],
         }
     }
 }
 
-impl Index<ESP32NetfitHandle> for [*mut esp_idf_svc::sys::esp_netif_t; 2] {
+impl Index<ESP32NetifHandle> for [*mut esp_idf_svc::sys::esp_netif_t; 2] {
     type Output = *mut esp_idf_svc::sys::esp_netif_t;
-    fn index(&self, index: ESP32NetfitHandle) -> &Self::Output {
+    fn index(&self, index: ESP32NetifHandle) -> &Self::Output {
         match index {
-            ESP32NetfitHandle::Esp32WifiSta => &self[0],
-            ESP32NetfitHandle::Esp32Eth => &self[1],
+            ESP32NetifHandle::Esp32WifiSta => &self[0],
+            ESP32NetifHandle::Esp32Eth => &self[1],
         }
     }
 }
 
-impl Display for ESP32NetfitHandle {
+impl Display for ESP32NetifHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let as_str = match self {
-            ESP32NetfitHandle::Esp32WifiSta => "WIFI_STA_DEF",
-            ESP32NetfitHandle::Esp32Eth => "ETH_DEF",
+            ESP32NetifHandle::Esp32WifiSta => "WIFI_STA_DEF",
+            ESP32NetifHandle::Esp32Eth => "ETH_DEF",
         };
         write!(f, "{}", as_str)
     }
@@ -214,13 +214,13 @@ impl Esp32NetifHelper {
     fn new() -> Self {
         let mut netif_hnds: [*mut esp_idf_svc::sys::esp_netif_t; 2] =
             [std::ptr::null_mut(), std::ptr::null_mut()];
-        let wifi_key = CString::new(ESP32NetfitHandle::Esp32WifiSta.to_string()).unwrap();
+        let wifi_key = CString::new(ESP32NetifHandle::Esp32WifiSta.to_string()).unwrap();
 
-        netif_hnds[ESP32NetfitHandle::Esp32WifiSta] =
+        netif_hnds[ESP32NetifHandle::Esp32WifiSta] =
             unsafe { esp_idf_svc::sys::esp_netif_get_handle_from_ifkey(wifi_key.as_ptr()) };
 
-        let eth_key = CString::new(ESP32NetfitHandle::Esp32Eth.to_string()).unwrap();
-        netif_hnds[ESP32NetfitHandle::Esp32Eth] =
+        let eth_key = CString::new(ESP32NetifHandle::Esp32Eth.to_string()).unwrap();
+        netif_hnds[ESP32NetifHandle::Esp32Eth] =
             unsafe { esp_idf_svc::sys::esp_netif_get_handle_from_ifkey(eth_key.as_ptr()) };
         Self { netif_hnds }
     }
@@ -228,7 +228,7 @@ impl Esp32NetifHelper {
         let mut ip_info: esp_idf_svc::sys::esp_netif_ip_info_t = Default::default();
         if unsafe {
             esp_idf_svc::sys::esp!(esp_idf_svc::sys::esp_netif_get_ip_info(
-                self.netif_hnds[ESP32NetfitHandle::Esp32WifiSta],
+                self.netif_hnds[ESP32NetifHandle::Esp32WifiSta],
                 &mut ip_info as *mut _,
             ))
         }
@@ -238,7 +238,7 @@ impl Esp32NetifHelper {
         }
         if unsafe {
             esp_idf_svc::sys::esp!(esp_idf_svc::sys::esp_netif_get_ip_info(
-                self.netif_hnds[ESP32NetfitHandle::Esp32Eth],
+                self.netif_hnds[ESP32NetifHandle::Esp32Eth],
                 &mut ip_info as *mut _,
             ))
         }
