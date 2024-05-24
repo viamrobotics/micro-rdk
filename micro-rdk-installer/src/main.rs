@@ -2,9 +2,13 @@ use log::LevelFilter;
 use std::{
     fs::{self, File, OpenOptions},
     io::{Read, Seek, SeekFrom, Write},
-    os::unix::fs::FileExt,
     path::PathBuf,
 };
+
+#[cfg(target_os = "unix")]
+use std::os::unix::fs::FileExt;
+#[cfg(target_os = "windows")]
+use std::os::windows::fs::FileExt;
 
 use clap::{arg, command, Args, Parser, Subcommand};
 use dialoguer::{theme::ColorfulTheme, Input, Password};
@@ -465,10 +469,17 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
         APP_IMAGE_PARTITION_NAME,
         app_size
     );
+    #[allow(unused_mut)]
     let mut app_segment = vec![EMPTY_BYTE; app_size as usize];
     // write just this data
+    #[cfg(target_os="unix")]
     app_file_new
         .read_at(&mut app_segment, app_offset.into())
+        .map_err(Error::FileError)?;
+
+    #[cfg(target_os="windows")]
+    app_file_new
+        .seek_read(&mut app_segment, app_offset.into())
         .map_err(Error::FileError)?;
     log::info!("Writing new app segment to flash");
     flasher
