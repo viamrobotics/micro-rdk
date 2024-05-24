@@ -224,7 +224,7 @@ impl NVSPage {
 
     pub fn write_chunk_to_data(
         &mut self,
-        header: &Vec<u8>,
+        header: &[u8],
         entry_data: &mut Vec<u8>,
         chunk_num: u8,
         data_entry_count: u8,
@@ -274,7 +274,7 @@ impl NVSPage {
         }
     }
 
-    pub fn write_misc_data(&mut self, data: &Vec<u8>, data_entry_count: u8) -> Result<(), Error> {
+    pub fn write_misc_data(&mut self, data: &[u8], data_entry_count: u8) -> Result<(), Error> {
         let write_len = data.len();
         if write_len > 4096 - self.current_position {
             return Err(Error::NVSDataProcessingError(
