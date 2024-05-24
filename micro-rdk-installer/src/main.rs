@@ -472,12 +472,12 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
     #[allow(unused_mut)]
     let mut app_segment = vec![EMPTY_BYTE; app_size as usize];
     // write just this data
-    #[cfg(target_os="unix")]
+    #[cfg(target_os = "unix")]
     app_file_new
         .read_at(&mut app_segment, app_offset.into())
         .map_err(Error::FileError)?;
 
-    #[cfg(target_os="windows")]
+    #[cfg(target_os = "windows")]
     app_file_new
         .seek_read(&mut app_segment, app_offset.into())
         .map_err(Error::FileError)?;
