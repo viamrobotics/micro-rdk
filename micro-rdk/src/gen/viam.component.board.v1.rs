@@ -1,18 +1,11 @@
 // @generated
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct StatusRequest {
-    #[prost(string, tag="1")]
-    pub name: ::prost::alloc::string::String,
-    /// Additional arguments to the method
-    #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct StatusResponse {
-    #[prost(message, optional, tag="1")]
-    pub status: ::core::option::Option<super::super::super::common::v1::BoardStatus>,
+pub struct Status {
+    #[prost(map="string, int32", tag="1")]
+    pub analogs: ::std::collections::HashMap<::prost::alloc::string::String, i32>,
+    #[prost(map="string, int64", tag="2")]
+    pub digital_interrupts: ::std::collections::HashMap<::prost::alloc::string::String, i64>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -136,6 +129,12 @@ pub struct ReadAnalogReaderRequest {
 pub struct ReadAnalogReaderResponse {
     #[prost(int32, tag="1")]
     pub value: i32,
+    #[prost(float, tag="2")]
+    pub min_range: f32,
+    #[prost(float, tag="3")]
+    pub max_range: f32,
+    #[prost(float, tag="4")]
+    pub step_size: f32,
 }
 // Analog Writer
 
@@ -174,6 +173,32 @@ pub struct GetDigitalInterruptValueRequest {
 pub struct GetDigitalInterruptValueResponse {
     #[prost(int64, tag="1")]
     pub value: i64,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StreamTicksRequest {
+    /// Board name
+    #[prost(string, tag="1")]
+    pub name: ::prost::alloc::string::String,
+    /// Name of digital interrupts to recieve ticks from
+    #[prost(string, repeated, tag="2")]
+    pub pin_names: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StreamTicksResponse {
+    /// name of interrupt
+    #[prost(string, tag="1")]
+    pub pin_name: ::prost::alloc::string::String,
+    /// Time in nanoseconds of a tick
+    #[prost(uint64, tag="2")]
+    pub time: u64,
+    /// Value high or low of the tick
+    #[prost(bool, tag="3")]
+    pub high: bool,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

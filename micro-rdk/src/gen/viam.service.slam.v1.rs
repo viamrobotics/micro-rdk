@@ -25,6 +25,11 @@ pub struct GetPointCloudMapRequest {
     /// Name of slam service
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// For SLAM services that implement handling an edited map, this boolean
+    /// should indicate whether to return that edited map. If the SLAM service
+    /// does not handle edited maps, the unedited map will be returned instead.
+    #[prost(bool, optional, tag="2")]
+    pub return_edited_map: ::core::option::Option<bool>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -80,6 +85,18 @@ pub struct GetPropertiesResponse {
     pub cloud_slam: bool,
     #[prost(enumeration="MappingMode", tag="2")]
     pub mapping_mode: i32,
+    #[prost(string, optional, tag="3")]
+    pub internal_state_file_type: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(message, repeated, tag="4")]
+    pub sensor_info: ::prost::alloc::vec::Vec<SensorInfo>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SensorInfo {
+    #[prost(string, tag="1")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(enumeration="SensorType", tag="2")]
+    pub r#type: i32,
 }
 /// MappingMode represnts the various form of mapping and localizing SLAM can perform.
 /// These include, creating a new map, localizing on an existiing map and updating an
@@ -112,6 +129,35 @@ impl MappingMode {
             "MAPPING_MODE_CREATE_NEW_MAP" => Some(Self::CreateNewMap),
             "MAPPING_MODE_LOCALIZE_ONLY" => Some(Self::LocalizeOnly),
             "MAPPING_MODE_UPDATE_EXISTING_MAP" => Some(Self::UpdateExistingMap),
+            _ => None,
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum SensorType {
+    Unspecified = 0,
+    Camera = 1,
+    MovementSensor = 2,
+}
+impl SensorType {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            SensorType::Unspecified => "SENSOR_TYPE_UNSPECIFIED",
+            SensorType::Camera => "SENSOR_TYPE_CAMERA",
+            SensorType::MovementSensor => "SENSOR_TYPE_MOVEMENT_SENSOR",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "SENSOR_TYPE_UNSPECIFIED" => Some(Self::Unspecified),
+            "SENSOR_TYPE_CAMERA" => Some(Self::Camera),
+            "SENSOR_TYPE_MOVEMENT_SENSOR" => Some(Self::MovementSensor),
             _ => None,
         }
     }

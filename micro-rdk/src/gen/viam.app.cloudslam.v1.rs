@@ -23,9 +23,21 @@ pub struct StartMappingSessionRequest {
     #[prost(message, repeated, tag="8")]
     pub sensors: ::prost::alloc::vec::Vec<SensorInfo>,
     #[prost(message, optional, tag="10")]
-    pub slam_algorithm_params: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
+    pub slam_config: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
     #[prost(string, tag="11")]
     pub existing_map_version: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="12")]
+    pub module: ::core::option::Option<Module>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Module {
+    #[prost(string, tag="2")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub module_id: ::prost::alloc::string::String,
+    #[prost(string, tag="4")]
+    pub version: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

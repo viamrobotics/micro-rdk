@@ -210,7 +210,6 @@ where
             "/viam.component.board.v1.BoardService/SetPWMFrequency" => {
                 self.board_set_pwm_frequency(payload)
             }
-            "/viam.component.board.v1.BoardService/Status" => self.board_status(payload),
             "/viam.component.board.v1.BoardService/SetPowerMode" => {
                 self.board_set_power_mode(payload)
             }
@@ -564,24 +563,6 @@ where
         self.encode_message(resp)
     }
 
-    fn board_status(&mut self, message: &[u8]) -> Result<(), ServerError> {
-        let req = component::board::v1::StatusRequest::decode(message)
-            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
-        let board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
-            Some(b) => b,
-            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
-        };
-        let status = board
-            .lock()
-            .unwrap()
-            .get_board_status()
-            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
-        let status = component::board::v1::StatusResponse {
-            status: Some(status),
-        };
-        self.encode_message(status)
-    }
-
     fn board_pwm(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::board::v1::PwmRequest::decode(message)
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
@@ -626,11 +607,15 @@ where
         let mut reader = board
             .get_analog_reader_by_name(req.analog_reader_name)
             .map_err(|err| ServerError::new(GrpcError::RpcUnavailable, Some(err.into())))?;
+        let resolution = reader.resolution();
         let resp = component::board::v1::ReadAnalogReaderResponse {
             value: reader
                 .read()
                 .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?
                 as i32,
+            min_range: resolution.min_range,
+            max_range: resolution.max_range,
+            step_size: resolution.step_size,
         };
         self.encode_message(resp)
     }

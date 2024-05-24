@@ -71,6 +71,14 @@ pub mod proto {
                 include!("gen/viam.app.datasync.v1.rs");
             }
         }
+        // REVISIT(?): This is only being imported so that the code in gen/viam.app.v1.rs
+        // can successfully compile, but this seems wrong. We need to confer with the team
+        // responsible for the proto dependency
+        pub mod mltraining {
+            pub mod v1 {
+                include!("gen/viam.app.mltraining.v1.rs");
+            }
+        }
     }
 
     pub mod rpc {
