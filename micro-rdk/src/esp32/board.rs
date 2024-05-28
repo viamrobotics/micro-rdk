@@ -17,7 +17,7 @@ use crate::{
         status::{Status, StatusError},
     },
     google,
-    proto::{common, component},
+    proto::component,
 };
 
 use super::{
@@ -300,22 +300,6 @@ impl Board for EspBoard {
             .ok_or(BoardError::GpioPinError(pin as u32, "not registered"))?;
         pin.set_pwm_frequency(frequency_hz)
     }
-    fn get_board_status(&self) -> Result<common::v1::BoardStatus, BoardError> {
-        let mut b = common::v1::BoardStatus {
-            analogs: HashMap::new(),
-            digital_interrupts: HashMap::new(),
-        };
-        self.analogs.iter().for_each(|a| {
-            let mut analog = a.clone();
-            b.analogs.insert(
-                analog.name(),
-                common::v1::AnalogStatus {
-                    value: analog.read().unwrap_or(0).into(),
-                },
-            );
-        });
-        Ok(b)
-    }
     fn get_analog_reader_by_name(&self, name: String) -> Result<AnalogReaderType<u16>, BoardError> {
         match self.analogs.iter().find(|a| a.name() == name) {
             Some(reader) => Ok(reader.clone()),
@@ -387,17 +371,8 @@ impl Status for EspBoard {
             analogs.insert(
                 analog.name(),
                 google::protobuf::Value {
-                    kind: Some(google::protobuf::value::Kind::StructValue(
-                        google::protobuf::Struct {
-                            fields: HashMap::from([(
-                                "value".to_string(),
-                                google::protobuf::Value {
-                                    kind: Some(google::protobuf::value::Kind::NumberValue(
-                                        analog.read().unwrap_or(0).into(),
-                                    )),
-                                },
-                            )]),
-                        },
+                    kind: Some(google::protobuf::value::Kind::NumberValue(
+                        analog.read().unwrap_or(0).into(),
                     )),
                 },
             );

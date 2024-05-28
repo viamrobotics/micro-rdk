@@ -31,37 +31,6 @@ pub struct MoveResponse {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct MoveOnMapNewRequest {
-    /// Name of the motion service
-    #[prost(string, tag="1")]
-    pub name: ::prost::alloc::string::String,
-    /// Specify a destination to, which can be any pose with respect to the SLAM map's origin
-    #[prost(message, optional, tag="2")]
-    pub destination: ::core::option::Option<super::super::super::common::v1::Pose>,
-    /// Component on the robot to move to the specified destination
-    #[prost(message, optional, tag="3")]
-    pub component_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
-    /// Name of the slam service from which the SLAM map is requested
-    #[prost(message, optional, tag="4")]
-    pub slam_service_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
-    /// Optional set of motion configuration options
-    #[prost(message, optional, tag="5")]
-    pub motion_configuration: ::core::option::Option<MotionConfiguration>,
-    /// Additional arguments to the method
-    #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct MoveOnMapNewResponse {
-    /// The unique ID which identifies the execution.
-    /// Multiple plans will share the same execution_id if they were
-    /// generated due to replanning.
-    #[prost(string, tag="1")]
-    pub execution_id: ::prost::alloc::string::String,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MoveOnMapRequest {
     /// Name of the motion service
     #[prost(string, tag="1")]
@@ -145,10 +114,13 @@ pub struct MoveOnGlobeRequest {
     pub movement_sensor_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
     /// Obstacles to be considered for motion planning
     #[prost(message, repeated, tag="6")]
-    pub obstacles: ::prost::alloc::vec::Vec<super::super::super::common::v1::GeoObstacle>,
+    pub obstacles: ::prost::alloc::vec::Vec<super::super::super::common::v1::GeoGeometry>,
     /// Optional set of motion configuration options
     #[prost(message, optional, tag="7")]
     pub motion_configuration: ::core::option::Option<MotionConfiguration>,
+    /// Set of obstacles which the robot must remain within while navigating
+    #[prost(message, repeated, tag="8")]
+    pub bounding_regions: ::prost::alloc::vec::Vec<super::super::super::common::v1::GeoGeometry>,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,

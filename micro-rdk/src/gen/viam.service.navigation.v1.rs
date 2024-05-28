@@ -119,7 +119,7 @@ pub struct GetObstaclesRequest {
 pub struct GetObstaclesResponse {
     /// List of all known geometries
     #[prost(message, repeated, tag="1")]
-    pub obstacles: ::prost::alloc::vec::Vec<super::super::super::common::v1::GeoObstacle>,
+    pub obstacles: ::prost::alloc::vec::Vec<super::super::super::common::v1::GeoGeometry>,
 }
 /// A user provided destination and the set of geopoints that
 /// the robot is expected to take to get there

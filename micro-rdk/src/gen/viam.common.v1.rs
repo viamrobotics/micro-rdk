@@ -12,28 +12,6 @@ pub struct ResourceName {
     #[prost(string, tag="4")]
     pub name: ::prost::alloc::string::String,
 }
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct BoardStatus {
-    #[prost(map="string, message", tag="1")]
-    pub analogs: ::std::collections::HashMap<::prost::alloc::string::String, AnalogStatus>,
-    #[prost(map="string, message", tag="2")]
-    pub digital_interrupts: ::std::collections::HashMap<::prost::alloc::string::String, DigitalInterruptStatus>,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AnalogStatus {
-    /// Current value of the analog reader of a robot's board
-    #[prost(int32, tag="1")]
-    pub value: i32,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct DigitalInterruptStatus {
-    /// Current value of the digital interrupt of a robot's board
-    #[prost(int64, tag="1")]
-    pub value: i64,
-}
 /// Pose is a combination of location and orientation.
 /// Location is expressed as distance which is represented by x , y, z coordinates. Orientation is expressed as an orientation vector which
 /// is represented by o_x, o_y, o_z and theta. The o_x, o_y, o_z coordinates represent the point on the cartesian unit sphere that the end of
@@ -184,15 +162,14 @@ pub struct GeoPoint {
     #[prost(double, tag="2")]
     pub longitude: f64,
 }
-/// GeoObstacle contains information about the geometric structure of an obstacle and the location of the obstacle,
-/// captured in latitude and longitude.
+/// GeoGeometry contains information describing Geometry(s) that is located at a GeoPoint
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GeoObstacle {
-    /// Location of the obstacle
+pub struct GeoGeometry {
+    /// Location of the geometry
     #[prost(message, optional, tag="1")]
     pub location: ::core::option::Option<GeoPoint>,
-    /// Geometries that describe the obstacle, where embedded Pose data is with respect to the specified location
+    /// Geometries associated with the location, where embedded Pose data is with respect to the specified location
     #[prost(message, repeated, tag="2")]
     pub geometries: ::prost::alloc::vec::Vec<Geometry>,
 }
@@ -220,7 +197,8 @@ pub struct WorldState {
     /// a list of obstacles expressed as a geometry and the reference frame in which it was observed; this field is optional
     #[prost(message, repeated, tag="1")]
     pub obstacles: ::prost::alloc::vec::Vec<GeometriesInFrame>,
-    /// a list of Transforms, optionally with geometries. Used as supplemental transforms to transform a pose from one reference frame to another, or to attach moving geometries to the frame system. This field is optional
+    /// a list of Transforms, optionally with geometries. Used as supplemental transforms to transform a pose from one reference frame to
+    /// another, or to attach moving geometries to the frame system. This field is optional
     #[prost(message, repeated, tag="3")]
     pub transforms: ::prost::alloc::vec::Vec<Transform>,
 }
