@@ -1,4 +1,5 @@
 /target
+/micro-rdk-installer/target
 .*.swp
 Cargo.lock
 /examples/viam.json
