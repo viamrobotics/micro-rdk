@@ -241,7 +241,7 @@ where
     async fn read_messages_for_collector(
         &self,
         collector_key: &ResourceMethodKey,
-    ) -> Result<Vec<SensorData>, DataSyncError> {
+    ) -> Result<(Vec<SensorData>, <StoreType as DataStore>::Reader), DataSyncError> {
         let store_lock = self.store.lock().await;
         let mut raw_messages: Vec<BytesMut> = vec![];
         let mut reader = store_lock.get_reader(collector_key)?;
@@ -254,12 +254,12 @@ where
         }
         let data: Result<Vec<SensorData>, prost::DecodeError> =
             raw_messages.into_iter().map(SensorData::decode).collect();
-        Ok(data?)
+        Ok((data?, reader))
     }
 
     async fn run<'b>(&mut self, app_client: &'b AppClient) -> Result<(), AppClientError> {
         for collector_key in self.resource_method_keys.iter() {
-            let data = match self.read_messages_for_collector(collector_key).await {
+            let (data, reader) = match self.read_messages_for_collector(collector_key).await {
                 Ok(data) => data,
                 Err(err) => {
                     log::error!(
@@ -282,6 +282,7 @@ where
                 sensor_contents: data,
             };
             app_client.upload_data(upload_request).await?;
+            reader.flush();
         }
         Ok(())
     }
