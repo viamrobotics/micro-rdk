@@ -234,7 +234,7 @@ pub struct DataSyncTask<StoreType> {
     part_id: String,
 }
 
-async fn read_messages_for_collector(
+fn read_messages_for_collector(
     reader: &mut impl DataStoreReader,
 ) -> Result<Vec<SensorData>, DataSyncError> {
     let mut raw_messages: Vec<BytesMut> = vec![];
@@ -273,7 +273,7 @@ where
                     continue;
                 }
             };
-            let data = match read_messages_for_collector(&mut reader).await {
+            let data = match read_messages_for_collector(&mut reader) {
                 Ok(data) => data,
                 Err(err) => {
                     log::error!(
@@ -809,9 +809,9 @@ mod tests {
             std::mem::drop(store_lock);
             for i in 0..7 {
                 if (i == 3) || (i == 6) {
-                    let res = read_messages_for_collector(&mut reader_1).await;
+                    let res = read_messages_for_collector(&mut reader_1);
                     assert!(res.is_ok());
-                    let res = read_messages_for_collector(&mut reader_2).await;
+                    let res = read_messages_for_collector(&mut reader_2);
                     assert!(res.is_ok());
                 }
                 assert!(manager.collect_data_inner(i).await.is_ok())
