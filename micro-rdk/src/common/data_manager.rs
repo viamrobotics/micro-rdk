@@ -255,7 +255,7 @@ where
     StoreType: DataStore,
 {
     #[cfg(test)]
-    async fn get_store_lock(&mut self) -> AsyncMutexGuard<StoreType> {
+    async fn get_store_lock(&mut self) -> futures_util::lock::MutexGuard<StoreType> {
         self.store.lock().await
     }
 
