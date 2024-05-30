@@ -270,18 +270,20 @@ where
                     continue;
                 }
             };
-            let upload_request = DataCaptureUploadRequest {
-                metadata: Some(UploadMetadata {
-                    part_id: self.part_id.clone(),
-                    component_type: collector_key.component_type.clone(),
-                    r#type: DataType::TabularSensor.into(),
-                    component_name: collector_key.r_name.clone(),
-                    method_name: collector_key.method.to_string(),
-                    ..Default::default()
-                }),
-                sensor_contents: data,
-            };
-            app_client.upload_data(upload_request).await?;
+            if !data.is_empty() {
+                let upload_request = DataCaptureUploadRequest {
+                    metadata: Some(UploadMetadata {
+                        part_id: self.part_id.clone(),
+                        component_type: collector_key.component_type.clone(),
+                        r#type: DataType::TabularSensor.into(),
+                        component_name: collector_key.r_name.clone(),
+                        method_name: collector_key.method.to_string(),
+                        ..Default::default()
+                    }),
+                    sensor_contents: data,
+                };
+                app_client.upload_data(upload_request).await?;
+            }
             reader.flush();
         }
         Ok(())
