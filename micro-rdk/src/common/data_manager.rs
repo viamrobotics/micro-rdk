@@ -234,32 +234,46 @@ pub struct DataSyncTask<StoreType> {
     part_id: String,
 }
 
+fn read_messages_for_collector(
+    reader: &mut impl DataStoreReader,
+) -> Result<Vec<SensorData>, DataSyncError> {
+    let mut raw_messages: Vec<BytesMut> = vec![];
+    loop {
+        let next_message = reader.read_next_message()?;
+        if next_message.is_empty() {
+            break;
+        }
+        raw_messages.push(next_message);
+    }
+    let data: Result<Vec<SensorData>, prost::DecodeError> =
+        raw_messages.into_iter().map(SensorData::decode).collect();
+    Ok(data?)
+}
+
 impl<StoreType> DataSyncTask<StoreType>
 where
     StoreType: DataStore,
 {
-    async fn read_messages_for_collector(
-        &self,
-        collector_key: &ResourceMethodKey,
-    ) -> Result<Vec<SensorData>, DataSyncError> {
-        let store_lock = self.store.lock().await;
-        let mut raw_messages: Vec<BytesMut> = vec![];
-        let mut reader = store_lock.get_reader(collector_key)?;
-        loop {
-            let next_message = reader.read_next_message()?;
-            if next_message.is_empty() {
-                break;
-            }
-            raw_messages.push(next_message);
-        }
-        let data: Result<Vec<SensorData>, prost::DecodeError> =
-            raw_messages.into_iter().map(SensorData::decode).collect();
-        Ok(data?)
+    #[cfg(test)]
+    async fn get_store_lock(&mut self) -> futures_util::lock::MutexGuard<StoreType> {
+        self.store.lock().await
     }
 
     async fn run<'b>(&mut self, app_client: &'b AppClient) -> Result<(), AppClientError> {
         for collector_key in self.resource_method_keys.iter() {
-            let data = match self.read_messages_for_collector(collector_key).await {
+            let store_lock = self.store.lock().await;
+            let mut reader = match store_lock.get_reader(collector_key) {
+                Ok(reader) => reader,
+                Err(err) => {
+                    log::error!(
+                        "error acquiring reader for collector key ({:?}): {:?}",
+                        collector_key,
+                        err
+                    );
+                    continue;
+                }
+            };
+            let data = match read_messages_for_collector(&mut reader) {
                 Ok(data) => data,
                 Err(err) => {
                     log::error!(
@@ -270,18 +284,21 @@ where
                     continue;
                 }
             };
-            let upload_request = DataCaptureUploadRequest {
-                metadata: Some(UploadMetadata {
-                    part_id: self.part_id.clone(),
-                    component_type: collector_key.component_type.clone(),
-                    r#type: DataType::TabularSensor.into(),
-                    component_name: collector_key.r_name.clone(),
-                    method_name: collector_key.method.to_string(),
-                    ..Default::default()
-                }),
-                sensor_contents: data,
-            };
-            app_client.upload_data(upload_request).await?;
+            if !data.is_empty() {
+                let upload_request = DataCaptureUploadRequest {
+                    metadata: Some(UploadMetadata {
+                        part_id: self.part_id.clone(),
+                        component_type: collector_key.component_type.clone(),
+                        r#type: DataType::TabularSensor.into(),
+                        component_name: collector_key.r_name.clone(),
+                        method_name: collector_key.method.to_string(),
+                        ..Default::default()
+                    }),
+                    sensor_contents: data,
+                };
+                app_client.upload_data(upload_request).await?;
+            }
+            reader.flush();
         }
         Ok(())
     }
@@ -314,11 +331,11 @@ mod tests {
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
-    use bytes::{BufMut, BytesMut};
+    use bytes::BytesMut;
     use prost::Message;
     use ringbuf::{LocalRb, Rb};
 
-    use super::DataManager;
+    use super::{read_messages_for_collector, DataManager};
     use crate::common::data_store::{DataStoreReader, WriteMode};
     use crate::common::encoder::EncoderError;
     use crate::common::{
@@ -779,16 +796,22 @@ mod tests {
         assert!(manager.is_ok());
         let mut manager = manager.unwrap();
 
-        let sync_task = manager.get_sync_task();
-
-        let min_interval_ms = manager.min_interval_ms();
+        let mut sync_task = manager.get_sync_task();
 
         async_io::block_on(async move {
+            let store_lock = sync_task.get_store_lock().await;
+            let reader_1 = store_lock.get_reader(&coll_key_1);
+            assert!(reader_1.is_ok());
+            let mut reader_1 = reader_1.unwrap();
+            let reader_2 = store_lock.get_reader(&coll_key_2);
+            assert!(reader_2.is_ok());
+            let mut reader_2 = reader_2.unwrap();
+            std::mem::drop(store_lock);
             for i in 0..7 {
                 if (i == 3) || (i == 6) {
-                    let res = sync_task.read_messages_for_collector(&coll_key_1).await;
+                    let res = read_messages_for_collector(&mut reader_1);
                     assert!(res.is_ok());
-                    let res = sync_task.read_messages_for_collector(&coll_key_2).await;
+                    let res = read_messages_for_collector(&mut reader_2);
                     assert!(res.is_ok());
                 }
                 assert!(manager.collect_data_inner(i).await.is_ok())
