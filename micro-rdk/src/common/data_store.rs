@@ -654,25 +654,6 @@ mod tests {
             if i < num_write_attempts - 2 {
                 assert!(res.is_ok());
             } else {
-                let expected_msg = SensorData {
-                    metadata: None,
-                    data: Some(Data::Struct(Struct {
-                        fields: HashMap::from([
-                            (
-                                "thing_1".to_string(),
-                                Value {
-                                    kind: Some(Kind::NumberValue(245.01)),
-                                },
-                            ),
-                            (
-                                "thing_2".to_string(),
-                                Value {
-                                    kind: Some(Kind::BoolValue(true)),
-                                },
-                            ),
-                        ]),
-                    })),
-                };
                 match res {
                     Ok(()) => unreachable!(),
                     Err(DataStoreError::DataBufferFull(key)) => {
