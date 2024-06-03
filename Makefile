@@ -31,16 +31,16 @@ ifneq ($(ESPFLASHVERSION),true)
 endif
 
 build:
-	cargo +esp build  -p examples --bin esp32-server --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort
+	cargo +esp build  -p micro-rdk-server --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort
 
 build-native:
-	cargo build -p examples  --bin native-server
+	cargo build -p micro-rdk-server --bin micro-rdk-server-native
 
 native:
-	cargo run -p examples  --bin native-server
+	cargo run -p micro-rdk-server --bin micro-rdk-server-native
 
 build-qemu:
-	cargo +esp build -p examples  --bin esp32-server  --features qemu --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort && cargo espflash save-image --package examples --features qemu --merge --chip esp32 target/xtensa-esp32-espidf/debug/debug.bin -T examples/esp32/partitions.csv -s 4mb  --bin esp32-server --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
+	cargo +esp build -p micro-rdk-server --bin micro-rdk-server-esp32  --features qemu --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort && cargo espflash save-image --package micro-rdk-server --features qemu --merge --chip esp32 target/xtensa-esp32-espidf/debug/debug.bin -T micro-rdk-server/esp32/partitions.csv -s 4mb  --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
 
 
 sim-local: cargo-ver build-qemu
@@ -60,7 +60,7 @@ endif
 	$(QEMU_ESP32_XTENSA)/qemu-system-xtensa -nographic -machine esp32 -gdb tcp::3334 -nic user,model=open_eth,hostfwd=udp::-:61205 -drive file=target/xtensa-esp32-espidf/debug/debug.bin,if=mtd,format=raw -S
 
 upload: cargo-ver
-	cargo +esp espflash flash --package examples --monitor --partition-table examples/esp32/partitions.csv --baud 460800 -f 80mhz --bin esp32-server --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
+	cargo +esp espflash flash --package micro-rdk-server --monitor --partition-table micro-rdk-server/esp32/partitions.csv --baud 460800 -f 80mhz --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
 
 test:
 	cargo test -p micro-rdk --lib --features native,provisioning
@@ -87,13 +87,13 @@ size:
 	find . -name "esp-build.map" -exec ${IDF_PATH}/tools/idf_size.py {} \;
 
 build-esp32-bin:
-	cargo +esp espflash save-image --package examples --merge --chip esp32 target/xtensa-esp32-espidf/esp32-server.bin -T examples/esp32/partitions.csv -s 4mb  --bin esp32-server --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort --release
+	cargo +esp espflash save-image --package micro-rdk-server --merge --chip esp32 target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin -T micro-rdk-server/esp32/partitions.csv -s 4mb  --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort --release
 
 flash-esp32-bin:
-ifneq (,$(wildcard ./target/xtensa-esp32-espidf/esp32-server.bin))
-	espflash write-bin 0x0 ./target/xtensa-esp32-espidf/esp32-server.bin --baud 460800  && sleep 2 && espflash monitor
+ifneq (,$(wildcard ./target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin))
+	espflash write-bin 0x0 ./target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin --baud 460800  && sleep 2 && espflash monitor
 else
-	$(error esp32-server.bin not found, run make build-esp32-bin first)
+	$(error micro-rdk-server-esp32.bin not found, run make build-esp32-bin first)
 endif
 
 canon-image: canon-image-amd64 canon-image-arm64
