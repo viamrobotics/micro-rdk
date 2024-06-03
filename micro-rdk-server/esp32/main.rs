@@ -53,7 +53,7 @@ mod esp32 {
             }
         }
 
-        // When building esp32-server locally if a user gives a "config" (Robot credentials and Wifi Credentials)
+        // When building the server locally if a user gives a "config" (Robot credentials and Wifi Credentials)
         // then the entire provisioning step can be skipped
         #[cfg(has_robot_config)]
         {

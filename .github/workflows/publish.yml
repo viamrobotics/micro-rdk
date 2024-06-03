@@ -114,12 +114,12 @@ jobs:
     - name: Build esp32 binary
       run: |
         bash -c 'git config --global --add safe.directory "$ESP_ROOT"/esp-idf && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && make build-esp32-bin'
-        cp target/xtensa-esp32-espidf/esp32-server.bin  micro-rdk-esp32-server.bin
+        cp target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin  micro-rdk-server-esp32.bin
     - name: Upload release
       uses: actions/upload-artifact@v2
       with:
-        name: micro-rdk-esp32-server.bin
-        path: micro-rdk-esp32-server.bin
+        name: micro-rdk-server-esp32.bin
+        path: micro-rdk-server-esp32.bin
 
   publish-release:
     needs: [build-installer, build-installer-arm64-linux, build-micro-RDK]
@@ -152,13 +152,13 @@ jobs:
     - name: Download micro-RDK binary
       uses: actions/download-artifact@v3
       with:
-        name: micro-rdk-esp32-server.bin
+        name: micro-rdk-server-esp32.bin
     - name: Compute checksums
       run: |
         sha256sum  micro-rdk-installer-arm64-linux  >> sha256sums.txt
         sha256sum  micro-rdk-installer-amd64-linux  >> sha256sums.txt
         sha256sum  micro-rdk-installer-macos  >> sha256sums.txt
-        sha256sum  micro-rdk-esp32-server.bin  >> sha256sums.txt
+        sha256sum  micro-rdk-server-esp32.bin  >> sha256sums.txt
         sha256sum  micro-rdk-installer-windows.exe  >> sha256sums.txt
     - name: Publish release
       uses: marvinpinto/action-automatic-releases@latest
@@ -168,7 +168,7 @@ jobs:
           micro-rdk-installer-arm64-linux
           micro-rdk-installer-amd64-linux
           micro-rdk-installer-macos
-          micro-rdk-esp32-server.bin
+          micro-rdk-server-esp32.bin
           sha256sums.txt
           micro-rdk-installer-windows.exe
         prerelease: ${{ steps.check-tag.outputs.match }}
