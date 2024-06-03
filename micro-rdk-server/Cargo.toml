@@ -45,8 +45,8 @@ name = "micro-rdk-server-native"
 path = "native/native-server.rs"
 
 [[bin]]
-name = "micro-rdk-srever-esp32"
 path = "esp32/esp32-server.rs"
+name = "micro-rdk-server-esp32"
 
 
 [package.metadata.esp-idf-sys]
