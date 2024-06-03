@@ -18,9 +18,15 @@ use super::robot::{LocalRobot, RobotError};
 use async_io::Timer;
 use bytes::BytesMut;
 use futures_lite::prelude::Future;
+use futures_lite::FutureExt;
 use futures_util::lock::Mutex as AsyncMutex;
 use prost::Message;
 use thiserror::Error;
+
+// Maximum size in bytes of readings that should be sent in a single request
+// as recommended by Viam's data management team is 64K. To accommodate for
+// the smaller amount of available RAM, we've halved it
+static MAX_SENSOR_CONTENTS_SIZE: usize = 32000;
 
 #[derive(Debug, Error)]
 pub enum DataManagerError {
@@ -234,22 +240,6 @@ pub struct DataSyncTask<StoreType> {
     part_id: String,
 }
 
-fn read_messages_for_collector(
-    reader: &mut impl DataStoreReader,
-) -> Result<Vec<SensorData>, DataSyncError> {
-    let mut raw_messages: Vec<BytesMut> = vec![];
-    loop {
-        let next_message = reader.read_next_message()?;
-        if next_message.is_empty() {
-            break;
-        }
-        raw_messages.push(next_message);
-    }
-    let data: Result<Vec<SensorData>, prost::DecodeError> =
-        raw_messages.into_iter().map(SensorData::decode).collect();
-    Ok(data?)
-}
-
 impl<StoreType> DataSyncTask<StoreType>
 where
     StoreType: DataStore,
@@ -262,43 +252,128 @@ where
     async fn run<'b>(&mut self, app_client: &'b AppClient) -> Result<(), AppClientError> {
         for collector_key in self.resource_method_keys.iter() {
             let store_lock = self.store.lock().await;
-            let mut reader = match store_lock.get_reader(collector_key) {
-                Ok(reader) => reader,
-                Err(err) => {
-                    log::error!(
-                        "error acquiring reader for collector key ({:?}): {:?}",
-                        collector_key,
-                        err
-                    );
-                    continue;
-                }
-            };
-            let data = match read_messages_for_collector(&mut reader) {
-                Ok(data) => data,
-                Err(err) => {
-                    log::error!(
-                        "error decoding readings for collector key ({:?}): {:?}",
-                        collector_key,
-                        err
-                    );
-                    continue;
-                }
-            };
-            if !data.is_empty() {
-                let upload_request = DataCaptureUploadRequest {
-                    metadata: Some(UploadMetadata {
-                        part_id: self.part_id.clone(),
-                        component_type: collector_key.component_type.clone(),
-                        r#type: DataType::TabularSensor.into(),
-                        component_name: collector_key.r_name.clone(),
-                        method_name: collector_key.method.to_string(),
-                        ..Default::default()
-                    }),
-                    sensor_contents: data,
+            loop {
+                let mut reader = match store_lock.get_reader(collector_key) {
+                    Ok(reader) => reader,
+                    Err(err) => {
+                        log::error!(
+                            "error acquiring reader for collector key ({:?}): {:?}",
+                            collector_key,
+                            err
+                        );
+                        continue;
+                    }
                 };
-                app_client.upload_data(upload_request).await?;
+                let mut current_chunk: Vec<BytesMut> = vec![];
+                let next_message = match reader.read_next_message() {
+                    Ok(msg) => msg,
+                    Err(err) => {
+                        log::error!(
+                            "error reading message from store for collector key ({:?}): {:?}",
+                            collector_key,
+                            err
+                        );
+                        // we don't want to panic, and creating an AppClientError variant for this case
+                        // feels too specific, so we'll return to exit the function early
+                        break;
+                    }
+                };
+                // if the first message is empty, we've reached the end of the store region
+                // and it's time to move on to the next collector
+                if next_message.is_empty() {
+                    break;
+                } else if next_message.len() > MAX_SENSOR_CONTENTS_SIZE {
+                    log::error!(
+                        "message encountered that was too large (>32K bytes) for collector {:?}",
+                        collector_key
+                    );
+                } else {
+                    current_chunk.push(next_message);
+                }
+                // we want to fill current_chunk until its size reaches just under
+                // MAX_SENSOR_CONTENTS_SIZE
+                let upload_success = loop {
+                    let next_message = match reader.read_next_message() {
+                        Ok(msg) => msg,
+                        Err(err) => {
+                            log::error!(
+                                "error reading message from store for collector key ({:?}): {:?}",
+                                collector_key,
+                                err
+                            );
+                            // we don't want to panic, and creating an AppClientError variant for this case
+                            // feels too specific, so we'll return to exit the function early
+                            break false;
+                        }
+                    };
+                    if next_message.len() > MAX_SENSOR_CONTENTS_SIZE {
+                        log::error!(
+                            "message encountered that was too large (>32K bytes) for collector {:?}",
+                            collector_key
+                        );
+                        continue;
+                    }
+                    let current_chunk_size: usize = current_chunk.iter().map(|m| m.len()).sum();
+                    if next_message.is_empty()
+                        || ((next_message.len() + current_chunk_size) > MAX_SENSOR_CONTENTS_SIZE)
+                    {
+                        let data: Result<Vec<SensorData>, prost::DecodeError> =
+                            current_chunk.drain(..).map(SensorData::decode).collect();
+                        let data = match data {
+                            Ok(data) => data,
+                            Err(err) => {
+                                log::error!(
+                                    "error decoding readings for collector key ({:?}): {:?}",
+                                    collector_key,
+                                    err
+                                );
+                                break false;
+                            }
+                        };
+                        let upload_request = DataCaptureUploadRequest {
+                            metadata: Some(UploadMetadata {
+                                part_id: self.part_id.clone(),
+                                component_type: collector_key.component_type.clone(),
+                                r#type: DataType::TabularSensor.into(),
+                                component_name: collector_key.r_name.clone(),
+                                method_name: collector_key.method.to_string(),
+                                ..Default::default()
+                            }),
+                            sensor_contents: data,
+                        };
+                        match app_client
+                            .upload_data(upload_request)
+                            .or(async {
+                                async_io::Timer::after(Duration::from_millis(1000)).await;
+                                Err(AppClientError::AppClientRequestTimeout)
+                            })
+                            .await
+                        {
+                            Ok(_) => {
+                                current_chunk.push(next_message);
+                                break true;
+                            }
+                            // If the request takes too long to elicit a response, we don't know whether
+                            // the upload was successful on app's side. We've decided that we'd rather
+                            // potentially lose some data than upload duplicate data, and so we opt to
+                            // assume the best and consume the messages
+                            Err(AppClientError::AppClientRequestTimeout) => {
+                                // current_chunk_size = next_message.len();
+                                current_chunk.push(next_message);
+                                break true;
+                            }
+                            Err(err) => return Err(err),
+                        };
+                    } else {
+                        current_chunk.push(next_message);
+                    }
+                };
+                // all of the data in the current chunk has been successfully uploaded, so we
+                // flush the messages from the store before moving on to the next chunk of data
+                if upload_success {
+                    reader.flush();
+                }
             }
-            reader.flush();
         }
         Ok(())
     }
@@ -335,7 +410,7 @@ mod tests {
     use prost::Message;
     use ringbuf::{LocalRb, Rb};
 
-    use super::{read_messages_for_collector, DataManager};
+    use super::DataManager;
     use crate::common::data_store::{DataStoreReader, WriteMode};
     use crate::common::encoder::EncoderError;
     use crate::common::{
@@ -760,6 +835,22 @@ mod tests {
             })
             .collect();
         read_data
+    }
+
+    fn read_messages_for_collector(
+        reader: &mut impl DataStoreReader,
+    ) -> Result<Vec<SensorData>, DataStoreError> {
+        let mut raw_messages: Vec<BytesMut> = vec![];
+        loop {
+            let next_message = reader.read_next_message()?;
+            if next_message.is_empty() {
+                break;
+            }
+            raw_messages.push(next_message);
+        }
+        let data: Result<Vec<SensorData>, prost::DecodeError> =
+            raw_messages.into_iter().map(SensorData::decode).collect();
+        Ok(data?)
     }
 
     #[test_log::test]

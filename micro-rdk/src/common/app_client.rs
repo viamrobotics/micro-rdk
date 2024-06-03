@@ -61,6 +61,9 @@ pub enum AppClientError {
     AppConfigHeaderDateMissingError,
     #[error(transparent)]
     AppGrpcClientError(#[from] GrpcClientError),
+    #[cfg(feature = "data")]
+    #[error("request timeout")]
+    AppClientRequestTimeout,
 }
 
 #[derive(Debug, Clone)]
