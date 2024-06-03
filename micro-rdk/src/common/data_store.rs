@@ -317,6 +317,14 @@ mod tests {
 
     #[test_log::test]
     fn test_data_store() {
+        // test failure on attempt to initialize with no collectors
+        let collector_keys: Vec<ResourceMethodKey> = vec![];
+        let store_create_attempt = super::StaticMemoryDataStore::new(collector_keys);
+        assert!(matches!(
+            store_create_attempt,
+            Err(DataStoreError::NoCollectors)
+        ));
+
         let reading_requested_dt = chrono::offset::Local::now().fixed_offset();
 
         let empty_message = SensorData {
@@ -387,13 +395,6 @@ mod tests {
                 ]),
             })),
         };
-        // test that passing no collectors causes a store creation failure
-        let collector_keys: Vec<ResourceMethodKey> = vec![];
-        let store_create_attempt = super::StaticMemoryDataStore::new(collector_keys);
-        assert!(matches!(
-            store_create_attempt,
-            Err(DataStoreError::NoCollectors)
-        ));
         let collector_keys = vec![thing_key.clone(), thing_2_key.clone()];
         let store = super::StaticMemoryDataStore::new(collector_keys);
         assert!(store.is_ok());
