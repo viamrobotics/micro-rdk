@@ -1,7 +1,7 @@
 /target
 .*.swp
 Cargo.lock
-/examples/viam.json
+/micro-rdk-server/viam.json
 /canary/.venv/*
 .vscode
 components_esp32.lock

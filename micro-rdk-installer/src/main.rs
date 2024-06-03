@@ -144,7 +144,7 @@ struct CreateNVSPartitionArgs {
     #[arg(long = "output")]
     file_name: String,
     // Size of the NVS partition in bytes. The default here represents the size
-    // declared in examples/esp32/partitions.csv (0x8000, or 32768)
+    // declared in micro-rdk-server/esp32/partitions.csv (0x8000, or 32768)
     #[arg(long = "size", default_value = "32768")]
     size: usize,
     /// Wi-Fi SSID to write to NVS partition of binary. If not provided, user will be

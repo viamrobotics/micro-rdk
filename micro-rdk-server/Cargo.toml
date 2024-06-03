@@ -1,5 +1,5 @@
 [package]
-name = "examples"
+name = "micro-rdk-server"
 authors.workspace = true
 description.workspace = true
 edition.workspace = true
@@ -41,14 +41,17 @@ serde.workspace = true
 serde_json.workspace = true
 
 [[bin]]
-name = "native-server"
-path = "native/native-server.rs"
+name = "micro-rdk-server-native"
+path = "native/main.rs"
 
 [[bin]]
-name = "esp32-server"
-path = "esp32/esp32-server.rs"
+name = "micro-rdk-server-esp32"
+path = "esp32/main.rs"
 
 
 [package.metadata.esp-idf-sys]
 esp_idf_tools_install_dir = "global"
-esp_idf_sdkconfig_defaults = ["examples/sdkconfig.defaults", "examples/sdkconfig.defaults.esp32"]
+esp_idf_sdkconfig_defaults = [
+  "micro-rdk-server/sdkconfig.defaults",
+  "micro-rdk-server/sdkconfig.defaults.esp32"
+]

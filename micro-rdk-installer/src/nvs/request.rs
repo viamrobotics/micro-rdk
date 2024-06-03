@@ -27,10 +27,10 @@ pub async fn download_micro_rdk_release(
     let mut release_url: String = RELEASES_BASE_URL.to_owned();
     match version {
         Some(version) => {
-            let rest_of_url = format!("/download/{version}/micro-rdk-esp32-server.bin");
+            let rest_of_url = format!("/download/{version}/micro-rdk-server-esp32.bin");
             release_url.push_str(&rest_of_url)
         }
-        None => release_url.push_str("latest/download/micro-rdk-esp32-server.bin"),
+        None => release_url.push_str("latest/download/micro-rdk-server-esp32.bin"),
     };
     log::info!("Downloading micro-RDK release from {:?}", release_url);
     let fname = path.to_path_buf();

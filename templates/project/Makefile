@@ -8,11 +8,11 @@ upload:
 
 
 build-esp32-bin:
-	cargo espflash save-image --merge --chip esp32 target/esp32-server.bin --partition-table partitions.csv -s 4mb  --release
+	cargo espflash save-image --merge --chip esp32 target/xtensa-esp32-espidf/release/{{project-name}}.bin --partition-table partitions.csv -s 4mb  --release
 
 flash-esp32-bin:
-ifneq (,$(wildcard target/esp32-server.bin))
-	espflash write-bin 0x0 target/esp32-server.bin --baud 460800  && sleep 2 && espflash monitor
+ifneq (,$(wildcard target/xtensa-esp32-espidf/release/{{project-name}}.bin))
+	espflash write-bin 0x0 target/xtensa-esp32-espidf/release/{{project-name}}.bin --baud 460800  && sleep 2 && espflash monitor
 else
-	$(error esp32-server.bin not found, run build-esp32-bin first)
+	$(error target/xtensa-esp32-espidf/release/{{project-name}}.bin not found, run build-esp32-bin first)
 endif
