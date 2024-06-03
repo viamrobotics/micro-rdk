@@ -19,7 +19,7 @@ jobs:
       src-esp32: ${{ steps.changes.outputs.src-esp32 }}
       src-native: ${{ steps.changes.outputs.src-native }}
       src-common: ${{ steps.changes.outputs.src-common }}
-      src-servers: ${{ steps.changes.outputs.src-serverss }}
+      src-servers: ${{ steps.changes.outputs.src-servers }}
       src-cli: ${{ steps.changes.outputs.src-cli }}
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
