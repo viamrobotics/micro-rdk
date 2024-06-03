@@ -42,11 +42,11 @@ serde_json.workspace = true
 
 [[bin]]
 name = "micro-rdk-server-native"
-path = "native/native-server.rs"
+path = "native/main.rs"
 
 [[bin]]
-path = "esp32/esp32-server.rs"
 name = "micro-rdk-server-esp32"
+path = "esp32/main.rs"
 
 
 [package.metadata.esp-idf-sys]
