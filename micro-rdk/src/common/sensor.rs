@@ -19,11 +19,13 @@ use super::i2c::I2CErrors;
 
 use thiserror::Error;
 
+
 #[cfg(feature = "data")]
 use crate::{
     google::protobuf::Timestamp,
     proto::app::data_sync::v1::{sensor_data::Data, SensorData, SensorMetadata},
 };
+
 
 pub static COMPONENT_NAME: &str = "sensor";
 
@@ -33,6 +35,9 @@ pub enum SensorError {
     AnalogError(#[from] AnalogError),
     #[error("sensor config error: {0}")]
     ConfigError(&'static str),
+    #[cfg(feature = "esp32")]
+    #[error(transparent)]
+    EspError(#[from] crate::esp32::esp_idf_svc::sys::EspError),
     #[error(transparent)]
     SensorI2CError(#[from] I2CErrors),
     #[error("{0}")]
