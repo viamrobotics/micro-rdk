@@ -19,13 +19,11 @@ use super::i2c::I2CErrors;
 
 use thiserror::Error;
 
-
 #[cfg(feature = "data")]
 use crate::{
     google::protobuf::Timestamp,
     proto::app::data_sync::v1::{sensor_data::Data, SensorData, SensorMetadata},
 };
-
 
 pub static COMPONENT_NAME: &str = "sensor";
 
