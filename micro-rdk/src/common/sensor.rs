@@ -25,6 +25,9 @@ use crate::{
     proto::app::data_sync::v1::{sensor_data::Data, SensorData, SensorMetadata},
 };
 
+#[cfg(feature = "esp32")]
+use crate::esp32::esp_idf_svc::sys::EspError as SysEspError;
+
 pub static COMPONENT_NAME: &str = "sensor";
 
 #[derive(Debug, Error)]
@@ -33,9 +36,8 @@ pub enum SensorError {
     AnalogError(#[from] AnalogError),
     #[error("sensor config error: {0}")]
     ConfigError(&'static str),
-    #[cfg(feature = "esp32")]
     #[error(transparent)]
-    EspError(#[from] crate::esp32::esp_idf_svc::sys::EspError),
+    EspError(#[from] SysEspError),
     #[error(transparent)]
     SensorI2CError(#[from] I2CErrors),
     #[error("{0}")]
