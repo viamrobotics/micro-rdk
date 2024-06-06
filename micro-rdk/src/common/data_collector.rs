@@ -104,6 +104,8 @@ pub enum DataCollectionError {
     UnsupportedMethod(CollectionMethod, String),
     #[error("no collection methods supported for component")]
     NoSupportedMethods,
+    #[error("capture frequency cannot be 0.0")]
+    UnsupportedCaptureFrequency,
     #[error(transparent)]
     SensorCollectionError(#[from] SensorError),
 }
@@ -140,6 +142,9 @@ impl DataCollector {
         method: CollectionMethod,
         capture_frequency_hz: f32,
     ) -> Result<Self, DataCollectionError> {
+        if capture_frequency_hz == 0.0 {
+            return Err(DataCollectionError::UnsupportedCaptureFrequency);
+        }
         let time_interval_ms = (1000.0 / capture_frequency_hz) as u64;
         let time_interval = Duration::from_millis(time_interval_ms);
         let component_type = resource.component_type();
@@ -298,6 +303,23 @@ mod tests {
         assert!(matches!(
             conf_result,
             Err(AttributeError::ConversionImpossibleError)
+        ));
+
+        let kind_map = HashMap::from([
+            (
+                "method".to_string(),
+                Kind::StringValue("Readings".to_string()),
+            ),
+            ("capture_frequency_hz".to_string(), Kind::NumberValue(0.0)),
+        ]);
+        let conf_kind = Kind::StructValue(kind_map);
+        let conf: DataCollectorConfig = (&conf_kind).try_into()?;
+        let sensor = Arc::new(Mutex::new(FakeSensor::new()));
+        let resource = ResourceType::Sensor(sensor);
+        let coll_create_attempt = DataCollector::from_config("fake".to_string(), resource, &conf);
+        assert!(matches!(
+            coll_create_attempt,
+            Err(DataCollectionError::UnsupportedCaptureFrequency)
         ));
         Ok(())
     }
