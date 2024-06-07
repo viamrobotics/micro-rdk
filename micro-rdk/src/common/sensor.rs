@@ -26,7 +26,7 @@ use crate::{
 };
 
 #[cfg(feature = "esp32")]
-use crate::esp32::esp_idf_svc::sys::EspError as SysEspError;
+use crate::esp32::esp_idf_svc::sys::EspError;
 
 pub static COMPONENT_NAME: &str = "sensor";
 
@@ -37,7 +37,8 @@ pub enum SensorError {
     #[error("sensor config error: {0}")]
     ConfigError(&'static str),
     #[error(transparent)]
-    EspError(#[from] SysEspError),
+    #[cfg(feature = "esp32")]
+    EspError(#[from] EspError),
     #[error(transparent)]
     SensorI2CError(#[from] I2CErrors),
     #[error("{0}")]
