@@ -160,7 +160,7 @@ impl Drop for StaticMemoryDataStoreReader {
 
 impl StaticMemoryDataStore {
     pub fn new(collector_keys: Vec<ResourceMethodKey>) -> Result<Self, DataStoreError> {
-        if !DATA_STORE_INITIALIZED.fetch_or(true, Ordering::SeqCst) {
+        if !DATA_STORE_INITIALIZED.load(Ordering::Acquire) {
             if collector_keys.is_empty() {
                 return Err(DataStoreError::NoCollectors);
             }
@@ -179,6 +179,7 @@ impl StaticMemoryDataStore {
                 }
                 buffer_usages.push(Rc::new(AtomicBool::new(false)));
             }
+            DATA_STORE_INITIALIZED.store(true, Ordering::Release);
             return Ok(Self {
                 buffers,
                 buffer_usages,
