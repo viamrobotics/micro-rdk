@@ -14,23 +14,17 @@ version.workspace = true
 anyhow = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 crc32fast.workspace = true
-der.workspace = true
 dialoguer.workspace = true
 env_logger.workspace = true
 espflash.workspace = true
 gethostname.workspace = true
-local-ip-address.workspace = true
 log.workspace = true
 packed_struct.workspace = true
-rcgen.workspace = true
 reqwest.workspace = true
-ring.workspace = true
 secrecy.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
-tokio.workspace = true
-viam-rust-utils.workspace = true
-viam.workspace = true
+tokio = { workspace = true, features = ["full"] }
 esp-idf-part.workspace = true

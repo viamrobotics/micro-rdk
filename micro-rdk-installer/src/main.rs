@@ -5,9 +5,9 @@ use std::{
     path::PathBuf,
 };
 
-#[cfg(target_os = "unix")]
+#[cfg(target_family = "unix")]
 use std::os::unix::fs::FileExt;
-#[cfg(target_os = "windows")]
+#[cfg(target_family = "windows")]
 use std::os::windows::fs::FileExt;
 
 use clap::{arg, command, Args, Parser, Subcommand};
@@ -23,7 +23,7 @@ use micro_rdk_installer::{
         data::{ViamFlashStorageData, WifiCredentials},
         metadata::read_nvs_metadata,
         partition::{NVSPartition, NVSPartitionData},
-        request::{download_micro_rdk_release, populate_nvs_storage_from_app},
+        request::download_micro_rdk_release,
     },
 };
 use secrecy::Secret;
@@ -119,7 +119,7 @@ struct WriteFlashArgs {
 
     /// File path to the JSON config of the robot, downloaded from app.viam.com
     #[arg(long = "app-config")]
-    config: String,
+    config: Option<String>,
     /// Version of the compiled micro-RDK server to download.
     /// See https://github.com/viamrobotics/micro-rdk/releases for the version options
     #[arg(long = "version")]
@@ -227,7 +227,6 @@ fn create_nvs_partition_binary(
             .ok_or(Error::NVSDataProcessingError("no wifi".to_string()))?
             .ssid
     );
-    populate_nvs_storage_from_app(&mut storage_data)?;
     let part = &mut NVSPartition::from_storage_data(storage_data, size)?;
     Ok(NVSPartitionData::try_from(part)?.to_bytes())
 }
@@ -347,19 +346,22 @@ fn main() -> Result<(), Error> {
                     rt.block_on(download_micro_rdk_release(&tmp_path, args.version.clone()))?
                 }
             };
-            let nvs_metadata = read_nvs_metadata(app_path.clone())?;
-            let nvs_data = create_nvs_partition_binary(
-                args.config.to_string(),
-                nvs_metadata.size as usize,
-                args.wifi_ssid.clone(),
-                args.wifi_password.clone(),
-            )?;
-            write_credentials_to_app_binary(
-                app_path.clone(),
-                &nvs_data,
-                nvs_metadata.size,
-                nvs_metadata.start_address,
-            )?;
+            if let Some(app_config) = args.config.as_ref() {
+                let nvs_metadata = read_nvs_metadata(app_path.clone())?;
+
+                let nvs_data = create_nvs_partition_binary(
+                    app_config.to_string(),
+                    nvs_metadata.size as usize,
+                    args.wifi_ssid.clone(),
+                    args.wifi_password.clone(),
+                )?;
+                write_credentials_to_app_binary(
+                    app_path.clone(),
+                    &nvs_data,
+                    nvs_metadata.size,
+                    nvs_metadata.start_address,
+                )?;
+            }
             flash(
                 args.flash_args.clone(),
                 args.connect_args.clone(),
@@ -472,12 +474,12 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
     #[allow(unused_mut)]
     let mut app_segment = vec![EMPTY_BYTE; app_size as usize];
     // write just this data
-    #[cfg(target_os = "unix")]
+    #[cfg(target_family = "unix")]
     app_file_new
         .read_at(&mut app_segment, app_offset.into())
         .map_err(Error::FileError)?;
 
-    #[cfg(target_os = "windows")]
+    #[cfg(target_family = "windows")]
     app_file_new
         .seek_read(&mut app_segment, app_offset.into())
         .map_err(Error::FileError)?;
