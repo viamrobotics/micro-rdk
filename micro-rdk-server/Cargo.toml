@@ -17,7 +17,7 @@ qemu = []
 [target.'cfg(not(target_os = "espidf"))'.dependencies]
 env_logger.workspace = true
 local-ip-address.workspace = true
-micro-rdk = { workspace = true, features = ["native", "provisioning"], default-features = true }
+micro-rdk = { workspace = true, features = ["native", "provisioning", "camera"], default-features = true }
 
 
 [target.'cfg(target_os="espidf")'.dependencies]
