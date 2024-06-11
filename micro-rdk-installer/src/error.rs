@@ -1,5 +1,4 @@
 use espflash::error::Error as EspFlashError;
-use rcgen::RcgenError;
 use reqwest::Error as RequestError;
 use thiserror::Error;
 
@@ -29,8 +28,6 @@ pub enum Error {
     AsyncError(std::io::Error),
     #[error("Missing Config Info: {0}")]
     MissingConfigInfo(String),
-    #[error("Error producing robot dtls certificates: {0}")]
-    DtlsCertificateError(RcgenError),
     #[error("Config Request Error: {0}")]
     ConfigRequestError(String),
     #[error("Certificate Request Error: {0}")]
@@ -51,12 +48,6 @@ pub enum Error {
     PartitionTableError(String),
     #[error("No command received")]
     NoCommandError,
-}
-
-impl From<RcgenError> for Error {
-    fn from(value: RcgenError) -> Self {
-        Self::DtlsCertificateError(value)
-    }
 }
 
 impl From<EspFlashError> for Error {
