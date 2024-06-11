@@ -19,7 +19,7 @@ pub async fn download_micro_rdk_release(
         || {
             format!(
                 "{}/{}/{}",
-                RELEASES_BASE_URL, "latest/download/", BINARY_NAME
+                RELEASES_BASE_URL, "latest/download", BINARY_NAME
             )
         },
         |version| format!("{}/download/{}/{}", RELEASES_BASE_URL, version, BINARY_NAME),
