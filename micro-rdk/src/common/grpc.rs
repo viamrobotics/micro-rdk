@@ -220,6 +220,8 @@ where
             #[cfg(feature = "camera")]
             "/viam.component.camera.v1.CameraService/GetImage" => self.camera_get_frame(payload),
             #[cfg(feature = "camera")]
+            "/viam.component.camera.v1.CameraService/GetImages" => self.camera_get_frames(payload),
+            #[cfg(feature = "camera")]
             "/viam.component.camera.v1.CameraService/GetPointCloud" => {
                 self.camera_get_point_cloud(payload)
             }
@@ -231,6 +233,8 @@ where
             "/viam.component.camera.v1.CameraService/RenderFrame" => {
                 self.camera_render_frame(payload)
             }
+            #[cfg(feature = "camera")]
+            "/viam.component.camera.v1.CameraService/DoCommand" => self.camera_do_command(payload),
             "/viam.component.motor.v1.MotorService/GetPosition" => self.motor_get_position(payload),
             "/viam.component.motor.v1.MotorService/GetProperties" => {
                 self.motor_get_properties(payload)
@@ -1225,6 +1229,7 @@ where
             // TODO: Modify `get_frame` to return a data structure that can be passed into
             // `encode_message`, rather than re-implementing `encode_message` here. See
             // https://viam.atlassian.net/browse/RSDK-824
+
             let mut buffer = RefCell::borrow_mut(&self.buffer).split_off(0);
             buffer.put_u8(0);
             buffer.put_u32(0.try_into().unwrap());
@@ -1247,6 +1252,11 @@ where
     }
 
     #[cfg(feature = "camera")]
+    fn camera_get_frames(&mut self, _message: &[u8]) -> Result<(), ServerError> {
+        Err(ServerError::from(GrpcError::RpcUnimplemented))
+    }
+
+    #[cfg(feature = "camera")]
     fn camera_get_point_cloud(&mut self, _message: &[u8]) -> Result<(), ServerError> {
         Err(ServerError::from(GrpcError::RpcUnimplemented))
     }
@@ -1258,6 +1268,10 @@ where
 
     #[cfg(feature = "camera")]
     fn camera_render_frame(&mut self, _message: &[u8]) -> Result<(), ServerError> {
+        Err(ServerError::from(GrpcError::RpcUnimplemented))
+    }
+    #[cfg(feature = "camera")]
+    fn camera_do_command(&mut self, _message: &[u8]) -> Result<(), ServerError> {
         Err(ServerError::from(GrpcError::RpcUnimplemented))
     }
 
