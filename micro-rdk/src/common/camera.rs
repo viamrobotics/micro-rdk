@@ -24,6 +24,7 @@ pub enum CameraError {
     CameraCouldntGetFrame,
 }
 
+#[cfg(feature = "camera")]
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
         .register_camera("fake", &FakeCamera::from_config)
