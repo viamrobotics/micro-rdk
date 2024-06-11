@@ -32,6 +32,8 @@ static mut DATA_STORE: [MaybeUninit<u8>; 10240] = [MaybeUninit::uninit(); 10240]
 
 #[derive(Clone, Error, Debug)]
 pub enum DataStoreError {
+    #[error("No collector keys supplied")]
+    NoCollectors,
     #[error(transparent)]
     EncodingError(#[from] EncodeError),
     #[error("SensorDataTooLarge")]
@@ -158,7 +160,10 @@ impl Drop for StaticMemoryDataStoreReader {
 
 impl StaticMemoryDataStore {
     pub fn new(collector_keys: Vec<ResourceMethodKey>) -> Result<Self, DataStoreError> {
-        if !DATA_STORE_INITIALIZED.fetch_or(true, Ordering::SeqCst) {
+        if !DATA_STORE_INITIALIZED.load(Ordering::Acquire) {
+            if collector_keys.is_empty() {
+                return Err(DataStoreError::NoCollectors);
+            }
             let len_per_buffer = unsafe { DATA_STORE.len() } / collector_keys.len();
             let mut buffers = Vec::new();
             let mut buffer_usages = Vec::new();
@@ -174,6 +179,7 @@ impl StaticMemoryDataStore {
                 }
                 buffer_usages.push(Rc::new(AtomicBool::new(false)));
             }
+            DATA_STORE_INITIALIZED.store(true, Ordering::Release);
             return Ok(Self {
                 buffers,
                 buffer_usages,
@@ -308,6 +314,16 @@ mod tests {
     use crate::proto::app::data_sync::v1::sensor_data::Data;
     use crate::proto::app::data_sync::v1::{SensorData, SensorMetadata};
     use prost::{length_delimiter_len, Message};
+
+    #[test_log::test]
+    fn test_initialize_store_with_no_collectors_should_fail() {
+        let collector_keys: Vec<ResourceMethodKey> = vec![];
+        let store_create_attempt = super::StaticMemoryDataStore::new(collector_keys);
+        assert!(matches!(
+            store_create_attempt,
+            Err(DataStoreError::NoCollectors)
+        ))
+    }
 
     #[test_log::test]
     fn test_data_store() {
