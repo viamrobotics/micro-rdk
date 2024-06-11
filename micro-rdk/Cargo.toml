@@ -83,5 +83,4 @@ async-lock.workspace = true
 dns-message-parser.workspace = true
 
 [build-dependencies]
-const-gen.workspace = true
 embuild.workspace = true
