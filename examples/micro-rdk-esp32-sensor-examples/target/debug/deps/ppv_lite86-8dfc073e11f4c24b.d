@@ -1,0 +1,8 @@
+/Users/allison.chiang@viam.com/Viam/micro-rdk-esp32-sensor-examples/target/debug/deps/libppv_lite86-8dfc073e11f4c24b.rmeta: /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/lib.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/soft.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/types.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/generic.rs
+
+/Users/allison.chiang@viam.com/Viam/micro-rdk-esp32-sensor-examples/target/debug/deps/ppv_lite86-8dfc073e11f4c24b.d: /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/lib.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/soft.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/types.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/generic.rs
+
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/lib.rs:
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/soft.rs:
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/types.rs:
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/generic.rs:

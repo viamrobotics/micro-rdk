@@ -1,0 +1,1 @@
+{"rustc":792111255936306319,"features":"","declared_features":"","target":0,"profile":0,"path":0,"deps":[[13997427206770398380,"build_script_build",false,15785143504929357821]],"local":[{"RerunIfChanged":{"output":"debug/build/embassy-sync-705281c099e4904c/output","paths":["build.rs"]}}],"rustflags":[],"metadata":0,"config":0,"compile_kind":0}

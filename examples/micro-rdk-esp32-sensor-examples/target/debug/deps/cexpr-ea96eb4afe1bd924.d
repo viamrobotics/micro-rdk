@@ -1,0 +1,10 @@
+/Users/allison.chiang@viam.com/Viam/micro-rdk-esp32-sensor-examples/target/debug/deps/libcexpr-ea96eb4afe1bd924.rmeta: /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/cexpr-0.6.0/src/lib.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/cexpr-0.6.0/src/expr.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/cexpr-0.6.0/src/literal.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/cexpr-0.6.0/src/token.rs
+
+/Users/allison.chiang@viam.com/Viam/micro-rdk-esp32-sensor-examples/target/debug/deps/libcexpr-ea96eb4afe1bd924.rlib: /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/cexpr-0.6.0/src/lib.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/cexpr-0.6.0/src/expr.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/cexpr-0.6.0/src/literal.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/cexpr-0.6.0/src/token.rs
+
+/Users/allison.chiang@viam.com/Viam/micro-rdk-esp32-sensor-examples/target/debug/deps/cexpr-ea96eb4afe1bd924.d: /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/cexpr-0.6.0/src/lib.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/cexpr-0.6.0/src/expr.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/cexpr-0.6.0/src/literal.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/cexpr-0.6.0/src/token.rs
+
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/cexpr-0.6.0/src/lib.rs:
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/cexpr-0.6.0/src/expr.rs:
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/cexpr-0.6.0/src/literal.rs:
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/cexpr-0.6.0/src/token.rs:

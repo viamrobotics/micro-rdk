@@ -1,0 +1,8 @@
+/Users/allison.chiang@viam.com/Viam/micro-rdk-modular-driver-examples/target/debug/deps/libuntrusted-4f94ef2bb43e0113.rmeta: /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/untrusted-0.9.0/src/lib.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/untrusted-0.9.0/src/input.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/untrusted-0.9.0/src/no_panic.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/untrusted-0.9.0/src/reader.rs
+
+/Users/allison.chiang@viam.com/Viam/micro-rdk-modular-driver-examples/target/debug/deps/untrusted-4f94ef2bb43e0113.d: /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/untrusted-0.9.0/src/lib.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/untrusted-0.9.0/src/input.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/untrusted-0.9.0/src/no_panic.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/untrusted-0.9.0/src/reader.rs
+
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/untrusted-0.9.0/src/lib.rs:
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/untrusted-0.9.0/src/input.rs:
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/untrusted-0.9.0/src/no_panic.rs:
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/untrusted-0.9.0/src/reader.rs:

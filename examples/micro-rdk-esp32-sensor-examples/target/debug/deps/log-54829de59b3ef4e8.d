@@ -1,0 +1,10 @@
+/Users/allison.chiang@viam.com/Viam/micro-rdk-esp32-sensor-examples/target/debug/deps/liblog-54829de59b3ef4e8.rmeta: /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.21/src/lib.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.21/src/macros.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.21/src/serde.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.21/src/__private_api.rs
+
+/Users/allison.chiang@viam.com/Viam/micro-rdk-esp32-sensor-examples/target/debug/deps/liblog-54829de59b3ef4e8.rlib: /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.21/src/lib.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.21/src/macros.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.21/src/serde.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.21/src/__private_api.rs
+
+/Users/allison.chiang@viam.com/Viam/micro-rdk-esp32-sensor-examples/target/debug/deps/log-54829de59b3ef4e8.d: /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.21/src/lib.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.21/src/macros.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.21/src/serde.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.21/src/__private_api.rs
+
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.21/src/lib.rs:
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.21/src/macros.rs:
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.21/src/serde.rs:
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.21/src/__private_api.rs:

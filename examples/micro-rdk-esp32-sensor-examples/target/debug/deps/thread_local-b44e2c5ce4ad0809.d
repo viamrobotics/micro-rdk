@@ -1,0 +1,8 @@
+/Users/allison.chiang@viam.com/Viam/micro-rdk-esp32-sensor-examples/target/debug/deps/libthread_local-b44e2c5ce4ad0809.rmeta: /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/thread_local-1.1.8/src/lib.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/thread_local-1.1.8/src/cached.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/thread_local-1.1.8/src/thread_id.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/thread_local-1.1.8/src/unreachable.rs
+
+/Users/allison.chiang@viam.com/Viam/micro-rdk-esp32-sensor-examples/target/debug/deps/thread_local-b44e2c5ce4ad0809.d: /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/thread_local-1.1.8/src/lib.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/thread_local-1.1.8/src/cached.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/thread_local-1.1.8/src/thread_id.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/thread_local-1.1.8/src/unreachable.rs
+
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/thread_local-1.1.8/src/lib.rs:
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/thread_local-1.1.8/src/cached.rs:
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/thread_local-1.1.8/src/thread_id.rs:
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/thread_local-1.1.8/src/unreachable.rs:

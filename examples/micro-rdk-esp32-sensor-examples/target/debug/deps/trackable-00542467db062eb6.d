@@ -1,0 +1,8 @@
+/Users/allison.chiang@viam.com/Viam/micro-rdk-esp32-sensor-examples/target/debug/deps/libtrackable-00542467db062eb6.rmeta: /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/trackable-0.2.24/src/lib.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/trackable-0.2.24/src/macros.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/trackable-0.2.24/src/error.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/trackable-0.2.24/src/result.rs
+
+/Users/allison.chiang@viam.com/Viam/micro-rdk-esp32-sensor-examples/target/debug/deps/trackable-00542467db062eb6.d: /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/trackable-0.2.24/src/lib.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/trackable-0.2.24/src/macros.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/trackable-0.2.24/src/error.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/trackable-0.2.24/src/result.rs
+
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/trackable-0.2.24/src/lib.rs:
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/trackable-0.2.24/src/macros.rs:
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/trackable-0.2.24/src/error.rs:
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/trackable-0.2.24/src/result.rs:

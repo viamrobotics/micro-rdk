@@ -1,0 +1,8 @@
+/Users/allison.chiang@viam.com/Viam/micro-rdk-modular-driver-examples/target/debug/deps/libfutures_lite-51d42a70446a86f7.rmeta: /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/futures-lite-2.3.0/src/lib.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/futures-lite-2.3.0/src/future.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/futures-lite-2.3.0/src/prelude.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/futures-lite-2.3.0/src/stream.rs
+
+/Users/allison.chiang@viam.com/Viam/micro-rdk-modular-driver-examples/target/debug/deps/futures_lite-51d42a70446a86f7.d: /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/futures-lite-2.3.0/src/lib.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/futures-lite-2.3.0/src/future.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/futures-lite-2.3.0/src/prelude.rs /Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/futures-lite-2.3.0/src/stream.rs
+
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/futures-lite-2.3.0/src/lib.rs:
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/futures-lite-2.3.0/src/future.rs:
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/futures-lite-2.3.0/src/prelude.rs:
+/Users/allison.chiang@viam.com/.cargo/registry/src/index.crates.io-6f17d22bba15001f/futures-lite-2.3.0/src/stream.rs:

@@ -1,0 +1,13 @@
+[package]
+name = "micro-rdk-modular-driver-examples"
+version = "0.1.0"
+edition = "2021"
+authors = ["Matthew J Perez <matt@mperez.io>"]
+resolver = "2"
+
+[dependencies]
+log = "0.4"
+micro-rdk = {git = "https://github.com/viamrobotics/micro-rdk.git", version = "0.1.9-rc3", rev = "4f0814a"}
+
+[package.metadata.com.viam]
+module = true
