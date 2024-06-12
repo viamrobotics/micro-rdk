@@ -76,7 +76,7 @@ struct AppImageArgs {
 
     /// Version of the compiled micro-RDK server to download.
     /// See https://github.com/viamrobotics/micro-rdk/releases for the version options
-    #[arg(long = "version")]
+    #[arg(long = "version", value_parser = validate_version)]
     version: Option<String>,
 }
 
@@ -122,7 +122,7 @@ struct WriteFlashArgs {
     config: Option<String>,
     /// Version of the compiled micro-RDK server to download.
     /// See https://github.com/viamrobotics/micro-rdk/releases for the version options
-    #[arg(long = "version")]
+    #[arg(long = "version", value_parser = validate_version)]
     version: Option<String>,
     /// Wi-Fi SSID to write to NVS partition of binary. If not provided, user will be
     /// prompted for it
@@ -165,6 +165,21 @@ struct CreateNVSPartitionArgs {
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
+}
+
+fn validate_version(version: &str) -> Result<String, String> {
+    // With 0.1.9+ release the installer will not be backward compatible
+    // with prior version, therefore we return an error letting the user know they should
+    // use an older installer
+    let version_019 = version_compare::Version::from("0.1.9").unwrap();
+
+    let requested_version = version_compare::Version::from(version)
+        .ok_or(format!("{} is not a valid version string", version))?;
+
+    if requested_version < version_019 {
+        return Err(format!("this version of the installer does not support version of micro-rdk < 0.1.9. If you want to install micro-rdk {} please downgrade the installer to v0.1.8 first",version));
+    }
+    Ok(version.to_owned())
 }
 
 fn request_wifi(
