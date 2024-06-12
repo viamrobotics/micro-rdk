@@ -33,7 +33,10 @@ impl Default for Esp32WifiProvisioningBuilder {
             sys::esp!(sys::esp_efuse_mac_get_default(mac_address.as_mut_ptr())).unwrap();
         };
         Self {
-            ssid: format!("esp32-{:02X}-{:02X}", mac_address[4], mac_address[5]),
+            ssid: format!(
+                "esp32-micrordk-{:02X}{:02X}",
+                mac_address[4], mac_address[5]
+            ),
             password: "viamsetup".to_owned(),
             ap_ip_addr: Ipv4Addr::new(10, 42, 0, 1),
         }
@@ -87,7 +90,7 @@ impl From<&AccessPointInfo> for NetworkInfo {
         info.0.security = value
             .auth_method
             .map_or("none".to_owned(), |auth| auth.to_string());
-        info.0.signal = value.signal_strength.into();
+        info.0.signal = (2 * (value.signal_strength as i32 + 100)).clamp(0, 100);
         info.0.r#type = "2.4GhZ".to_owned();
         info
     }
