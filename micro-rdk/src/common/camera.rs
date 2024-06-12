@@ -1,18 +1,18 @@
+use super::{
+    generic::DoCommand,
+    status::{Status, StatusError},
+};
+use crate::{google, proto::component::camera};
+use bytes::BytesMut;
+use prost::Message;
+use std::{collections::HashMap, sync::Mutex};
+use thiserror::Error;
+
 #[cfg(feature = "camera")]
 use {
     super::{config::ConfigType, registry::ComponentRegistry, registry::Dependency},
     std::sync::Arc,
 };
-
-use super::{
-    generic::DoCommand,
-    status::{Status, StatusError},
-};
-use crate::proto::component::camera;
-use bytes::BytesMut;
-use prost::Message;
-use std::{collections::HashMap, sync::Mutex};
-use thiserror::Error;
 
 pub static COMPONENT_NAME: &str = "camera";
 pub static FAKE_JPEG: &[u8] = include_bytes!("../../../etc/assets/symbol.jpg");
@@ -89,7 +89,7 @@ impl Camera for FakeCamera {
         unimplemented!();
     }
     fn render_frame(&mut self, mut buffer: BytesMut) -> Result<BytesMut, CameraError> {
-        let msg = crate::google::api::HttpBody {
+        let msg = google::api::HttpBody {
             content_type: "image/jpeg".to_string(),
             data: FAKE_JPEG.into(),
             ..Default::default()
@@ -121,8 +121,8 @@ where
 }
 
 impl Status for FakeCamera {
-    fn get_status(&self) -> Result<Option<crate::google::protobuf::Struct>, StatusError> {
-        Ok(Some(crate::google::protobuf::Struct {
+    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
+        Ok(Some(google::protobuf::Struct {
             fields: HashMap::new(),
         }))
     }
