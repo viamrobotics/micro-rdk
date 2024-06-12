@@ -94,11 +94,14 @@ impl Camera for FakeCamera {
         unimplemented!();
     }
     fn render_frame(&mut self, mut buffer: BytesMut) -> Result<BytesMut, CameraError> {
+        #[cfg(feature = "camera")]
         let msg = google::api::HttpBody {
             content_type: "image/jpeg".to_string(),
             data: FAKE_JPEG.into(),
             ..Default::default()
         };
+        #[cfg(not(feature = "camera"))]
+        let msg = google::protobuf::Struct::default();
         msg.encode(&mut buffer).unwrap();
         Ok(buffer)
     }
