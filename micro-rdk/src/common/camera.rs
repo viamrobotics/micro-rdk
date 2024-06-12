@@ -42,6 +42,7 @@ pub trait Camera {
     fn do_command(&mut self, _buffer: BytesMut) -> Result<BytesMut, CameraError>;
 }
 
+#[cfg(feature = "camera")]
 pub(crate) type CameraType = Arc<Mutex<dyn Camera>>;
 
 #[derive(DoCommand)]
@@ -51,6 +52,7 @@ impl FakeCamera {
     pub fn new() -> Self {
         FakeCamera {}
     }
+    #[cfg(feature = "camera")]
     pub(crate) fn from_config(
         _cfg: ConfigType,
         _: Vec<Dependency>,
