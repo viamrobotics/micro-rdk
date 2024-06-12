@@ -316,16 +316,6 @@ mod tests {
     use prost::{length_delimiter_len, Message};
 
     #[test_log::test]
-    fn test_initialize_store_with_no_collectors_should_fail() {
-        let collector_keys: Vec<ResourceMethodKey> = vec![];
-        let store_create_attempt = super::StaticMemoryDataStore::new(collector_keys);
-        assert!(matches!(
-            store_create_attempt,
-            Err(DataStoreError::NoCollectors)
-        ))
-    }
-
-    #[test_log::test]
     fn test_data_store() {
         let reading_requested_dt = chrono::offset::Local::now().fixed_offset();
 
@@ -397,6 +387,13 @@ mod tests {
                 ]),
             })),
         };
+        // test that passing no collectors causes a store creation failure
+        let collector_keys: Vec<ResourceMethodKey> = vec![];
+        let store_create_attempt = super::StaticMemoryDataStore::new(collector_keys);
+        assert!(matches!(
+            store_create_attempt,
+            Err(DataStoreError::NoCollectors)
+        ));
         let collector_keys = vec![thing_key.clone(), thing_2_key.clone()];
         let store = super::StaticMemoryDataStore::new(collector_keys);
         assert!(store.is_ok());
