@@ -4,11 +4,11 @@
 use {
     super::config::ConfigType,
     super::registry::{ComponentRegistry, Dependency},
-    std::collections::HashMap,
 };
 
 use crate::common::status::Status;
 use crate::google;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use super::analog::AnalogError;
