@@ -1226,32 +1226,35 @@ where
 
     #[cfg(feature = "camera")]
     fn camera_get_image(&mut self, message: &[u8]) -> Result<(), ServerError> {
+        // while other rpcs make use of the grpc buffer after-the-fact with copy-semantics,
+        // we split the grpc buffer to embed the image message response, retroactively adding the
+        // header info. This allows us to write the image direct to the response buffer instead of
+        // needing a second buffer.
         let req = component::camera::v1::GetImageRequest::decode(message)
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
-        if let Some(camera) = self.robot.lock().unwrap().get_camera_by_name(req.name) {
-            // TODO: Modify `get_frame` to return a data structure that can be passed into
-            // `encode_message`, rather than re-implementing `encode_message` here. See
-            // https://viam.atlassian.net/browse/RSDK-824
-
-            let mut buffer = RefCell::borrow_mut(&self.buffer).split_off(0);
-            buffer.put_u8(0);
-            buffer.put_u32(0.try_into().unwrap());
-            let msg = buffer.split_off(5);
-            let msg = camera
-                .lock()
-                .unwrap()
-                .get_image(msg)
-                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
-            let len = msg.len().to_be_bytes();
-            buffer[1] = len[0];
-            buffer[2] = len[1];
-            buffer[3] = len[2];
-            buffer[4] = len[3];
-            buffer.unsplit(msg);
-            self.response.put_data(buffer.freeze());
-            return Ok(());
-        }
-        Err(ServerError::from(GrpcError::RpcUnavailable))
+        let camera = self
+            .robot
+            .lock()
+            .unwrap()
+            .get_camera_by_name(req.name)
+            .ok_or(GrpcError::RpcUnavailable)?;
+        let mut buffer = RefCell::borrow_mut(&self.buffer).split_off(0);
+        buffer.put_u8(0);
+        buffer.put_u32(0.try_into().unwrap());
+        let msg = buffer.split_off(5);
+        let msg = camera
+            .lock()
+            .unwrap()
+            .get_image(msg)
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
+        let len = msg.len().to_be_bytes();
+        buffer[1] = len[0];
+        buffer[2] = len[1];
+        buffer[3] = len[2];
+        buffer[4] = len[3];
+        buffer.unsplit(msg);
+        self.response.put_data(buffer.freeze());
+        return Ok(());
     }
 
     /*

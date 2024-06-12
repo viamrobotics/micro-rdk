@@ -11,6 +11,7 @@ use std::sync::Mutex;
 use thiserror::Error;
 
 pub static COMPONENT_NAME: &str = "camera";
+pub static FAKE_JPEG: &[u8] = include_bytes!("../../../etc/assets/symbol.jpg");
 
 #[derive(Error, Debug)]
 pub enum CameraError {
@@ -70,11 +71,9 @@ impl Camera for FakeCamera {
     fn get_image(&mut self, mut buffer: BytesMut) -> Result<BytesMut, CameraError> {
         let msg = camera::v1::GetImageResponse {
             mime_type: "image/jpeg".to_string(),
-            image: Bytes::new(),
+            image: FAKE_JPEG.into(),
         };
-
         msg.encode(&mut buffer).unwrap();
-
         Ok(buffer)
     }
     fn get_images(&mut self, _buffer: BytesMut) -> Result<BytesMut, CameraError> {

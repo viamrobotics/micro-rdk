@@ -93,7 +93,7 @@ where
             stream: None,
             headers: None,
             streams: HashMap::new(),
-            buffer: BytesMut::zeroed(1650),
+            buffer: BytesMut::zeroed(15000),
         }
     }
     async fn send_response(&mut self, response: webrtc::v1::Response) -> Result<(), WebRtcError> {
