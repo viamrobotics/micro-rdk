@@ -4,10 +4,14 @@ use {
     std::sync::Arc,
 };
 
+use super::{
+    generic::DoCommand,
+    status::{Status, StatusError},
+};
 use crate::proto::component::camera;
-use bytes::{Bytes, BytesMut};
+use bytes::BytesMut;
 use prost::Message;
-use std::sync::Mutex;
+use std::{collections::HashMap, sync::Mutex};
 use thiserror::Error;
 
 pub static COMPONENT_NAME: &str = "camera";
@@ -33,13 +37,12 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     }
 }
 
-pub trait Camera {
+pub trait Camera: Status + DoCommand {
     fn get_image(&mut self, buffer: BytesMut) -> Result<BytesMut, CameraError>;
     fn get_images(&mut self, _buffer: BytesMut) -> Result<BytesMut, CameraError>;
     fn get_point_cloud(&mut self, _buffer: BytesMut) -> Result<BytesMut, CameraError>;
     fn get_properties(&mut self, _buffer: BytesMut) -> Result<BytesMut, CameraError>;
     fn render_frame(&mut self, _buffer: BytesMut) -> Result<BytesMut, CameraError>;
-    fn do_command(&mut self, _buffer: BytesMut) -> Result<BytesMut, CameraError>;
 }
 
 #[cfg(feature = "camera")]
@@ -85,11 +88,14 @@ impl Camera for FakeCamera {
     fn get_properties(&mut self, _buffer: BytesMut) -> Result<BytesMut, CameraError> {
         unimplemented!();
     }
-    fn render_frame(&mut self, _buffer: BytesMut) -> Result<BytesMut, CameraError> {
-        unimplemented!();
-    }
-    fn do_command(&mut self, _buffer: BytesMut) -> Result<BytesMut, CameraError> {
-        unimplemented!();
+    fn render_frame(&mut self, mut buffer: BytesMut) -> Result<BytesMut, CameraError> {
+        let msg = crate::google::api::HttpBody {
+            content_type: "image/jpeg".to_string(),
+            data: FAKE_JPEG.into(),
+            ..Default::default()
+        };
+        msg.encode(&mut buffer).unwrap();
+        Ok(buffer)
     }
 }
 
@@ -112,7 +118,12 @@ where
     fn render_frame(&mut self, buffer: BytesMut) -> Result<BytesMut, CameraError> {
         self.get_mut().unwrap().render_frame(buffer)
     }
-    fn do_command(&mut self, buffer: BytesMut) -> Result<BytesMut, CameraError> {
-        self.get_mut().unwrap().do_command(buffer)
+}
+
+impl Status for FakeCamera {
+    fn get_status(&self) -> Result<Option<crate::google::protobuf::Struct>, StatusError> {
+        Ok(Some(crate::google::protobuf::Struct {
+            fields: HashMap::new(),
+        }))
     }
 }
