@@ -1,14 +1,13 @@
-use std::sync::{Arc, Mutex};
-
-#[allow(unused_imports)]
-use super::generic::DoCommand;
 #[cfg(feature = "camera")]
-use super::registry::ComponentRegistry;
-use super::{config::ConfigType, registry::Dependency};
+use {
+    super::{config::ConfigType, registry::ComponentRegistry, registry::Dependency},
+    std::sync::Arc,
+};
+
 use crate::proto::component::camera;
 use bytes::{Bytes, BytesMut};
 use prost::Message;
-
+use std::sync::Mutex;
 use thiserror::Error;
 
 pub static COMPONENT_NAME: &str = "camera";
