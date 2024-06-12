@@ -15,6 +15,7 @@ use {
 };
 
 pub static COMPONENT_NAME: &str = "camera";
+#[cfg(feature = "camera")]
 pub static FAKE_JPEG: &[u8] = include_bytes!("../../../etc/assets/symbol.jpg");
 
 #[derive(Error, Debug)]
@@ -72,9 +73,13 @@ impl Default for FakeCamera {
 
 impl Camera for FakeCamera {
     fn get_image(&mut self, mut buffer: BytesMut) -> Result<BytesMut, CameraError> {
+        #[cfg(feature = "camera")]
+        let image = FAKE_JPEG;
+        #[cfg(not(feature = "camera"))]
+        let image = BytesMut::new();
         let msg = camera::v1::GetImageResponse {
             mime_type: "image/jpeg".to_string(),
-            image: FAKE_JPEG.into(),
+            image: image.into(),
         };
         msg.encode(&mut buffer).unwrap();
         Ok(buffer)
