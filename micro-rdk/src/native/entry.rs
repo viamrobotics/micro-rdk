@@ -27,7 +27,7 @@ use crate::common::{
     grpc::ServerError,
     provisioning::{
         server::ProvisioningInfo,
-        storage::{RobotCredentialStorage, WifiCredentialStorage},
+        storage::{RobotConfigurationStorage, WifiCredentialStorage},
     },
 };
 
@@ -210,9 +210,9 @@ async fn serve_async_with_external_network<S>(
     max_webrtc_connection: usize,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
-    S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
-    <S as RobotCredentialStorage>::Error: Debug,
-    ServerError: From<<S as RobotCredentialStorage>::Error>,
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
+    <S as RobotConfigurationStorage>::Error: Debug,
+    ServerError: From<<S as RobotConfigurationStorage>::Error>,
     <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
     use std::time::Duration;
@@ -230,7 +230,7 @@ where
         // if so we can move ahead and confirm the robot exists
         // Since the network is not managed by us we should just check if robot
         // credentials are stored
-        if storage.has_stored_credentials() {
+        if storage.has_robot_credentials() {
             let validated = loop {
                 // When we have cached config we should still continue in the event the network
                 // fails
@@ -293,9 +293,9 @@ pub fn serve_web_with_external_network<S>(
     storage: S,
     network: impl Network,
 ) where
-    S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
-    <S as RobotCredentialStorage>::Error: Debug,
-    ServerError: From<<S as RobotCredentialStorage>::Error>,
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
+    <S as RobotConfigurationStorage>::Error: Debug,
+    ServerError: From<<S as RobotConfigurationStorage>::Error>,
     <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
     let exec = NativeExecutor::new();

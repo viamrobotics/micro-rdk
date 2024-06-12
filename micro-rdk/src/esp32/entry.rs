@@ -41,7 +41,7 @@ use esp_idf_svc::sys::{settimeofday, timeval};
 use crate::common::{
     grpc::ServerError,
     provisioning::server::ProvisioningInfo,
-    provisioning::storage::{RobotCredentialStorage, WifiCredentialStorage},
+    provisioning::storage::{RobotConfigurationStorage, WifiCredentialStorage},
 };
 
 pub async fn serve_web_inner(
@@ -251,9 +251,9 @@ async fn serve_async<S>(
     max_webrtc_connection: usize,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
-    S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
-    <S as RobotCredentialStorage>::Error: Debug,
-    ServerError: From<<S as RobotCredentialStorage>::Error>,
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
+    <S as RobotConfigurationStorage>::Error: Debug,
+    ServerError: From<<S as RobotConfigurationStorage>::Error>,
     <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
     use crate::{
@@ -271,7 +271,7 @@ where
 
     let network = loop {
         // Credentials are present let's check we can connect
-        if storage.has_stored_credentials() && storage.has_wifi_credentials() {
+        if storage.has_robot_credentials() && storage.has_wifi_credentials() {
             let mut network =
                 Esp32WifiNetwork::new(storage.get_wifi_credentials().unwrap()).await?;
             let validated = loop {
@@ -342,9 +342,9 @@ async fn serve_async_with_external_network<S>(
     max_webrtc_connection: usize,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
-    S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
-    <S as RobotCredentialStorage>::Error: Debug,
-    ServerError: From<<S as RobotCredentialStorage>::Error>,
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
+    <S as RobotConfigurationStorage>::Error: Debug,
+    ServerError: From<<S as RobotConfigurationStorage>::Error>,
     <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
     use crate::common::provisioning::server::serve_provisioning_async;
@@ -356,7 +356,7 @@ where
 
     loop {
         // Credentials are present let's check we can connect
-        if storage.has_stored_credentials() {
+        if storage.has_robot_credentials() {
             let validated = loop {
                 // should check internet when implementing Cached Config
                 if let Err(error) = network.is_connected() {
@@ -417,9 +417,9 @@ pub fn serve_web<S>(
     max_webrtc_connection: usize,
     storage: S,
 ) where
-    S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
-    <S as RobotCredentialStorage>::Error: Debug,
-    ServerError: From<<S as RobotCredentialStorage>::Error>,
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
+    <S as RobotConfigurationStorage>::Error: Debug,
+    ServerError: From<<S as RobotConfigurationStorage>::Error>,
     <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
     // set the TWDT to expire after 5 minutes
@@ -466,9 +466,9 @@ pub fn serve_web_with_external_network<S>(
     storage: S,
     network: impl Network,
 ) where
-    S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
-    <S as RobotCredentialStorage>::Error: Debug,
-    ServerError: From<<S as RobotCredentialStorage>::Error>,
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
+    <S as RobotConfigurationStorage>::Error: Debug,
+    ServerError: From<<S as RobotConfigurationStorage>::Error>,
     <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
     // set the TWDT to expire after 5 minutes

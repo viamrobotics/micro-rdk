@@ -3,7 +3,10 @@ use std::{convert::Infallible, error::Error, fmt::Debug, rc::Rc, sync::Mutex};
 
 use crate::{
     common::grpc::ServerError,
-    proto::provisioning::v1::{CloudConfig, SetNetworkCredentialsRequest},
+    proto::{
+        app::v1::RobotConfig,
+        provisioning::v1::{CloudConfig, SetNetworkCredentialsRequest},
+    },
 };
 
 #[derive(Clone, Default, Debug)]
@@ -63,17 +66,23 @@ pub trait WifiCredentialStorage {
     fn reset_wifi_credentials(&self) -> Result<(), Self::Error>;
 }
 
-pub trait RobotCredentialStorage {
+pub trait RobotConfigurationStorage {
     type Error: Error + Debug + Into<ServerError>;
-    fn has_stored_credentials(&self) -> bool;
+    fn has_robot_credentials(&self) -> bool;
     fn store_robot_credentials(&self, cfg: CloudConfig) -> Result<(), Self::Error>;
     fn get_robot_credentials(&self) -> Result<RobotCredentials, Self::Error>;
     fn reset_robot_credentials(&self) -> Result<(), Self::Error>;
+
+    fn has_robot_configuration(&self) -> bool;
+    fn store_robot_configuration(&self, cfg: RobotConfig) -> Result<(), Self::Error>;
+    fn get_robot_configuration(&self) -> Result<RobotConfig, Self::Error>;
+    fn reset_robot_configuration(&self) -> Result<(), Self::Error>;
 }
 
 #[derive(Default)]
 struct RAMCredentialStorageInner {
-    config: Option<RobotCredentials>,
+    robot_creds: Option<RobotCredentials>,
+    robot_config: Option<RobotConfig>,
     wifi_creds: Option<WifiCredentials>,
 }
 
@@ -83,7 +92,7 @@ pub struct RAMStorage(Rc<Mutex<RAMCredentialStorageInner>>);
 
 impl RAMStorage {
     pub fn new(ssid: &str, pass: &str, robot_id: &str, robot_secret: &str) -> Self {
-        let config = RobotCredentials {
+        let robot_creds = RobotCredentials {
             robot_id: robot_id.to_owned(),
             robot_secret: robot_secret.to_owned(),
         };
@@ -92,32 +101,55 @@ impl RAMStorage {
             pwd: pass.to_owned(),
         };
         Self(Rc::new(Mutex::new(RAMCredentialStorageInner {
-            config: Some(config),
+            robot_creds: Some(robot_creds),
+            robot_config: None,
             wifi_creds: Some(wifi_creds),
         })))
     }
 }
 
-impl RobotCredentialStorage for RAMStorage {
+impl RobotConfigurationStorage for RAMStorage {
     type Error = Infallible;
-    fn has_stored_credentials(&self) -> bool {
+    fn has_robot_credentials(&self) -> bool {
         let inner_ref = self.0.lock().unwrap();
-        inner_ref.config.is_some()
+        inner_ref.robot_config.is_some()
     }
     fn store_robot_credentials(&self, cfg: CloudConfig) -> Result<(), Self::Error> {
         let creds: RobotCredentials = cfg.into();
         let mut inner_ref = self.0.lock().unwrap();
-        let _ = inner_ref.config.insert(creds);
+        let _ = inner_ref.robot_creds.insert(creds);
         Ok(())
     }
     fn get_robot_credentials(&self) -> Result<RobotCredentials, Self::Error> {
         let inner_ref = self.0.lock().unwrap();
-        let cfg = inner_ref.config.clone().unwrap_or_default().clone();
+        let cfg = inner_ref.robot_creds.clone().unwrap_or_default().clone();
         Ok(cfg)
     }
     fn reset_robot_credentials(&self) -> Result<(), Self::Error> {
         let mut inner_ref = self.0.lock().unwrap();
-        let _ = inner_ref.config.take();
+        let _ = inner_ref.robot_creds.take();
+        Ok(())
+    }
+
+    fn has_robot_configuration(&self) -> bool {
+        self.0.lock().unwrap().robot_config.is_some()
+    }
+    fn store_robot_configuration(&self, cfg: RobotConfig) -> Result<(), Self::Error> {
+        let _ = self.0.lock().unwrap().robot_config.insert(cfg);
+        Ok(())
+    }
+    fn get_robot_configuration(&self) -> Result<RobotConfig, Self::Error> {
+        Ok(self
+            .0
+            .lock()
+            .unwrap()
+            .robot_config
+            .clone()
+            .unwrap_or_default()
+            .clone())
+    }
+    fn reset_robot_configuration(&self) -> Result<(), Self::Error> {
+        let _ = self.0.lock().unwrap().robot_config.take();
         Ok(())
     }
 }

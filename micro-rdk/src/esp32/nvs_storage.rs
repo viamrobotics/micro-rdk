@@ -1,17 +1,21 @@
 #![allow(dead_code)]
+use bytes::Bytes;
+use prost::{DecodeError, Message};
 use std::{cell::RefCell, rc::Rc};
-
-use esp_idf_svc::{
-    nvs::{EspCustomNvs, EspCustomNvsPartition, EspNvs},
-    sys::EspError,
-};
 use thiserror::Error;
 
-use crate::common::{
-    grpc::{GrpcError, ServerError},
-    provisioning::storage::{
-        RobotCredentialStorage, RobotCredentials, WifiCredentialStorage, WifiCredentials,
+use crate::{
+    common::{
+        grpc::{GrpcError, ServerError},
+        provisioning::storage::{
+            RobotConfigurationStorage, RobotCredentials, WifiCredentialStorage, WifiCredentials,
+        },
     },
+    esp32::esp_idf_svc::{
+        nvs::{EspCustomNvs, EspCustomNvsPartition, EspNvs},
+        sys::EspError,
+    },
+    proto::{app::v1::RobotConfig, provisioning::v1::CloudConfig},
 };
 
 #[derive(Error, Debug)]
@@ -20,6 +24,8 @@ pub enum NVSStorageError {
     EspError(#[from] EspError),
     #[error("nvs key {0} is absent")]
     NVSKeyAbsent(&'static str),
+    #[error(transparent)]
+    NVSValueDecodeError(#[from] DecodeError),
 }
 
 #[derive(Clone)]
@@ -58,9 +64,23 @@ impl NVSStorage {
         let nvs = self.nvs.borrow();
         Ok(nvs.str_len(key)?.is_some())
     }
+    fn get_blob(&self, key: &'static str) -> Result<Vec<u8>, NVSStorageError> {
+        let nvs = self.nvs.borrow_mut();
+        let len = nvs
+            .blob_len(key)?
+            .ok_or(NVSStorageError::NVSKeyAbsent(key))?;
+        let mut buf = vec![0_u8; len];
+        nvs.get_blob(key, buf.as_mut_slice())?
+            .ok_or(NVSStorageError::NVSKeyAbsent(key))?;
+        Ok(buf)
+    }
+    fn set_blob(&self, key: &str, bytes: Bytes) -> Result<(), NVSStorageError> {
+        let mut nvs = self.nvs.borrow_mut();
+        Ok(nvs.set_blob(key, bytes.as_ref())?)
+    }
+
     fn has_key(&self, key: &str) -> Result<bool, NVSStorageError> {
         let nvs = self.nvs.borrow();
-
         Ok(nvs.contains(key)?)
     }
     fn erase_key(&self, key: &str) -> Result<(), NVSStorageError> {
@@ -69,9 +89,10 @@ impl NVSStorage {
         Ok(())
     }
 }
-impl RobotCredentialStorage for NVSStorage {
+
+impl RobotConfigurationStorage for NVSStorage {
     type Error = NVSStorageError;
-    fn has_stored_credentials(&self) -> bool {
+    fn has_robot_credentials(&self) -> bool {
         self.has_str("ROBOT_SECRET").unwrap_or(false) && self.has_str("ROBOT_ID").unwrap_or(false)
     }
     fn get_robot_credentials(&self) -> Result<RobotCredentials, Self::Error> {
@@ -82,10 +103,7 @@ impl RobotCredentialStorage for NVSStorage {
             robot_id,
         })
     }
-    fn store_robot_credentials(
-        &self,
-        cfg: crate::proto::provisioning::v1::CloudConfig,
-    ) -> Result<(), Self::Error> {
+    fn store_robot_credentials(&self, cfg: CloudConfig) -> Result<(), Self::Error> {
         self.set_string("ROBOT_SECRET", &cfg.secret)?;
         self.set_string("ROBOT_ID", &cfg.id)?;
         Ok(())
@@ -93,6 +111,22 @@ impl RobotCredentialStorage for NVSStorage {
     fn reset_robot_credentials(&self) -> Result<(), Self::Error> {
         self.erase_key("ROBOT_SECRET")?;
         self.erase_key("ROBOT_ID")?;
+        Ok(())
+    }
+
+    fn has_robot_configuration(&self) -> bool {
+        self.has_str("ROBOT_CONFIG").unwrap_or(false)
+    }
+    fn store_robot_configuration(&self, cfg: RobotConfig) -> Result<(), Self::Error> {
+        self.set_blob("ROBOT_CONFIG", cfg.encode_to_vec().into())?;
+        Ok(())
+    }
+    fn get_robot_configuration(&self) -> Result<RobotConfig, Self::Error> {
+        let robot_config = self.get_blob("ROBOT_CONFIG")?;
+        RobotConfig::decode(&robot_config[..]).map_err(|e| NVSStorageError::NVSValueDecodeError(e))
+    }
+    fn reset_robot_configuration(&self) -> Result<(), Self::Error> {
+        self.erase_key("ROBOT_CONFIG")?;
         Ok(())
     }
 }
