@@ -188,7 +188,7 @@ impl LocalRobot {
                 if let Err(e) =
                     self.build_resource(cfg, board.clone(), board_key.clone(), &mut registry)
                 {
-                    log::error!("{:?}", e);
+                    log::error!("Failed to build robot resource: {:?}", e);
                     continue;
                 }
             } else {

@@ -218,9 +218,11 @@ where
                 self.generic_component_do_command(payload)
             }
             #[cfg(feature = "camera")]
-            "/viam.component.camera.v1.CameraService/GetImage" => self.camera_get_frame(payload),
+            "/viam.component.camera.v1.CameraService/GetImage" => self.camera_get_image(payload),
+
+            /*
             #[cfg(feature = "camera")]
-            "/viam.component.camera.v1.CameraService/GetImages" => self.camera_get_frames(payload),
+            "/viam.component.camera.v1.CameraService/GetImages" => self.camera_get_images(payload),
             #[cfg(feature = "camera")]
             "/viam.component.camera.v1.CameraService/GetPointCloud" => {
                 self.camera_get_point_cloud(payload)
@@ -235,6 +237,7 @@ where
             }
             #[cfg(feature = "camera")]
             "/viam.component.camera.v1.CameraService/DoCommand" => self.camera_do_command(payload),
+            */
             "/viam.component.motor.v1.MotorService/GetPosition" => self.motor_get_position(payload),
             "/viam.component.motor.v1.MotorService/GetProperties" => {
                 self.motor_get_properties(payload)
@@ -1222,7 +1225,7 @@ where
     }
 
     #[cfg(feature = "camera")]
-    fn camera_get_frame(&mut self, message: &[u8]) -> Result<(), ServerError> {
+    fn camera_get_image(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = component::camera::v1::GetImageRequest::decode(message)
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         if let Some(camera) = self.robot.lock().unwrap().get_camera_by_name(req.name) {
@@ -1237,7 +1240,7 @@ where
             let msg = camera
                 .lock()
                 .unwrap()
-                .get_frame(msg)
+                .get_image(msg)
                 .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
             let len = msg.len().to_be_bytes();
             buffer[1] = len[0];
@@ -1251,8 +1254,9 @@ where
         Err(ServerError::from(GrpcError::RpcUnavailable))
     }
 
+    /*
     #[cfg(feature = "camera")]
-    fn camera_get_frames(&mut self, _message: &[u8]) -> Result<(), ServerError> {
+    fn camera_get_images(&mut self, _message: &[u8]) -> Result<(), ServerError> {
         Err(ServerError::from(GrpcError::RpcUnimplemented))
     }
 
@@ -1274,6 +1278,7 @@ where
     fn camera_do_command(&mut self, _message: &[u8]) -> Result<(), ServerError> {
         Err(ServerError::from(GrpcError::RpcUnimplemented))
     }
+    */
 
     fn resource_names(&mut self, _unused_message: &[u8]) -> Result<(), ServerError> {
         let rr = self

@@ -2,10 +2,9 @@ use std::sync::{Arc, Mutex};
 
 #[allow(unused_imports)]
 use super::generic::DoCommand;
-use super::{
-    config::ConfigType,
-    registry::{ComponentRegistry, Dependency},
-};
+#[cfg(feature = "camera")]
+use super::registry::ComponentRegistry;
+use super::{config::ConfigType, registry::Dependency};
 use crate::proto::component::camera;
 use bytes::{Bytes, BytesMut};
 use prost::Message;
@@ -35,8 +34,49 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 }
 
 pub trait Camera {
-    fn get_frame(&mut self, buffer: BytesMut) -> Result<BytesMut, CameraError>;
-    fn get_frames(&mut self, _buffer: BytesMut) -> Result<BytesMut, CameraError> {
+    fn get_image(&mut self, buffer: BytesMut) -> Result<BytesMut, CameraError>;
+    fn get_images(&mut self, _buffer: BytesMut) -> Result<BytesMut, CameraError>;
+    fn get_point_cloud(&mut self, _buffer: BytesMut) -> Result<BytesMut, CameraError>;
+    fn get_properties(&mut self, _buffer: BytesMut) -> Result<BytesMut, CameraError>;
+    fn render_frame(&mut self, _buffer: BytesMut) -> Result<BytesMut, CameraError>;
+    fn do_command(&mut self, _buffer: BytesMut) -> Result<BytesMut, CameraError>;
+}
+
+pub(crate) type CameraType = Arc<Mutex<dyn Camera>>;
+
+#[derive(DoCommand)]
+pub struct FakeCamera {}
+
+impl FakeCamera {
+    pub fn new() -> Self {
+        FakeCamera {}
+    }
+    pub(crate) fn from_config(
+        _cfg: ConfigType,
+        _: Vec<Dependency>,
+    ) -> Result<CameraType, CameraError> {
+        Ok(Arc::new(Mutex::new(FakeCamera::new())))
+    }
+}
+
+impl Default for FakeCamera {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Camera for FakeCamera {
+    fn get_image(&mut self, mut buffer: BytesMut) -> Result<BytesMut, CameraError> {
+        let msg = camera::v1::GetImageResponse {
+            mime_type: "image/jpeg".to_string(),
+            image: Bytes::new(),
+        };
+
+        msg.encode(&mut buffer).unwrap();
+
+        Ok(buffer)
+    }
+    fn get_images(&mut self, _buffer: BytesMut) -> Result<BytesMut, CameraError> {
         unimplemented!();
     }
     fn get_point_cloud(&mut self, _buffer: BytesMut) -> Result<BytesMut, CameraError> {
@@ -53,58 +93,24 @@ pub trait Camera {
     }
 }
 
-pub(crate) type CameraType = Arc<Mutex<dyn Camera>>;
-
-#[derive(DoCommand)]
-pub struct FakeCamera {}
-
-impl FakeCamera {
-    pub fn new() -> Self {
-        FakeCamera {}
-    }
-    pub(crate) fn from_config(
-        _cfg: ConfigType,
-        _: Vec<Dependency>,
-    ) -> Result<CameraType, CameraError> {
-        log::info!("making new camera");
-        Ok(Arc::new(Mutex::new(FakeCamera::new())))
-    }
-}
-
-impl Camera for FakeCamera {
-    fn get_frame(&mut self, mut buffer: BytesMut) -> Result<BytesMut, CameraError> {
-        let msg = camera::v1::GetImageResponse {
-            mime_type: "image/jpeg".to_string(),
-            image: Bytes::new(),
-        };
-
-        msg.encode(&mut buffer).unwrap();
-
-        Ok(buffer)
-    }
-}
-
-impl Default for FakeCamera {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl<L> Camera for Mutex<L>
 where
     L: ?Sized + Camera,
 {
-    fn get_frame(&mut self, buffer: BytesMut) -> Result<BytesMut, CameraError> {
-        self.get_mut().unwrap().get_frame(buffer)
+    fn get_image(&mut self, buffer: BytesMut) -> Result<BytesMut, CameraError> {
+        self.get_mut().unwrap().get_image(buffer)
     }
-    fn get_frames(&mut self, buffer: BytesMut) -> Result<BytesMut, CameraError> {
-        self.get_mut().unwrap().get_frames(buffer)
+    fn get_images(&mut self, buffer: BytesMut) -> Result<BytesMut, CameraError> {
+        self.get_mut().unwrap().get_images(buffer)
     }
     fn get_point_cloud(&mut self, buffer: BytesMut) -> Result<BytesMut, CameraError> {
         self.get_mut().unwrap().get_point_cloud(buffer)
     }
     fn get_properties(&mut self, buffer: BytesMut) -> Result<BytesMut, CameraError> {
         self.get_mut().unwrap().get_properties(buffer)
+    }
+    fn render_frame(&mut self, buffer: BytesMut) -> Result<BytesMut, CameraError> {
+        self.get_mut().unwrap().render_frame(buffer)
     }
     fn do_command(&mut self, buffer: BytesMut) -> Result<BytesMut, CameraError> {
         self.get_mut().unwrap().do_command(buffer)
