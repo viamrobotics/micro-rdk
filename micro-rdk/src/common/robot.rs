@@ -182,20 +182,23 @@ impl LocalRobot {
         let mut iter = (0..resource_to_build).cycle();
         while resource_to_build > 0 && num_iteration < max_iteration {
             num_iteration += 1;
-            let cfg = &mut components[iter.next().unwrap()];
-            if let Some(cfg) = cfg.as_ref() {
+            let cfg_outer = &mut components[iter.next().unwrap()];
+            if let Some(cfg) = cfg_outer.as_ref() {
                 // capture the error and make it available to LocalRobot so it can be pushed in the logs?
                 if let Err(e) =
                     self.build_resource(cfg, board.clone(), board_key.clone(), &mut registry)
                 {
-                    log::error!("Failed to build robot resource: {:?}", e);
+                    log::error!(
+                        "Failed to build resource `{}` of type `{}`: {:?}",
+                        cfg.name,
+                        cfg.r#type,
+                        e
+                    );
                     continue;
                 }
-            } else {
-                continue;
+                let _ = cfg_outer.take();
+                resource_to_build -= 1;
             }
-            let _ = cfg.take();
-            resource_to_build -= 1;
         }
         if resource_to_build > 0 {
             log::error!(
