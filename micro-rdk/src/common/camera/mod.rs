@@ -42,7 +42,6 @@ pub trait Camera: Status + DoCommand {
         Err(CameraError::CameraMethodUnimplemented("get_point_cloud"))
     }
     /// Returns the camera intrinsic parameters and camera distortion parameters
-    /// from a camera of the underlying robot, if available
     fn get_properties(&mut self, _buffer: BytesMut) -> Result<BytesMut, CameraError> {
         Err(CameraError::CameraMethodUnimplemented("get_properties"))
     }
