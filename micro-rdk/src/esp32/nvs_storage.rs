@@ -45,6 +45,7 @@ impl NVSStorage {
             nvs: Rc::new(nvs.into()),
         })
     }
+
     fn get_string(&self, key: &'static str) -> Result<String, NVSStorageError> {
         let nvs = self.nvs.borrow_mut();
         let len = nvs
@@ -56,14 +57,17 @@ impl NVSStorage {
             .ok_or(NVSStorageError::NVSKeyAbsent(key))?
             .to_owned())
     }
+
     fn set_string(&self, key: &str, string: &str) -> Result<(), NVSStorageError> {
         let mut nvs = self.nvs.borrow_mut();
         Ok(nvs.set_str(key, string)?)
     }
-    fn has_str(&self, key: &str) -> Result<bool, NVSStorageError> {
+
+    fn has_string(&self, key: &str) -> Result<bool, NVSStorageError> {
         let nvs = self.nvs.borrow();
         Ok(nvs.str_len(key)?.is_some())
     }
+
     fn get_blob(&self, key: &'static str) -> Result<Vec<u8>, NVSStorageError> {
         let nvs = self.nvs.borrow_mut();
         let len = nvs
@@ -74,15 +78,22 @@ impl NVSStorage {
             .ok_or(NVSStorageError::NVSKeyAbsent(key))?;
         Ok(buf)
     }
+
     fn set_blob(&self, key: &str, bytes: Bytes) -> Result<(), NVSStorageError> {
         let mut nvs = self.nvs.borrow_mut();
         Ok(nvs.set_blob(key, bytes.as_ref())?)
+    }
+
+    fn has_blob(&self, key: &str) -> Result<bool, NVSStorageError> {
+        let nvs = self.nvs.borrow();
+        Ok(nvs.blob_len(key)?.is_some())
     }
 
     fn has_key(&self, key: &str) -> Result<bool, NVSStorageError> {
         let nvs = self.nvs.borrow();
         Ok(nvs.contains(key)?)
     }
+
     fn erase_key(&self, key: &str) -> Result<(), NVSStorageError> {
         let mut nvs = self.nvs.borrow_mut();
         let _ = nvs.remove(key)?;
@@ -90,43 +101,56 @@ impl NVSStorage {
     }
 }
 
+const NVS_ROBOT_SECRET_KEY: &'static str = "ROBOT_SECRET";
+const NVS_ROBOT_ID_KEY: &'static str = "ROBOT_ID";
+const NVS_ROBOT_CONFIG_KEY: &'static str = "ROBOT_CONFIG";
+const NVS_WIFI_SSID_KEY: &'static str = "WIFI_SSID";
+const NVS_WIFI_PASSWORD_KEY: &'static str = "WIFI_PASSWORD";
+
 impl RobotConfigurationStorage for NVSStorage {
     type Error = NVSStorageError;
     fn has_robot_credentials(&self) -> bool {
-        self.has_str("ROBOT_SECRET").unwrap_or(false) && self.has_str("ROBOT_ID").unwrap_or(false)
+        self.has_string(NVS_ROBOT_SECRET_KEY).unwrap_or(false)
+            && self.has_string(NVS_ROBOT_ID_KEY).unwrap_or(false)
     }
+
     fn get_robot_credentials(&self) -> Result<RobotCredentials, Self::Error> {
-        let robot_secret = self.get_string("ROBOT_SECRET")?;
-        let robot_id = self.get_string("ROBOT_ID")?;
+        let robot_secret = self.get_string(NVS_ROBOT_SECRET_KEY)?;
+        let robot_id = self.get_string(NVS_ROBOT_ID_KEY)?;
         Ok(RobotCredentials {
             robot_secret,
             robot_id,
         })
     }
+
     fn store_robot_credentials(&self, cfg: CloudConfig) -> Result<(), Self::Error> {
-        self.set_string("ROBOT_SECRET", &cfg.secret)?;
-        self.set_string("ROBOT_ID", &cfg.id)?;
+        self.set_string(NVS_ROBOT_SECRET_KEY, &cfg.secret)?;
+        self.set_string(NVS_ROBOT_ID_KEY, &cfg.id)?;
         Ok(())
     }
+
     fn reset_robot_credentials(&self) -> Result<(), Self::Error> {
-        self.erase_key("ROBOT_SECRET")?;
-        self.erase_key("ROBOT_ID")?;
+        self.erase_key(NVS_ROBOT_SECRET_KEY)?;
+        self.erase_key(NVS_ROBOT_ID_KEY)?;
         Ok(())
     }
 
     fn has_robot_configuration(&self) -> bool {
-        self.has_str("ROBOT_CONFIG").unwrap_or(false)
+        self.has_string(NVS_ROBOT_CONFIG_KEY).unwrap_or(false)
     }
+
     fn store_robot_configuration(&self, cfg: RobotConfig) -> Result<(), Self::Error> {
-        self.set_blob("ROBOT_CONFIG", cfg.encode_to_vec().into())?;
+        self.set_blob(NVS_ROBOT_CONFIG_KEY, cfg.encode_to_vec().into())?;
         Ok(())
     }
+
     fn get_robot_configuration(&self) -> Result<RobotConfig, Self::Error> {
-        let robot_config = self.get_blob("ROBOT_CONFIG")?;
+        let robot_config = self.get_blob(NVS_ROBOT_CONFIG_KEY)?;
         RobotConfig::decode(&robot_config[..]).map_err(|e| NVSStorageError::NVSValueDecodeError(e))
     }
+
     fn reset_robot_configuration(&self) -> Result<(), Self::Error> {
-        self.erase_key("ROBOT_CONFIG")?;
+        self.erase_key(NVS_ROBOT_CONFIG_KEY)?;
         Ok(())
     }
 }
@@ -134,21 +158,25 @@ impl RobotConfigurationStorage for NVSStorage {
 impl WifiCredentialStorage for NVSStorage {
     type Error = NVSStorageError;
     fn has_wifi_credentials(&self) -> bool {
-        self.has_str("WIFI_SSID").unwrap_or(false) && self.has_str("WIFI_PASSWORD").unwrap_or(false)
+        self.has_string(NVS_WIFI_SSID_KEY).unwrap_or(false)
+            && self.has_string(NVS_WIFI_PASSWORD_KEY).unwrap_or(false)
     }
+
     fn get_wifi_credentials(&self) -> Result<WifiCredentials, Self::Error> {
-        let ssid = self.get_string("WIFI_SSID")?;
-        let pwd = self.get_string("WIFI_PASSWORD")?;
+        let ssid = self.get_string(NVS_WIFI_SSID_KEY)?;
+        let pwd = self.get_string(NVS_WIFI_PASSWORD_KEY)?;
         Ok(WifiCredentials { ssid, pwd })
     }
+
     fn store_wifi_credentials(&self, creds: WifiCredentials) -> Result<(), Self::Error> {
-        self.set_string("WIFI_SSID", &creds.ssid)?;
-        self.set_string("WIFI_PASSWORD", &creds.pwd)?;
+        self.set_string(NVS_WIFI_SSID_KEY, &creds.ssid)?;
+        self.set_string(NVS_WIFI_PASSWORD_KEY, &creds.pwd)?;
         Ok(())
     }
+
     fn reset_wifi_credentials(&self) -> Result<(), Self::Error> {
-        self.erase_key("WIFI_SSID")?;
-        self.erase_key("WIFI_PASSWORD")?;
+        self.erase_key(NVS_WIFI_SSID_KEY)?;
+        self.erase_key(NVS_WIFI_PASSWORD_KEY)?;
         Ok(())
     }
 }
