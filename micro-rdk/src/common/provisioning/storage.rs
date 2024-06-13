@@ -112,7 +112,7 @@ impl RobotConfigurationStorage for RAMStorage {
     type Error = Infallible;
     fn has_robot_credentials(&self) -> bool {
         let inner_ref = self.0.lock().unwrap();
-        inner_ref.robot_config.is_some()
+        inner_ref.robot_creds.is_some()
     }
     fn store_robot_credentials(&self, cfg: CloudConfig) -> Result<(), Self::Error> {
         let creds: RobotCredentials = cfg.into();

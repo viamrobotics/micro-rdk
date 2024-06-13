@@ -136,7 +136,7 @@ impl RobotConfigurationStorage for NVSStorage {
     }
 
     fn has_robot_configuration(&self) -> bool {
-        self.has_string(NVS_ROBOT_CONFIG_KEY).unwrap_or(false)
+        self.has_blob(NVS_ROBOT_CONFIG_KEY).unwrap_or(false)
     }
 
     fn store_robot_configuration(&self, cfg: RobotConfig) -> Result<(), Self::Error> {
