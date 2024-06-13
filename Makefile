@@ -37,7 +37,7 @@ build-native:
 	cargo build -p micro-rdk-server --bin micro-rdk-server-native
 
 native:
-	MICRO_RDK_WIFI_PASSWORD=0 cargo run -p micro-rdk-server --bin micro-rdk-server-native
+	cargo run -p micro-rdk-server --bin micro-rdk-server-native
 
 build-qemu:
 	cargo +esp build -p micro-rdk-server --bin micro-rdk-server-esp32  --features qemu --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort && cargo espflash save-image --package micro-rdk-server --features qemu --merge --chip esp32 target/xtensa-esp32-espidf/debug/debug.bin -T micro-rdk-server/esp32/partitions.csv -s 4mb  --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
