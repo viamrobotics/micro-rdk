@@ -1209,10 +1209,9 @@ where
 
     #[cfg(feature = "camera")]
     fn camera_get_image(&mut self, message: &[u8]) -> Result<(), ServerError> {
-        // while other rpcs make use of the grpc buffer after-the-fact with copy-semantics,
-        // we split the grpc buffer to embed the image message response, retroactively adding the
-        // header info. This allows us to write the image direct to the response buffer instead of
-        // needing a second buffer.
+        // TODO: Modify `get_frame` to return a data structure that can be passed into
+        // `encode_message`, rather than re-implementing `encode_message` here. See
+        // https://viam.atlassian.net/browse/RSDK-824
         let req = component::camera::v1::GetImageRequest::decode(message)
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let camera = self
