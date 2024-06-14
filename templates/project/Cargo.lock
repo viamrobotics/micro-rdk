@@ -386,26 +386,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "const-gen"
-version = "1.6.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fbfc446f8d46196335995e72ee07271b558d0fab5152edc8b5c3d2a44da30e87"
-dependencies = [
- "const-gen-derive",
-]
-
-[[package]]
-name = "const-gen-derive"
-version = "1.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ab3a2f53a0577d76789175307af9b6ab5ed3c119f3ce4e0646f6ba5ae6ff100"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "const_format"
 version = "0.2.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1409,7 +1389,7 @@ checksum = "523dc4f511e55ab87b694dc30d0f820d60906ef06413f93d4d7a1385599cc149"
 [[package]]
 name = "micro-rdk"
 version = "0.2.0"
-source = "git+https://github.com/viamrobotics/micro-rdk.git?rev=4f0814a#4f0814a81309a8ec9067c03b98af928db6e5e692"
+source = "git+https://github.com/viamrobotics/micro-rdk.git?rev=ad31cf1#ad31cf1ffed66e18f94567484c7d32b88660b7fa"
 dependencies = [
  "async-channel",
  "async-executor",
@@ -1422,7 +1402,6 @@ dependencies = [
  "bytes",
  "chrono",
  "chrono-tz",
- "const-gen",
  "dns-message-parser",
  "either",
  "embedded-hal 0.2.7",
@@ -1459,7 +1438,7 @@ dependencies = [
 [[package]]
 name = "micro-rdk-macros"
 version = "0.2.0"
-source = "git+https://github.com/viamrobotics/micro-rdk.git?rev=4f0814a#4f0814a81309a8ec9067c03b98af928db6e5e692"
+source = "git+https://github.com/viamrobotics/micro-rdk.git?rev=ad31cf1#ad31cf1ffed66e18f94567484c7d32b88660b7fa"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
