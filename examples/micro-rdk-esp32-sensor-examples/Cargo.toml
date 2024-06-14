@@ -7,7 +7,7 @@ resolver = "2"
 
 [dependencies]
 log = "0.4"
-micro-rdk = {version = "0.1.9-rc3", git = "https://github.com/viamrobotics/micro-rdk.git", features = ["esp32"], rev = "56615f4"}
+micro-rdk = {version = "0.2.0", git = "https://github.com/viamrobotics/micro-rdk.git", features = ["esp32"], rev = "56615f4"}
 
 [package.metadata.com.viam]
 module = true

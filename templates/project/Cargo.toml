@@ -1,6 +1,6 @@
 [package]
 name = "{{project-name}}"
-version = "0.1.9-rc3"
+version = "0.2.0"
 edition = "2021"
 authors = ["{{authors}}"]
 resolver = "2"
@@ -20,7 +20,7 @@ embedded-hal = { version = "0.2.7", features = ["unproven"]}
 log = "0.4"
 async-channel = "2"
 futures-lite = "1"
-micro-rdk = {version = "0.1.9-rc3", git = "https://github.com/viamrobotics/micro-rdk.git", features = ["esp32", "binstart","provisioning"], rev = "4f0814a" }
+micro-rdk = {version = "0.2.0", git = "https://github.com/viamrobotics/micro-rdk.git", features = ["esp32", "binstart","provisioning"], rev = "4f0814a" }
 
 [build-dependencies]
 cargo_metadata = "0.18"
