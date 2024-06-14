@@ -55,7 +55,7 @@ impl ResourceKey {
         let model_str = match model {
             "motor" => crate::common::motor::COMPONENT_NAME,
             "board" => crate::common::board::COMPONENT_NAME,
-            #[cfg(feature = "camera")]
+            #[cfg(all(feature = "camera", feature = "native"))]
             "camera" => crate::common::camera::COMPONENT_NAME,
             "encoder" => crate::common::encoder::COMPONENT_NAME,
             "movement_sensor" => crate::common::movement_sensor::COMPONENT_NAME,
