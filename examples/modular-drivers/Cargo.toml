@@ -1,15 +1,16 @@
 [package]
 name = "modular-drivers"
-resolver = "2"
-version = "0.2.0"
-edition = "2021"
-authors = ["Viam, inc. <contact@viam.com>"]
-rust-version = "1.75"
-license = "AGPL-3.0"
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
 
 [dependencies]
-log = "0.4"
-micro-rdk = {version = "0.2.0", git = "https://github.com/viamrobotics/micro-rdk.git", features = ["esp32"], rev = "ad31cf1"}
+log.workspace = true
+micro-rdk = { workspace = true, features = ["esp32"] }
 
 [package.metadata.com.viam]
 module = true
