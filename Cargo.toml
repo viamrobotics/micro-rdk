@@ -6,6 +6,7 @@ members = [
   "micro-rdk-installer",
   "micro-rdk-macros",
   "micro-rdk-server",
+  "examples",
 ]
 
 default-members = [

@@ -1,10 +1,9 @@
 [package]
-name = "micro-rdk-esp32-sensor-examples"
+name = "modular-drivers"
 resolver = "2"
 version = "0.2.0"
 edition = "2021"
 authors = ["Viam, inc. <contact@viam.com>"]
-resolver = "2"
 rust-version = "1.75"
 license = "AGPL-3.0"
 
