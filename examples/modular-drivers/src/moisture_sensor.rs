@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap},
+    collections::HashMap,
     sync::{Arc, Mutex},
 };
 
@@ -8,9 +8,10 @@ use micro_rdk::{
         analog::AnalogReaderType,
         board::Board,
         config::ConfigType,
-        registry::{ComponentRegistry, Dependency, RegistryError, get_board_from_dependencies },
+        registry::{get_board_from_dependencies, ComponentRegistry, Dependency, RegistryError},
         sensor::{
-            GenericReadingsResult, Readings, Sensor, SensorResult, SensorT, TypedReadingsResult, SensorError, SensorType
+            GenericReadingsResult, Readings, Sensor, SensorError, SensorResult, SensorT,
+            SensorType, TypedReadingsResult,
         },
         status::{Status, StatusError},
     },
@@ -20,12 +21,11 @@ use micro_rdk::{
 pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {
     registry.register_sensor("moisture_sensor", &MoistureSensor::from_config)?;
     Ok(())
-
 }
 #[derive(DoCommand)]
 
-pub struct MoistureSensor{
-    reader : AnalogReaderType<u16>
+pub struct MoistureSensor {
+    reader: AnalogReaderType<u16>,
 }
 
 impl MoistureSensor {

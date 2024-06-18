@@ -8,8 +8,8 @@ use micro_rdk::{
         config::ConfigType,
         registry::{ComponentRegistry, Dependency, RegistryError},
         sensor::{
-            GenericReadingsResult, Readings, Sensor, SensorResult, SensorT, SensorType,
-            TypedReadingsResult, SensorError
+            GenericReadingsResult, Readings, Sensor, SensorError, SensorResult, SensorT,
+            SensorType, TypedReadingsResult,
         },
         status::{Status, StatusError},
     },
@@ -27,7 +27,10 @@ pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryE
 }
 
 impl FreeHeapSensor {
-    pub fn from_config(_cfg: ConfigType, _deps: Vec<Dependency>) -> Result<SensorType, SensorError> {
+    pub fn from_config(
+        _cfg: ConfigType,
+        _deps: Vec<Dependency>,
+    ) -> Result<SensorType, SensorError> {
         log::debug!("free-heap sensor instantiated from config");
         Ok(Arc::new(Mutex::new(Self {})))
     }
@@ -56,7 +59,7 @@ impl SensorT<f64> for FreeHeapSensor {
 }
 
 impl Status for FreeHeapSensor {
-    fn get_status(&self) -> Result<Option<micro_rdk::google::protobuf::Struct>, StatusError>  {
+    fn get_status(&self) -> Result<Option<micro_rdk::google::protobuf::Struct>, StatusError> {
         log::debug!("free-heap sensor - get status called");
         Ok(Some(micro_rdk::google::protobuf::Struct {
             fields: HashMap::new(),

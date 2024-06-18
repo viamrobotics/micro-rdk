@@ -6,7 +6,7 @@ members = [
   "micro-rdk-installer",
   "micro-rdk-macros",
   "micro-rdk-server",
-  "examples",
+  "examples/modular-drivers",
 ]
 
 default-members = [
@@ -23,7 +23,6 @@ license = "AGPL-3.0"
 repository = "https://github.com/viamrobotics/micro-rdk"
 version = "0.2.0"
 rust-version = "1.75"
-
 
 [profile.release]
 opt-level = "s"

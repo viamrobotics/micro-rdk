@@ -6,12 +6,12 @@ use std::{
 use micro_rdk::DoCommand;
 
 use micro_rdk::common::{
-    board::{BoardType},
-    config::{ConfigType},
-    motor::{Motor, MotorSupportedProperties, MotorType, MotorError },
-    registry::{self, ComponentRegistry, Dependency, RegistryError, },
-    status::{Status, StatusError}, 
-    actuator::{Actuator, ActuatorError}
+    actuator::{Actuator, ActuatorError},
+    board::BoardType,
+    config::ConfigType,
+    motor::{Motor, MotorError, MotorSupportedProperties, MotorType},
+    registry::{self, ComponentRegistry, Dependency, RegistryError},
+    status::{Status, StatusError},
 };
 
 /// This driver is for a water pump and optional led
@@ -32,7 +32,9 @@ impl WaterPump {
     pub fn from_config(cfg: ConfigType, deps: Vec<Dependency>) -> Result<MotorType, MotorError> {
         let board_handle = registry::get_board_from_dependencies(deps)
             .expect("failed to get board from dependencies");
-        let pin = cfg.get_attribute::<i32>("pin").map_err(|_| MotorError::ConfigError("failed to get pin from board"))?;
+        let pin = cfg
+            .get_attribute::<i32>("pin")
+            .map_err(|_| MotorError::ConfigError("failed to get pin from board"))?;
         let led = cfg.get_attribute::<i32>("led").ok();
         Ok(Arc::new(Mutex::new(Self {
             board_handle,
@@ -95,10 +97,11 @@ impl Actuator for WaterPump {
         self.board_handle
             .lock()
             .unwrap()
-            .get_gpio_level(self.pin).map_err(ActuatorError::BoardError)
+            .get_gpio_level(self.pin)
+            .map_err(ActuatorError::BoardError)
     }
     fn stop(&mut self) -> Result<(), ActuatorError> {
-        self.set_power(0.0).map_err(|_|ActuatorError::CouldntStop)
+        self.set_power(0.0).map_err(|_| ActuatorError::CouldntStop)
     }
 }
 

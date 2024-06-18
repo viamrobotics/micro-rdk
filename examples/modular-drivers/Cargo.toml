@@ -1,12 +1,15 @@
 [package]
-name = "modular-drivers"
+name = "micro-rdk-modular-driver-example"
 authors.workspace = true
 description.workspace = true
 edition.workspace = true
-license.workspace = true
+license = "Apache-2.0"
 repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
+
+[features]
+esp32 = []
 
 [dependencies]
 log.workspace = true
