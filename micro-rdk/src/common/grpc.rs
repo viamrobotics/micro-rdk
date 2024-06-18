@@ -35,7 +35,7 @@ use thiserror::Error;
 use super::webrtc::grpc::WebRtcGrpcService;
 
 #[cfg(feature = "camera")]
-static GRPC_BUFFER_SIZE: usize = 10240;
+static GRPC_BUFFER_SIZE: usize = 1024 * 1024; // 1MB
 #[cfg(not(feature = "camera"))]
 static GRPC_BUFFER_SIZE: usize = 4096;
 
@@ -1214,27 +1214,31 @@ where
         // https://viam.atlassian.net/browse/RSDK-824
         let req = component::camera::v1::GetImageRequest::decode(message)
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+
         let camera = self
             .robot
             .lock()
             .unwrap()
             .get_camera_by_name(req.name)
             .ok_or(GrpcError::RpcUnavailable)?;
-        let mut buffer = RefCell::borrow_mut(&self.buffer).split_off(0);
-        buffer.put_u8(0);
-        buffer.put_u32(0.try_into().unwrap());
-        let msg = buffer.split_off(5);
-        let msg = camera
+
+        let img_buf = RefCell::borrow_mut(&self.buffer).split_off(5);
+
+        let (msg_buf, msg_len) = camera
             .lock()
             .unwrap()
-            .get_image(msg)
+            .get_image(img_buf)
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
-        let len = msg.len().to_be_bytes();
-        buffer[1] = len[0];
-        buffer[2] = len[1];
-        buffer[3] = len[2];
-        buffer[4] = len[3];
-        buffer.unsplit(msg);
+
+        let mut buffer = RefCell::borrow_mut(&self.buffer).split_off(0);
+
+        // NOTE: can't use buffer.capacity() here, would return 5, may be due to multiple RefCells
+        if 5 + msg_len > GRPC_BUFFER_SIZE.try_into().unwrap() {
+            return Err(GrpcError::RpcResourceExhausted.into());
+        }
+        buffer.put_u8(0);
+        buffer.put_u32(msg_len);
+        buffer.unsplit(msg_buf);
         self.response.put_data(buffer.freeze());
         Ok(())
     }

@@ -32,7 +32,7 @@ pub enum CameraError {
 pub trait Camera: Status + DoCommand {
     /// returns an image from a camera of the underlying robot. A specific MIME type
     /// can be requested but may not necessarily be the same one returned
-    fn get_image(&mut self, _buffer: BytesMut) -> Result<BytesMut, CameraError> {
+    fn get_image(&mut self, _buffer: BytesMut) -> Result<(BytesMut, u32), CameraError> {
         Err(CameraError::CameraMethodUnimplemented("get_image"))
     }
     fn get_images(&mut self, _buffer: BytesMut) -> Result<BytesMut, CameraError> {
@@ -55,7 +55,7 @@ impl<L> Camera for Mutex<L>
 where
     L: ?Sized + Camera,
 {
-    fn get_image(&mut self, buffer: BytesMut) -> Result<BytesMut, CameraError> {
+    fn get_image(&mut self, buffer: BytesMut) -> Result<(BytesMut, u32), CameraError> {
         self.get_mut().unwrap().get_image(buffer)
     }
     fn get_images(&mut self, buffer: BytesMut) -> Result<BytesMut, CameraError> {
