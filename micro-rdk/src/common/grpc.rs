@@ -1233,7 +1233,11 @@ where
         let mut buffer = RefCell::borrow_mut(&self.buffer).split_off(0);
 
         // NOTE: can't use buffer.capacity() here, would return 5, may be due to multiple RefCells
-        if 5 + msg_len > GRPC_BUFFER_SIZE.try_into().unwrap() {
+        if 5 + msg_len
+            > GRPC_BUFFER_SIZE
+                .try_into()
+                .map_err(|_| GrpcError::RpcInternal)?
+        {
             return Err(GrpcError::RpcResourceExhausted.into());
         }
         buffer.put_u8(0);
