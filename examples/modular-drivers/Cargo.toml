@@ -1,16 +1,19 @@
 [package]
-name = "micro-rdk-esp32-sensor-examples"
-resolver = "2"
-version = "0.2.0"
-edition = "2021"
-authors = ["Viam, inc. <contact@viam.com>"]
-resolver = "2"
-rust-version = "1.75"
-license = "AGPL-3.0"
+name = "micro-rdk-modular-driver-example"
+authors.workspace = true
+description = "Modular driver examples for Micro-RDK"
+edition.workspace = true
+license = "Apache-2.0"
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[features]
+esp32 = ['micro-rdk/esp32']
 
 [dependencies]
-log = "0.4"
-micro-rdk = {version = "0.2.0", git = "https://github.com/viamrobotics/micro-rdk.git", features = ["esp32"], rev = "ad31cf1"}
+log.workspace = true
+micro-rdk = { workspace = true }
 
 [package.metadata.com.viam]
 module = true
