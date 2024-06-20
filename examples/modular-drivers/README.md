@@ -135,7 +135,7 @@ for each sensor:
 - `FreeHeapSensor`: https://github.com/viamrobotics/micro-rdk/blob/main/examples/modular-drivers/src/free_heap_sensor.rs#L23-L27
 - `WifiRSSISensor`: https://github.com/viamrobotics/micro-rdk/blob/main/examples/modular-drivers/src/wifi_rssi_sensor.rs#L23-L27
 
-Finally, the top level `register_models` entry point is updated to delegate to the `register_model` function for both sensors:
+Finally, the top level `register_models` entry point is updated to delegate to the `register_models` function for both sensors:
 
 https://github.com/viamrobotics/micro-rdk/blob/main/examples/modular-drivers/src/lib.rs#L10-L18
 
