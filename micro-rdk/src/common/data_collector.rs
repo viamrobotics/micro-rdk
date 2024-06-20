@@ -69,7 +69,7 @@ pub enum CollectionMethod {
 
 impl Display for CollectionMethod {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // NOTE: Future added methods need to follow the same upper camel case 
+        // NOTE: Future added methods need to follow the same upper camel case
         // convention to not break downstream webhooks / database triggers
         std::fmt::Display::fmt(
             match self {
