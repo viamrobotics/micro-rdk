@@ -47,9 +47,9 @@ by this template will be automatically invoked at startup.
 
 ## Tutorial
 
-Please see the [Modular Drivers
-Example](https://github.com/viamrobotics/micro-rdk/blob/main/examples/modular-drivers)
-to see an example Micro-RDK module project. The
+Please see the [Modular Driver
+Examples](https://github.com/viamrobotics/micro-rdk/blob/main/examples/modular-drivers)
+to see some example Micro-RDK module projects. The
 [README](https://github.com/viamrobotics/micro-rdk/blob/main/examples/modular-drivers/README.md)
 provides a walkthrough of how to implement a module for the Micro-RDK.
 
