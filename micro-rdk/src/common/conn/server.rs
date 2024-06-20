@@ -452,9 +452,7 @@ where
                     futures_lite::future::Pending<Result<AppSignaling, AppClientError>>,
                 >::default())
             };
-
             let listener = self.http_listener.next_conn();
-
             log::info!("waiting for connection");
 
             let connection = futures_lite::future::or(
