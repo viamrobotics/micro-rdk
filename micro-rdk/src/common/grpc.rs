@@ -1222,18 +1222,17 @@ where
             .get_camera_by_name(req.name)
             .ok_or(GrpcError::RpcUnavailable)?;
 
-        let img_buf = RefCell::borrow_mut(&self.buffer).split_off(5);
+        let mut buffer = RefCell::borrow_mut(&self.buffer).split_off(0);
+        let msg_buf = buffer.split_off(5);
 
-        let (msg_buf, msg_len) = camera
+        let msg_buf = camera
             .lock()
             .unwrap()
-            .get_image(img_buf)
+            .get_image(msg_buf)
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
 
-        let mut buffer = RefCell::borrow_mut(&self.buffer).split_off(0);
-
         // NOTE: can't use buffer.capacity() here, would return 5, may be due to multiple RefCells
-        if 5 + msg_len
+        if 5 + msg_buf.len()
             > GRPC_BUFFER_SIZE
                 .try_into()
                 .map_err(|_| GrpcError::RpcInternal)?
@@ -1241,7 +1240,7 @@ where
             return Err(GrpcError::RpcResourceExhausted.into());
         }
         buffer.put_u8(0);
-        buffer.put_u32(msg_len);
+        buffer.put_u32(msg_buf.len() as u32);
         buffer.unsplit(msg_buf);
         self.response.put_data(buffer.freeze());
         Ok(())

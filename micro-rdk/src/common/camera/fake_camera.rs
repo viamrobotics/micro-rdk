@@ -48,19 +48,14 @@ impl Default for FakeCamera {
 }
 
 impl Camera for FakeCamera {
-    fn get_image(&mut self, mut buffer: BytesMut) -> Result<(BytesMut, u32), CameraError> {
+    fn get_image(&mut self, mut buffer: BytesMut) -> Result<BytesMut, CameraError> {
         let msg = GetImageResponse {
             mime_type: "image/jpeg".to_string(),
             image: FAKE_JPEG.into(),
         };
         msg.encode(&mut buffer)
             .map_err(|_| CameraError::CameraGenericError("failed to encode GetImageResponse"))?;
-        Ok((
-            buffer,
-            msg.encoded_len().try_into().map_err(|_| {
-                CameraError::CameraGenericError("failed to converst encoded message length")
-            })?,
-        ))
+        Ok(buffer)
     }
 }
 
