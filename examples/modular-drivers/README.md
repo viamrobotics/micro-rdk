@@ -129,7 +129,7 @@ A subsequent commit adds definitions of the
 and
 [WifiRSSISensor](https://github.com/viamrobotics/micro-rdk/blob/main/examples/modular-drivers/src/wifi_rssi_sensor.rs)
 
-That commit also introduces a crate-local `register_model` function
+That commit also introduces a crate-local `register_models` function
 for each sensor:
 
 - `FreeHeapSensor`: https://github.com/viamrobotics/micro-rdk/blob/main/examples/modular-drivers/src/free_heap_sensor.rs#L23-L27
@@ -147,4 +147,4 @@ section of the project's `Cargo.toml` file, as noted in the
 ## Related Reading
 
 Please see the [moisture sensor](https://github.com/viamrobotics/micro-rdk/blob/main/examples/modular-drivers/src/moisture_sensor.rs) and [water pump](https://github.com/viamrobotics/micro-rdk/blob/main/examples/modular-drivers/src/water_pump.rs) for
-another example of modular Micro-RDK sensors.
+more examples of modular Micro-RDK drivers.
