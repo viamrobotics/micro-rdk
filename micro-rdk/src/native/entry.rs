@@ -42,13 +42,22 @@ use super::{
 #[cfg(feature = "data")]
 use crate::common::{data_manager::DataManager, data_store::StaticMemoryDataStore};
 
-pub async fn serve_web_inner(
-    robot_creds: RobotCredentials,
+pub async fn serve_web_inner<S>(
+    storage: S,
     repr: RobotRepresentation,
     exec: NativeExecutor,
     _max_webrtc_connection: usize,
     network: impl Network,
-) {
+) where
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
+    <S as RobotConfigurationStorage>::Error: Debug,
+    ServerError: From<<S as RobotConfigurationStorage>::Error>,
+    <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
+{
+    let robot_creds = storage
+        .get_robot_credentials()
+        .expect("serve_web_inner: called with storage lacking robot credentials");
+
     let app_config = AppClientConfig::new(
         robot_creds.robot_secret().to_owned(),
         robot_creds.robot_id().to_owned(),
@@ -275,14 +284,7 @@ where
             let _ = last_error.insert(e);
         }
     }
-    serve_web_inner(
-        storage.get_robot_credentials().unwrap(),
-        repr,
-        exec,
-        max_webrtc_connection,
-        network,
-    )
-    .await;
+    serve_web_inner(storage, repr, exec, max_webrtc_connection, network).await;
     Ok(())
 }
 

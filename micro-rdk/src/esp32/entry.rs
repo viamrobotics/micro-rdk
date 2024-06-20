@@ -44,13 +44,23 @@ use crate::common::{
     provisioning::storage::{RobotConfigurationStorage, WifiCredentialStorage},
 };
 
-pub async fn serve_web_inner(
-    robot_creds: RobotCredentials,
+pub async fn serve_web_inner<S>(
+    storage: S,
     repr: RobotRepresentation,
     exec: Esp32Executor,
     max_webrtc_connection: usize,
     network: impl Network,
-) {
+) where
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
+    <S as RobotConfigurationStorage>::Error: Debug,
+    ServerError: From<<S as RobotConfigurationStorage>::Error>,
+    <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
+{
+
+    let robot_creds = storage
+        .get_robot_credentials()
+        .expect("serve_web_inner: called with storage lacking robot credentials");
+
     // TODO(NPM) this is a workaround so that async-io thread has started before we
     // instantiate the Async<TCPStream> for the connection to app.viam.com
     // otherwise there is a chance a race happens and will listen to events before full
@@ -321,7 +331,7 @@ where
         }
     };
     serve_web_inner(
-        storage.get_robot_credentials().unwrap(),
+        storage,
         repr,
         exec,
         max_webrtc_connection,
@@ -401,7 +411,7 @@ where
         }
     }
     serve_web_inner(
-        storage.get_robot_credentials().unwrap(),
+        storage,
         repr,
         exec,
         max_webrtc_connection,
