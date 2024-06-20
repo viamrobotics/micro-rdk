@@ -71,10 +71,10 @@ impl Display for CollectionMethod {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(
             match self {
-                Self::Readings => "readings",
-                Self::AngularVelocity => "angularvelocity",
-                Self::LinearAcceleration => "linearacceleration",
-                Self::LinearVelocity => "linearvelocity",
+                Self::Readings => "Readings",
+                Self::AngularVelocity => "AngularVelocity",
+                Self::LinearAcceleration => "LinearAcceleration",
+                Self::LinearVelocity => "LinearVelocity",
             },
             f,
         )
