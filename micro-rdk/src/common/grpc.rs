@@ -35,7 +35,7 @@ use thiserror::Error;
 use super::webrtc::grpc::WebRtcGrpcService;
 
 #[cfg(feature = "camera")]
-static GRPC_BUFFER_SIZE: usize = 1024 * 1024; // 1MB
+static GRPC_BUFFER_SIZE: usize = 1024 * 30; // 30KB
 #[cfg(not(feature = "camera"))]
 static GRPC_BUFFER_SIZE: usize = 4096;
 
