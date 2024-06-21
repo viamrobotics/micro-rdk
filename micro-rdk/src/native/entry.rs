@@ -187,6 +187,11 @@ pub async fn serve_web_inner<S>(
         builder.build(&cfg_response).unwrap()
     };
 
+    // Attempt to cache the config for the machine we are about to `serve`.
+    if let Err(e) = storage.store_robot_configuration(cfg_response.config.unwrap()) {
+        log::warn!("Failed to store robot configuration: {}", e);
+    }
+
     futures_lite::future::zip(Box::pin(srv.serve(robot)), data_future).await;
 }
 

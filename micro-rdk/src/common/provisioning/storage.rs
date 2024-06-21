@@ -11,16 +11,21 @@ use crate::{
 
 #[derive(Clone, Default, Debug)]
 pub struct RobotCredentials {
-    pub(crate) robot_secret: String,
     pub(crate) robot_id: String,
+    pub(crate) robot_secret: String,
 }
 
 impl RobotCredentials {
-    pub(crate) fn robot_secret(&self) -> &str {
-        &self.robot_secret
+    pub fn new(robot_id: String, robot_secret: String) -> Self{
+        Self { robot_secret, robot_id }
     }
+
     pub(crate) fn robot_id(&self) -> &str {
         &self.robot_id
+    }
+
+    pub(crate) fn robot_secret(&self) -> &str {
+        &self.robot_secret
     }
 }
 
@@ -33,21 +38,6 @@ impl From<SetNetworkCredentialsRequest> for WifiCredentials {
     }
 }
 
-#[derive(Clone, Default)]
-pub struct WifiCredentials {
-    pub(crate) ssid: String,
-    pub(crate) pwd: String,
-}
-
-impl WifiCredentials {
-    pub(crate) fn wifi_ssid(&self) -> &str {
-        &self.ssid
-    }
-    pub(crate) fn wifi_pwd(&self) -> &str {
-        &self.pwd
-    }
-}
-
 impl From<CloudConfig> for RobotCredentials {
     fn from(value: CloudConfig) -> Self {
         // TODO: make ticket : ignore app_address for now but need to add it later
@@ -55,6 +45,36 @@ impl From<CloudConfig> for RobotCredentials {
             robot_id: value.id,
             robot_secret: value.secret,
         }
+    }
+}
+
+impl From<RobotCredentials> for CloudConfig {
+    fn from(value: RobotCredentials) -> Self {
+        Self {
+            app_address: "".to_string(),
+            id: value.robot_id,
+            secret: value.robot_secret,
+        }
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct WifiCredentials {
+    pub(crate) ssid: String,
+    pub(crate) pwd: String,
+}
+
+impl WifiCredentials {
+    pub fn new(ssid: String, pwd: String) -> Self {
+        Self {
+            ssid, pwd
+        }
+    }
+    pub(crate) fn wifi_ssid(&self) -> &str {
+        &self.ssid
+    }
+    pub(crate) fn wifi_pwd(&self) -> &str {
+        &self.pwd
     }
 }
 
