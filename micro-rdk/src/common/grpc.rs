@@ -1231,14 +1231,6 @@ where
             .get_image(msg_buf)
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
 
-        // NOTE: can't use buffer.capacity() here, would return 5, may be due to multiple RefCells
-        if 5 + msg_buf.len()
-            > GRPC_BUFFER_SIZE
-                .try_into()
-                .map_err(|_| GrpcError::RpcInternal)?
-        {
-            return Err(GrpcError::RpcResourceExhausted.into());
-        }
         buffer.put_u8(0);
         buffer.put_u32(msg_buf.len() as u32);
         buffer.unsplit(msg_buf);
