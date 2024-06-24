@@ -33,7 +33,6 @@ mod native {
         {
             use micro_rdk::common::provisioning::server::ProvisioningInfo;
             let mut info = ProvisioningInfo::default();
-            info.set_fragment_id("d385b480-3d19-4fad-a928-b5c18a58d0ed".to_string());
             info.set_manufacturer("viam".to_owned());
             info.set_model("test-esp32".to_owned());
             let storage = RAMStorage::default();
