@@ -6,9 +6,8 @@
 
 ## Overview
 
-This project in this repository was generated from the [Micro-RDK
-Module
-Template](https://github.com/viamrobotics/micro-rdk/tree/main/templates/module),
+This project in this repository was generated from the 
+[Micro-RDK Module Template](/templates/module),
 and demonstrates how to produce modular resources for the Micro-RDK.
 
 ## Usage
@@ -41,8 +40,7 @@ index 79fbc5c..949b5ab 100644
 
 Rebuild the project per the above Micro-RDK Development Setup
 instructions and reflash the board. We will be using the Wifi
-RSSI Sensor and free heap sensor for this example, which used
-to be in a seperate folder called 'micro-rdk-esp32-sensor-examples'.
+RSSI Sensor and free heap sensor for this example.
 
 ### Instantiating the Sensors
 
@@ -96,7 +94,7 @@ can find this code on the `Code Sample` page for your robot):
 ## Implementation Walkthrough
 
 This project was created by using the [Micro-RDK Module
-Template](https://github.com/viamrobotics/micro-rdk/tree/main/templates/module)
+Template](/templates/module)
 and `cargo generate`:
 
 ``` shell
@@ -105,7 +103,7 @@ $ cargo generate --git https://github.com/viamrobotics/micro-rdk templates/modul
 ```
 
 When prompted by the template, the project was named
-`micro-rdk-esp32-sensor-examples` and `esp32` selected for the target
+`micro-rdk-modular-driver-example` and `esp32` selected for the target
 platform. The generated project has the form of a library crate, where
 `src/lib.rs` defines an initially empty implementation of the
 well-known Micro-RDK module entry point `register_models`:
@@ -113,7 +111,7 @@ well-known Micro-RDK module entry point `register_models`:
 ``` rust
 use micro_rdk::common::registry::{ComponentRegistry, RegistryError};
 
-pub fn register_models(_registry: &mut ComponentRegistry) -> anyhow::Result<(), RegistryError> {
+pub fn register_models(_registry: &mut ComponentRegistry) -> Result<(), RegistryError>  {
     Ok(())
 }
 ```
@@ -122,12 +120,12 @@ The generated project also includes a `package.metadata` section in
 its `Cargo.toml` which identifies the library crate as being a
 Micro-RDK module:
 
-https://github.com/viamrobotics/micro-rdk/blob/main/examples/modular-drivers/Cargo.toml#L18-19
+https://github.com/viamrobotics/micro-rdk/blob/fbc1783258bfefc027fd25a8cc9a1b37f6ea0524/examples/modular-drivers/Cargo.toml#L18-L19
 
 A subsequent commit adds definitions of the
-[FreeHeapSensor](https://github.com/viamrobotics/micro-rdk/blob/main/examples/modular-drivers/src/free_heap_sensor.rs)
+[FreeHeapSensor](src/free_heap_sensor.rs)
 and
-[WifiRSSISensor](https://github.com/viamrobotics/micro-rdk/blob/main/examples/modular-drivers/src/wifi_rssi_sensor.rs)
+[WifiRSSISensor](src/wifi_rssi_sensor.rs)
 
 That commit also introduces a crate-local `register_models` function
 for each sensor:
@@ -146,5 +144,5 @@ section of the project's `Cargo.toml` file, as noted in the
 
 ## Related Reading
 
-Please see the [moisture sensor](https://github.com/viamrobotics/micro-rdk/blob/main/examples/modular-drivers/src/moisture_sensor.rs) and [water pump](https://github.com/viamrobotics/micro-rdk/blob/main/examples/modular-drivers/src/water_pump.rs) for
+Please see the [moisture sensor](src/moisture_sensor.rs) and [water pump](src/water_pump.rs) for
 more examples of modular Micro-RDK drivers.
