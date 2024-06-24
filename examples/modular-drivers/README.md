@@ -130,12 +130,12 @@ and
 That commit also introduces a crate-local `register_models` function
 for each sensor:
 
-- `FreeHeapSensor`: https://github.com/viamrobotics/micro-rdk/blob/main/examples/modular-drivers/src/free_heap_sensor.rs#L23-L27
-- `WifiRSSISensor`: https://github.com/viamrobotics/micro-rdk/blob/main/examples/modular-drivers/src/wifi_rssi_sensor.rs#L23-L27
+- `FreeHeapSensor`: https://github.com/viamrobotics/micro-rdk/blob/fbc1783258bfefc027fd25a8cc9a1b37f6ea0524/examples/modular-drivers/src/free_heap_sensor.rs#L23-27
+- `WifiRSSISensor`: https://github.com/viamrobotics/micro-rdk/blob/fbc1783258bfefc027fd25a8cc9a1b37f6ea0524/examples/modular-drivers/src/wifi_rssi_sensor.rs#L23C1-L27C2
 
 Finally, the top level `register_models` entry point is updated to delegate to the `register_models` function for both sensors:
 
-https://github.com/viamrobotics/micro-rdk/blob/main/examples/modular-drivers/src/lib.rs#L10-L18
+https://github.com/viamrobotics/micro-rdk/blob/fbc1783258bfefc027fd25a8cc9a1b37f6ea0524/examples/modular-drivers/src/lib.rs#L10C1-L18C2
 
 The Micro-RDK module is now ready to be used in a Micro-RDK project,
 just by adding it as an ordinary dependency in the `dependencies`
