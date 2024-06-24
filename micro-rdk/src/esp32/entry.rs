@@ -21,6 +21,7 @@ use crate::common::{
     provisioning::storage::RobotCredentials,
     restart_monitor::RestartMonitor,
     robot::LocalRobot,
+    config_restart::ConfigRestart,
 };
 
 #[cfg(feature = "data")]
@@ -187,6 +188,9 @@ pub async fn serve_web_inner(
 
     let cloned_exec = exec.clone();
 
+    let hashed_incoming_config = hashed(cfg_response);
+    let hashed_curr_config = hashed(curr_config);
+
     let webrtc = Box::new(WebRtcConfiguration::new(
         webrtc_certificate,
         dtls,
@@ -205,6 +209,9 @@ pub async fn serve_web_inner(
         .with_webrtc(webrtc)
         .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| unsafe {
             crate::esp32::esp_idf_svc::sys::esp_restart()
+        })))
+        .with_periodic_app_client_task(Box::new(ConfigRestart::new(||unsafe {
+            crate::esp32::esp_idf_svc::sys::esp_restart(), "hi"
         })));
         #[cfg(feature = "data")]
         let builder = if let Some(task) = data_sync_task {
@@ -237,7 +244,7 @@ async fn validate_robot_credentials(
 
 // Four cases:
 // 1) No Robot Credentials + WiFi without external network
-// 2) No Robot Credentials with external network\
+// 2) No Robot Credentials with external network
 // 3) Robot Credentials with external network
 // 4) Robot Credentials + WiFi without external network
 // The function attempts to connect to the configured Wifi network if any, it then checks the robot credentials. If Wifi credentials are absent it starts provisioning mode

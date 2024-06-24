@@ -376,7 +376,13 @@ impl AppClient {
             },
         })
     }
+
+    pub async fn check_config_for_restart(&self) -> Result<Option<Duration>, AppClientError> {
+        let config = self.get_config(ip)
+    }
 }
+
+
 
 impl Drop for AppClient {
     fn drop(&mut self) {
