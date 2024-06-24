@@ -35,7 +35,7 @@ use thiserror::Error;
 use super::webrtc::grpc::WebRtcGrpcService;
 
 #[cfg(feature = "camera")]
-static GRPC_BUFFER_SIZE: usize = 10240;
+static GRPC_BUFFER_SIZE: usize = 1024 * 30; // 30KB
 #[cfg(not(feature = "camera"))]
 static GRPC_BUFFER_SIZE: usize = 4096;
 
@@ -218,19 +218,9 @@ where
                 self.generic_component_do_command(payload)
             }
             #[cfg(feature = "camera")]
-            "/viam.component.camera.v1.CameraService/GetImage" => self.camera_get_frame(payload),
+            "/viam.component.camera.v1.CameraService/GetImage" => self.camera_get_image(payload),
             #[cfg(feature = "camera")]
-            "/viam.component.camera.v1.CameraService/GetPointCloud" => {
-                self.camera_get_point_cloud(payload)
-            }
-            #[cfg(feature = "camera")]
-            "/viam.component.camera.v1.CameraService/GetProperties" => {
-                self.camera_get_properties(payload)
-            }
-            #[cfg(feature = "camera")]
-            "/viam.component.camera.v1.CameraService/RenderFrame" => {
-                self.camera_render_frame(payload)
-            }
+            "/viam.component.camera.v1.CameraService/DoCommand" => self.camera_do_command(payload),
             "/viam.component.motor.v1.MotorService/GetPosition" => self.motor_get_position(payload),
             "/viam.component.motor.v1.MotorService/GetProperties" => {
                 self.motor_get_properties(payload)
@@ -1218,47 +1208,51 @@ where
     }
 
     #[cfg(feature = "camera")]
-    fn camera_get_frame(&mut self, message: &[u8]) -> Result<(), ServerError> {
+    fn camera_get_image(&mut self, message: &[u8]) -> Result<(), ServerError> {
+        // TODO: Modify `get_frame` to return a data structure that can be passed into
+        // `encode_message`, rather than re-implementing `encode_message` here. See
+        // https://viam.atlassian.net/browse/RSDK-824
         let req = component::camera::v1::GetImageRequest::decode(message)
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
-        if let Some(camera) = self.robot.lock().unwrap().get_camera_by_name(req.name) {
-            // TODO: Modify `get_frame` to return a data structure that can be passed into
-            // `encode_message`, rather than re-implementing `encode_message` here. See
-            // https://viam.atlassian.net/browse/RSDK-824
-            let mut buffer = RefCell::borrow_mut(&self.buffer).split_off(0);
-            buffer.put_u8(0);
-            buffer.put_u32(0.try_into().unwrap());
-            let msg = buffer.split_off(5);
-            let msg = camera
-                .lock()
-                .unwrap()
-                .get_frame(msg)
-                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
-            let len = msg.len().to_be_bytes();
-            buffer[1] = len[0];
-            buffer[2] = len[1];
-            buffer[3] = len[2];
-            buffer[4] = len[3];
-            buffer.unsplit(msg);
-            self.response.put_data(buffer.freeze());
-            return Ok(());
-        }
-        Err(ServerError::from(GrpcError::RpcUnavailable))
+
+        let camera = self
+            .robot
+            .lock()
+            .unwrap()
+            .get_camera_by_name(req.name)
+            .ok_or(GrpcError::RpcUnavailable)?;
+
+        let mut buffer = RefCell::borrow_mut(&self.buffer).split_off(0);
+        let msg_buf = buffer.split_off(5);
+
+        let msg_buf = camera
+            .lock()
+            .unwrap()
+            .get_image(msg_buf)
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
+
+        buffer.put_u8(0);
+        buffer.put_u32(msg_buf.len() as u32);
+        buffer.unsplit(msg_buf);
+        self.response.put_data(buffer.freeze());
+        Ok(())
     }
 
     #[cfg(feature = "camera")]
-    fn camera_get_point_cloud(&mut self, _message: &[u8]) -> Result<(), ServerError> {
-        Err(ServerError::from(GrpcError::RpcUnimplemented))
-    }
-
-    #[cfg(feature = "camera")]
-    fn camera_get_properties(&mut self, _message: &[u8]) -> Result<(), ServerError> {
-        Err(ServerError::from(GrpcError::RpcUnimplemented))
-    }
-
-    #[cfg(feature = "camera")]
-    fn camera_render_frame(&mut self, _message: &[u8]) -> Result<(), ServerError> {
-        Err(ServerError::from(GrpcError::RpcUnimplemented))
+    fn camera_do_command(&mut self, message: &[u8]) -> Result<(), ServerError> {
+        let req = proto::common::v1::DoCommandRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let camera = match self.robot.lock().unwrap().get_camera_by_name(req.name) {
+            Some(m) => m,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        let res = camera
+            .lock()
+            .unwrap()
+            .do_command(req.command)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let resp = proto::common::v1::DoCommandResponse { result: res };
+        self.encode_message(resp)
     }
 
     fn resource_names(&mut self, _unused_message: &[u8]) -> Result<(), ServerError> {

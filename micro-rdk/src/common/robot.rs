@@ -80,6 +80,8 @@ impl ResourceType {
             Self::PowerSensor(_) => "rdk:component:power_sensor",
             Self::Sensor(_) => "rdk:component:sensor",
             Self::Servo(_) => "rdk:component:servo",
+            #[cfg(feature = "camera")]
+            Self::Camera(_) => "rdk:component:camera",
         }
         .to_string()
     }
@@ -180,20 +182,23 @@ impl LocalRobot {
         let mut iter = (0..resource_to_build).cycle();
         while resource_to_build > 0 && num_iteration < max_iteration {
             num_iteration += 1;
-            let cfg = &mut components[iter.next().unwrap()];
-            if let Some(cfg) = cfg.as_ref() {
+            let cfg_outer = &mut components[iter.next().unwrap()];
+            if let Some(cfg) = cfg_outer.as_ref() {
                 // capture the error and make it available to LocalRobot so it can be pushed in the logs?
-                if self
-                    .build_resource(cfg, board.clone(), board_key.clone(), &mut registry)
-                    .is_err()
+                if let Err(e) =
+                    self.build_resource(cfg, board.clone(), board_key.clone(), &mut registry)
                 {
+                    log::error!(
+                        "Failed to build resource `{}` of type `{}`: {:?}",
+                        cfg.name,
+                        cfg.r#type,
+                        e
+                    );
                     continue;
                 }
-            } else {
-                continue;
+                let _ = cfg_outer.take();
+                resource_to_build -= 1;
             }
-            let _ = cfg.take();
-            resource_to_build -= 1;
         }
         if resource_to_build > 0 {
             log::error!(
@@ -281,6 +286,8 @@ impl LocalRobot {
         let type_as_static = match config.get_type() {
             "motor" => crate::common::motor::COMPONENT_NAME,
             "board" => crate::common::board::COMPONENT_NAME,
+            #[cfg(feature = "camera")]
+            "camera" => crate::common::camera::COMPONENT_NAME,
             "encoder" => crate::common::encoder::COMPONENT_NAME,
             "movement_sensor" => crate::common::movement_sensor::COMPONENT_NAME,
             "sensor" => crate::common::sensor::COMPONENT_NAME,
@@ -377,6 +384,15 @@ impl LocalRobot {
                     .get_base_constructor(model)
                     .map_err(RobotError::RobotRegistryError)?;
                 ResourceType::Base(
+                    ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
+                )
+            }
+            #[cfg(feature = "camera")]
+            "camera" => {
+                let ctor = registry
+                    .get_camera_constructor(model)
+                    .map_err(RobotError::RobotRegistryError)?;
+                ResourceType::Camera(
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
                 )
             }

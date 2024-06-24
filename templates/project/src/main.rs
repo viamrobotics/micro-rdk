@@ -57,7 +57,6 @@ fn main() {
     }
     let repr = RobotRepresentation::WithRegistry(registry);
     let mut info = ProvisioningInfo::default();
-    info.set_fragment_id("{{fragid}}".to_string());
     info.set_manufacturer("viam".to_owned());
     info.set_model("esp32".to_owned());
     let storage = NVSStorage::new("nvs").unwrap();

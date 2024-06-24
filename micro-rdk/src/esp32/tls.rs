@@ -15,8 +15,8 @@ use futures_lite::{ready, AsyncRead, AsyncWrite};
 use std::{
     fmt::Debug,
     io::{Read, Write},
-    mem::ManuallyDrop,
     net::TcpStream,
+    ops::Deref,
     os::{fd::FromRawFd, raw::c_char, unix::prelude::AsRawFd},
     task::Poll,
 };
@@ -47,9 +47,40 @@ impl TlsClientConnector for Esp32TLS {
     }
 }
 
+struct Esp32TLSContext(*mut esp_tls_t);
+
+impl Esp32TLSContext {
+    fn new() -> Result<Self, std::io::Error> {
+        let p = unsafe { esp_tls_init() };
+        if p.is_null() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "couldn't allocate tls context",
+            ));
+        }
+        Ok(Self(p))
+    }
+}
+
+impl Deref for Esp32TLSContext {
+    type Target = *mut esp_tls_t;
+    fn deref(&self) -> &Self::Target {
+        &(self.0)
+    }
+}
+
+impl Drop for Esp32TLSContext {
+    fn drop(&mut self) {
+        log::error!("dropping the tls stream");
+        if let Some(err) = EspError::from(unsafe { esp_tls_conn_destroy(self.0) }) {
+            log::error!("error while dropping the tls connection '{}'", err);
+        }
+    }
+}
+
 /// TCP like stream for encrypted communication over TLS
 pub struct Esp32TLSStream {
-    tls_context: ManuallyDrop<*mut esp_tls_t>,
+    tls_context: Esp32TLSContext,
     socket: Async<TcpStream>, // may store the raw socket
 }
 
@@ -77,7 +108,7 @@ impl Debug for Esp32TLSStream {
         f.debug_struct("Esp32TlsStream")
             .field(
                 "tls",
-                match unsafe { (*(*self.tls_context)).conn_state } {
+                match unsafe { (*(*(self.tls_context))).conn_state } {
                     ESP_TLS_INIT => &"Tls initializing",
                     ESP_TLS_CONNECTING => &"Tls connecting",
                     ESP_TLS_HANDSHAKE => &"Tls handshake",
@@ -192,14 +223,7 @@ impl Esp32TLSStream {
         socket: Option<Async<TcpStream>>,
         tls_cfg: &mut Either<Box<esp_tls_cfg_server>, Box<esp_tls_cfg>>,
     ) -> Result<Self, std::io::Error> {
-        let p = unsafe { esp_tls_init() };
-        if p.is_null() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "couldn't allocate tls context",
-            ));
-        }
-        let tls_context = ManuallyDrop::new(p);
+        let tls_context = Esp32TLSContext::new()?;
         match tls_cfg {
             Either::Left(tls_cfg) => {
                 let fd = socket.as_ref().unwrap().as_raw_fd();
@@ -209,7 +233,6 @@ impl Esp32TLSStream {
                         fd,
                         *tls_context,
                     )) {
-                        esp_tls_conn_destroy(*tls_context);
                         Err(std::io::Error::new(std::io::ErrorKind::Other, err))
                     } else {
                         Ok(Self {
@@ -305,15 +328,6 @@ impl Esp32TLSStream {
                 )),
             },
             n => Ok(n as usize),
-        }
-    }
-}
-
-impl Drop for Esp32TLSStream {
-    fn drop(&mut self) {
-        log::error!("dropping the tls stream");
-        if let Some(err) = EspError::from(unsafe { esp_tls_conn_destroy(*self.tls_context) }) {
-            log::error!("error while dropping the tls connection '{}'", err);
         }
     }
 }
