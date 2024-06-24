@@ -9,7 +9,10 @@ use crate::esp32::esp_idf_svc::sys::{
 };
 use async_io::Async;
 use either::Either;
-use esp_idf_svc::sys::esp_tls_get_conn_sockfd;
+use esp_idf_svc::sys::{
+    esp_tls_get_conn_sockfd, lwip_setsockopt, socklen_t, IPPROTO_TCP, SOL_SOCKET, SO_KEEPALIVE,
+    TCP_KEEPCNT, TCP_KEEPIDLE, TCP_KEEPINTVL,
+};
 use futures_lite::{ready, AsyncRead, AsyncWrite};
 
 use std::{
@@ -261,6 +264,56 @@ impl Esp32TLSStream {
                             let mut fd: i32 = 0;
                             esp_idf_svc::sys::esp!(esp_tls_get_conn_sockfd(*tls_context, &mut fd))
                                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+                            // set socket keep alive properties as such
+                            // KEEPIDLE is set to 120 second (time before a first keepalive probe is sent)
+                            // KEEPINTVL, KEEPCNT are set to 60 and 4 respectively
+                            // Total time before an IDLE and DEAD connection is closed =  360s
+                            let var: i32 = 1;
+                            if lwip_setsockopt(
+                                fd,
+                                SOL_SOCKET as i32,
+                                SO_KEEPALIVE as i32,
+                                &var as *const i32 as *const _,
+                                std::mem::size_of::<i32>() as socklen_t,
+                            ) < 0
+                            {
+                                return Err(std::io::Error::last_os_error());
+                            }
+                            let var: i32 = 60;
+                            if lwip_setsockopt(
+                                fd,
+                                IPPROTO_TCP as i32,
+                                TCP_KEEPINTVL as i32,
+                                &var as *const i32 as *const _,
+                                std::mem::size_of::<i32>() as socklen_t,
+                            ) < 0
+                            {
+                                return Err(std::io::Error::last_os_error());
+                            }
+                            let var: i32 = 4;
+                            if lwip_setsockopt(
+                                fd,
+                                IPPROTO_TCP as i32,
+                                TCP_KEEPCNT as i32,
+                                &var as *const i32 as *const _,
+                                std::mem::size_of::<i32>() as socklen_t,
+                            ) < 0
+                            {
+                                return Err(std::io::Error::last_os_error());
+                            }
+                            let var: i32 = 120;
+                            if lwip_setsockopt(
+                                fd,
+                                IPPROTO_TCP as i32,
+                                TCP_KEEPIDLE as i32,
+                                &var as *const i32 as *const _,
+                                std::mem::size_of::<i32>() as socklen_t,
+                            ) < 0
+                            {
+                                return Err(std::io::Error::last_os_error());
+                            }
+
                             TcpStream::from_raw_fd(fd).try_into().unwrap()
                         };
                         Ok(Self {

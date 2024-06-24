@@ -4,17 +4,20 @@ use crate::esp32::exec::Esp32Executor;
 #[cfg(feature = "native")]
 use crate::native::exec::NativeExecutor;
 use async_channel::Sender;
+use async_io::Timer;
 use bytes::{BufMut, Bytes, BytesMut};
-use futures_lite::Stream;
+use futures_lite::{ready, Future, FutureExt, Stream};
 use http_body_util::combinators::BoxBody;
 use http_body_util::BodyExt;
 use hyper::body::{Body, Incoming};
 use hyper::client::conn::http2::SendRequest;
 use hyper::header::HeaderMap;
-use hyper::rt;
+use hyper::rt::{self, Sleep};
 use hyper::{http::status, Method, Request};
 
 use async_executor::Task;
+use std::pin::Pin;
+use std::time::Instant;
 use std::{marker::PhantomData, task::Poll};
 use thiserror::Error;
 
@@ -178,6 +181,46 @@ pub struct GrpcClient {
     uri: String,
 }
 
+struct AsyncioSleep(Timer);
+
+impl Sleep for AsyncioSleep {}
+
+impl AsyncioSleep {
+    fn reset(mut self: Pin<&mut Self>, deadline: Instant) {
+        self.0.set_at(deadline)
+    }
+}
+
+impl Future for AsyncioSleep {
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        let _ = ready!(self.0.poll(cx));
+        Poll::Ready(())
+    }
+}
+
+#[derive(Default, Clone, Debug)]
+struct H2Timer;
+
+impl rt::Timer for H2Timer {
+    fn sleep(&self, duration: std::time::Duration) -> std::pin::Pin<Box<dyn rt::Sleep>> {
+        Box::pin(AsyncioSleep(Timer::after(duration)))
+    }
+    fn sleep_until(&self, deadline: std::time::Instant) -> std::pin::Pin<Box<dyn rt::Sleep>> {
+        Box::pin(AsyncioSleep(Timer::at(deadline)))
+    }
+    fn reset(
+        &self,
+        sleep: &mut std::pin::Pin<Box<dyn rt::Sleep>>,
+        new_deadline: std::time::Instant,
+    ) {
+        if let Some(timer) = sleep.as_mut().downcast_mut_pin::<AsyncioSleep>() {
+            timer.reset(new_deadline)
+        }
+    }
+}
+
 impl GrpcClient {
     pub async fn new<T>(io: T, executor: Executor, uri: &str) -> Result<GrpcClient, GrpcClientError>
     where
@@ -189,6 +232,9 @@ impl GrpcClient {
                 .initial_connection_window_size(4096)
                 .max_concurrent_reset_streams(2)
                 .max_send_buf_size(4096)
+                .keep_alive_interval(Some(std::time::Duration::from_secs(120))) // will send ping frames every 120 seconds
+                .keep_alive_timeout(std::time::Duration::from_secs(300)) // if ping frame is not answered after 300 seconds the connection will be dropped
+                .timer(H2Timer)
                 .handshake(io)
                 .await
                 .unwrap();
