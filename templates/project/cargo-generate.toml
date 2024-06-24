@@ -8,8 +8,3 @@ type = "string"
 prompt = "MCU"
 choices = ["esp32"]
 default = "esp32" 
-
-[placeholders.fragid]
-type = "string"
-prompt = "Enter fragment ID"
-default = "d385b480-3d19-4fad-a928-b5c18a58d0ed"
