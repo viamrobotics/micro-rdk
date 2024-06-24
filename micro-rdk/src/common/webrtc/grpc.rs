@@ -21,7 +21,8 @@ use crate::{
 use super::{api::WebRtcError, sctp::Channel};
 
 #[cfg(feature = "camera")]
-static WEBRTC_GRPC_BUFFER_SIZE: usize = 1024 * 15; // 15KB
+// sizeof(fake_image) + 30bytes for headers
+static WEBRTC_GRPC_BUFFER_SIZE: usize = 10492;
 #[cfg(not(feature = "camera"))]
 static WEBRTC_GRPC_BUFFER_SIZE: usize = 1650;
 
