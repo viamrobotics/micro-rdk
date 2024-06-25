@@ -32,6 +32,10 @@ use super::tcp::Esp32Stream;
 unsafe impl Sync for Esp32TLS {}
 unsafe impl Send for Esp32TLS {}
 
+const TCP_KEEPINTVL_S: i32 = 60; // seconds
+const TCP_KEEPCNT_N: i32 = 4;
+const TCP_KEEPIDLE_S: i32 = 120; // seconds
+
 /// structure to store tls configuration
 #[derive(Clone)]
 pub struct Esp32TLS {
@@ -269,18 +273,18 @@ impl Esp32TLSStream {
                             // KEEPIDLE is set to 120 second (time before a first keepalive probe is sent)
                             // KEEPINTVL, KEEPCNT are set to 60 and 4 respectively
                             // Total time before an IDLE and DEAD connection is closed =  360s
-                            let var: i32 = 1;
+                            let enabled: i32 = 1;
                             if lwip_setsockopt(
                                 fd,
                                 SOL_SOCKET as i32,
                                 SO_KEEPALIVE as i32,
-                                &var as *const i32 as *const _,
+                                &enabled as *const i32 as *const _,
                                 std::mem::size_of::<i32>() as socklen_t,
                             ) < 0
                             {
                                 return Err(std::io::Error::last_os_error());
                             }
-                            let var: i32 = 60;
+                            let var: i32 = TCP_KEEPINTVL_S;
                             if lwip_setsockopt(
                                 fd,
                                 IPPROTO_TCP as i32,
@@ -291,7 +295,7 @@ impl Esp32TLSStream {
                             {
                                 return Err(std::io::Error::last_os_error());
                             }
-                            let var: i32 = 4;
+                            let var: i32 = TCP_KEEPCNT_N;
                             if lwip_setsockopt(
                                 fd,
                                 IPPROTO_TCP as i32,
@@ -302,7 +306,7 @@ impl Esp32TLSStream {
                             {
                                 return Err(std::io::Error::last_os_error());
                             }
-                            let var: i32 = 120;
+                            let var: i32 = TCP_KEEPIDLE_S;
                             if lwip_setsockopt(
                                 fd,
                                 IPPROTO_TCP as i32,
