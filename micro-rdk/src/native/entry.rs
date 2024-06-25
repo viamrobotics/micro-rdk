@@ -2,13 +2,13 @@
 
 use crate::{
     common::{
-        app_client::{AppClientBuilder, AppClientConfig},
+        app_client::{AppClient, AppClientBuilder, AppClientConfig, AppClientError},
         conn::{
             network::Network,
             server::{ViamServerBuilder, WebRtcConfiguration},
         },
         entry::RobotRepresentation,
-        grpc_client::GrpcClient,
+        grpc_client::{GrpcClient, GrpcClientError},
         log::config_log_entry,
         provisioning::storage::RobotCredentials,
         restart_monitor::RestartMonitor,
@@ -198,7 +198,7 @@ pub async fn serve_web_inner<S>(
 async fn validate_robot_credentials(
     exec: NativeExecutor,
     robot_creds: &RobotCredentials,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<AppClient, Box<dyn std::error::Error>> {
     let app_config = AppClientConfig::new(
         robot_creds.robot_secret().to_owned(),
         robot_creds.robot_id().to_owned(),
@@ -210,8 +210,7 @@ async fn validate_robot_credentials(
     let client = GrpcClient::new(conn, exec.clone(), "https://app.viam.com:443").await?;
     let builder = AppClientBuilder::new(Box::new(client), app_config.clone());
 
-    let _client = builder.build().await?;
-    Ok(())
+    builder.build().await.map_err(|e| e.into())
 }
 
 #[cfg(feature = "provisioning")]
@@ -237,45 +236,71 @@ where
 
     let info = info.unwrap_or_default();
     let mut last_error: Option<Box<dyn std::error::Error>> = None;
-    let mut mdns = NativeMdns::new("".to_owned(), network.get_ip()).unwrap();
-    loop {
-        // When Credential are present either provisioning has succeeded or
-        // they where stored. We starts by checking that we have a network
-        // if so we can move ahead and confirm the robot exists
-        // Since the network is not managed by us we should just check if robot
-        // credentials are stored
+
+    let (robot, app_client) = 'provisioned: loop {
         if storage.has_robot_credentials() {
-            let validated = loop {
-                // When we have cached config we should still continue in the event the network
-                // fails
-                if let Err(error) = network.is_connected() {
-                    log::info!(
-                        "Externally managed network, not connected yet cause {:?}",
-                        error
-                    );
-                    Timer::after(Duration::from_secs(3)).await;
-                    continue;
+            log::info!("Found cached robot credentials; attempting to serve");
+
+            let mut robot = None;
+            if storage.has_robot_configuration() {
+                log::info!("Found cached robot configuration; speculatively building robot");
+                let _ = robot.insert(());
+            }
+
+            let mut duration = None;
+            loop {
+                if let Some(duration) = duration {
+                    Timer::after(duration).await;
+                } else {
+                    // TODO: Maybe some back-off up to a limit
+                    let _ = duration.insert(Duration::from_secs(3));
                 }
-                // Assume connected to internet so any error should be forwarded to provisioning
-                // Most likely the robot is destroyed
-                if let Err(e) = validate_robot_credentials(
+
+                log::info!("Attempting to validate stored robot credentials");
+                match validate_robot_credentials(
                     exec.clone(),
                     &storage.get_robot_credentials().unwrap(),
                 )
                 .await
                 {
-                    if let Err(e) = storage.reset_robot_credentials() {
-                        log::error!("couldn't erase credentials {:?}", e);
+                    Ok(app_client) => {
+                        log::info!("Robot credentials validated OK");
+                        break 'provisioned (robot, app_client);
                     }
-                    let _ = last_error.insert(e);
-                    break false;
+                    Err(e) => {
+                        if let Some(app_client_error) = e.downcast_ref::<AppClientError>() {
+                            if matches!(app_client_error, AppClientError::AppGrpcClientError(GrpcClientError::GrpcError{ code, .. }) if *code == 7 || *code == 16)
+                            {
+                                // The validate call failed with an explicit rejection (PERMISSION_DENIED/UNAUTHENTICATED)
+                                // of the credentials. Reset the cached credentials and any robot configuration, and
+                                // move on to provisioning.
+                                log::warn!("Robot credential validation failed permanently with error {:?}; clearing cached state and initiating provisioning", e);
+
+                                if let Err(e) = storage.reset_robot_credentials() {
+                                    log::error!("Couldn't erase robot credentials {:?}", e);
+                                }
+
+                                if let Err(e) = storage.reset_robot_configuration() {
+                                    log::error!("couldn't erase robot configuration {:?}", e);
+                                }
+
+                                // Record the last error so that we can serve it once we reach provisioning.
+                                let _ = last_error.insert(e);
+                                break;
+                            }
+                        }
+
+                        // For all other errors, we assume we could not communicate with app due
+                        // to network issues, and just restart the inner loop until we are able
+                        // to communicate with app.
+                        log::info!("Unable to validate robot credentials {:?}; will retry", e);
+                    }
                 }
-                break true;
-            };
-            if validated {
-                break;
             }
         }
+
+        log::warn!("Entering provisioning...");
+        let mut mdns = NativeMdns::new("".to_owned(), network.get_ip()).unwrap();
         if let Err(e) = serve_provisioning_async::<_, (), _>(
             exec.clone(),
             info.clone(),
@@ -288,7 +313,7 @@ where
         {
             let _ = last_error.insert(e);
         }
-    }
+    };
     serve_web_inner(storage, repr, exec, max_webrtc_connection, network).await;
     Ok(())
 }
