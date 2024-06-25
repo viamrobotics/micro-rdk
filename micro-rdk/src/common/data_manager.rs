@@ -18,7 +18,6 @@ use super::robot::{LocalRobot, RobotError};
 use async_io::Timer;
 use bytes::BytesMut;
 use futures_lite::prelude::Future;
-use futures_lite::FutureExt;
 use futures_util::lock::Mutex as AsyncMutex;
 use prost::Message;
 use thiserror::Error;
@@ -251,12 +250,12 @@ where
 
     async fn run<'b>(&mut self, app_client: &'b AppClient) -> Result<(), AppClientError> {
         for collector_key in self.resource_method_keys.iter() {
-            let store_lock = self.store.lock().await;
             let mut current_chunk: Vec<BytesMut> = vec![];
             let mut current_chunk_size: usize = 0;
             // we process the data for this region of the store in chunks, each iteration of this loop
             // should represent the processing and uploading of a single chunk of data
             loop {
+                let store_lock = self.store.lock().await;
                 let mut reader = match store_lock.get_reader(collector_key) {
                     Ok(reader) => reader,
                     Err(err) => {
@@ -298,8 +297,12 @@ where
                 }
 
                 // We want to fill current_chunk until its size reaches just under
-                // MAX_SENSOR_CONTENTS_SIZE and then upload the data.
-                let should_flush = loop {
+                // MAX_SENSOR_CONTENTS_SIZE and then upload the data. Since we will have
+                // needed to pull the first message of the next chunk to realize that
+                // we have reached capacity, we return that message as well to be placed
+                // at the beginning of the now empty current_chunk once we have successfully
+                // uploaded it
+                let (upload_data, next_chunk_first_message) = loop {
                     let next_message = match reader.read_next_message() {
                         Ok(msg) => msg,
                         Err(err) => {
@@ -312,7 +315,7 @@ where
                             // we don't want to panic, and creating an AppClientError variant for this case
                             // feels too specific, so we'll move on to the next collector without flushing
                             // this region of the store
-                            break false;
+                            break (vec![], None);
                         }
                     };
 
@@ -337,59 +340,58 @@ where
                                     collector_key,
                                     err
                                 );
-                                break false;
+                                vec![]
                             }
                         };
-                        let upload_request = DataCaptureUploadRequest {
-                            metadata: Some(UploadMetadata {
-                                part_id: self.part_id.clone(),
-                                component_type: collector_key.component_type.clone(),
-                                r#type: DataType::TabularSensor.into(),
-                                component_name: collector_key.r_name.clone(),
-                                method_name: collector_key.method.to_string(),
-                                ..Default::default()
-                            }),
-                            sensor_contents: data,
-                        };
-                        // Note: we are intentionally holding the lock on the store across this upload
-                        // attempt to protect the potential subsequent flush operation for this chunk
-                        // of the store. The one second timeout below should ensure that we're not holding
-                        // on to the lock for too long
-                        match app_client
-                            .upload_data(upload_request)
-                            .or(async {
-                                async_io::Timer::after(Duration::from_millis(1000)).await;
-                                Err(AppClientError::AppClientRequestTimeout)
-                            })
-                            .await
-                        {
-                            Ok(_) => {
-                                current_chunk_size = next_message.len();
-                                current_chunk.push(next_message);
-                                break true;
-                            }
-
-                            // If the request takes too long to elicit a response, we don't know whether
-                            // the upload was successful on app's side. We've decided that we'd rather
-                            // potentially lose some data than upload duplicate data, and so we opt to
-                            // assume the best and consume the messages
-                            Err(AppClientError::AppClientRequestTimeout) => {
-                                current_chunk_size = next_message.len();
-                                current_chunk.push(next_message);
-                                break true;
-                            }
-                            Err(err) => return Err(err),
-                        };
+                        if next_message.is_empty() {
+                            break (data, None);
+                        }
+                        break (data, Some(next_message));
                     } else {
                         current_chunk_size += next_message.len();
                         current_chunk.push(next_message);
                     }
                 };
 
-                // all of the data in the current chunk has been successfully uploaded, so we
-                // flush the messages from the store before moving on to the next chunk of data
-                if should_flush {
-                    reader.flush();
+                // We don't want to hold on to the store lock over a potentially long-running upload attempt.
+                // However, when a request is sent using the hyper library, the memory representing the request data
+                // is only cleaned up when the future to send the request somehow resolves. So if we put our own
+                // timeout on this upload request, this leaked data will accumulate on every subsequent failed
+                // upload attempt. To accomodate this, we flush the store before attempting to upload the data
+                // and accept that the current chunk of data (in addition to the very first message of the next chunk)
+                // will be lost on failure. Because an inability to connect to app will result in no longer having an
+                // AppClient available, this task will not attempt to run again and additional data loss will be prevented
+                reader.flush();
+                std::mem::drop(store_lock);
+
+                if !upload_data.is_empty() {
+                    let data_len = upload_data.len();
+                    let upload_request = DataCaptureUploadRequest {
+                        metadata: Some(UploadMetadata {
+                            part_id: self.part_id.clone(),
+                            component_type: collector_key.component_type.clone(),
+                            r#type: DataType::TabularSensor.into(),
+                            component_name: collector_key.r_name.clone(),
+                            method_name: collector_key.method.to_string(),
+                            ..Default::default()
+                        }),
+                        sensor_contents: upload_data,
+                    };
+                    match app_client.upload_data(upload_request).await {
+                        Ok(_) => {
+                            if let Some(next_message) = next_chunk_first_message {
+                                current_chunk_size = next_message.len();
+                                current_chunk = vec![next_message];
+                            }
+                        }
+                        Err(err) => {
+                            log::error!(
+                                "error uploading data, data lost ({:?} messages)",
+                                data_len + 1
+                            );
+                            return Err(err);
+                        }
+                    };
                 }
             }
         }
