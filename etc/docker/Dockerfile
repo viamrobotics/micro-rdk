@@ -22,8 +22,9 @@ RUN git clone --depth 1 -b v4.4.4 --single-branch --recurse-submodules --shallow
 FROM debian:bookworm
 
 ARG RUST_VERSION=1.75.0
+ARG TARGETPLATFORM
 
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 ENV DEBCONF_NOWARNINGS="yes"
 
 ENV RUSTUP_HOME=/opt/rust/rustup \
@@ -37,7 +38,7 @@ RUN apt update && apt dist-upgrade -y
 
 RUN apt update
 
-RUN apt-get install -y --no-install-recommends git wget flex bison gperf python3 python3-pip python3-virtualenv cmake ninja-build ccache libffi-dev libssl-dev libudev-dev dfu-util libusb-1.0-0 openssh-client software-properties-common python3-venv sudo && \
+RUN apt-get install -y --no-install-recommends git wget flex bison gperf python3 python3-pip python3-virtualenv cmake ninja-build ccache libffi-dev libssl-dev libudev-dev dfu-util libusb-1.0-0 openssh-client software-properties-common python3-venv sudo curl && \
     apt-get install -y --no-install-recommends cmake && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3 10
 
@@ -64,6 +65,11 @@ COPY --from=builder /usr/cargo-espflash /usr/bin
 COPY --from=builder /usr/ldproxy /usr/bin
 COPY --from=builder /usr/espup /usr/bin
 COPY --from=builder /usr/sccache /usr/bin
+
+RUN case "${TARGETPLATFORM}" in \
+    "linux/amd64") curl -L --proto '=https' --tlsv1.2 -sSf https://github.com/mozilla/cbindgen/releases/download/0.26.0/cbindgen -o /usr/bin/cbindgen;\
+    chmod a+x /usr/bin/cbindgen ;; \
+    esac
 
 WORKDIR /host/
 
