@@ -173,8 +173,8 @@ pub async fn serve_web_inner(
 
     #[cfg(feature = "data")]
     let data_future = Box::pin(async move {
-        if let Some(mut data_manager_svc) = data_manager_svc {
-            if let Err(err) = data_manager_svc.data_collection_task().await {
+        if let Some(mut Data_manager_svc) = Data_manager_svc {
+            if let Err(err) = Data_manager_svc.data_collection_task().await {
                 log::error!("error running data manager: {:?}", err)
             }
         }
