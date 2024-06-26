@@ -133,6 +133,7 @@ type GenericComponentConstructor =
 
 type DependenciesFromConfig = dyn Fn(ConfigType) -> Vec<ResourceKey>;
 
+#[derive(Clone)]
 pub struct ComponentRegistry {
     motors: Map<&'static str, &'static MotorConstructor>,
     board: Map<&'static str, &'static BoardConstructor>,

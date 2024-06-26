@@ -36,10 +36,13 @@ use async_io::Timer;
 use esp_idf_svc::sys::{settimeofday, timeval};
 
 #[cfg(feature = "provisioning")]
-use crate::common::{
-    grpc::ServerError,
-    provisioning::server::ProvisioningInfo,
-    provisioning::storage::{RobotConfigurationStorage, WifiCredentialStorage},
+use crate::{
+    common::{
+        grpc::ServerError,
+        provisioning::server::ProvisioningInfo,
+        provisioning::storage::{RobotConfigurationStorage, WifiCredentialStorage},
+    },
+    proto::app::v1::ConfigResponse,
 };
 
 pub async fn serve_web_inner<S>(
@@ -214,7 +217,7 @@ async fn serve_async<S>(
     exec: Esp32Executor,
     info: Option<ProvisioningInfo>,
     storage: S,
-    repr: RobotRepresentation,
+    mut repr: RobotRepresentation,
     max_webrtc_connection: usize,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
@@ -236,14 +239,23 @@ where
     let info = info.unwrap_or_default();
     let mut last_error: Option<Box<dyn std::error::Error>> = None;
 
-    let (_robot, network, app_client) = 'provisioned: loop {
+    let (network, app_client) = 'provisioned: loop {
         if storage.has_robot_credentials() && storage.has_wifi_credentials() {
             log::info!("Found cached network and robot credentials; attempting to serve");
 
-            let mut robot = None;
             if storage.has_robot_configuration() {
-                log::info!("Found cached robot configuration; speculatively building robot");
-                let _ = robot.insert(());
+                if let RobotRepresentation::WithRegistry(ref registry) = repr {
+                    log::info!("Found cached robot configuration; speculatively building robot from config");
+                    match LocalRobot::from_cloud_config(&ConfigResponse { config : Some(storage.get_robot_configuration().unwrap()) }, registry.clone(), None) {
+                        Ok(robot) => {
+                            repr = RobotRepresentation::WithRobot(robot);
+                        }
+                        Err(e) => {
+                            log::warn!("Failed building robot from cached robot configuration: {}; dropping and ignoring cached config", e);
+                            let _ = storage.reset_robot_configuration();
+                        }
+                    };
+                }
             }
 
             log::info!("Attempting to create network with cached credentials");
@@ -292,7 +304,7 @@ where
                         {
                             Ok(app_client) => {
                                 log::info!("Robot credentials validated OK");
-                                break 'provisioned (robot, network, app_client);
+                                break 'provisioned (network, app_client);
                             }
                             Err(e) => {
                                 if let Some(app_client_error) = e.downcast_ref::<AppClientError>() {
@@ -385,7 +397,7 @@ async fn serve_async_with_external_network<S>(
     exec: Esp32Executor,
     info: Option<ProvisioningInfo>,
     storage: S,
-    repr: RobotRepresentation,
+    mut repr: RobotRepresentation,
     network: impl Network,
     max_webrtc_connection: usize,
 ) -> Result<(), Box<dyn std::error::Error>>
@@ -403,14 +415,23 @@ where
     let info = info.unwrap_or_default();
     let mut last_error: Option<Box<dyn std::error::Error>> = None;
 
-    let (_robot, app_client) = 'provisioned: loop {
+    let app_client = 'provisioned: loop {
         if storage.has_robot_credentials() {
             log::info!("Found cached robot credentials; attempting to serve");
 
-            let mut robot = None;
             if storage.has_robot_configuration() {
-                log::info!("Found cached robot configuration; speculatively building robot");
-                let _ = robot.insert(());
+                if let RobotRepresentation::WithRegistry(ref registry) = repr {
+                    log::info!("Found cached robot configuration; speculatively building robot from config");
+                    match LocalRobot::from_cloud_config(&ConfigResponse { config : Some(storage.get_robot_configuration().unwrap()) }, registry.clone(), None) {
+                        Ok(robot) => {
+                            repr = RobotRepresentation::WithRobot(robot);
+                        }
+                        Err(e) => {
+                            log::warn!("Failed building robot from cached robot configuration: {}; dropping and ignoring cached config", e);
+                            let _ = storage.reset_robot_configuration();
+                        }
+                    };
+                }
             }
 
             let mut duration = None;
@@ -432,7 +453,7 @@ where
                 {
                     Ok(app_client) => {
                         log::info!("Robot credentials validated OK");
-                        break 'provisioned (robot, app_client);
+                        break 'provisioned app_client;
                     }
                     Err(e) => {
                         if let Some(app_client_error) = e.downcast_ref::<AppClientError>() {
