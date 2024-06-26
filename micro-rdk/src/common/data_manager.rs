@@ -1,10 +1,11 @@
 use std::pin::Pin;
 use std::rc::Rc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::common::data_collector::{DataCollectionError, DataCollector};
 use crate::common::data_store::DataStore;
 use crate::google::protobuf::value::Kind;
+use crate::google::protobuf::Timestamp;
 use crate::proto::app::data_sync::v1::{
     DataCaptureUploadRequest, DataType, SensorData, UploadMetadata,
 };
@@ -16,6 +17,8 @@ use super::data_store::{DataStoreError, DataStoreReader, WriteMode};
 use super::robot::{LocalRobot, RobotError};
 use async_io::Timer;
 use bytes::BytesMut;
+use chrono::offset::Local;
+use chrono::Datelike;
 use futures_lite::prelude::Future;
 use futures_util::lock::Mutex as AsyncMutex;
 use prost::Message;
@@ -171,10 +174,13 @@ where
         intervals
     }
 
-    pub async fn data_collection_task(&mut self) -> ! {
+    pub async fn data_collection_task(&mut self, robot_start_time: Instant) -> ! {
         let mut loop_counter: u64 = 0;
         loop {
-            if let Err(e) = self.collect_data_inner(loop_counter).await {
+            if let Err(e) = self
+                .collect_data_inner(loop_counter, robot_start_time)
+                .await
+            {
                 log::error!(
                     "data manager error {:?}, will attempt to continue collecting",
                     e
@@ -185,11 +191,16 @@ where
         }
     }
 
-    pub async fn collect_data_inner(&mut self, loop_counter: u64) -> Result<(), DataManagerError> {
+    pub async fn collect_data_inner(
+        &mut self,
+        loop_counter: u64,
+        robot_start_time: Instant,
+    ) -> Result<(), DataManagerError> {
         let min_interval_ms = self.min_interval_ms();
         for interval in self.collection_intervals() {
             if loop_counter % (interval / min_interval_ms) == 0 {
-                self.collect_and_store_readings(interval).await?;
+                self.collect_and_store_readings(interval, robot_start_time)
+                    .await?;
             }
         }
         Ok(())
@@ -198,8 +209,9 @@ where
     async fn collect_and_store_readings(
         &mut self,
         time_interval_ms: u64,
+        robot_start_time: Instant,
     ) -> Result<(), DataManagerError> {
-        let readings = self.collect_readings_for_interval(time_interval_ms)?;
+        let readings = self.collect_readings_for_interval(time_interval_ms, robot_start_time)?;
         let mut store_guard = self.store.lock().await;
         for (collector_key, reading) in readings {
             match reading {
@@ -230,6 +242,7 @@ where
     fn collect_readings_for_interval(
         &mut self,
         time_interval_ms: u64,
+        robot_start_time: Instant,
     ) -> Result<CollectedReadings, DataManagerError> {
         let min_interval_ms = self.min_interval_ms();
         if time_interval_ms % min_interval_ms != 0 {
@@ -244,11 +257,16 @@ where
                 (coll.time_interval().as_millis() as u64 / min_interval_ms)
                     == (time_interval_ms / min_interval_ms)
             })
-            .map(|coll| Ok((coll.resource_method_key(), coll.call_method())))
+            .map(|coll| {
+                Ok((
+                    coll.resource_method_key(),
+                    coll.call_method(robot_start_time),
+                ))
+            })
             .collect()
     }
 
-    pub fn get_sync_task(&self) -> DataSyncTask<StoreType> {
+    pub fn get_sync_task(&self, robot_start_time: Instant) -> DataSyncTask<StoreType> {
         let resource_method_keys: Vec<ResourceMethodKey> = self
             .collectors
             .iter()
@@ -259,6 +277,7 @@ where
             resource_method_keys,
             sync_interval: self.sync_interval,
             part_id: self.part_id(),
+            robot_start_time,
         }
     }
 }
@@ -269,6 +288,10 @@ pub enum DataSyncError {
     DataStoreError(#[from] DataStoreError),
     #[error(transparent)]
     MessageDecodingError(#[from] prost::DecodeError),
+    #[error("time correction resulted in out of bounds duration")]
+    TimeOutOfBoundsError,
+    #[error("current time unset")]
+    NoCurrentTime,
 }
 
 pub struct DataSyncTask<StoreType> {
@@ -276,6 +299,59 @@ pub struct DataSyncTask<StoreType> {
     resource_method_keys: Vec<ResourceMethodKey>,
     sync_interval: Duration,
     part_id: String,
+    // used for time correcting stored data before upload, see DataSyncTask::run
+    // and create_time_corrected_reading below
+    robot_start_time: Instant,
+}
+
+fn get_time_to_subtract(
+    robot_start_time: Instant,
+    stored_time: Timestamp,
+) -> Result<chrono::Duration, DataSyncError> {
+    let stored_time_dur = Duration::new(stored_time.seconds as u64, stored_time.nanos as u32);
+    let time_to_subtract = robot_start_time.elapsed() - stored_time_dur;
+    let time_to_subtract = chrono::Duration::new(
+        time_to_subtract.as_secs() as i64,
+        time_to_subtract.subsec_nanos(),
+    )
+    .ok_or(DataSyncError::TimeOutOfBoundsError)?;
+    Ok(time_to_subtract)
+}
+
+fn create_time_corrected_reading(
+    robot_start_time: Instant,
+) -> impl Fn(BytesMut) -> Result<SensorData, DataSyncError> {
+    move |raw_msg| {
+        let mut msg = SensorData::decode(raw_msg)?;
+        // the timestamps of the stored data are measured as offsets from a starting
+        // instant (robot_start_time, acquired from DataSyncTask), so we adjust the
+        // timestamps on the parsed message based on the current time (if it is now available)
+        if let Some(metadata) = msg.metadata.as_mut() {
+            let current_dt = Local::now().fixed_offset();
+            // Viam was founded in 2020, so if the current time is set to any time before that
+            // we know that settimeofday was never called, or called with an improper datetime
+            if current_dt.year() < 2020 {
+                return Err(DataSyncError::NoCurrentTime);
+            }
+            if let Some(time_received) = metadata.time_received.clone() {
+                let time_to_subtract = get_time_to_subtract(robot_start_time, time_received)?;
+                let time_received = current_dt - time_to_subtract;
+                metadata.time_received = Some(Timestamp {
+                    seconds: time_received.timestamp() as i64,
+                    nanos: time_received.timestamp_subsec_nanos() as i32,
+                });
+            }
+            if let Some(time_requested) = metadata.time_requested.clone() {
+                let time_to_subtract = get_time_to_subtract(robot_start_time, time_requested)?;
+                let time_requested = current_dt - time_to_subtract;
+                metadata.time_requested = Some(Timestamp {
+                    seconds: time_requested.timestamp() as i64,
+                    nanos: time_requested.timestamp_subsec_nanos() as i32,
+                });
+            }
+        }
+        Ok(msg)
+    }
 }
 
 impl<StoreType> DataSyncTask<StoreType>
@@ -369,10 +445,16 @@ where
                     if next_message.is_empty()
                         || ((next_message.len() + current_chunk_size) > MAX_SENSOR_CONTENTS_SIZE)
                     {
-                        let data: Result<Vec<SensorData>, prost::DecodeError> =
-                            current_chunk.drain(..).map(SensorData::decode).collect();
+                        let data: Result<Vec<SensorData>, DataSyncError> = current_chunk
+                            .drain(..)
+                            .map(create_time_corrected_reading(self.robot_start_time))
+                            .collect();
                         let data = match data {
                             Ok(data) => data,
+                            Err(DataSyncError::NoCurrentTime) => {
+                                log::error!("Could not calculate data timestamps, returning without flushing store");
+                                return Ok(());
+                            }
                             Err(err) => {
                                 log::error!(
                                     "error decoding readings for collector key ({:?}): {:?}",
@@ -467,7 +549,7 @@ mod tests {
     use std::mem::MaybeUninit;
     use std::rc::Rc;
     use std::sync::{Arc, Mutex};
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     use bytes::BytesMut;
     use prost::Message;
@@ -579,6 +661,7 @@ mod tests {
 
     #[test_log::test]
     fn test_collection_intervals() {
+        let robot_start_time = Instant::now();
         let resource_1 = ResourceType::Sensor(Arc::new(Mutex::new(TestSensor {})));
         let data_coll_1 = DataCollector::new(
             "r1".to_string(),
@@ -629,6 +712,7 @@ mod tests {
 
     #[test_log::test]
     fn test_collect_readings_for_interval() {
+        let robot_start_time = Instant::now();
         let resource_1 = ResourceType::Sensor(Arc::new(Mutex::new(TestSensor {})));
         let data_coll_1 = DataCollector::new(
             "r1".to_string(),
@@ -673,7 +757,7 @@ mod tests {
         assert!(data_manager.is_ok());
         let mut data_manager = data_manager.unwrap();
 
-        let sensor_data = data_manager.collect_readings_for_interval(100);
+        let sensor_data = data_manager.collect_readings_for_interval(100, robot_start_time);
         assert!(sensor_data.is_ok());
         let sensor_data = sensor_data.unwrap();
         let sensor_data: Vec<(ResourceMethodKey, SensorData)> = sensor_data
@@ -751,6 +835,7 @@ mod tests {
 
     #[test_log::test]
     fn test_collect_readings_for_interval_failure() {
+        let robot_start_time = Instant::now();
         let resource_1 = ResourceType::Sensor(Arc::new(Mutex::new(TestSensorFailure {})));
         let data_coll_1 = DataCollector::new(
             "r1".to_string(),
@@ -781,7 +866,9 @@ mod tests {
         assert!(data_manager.is_ok());
         let mut data_manager = data_manager.unwrap();
 
-        let readings = data_manager.collect_readings_for_interval(100).unwrap();
+        let readings = data_manager
+            .collect_readings_for_interval(100, robot_start_time)
+            .unwrap();
         let readings: Result<Vec<(ResourceMethodKey, SensorData)>, DataCollectionError> =
             readings.into_iter().try_fold(vec![], |mut out, val| {
                 out.push((val.0, val.1?));
@@ -932,6 +1019,7 @@ mod tests {
 
     #[test_log::test]
     fn test_reader() {
+        let robot_start_time = Instant::now();
         let resource_1 = ResourceType::Sensor(Arc::new(Mutex::new(TestSensor {})));
         let resource_2 = ResourceType::Sensor(Arc::new(Mutex::new(TestSensor2 {})));
 
@@ -964,7 +1052,7 @@ mod tests {
         assert!(manager.is_ok());
         let mut manager = manager.unwrap();
 
-        let mut sync_task = manager.get_sync_task();
+        let mut sync_task = manager.get_sync_task(robot_start_time);
 
         async_io::block_on(async move {
             let store_lock = sync_task.get_store_lock().await;
@@ -982,7 +1070,10 @@ mod tests {
                     let res = read_messages_for_collector(&mut reader_2);
                     assert!(res.is_ok());
                 }
-                assert!(manager.collect_data_inner(i).await.is_ok())
+                assert!(manager
+                    .collect_data_inner(i, robot_start_time)
+                    .await
+                    .is_ok())
             }
 
             let expected_data: Vec<f64> = vec![
