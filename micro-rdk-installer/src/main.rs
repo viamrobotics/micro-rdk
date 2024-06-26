@@ -171,7 +171,7 @@ fn validate_version(version: &str) -> Result<String, String> {
     // With 0.1.9+ release the installer will not be backward compatible
     // with prior version, therefore we return an error letting the user know they should
     // use an older installer
-    let version_019 = version_compare::Version::from("0.1.9").unwrap();
+    let Version_019 = version_compare::Version::from("0.1.9").unwrap();
 
     let requested_version = version_compare::Version::from(version)
         .ok_or(format!("{} is not a valid version string", version))?;
