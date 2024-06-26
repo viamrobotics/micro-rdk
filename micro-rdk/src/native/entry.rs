@@ -2,19 +2,18 @@
 
 use crate::{
     common::{
-        app_client::{AppClient, AppClientBuilder, AppClientConfig, AppClientError},
+        app_client::{AppClient, AppClientConfig, AppClientError},
         conn::{
             network::Network,
-            server::{ViamServerBuilder, WebRtcConfiguration},
+            server::{TlsClientConnector, ViamServerBuilder, WebRtcConfiguration},
         },
-        entry::RobotRepresentation,
-        grpc_client::{GrpcClient, GrpcClientError},
+        entry::{validate_robot_credentials, RobotRepresentation},
+        grpc_client::GrpcClientError,
         log::config_log_entry,
-        provisioning::storage::RobotCredentials,
         restart_monitor::RestartMonitor,
         robot::LocalRobot,
     },
-    native::{exec::NativeExecutor, tcp::NativeStream, tls::NativeTls},
+    native::{exec::NativeExecutor, tls::NativeTls},
 };
 use std::{
     net::SocketAddr,
@@ -48,58 +47,37 @@ pub async fn serve_web_inner<S>(
     exec: NativeExecutor,
     _max_webrtc_connection: usize,
     network: impl Network,
+    client_connector: impl TlsClientConnector,
+    mut app_client: AppClient,
 ) where
     S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
     <S as RobotConfigurationStorage>::Error: Debug,
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
     <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
-    let robot_creds = storage
-        .get_robot_credentials()
-        .expect("serve_web_inner: called with storage lacking robot credentials");
-
-    let app_config = AppClientConfig::new(
-        robot_creds.robot_secret().to_owned(),
-        robot_creds.robot_id().to_owned(),
-        "".to_owned(),
-    );
-    let client_connector = NativeTls::new_client();
     let mdns = NativeMdns::new("".to_owned(), network.get_ip()).unwrap();
 
-    let (cfg_response, robot, tls_server_config) = {
-        let cloned_exec = exec.clone();
-        let conn = client_connector.open_ssl_context(None).await.unwrap();
-        let conn = NativeStream::TLSStream(Box::new(conn));
-        let grpc_client = GrpcClient::new(conn, cloned_exec, "https://app.viam.com:443")
-            .await
-            .unwrap();
-        let builder = AppClientBuilder::new(Box::new(grpc_client), app_config.clone());
-        log::info!("build client start");
-        let client = builder.build().await.unwrap();
+    let certs = app_client.get_certificates().await.unwrap();
 
-        let certs = client.get_certificates().await.unwrap();
+    let tls_server_config = NativeTlsServerConfig::new(
+        certs.tls_certificate.as_bytes().to_vec(),
+        certs.tls_private_key.as_bytes().to_vec(),
+    );
 
-        let tls_config = NativeTlsServerConfig::new(
-            certs.tls_certificate.as_bytes().to_vec(),
-            certs.tls_private_key.as_bytes().to_vec(),
-        );
+    let (app_config, cfg_response, cfg_received_datetime) =
+        app_client.get_config(network.get_ip()).await.unwrap();
 
-        let (cfg_response, cfg_received_datetime) =
-            client.get_config(network.get_ip()).await.unwrap();
-
-        let robot = match repr {
-            RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
-            RobotRepresentation::WithRegistry(registry) => {
-                log::info!("building robot from config");
-                let r = match LocalRobot::from_cloud_config(
-                    &cfg_response,
-                    registry,
-                    cfg_received_datetime,
-                ) {
+    let robot = match repr {
+        RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
+        RobotRepresentation::WithRegistry(registry) => {
+            log::info!("building robot from config");
+            let r =
+                match LocalRobot::from_cloud_config(&cfg_response, registry, cfg_received_datetime)
+                {
                     Ok(robot) => {
                         if let Some(datetime) = cfg_received_datetime {
                             let logs = vec![config_log_entry(datetime, None)];
-                            client
+                            app_client
                                 .push_logs(logs)
                                 .await
                                 .expect("could not push logs to app");
@@ -109,7 +87,7 @@ pub async fn serve_web_inner<S>(
                     Err(err) => {
                         if let Some(datetime) = cfg_received_datetime {
                             let logs = vec![config_log_entry(datetime, Some(err))];
-                            client
+                            app_client
                                 .push_logs(logs)
                                 .await
                                 .expect("could not push logs to app");
@@ -118,11 +96,8 @@ pub async fn serve_web_inner<S>(
                         panic!("couldn't build robot");
                     }
                 };
-                Arc::new(Mutex::new(r))
-            }
-        };
-
-        (cfg_response, robot, tls_config)
+            Arc::new(Mutex::new(r))
+        }
     };
 
     #[cfg(feature = "data")]
@@ -192,25 +167,7 @@ pub async fn serve_web_inner<S>(
         log::warn!("Failed to store robot configuration: {}", e);
     }
 
-    futures_lite::future::zip(Box::pin(srv.serve(robot)), data_future).await;
-}
-
-async fn validate_robot_credentials(
-    exec: NativeExecutor,
-    robot_creds: &RobotCredentials,
-) -> Result<AppClient, Box<dyn std::error::Error>> {
-    let app_config = AppClientConfig::new(
-        robot_creds.robot_secret().to_owned(),
-        robot_creds.robot_id().to_owned(),
-        "".to_owned(),
-    );
-    let conn = NativeStream::TLSStream(Box::new(
-        NativeTls::new_client().open_ssl_context(None).await?,
-    ));
-    let client = GrpcClient::new(conn, exec.clone(), "https://app.viam.com:443").await?;
-    let builder = AppClientBuilder::new(Box::new(client), app_config.clone());
-
-    builder.build().await.map_err(|e| e.into())
+    futures_lite::future::zip(Box::pin(srv.serve(robot, Some(app_client))), data_future).await;
 }
 
 #[cfg(feature = "provisioning")]
@@ -234,10 +191,11 @@ where
 
     use crate::common::provisioning::server::serve_provisioning_async;
 
+    let mut client_connector = NativeTls::new_client();
     let info = info.unwrap_or_default();
     let mut last_error: Option<Box<dyn std::error::Error>> = None;
 
-    let (robot, app_client) = 'provisioned: loop {
+    let (_robot, app_client) = 'provisioned: loop {
         if storage.has_robot_credentials() {
             log::info!("Found cached robot credentials; attempting to serve");
 
@@ -260,6 +218,7 @@ where
                 match validate_robot_credentials(
                     exec.clone(),
                     &storage.get_robot_credentials().unwrap(),
+                    &mut client_connector,
                 )
                 .await
                 {
@@ -314,7 +273,16 @@ where
             let _ = last_error.insert(e);
         }
     };
-    serve_web_inner(storage, repr, exec, max_webrtc_connection, network).await;
+    serve_web_inner(
+        storage,
+        repr,
+        exec,
+        max_webrtc_connection,
+        network,
+        client_connector,
+        app_client,
+    )
+    .await;
     Ok(())
 }
 

@@ -9,16 +9,15 @@ use std::{
 };
 
 use crate::common::{
-    app_client::{AppClient, AppClientBuilder, AppClientConfig, AppClientError},
+    app_client::{AppClient, AppClientError},
     conn::{
         mdns::NoMdns,
         network::Network,
-        server::{ViamServerBuilder, WebRtcConfiguration},
+        server::{TlsClientConnector, ViamServerBuilder, WebRtcConfiguration},
     },
-    entry::RobotRepresentation,
-    grpc_client::{GrpcClient, GrpcClientError},
+    entry::{validate_robot_credentials, RobotRepresentation},
+    grpc_client::GrpcClientError,
     log::config_log_entry,
-    provisioning::storage::RobotCredentials,
     restart_monitor::RestartMonitor,
     robot::LocalRobot,
 };
@@ -30,7 +29,6 @@ use super::{
     certificate::GeneratedWebRtcCertificateBuilder,
     dtls::Esp32DtlsBuilder,
     exec::Esp32Executor,
-    tcp::Esp32Stream,
     tls::{Esp32TLS, Esp32TLSServerConfig},
 };
 
@@ -50,16 +48,14 @@ pub async fn serve_web_inner<S>(
     exec: Esp32Executor,
     max_webrtc_connection: usize,
     network: impl Network,
+    client_connector: impl TlsClientConnector,
+    mut app_client: AppClient,
 ) where
     S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
     <S as RobotConfigurationStorage>::Error: Debug,
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
     <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
-    let robot_creds = storage
-        .get_robot_credentials()
-        .expect("serve_web_inner: called with storage lacking robot credentials");
-
     // TODO(NPM) this is a workaround so that async-io thread has started before we
     // instantiate the Async<TCPStream> for the connection to app.viam.com
     // otherwise there is a chance a race happens and will listen to events before full
@@ -70,72 +66,49 @@ pub async fn serve_web_inner<S>(
         .build()
         .unwrap();
 
-    let app_config = AppClientConfig::new(
-        robot_creds.robot_secret().to_owned(),
-        robot_creds.robot_id().to_owned(),
-        "".to_owned(),
-    );
-
-    let mut client_connector = Esp32TLS::new_client();
     let mdns = NoMdns {};
 
-    let (cfg_response, robot, _tls_server_config) = {
-        let cloned_exec = exec.clone();
-        let conn = client_connector.open_ssl_context(None).unwrap();
-        let conn = Esp32Stream::TLSStream(Box::new(conn));
-        let grpc_client = Box::new(
-            GrpcClient::new(conn, cloned_exec, "https://app.viam.com:443")
-                .await
-                .unwrap(),
-        );
+    let certs = app_client.get_certificates().await.unwrap();
 
-        let builder = AppClientBuilder::new(grpc_client, app_config.clone());
+    let serv_key = CString::new(certs.tls_private_key).unwrap();
+    let serv_key_len = serv_key.as_bytes_with_nul().len() as u32;
+    let serv_key: *const u8 = serv_key.into_raw() as *const u8;
 
-        let client = builder.build().await.unwrap();
+    let tls_certs = CString::new(certs.tls_certificate)
+        .unwrap()
+        .into_bytes_with_nul();
+    let _tls_server_config = Esp32TLSServerConfig::new(tls_certs, serv_key, serv_key_len);
 
-        let certs = client.get_certificates().await.unwrap();
+    let (app_config, cfg_response, cfg_received_datetime) =
+        app_client.get_config(network.get_ip()).await.unwrap();
 
-        let serv_key = CString::new(certs.tls_private_key).unwrap();
-        let serv_key_len = serv_key.as_bytes_with_nul().len() as u32;
-        let serv_key: *const u8 = serv_key.into_raw() as *const u8;
-
-        let tls_certs = CString::new(certs.tls_certificate)
-            .unwrap()
-            .into_bytes_with_nul();
-        let tls_server_config = Esp32TLSServerConfig::new(tls_certs, serv_key, serv_key_len);
-
-        let (cfg_response, cfg_received_datetime) =
-            client.get_config(network.get_ip()).await.unwrap();
-
-        if let Some(current_dt) = cfg_received_datetime.as_ref() {
-            let tz = chrono_tz::Tz::UTC;
-            std::env::set_var("TZ", tz.name());
-            let tv_sec = current_dt.timestamp() as i32;
-            let tv_usec = current_dt.timestamp_subsec_micros() as i32;
-            let current_timeval = timeval { tv_sec, tv_usec };
-            let res = unsafe { settimeofday(&current_timeval as *const timeval, std::ptr::null()) };
-            if res != 0 {
-                log::error!(
-                    "could not set time of day for timezone {:?} and timestamp {:?}",
-                    tz.name(),
-                    current_dt
-                );
-            }
+    if let Some(current_dt) = cfg_received_datetime.as_ref() {
+        let tz = chrono_tz::Tz::UTC;
+        std::env::set_var("TZ", tz.name());
+        let tv_sec = current_dt.timestamp() as i32;
+        let tv_usec = current_dt.timestamp_subsec_micros() as i32;
+        let current_timeval = timeval { tv_sec, tv_usec };
+        let res = unsafe { settimeofday(&current_timeval as *const timeval, std::ptr::null()) };
+        if res != 0 {
+            log::error!(
+                "could not set time of day for timezone {:?} and timestamp {:?}",
+                tz.name(),
+                current_dt
+            );
         }
+    }
 
-        let robot = match repr {
-            RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
-            RobotRepresentation::WithRegistry(registry) => {
-                log::info!("building robot from config");
-                let r = match LocalRobot::from_cloud_config(
-                    &cfg_response,
-                    registry,
-                    cfg_received_datetime,
-                ) {
+    let robot = match repr {
+        RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
+        RobotRepresentation::WithRegistry(registry) => {
+            log::info!("building robot from config");
+            let r =
+                match LocalRobot::from_cloud_config(&cfg_response, registry, cfg_received_datetime)
+                {
                     Ok(robot) => {
                         if let Some(datetime) = cfg_received_datetime {
                             let logs = vec![config_log_entry(datetime, None)];
-                            client
+                            app_client
                                 .push_logs(logs)
                                 .await
                                 .expect("could not push logs to app");
@@ -145,7 +118,7 @@ pub async fn serve_web_inner<S>(
                     Err(err) => {
                         if let Some(datetime) = cfg_received_datetime {
                             let logs = vec![config_log_entry(datetime, Some(err))];
-                            client
+                            app_client
                                 .push_logs(logs)
                                 .await
                                 .expect("could not push logs to app");
@@ -154,11 +127,8 @@ pub async fn serve_web_inner<S>(
                         panic!("couldn't build robot");
                     }
                 };
-                Arc::new(Mutex::new(r))
-            }
-        };
-
-        (cfg_response, robot, tls_server_config)
+            Arc::new(Mutex::new(r))
+        }
     };
 
     #[cfg(feature = "data")]
@@ -229,23 +199,7 @@ pub async fn serve_web_inner<S>(
         log::warn!("Failed to store robot configuration: {}", e);
     }
 
-    futures_lite::future::zip(Box::pin(srv.serve(robot)), data_future).await;
-}
-
-async fn validate_robot_credentials(
-    exec: Esp32Executor,
-    robot_creds: &RobotCredentials,
-) -> Result<AppClient, Box<dyn std::error::Error>> {
-    let app_config = AppClientConfig::new(
-        robot_creds.robot_secret().to_owned(),
-        robot_creds.robot_id().to_owned(),
-        "".to_owned(),
-    );
-    let conn = Esp32Stream::TLSStream(Box::new(Esp32TLS::new_client().open_ssl_context(None)?));
-    let client = GrpcClient::new(conn, exec.clone(), "https://app.viam.com:443").await?;
-    let builder = AppClientBuilder::new(Box::new(client), app_config.clone());
-
-    builder.build().await.map_err(|e| e.into())
+    futures_lite::future::zip(Box::pin(srv.serve(robot, Some(app_client))), data_future).await;
 }
 
 // Four cases:
@@ -278,10 +232,11 @@ where
 
     use super::conn::network::Esp32WifiNetwork;
 
+    let mut client_connector = Esp32TLS::new_client();
     let info = info.unwrap_or_default();
     let mut last_error: Option<Box<dyn std::error::Error>> = None;
 
-    let (robot, network, app_client) = 'provisioned: loop {
+    let (_robot, network, app_client) = 'provisioned: loop {
         if storage.has_robot_credentials() && storage.has_wifi_credentials() {
             log::info!("Found cached network and robot credentials; attempting to serve");
 
@@ -331,6 +286,7 @@ where
                         match validate_robot_credentials(
                             exec.clone(),
                             &storage.get_robot_credentials().unwrap(),
+                            &mut client_connector,
                         )
                         .await
                         {
@@ -410,7 +366,16 @@ where
         }
     };
 
-    serve_web_inner(storage, repr, exec, max_webrtc_connection, network).await;
+    serve_web_inner(
+        storage,
+        repr,
+        exec,
+        max_webrtc_connection,
+        network,
+        client_connector,
+        app_client,
+    )
+    .await;
     Ok(())
 }
 
@@ -434,10 +399,11 @@ where
 
     use super::conn::mdns::Esp32Mdns;
 
+    let mut client_connector = Esp32TLS::new_client();
     let info = info.unwrap_or_default();
     let mut last_error: Option<Box<dyn std::error::Error>> = None;
 
-    let (robot, app_client) = 'provisioned: loop {
+    let (_robot, app_client) = 'provisioned: loop {
         if storage.has_robot_credentials() {
             log::info!("Found cached robot credentials; attempting to serve");
 
@@ -460,6 +426,7 @@ where
                 match validate_robot_credentials(
                     exec.clone(),
                     &storage.get_robot_credentials().unwrap(),
+                    &mut client_connector,
                 )
                 .await
                 {
@@ -514,7 +481,16 @@ where
             let _ = last_error.insert(e);
         }
     };
-    serve_web_inner(storage, repr, exec, max_webrtc_connection, network).await;
+    serve_web_inner(
+        storage,
+        repr,
+        exec,
+        max_webrtc_connection,
+        network,
+        client_connector,
+        app_client,
+    )
+    .await;
     Ok(())
 }
 
