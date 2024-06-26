@@ -1,5 +1,5 @@
 use std::fmt::Display;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::google::protobuf::Timestamp;
 use crate::proto::app::data_sync::v1::{SensorData, SensorMetadata};
@@ -11,7 +11,6 @@ use super::{
     sensor::{Readings, SensorError},
 };
 
-use chrono::offset::Local;
 use thiserror::Error;
 
 /// A DataCollectorConfig instance is a representation of an element
@@ -195,8 +194,11 @@ impl DataCollector {
     }
 
     /// calls the method associated with the collector and returns the resulting data
-    pub(crate) fn call_method(&mut self) -> Result<SensorData, DataCollectionError> {
-        let reading_requested_dt = Local::now().fixed_offset();
+    pub(crate) fn call_method(
+        &mut self,
+        robot_start_time: Instant,
+    ) -> Result<SensorData, DataCollectionError> {
+        let reading_requested_ts = robot_start_time.elapsed();
         let data = match &mut self.resource {
             ResourceType::Sensor(ref mut res) => match self.method {
                 CollectionMethod::Readings => res.get_generic_readings()?.into(),
@@ -229,16 +231,16 @@ impl DataCollector {
             },
             _ => return Err(DataCollectionError::NoSupportedMethods),
         };
-        let reading_received_dt = Local::now().fixed_offset();
+        let reading_received_ts = robot_start_time.elapsed();
         Ok(SensorData {
             metadata: Some(SensorMetadata {
                 time_received: Some(Timestamp {
-                    seconds: reading_received_dt.timestamp(),
-                    nanos: reading_received_dt.timestamp_subsec_nanos() as i32,
+                    seconds: reading_received_ts.as_secs() as i64,
+                    nanos: reading_received_ts.subsec_nanos() as i32,
                 }),
                 time_requested: Some(Timestamp {
-                    seconds: reading_requested_dt.timestamp(),
-                    nanos: reading_requested_dt.timestamp_subsec_nanos() as i32,
+                    seconds: reading_requested_ts.as_secs() as i64,
+                    nanos: reading_requested_ts.subsec_nanos() as i32,
                 }),
             }),
             data: Some(data),
@@ -258,7 +260,7 @@ impl DataCollector {
 mod tests {
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     use super::{CollectionMethod, DataCollectionError, DataCollector, DataCollectorConfig};
     use crate::common::config::{AttributeError, Kind};
@@ -328,6 +330,7 @@ mod tests {
 
     #[test_log::test]
     fn test_collect_data() -> Result<(), DataCollectionError> {
+        let robot_start_time = Instant::now();
         let sensor = Arc::new(Mutex::new(FakeSensor::new()));
         let resource = ResourceType::Sensor(sensor);
         let kind_map = HashMap::from([
@@ -342,7 +345,7 @@ mod tests {
             DataCollectorConfig::try_from(&conf_kind).expect("data collector config parse failed");
         let mut coll = DataCollector::from_config("fake".to_string(), resource, &conf)?;
         assert_eq!(coll.time_interval(), Duration::from_millis(10));
-        let data = coll.call_method()?.data;
+        let data = coll.call_method(robot_start_time)?.data;
         assert!(data.is_some());
         let data = data.unwrap();
         match data {
