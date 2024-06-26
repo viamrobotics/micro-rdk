@@ -33,6 +33,9 @@ pub struct generic_c_sensor {
     pub(crate) get_readings_callback: get_readings_callback,
 }
 
+unsafe impl Send for generic_c_sensor {}
+unsafe impl Sync for generic_c_sensor {}
+
 /// Creates an new generic sensor config to be used for registering a generic C sensor with the Robot's registry
 ///
 /// The configure and readings functions should be set with
