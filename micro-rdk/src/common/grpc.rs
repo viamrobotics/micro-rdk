@@ -1228,7 +1228,7 @@ where
 
     #[cfg(feature = "camera")]
     fn camera_get_image(&mut self, message: &[u8]) -> Result<(), ServerError> {
-        // TODO: Modify `get_frame` to return a data structure that can be passed into
+        // TODO: Modify camera methods (ie `get_image`, `render_frame`) to return a data structure that can be passed into
         // `encode_message`, rather than re-implementing `encode_message` here. See
         // https://viam.atlassian.net/browse/RSDK-824
         let req = component::camera::v1::GetImageRequest::decode(message)
