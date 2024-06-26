@@ -149,7 +149,7 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: micro-rdk-installer-windows.exe
-    - name: Download mMicro-RDK
+    - name: Download Micro-RDK
       uses: actions/download-artifact@v4
       with:
         name: micro-rdk
