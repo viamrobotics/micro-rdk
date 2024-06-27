@@ -22,7 +22,6 @@ RUN git clone --depth 1 -b v4.4.4 --single-branch --recurse-submodules --shallow
 FROM debian:bookworm
 
 ARG RUST_VERSION=1.75.0
-ARG TARGETPLATFORM
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DEBCONF_NOWARNINGS="yes"
@@ -65,11 +64,6 @@ COPY --from=builder /usr/cargo-espflash /usr/bin
 COPY --from=builder /usr/ldproxy /usr/bin
 COPY --from=builder /usr/espup /usr/bin
 COPY --from=builder /usr/sccache /usr/bin
-
-RUN case "${TARGETPLATFORM}" in \
-    "linux/amd64") curl -L --proto '=https' --tlsv1.2 -sSf https://github.com/mozilla/cbindgen/releases/download/0.26.0/cbindgen -o /usr/bin/cbindgen;\
-    chmod a+x /usr/bin/cbindgen ;; \
-    esac
 
 WORKDIR /host/
 
