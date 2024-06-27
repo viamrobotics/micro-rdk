@@ -219,14 +219,27 @@ impl<'a> LedcTimerWrapper<'a> {
         if self.count > 0 {
             return Err(Esp32PwmError::OtherChannelsBindToTimer);
         }
+
         let id = {
             let timer = self.timer.take();
             timer.unwrap().timer() as u8
         };
         let timer_config = TimerConfig::default().frequency(frequency_hz.Hz());
-        let _ = self.timer.set(create_timer_driver(id, &timer_config)?);
-        self.frequency = frequency_hz;
-        Ok(())
+
+        match create_timer_driver(id, &timer_config) {
+            Ok(driver) => {
+                let _ = self.timer.set(driver);
+                self.frequency = frequency_hz;
+                Ok(())
+            }
+            Err(err) => {
+                // if there is a failure, or the frequency is bad, we want to revert back
+                // to the last working frequency before raising the error
+                let timer_config = TimerConfig::default().frequency(self.frequency.Hz());
+                let _ = self.timer.set(create_timer_driver(id, &timer_config)?);
+                Err(err)
+            }
+        }
     }
     fn inc(&mut self) {
         self.count += 1;
