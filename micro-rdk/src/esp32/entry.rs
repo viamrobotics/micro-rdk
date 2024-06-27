@@ -5,7 +5,7 @@ use std::{
     fmt::Debug,
     rc::Rc,
     sync::{Arc, Mutex},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use crate::common::{
@@ -70,7 +70,7 @@ pub async fn serve_web_inner(
     let mut client_connector = Esp32TLS::new_client();
     let mdns = NoMdns {};
 
-    let (cfg_response, robot, _tls_server_config) = {
+    let (cfg_response, robot, _tls_server_config, robot_start_time) = {
         let cloned_exec = exec.clone();
         let conn = client_connector.open_ssl_context(None).unwrap();
         let conn = Esp32Stream::TLSStream(Box::new(conn));
@@ -97,6 +97,8 @@ pub async fn serve_web_inner(
 
         let (cfg_response, cfg_received_datetime) =
             client.get_config(network.get_ip()).await.unwrap();
+
+        let robot_start_time = Instant::now();
 
         if let Some(current_dt) = cfg_received_datetime.as_ref() {
             let tz = chrono_tz::Tz::UTC;
@@ -149,7 +151,7 @@ pub async fn serve_web_inner(
             }
         };
 
-        (cfg_response, robot, tls_server_config)
+        (cfg_response, robot, tls_server_config, robot_start_time)
     };
 
     #[cfg(feature = "data")]
@@ -158,6 +160,7 @@ pub async fn serve_web_inner(
         &cfg_response,
         &app_config,
         robot.clone(),
+        robot_start_time,
     ) {
         Ok(svc) => svc,
         Err(err) => {

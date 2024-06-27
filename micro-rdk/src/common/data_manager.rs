@@ -1,11 +1,12 @@
 use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::common::data_collector::{DataCollectionError, DataCollector};
 use crate::common::data_store::DataStore;
 use crate::google::protobuf::value::Kind;
+use crate::google::protobuf::Timestamp;
 use crate::proto::app::data_sync::v1::{
     DataCaptureUploadRequest, DataType, SensorData, UploadMetadata,
 };
@@ -17,6 +18,8 @@ use super::data_store::{DataStoreError, DataStoreReader, WriteMode};
 use super::robot::{LocalRobot, RobotError};
 use async_io::Timer;
 use bytes::BytesMut;
+use chrono::offset::Local;
+use chrono::Datelike;
 use futures_lite::prelude::Future;
 use futures_util::lock::Mutex as AsyncMutex;
 use prost::Message;
@@ -86,6 +89,9 @@ pub struct DataManager<StoreType> {
     sync_interval: Duration,
     min_interval: Duration,
     part_id: String,
+    // used for time correcting stored data before upload, see DataSyncTask::run
+    // and time_corrected_reading_handler below
+    robot_start_time: Instant,
 }
 
 impl<StoreType> DataManager<StoreType>
@@ -97,6 +103,7 @@ where
         store: StoreType,
         sync_interval: Duration,
         part_id: String,
+        robot_start_time: Instant,
     ) -> Result<Self, DataManagerError> {
         let intervals = collectors.iter().map(|x| x.time_interval());
         let min_interval = intervals.min().ok_or(DataManagerError::NoCollectors)?;
@@ -106,6 +113,7 @@ where
             sync_interval,
             min_interval,
             part_id,
+            robot_start_time,
         })
     }
 
@@ -113,6 +121,7 @@ where
         cfg: &ConfigResponse,
         app_config: &AppClientConfig,
         robot: Arc<Mutex<LocalRobot>>,
+        robot_start_time: Instant,
     ) -> Result<Option<Self>, DataManagerError> {
         let part_id = app_config.get_robot_id();
         let sync_interval = get_data_sync_interval(cfg)?;
@@ -121,7 +130,8 @@ where
             let collector_keys: Vec<ResourceMethodKey> =
                 collectors.iter().map(|c| c.resource_method_key()).collect();
             let store = StoreType::from_resource_method_keys(collector_keys)?;
-            let data_manager_svc = DataManager::new(collectors, store, sync_interval, part_id)?;
+            let data_manager_svc =
+                DataManager::new(collectors, store, sync_interval, part_id, robot_start_time)?;
             Ok(Some(data_manager_svc))
         } else {
             Ok(None)
@@ -205,7 +215,12 @@ where
                 (coll.time_interval().as_millis() as u64 / min_interval_ms)
                     == (time_interval_ms / min_interval_ms)
             })
-            .map(|coll| Ok((coll.resource_method_key(), coll.call_method()?)))
+            .map(|coll| {
+                Ok((
+                    coll.resource_method_key(),
+                    coll.call_method(self.robot_start_time)?,
+                ))
+            })
             .collect()
     }
 
@@ -220,6 +235,7 @@ where
             resource_method_keys,
             sync_interval: self.sync_interval,
             part_id: self.part_id(),
+            robot_start_time: self.robot_start_time,
         }
     }
 }
@@ -230,6 +246,10 @@ pub enum DataSyncError {
     DataStoreError(#[from] DataStoreError),
     #[error(transparent)]
     MessageDecodingError(#[from] prost::DecodeError),
+    #[error("time correction resulted in out of bounds duration")]
+    TimeOutOfBoundsError,
+    #[error("current time unset")]
+    NoCurrentTime,
 }
 
 pub struct DataSyncTask<StoreType> {
@@ -237,6 +257,57 @@ pub struct DataSyncTask<StoreType> {
     resource_method_keys: Vec<ResourceMethodKey>,
     sync_interval: Duration,
     part_id: String,
+    robot_start_time: Instant,
+}
+
+fn get_time_to_subtract(
+    robot_start_time: Instant,
+    stored_time: Timestamp,
+) -> Result<chrono::Duration, DataSyncError> {
+    let stored_time_dur = Duration::new(stored_time.seconds as u64, stored_time.nanos as u32);
+    let time_to_subtract = robot_start_time.elapsed() - stored_time_dur;
+    let time_to_subtract = chrono::Duration::new(
+        time_to_subtract.as_secs() as i64,
+        time_to_subtract.subsec_nanos(),
+    )
+    .ok_or(DataSyncError::TimeOutOfBoundsError)?;
+    Ok(time_to_subtract)
+}
+
+fn time_corrected_reading_handler(
+    robot_start_time: Instant,
+) -> impl FnMut(BytesMut) -> Result<SensorData, DataSyncError> {
+    move |raw_msg| {
+        let mut msg = SensorData::decode(raw_msg)?;
+        // the timestamps of the stored data are measured as offsets from a starting
+        // instant (robot_start_time, acquired from DataSyncTask), so we adjust the
+        // timestamps on the parsed message based on the current time (if it is now available)
+        if let Some(metadata) = msg.metadata.as_mut() {
+            let current_dt = Local::now().fixed_offset();
+            // Viam was founded in 2020, so if the current time is set to any time before that
+            // we know that settimeofday was never called, or called with an improper datetime
+            if current_dt.year() < 2020 {
+                return Err(DataSyncError::NoCurrentTime);
+            }
+            if let Some(time_received) = metadata.time_received.clone() {
+                let time_to_subtract = get_time_to_subtract(robot_start_time, time_received)?;
+                let time_received = current_dt - time_to_subtract;
+                metadata.time_received = Some(Timestamp {
+                    seconds: time_received.timestamp() as i64,
+                    nanos: time_received.timestamp_subsec_nanos() as i32,
+                });
+            }
+            if let Some(time_requested) = metadata.time_requested.clone() {
+                let time_to_subtract = get_time_to_subtract(robot_start_time, time_requested)?;
+                let time_requested = current_dt - time_to_subtract;
+                metadata.time_requested = Some(Timestamp {
+                    seconds: time_requested.timestamp() as i64,
+                    nanos: time_requested.timestamp_subsec_nanos() as i32,
+                });
+            }
+        }
+        Ok(msg)
+    }
 }
 
 impl<StoreType> DataSyncTask<StoreType>
@@ -330,8 +401,10 @@ where
                     if next_message.is_empty()
                         || ((next_message.len() + current_chunk_size) > MAX_SENSOR_CONTENTS_SIZE)
                     {
-                        let data: Result<Vec<SensorData>, prost::DecodeError> =
-                            current_chunk.drain(..).map(SensorData::decode).collect();
+                        let data: Result<Vec<SensorData>, DataSyncError> = current_chunk
+                            .drain(..)
+                            .map(time_corrected_reading_handler(self.robot_start_time))
+                            .collect();
                         let data = match data {
                             Ok(data) => data,
                             Err(err) => {
@@ -424,7 +497,7 @@ mod tests {
     use std::mem::MaybeUninit;
     use std::rc::Rc;
     use std::sync::{Arc, Mutex};
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     use bytes::BytesMut;
     use prost::Message;
@@ -535,6 +608,7 @@ mod tests {
 
     #[test_log::test]
     fn test_collection_intervals() {
+        let robot_start_time = Instant::now();
         let resource_1 = ResourceType::Sensor(Arc::new(Mutex::new(TestSensor {})));
         let data_coll_1 = DataCollector::new(
             "r1".to_string(),
@@ -573,6 +647,7 @@ mod tests {
             store,
             Duration::from_millis(30),
             "1".to_string(),
+            robot_start_time,
         );
         assert!(data_manager.is_ok());
         let data_manager = data_manager.unwrap();
@@ -585,6 +660,7 @@ mod tests {
 
     #[test_log::test]
     fn test_collect_readings_for_interval() {
+        let robot_start_time = Instant::now();
         let resource_1 = ResourceType::Sensor(Arc::new(Mutex::new(TestSensor {})));
         let data_coll_1 = DataCollector::new(
             "r1".to_string(),
@@ -625,6 +701,7 @@ mod tests {
             store,
             Duration::from_millis(30),
             "1".to_string(),
+            robot_start_time,
         );
         assert!(data_manager.is_ok());
         let mut data_manager = data_manager.unwrap();
@@ -699,6 +776,7 @@ mod tests {
 
     #[test_log::test]
     fn test_collect_readings_for_interval_failure() {
+        let robot_start_time = Instant::now();
         let resource_1 = ResourceType::Sensor(Arc::new(Mutex::new(TestSensorFailure {})));
         let data_coll_1 = DataCollector::new(
             "r1".to_string(),
@@ -725,6 +803,7 @@ mod tests {
             store,
             Duration::from_millis(30),
             "1".to_string(),
+            robot_start_time,
         );
         assert!(data_manager.is_ok());
         let mut data_manager = data_manager.unwrap();
@@ -875,6 +954,7 @@ mod tests {
 
     #[test_log::test]
     fn test_reader() {
+        let robot_start_time = Instant::now();
         let resource_1 = ResourceType::Sensor(Arc::new(Mutex::new(TestSensor {})));
         let resource_2 = ResourceType::Sensor(Arc::new(Mutex::new(TestSensor2 {})));
 
@@ -903,6 +983,7 @@ mod tests {
             ReadSavingStore::new(),
             Duration::from_millis(65),
             "boop".to_string(),
+            robot_start_time,
         );
         assert!(manager.is_ok());
         let mut manager = manager.unwrap();

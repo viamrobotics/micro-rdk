@@ -20,6 +20,7 @@ use std::{
     net::SocketAddr,
     rc::Rc,
     sync::{Arc, Mutex},
+    time::{Duration, Instant},
 };
 
 #[cfg(feature = "provisioning")]
@@ -57,7 +58,7 @@ pub async fn serve_web_inner(
     let client_connector = NativeTls::new_client();
     let mdns = NativeMdns::new("".to_owned(), network.get_ip()).unwrap();
 
-    let (cfg_response, robot, tls_server_config) = {
+    let (cfg_response, robot, tls_server_config, robot_start_time) = {
         let cloned_exec = exec.clone();
         let conn = client_connector.open_ssl_context(None).await.unwrap();
         let conn = NativeStream::TLSStream(Box::new(conn));
@@ -77,6 +78,8 @@ pub async fn serve_web_inner(
 
         let (cfg_response, cfg_received_datetime) =
             client.get_config(network.get_ip()).await.unwrap();
+
+        let robot_start_time = Instant::now();
 
         let robot = match repr {
             RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
@@ -113,7 +116,7 @@ pub async fn serve_web_inner(
             }
         };
 
-        (cfg_response, robot, tls_config)
+        (cfg_response, robot, tls_config, robot_start_time)
     };
 
     #[cfg(feature = "data")]
@@ -122,6 +125,7 @@ pub async fn serve_web_inner(
         &cfg_response,
         &app_config,
         robot.clone(),
+        robot_start_time,
     ) {
         Ok(svc) => svc,
         Err(err) => {
@@ -215,8 +219,6 @@ where
     ServerError: From<<S as RobotCredentialStorage>::Error>,
     <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
-    use std::time::Duration;
-
     use async_io::Timer;
 
     use crate::common::provisioning::server::serve_provisioning_async;
