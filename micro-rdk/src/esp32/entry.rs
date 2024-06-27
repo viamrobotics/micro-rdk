@@ -21,7 +21,7 @@ use crate::common::{
     provisioning::storage::RobotCredentials,
     restart_monitor::RestartMonitor,
     robot::LocalRobot,
-    config_restart::ConfigRestart,
+    config_monitor::ConfigMonitor,
 };
 
 #[cfg(feature = "data")]
@@ -97,7 +97,7 @@ pub async fn serve_web_inner(
         let tls_server_config = Esp32TLSServerConfig::new(tls_certs, serv_key, serv_key_len);
 
         let (cfg_response, cfg_received_datetime) =
-            client.get_config(network.get_ip()).await.unwrap();
+            client.get_config(Some(network.get_ip())).await.unwrap();
 
         if let Some(current_dt) = cfg_received_datetime.as_ref() {
             let tz = chrono_tz::Tz::UTC;
@@ -188,9 +188,11 @@ pub async fn serve_web_inner(
 
     let cloned_exec = exec.clone();
 
-    let hashed_incoming_config = hashed(cfg_response);
-    let hashed_curr_config = hashed(curr_config);
 
+    //let curr_config = cfg_response; // Viam app
+    //use crc32fast::Hasher; DO I HASH HERE OR IN CONFIG_MONITOR?
+
+    
     let webrtc = Box::new(WebRtcConfiguration::new(
         webrtc_certificate,
         dtls,
@@ -210,9 +212,9 @@ pub async fn serve_web_inner(
         .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| unsafe {
             crate::esp32::esp_idf_svc::sys::esp_restart()
         })))
-        .with_periodic_app_client_task(Box::new(ConfigRestart::new(||unsafe {
-            crate::esp32::esp_idf_svc::sys::esp_restart(), "hi"
-        })));
+        .with_periodic_app_client_task(Box::new(ConfigMonitor::new(||unsafe {
+            crate::esp32::esp_idf_svc::sys::esp_restart()
+        },  *(cfg_response.clone())) ));
         #[cfg(feature = "data")]
         let builder = if let Some(task) = data_sync_task {
             builder.with_periodic_app_client_task(Box::new(task))
