@@ -16,29 +16,30 @@ jobs:
     name: Calculate changes
     runs-on: ubuntu-latest
     outputs:
-      src-esp32: ${{ steps.changes.outputs.src-esp32 }}
-      src-native: ${{ steps.changes.outputs.src-native }}
-      src-common: ${{ steps.changes.outputs.src-common }}
-      src-servers: ${{ steps.changes.outputs.src-servers }}
-      src-cli: ${{ steps.changes.outputs.src-cli }}
+      src-esp32: ${{ steps.filter.outputs.src-esp32 }}
+      src-native: ${{ steps.filter.outputs.src-native }}
+      src-common: ${{ steps.filter.outputs.src-common }}
+      src-servers: ${{ steps.filter.outputs.src-servers }}
+      src-cli: ${{ steps.filter.outputs.src-cli }}
+      src-ffi: ${{ steps.filter.outputs.src-ffi }}
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
     steps:
     - name : Checkout main branch code
       if: github.event_name != 'pull_request_target'
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 2
     - name: Check out PR branch code
       if: github.event_name == 'pull_request_target'
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: 2
     - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
     - name: path filter
-      uses: dorny/paths-filter@v2
-      id: changes
+      uses: dorny/paths-filter@v3
+      id: filter
       with:
         filters: |
           src-esp32:
@@ -52,6 +53,8 @@ jobs:
             - 'micro-rdk-server/**'
           src-cli:
             - 'micro-rdk-installer/**'
+          src-ffi:
+            - 'micro-rdk-ffi/**'
 
   build_cli:
     needs: changes
@@ -60,16 +63,15 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
-      
     steps:
     - name : Checkout main branch code
       if: github.event_name != 'pull_request_target'
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 2
     - name: Check out PR branch code
       if: github.event_name == 'pull_request_target'
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: 2
@@ -77,24 +79,49 @@ jobs:
       run: |
         bash -c 'make clippy-cli'
 
-    
-  test_and_build:
+  check_ffi:
     needs: changes
-    name: Tests, Format, Clippy Micro-Rdk
+    name: Tests, Format, Clippy Micro-RDK FFI
+    if: ${{ needs.changes.outputs.src-ffi == 'true'}}
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
-    timeout-minutes: 20
-
     steps:
     - name : Checkout main branch code
       if: github.event_name != 'pull_request_target'
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 2
     - name: Check out PR branch code
       if: github.event_name == 'pull_request_target'
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        fetch-depth: 2
+    - name: Format Micro-RDK FFI
+      run: |
+        bash -c 'cargo fmt -p micro-rdk-ffi -- --check'
+    - name: Clippy Micro-RDK FFI
+      run: |
+        bash -c 'git config --global --add safe.directory /opt/esp/esp-idf && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && make clippy-ffi'
+    
+  test_and_build:
+    needs: changes
+    name: Tests, Format, Clippy Micro-Rdk
+    if : needs.changes.outputs.src-esp32 == 'true' || needs.changes.outputs.src-common == 'true' ||  needs.changes.outputs.src-native == 'true' || needs.changes.outputs.src-servers == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
+    timeout-minutes: 20
+    steps:
+    - name : Checkout main branch code
+      if: github.event_name != 'pull_request_target'
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
+    - name: Check out PR branch code
+      if: github.event_name == 'pull_request_target'
+      uses: actions/checkout@v4
       with:
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: 2

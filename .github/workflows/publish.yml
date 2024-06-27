@@ -23,7 +23,7 @@ jobs:
         shell: bash
     steps:
     - name: Checkout main branch code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 2
     - name: Set toolchain
@@ -63,7 +63,7 @@ jobs:
               echo "is_rc_release=false" >> $GITHUB_OUTPUT
         fi
     - name: Upload release
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: micro-rdk-installer-${{ matrix.job.file_suffix }}
         path: micro-rdk-installer-${{ matrix.job.file_suffix }}
@@ -79,7 +79,7 @@ jobs:
         shell: bash
     steps:
     - name: Checkout main branch code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 2
     - name: Set toolchain
@@ -95,7 +95,7 @@ jobs:
         cargo build -p micro-rdk-installer --release --locked --target aarch64-unknown-linux-gnu
         cp target/aarch64-unknown-linux-gnu/release/micro-rdk-installer micro-rdk-installer-arm64-linux
     - name: Upload release
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: micro-rdk-installer-arm64-linux
         path: micro-rdk-installer-arm64-linux
@@ -113,13 +113,18 @@ jobs:
         fetch-depth: 2
     - name: Build esp32 binary
       run: |
-        bash -c 'git config --global --add safe.directory "$ESP_ROOT"/esp-idf && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && make build-esp32-bin'
+        bash -c 'git config --global --add safe.directory "$ESP_ROOT"/esp-idf && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && make build-esp32-bin &&  cargo +esp build -p micro-rdk-ffi --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --locked --release'
         cp target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin  micro-rdk-server-esp32.bin
-    - name: Upload release
-      uses: actions/upload-artifact@v2
+        cp target/xtensa-esp32-espidf/release/libmicrordk.a libmicrordk.a
+        cp micro-rdk-ffi/include/micrordk.h micrordk.h
+    - name: Upload release Lib
+      uses: actions/upload-artifact@v4
       with:
-        name: micro-rdk-server-esp32.bin
-        path: micro-rdk-server-esp32.bin
+        name: micro-rdk
+        path: |
+          libmicrordk.a
+          micrordk.h
+          micro-rdk-server-esp32.bin
 
   publish-release:
     needs: [build-installer, build-installer-arm64-linux, build-micro-RDK]
@@ -134,25 +139,28 @@ jobs:
               echo "match=false" >> $GITHUB_OUTPUT
         fi
     - name: Download arm64-linux installer
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: micro-rdk-installer-arm64-linux
     - name: Download amd64-linux installer
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: micro-rdk-installer-amd64-linux
     - name: Download macos installer
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: micro-rdk-installer-macos
     - name: Download windows installer
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: micro-rdk-installer-windows.exe
-    - name: Download micro-RDK binary
-      uses: actions/download-artifact@v3
+    - name: Download Micro-RDK
+      uses: actions/download-artifact@v4
       with:
-        name: micro-rdk-server-esp32.bin
+        name: micro-rdk
+    - name: Zip FFI assets
+      run: |
+        zip micro-rdk-lib.zip libmicrordk.a micrordk.h
     - name: Compute checksums
       run: |
         sha256sum  micro-rdk-installer-arm64-linux  >> sha256sums.txt
@@ -160,15 +168,30 @@ jobs:
         sha256sum  micro-rdk-installer-macos  >> sha256sums.txt
         sha256sum  micro-rdk-server-esp32.bin  >> sha256sums.txt
         sha256sum  micro-rdk-installer-windows.exe  >> sha256sums.txt
-    - name: Publish release
-      uses: marvinpinto/action-automatic-releases@latest
+        sha256sum  micro-rdk-lib.zip  >> sha256sums.txt
+    - name: Update CHANGELOG
+      id: changelog
+      uses: mikepenz/release-changelog-builder-action@v4
       with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        files: |
+        token: ${{ github.token }}
+        tag: ${{ github.ref_name }}
+        ignorePreReleases: "false"
+        fetchViaCommits: "true"
+
+    - name: Publish release
+      uses: ncipollo/release-action@v1
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        artifacts: |
           micro-rdk-installer-arm64-linux
           micro-rdk-installer-amd64-linux
           micro-rdk-installer-macos
           micro-rdk-server-esp32.bin
+          micro-rdk-lib.zip
           sha256sums.txt
           micro-rdk-installer-windows.exe
         prerelease: ${{ steps.check-tag.outputs.match }}
+        replacesArtifacts: true
+        allowUpdates: true
+        name: ${{ github.ref_name }}
+        body: ${{ steps.changelog.outputs.changelog }}

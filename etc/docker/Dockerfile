@@ -23,7 +23,7 @@ FROM debian:bookworm
 
 ARG RUST_VERSION=1.75.0
 
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 ENV DEBCONF_NOWARNINGS="yes"
 
 ENV RUSTUP_HOME=/opt/rust/rustup \
@@ -37,7 +37,7 @@ RUN apt update && apt dist-upgrade -y
 
 RUN apt update
 
-RUN apt-get install -y --no-install-recommends git wget flex bison gperf python3 python3-pip python3-virtualenv cmake ninja-build ccache libffi-dev libssl-dev libudev-dev dfu-util libusb-1.0-0 openssh-client software-properties-common python3-venv sudo && \
+RUN apt-get install -y --no-install-recommends git wget flex bison gperf python3 python3-pip python3-virtualenv cmake ninja-build ccache libffi-dev libssl-dev libudev-dev dfu-util libusb-1.0-0 openssh-client software-properties-common python3-venv sudo curl && \
     apt-get install -y --no-install-recommends cmake && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3 10
 

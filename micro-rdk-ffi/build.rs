@@ -105,12 +105,14 @@ fn main() {
         std::fs::write(dest_path, modules_rs_content).expect("couldn't write modules.rs file");
 
         let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+
+        let cfg = cbindgen::Config::from_file("cbindgen.toml").unwrap();
+        println!("cargo:rerun-if-changed=include/micrordk.h");
         cbindgen::Builder::new()
             .with_crate(crate_dir)
-            .with_namespace("micro_rdk")
-            .with_language(cbindgen::Language::C)
+            .with_config(cfg)
             .generate()
             .expect("Unable to generate bindings")
-            .write_to_file("micro_rdk.h");
+            .write_to_file("include/micrordk.h");
     }
 }
