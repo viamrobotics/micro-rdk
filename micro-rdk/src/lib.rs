@@ -26,6 +26,11 @@ pub use micro_rdk_macros::PowerSensorReadings;
 
 /// gRPC protobuf utilities, auto-generated
 pub mod google {
+    #[cfg(feature = "camera")]
+    pub mod api {
+        #![allow(clippy::derive_partial_eq_without_eq)]
+        include!("gen/google.api.rs");
+    }
     pub mod rpc {
         #![allow(clippy::derive_partial_eq_without_eq)]
         include!("gen/google.rpc.rs");
