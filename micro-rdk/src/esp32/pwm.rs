@@ -236,11 +236,11 @@ impl<'a> LedcTimerWrapper<'a> {
                 // if there is a failure, or the frequency is bad, we want to revert back
                 // to the last working frequency before raising the error
                 let timer_config = TimerConfig::default().frequency(self.frequency.Hz());
-                let _ = self
-                    .timer
-                    .set(create_timer_driver(id, &timer_config).expect(
-                        format!("bad frequency previously set on timer {:?}", id).as_str(),
-                    ));
+                let _ =
+                    self.timer
+                        .set(create_timer_driver(id, &timer_config).unwrap_or_else(|_| {
+                            panic!("bad frequency previously set on timer {:?}", id)
+                        }));
                 Err(err)
             }
         }
