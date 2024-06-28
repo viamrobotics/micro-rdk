@@ -28,9 +28,15 @@ use crate::{
 use log::*;
 
 #[cfg(feature = "data")]
-use super::data_collector::{DataCollectionError, DataCollector, DataCollectorConfig};
+use super::{
+    data_collector::{DataCollectionError, DataCollector, DataCollectorConfig},
+    data_manager::DataManager,
+    data_store::StaticMemoryDataStore,
+};
+
 use super::{
     actuator::ActuatorError,
+    app_client::PeriodicAppClientTask,
     base::BaseType,
     board::BoardType,
     config::{AttributeError, Component, ConfigType, DynamicComponentConfig},
@@ -89,10 +95,13 @@ impl ResourceType {
 
 #[derive(Default)]
 pub struct LocalRobot {
+    pub part_id: String,
     resources: ResourceMap,
     build_time: Option<DateTime<FixedOffset>>,
     #[cfg(feature = "data")]
     data_collector_configs: Vec<(ResourceName, DataCollectorConfig)>,
+    #[cfg(feature = "data")]
+    data_manager: Option<DataManager<StaticMemoryDataStore>>,
 }
 
 #[derive(Error, Debug)]
@@ -217,17 +226,23 @@ impl LocalRobot {
     // component configs within the response are consumed and the corresponding components are generated
     // and added to the created robot.
     pub fn from_cloud_config(
+        part_id: String,
         config_resp: &ConfigResponse,
         registry: Box<ComponentRegistry>,
         build_time: Option<DateTime<FixedOffset>>,
     ) -> Result<Self, RobotError> {
+
         let mut robot = LocalRobot {
+            part_id,
             resources: ResourceMap::new(),
             // Use date time pulled off gRPC header as the `build_time` returned in the status of
             // every resource as `last_reconfigured`.
             build_time,
+
             #[cfg(feature = "data")]
             data_collector_configs: vec![],
+            #[cfg(feature = "data")]
+            data_manager: None,
         };
 
         let components: Result<Vec<Option<DynamicComponentConfig>>, AttributeError> = config_resp
@@ -242,6 +257,21 @@ impl LocalRobot {
             components.map_err(RobotError::RobotParseConfigError)?,
             registry,
         )?;
+
+        // TODO: When cfg's on expressions are valid, remove the outer scope.
+        #[cfg(feature = "data")]
+        {
+            robot.data_manager = {
+                match DataManager::<StaticMemoryDataStore>::from_robot_and_config(&robot, &config_resp) {
+                    Ok(svc) => svc,
+                    Err(err) => {
+                        log::error!("Error configuring data management: {:?}", err);
+                        None
+                    }
+                }
+            };
+        }
+
         Ok(robot)
     }
 
@@ -444,6 +474,17 @@ impl LocalRobot {
             )?);
         }
         Ok(res)
+    }
+
+    pub fn generate_periodic_app_client_tasks(&self) -> Vec<Box<dyn PeriodicAppClientTask>> {
+        let mut tasks = Vec::<Box<dyn PeriodicAppClientTask>>::new();
+
+        #[cfg(feature = "data")]
+        if let Some(data_manager) = &self.data_manager {
+            tasks.push(Box::new(data_manager.get_sync_task()));
+        }
+
+        tasks
     }
 
     pub fn get_status(

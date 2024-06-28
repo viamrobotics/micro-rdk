@@ -22,9 +22,6 @@ use crate::common::{
     robot::LocalRobot,
 };
 
-#[cfg(feature = "data")]
-use crate::common::{data_manager::DataManager, data_store::StaticMemoryDataStore};
-
 use super::{
     certificate::GeneratedWebRtcCertificateBuilder,
     dtls::Esp32DtlsBuilder,
@@ -105,64 +102,49 @@ pub async fn serve_web_inner<S>(
         RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
         RobotRepresentation::WithRegistry(registry) => {
             log::info!("building robot from config");
-            let r =
-                match LocalRobot::from_cloud_config(&cfg_response, registry, cfg_received_datetime)
-                {
-                    Ok(robot) => {
-                        if let Some(datetime) = cfg_received_datetime {
-                            let logs = vec![config_log_entry(datetime, None)];
-                            app_client
-                                .push_logs(logs)
-                                .await
-                                .expect("could not push logs to app");
-                        }
-                        robot
+            let r = match LocalRobot::from_cloud_config(
+                app_config.get_robot_id(),
+                &cfg_response,
+                registry,
+                cfg_received_datetime,
+            ) {
+                Ok(robot) => {
+                    if let Some(datetime) = cfg_received_datetime {
+                        let logs = vec![config_log_entry(datetime, None)];
+                        app_client
+                            .push_logs(logs)
+                            .await
+                            .expect("could not push logs to app");
                     }
-                    Err(err) => {
-                        if let Some(datetime) = cfg_received_datetime {
-                            let logs = vec![config_log_entry(datetime, Some(err))];
-                            app_client
-                                .push_logs(logs)
-                                .await
-                                .expect("could not push logs to app");
-                        }
-                        //TODO shouldn't panic here, when we support offline mode and reloading configuration this should be removed
-                        panic!("couldn't build robot");
+                    robot
+                }
+                Err(err) => {
+                    if let Some(datetime) = cfg_received_datetime {
+                        let logs = vec![config_log_entry(datetime, Some(err))];
+                        app_client
+                            .push_logs(logs)
+                            .await
+                            .expect("could not push logs to app");
                     }
-                };
+                    //TODO shouldn't panic here, when we support offline mode and reloading configuration this should be removed
+                    panic!("couldn't build robot");
+                }
+            };
             Arc::new(Mutex::new(r))
         }
     };
 
-    #[cfg(feature = "data")]
-    // TODO: Support implementers of the DataStore trait other than StaticMemoryDataStore in a way that is configurable
-    let data_manager_svc = match DataManager::<StaticMemoryDataStore>::from_robot_and_config(
-        &cfg_response,
-        &app_config,
-        robot.clone(),
-    ) {
-        Ok(svc) => svc,
-        Err(err) => {
-            log::error!("error configuring data management: {:?}", err);
-            None
-        }
-    };
 
-    #[cfg(feature = "data")]
-    let data_sync_task = data_manager_svc
-        .as_ref()
-        .map(|data_manager_svc| data_manager_svc.get_sync_task());
-
-    #[cfg(feature = "data")]
-    let data_future = Box::pin(async move {
-        if let Some(mut data_manager_svc) = data_manager_svc {
-            if let Err(err) = data_manager_svc.data_collection_task().await {
-                log::error!("error running data manager: {:?}", err)
-            }
-        }
-    });
-    #[cfg(not(feature = "data"))]
-    let data_future = async move {};
+    // #[cfg(feature = "data")]
+    // let data_future = Box::pin(async move {
+    //     if let Some(mut data_manager_svc) = data_manager_svc {
+    //         if let Err(err) = data_manager_svc.data_collection_task().await {
+    //             log::error!("error running data manager: {:?}", err)
+    //         }
+    //     }
+    // });
+    // #[cfg(not(feature = "data"))]
+    // let data_future = async move {};
 
     let webrtc_certificate = Rc::new(webrtc_certificate);
     let dtls = Esp32DtlsBuilder::new(webrtc_certificate.clone());
@@ -175,34 +157,27 @@ pub async fn serve_web_inner<S>(
         exec.clone(),
     ));
 
-    let mut srv = {
-        let builder = ViamServerBuilder::new(
-            mdns,
-            cloned_exec,
-            client_connector,
-            app_config,
-            max_webrtc_connection,
-            network,
-        )
-        .with_webrtc(webrtc)
-        .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| unsafe {
-            crate::esp32::esp_idf_svc::sys::esp_restart()
-        })));
-        #[cfg(feature = "data")]
-        let builder = if let Some(task) = data_sync_task {
-            builder.with_periodic_app_client_task(Box::new(task))
-        } else {
-            builder
-        };
-        builder.build(&cfg_response).unwrap()
-    };
+    let mut srv = ViamServerBuilder::new(
+        mdns,
+        cloned_exec,
+        client_connector,
+        app_config,
+        max_webrtc_connection,
+        network,
+    )
+    .with_webrtc(webrtc)
+    .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| unsafe {
+        crate::esp32::esp_idf_svc::sys::esp_restart()
+    })))
+    .build(&cfg_response)
+    .unwrap();
 
     // Attempt to cache the config for the machine we are about to `serve`.
     if let Err(e) = storage.store_robot_configuration(cfg_response.config.unwrap()) {
         log::warn!("Failed to store robot configuration: {}", e);
     }
 
-    futures_lite::future::zip(Box::pin(srv.serve(robot, Some(app_client))), data_future).await;
+    srv.serve(robot, Some(app_client)).await;
 }
 
 // Four cases:
@@ -246,7 +221,14 @@ where
             if storage.has_robot_configuration() {
                 if let RobotRepresentation::WithRegistry(ref registry) = repr {
                     log::info!("Found cached robot configuration; speculatively building robot from config");
-                    match LocalRobot::from_cloud_config(&ConfigResponse { config : Some(storage.get_robot_configuration().unwrap()) }, registry.clone(), None) {
+                    match LocalRobot::from_cloud_config(
+                        storage.get_robot_credentials().unwrap().robot_id,
+                        &ConfigResponse {
+                            config: Some(storage.get_robot_configuration().unwrap()),
+                        },
+                        registry.clone(),
+                        None,
+                    ) {
                         Ok(robot) => {
                             repr = RobotRepresentation::WithRobot(robot);
                         }
@@ -422,7 +404,14 @@ where
             if storage.has_robot_configuration() {
                 if let RobotRepresentation::WithRegistry(ref registry) = repr {
                     log::info!("Found cached robot configuration; speculatively building robot from config");
-                    match LocalRobot::from_cloud_config(&ConfigResponse { config : Some(storage.get_robot_configuration().unwrap()) }, registry.clone(), None) {
+                    match LocalRobot::from_cloud_config(
+                        storage.get_robot_credentials().unwrap().robot_id,
+                        &ConfigResponse {
+                            config: Some(storage.get_robot_configuration().unwrap()),
+                        },
+                        registry.clone(),
+                        None,
+                    ) {
                         Ok(robot) => {
                             repr = RobotRepresentation::WithRobot(robot);
                         }
