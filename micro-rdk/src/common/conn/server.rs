@@ -363,7 +363,7 @@ where
 
         // Let the robot register any periodic app client tasks it may
         // have based on its configuration.
-        self.app_client_tasks.append(&mut robot.lock().unwrap().generate_periodic_app_client_tasks());
+        self.app_client_tasks.append(&mut robot.lock().unwrap().get_periodic_app_client_tasks());
 
         // Convert each `PeriodicAppClientTask` implementer into an async task spawned on the
         // executor, and collect them all into `_app_client_tasks` so we don't lose track of them.

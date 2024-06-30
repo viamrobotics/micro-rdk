@@ -134,18 +134,6 @@ pub async fn serve_web_inner<S>(
         }
     };
 
-
-    // #[cfg(feature = "data")]
-    // let data_future = Box::pin(async move {
-    //     if let Some(mut data_manager_svc) = data_manager_svc {
-    //         if let Err(err) = data_manager_svc.data_collection_task().await {
-    //             log::error!("error running data manager: {:?}", err)
-    //         }
-    //     }
-    // });
-    // #[cfg(not(feature = "data"))]
-    // let data_future = async move {};
-
     let webrtc_certificate = Rc::new(webrtc_certificate);
     let dtls = Esp32DtlsBuilder::new(webrtc_certificate.clone());
 

@@ -1,10 +1,18 @@
 #![allow(dead_code)]
 
+use async_executor::Task;
+
 use chrono::{DateTime, FixedOffset};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
 };
+
+#[cfg(feature = "esp32")]
+use crate::esp32::exec::Esp32Executor;
+
+#[cfg(feature = "native")]
+use crate::native::exec::NativeExecutor;
 
 #[cfg(feature = "camera")]
 use crate::common::camera::{Camera, CameraType};
@@ -93,15 +101,22 @@ impl ResourceType {
     }
 }
 
+#[cfg(feature = "native")]
+type Executor = NativeExecutor;
+#[cfg(feature = "esp32")]
+type Executor = Esp32Executor;
+
 #[derive(Default)]
 pub struct LocalRobot {
     pub part_id: String,
     resources: ResourceMap,
     build_time: Option<DateTime<FixedOffset>>,
+    executor: Executor,
     #[cfg(feature = "data")]
     data_collector_configs: Vec<(ResourceName, DataCollectorConfig)>,
     #[cfg(feature = "data")]
-    data_manager: Option<DataManager<StaticMemoryDataStore>>,
+    data_manager_sync_task: Option<Box<dyn PeriodicAppClientTask>>,
+    data_manager_collection_task: Option<Task<()>>,
 }
 
 #[derive(Error, Debug)]
@@ -226,6 +241,7 @@ impl LocalRobot {
     // component configs within the response are consumed and the corresponding components are generated
     // and added to the created robot.
     pub fn from_cloud_config(
+        exec: Executor,
         part_id: String,
         config_resp: &ConfigResponse,
         registry: Box<ComponentRegistry>,
@@ -233,6 +249,7 @@ impl LocalRobot {
     ) -> Result<Self, RobotError> {
 
         let mut robot = LocalRobot {
+            executor: exec,
             part_id,
             resources: ResourceMap::new(),
             // Use date time pulled off gRPC header as the `build_time` returned in the status of
@@ -242,7 +259,9 @@ impl LocalRobot {
             #[cfg(feature = "data")]
             data_collector_configs: vec![],
             #[cfg(feature = "data")]
-            data_manager: None,
+            data_manager_sync_task: None,
+            #[cfg(feature = "data")]
+            data_manager_collection_task: None,
         };
 
         let components: Result<Vec<Option<DynamicComponentConfig>>, AttributeError> = config_resp
@@ -261,13 +280,24 @@ impl LocalRobot {
         // TODO: When cfg's on expressions are valid, remove the outer scope.
         #[cfg(feature = "data")]
         {
-            robot.data_manager = {
-                match DataManager::<StaticMemoryDataStore>::from_robot_and_config(&robot, &config_resp) {
-                    Ok(svc) => svc,
-                    Err(err) => {
-                        log::error!("Error configuring data management: {:?}", err);
-                        None
-                    }
+            match DataManager::<StaticMemoryDataStore>::from_robot_and_config(&robot, &config_resp)
+            {
+                Ok(Some(mut data_manager)) => {
+                    let _ = robot
+                        .data_manager_sync_task
+                        .insert(Box::new(data_manager.get_sync_task()));
+
+                    let _ = robot
+                        .data_manager_collection_task
+                        .insert(robot.executor.spawn(async move {
+                            if let Err(err) = data_manager.data_collection_task().await {
+                                log::error!("error running data manager: {:?}", err)
+                            }
+                        }));
+                }
+                Ok(None) => {}
+                Err(err) => {
+                    log::error!("Error configuring data management: {:?}", err);
                 }
             };
         }
@@ -476,12 +506,12 @@ impl LocalRobot {
         Ok(res)
     }
 
-    pub fn generate_periodic_app_client_tasks(&self) -> Vec<Box<dyn PeriodicAppClientTask>> {
+    pub fn get_periodic_app_client_tasks(&mut self) -> Vec<Box<dyn PeriodicAppClientTask>> {
         let mut tasks = Vec::<Box<dyn PeriodicAppClientTask>>::new();
 
         #[cfg(feature = "data")]
-        if let Some(data_manager) = &self.data_manager {
-            tasks.push(Box::new(data_manager.get_sync_task()));
+        if let Some(dm_sync_task) = self.data_manager_sync_task.take() {
+            tasks.push(dm_sync_task);
         }
 
         tasks
@@ -841,6 +871,16 @@ impl LocalRobot {
             return Err(RobotError::RobotActuatorError(stop_errors.pop().unwrap()));
         }
         Ok(())
+    }
+}
+
+impl Drop for LocalRobot {
+    fn drop(&mut self) {
+        if let Some(task) = self.data_manager_collection_task.take() {
+            log::info!("Stopping data manager collection task");
+            self.executor.block_on(task.cancel());
+            log::info!("Stopped data manager collection task");
+        }
     }
 }
 

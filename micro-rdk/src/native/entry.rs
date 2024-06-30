@@ -72,6 +72,7 @@ pub async fn serve_web_inner<S>(
         RobotRepresentation::WithRegistry(registry) => {
             log::info!("building robot from config");
             let r = match LocalRobot::from_cloud_config(
+                exec.clone(),
                 app_config.get_robot_id(),
                 &cfg_response,
                 registry,
@@ -102,18 +103,6 @@ pub async fn serve_web_inner<S>(
             Arc::new(Mutex::new(r))
         }
     };
-
-
-    // #[cfg(feature = "data")]
-    // let data_future = Box::pin(async move {
-    //     if let Some(mut data_manager_svc) = data_manager_svc {
-    //         if let Err(err) = data_manager_svc.data_collection_task().await {
-    //             log::error!("error running data manager: {:?}", err)
-    //         }
-    //     }
-    // });
-    // #[cfg(not(feature = "data"))]
-    // let data_future = async move {};
 
     let address: SocketAddr = "0.0.0.0:12346".parse().unwrap();
     let tls = Box::new(NativeTls::new_server(tls_server_config));
@@ -179,6 +168,7 @@ where
                 if let RobotRepresentation::WithRegistry(ref registry) = repr {
                     log::info!("Found cached robot configuration; speculatively building robot from config");
                     match LocalRobot::from_cloud_config(
+                        exec.clone(),
                         storage.get_robot_credentials().unwrap().robot_id,
                         &ConfigResponse {
                             config: Some(storage.get_robot_configuration().unwrap()),
