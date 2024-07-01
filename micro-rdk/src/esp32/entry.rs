@@ -103,6 +103,7 @@ pub async fn serve_web_inner<S>(
         RobotRepresentation::WithRegistry(registry) => {
             log::info!("building robot from config");
             let r = match LocalRobot::from_cloud_config(
+                exec.clone(),
                 app_config.get_robot_id(),
                 &cfg_response,
                 registry,
@@ -210,6 +211,7 @@ where
                 if let RobotRepresentation::WithRegistry(ref registry) = repr {
                     log::info!("Found cached robot configuration; speculatively building robot from config");
                     match LocalRobot::from_cloud_config(
+                        exec.clone(),
                         storage.get_robot_credentials().unwrap().robot_id,
                         &ConfigResponse {
                             config: Some(storage.get_robot_configuration().unwrap()),
@@ -393,6 +395,7 @@ where
                 if let RobotRepresentation::WithRegistry(ref registry) = repr {
                     log::info!("Found cached robot configuration; speculatively building robot from config");
                     match LocalRobot::from_cloud_config(
+                        exec.clone(),
                         storage.get_robot_credentials().unwrap().robot_id,
                         &ConfigResponse {
                             config: Some(storage.get_robot_configuration().unwrap()),
