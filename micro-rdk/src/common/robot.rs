@@ -279,8 +279,7 @@ impl LocalRobot {
         // TODO: When cfg's on expressions are valid, remove the outer scope.
         #[cfg(feature = "data")]
         {
-            match DataManager::<StaticMemoryDataStore>::from_robot_and_config(&robot, config_resp)
-            {
+            match DataManager::<StaticMemoryDataStore>::from_robot_and_config(&robot, config_resp) {
                 Ok(Some(mut data_manager)) => {
                     let _ = robot
                         .data_manager_sync_task
@@ -896,11 +895,20 @@ mod tests {
     use crate::common::movement_sensor::MovementSensor;
     use crate::common::robot::LocalRobot;
     use crate::common::sensor::Readings;
+    #[cfg(feature = "esp32")]
+    use crate::esp32::exec::Esp32Executor;
     use crate::google;
     use crate::google::protobuf::Struct;
+    #[cfg(feature = "native")]
+    use crate::native::exec::NativeExecutor;
     use crate::proto::app::v1::{ComponentConfig, ConfigResponse, RobotConfig};
     #[cfg(feature = "data")]
     use {crate::common::data_collector::DataCollectorConfig, std::time::Duration};
+
+    #[cfg(feature = "native")]
+    type Executor = NativeExecutor;
+    #[cfg(feature = "esp32")]
+    type Executor = Esp32Executor;
 
     #[test_log::test]
     fn test_robot_from_components() {
@@ -1364,7 +1372,13 @@ mod tests {
             }),
         };
 
-        let robot = LocalRobot::from_cloud_config(&robot_cfg, Box::default(), None);
+        let robot = LocalRobot::from_cloud_config(
+            Executor::new(),
+            "".to_string(),
+            &robot_cfg,
+            Box::default(),
+            None,
+        );
 
         assert!(robot.is_ok());
 
@@ -1469,7 +1483,13 @@ mod tests {
             }),
         };
 
-        let robot = LocalRobot::from_cloud_config(&robot_cfg, Box::default(), None);
+        let robot = LocalRobot::from_cloud_config(
+            Executor::new(),
+            "".to_string(),
+            &robot_cfg,
+            Box::default(),
+            None,
+        );
 
         assert!(robot.is_ok());
 
