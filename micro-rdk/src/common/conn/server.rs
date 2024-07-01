@@ -223,8 +223,6 @@ where
             .unwrap()
             .into();
 
-        self.app_config.set_rpc_host(cfg.fqdn.clone());
-
         self.mdns
             .set_hostname(&cfg.name)
             .map_err(|e| ServerError::Other(e.into()))?;
@@ -356,8 +354,17 @@ where
             network,
         }
     }
-    pub async fn serve(&mut self, robot: Arc<Mutex<LocalRobot>>) {
+    pub async fn serve(&mut self, robot: Arc<Mutex<LocalRobot>>, app_client: Option<AppClient>) {
         let cloned_robot = robot.clone();
+
+        if let Some(app_client) = app_client {
+            self.app_client.write().await.replace(app_client);
+        }
+
+        // Let the robot register any periodic app client tasks it may
+        // have based on its configuration.
+        self.app_client_tasks
+            .append(&mut robot.lock().unwrap().get_periodic_app_client_tasks());
 
         // Convert each `PeriodicAppClientTask` implementer into an async task spawned on the
         // executor, and collect them all into `_app_client_tasks` so we don't lose track of them.

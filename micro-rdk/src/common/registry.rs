@@ -133,6 +133,7 @@ type GenericComponentConstructor =
 
 type DependenciesFromConfig = dyn Fn(ConfigType) -> Vec<ResourceKey>;
 
+#[derive(Clone)]
 pub struct ComponentRegistry {
     motors: Map<&'static str, &'static MotorConstructor>,
     board: Map<&'static str, &'static BoardConstructor>,
@@ -168,7 +169,7 @@ impl Default for ComponentRegistry {
             #[cfg(feature = "camera")]
             crate::common::camera::register_models(&mut r);
         }
-        #[cfg(esp32)]
+        #[cfg(feature = "esp32")]
         {
             crate::esp32::board::register_models(&mut r);
             #[cfg(feature = "builtin-components")]
