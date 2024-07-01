@@ -29,7 +29,12 @@ pub async fn validate_robot_credentials(
         robot_creds.robot_id().to_owned(),
         "".to_owned(),
     );
-    let client = GrpcClient::new(client_connector.connect().await?, exec.clone(), "https://app.viam.com:443").await?;
+    let client = GrpcClient::new(
+        client_connector.connect().await?,
+        exec.clone(),
+        "https://app.viam.com:443",
+    )
+    .await?;
     let builder = AppClientBuilder::new(Box::new(client), app_config.clone());
 
     builder.build().await.map_err(|e| e.into())

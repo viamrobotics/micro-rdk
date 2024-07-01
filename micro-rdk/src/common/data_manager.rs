@@ -118,7 +118,8 @@ where
             let collector_keys: Vec<ResourceMethodKey> =
                 collectors.iter().map(|c| c.resource_method_key()).collect();
             let store = StoreType::from_resource_method_keys(collector_keys)?;
-            let data_manager_svc = DataManager::new(collectors, store, sync_interval, robot.part_id.clone())?;
+            let data_manager_svc =
+                DataManager::new(collectors, store, sync_interval, robot.part_id.clone())?;
             Ok(Some(data_manager_svc))
         } else {
             Ok(None)

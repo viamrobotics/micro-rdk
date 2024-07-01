@@ -16,8 +16,11 @@ pub struct RobotCredentials {
 }
 
 impl RobotCredentials {
-    pub fn new(robot_id: String, robot_secret: String) -> Self{
-        Self { robot_secret, robot_id }
+    pub fn new(robot_id: String, robot_secret: String) -> Self {
+        Self {
+            robot_secret,
+            robot_id,
+        }
     }
 
     pub(crate) fn robot_id(&self) -> &str {
@@ -66,9 +69,7 @@ pub struct WifiCredentials {
 
 impl WifiCredentials {
     pub fn new(ssid: String, pwd: String) -> Self {
-        Self {
-            ssid, pwd
-        }
+        Self { ssid, pwd }
     }
     pub(crate) fn wifi_ssid(&self) -> &str {
         &self.ssid

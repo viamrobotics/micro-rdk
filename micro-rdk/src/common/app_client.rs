@@ -256,7 +256,14 @@ impl AppClient {
     pub async fn get_config(
         &mut self,
         ip: Ipv4Addr,
-    ) -> Result<(AppClientConfig, Box<ConfigResponse>, Option<DateTime<FixedOffset>>), AppClientError> {
+    ) -> Result<
+        (
+            AppClientConfig,
+            Box<ConfigResponse>,
+            Option<DateTime<FixedOffset>>,
+        ),
+        AppClientError,
+    > {
         let agent = AgentInfo {
             os: "esp32".to_string(),
             host: "esp32".to_string(),

@@ -247,7 +247,6 @@ impl LocalRobot {
         registry: Box<ComponentRegistry>,
         build_time: Option<DateTime<FixedOffset>>,
     ) -> Result<Self, RobotError> {
-
         let mut robot = LocalRobot {
             executor: exec,
             part_id,
