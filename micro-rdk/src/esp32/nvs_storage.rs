@@ -101,11 +101,11 @@ impl NVSStorage {
     }
 }
 
-const NVS_ROBOT_SECRET_KEY: &'static str = "ROBOT_SECRET";
-const NVS_ROBOT_ID_KEY: &'static str = "ROBOT_ID";
-const NVS_ROBOT_CONFIG_KEY: &'static str = "ROBOT_CONFIG";
-const NVS_WIFI_SSID_KEY: &'static str = "WIFI_SSID";
-const NVS_WIFI_PASSWORD_KEY: &'static str = "WIFI_PASSWORD";
+const NVS_ROBOT_SECRET_KEY: &str = "ROBOT_SECRET";
+const NVS_ROBOT_ID_KEY: &str = "ROBOT_ID";
+const NVS_ROBOT_CONFIG_KEY: &str = "ROBOT_CONFIG";
+const NVS_WIFI_SSID_KEY: &str = "WIFI_SSID";
+const NVS_WIFI_PASSWORD_KEY: &str = "WIFI_PASSWORD";
 
 impl RobotConfigurationStorage for NVSStorage {
     type Error = NVSStorageError;
@@ -146,7 +146,7 @@ impl RobotConfigurationStorage for NVSStorage {
 
     fn get_robot_configuration(&self) -> Result<RobotConfig, Self::Error> {
         let robot_config = self.get_blob(NVS_ROBOT_CONFIG_KEY)?;
-        RobotConfig::decode(&robot_config[..]).map_err(|e| NVSStorageError::NVSValueDecodeError(e))
+        RobotConfig::decode(&robot_config[..]).map_err(NVSStorageError::NVSValueDecodeError)
     }
 
     fn reset_robot_configuration(&self) -> Result<(), Self::Error> {

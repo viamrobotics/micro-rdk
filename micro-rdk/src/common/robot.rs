@@ -279,7 +279,7 @@ impl LocalRobot {
         // TODO: When cfg's on expressions are valid, remove the outer scope.
         #[cfg(feature = "data")]
         {
-            match DataManager::<StaticMemoryDataStore>::from_robot_and_config(&robot, &config_resp)
+            match DataManager::<StaticMemoryDataStore>::from_robot_and_config(&robot, config_resp)
             {
                 Ok(Some(mut data_manager)) => {
                     let _ = robot
