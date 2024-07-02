@@ -93,7 +93,6 @@ impl From<MotorSupportedProperties> for GetPropertiesResponse {
 }
 
 pub trait Motor: Status + Actuator + DoCommand {
-    
     /// Sets the percentage of the motor's total power that should be employed.
     /// expressed a value between `-1.0` and `1.0` where negative values indicate a backwards
     /// direction and positive values a forward direction.
