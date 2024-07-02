@@ -60,8 +60,8 @@ impl Camera for FakeCamera {
     fn render_frame(&mut self, mut buffer: BytesMut) -> Result<BytesMut, CameraError> {
         let msg = google::api::HttpBody {
             content_type: "image/jpeg".to_string(),
-            data: FAKE_JPEG.into(),
-            extensions: Vec::new(),
+            data: FAKE_JPEG.to_vec(),
+            ..Default::default()
         };
         msg.encode(&mut buffer)
             .map_err(|_| CameraError::CameraGenericError("failed to encode RenderFrameResponse"))?;
