@@ -32,7 +32,7 @@ use std::rc::Rc;
 use std::task::{Context, Poll};
 use thiserror::Error;
 
-use super::webrtc::grpc::WebRtcGrpcService;
+use super::{motor::Motor, webrtc::grpc::WebRtcGrpcService};
 
 #[cfg(feature = "camera")]
 static GRPC_BUFFER_SIZE: usize = 1024 * 30; // 30KB
@@ -234,6 +234,7 @@ where
             }
             "/viam.component.motor.v1.MotorService/SetPower" => self.motor_set_power(payload),
             "/viam.component.motor.v1.MotorService/Stop" => self.motor_stop(payload),
+            "/viam.component.motor.v1.MotorService/SetRPM" => self.motor_set_rpm(payload),
             "/viam.component.motor.v1.MotorService/DoCommand" => self.motor_do_command(payload),
             "/viam.robot.v1.RobotService/ResourceNames" => self.resource_names(payload),
             "/viam.robot.v1.RobotService/GetStatus" => self.robot_status(payload),
@@ -434,6 +435,20 @@ where
             .set_power(req.power_pct)
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::motor::v1::SetPowerResponse {};
+        self.encode_message(resp)
+    }
+
+    fn motor_set_rpm(&mut self, message: &[u8]) -> Result<(), ServerError> {
+        let req = component::motor::v1::SetRpmRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let mut motor = match self.robot.lock().unwrap().get_motor_by_name(req.name) {
+            Some(m) => m,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        motor
+            .set_rpm(req.rpm)
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
+        let resp = component::motor::v1::SetRpmResponse {};
         self.encode_message(resp)
     }
 

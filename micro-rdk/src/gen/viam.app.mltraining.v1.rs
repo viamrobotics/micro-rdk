@@ -28,6 +28,8 @@ pub struct SubmitCustomTrainingJobRequest {
     pub dataset_id: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
     pub registry_item_id: ::prost::alloc::string::String,
+    #[prost(string, tag="6")]
+    pub registry_item_version: ::prost::alloc::string::String,
     #[prost(string, tag="3")]
     pub organization_id: ::prost::alloc::string::String,
     #[prost(string, tag="4")]
@@ -90,6 +92,8 @@ pub struct TrainingJobMetadata {
     pub is_custom_job: bool,
     #[prost(string, tag="19")]
     pub registry_item_id: ::prost::alloc::string::String,
+    #[prost(string, tag="20")]
+    pub registry_item_version: ::prost::alloc::string::String,
     #[prost(enumeration="TrainingStatus", tag="2")]
     pub status: i32,
     #[prost(message, optional, tag="8")]
