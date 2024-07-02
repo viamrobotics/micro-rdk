@@ -220,6 +220,10 @@ where
             #[cfg(feature = "camera")]
             "/viam.component.camera.v1.CameraService/GetImage" => self.camera_get_image(payload),
             #[cfg(feature = "camera")]
+            "/viam.component.camera.v1.CameraService/RenderFrame" => {
+                self.camera_render_frame(payload)
+            }
+            #[cfg(feature = "camera")]
             "/viam.component.camera.v1.CameraService/DoCommand" => self.camera_do_command(payload),
             "/viam.component.motor.v1.MotorService/GetPosition" => self.motor_get_position(payload),
             "/viam.component.motor.v1.MotorService/GetProperties" => {
@@ -1224,7 +1228,7 @@ where
 
     #[cfg(feature = "camera")]
     fn camera_get_image(&mut self, message: &[u8]) -> Result<(), ServerError> {
-        // TODO: Modify `get_frame` to return a data structure that can be passed into
+        // TODO: Modify camera methods (ie `get_image`, `render_frame`) to return a data structure that can be passed into
         // `encode_message`, rather than re-implementing `encode_message` here. See
         // https://viam.atlassian.net/browse/RSDK-824
         let req = component::camera::v1::GetImageRequest::decode(message)
@@ -1244,6 +1248,34 @@ where
             .lock()
             .unwrap()
             .get_image(msg_buf)
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
+
+        buffer.put_u8(0);
+        buffer.put_u32(msg_buf.len() as u32);
+        buffer.unsplit(msg_buf);
+        self.response.put_data(buffer.freeze());
+        Ok(())
+    }
+
+    #[cfg(feature = "camera")]
+    fn camera_render_frame(&mut self, message: &[u8]) -> Result<(), ServerError> {
+        let req = component::camera::v1::RenderFrameRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+
+        let camera = self
+            .robot
+            .lock()
+            .unwrap()
+            .get_camera_by_name(req.name)
+            .ok_or(GrpcError::RpcUnavailable)?;
+
+        let mut buffer = RefCell::borrow_mut(&self.buffer).split_off(0);
+        let msg_buf = buffer.split_off(5);
+
+        let msg_buf = camera
+            .lock()
+            .unwrap()
+            .render_frame(msg_buf)
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
 
         buffer.put_u8(0);
