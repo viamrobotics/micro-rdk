@@ -58,6 +58,23 @@ pub struct GoToResponse {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SetRpmRequest {
+    /// Name of a motor
+    #[prost(string, tag="1")]
+    pub name: ::prost::alloc::string::String,
+    /// Speed of motor travel in rotations per minute
+    #[prost(double, tag="2")]
+    pub rpm: f64,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SetRpmResponse {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ResetZeroPositionRequest {
     /// Name of a motor
     #[prost(string, tag="1")]

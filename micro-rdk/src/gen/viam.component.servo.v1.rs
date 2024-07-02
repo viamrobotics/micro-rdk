@@ -5,7 +5,7 @@ pub struct MoveRequest {
     /// the name of the servo, as registered
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
-    /// the degrees by which to rotate the servo. Accepted values are between 0 and 180
+    /// the degrees by which to rotate the servo.
     #[prost(uint32, tag="2")]
     pub angle_deg: u32,
     /// Additional arguments to the method
@@ -29,7 +29,7 @@ pub struct GetPositionRequest {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPositionResponse {
-    /// the degrees from neutral by which the servo is currently rotated. Values are between 0 and 180
+    /// the degrees from neutral by which the servo is currently rotated.
     #[prost(uint32, tag="1")]
     pub position_deg: u32,
 }

@@ -6,6 +6,8 @@ pub struct FileInfo {
     pub name: ::prost::alloc::string::String,
     #[prost(uint64, tag="2")]
     pub size: u64,
+    #[prost(bool, optional, tag="3")]
+    pub is_directory: ::core::option::Option<bool>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

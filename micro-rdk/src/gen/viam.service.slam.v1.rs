@@ -12,12 +12,6 @@ pub struct GetPositionResponse {
     /// Current position of the specified component in the SLAM Map
     #[prost(message, optional, tag="1")]
     pub pose: ::core::option::Option<super::super::super::common::v1::Pose>,
-    /// This is usually the name of the camera that is in the SLAM config
-    #[prost(string, tag="2")]
-    pub component_reference: ::prost::alloc::string::String,
-    /// Additional information in the response
-    #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
