@@ -1,9 +1,4 @@
-#
-# Custom partition format for two OTA partions
-# and an enlarged nvs partition
-#
 # Name,   Type, SubType, Offset,   Size
 nvs,      data, nvs,     0x09000,  0x4000
-otadata,  data, ota,     0x11000,  0x2000
 phy_init, data, phy,     0x13000,  0x1000
 factory,  app,  factory, 0x20000,  4M
