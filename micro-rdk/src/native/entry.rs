@@ -76,7 +76,7 @@ pub async fn serve_web_inner(
         );
 
         let (cfg_response, cfg_received_datetime) =
-            client.get_config(network.get_ip()).await.unwrap();
+            client.get_config(Some(network.get_ip())).await.unwrap();
 
         let robot = match repr {
             RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
@@ -169,6 +169,9 @@ pub async fn serve_web_inner(
                 .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| {
                     std::process::exit(0)
                 })));
+                // .with_periodic_app_client_task(Box::new(ConfigMonitor::new(||unsafe {
+                //     std::process::exit(0)
+                // },  *(cfg_response.clone())) ));
         #[cfg(feature = "data")]
         let builder = if let Some(task) = data_sync_task {
             builder.with_periodic_app_client_task(Box::new(task))

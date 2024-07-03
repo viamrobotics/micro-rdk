@@ -37,6 +37,9 @@ use super::{
 
 use async_io::Timer;
 use esp_idf_svc::sys::{settimeofday, timeval};
+use crc32fast::Hasher;
+use crate::common::app_client::encode_request;
+use std::collections::HashMap;
 
 #[cfg(feature = "provisioning")]
 use crate::common::{
@@ -187,17 +190,31 @@ pub async fn serve_web_inner(
     let dtls = Esp32DtlsBuilder::new(webrtc_certificate.clone());
 
     let cloned_exec = exec.clone();
-
-
-    //let curr_config = cfg_response; // Viam app
-    //use crc32fast::Hasher; DO I HASH HERE OR IN CONFIG_MONITOR?
-
     
     let webrtc = Box::new(WebRtcConfiguration::new(
         webrtc_certificate,
         dtls,
         exec.clone(),
     ));
+
+    //will delete if we don't need ip
+    let ip = Some(network.get_ip());
+
+    //getting hashed configuration
+    let tester = HashMap::from(*cfg_response.clone());
+
+    let sorted_cfg_response = tester
+        .keys()
+        .sorted()
+        .map(|key| format!("{}:{}", key, tester[key]))
+        .join("");
+
+    log::warn!("{:?}", sorted_cfg_response);
+
+    // let encoded_config = encode_request(sorted_cfg_response);
+    // let mut hasher = Hasher::new_with_initial(0xffff_ffff); //diff types?
+    // hasher.update(encoded_config.as_ref());
+    // let hashed_config = hasher.finalize();
 
     let mut srv = {
         let builder = ViamServerBuilder::new(
@@ -212,9 +229,10 @@ pub async fn serve_web_inner(
         .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| unsafe {
             crate::esp32::esp_idf_svc::sys::esp_restart()
         })))
-        .with_periodic_app_client_task(Box::new(ConfigMonitor::new(||unsafe {
-            crate::esp32::esp_idf_svc::sys::esp_restart()
-        },  *(cfg_response.clone())) ));
+        // .with_periodic_app_client_task(Box::new(ConfigMonitor::new(||unsafe {
+        //     crate::esp32::esp_idf_svc::sys::esp_restart()
+        // },  hashed_config, ip)))
+        ;
         #[cfg(feature = "data")]
         let builder = if let Some(task) = data_sync_task {
             builder.with_periodic_app_client_task(Box::new(task))
