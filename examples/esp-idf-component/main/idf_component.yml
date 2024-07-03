@@ -3,6 +3,5 @@ dependencies:
   idf:
     version: ">=4.4.4"
   micrordk-lib:
-    git: git@github.com:npmenard/micro-rdk.git
-    version: v0.2.1-rc1
+    git: git@github.com:viamrobotics/micro-rdk.git
     path: "micro-rdk-ffi/micrordklib-idf-component"
