@@ -114,7 +114,6 @@ pub struct LocalRobot {
     executor: Executor,
     #[cfg(feature = "data")]
     data_collector_configs: Vec<(ResourceName, DataCollectorConfig)>,
-    #[cfg(feature = "data")]
     data_manager_sync_task: Option<Box<dyn PeriodicAppClientTask>>,
     data_manager_collection_task: Option<Task<()>>,
 }
@@ -257,9 +256,7 @@ impl LocalRobot {
 
             #[cfg(feature = "data")]
             data_collector_configs: vec![],
-            #[cfg(feature = "data")]
             data_manager_sync_task: None,
-            #[cfg(feature = "data")]
             data_manager_collection_task: None,
         };
 
@@ -279,6 +276,8 @@ impl LocalRobot {
         // TODO: When cfg's on expressions are valid, remove the outer scope.
         #[cfg(feature = "data")]
         {
+            // TODO(RSDK-8125): Support selection of the DataStore trait other than
+            // StaticMemoryDataStore in a way that is configurable
             match DataManager::<StaticMemoryDataStore>::from_robot_and_config(&robot, config_resp) {
                 Ok(Some(mut data_manager)) => {
                     let _ = robot

@@ -96,7 +96,8 @@ pub async fn serve_web_inner<S>(
                             .await
                             .expect("could not push logs to app");
                     }
-                    //TODO shouldn't panic here, when we support offline mode and reloading configuration this should be removed
+                    // TODO(RSDK-8127) shouldn't panic here, when we support offline mode and
+                    // reloading configuration this should be removed
                     panic!("couldn't build robot");
                 }
             };
@@ -123,6 +124,7 @@ pub async fn serve_web_inner<S>(
         ViamServerBuilder::new(mdns, cloned_exec, client_connector, app_config, 3, network)
             .with_http2(tls_listener, 12346)
             .with_webrtc(webrtc)
+            .with_app_client(app_client)
             .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| std::process::exit(0))))
             .build(&cfg_response)
             .unwrap();
@@ -132,7 +134,7 @@ pub async fn serve_web_inner<S>(
         log::warn!("Failed to store robot configuration: {}", e);
     }
 
-    srv.serve(robot, Some(app_client)).await;
+    srv.serve(robot).await;
 }
 
 #[cfg(feature = "provisioning")]

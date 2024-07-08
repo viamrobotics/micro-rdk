@@ -127,7 +127,8 @@ pub async fn serve_web_inner<S>(
                             .await
                             .expect("could not push logs to app");
                     }
-                    //TODO shouldn't panic here, when we support offline mode and reloading configuration this should be removed
+                    // TODO(RSDK-8172) shouldn't panic here, when we support offline mode and
+                    // reloading configuration this should be removed
                     panic!("couldn't build robot");
                 }
             };
@@ -155,6 +156,7 @@ pub async fn serve_web_inner<S>(
         network,
     )
     .with_webrtc(webrtc)
+    .with_app_client(app_client)
     .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| unsafe {
         crate::esp32::esp_idf_svc::sys::esp_restart()
     })))
@@ -166,7 +168,7 @@ pub async fn serve_web_inner<S>(
         log::warn!("Failed to store robot configuration: {}", e);
     }
 
-    srv.serve(robot, Some(app_client)).await;
+    srv.serve(robot).await;
 }
 
 // Four cases:
