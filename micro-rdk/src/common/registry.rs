@@ -499,6 +499,12 @@ mod tests {
         },
         status::Status,
     };
+
+    #[cfg(feature = "esp32")]
+    use crate::esp32::exec::Esp32Executor;
+    #[cfg(feature = "native")]
+    use crate::native::exec::NativeExecutor;
+
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
 
@@ -553,6 +559,11 @@ mod tests {
 
     impl DoCommand for TestSensor {}
 
+    #[cfg(feature = "native")]
+    type Executor = NativeExecutor;
+    #[cfg(feature = "esp32")]
+    type Executor = Esp32Executor;
+
     #[test_log::test]
     fn test_driver() {
         use crate::proto::app::v1::{ComponentConfig, ConfigResponse, RobotConfig};
@@ -606,7 +617,13 @@ mod tests {
         assert!(ctor.is_ok());
 
         // make robot
-        let robot = LocalRobot::from_cloud_config(&cfg_resp, Box::new(registry), None);
+        let robot = LocalRobot::from_cloud_config(
+            Executor::new(),
+            "".to_string(),
+            &cfg_resp,
+            Box::new(registry),
+            None,
+        );
         assert!(robot.is_ok());
         let robot = robot.unwrap();
 
