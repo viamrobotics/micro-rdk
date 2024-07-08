@@ -1,11 +1,7 @@
 #![allow(dead_code)]
 
 use std::{
-    ffi::CString,
-    fmt::Debug,
-    rc::Rc,
-    sync::{Arc, Mutex},
-    time::Duration,
+    collections::BTreeMap, ffi::CString, fmt::Debug, rc::Rc, sync::{Arc, Mutex}, time::Duration
 };
 
 use crate::common::{
@@ -200,22 +196,6 @@ pub async fn serve_web_inner(
     //will delete if we don't need ip
     let ip = Some(network.get_ip());
 
-    //getting hashed configuration
-    let tester = HashMap::from(*cfg_response.clone());
-
-    let sorted_cfg_response = tester
-        .keys()
-        .sorted()
-        .map(|key| format!("{}:{}", key, tester[key]))
-        .join("");
-
-    log::warn!("{:?}", sorted_cfg_response);
-
-    // let encoded_config = encode_request(sorted_cfg_response);
-    // let mut hasher = Hasher::new_with_initial(0xffff_ffff); //diff types?
-    // hasher.update(encoded_config.as_ref());
-    // let hashed_config = hasher.finalize();
-
     let mut srv = {
         let builder = ViamServerBuilder::new(
             mdns,
@@ -229,9 +209,9 @@ pub async fn serve_web_inner(
         .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| unsafe {
             crate::esp32::esp_idf_svc::sys::esp_restart()
         })))
-        // .with_periodic_app_client_task(Box::new(ConfigMonitor::new(||unsafe {
-        //     crate::esp32::esp_idf_svc::sys::esp_restart()
-        // },  hashed_config, ip)))
+        .with_periodic_app_client_task(Box::new(ConfigMonitor::new(||unsafe {
+            crate::esp32::esp_idf_svc::sys::esp_restart()
+        },  *(cfg_response.clone()), ip)))
         ;
         #[cfg(feature = "data")]
         let builder = if let Some(task) = data_sync_task {
