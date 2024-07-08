@@ -1,6 +1,5 @@
 use super::app_client::{ AppClient, AppClientError, PeriodicAppClientTask};
 use futures_lite::Future;
-use std::net::Ipv4Addr;
 use std::pin::Pin;
 use std::time::Duration;
 use crate::proto::app::v1::ConfigResponse;
