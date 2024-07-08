@@ -81,7 +81,6 @@ ringbuf.workspace = true
 pin-project.workspace = true
 async-lock.workspace = true
 dns-message-parser.workspace = true
-crc32fast.workspace = true
 
 [build-dependencies]
 embuild.workspace = true

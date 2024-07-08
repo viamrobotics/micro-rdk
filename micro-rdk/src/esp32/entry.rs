@@ -1,7 +1,11 @@
 #![allow(dead_code)]
 
 use std::{
-    collections::BTreeMap, ffi::CString, fmt::Debug, rc::Rc, sync::{Arc, Mutex}, time::Duration
+    ffi::CString,
+    fmt::Debug,
+    rc::Rc,
+    sync::{Arc, Mutex},
+    time::Duration,
 };
 
 use crate::common::{
@@ -33,9 +37,6 @@ use super::{
 
 use async_io::Timer;
 use esp_idf_svc::sys::{settimeofday, timeval};
-use crc32fast::Hasher;
-use crate::common::app_client::encode_request;
-use std::collections::HashMap;
 
 #[cfg(feature = "provisioning")]
 use crate::common::{
@@ -193,9 +194,6 @@ pub async fn serve_web_inner(
         exec.clone(),
     ));
 
-    //will delete if we don't need ip
-    let ip = Some(network.get_ip());
-
     let mut srv = {
         let builder = ViamServerBuilder::new(
             mdns,
@@ -211,7 +209,7 @@ pub async fn serve_web_inner(
         })))
         .with_periodic_app_client_task(Box::new(ConfigMonitor::new(||unsafe {
             crate::esp32::esp_idf_svc::sys::esp_restart()
-        },  *(cfg_response.clone()), ip)))
+        },  *(cfg_response.clone()))))
         ;
         #[cfg(feature = "data")]
         let builder = if let Some(task) = data_sync_task {

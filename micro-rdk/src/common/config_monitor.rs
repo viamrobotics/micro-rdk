@@ -3,22 +3,18 @@ use futures_lite::Future;
 use std::net::Ipv4Addr;
 use std::pin::Pin;
 use std::time::Duration;
-use crc32fast::Hasher;
 use crate::proto::app::v1::ConfigResponse;
-use crate::common::app_client::encode_request;
 
 pub struct ConfigMonitor<'a> {
     restart_hook: Option<Box<dyn FnOnce() + 'a>>,
     curr_config: ConfigResponse, //config for robot gotten from last robot startup, aka inputted from entry
-    ip: Option<Ipv4Addr>,
 }
 
 impl<'a> ConfigMonitor<'a> {
-    pub fn new(restart_hook: impl FnOnce() + 'a, curr_config: ConfigResponse, ip: Option<Ipv4Addr>) -> Self {
+    pub fn new(restart_hook: impl FnOnce() + 'a, curr_config: ConfigResponse) -> Self {
         Self {
             restart_hook: Some(Box::new(restart_hook)),
             curr_config: curr_config,
-            ip: ip,
         }
     }
 
@@ -54,11 +50,8 @@ impl<'a> PeriodicAppClientTask for ConfigMonitor<'a> {
 }
 
 async fn get_app_config(client : &AppClient) -> Result<ConfigResponse, AppClientError>{
-    
     let (new_config, _cfg_received_datetime) = 
             client.get_config(None).await.unwrap();
-
     return Ok(*new_config);
-    
 }
 

@@ -169,9 +169,6 @@ pub async fn serve_web_inner(
                 .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| {
                     std::process::exit(0)
                 })));
-                // .with_periodic_app_client_task(Box::new(ConfigMonitor::new(||unsafe {
-                //     std::process::exit(0)
-                // },  *(cfg_response.clone())) ));
         #[cfg(feature = "data")]
         let builder = if let Some(task) = data_sync_task {
             builder.with_periodic_app_client_task(Box::new(task))
