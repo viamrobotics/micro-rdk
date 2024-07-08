@@ -20,6 +20,12 @@ use crate::{
 
 use super::{api::WebRtcError, sctp::Channel};
 
+#[cfg(feature = "camera")]
+// sizeof(fake_image) + headers/encodings
+static WEBRTC_GRPC_BUFFER_SIZE: usize = 1024 * 11;
+#[cfg(not(feature = "camera"))]
+static WEBRTC_GRPC_BUFFER_SIZE: usize = 1650;
+
 #[derive(Debug, Default)]
 pub struct WebRtcGrpcBody {
     data: Option<Bytes>,
@@ -93,7 +99,7 @@ where
             stream: None,
             headers: None,
             streams: HashMap::new(),
-            buffer: BytesMut::zeroed(1650),
+            buffer: BytesMut::zeroed(WEBRTC_GRPC_BUFFER_SIZE),
         }
     }
     async fn send_response(&mut self, response: webrtc::v1::Response) -> Result<(), WebRtcError> {

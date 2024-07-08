@@ -6,6 +6,7 @@ members = [
   "micro-rdk-installer",
   "micro-rdk-macros",
   "micro-rdk-server",
+  "micro-rdk-ffi",
   "examples/modular-drivers",
 ]
 
@@ -43,6 +44,8 @@ base64 = "0.21.0"
 bitfield = "0.14.0"
 bytecodec = "0.4.15"
 bytes = "1.2.1"
+cargo_metadata = "0.18.1"
+cbindgen = "0.26.0"
 chrono = "0.4.31"
 chrono-tz = "0.8.4"
 clap = "4.5.4"

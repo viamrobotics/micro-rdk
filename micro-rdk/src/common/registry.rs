@@ -15,6 +15,9 @@ use super::{
     sensor::{SensorError, SensorType},
     servo::{ServoError, ServoType},
 };
+
+#[cfg(feature = "camera")]
+use super::camera::{CameraError, CameraType};
 use crate::proto::common::v1::ResourceName;
 
 #[derive(Debug, Error, Eq, PartialEq)]
@@ -52,6 +55,8 @@ impl ResourceKey {
         let model_str = match model {
             "motor" => crate::common::motor::COMPONENT_NAME,
             "board" => crate::common::board::COMPONENT_NAME,
+            #[cfg(all(feature = "camera", feature = "native"))]
+            "camera" => crate::common::camera::COMPONENT_NAME,
             "encoder" => crate::common::encoder::COMPONENT_NAME,
             "movement_sensor" => crate::common::movement_sensor::COMPONENT_NAME,
             "sensor" => crate::common::sensor::COMPONENT_NAME,
@@ -74,6 +79,8 @@ impl TryFrom<ResourceName> for ResourceKey {
         let comp_name = match comp_type {
             "motor" => crate::common::motor::COMPONENT_NAME,
             "sensor" => crate::common::sensor::COMPONENT_NAME,
+            #[cfg(feature = "camera")]
+            "camera" => crate::common::camera::COMPONENT_NAME,
             "movement_sensor" => crate::common::movement_sensor::COMPONENT_NAME,
             "encoder" => crate::common::encoder::COMPONENT_NAME,
             "base" => crate::common::base::COMPONENT_NAME,
@@ -109,6 +116,10 @@ type EncoderConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<EncoderT
 /// Fn that returns an `BaseType`, `Arc<Mutex<dyn Base>>`
 type BaseConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<BaseType, BaseError>;
 
+/// Fn that returns a `CameraType`, `Arc<Mutex<dyn Camera>>`
+#[cfg(feature = "camera")]
+type CameraConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<CameraType, CameraError>;
+
 /// Fn that returns a `ServoType`, `Arc<Mutex<dyn Servo>>`
 type ServoConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<ServoType, ServoError>;
 
@@ -125,6 +136,8 @@ type DependenciesFromConfig = dyn Fn(ConfigType) -> Vec<ResourceKey>;
 pub struct ComponentRegistry {
     motors: Map<&'static str, &'static MotorConstructor>,
     board: Map<&'static str, &'static BoardConstructor>,
+    #[cfg(feature = "camera")]
+    camera: Map<&'static str, &'static CameraConstructor>,
     sensor: Map<&'static str, &'static SensorConstructor>,
     movement_sensors: Map<&'static str, &'static MovementSensorConstructor>,
     encoders: Map<&'static str, &'static EncoderConstructor>,
@@ -152,6 +165,8 @@ impl Default for ComponentRegistry {
             crate::common::generic::register_models(&mut r);
             crate::common::ina::register_models(&mut r);
             crate::common::wheeled_base::register_models(&mut r);
+            #[cfg(feature = "camera")]
+            crate::common::camera::register_models(&mut r);
         }
         #[cfg(esp32)]
         {
@@ -175,12 +190,16 @@ impl ComponentRegistry {
         dependency_func_map.insert(crate::common::encoder::COMPONENT_NAME, Map::new());
         dependency_func_map.insert(crate::common::sensor::COMPONENT_NAME, Map::new());
         dependency_func_map.insert(crate::common::base::COMPONENT_NAME, Map::new());
+        #[cfg(feature = "camera")]
+        dependency_func_map.insert(crate::common::camera::COMPONENT_NAME, Map::new());
         dependency_func_map.insert(crate::common::servo::COMPONENT_NAME, Map::new());
         dependency_func_map.insert(crate::common::power_sensor::COMPONENT_NAME, Map::new());
         dependency_func_map.insert(crate::common::generic::COMPONENT_NAME, Map::new());
         Self {
             motors: Map::new(),
             board: Map::new(),
+            #[cfg(feature = "camera")]
+            camera: Map::new(),
             sensor: Map::new(),
             movement_sensors: Map::new(),
             encoders: Map::new(),
@@ -190,6 +209,18 @@ impl ComponentRegistry {
             generic_components: Map::new(),
             dependencies: dependency_func_map,
         }
+    }
+    #[cfg(feature = "camera")]
+    pub fn register_camera(
+        &mut self,
+        model: &'static str,
+        constructor: &'static CameraConstructor,
+    ) -> Result<(), RegistryError> {
+        if self.camera.contains_key(model) {
+            return Err(RegistryError::ModelAlreadyRegistered(model));
+        }
+        let _ = self.camera.insert(model, constructor);
+        Ok(())
     }
     pub fn register_motor(
         &mut self,
@@ -344,6 +375,18 @@ impl ComponentRegistry {
     ) -> Result<&'static BoardConstructor, RegistryError> {
         let model_name: &str = &model;
         if let Some(ctor) = self.board.get(model_name) {
+            return Ok(*ctor);
+        }
+        Err(RegistryError::ModelNotFound(model))
+    }
+
+    #[cfg(feature = "camera")]
+    pub(crate) fn get_camera_constructor(
+        &self,
+        model: String,
+    ) -> Result<&'static CameraConstructor, RegistryError> {
+        let model_name: &str = &model;
+        if let Some(ctor) = self.camera.get(model_name) {
             return Ok(*ctor);
         }
         Err(RegistryError::ModelNotFound(model))

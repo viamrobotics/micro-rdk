@@ -9,14 +9,17 @@ use crate::esp32::esp_idf_svc::sys::{
 };
 use async_io::Async;
 use either::Either;
-use esp_idf_svc::sys::esp_tls_get_conn_sockfd;
+use esp_idf_svc::sys::{
+    esp_tls_get_conn_sockfd, lwip_setsockopt, socklen_t, IPPROTO_TCP, SOL_SOCKET, SO_KEEPALIVE,
+    TCP_KEEPCNT, TCP_KEEPIDLE, TCP_KEEPINTVL,
+};
 use futures_lite::{ready, AsyncRead, AsyncWrite};
 
 use std::{
     fmt::Debug,
     io::{Read, Write},
-    mem::ManuallyDrop,
     net::TcpStream,
+    ops::Deref,
     os::{fd::FromRawFd, raw::c_char, unix::prelude::AsRawFd},
     task::Poll,
 };
@@ -28,6 +31,10 @@ use super::tcp::Esp32Stream;
 
 unsafe impl Sync for Esp32TLS {}
 unsafe impl Send for Esp32TLS {}
+
+const TCP_KEEPINTVL_S: i32 = 60; // seconds
+const TCP_KEEPCNT_N: i32 = 4;
+const TCP_KEEPIDLE_S: i32 = 120; // seconds
 
 /// structure to store tls configuration
 #[derive(Clone)]
@@ -47,9 +54,40 @@ impl TlsClientConnector for Esp32TLS {
     }
 }
 
+struct Esp32TLSContext(*mut esp_tls_t);
+
+impl Esp32TLSContext {
+    fn new() -> Result<Self, std::io::Error> {
+        let p = unsafe { esp_tls_init() };
+        if p.is_null() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "couldn't allocate tls context",
+            ));
+        }
+        Ok(Self(p))
+    }
+}
+
+impl Deref for Esp32TLSContext {
+    type Target = *mut esp_tls_t;
+    fn deref(&self) -> &Self::Target {
+        &(self.0)
+    }
+}
+
+impl Drop for Esp32TLSContext {
+    fn drop(&mut self) {
+        log::error!("dropping the tls stream");
+        if let Some(err) = EspError::from(unsafe { esp_tls_conn_destroy(self.0) }) {
+            log::error!("error while dropping the tls connection '{}'", err);
+        }
+    }
+}
+
 /// TCP like stream for encrypted communication over TLS
 pub struct Esp32TLSStream {
-    tls_context: ManuallyDrop<*mut esp_tls_t>,
+    tls_context: Esp32TLSContext,
     socket: Async<TcpStream>, // may store the raw socket
 }
 
@@ -77,7 +115,7 @@ impl Debug for Esp32TLSStream {
         f.debug_struct("Esp32TlsStream")
             .field(
                 "tls",
-                match unsafe { (*(*self.tls_context)).conn_state } {
+                match unsafe { (*(*(self.tls_context))).conn_state } {
                     ESP_TLS_INIT => &"Tls initializing",
                     ESP_TLS_CONNECTING => &"Tls connecting",
                     ESP_TLS_HANDSHAKE => &"Tls handshake",
@@ -192,14 +230,7 @@ impl Esp32TLSStream {
         socket: Option<Async<TcpStream>>,
         tls_cfg: &mut Either<Box<esp_tls_cfg_server>, Box<esp_tls_cfg>>,
     ) -> Result<Self, std::io::Error> {
-        let p = unsafe { esp_tls_init() };
-        if p.is_null() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "couldn't allocate tls context",
-            ));
-        }
-        let tls_context = ManuallyDrop::new(p);
+        let tls_context = Esp32TLSContext::new()?;
         match tls_cfg {
             Either::Left(tls_cfg) => {
                 let fd = socket.as_ref().unwrap().as_raw_fd();
@@ -209,7 +240,6 @@ impl Esp32TLSStream {
                         fd,
                         *tls_context,
                     )) {
-                        esp_tls_conn_destroy(*tls_context);
                         Err(std::io::Error::new(std::io::ErrorKind::Other, err))
                     } else {
                         Ok(Self {
@@ -238,6 +268,56 @@ impl Esp32TLSStream {
                             let mut fd: i32 = 0;
                             esp_idf_svc::sys::esp!(esp_tls_get_conn_sockfd(*tls_context, &mut fd))
                                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+                            // set socket keep alive properties as such
+                            // KEEPIDLE is set to 120 second (time before a first keepalive probe is sent)
+                            // KEEPINTVL, KEEPCNT are set to 60 and 4 respectively
+                            // Total time before an IDLE and DEAD connection is closed =  360s
+                            let enabled: i32 = 1;
+                            if lwip_setsockopt(
+                                fd,
+                                SOL_SOCKET as i32,
+                                SO_KEEPALIVE as i32,
+                                &enabled as *const i32 as *const _,
+                                std::mem::size_of::<i32>() as socklen_t,
+                            ) < 0
+                            {
+                                return Err(std::io::Error::last_os_error());
+                            }
+                            let var: i32 = TCP_KEEPINTVL_S;
+                            if lwip_setsockopt(
+                                fd,
+                                IPPROTO_TCP as i32,
+                                TCP_KEEPINTVL as i32,
+                                &var as *const i32 as *const _,
+                                std::mem::size_of::<i32>() as socklen_t,
+                            ) < 0
+                            {
+                                return Err(std::io::Error::last_os_error());
+                            }
+                            let var: i32 = TCP_KEEPCNT_N;
+                            if lwip_setsockopt(
+                                fd,
+                                IPPROTO_TCP as i32,
+                                TCP_KEEPCNT as i32,
+                                &var as *const i32 as *const _,
+                                std::mem::size_of::<i32>() as socklen_t,
+                            ) < 0
+                            {
+                                return Err(std::io::Error::last_os_error());
+                            }
+                            let var: i32 = TCP_KEEPIDLE_S;
+                            if lwip_setsockopt(
+                                fd,
+                                IPPROTO_TCP as i32,
+                                TCP_KEEPIDLE as i32,
+                                &var as *const i32 as *const _,
+                                std::mem::size_of::<i32>() as socklen_t,
+                            ) < 0
+                            {
+                                return Err(std::io::Error::last_os_error());
+                            }
+
                             TcpStream::from_raw_fd(fd).try_into().unwrap()
                         };
                         Ok(Self {
@@ -305,15 +385,6 @@ impl Esp32TLSStream {
                 )),
             },
             n => Ok(n as usize),
-        }
-    }
-}
-
-impl Drop for Esp32TLSStream {
-    fn drop(&mut self) {
-        log::error!("dropping the tls stream");
-        if let Some(err) = EspError::from(unsafe { esp_tls_conn_destroy(*self.tls_context) }) {
-            log::error!("error while dropping the tls connection '{}'", err);
         }
     }
 }

@@ -74,6 +74,14 @@ clippy-esp32:
 clippy-cli:
 	cargo clippy -p micro-rdk-installer --no-default-features -- -Dwarnings
 
+clippy-ffi-native:
+	cargo clippy -p micro-rdk-ffi -- -Dwarnings
+
+clippy-ffi-esp32:
+	cargo +esp clippy -p micro-rdk-ffi  --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
+
+clippy-ffi : clippy-ffi-native clippy-ffi-esp32
+
 format:
 	cargo fmt --all -- --check
 

@@ -47,10 +47,10 @@ by this template will be automatically invoked at startup.
 
 ## Tutorial
 
-Please see the [ESP32 Sensors
-Example](https://github.com/viam-labs/micro-rdk-esp32-sensor-examples)
-to see an example Micro-RDK module project. The
-[README](https://github.com/viam-labs/micro-rdk-esp32-sensor-examples/blob/main/README.md)
+Please see the [Modular Driver
+Examples](/examples/modular-drivers)
+to see some example Micro-RDK module projects. The
+[README](/examples/modular-drivers/README.md)
 provides a walkthrough of how to implement a module for the Micro-RDK.
 
 ## Caveats
