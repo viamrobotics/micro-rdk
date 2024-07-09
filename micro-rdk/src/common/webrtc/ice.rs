@@ -370,7 +370,7 @@ impl ICEAgent {
     /// to do so it parses the pair list in the following manner
     /// 1) If a pair has no pending STUN request it generates an TransactionId and attach to the pair
     /// 2) If a pair has a pending STUN request and its timeout is elapsed it will resend
-    /// the generated TransactionId
+    ///    the generated TransactionId
     /// 3) Otherwise it moves to the next candidate pair
     fn next_stun_request(&mut self) -> Option<(TransactionId, SocketAddrV4)> {
         let instant = Instant::now();
