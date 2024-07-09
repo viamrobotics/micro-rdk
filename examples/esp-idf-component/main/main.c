@@ -168,11 +168,19 @@ int config_my_generic_sensor_A(struct config_context *ctx, void *user_data,
   pthread_mutex_init(&sensorA->hash_map_lock, NULL);
 
   struct sensorA_random_record* r = generate_new_sensorA_random_record(1000);
-  hashmap_cstring_ptr_insert(sensorA->hash_map, "1000", (const void*)r);
+  if (r != NULL){
+    hashmap_cstring_ptr_insert(sensorA->hash_map, "1000", (const void*)r);
+  }
+  
   r = generate_new_sensorA_random_record(2000);
-  hashmap_cstring_ptr_insert(sensorA->hash_map, "2000", (const void*)r);
+  if (r != NULL){
+    hashmap_cstring_ptr_insert(sensorA->hash_map, "2000", (const void*)r);
+  }
+  
   r = generate_new_sensorA_random_record(1111);
-  hashmap_cstring_ptr_insert(sensorA->hash_map, "1111", (const void*)r);
+  if (r != NULL){
+    hashmap_cstring_ptr_insert(sensorA->hash_map, "1111", (const void*)r);
+  }
   
   *out = sensorA;
   
