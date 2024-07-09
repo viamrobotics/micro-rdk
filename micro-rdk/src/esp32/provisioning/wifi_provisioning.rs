@@ -32,11 +32,16 @@ impl Default for Esp32WifiProvisioningBuilder {
         unsafe {
             sys::esp!(sys::esp_efuse_mac_get_default(mac_address.as_mut_ptr())).unwrap();
         };
+
+        let ssid = format!(
+            "esp32-micrordk-{:02X}{:02X}",
+            mac_address[4], mac_address[5]
+        );
+
+        log::info!("Provisioning SSID: {}", ssid);
+
         Self {
-            ssid: format!(
-                "esp32-micrordk-{:02X}{:02X}",
-                mac_address[4], mac_address[5]
-            ),
+            ssid,
             password: "viamsetup".to_owned(),
             ap_ip_addr: Ipv4Addr::new(10, 42, 0, 1),
         }
