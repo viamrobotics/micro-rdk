@@ -25,7 +25,14 @@ typedef struct generic_c_sensor_config generic_c_sensor_config;
 
 typedef struct get_readings_context get_readings_context;
 
+/*
+ An helper type which stores key value pairs where key is a Cstring and value
+ */
+typedef struct hashmap_cstring_ptr hashmap_cstring_ptr;
+
 typedef struct viam_server_context viam_server_context;
+
+typedef void (*hashmap_cstring_ptr_callback)(void*, const char*, const void*);
 
 typedef int (*config_callback)(struct config_context*, void*, void**);
 
@@ -51,9 +58,55 @@ enum viam_code config_free_string(struct config_context*, char *ptr);
 enum viam_code config_get_i32(struct config_context *ctx, const char *key, int *out);
 
 /*
+ Creates an new `hashmap_u32_ptr`
+ */
+struct hashmap_cstring_ptr *hashmap_cstring_ptr_new(void);
+
+/*
+ Destroys an  `hashmap_u32_ptr`
+ */
+enum viam_code hashmap_cstring_ptr_destroy(struct hashmap_cstring_ptr *ctx);
+
+/*
+ Returns a previously stored value if it exists, otherwise returns a null pointer
+ */
+const void *hashmap_cstring_ptr_get(struct hashmap_cstring_ptr *ctx, const char *key);
+
+/*
+ Iterate through each key value pair calling callback on each pairs
+ */
+void hashmap_cstring_ptr_iterate_over_keys(struct hashmap_cstring_ptr *ctx,
+                                           void *user_data,
+                                           hashmap_cstring_ptr_callback callback);
+
+/*
+ Removes a previously stored value if it exists, otherwise returns a null pointer
+ */
+const void *hashmap_cstring_ptr_remove(struct hashmap_cstring_ptr *ctx, const char *key);
+
+/*
+ Inserts a key-value pair into the hash map.
+ */
+const void *hashmap_cstring_ptr_insert(struct hashmap_cstring_ptr *ctx,
+                                       const char *key,
+                                       const void *ptr);
+
+/*
  Creates a new Viam server context
  */
 struct viam_server_context *init_viam_server_context(void);
+
+/*
+ Sets the provisioning model
+ */
+enum viam_code viam_server_set_provisioning_model(struct viam_server_context *ctx,
+                                                  const char *model);
+
+/*
+ Sets the provisioning manufacturer
+ */
+enum viam_code viam_server_set_provisioning_manufacturer(struct viam_server_context *ctx,
+                                                         const char *manufacturer);
 
 /*
  Register a generic sensor in the Registry making configurable via Viam config

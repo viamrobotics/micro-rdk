@@ -1,5 +1,8 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include "esp_mac.h"
+#include "esp_random.h"
 #include "sdkconfig.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -9,6 +12,7 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
+#include <pthread.h>
 
 
 #ifdef CONFIG_MICRO_RDK_ENABLE_BUILD_LIBRARY
@@ -120,10 +124,30 @@ void wifi_init_sta(void)
 
 
 
+
 #ifdef CONFIG_MICRO_RDK_ENABLE_BUILD_LIBRARY
+struct sensorA_random_record{
+  uint32_t id;
+  uint8_t array[8];
+  uint32_t timestamp_ms;
+};
+
+struct sensorA_random_record* generate_new_sensorA_random_record(uint32_t id)
+{
+  struct sensorA_random_record* record = malloc(sizeof(struct sensorA_random_record));
+  if (record == NULL) {
+    ESP_LOGE(TAG, "couldn't allocate a record");
+  }
+  record->id = id;
+  esp_fill_random(record->array,sizeof(record->array));
+  record->timestamp_ms = esp_log_timestamp();
+  return record;
+}
+
 struct my_generic_sensor_A {
   int32_t an_int;
-  uint8_t *array;
+  pthread_mutex_t hash_map_lock;
+  struct hashmap_cstring_ptr *hash_map;
   int32_t an_int_from_config;
 };
 
@@ -139,18 +163,40 @@ int config_my_generic_sensor_A(struct config_context *ctx, void *user_data,
   struct my_generic_sensor_A *sensorA = malloc(sizeof(struct my_generic_sensor_A));
 
   sensorA->an_int = 1234567;
-  sensorA->array =  NULL;
+  sensorA->hash_map = hashmap_cstring_ptr_new();
   sensorA->an_int_from_config = my_int;
+  pthread_mutex_init(&sensorA->hash_map_lock, NULL);
+
+  struct sensorA_random_record* r = generate_new_sensorA_random_record(1000);
+  hashmap_cstring_ptr_insert(sensorA->hash_map, "1000", (const void*)r);
+  r = generate_new_sensorA_random_record(2000);
+  hashmap_cstring_ptr_insert(sensorA->hash_map, "2000", (const void*)r);
+  r = generate_new_sensorA_random_record(1111);
+  hashmap_cstring_ptr_insert(sensorA->hash_map, "1111", (const void*)r);
   
   *out = sensorA;
   
   return VIAM_OK;
 }
+
+void from_hash_map_add_readings(void *reading_context, const char *key,
+                                const void *data) {
+  struct get_readings_context* ctx = (struct get_readings_context*)reading_context;
+  struct sensorA_random_record* record = (struct sensorA_random_record*)(data);
+  get_readings_add_binary_blob(ctx,key,(uint8_t*)record,sizeof(struct sensorA_random_record));
+}
+
 int get_readings_my_generic_sensorA(struct get_readings_context *ctx, void* data) {
   struct my_generic_sensor_A *sensorA = data;
 
+  pthread_mutex_lock(&sensorA->hash_map_lock);
+
+  hashmap_cstring_ptr_iterate_over_keys(sensorA->hash_map, (void*)ctx, from_hash_map_add_readings);
+
   get_readings_add_binary_blob(ctx, "an_int", (uint8_t*)&sensorA->an_int, sizeof(sensorA->an_int));
   get_readings_add_binary_blob(ctx, "an_int_from_config", (uint8_t*)&sensorA->an_int_from_config, sizeof(sensorA->an_int_from_config));
+
+  pthread_mutex_unlock(&sensorA->hash_map_lock);
 
   return VIAM_OK;
 }
@@ -163,18 +209,18 @@ struct my_generic_sensor_B {
 int config_my_generic_sensor_B(struct config_context *ctx, void *user_data,
                                void **out) {
   char *p = NULL;
-  viam_code ret = config_get_string(ctx, "my_str", &p);
   
   struct my_generic_sensor_B *sensor_B = malloc(sizeof(struct my_generic_sensor_B));
-  
+  viam_code ret = config_get_string(ctx, "my_str", &p);
+
   if (ret == VIAM_OK) {
-    char *msg = malloc(strlen(p));
+    char *msg = malloc(strlen(p)+1);
     strcpy(msg, p);
     sensor_B->a_string = msg;
     config_free_string(ctx, p);
   } else {
     p = "the default string";
-    char *msg = malloc(strlen(p));
+    char *msg = malloc(strlen(p)+1);
     strcpy(msg, p);
     sensor_B->a_string = msg;
   }
@@ -208,8 +254,6 @@ void app_main(void)
   wifi_init_sta();
 
 #ifdef CONFIG_MICRO_RDK_ENABLE_BUILD_LIBRARY
-  struct viam_server_context *ctx = init_viam_server_context();
-
 
   struct viam_server_context *viam_ctx = init_viam_server_context();
 
@@ -222,7 +266,7 @@ void app_main(void)
     viam_server_register_c_generic_sensor(viam_ctx, "sensorA", config_A);
 
   if (ret != VIAM_OK) {
-    ESP_LOGE(TAG,"couldn't register sensorA model cause : %i", ret);
+    ESP_LOGE(TAG,"couldn't register sensorA model, error : %i", ret);
     return;
   }
 
@@ -234,13 +278,33 @@ void app_main(void)
   ret = viam_server_register_c_generic_sensor(viam_ctx, "sensorB", config_B);
 
   if (ret != VIAM_OK) {
-    ESP_LOGE(TAG,"couldn't register sensorB model cause : %i", ret);
+    ESP_LOGE(TAG,"couldn't register sensorB model, error : %i", ret);
+    return;
+  }
+
+  ret = viam_server_set_provisioning_manufacturer(viam_ctx, "viam-example");
+  if (ret != VIAM_OK) {
+    ESP_LOGE(TAG,"couldn't set manufacturer, error : %i", ret);
+    return;
+  }
+
+  uint8_t mac[8];
+  esp_err_t esp_err = esp_efuse_mac_get_default(mac);
+  if (esp_err != ESP_OK){
+    ESP_LOGE(TAG,"couldn't get default mac, error : %i", esp_err);
+    return;
+  }
+  char model[50];
+  snprintf(model, 50, "esp32-%02X%02X", mac[6],mac[7]);
+  ret = viam_server_set_provisioning_model(viam_ctx, model);
+  if (ret != VIAM_OK) {
+    ESP_LOGE(TAG,"couldn't set model, error : %i", ret);
     return;
   }
 
   ESP_LOGI(TAG,"starting viam server\r\n");
 
-  xTaskCreatePinnedToCore((void*)viam_server_start, "viam", CONFIG_MICRO_RDK_TASK_STACK_SIZE, ctx, 6, NULL, CONFIG_MICRO_RDK_TASK_PINNED_TO_CORE_1);
+  xTaskCreatePinnedToCore((void*)viam_server_start, "viam", CONFIG_MICRO_RDK_TASK_STACK_SIZE, viam_ctx, 6, NULL, CONFIG_MICRO_RDK_TASK_PINNED_TO_CORE_1);
 #else
   ESP_LOGE(TAG,"enable MICRO_RDK_ENABLE_BUILD_LIBRARY ");
 #endif
