@@ -2,14 +2,18 @@
 use std::time::Duration;
 
 use crate::common::camera::{Camera, CameraError};
-use crate::esp32::esp_idf_svc::sys::camera_config_t;
-use crate::esp32::esp_idf_svc::sys::camera_config_t__bindgen_ty_1;
-use crate::esp32::esp_idf_svc::sys::camera_config_t__bindgen_ty_2;
-use crate::esp32::esp_idf_svc::systime::EspSystemTime;
 use crate::proto::component::camera;
 use bytes::{Bytes, BytesMut};
 use log::*;
 use prost::Message;
+
+pub mod fake_camera;
+
+/*
+use crate::esp32::esp_idf_svc::sys::camera_config_t;
+use crate::esp32::esp_idf_svc::sys::camera_config_t__bindgen_ty_1;
+use crate::esp32::esp_idf_svc::sys::camera_config_t__bindgen_ty_2;
+use crate::esp32::esp_idf_svc::systime::EspSystemTime;
 
 pub struct Esp32Camera {
     config: camera_config_t,
@@ -115,3 +119,4 @@ impl Camera for Esp32Camera {
         Err(CameraError::CameraCouldntGetFrame)
     }
 }
+*/
