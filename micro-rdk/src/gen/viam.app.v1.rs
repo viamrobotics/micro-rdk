@@ -60,6 +60,18 @@ pub struct RobotPartHistoryEntry {
     pub when: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
     #[prost(message, optional, tag="4")]
     pub old: ::core::option::Option<RobotPart>,
+    #[prost(message, optional, tag="5")]
+    pub edited_by: ::core::option::Option<AuthenticatorInfo>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AuthenticatorInfo {
+    #[prost(enumeration="AuthenticationType", tag="1")]
+    pub r#type: i32,
+    #[prost(string, tag="2")]
+    pub value: ::prost::alloc::string::String,
+    #[prost(bool, tag="3")]
+    pub is_deactivated: bool,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -761,6 +773,9 @@ pub struct Fragment {
     /// whether the organization(s) using this fragment is the same as the fragment org
     #[prost(bool, tag="11")]
     pub only_used_by_owner: bool,
+    /// the visibility of a fragment; public, private or unlisted
+    #[prost(enumeration="FragmentVisibility", tag="12")]
+    pub visibility: i32,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -769,6 +784,8 @@ pub struct ListFragmentsRequest {
     pub organization_id: ::prost::alloc::string::String,
     #[prost(bool, tag="2")]
     pub show_public: bool,
+    #[prost(enumeration="FragmentVisibility", repeated, tag="3")]
+    pub fragment_visibility: ::prost::alloc::vec::Vec<i32>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -815,6 +832,8 @@ pub struct UpdateFragmentRequest {
     pub config: ::core::option::Option<super::super::super::google::protobuf::Struct>,
     #[prost(bool, optional, tag="4")]
     pub public: ::core::option::Option<bool>,
+    #[prost(enumeration="FragmentVisibility", optional, tag="5")]
+    pub visibility: ::core::option::Option<i32>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1053,13 +1072,25 @@ pub struct MlModelMetadata {
     /// A list of package versions for a ML model
     #[prost(string, repeated, tag="1")]
     pub versions: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(enumeration="super::mltraining::v1::ModelType", tag="2")]
+    pub model_type: i32,
+    #[prost(enumeration="super::mltraining::v1::ModelFramework", tag="3")]
+    pub model_framework: i32,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MlTrainingVersion {
+    #[prost(string, tag="1")]
+    pub version: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="2")]
+    pub created_on: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MlTrainingMetadata {
     /// A list of package versions for ML training source distribution
-    #[prost(string, repeated, tag="1")]
-    pub versions: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(message, repeated, tag="5")]
+    pub versions: ::prost::alloc::vec::Vec<MlTrainingVersion>,
     #[prost(enumeration="super::mltraining::v1::ModelType", tag="2")]
     pub model_type: i32,
     #[prost(enumeration="super::mltraining::v1::ModelFramework", tag="3")]
@@ -1216,6 +1247,18 @@ pub struct DeleteRegistryItemRequest {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DeleteRegistryItemResponse {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TransferRegistryItemRequest {
+    #[prost(string, tag="1")]
+    pub item_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub new_public_namespace: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TransferRegistryItemResponse {
 }
 /// Modules
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -1472,6 +1515,22 @@ pub struct DeleteKeyResponse {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RenameKeyRequest {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub name: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RenameKeyResponse {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub name: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AuthorizationDetails {
     #[prost(string, tag="1")]
     pub authorization_type: ::prost::alloc::string::String,
@@ -1531,6 +1590,73 @@ pub struct CreateKeyFromExistingKeyAuthorizationsResponse {
     pub id: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
     pub key: ::prost::alloc::string::String,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum AuthenticationType {
+    Unspecified = 0,
+    WebOauth = 1,
+    ApiKey = 2,
+    RobotPartSecret = 3,
+    LocationSecret = 4,
+}
+impl AuthenticationType {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            AuthenticationType::Unspecified => "AUTHENTICATION_TYPE_UNSPECIFIED",
+            AuthenticationType::WebOauth => "AUTHENTICATION_TYPE_WEB_OAUTH",
+            AuthenticationType::ApiKey => "AUTHENTICATION_TYPE_API_KEY",
+            AuthenticationType::RobotPartSecret => "AUTHENTICATION_TYPE_ROBOT_PART_SECRET",
+            AuthenticationType::LocationSecret => "AUTHENTICATION_TYPE_LOCATION_SECRET",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "AUTHENTICATION_TYPE_UNSPECIFIED" => Some(Self::Unspecified),
+            "AUTHENTICATION_TYPE_WEB_OAUTH" => Some(Self::WebOauth),
+            "AUTHENTICATION_TYPE_API_KEY" => Some(Self::ApiKey),
+            "AUTHENTICATION_TYPE_ROBOT_PART_SECRET" => Some(Self::RobotPartSecret),
+            "AUTHENTICATION_TYPE_LOCATION_SECRET" => Some(Self::LocationSecret),
+            _ => None,
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum FragmentVisibility {
+    Unspecified = 0,
+    Private = 1,
+    Public = 2,
+    PublicUnlisted = 3,
+}
+impl FragmentVisibility {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            FragmentVisibility::Unspecified => "FRAGMENT_VISIBILITY_UNSPECIFIED",
+            FragmentVisibility::Private => "FRAGMENT_VISIBILITY_PRIVATE",
+            FragmentVisibility::Public => "FRAGMENT_VISIBILITY_PUBLIC",
+            FragmentVisibility::PublicUnlisted => "FRAGMENT_VISIBILITY_PUBLIC_UNLISTED",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "FRAGMENT_VISIBILITY_UNSPECIFIED" => Some(Self::Unspecified),
+            "FRAGMENT_VISIBILITY_PRIVATE" => Some(Self::Private),
+            "FRAGMENT_VISIBILITY_PUBLIC" => Some(Self::Public),
+            "FRAGMENT_VISIBILITY_PUBLIC_UNLISTED" => Some(Self::PublicUnlisted),
+            _ => None,
+        }
+    }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -1805,7 +1931,7 @@ pub struct RegisterAuthApplicationResponse {
     #[prost(string, tag="2")]
     pub application_name: ::prost::alloc::string::String,
     #[prost(string, tag="3")]
-    pub secret: ::prost::alloc::string::String,
+    pub client_secret: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1830,6 +1956,30 @@ pub struct UpdateAuthApplicationResponse {
     pub application_id: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
     pub application_name: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetAuthApplicationRequest {
+    #[prost(string, tag="1")]
+    pub org_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub application_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetAuthApplicationResponse {
+    #[prost(string, tag="1")]
+    pub application_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub application_name: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub client_secret: ::prost::alloc::string::String,
+    #[prost(string, repeated, tag="4")]
+    pub origin_uris: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(string, repeated, tag="5")]
+    pub redirect_uris: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(string, tag="6")]
+    pub logout_uri: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1860,8 +2010,8 @@ pub struct RobotConfig {
     #[prost(message, repeated, tag="12")]
     pub overwrite_fragment_status: ::prost::alloc::vec::Vec<AppValidationStatus>,
     /// Turns on pprof http server on localhost. By default false.
-    #[prost(bool, optional, tag="13")]
-    pub enable_web_profile: ::core::option::Option<bool>,
+    #[prost(bool, tag="13")]
+    pub enable_web_profile: bool,
 }
 /// Valid location secret that can be used for authentication to the robot.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -1993,6 +2143,8 @@ pub struct ServiceConfig {
     pub api: ::prost::alloc::string::String,
     #[prost(message, repeated, tag="10")]
     pub service_configs: ::prost::alloc::vec::Vec<ResourceLevelServiceConfig>,
+    #[prost(message, optional, tag="11")]
+    pub log_configuration: ::core::option::Option<LogConfiguration>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
