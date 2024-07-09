@@ -26,6 +26,8 @@ use thiserror::Error;
 // the smaller amount of available RAM, we've halved it
 static MAX_SENSOR_CONTENTS_SIZE: usize = 32000;
 
+type CollectedReadings = Vec<(ResourceMethodKey, Result<SensorData, DataCollectionError>)>;
+
 #[derive(Debug, Error)]
 pub enum DataManagerError {
     #[error("no data collectors in manager")]
@@ -152,10 +154,15 @@ where
         intervals
     }
 
-    pub async fn data_collection_task(&mut self) -> Result<(), DataManagerError> {
+    pub async fn data_collection_task(&mut self) {
         let mut loop_counter: u64 = 0;
         loop {
-            self.collect_data_inner(loop_counter).await?;
+            if let Err(e) = self.collect_data_inner(loop_counter).await {
+                log::error!(
+                    "data manager error {:?}, will attempt to continue collecting",
+                    e
+                );
+            }
             loop_counter += 1;
             Timer::after(self.min_interval).await;
         }
@@ -178,7 +185,16 @@ where
         let readings = self.collect_readings_for_interval(time_interval_ms)?;
         let mut store_guard = self.store.lock().await;
         for (collector_key, reading) in readings {
-            store_guard.write_message(&collector_key, reading, WriteMode::OverwriteOldest)?;
+            match reading {
+                Err(e) => log::error!(
+                    "collector {} failed to collect data reason {:?}",
+                    &collector_key,
+                    e
+                ),
+                Ok(data) => {
+                    store_guard.write_message(&collector_key, data, WriteMode::OverwriteOldest)?
+                }
+            }
         }
         Ok(())
     }
@@ -189,7 +205,7 @@ where
     fn collect_readings_for_interval(
         &mut self,
         time_interval_ms: u64,
-    ) -> Result<Vec<(ResourceMethodKey, SensorData)>, DataManagerError> {
+    ) -> Result<CollectedReadings, DataManagerError> {
         let min_interval_ms = self.min_interval_ms();
         if time_interval_ms % min_interval_ms != 0 {
             return Err(DataManagerError::ImproperTimeInterval(
@@ -203,7 +219,7 @@ where
                 (coll.time_interval().as_millis() as u64 / min_interval_ms)
                     == (time_interval_ms / min_interval_ms)
             })
-            .map(|coll| Ok((coll.resource_method_key(), coll.call_method()?)))
+            .map(|coll| Ok((coll.resource_method_key(), coll.call_method())))
             .collect()
     }
 
@@ -429,6 +445,7 @@ mod tests {
     use ringbuf::{LocalRb, Rb};
 
     use super::DataManager;
+    use crate::common::data_collector::DataCollectionError;
     use crate::common::data_store::{DataStoreReader, WriteMode};
     use crate::common::encoder::EncoderError;
     use crate::common::{
@@ -630,6 +647,14 @@ mod tests {
         let sensor_data = data_manager.collect_readings_for_interval(100);
         assert!(sensor_data.is_ok());
         let sensor_data = sensor_data.unwrap();
+        let sensor_data: Vec<(ResourceMethodKey, SensorData)> = sensor_data
+            .into_iter()
+            .try_fold(vec![], |mut out, val| {
+                out.push((val.0, val.1?));
+                Ok::<Vec<(ResourceMethodKey, SensorData)>, DataCollectionError>(out)
+            })
+            .unwrap();
+
         assert_eq!(sensor_data.len(), 2);
 
         assert_eq!(sensor_data[0].0, method_key_1);
@@ -727,7 +752,12 @@ mod tests {
         assert!(data_manager.is_ok());
         let mut data_manager = data_manager.unwrap();
 
-        let readings = data_manager.collect_readings_for_interval(100);
+        let readings = data_manager.collect_readings_for_interval(100).unwrap();
+        let readings: Result<Vec<(ResourceMethodKey, SensorData)>, DataCollectionError> =
+            readings.into_iter().try_fold(vec![], |mut out, val| {
+                out.push((val.0, val.1?));
+                Ok::<Vec<(ResourceMethodKey, SensorData)>, DataCollectionError>(out)
+            });
         assert!(readings.is_err());
     }
 

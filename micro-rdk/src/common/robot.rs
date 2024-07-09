@@ -287,9 +287,8 @@ impl LocalRobot {
                     let _ = robot
                         .data_manager_collection_task
                         .replace(robot.executor.spawn(async move {
-                            if let Err(err) = data_manager.data_collection_task().await {
-                                log::error!("error running data manager: {:?}", err)
-                            }
+                            data_manager_svc.data_collection_task().await;
+                            unreachable!()
                         }));
                 }
                 Ok(None) => {}
