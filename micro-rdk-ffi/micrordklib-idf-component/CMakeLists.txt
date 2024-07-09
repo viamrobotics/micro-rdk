@@ -25,7 +25,6 @@ if((NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/libmicrordk.a" AND NOT IS_DIRECTORY 
       VERBATIM
     )
     add_custom_target(libmicrordk.a DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/assets/libmicrordk.a")
-    set_property(SOURCE "${CMAKE_CURRENT_BINARY_DIR}/micrordk-lib/libmicrordk.a" PROPERTY GENERATED)
   endif()
 else()
   add_prebuilt_library(micro_rdk_ffi
