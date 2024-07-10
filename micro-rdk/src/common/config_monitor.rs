@@ -13,12 +13,12 @@ impl<'a> ConfigMonitor<'a> {
     pub fn new(restart_hook: impl FnOnce() + 'a, curr_config: ConfigResponse) -> Self {
         Self {
             restart_hook: Some(Box::new(restart_hook)),
-            curr_config: curr_config,
+            curr_config,
         }
     }
 
     fn restart(&mut self) -> ! {
-        log::warn!("Config change detected - restarting or terminating now...");
+        log::warn!("Robot configuration change detected");
         (self.restart_hook.take().unwrap())();
         unreachable!();
     }
@@ -41,11 +41,9 @@ impl<'a> PeriodicAppClientTask for ConfigMonitor<'a> {
             let (app_config, _cfg_received_datetime) = app_client.get_config(None).await.unwrap();
             match self.curr_config == *app_config {
                 true => {
-                    log::warn!("true: configs match");
                     Ok(Some(self.get_default_period()))
                 }
                 false => {
-                    log::warn!("false: configs dont match");
                     self.restart()
                 }
             }
