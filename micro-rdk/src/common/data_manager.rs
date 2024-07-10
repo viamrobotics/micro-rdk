@@ -154,7 +154,7 @@ where
         intervals
     }
 
-    pub async fn data_collection_task(&mut self) {
+    pub async fn data_collection_task(&mut self) -> ! {
         let mut loop_counter: u64 = 0;
         loop {
             if let Err(e) = self.collect_data_inner(loop_counter).await {
@@ -192,7 +192,15 @@ where
                     e
                 ),
                 Ok(data) => {
-                    store_guard.write_message(&collector_key, data, WriteMode::OverwriteOldest)?
+                    if let Err(e) =
+                        store_guard.write_message(&collector_key, data, WriteMode::OverwriteOldest)
+                    {
+                        log::error!(
+                            "couldn't store data for collector {:?} error : {:?}",
+                            collector_key,
+                            e
+                        );
+                    }
                 }
             }
         }
