@@ -12,7 +12,7 @@ use crate::common::{provisioning::server::ProvisioningExecutor, webrtc::exec::We
 pub struct NativeExecutor {}
 
 std::thread_local! {
-    static EX: LocalExecutor<'static> = LocalExecutor::new();
+    static EX: LocalExecutor<'static> = const { LocalExecutor::new() };
 }
 
 impl NativeExecutor {

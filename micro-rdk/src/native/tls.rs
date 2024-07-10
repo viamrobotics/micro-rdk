@@ -60,22 +60,10 @@ impl TlsClientConnector for NativeTls {
     }
 }
 
-use rustls::KeyLog;
-
 use crate::common::conn::errors::ServerError;
 use crate::common::conn::server::TlsClientConnector;
 
 use super::tcp::NativeStream;
-
-struct Key {}
-impl KeyLog for Key {
-    fn log(&self, label: &str, client_random: &[u8], secret: &[u8]) {
-        log::info!("{} {:?} {:?}", label, client_random, secret);
-    }
-    fn will_log(&self, _label: &str) -> bool {
-        true
-    }
-}
 
 impl NativeTlsStream {
     /// based on a role and a configuration, attempt the setup an SSL context

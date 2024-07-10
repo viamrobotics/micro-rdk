@@ -43,36 +43,34 @@ pub mod google {
 
 /// gRPC prototypes from definitions in [api repository](https://github.com/viamrobotics/api/tree/main/proto/viam), auto-generated
 pub mod proto {
+
+    // Don't bother to clippy generated proto code
+    #![allow(clippy::all)]
+
     #[cfg(feature = "provisioning")]
     pub mod provisioning {
         pub mod v1 {
-            #![allow(clippy::derive_partial_eq_without_eq)]
             include!("gen/viam.provisioning.v1.rs");
         }
     }
     pub mod common {
         pub mod v1 {
-            #![allow(clippy::derive_partial_eq_without_eq)]
             include!("gen/viam.common.v1.rs");
         }
     }
 
     pub mod app {
         pub mod v1 {
-            #![allow(clippy::derive_partial_eq_without_eq)]
             include!("gen/viam.app.v1.rs");
         }
         pub mod packages {
             pub mod v1 {
-                #![allow(clippy::derive_partial_eq_without_eq)]
                 include!("gen/viam.app.packages.v1.rs");
             }
         }
         #[cfg(feature = "data")]
         pub mod data_sync {
             pub mod v1 {
-                #![allow(clippy::derive_partial_eq_without_eq)]
-                #![allow(clippy::large_enum_variant)]
                 include!("gen/viam.app.datasync.v1.rs");
             }
         }
@@ -88,19 +86,16 @@ pub mod proto {
 
     pub mod rpc {
         pub mod v1 {
-            #![allow(clippy::derive_partial_eq_without_eq)]
             include!("gen/proto.rpc.v1.rs");
         }
         pub mod webrtc {
             pub mod v1 {
-                #![allow(clippy::derive_partial_eq_without_eq)]
                 include!("gen/proto.rpc.webrtc.v1.rs");
             }
         }
         pub mod examples {
             pub mod echo {
                 pub mod v1 {
-                    #![allow(clippy::derive_partial_eq_without_eq)]
                     include!("gen/proto.rpc.examples.echo.v1.rs");
                 }
             }
@@ -109,60 +104,51 @@ pub mod proto {
 
     pub mod robot {
         pub mod v1 {
-            #![allow(clippy::derive_partial_eq_without_eq)]
             include!("gen/viam.robot.v1.rs");
         }
     }
     pub mod component {
         pub mod board {
             pub mod v1 {
-                #![allow(clippy::derive_partial_eq_without_eq)]
                 include!("gen/viam.component.board.v1.rs");
             }
         }
         pub mod motor {
             pub mod v1 {
-                #![allow(clippy::derive_partial_eq_without_eq)]
                 include!("gen/viam.component.motor.v1.rs");
             }
         }
         pub mod camera {
             pub mod v1 {
-                #![allow(clippy::derive_partial_eq_without_eq)]
                 include!("gen/viam.component.camera.v1.rs");
             }
         }
         pub mod base {
             pub mod v1 {
-                #![allow(clippy::derive_partial_eq_without_eq)]
                 include!("gen/viam.component.base.v1.rs");
             }
         }
 
         pub mod encoder {
             pub mod v1 {
-                #![allow(clippy::derive_partial_eq_without_eq)]
                 include!("gen/viam.component.encoder.v1.rs");
             }
         }
 
         pub mod movement_sensor {
             pub mod v1 {
-                #![allow(clippy::derive_partial_eq_without_eq)]
                 include!("gen/viam.component.movementsensor.v1.rs");
             }
         }
 
         pub mod servo {
             pub mod v1 {
-                #![allow(clippy::derive_partial_eq_without_eq)]
                 include!("gen/viam.component.servo.v1.rs");
             }
         }
 
         pub mod power_sensor {
             pub mod v1 {
-                #![allow(clippy::derive_partial_eq_without_eq)]
                 include!("gen/viam.component.powersensor.v1.rs");
             }
         }

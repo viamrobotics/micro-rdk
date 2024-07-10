@@ -1,6 +1,5 @@
 use std::pin::Pin;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crate::common::data_collector::{DataCollectionError, DataCollector};
@@ -11,7 +10,7 @@ use crate::proto::app::data_sync::v1::{
 };
 use crate::proto::app::v1::ConfigResponse;
 
-use super::app_client::{AppClient, AppClientConfig, AppClientError, PeriodicAppClientTask};
+use super::app_client::{AppClient, AppClientError, PeriodicAppClientTask};
 use super::data_collector::ResourceMethodKey;
 use super::data_store::{DataStoreError, DataStoreReader, WriteMode};
 use super::robot::{LocalRobot, RobotError};
@@ -85,7 +84,7 @@ pub struct DataManager<StoreType> {
     store: Rc<AsyncMutex<StoreType>>,
     sync_interval: Duration,
     min_interval: Duration,
-    part_id: String,
+    robot_part_id: String,
 }
 
 impl<StoreType> DataManager<StoreType>
@@ -96,7 +95,7 @@ where
         collectors: Vec<DataCollector>,
         store: StoreType,
         sync_interval: Duration,
-        part_id: String,
+        robot_part_id: String,
     ) -> Result<Self, DataManagerError> {
         let intervals = collectors.iter().map(|x| x.time_interval());
         let min_interval = intervals.min().ok_or(DataManagerError::NoCollectors)?;
@@ -105,23 +104,22 @@ where
             store: Rc::new(AsyncMutex::new(store)),
             sync_interval,
             min_interval,
-            part_id,
+            robot_part_id,
         })
     }
 
     pub fn from_robot_and_config(
+        robot: &LocalRobot,
         cfg: &ConfigResponse,
-        app_config: &AppClientConfig,
-        robot: Arc<Mutex<LocalRobot>>,
     ) -> Result<Option<Self>, DataManagerError> {
-        let part_id = app_config.get_robot_id();
         let sync_interval = get_data_sync_interval(cfg)?;
         if let Some(sync_interval) = sync_interval {
-            let collectors = robot.lock().unwrap().data_collectors()?;
+            let collectors = robot.data_collectors()?;
             let collector_keys: Vec<ResourceMethodKey> =
                 collectors.iter().map(|c| c.resource_method_key()).collect();
             let store = StoreType::from_resource_method_keys(collector_keys)?;
-            let data_manager_svc = DataManager::new(collectors, store, sync_interval, part_id)?;
+            let data_manager_svc =
+                DataManager::new(collectors, store, sync_interval, robot.part_id.clone())?;
             Ok(Some(data_manager_svc))
         } else {
             Ok(None)
@@ -137,7 +135,7 @@ where
     }
 
     pub fn part_id(&self) -> String {
-        self.part_id.clone()
+        self.robot_part_id.clone()
     }
 
     pub(crate) fn collection_intervals(&self) -> Vec<u64> {

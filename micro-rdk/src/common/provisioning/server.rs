@@ -34,7 +34,7 @@ use hyper::{
 };
 use prost::Message;
 
-use super::storage::{RobotCredentialStorage, WifiCredentialStorage};
+use super::storage::{RobotConfigurationStorage, WifiCredentialStorage};
 
 async fn dns_server(ap_ip: Ipv4Addr) {
     let socket = async_io::Async::<UdpSocket>::bind(([0, 0, 0, 0], 53)).unwrap();
@@ -119,7 +119,7 @@ impl<Wifi, Exec> ProvisioningServiceBuilder<Wifi, Exec> {
             executor: self.executor,
         }
     }
-    pub(crate) fn build<S: RobotCredentialStorage + Clone>(
+    pub(crate) fn build<S: RobotConfigurationStorage + Clone>(
         self,
         storage: S,
     ) -> ProvisioningService<S, Wifi>
@@ -211,8 +211,8 @@ impl<S: Clone, Wifi> Clone for ProvisioningService<S, Wifi> {
 
 impl<S, Wifi> ProvisioningService<S, Wifi>
 where
-    S: RobotCredentialStorage + WifiCredentialStorage + Clone,
-    ServerError: From<<S as RobotCredentialStorage>::Error>,
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone,
+    ServerError: From<<S as RobotConfigurationStorage>::Error>,
     Wifi: WifiManager,
 {
     async fn process_request_inner(&self, req: Request<Incoming>) -> Result<Bytes, ServerError> {
@@ -257,7 +257,7 @@ where
                 .map_err(|e| ServerError::new(GrpcError::RpcInternal, Some(e.into())))?;
             debug_assert_eq!(buffer.len(), 5 + len);
             debug_assert_eq!(buffer.capacity(), 5 + len);
-            if self.storage.has_stored_credentials() {
+            if self.storage.has_robot_credentials() {
                 self.credential_ready.done();
             }
             Ok(buffer.freeze())
@@ -304,7 +304,7 @@ where
             resp.errors.push(error.clone())
         }
 
-        resp.has_smart_machine_credentials = self.storage.has_stored_credentials();
+        resp.has_smart_machine_credentials = self.storage.has_robot_credentials();
         let len = resp.encoded_len();
         let mut buffer = BytesMut::with_capacity(5 + len);
         buffer.put_u8(0);
@@ -370,8 +370,8 @@ where
 
 impl<S, Wifi> Service<Request<Incoming>> for ProvisioningService<S, Wifi>
 where
-    S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
-    ServerError: From<<S as RobotCredentialStorage>::Error>,
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
+    ServerError: From<<S as RobotConfigurationStorage>::Error>,
     Wifi: WifiManager + 'static,
 {
     type Response = Response<GrpcBody>;
@@ -385,8 +385,8 @@ where
 #[pin_project::pin_project]
 pub(crate) struct ProvisoningServer<I, S, E, Wifi>
 where
-    S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
-    ServerError: From<<S as RobotCredentialStorage>::Error>,
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
+    ServerError: From<<S as RobotConfigurationStorage>::Error>,
     Wifi: WifiManager + 'static,
 {
     _exec: PhantomData<E>,
@@ -399,8 +399,8 @@ where
 
 impl<I, S, E, Wifi> Future for ProvisoningServer<I, S, E, Wifi>
 where
-    S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
-    ServerError: From<<S as RobotCredentialStorage>::Error>,
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
+    ServerError: From<<S as RobotConfigurationStorage>::Error>,
     I: rt::Read + rt::Write + std::marker::Unpin + 'static,
     E: rt::bounds::Http2ServerConnExec<
         <ProvisioningService<S, Wifi> as Service<Request<Incoming>>>::Future,
@@ -423,8 +423,8 @@ where
 
 impl<I, S, E, Wifi> ProvisoningServer<I, S, E, Wifi>
 where
-    S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
-    ServerError: From<<S as RobotCredentialStorage>::Error>,
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
+    ServerError: From<<S as RobotConfigurationStorage>::Error>,
     I: rt::Read + rt::Write + std::marker::Unpin + 'static,
     E: rt::bounds::Http2ServerConnExec<
         <ProvisioningService<S, Wifi> as Service<Request<Incoming>>>::Future,
@@ -481,8 +481,8 @@ async fn accept_connections<S, Wifi>(
     service: ProvisioningService<S, Wifi>,
     exec: Executor,
 ) where
-    S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
-    ServerError: From<<S as RobotCredentialStorage>::Error>,
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
+    ServerError: From<<S as RobotConfigurationStorage>::Error>,
     Wifi: WifiManager + 'static,
 {
     // Annoyingly VIAM app creates a new HTTP2 connection for each provisioning request
@@ -515,9 +515,9 @@ pub(crate) async fn serve_provisioning_async<S, Wifi, M>(
     mut mdns: M,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
-    S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
-    <S as RobotCredentialStorage>::Error: Debug,
-    ServerError: From<<S as RobotCredentialStorage>::Error>,
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
+    <S as RobotConfigurationStorage>::Error: Debug,
+    ServerError: From<<S as RobotConfigurationStorage>::Error>,
     <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
     Wifi: WifiManager + 'static,
     M: Mdns,
@@ -589,7 +589,7 @@ mod tests {
             conn::mdns::Mdns,
             provisioning::{
                 server::{ProvisioningInfo, ProvisioningServiceBuilder, ProvisoningServer},
-                storage::{RAMStorage, RobotCredentialStorage},
+                storage::{RAMStorage, RobotConfigurationStorage},
             },
         },
         native::conn::mdns::NativeMdns,

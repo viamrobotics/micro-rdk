@@ -107,6 +107,7 @@ pub struct ViamServerBuilder<M, C, T, NetworkType, CC = WebRtcNoOp, D = WebRtcNo
     max_connections: usize,
     app_client_tasks: Vec<Box<dyn PeriodicAppClientTask>>,
     network: NetworkType,
+    app_client: Option<AppClient>,
 }
 
 impl<M, C, T, NetworkType> ViamServerBuilder<M, C, T, NetworkType>
@@ -136,6 +137,7 @@ where
             max_connections,
             app_client_tasks: vec![],
             network,
+            app_client: None,
         }
     }
 }
@@ -169,8 +171,10 @@ where
             max_connections: self.max_connections,
             app_client_tasks: self.app_client_tasks,
             network: self.network,
+            app_client: self.app_client,
         }
     }
+
     pub fn with_webrtc<D2, CC2>(
         self,
         webrtc: Box<WebRtcConfiguration<D2, CC2>>,
@@ -187,8 +191,30 @@ where
             max_connections: self.max_connections,
             app_client_tasks: self.app_client_tasks,
             network: self.network,
+            app_client: self.app_client,
         }
     }
+
+    pub fn with_app_client(
+        self,
+        app_client: AppClient,
+    ) -> ViamServerBuilder<M, C, T, NetworkType, CC, D, L> {
+        ViamServerBuilder {
+            mdns: self.mdns,
+            webrtc: self.webrtc,
+            port: self.port,
+            http2_listener: self.http2_listener,
+            _marker: self._marker,
+            exec: self.exec,
+            app_connector: self.app_connector,
+            app_config: self.app_config,
+            max_connections: self.max_connections,
+            app_client_tasks: self.app_client_tasks,
+            network: self.network,
+            app_client: Some(app_client),
+        }
+    }
+
     pub fn with_periodic_app_client_task(
         mut self,
         task: Box<dyn PeriodicAppClientTask>,
@@ -208,8 +234,10 @@ where
                 self.app_client_tasks
             },
             network: self.network,
+            app_client: self.app_client,
         }
     }
+
     pub fn build(
         mut self,
         config: &ConfigResponse,
@@ -222,8 +250,6 @@ where
             .as_ref()
             .unwrap()
             .into();
-
-        self.app_config.set_rpc_host(cfg.fqdn.clone());
 
         self.mdns
             .set_hostname(&cfg.name)
@@ -259,6 +285,7 @@ where
             self.max_connections,
             self.app_client_tasks,
             self.network,
+            self.app_client,
         );
 
         Ok(srv)
@@ -343,6 +370,7 @@ where
         max_concurent_connections: usize,
         app_client_tasks: Vec<Box<dyn PeriodicAppClientTask>>,
         network: NetworkType,
+        app_client: Option<AppClient>,
     ) -> Self {
         Self {
             http_listener,
@@ -350,7 +378,7 @@ where
             exec,
             app_connector,
             app_config,
-            app_client: Default::default(),
+            app_client: Rc::new(AsyncRwLock::new(app_client)),
             incoming_connection_manager: IncomingConnectionManager::new(max_concurent_connections),
             app_client_tasks,
             network,
@@ -358,6 +386,11 @@ where
     }
     pub async fn serve(&mut self, robot: Arc<Mutex<LocalRobot>>) {
         let cloned_robot = robot.clone();
+
+        // Let the robot register any periodic app client tasks it may
+        // have based on its configuration.
+        self.app_client_tasks
+            .append(&mut robot.lock().unwrap().get_periodic_app_client_tasks());
 
         // Convert each `PeriodicAppClientTask` implementer into an async task spawned on the
         // executor, and collect them all into `_app_client_tasks` so we don't lose track of them.
