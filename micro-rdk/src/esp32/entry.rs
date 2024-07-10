@@ -9,7 +9,7 @@ use std::{
 };
 
 use crate::common::{
-    app_client::{AppClientBuilder, AppClientConfig},
+    app_client::{AppClient, AppClientError},
     config_monitor::ConfigMonitor,
     conn::{
         mdns::NoMdns,
