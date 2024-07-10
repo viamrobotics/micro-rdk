@@ -32,14 +32,15 @@ impl<'a> PeriodicAppClientTask for ConfigMonitor<'a> {
         Duration::from_secs(10)
     }
 
-    // TODO(RSDK-8160): Update "restart on config" to compare config version instead of deep 
+    // TODO(RSDK-8160): Update "restart on config" to compare config version instead of deep
     // comparison of config response, which relies on RSDK-8023 adding config version
     fn invoke<'c, 'b: 'c>(
         &'b mut self,
         app_client: &'c AppClient,
     ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'c>> {
         Box::pin(async move {
-            let (_app_client_config, new_config, _cfg_received_datetime) = app_client.clone().get_config(None).await.unwrap();
+            let (_app_client_config, new_config, _cfg_received_datetime) =
+                app_client.clone().get_config(None).await.unwrap();
             match self.curr_config == *new_config {
                 true => Ok(Some(self.get_default_period())),
                 false => self.restart(),

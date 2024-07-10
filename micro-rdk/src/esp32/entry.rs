@@ -68,7 +68,7 @@ pub async fn serve_web_inner<S>(
         .unwrap();
 
     let mdns = NoMdns {};
-  
+
     let certs = app_client.get_certificates().await.unwrap();
 
     let serv_key = CString::new(certs.tls_private_key).unwrap();
@@ -162,7 +162,7 @@ pub async fn serve_web_inner<S>(
     })))
     .with_periodic_app_client_task(Box::new(ConfigMonitor::new(
         || unsafe { crate::esp32::esp_idf_svc::sys::esp_restart() },
-         *(cfg_response.clone()),
+        *(cfg_response.clone()),
     )))
     .build(&cfg_response)
     .unwrap();
