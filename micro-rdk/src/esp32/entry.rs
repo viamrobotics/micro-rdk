@@ -10,6 +10,7 @@ use std::{
 
 use crate::common::{
     app_client::{AppClientBuilder, AppClientConfig},
+    config_monitor::ConfigMonitor,
     conn::{
         mdns::NoMdns,
         network::Network,
@@ -21,7 +22,6 @@ use crate::common::{
     provisioning::storage::RobotCredentials,
     restart_monitor::RestartMonitor,
     robot::LocalRobot,
-    config_monitor::ConfigMonitor,
 };
 
 #[cfg(feature = "data")]
@@ -187,7 +187,6 @@ pub async fn serve_web_inner(
     let dtls = Esp32DtlsBuilder::new(webrtc_certificate.clone());
 
     let cloned_exec = exec.clone();
-    
     let webrtc = Box::new(WebRtcConfiguration::new(
         webrtc_certificate,
         dtls,
@@ -207,10 +206,10 @@ pub async fn serve_web_inner(
         .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| unsafe {
             crate::esp32::esp_idf_svc::sys::esp_restart()
         })))
-        .with_periodic_app_client_task(Box::new(ConfigMonitor::new(||unsafe {
-            crate::esp32::esp_idf_svc::sys::esp_restart()
-        },  *(cfg_response.clone()))))
-        ;
+        .with_periodic_app_client_task(Box::new(ConfigMonitor::new(
+            || unsafe { crate::esp32::esp_idf_svc::sys::esp_restart() },
+            *(cfg_response.clone()),
+        )));
         #[cfg(feature = "data")]
         let builder = if let Some(task) = data_sync_task {
             builder.with_periodic_app_client_task(Box::new(task))

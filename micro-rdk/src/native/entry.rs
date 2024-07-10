@@ -3,6 +3,7 @@
 use crate::{
     common::{
         app_client::{AppClientBuilder, AppClientConfig},
+        config_monitor::ConfigMonitor,
         conn::{
             network::Network,
             server::{ViamServerBuilder, WebRtcConfiguration},
@@ -168,7 +169,11 @@ pub async fn serve_web_inner(
                 .with_webrtc(webrtc)
                 .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| {
                     std::process::exit(0)
-                })));
+                })))
+                .with_periodic_app_client_task(Box::new(ConfigMonitor::new(
+                    || std::process::exit(0),
+                    *(cfg_response.clone()),
+                )));
         #[cfg(feature = "data")]
         let builder = if let Some(task) = data_sync_task {
             builder.with_periodic_app_client_task(Box::new(task))

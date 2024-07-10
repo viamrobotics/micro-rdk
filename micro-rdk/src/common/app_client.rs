@@ -257,7 +257,7 @@ impl AppClient {
         &self,
         ip: Option<Ipv4Addr>,
     ) -> Result<(Box<ConfigResponse>, Option<DateTime<FixedOffset>>), AppClientError> {
-        let agent = ip.map(|ip|AgentInfo {
+        let agent = ip.map(|ip| AgentInfo {
             os: "esp32".to_string(),
             host: "esp32".to_string(),
             ips: vec![ip.to_string()],

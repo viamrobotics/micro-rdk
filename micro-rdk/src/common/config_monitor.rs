@@ -1,8 +1,8 @@
-use super::app_client::{ AppClient, AppClientError, PeriodicAppClientTask};
+use super::app_client::{AppClient, AppClientError, PeriodicAppClientTask};
+use crate::proto::app::v1::ConfigResponse;
 use futures_lite::Future;
 use std::pin::Pin;
 use std::time::Duration;
-use crate::proto::app::v1::ConfigResponse;
 
 pub struct ConfigMonitor<'a> {
     restart_hook: Option<Box<dyn FnOnce() + 'a>>,
@@ -38,19 +38,17 @@ impl<'a> PeriodicAppClientTask for ConfigMonitor<'a> {
         app_client: &'c AppClient,
     ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'c>> {
         Box::pin(async move {
-            let app_config = get_app_config(app_client).await.unwrap();
-            match self.curr_config == app_config{
-                true => self.restart(),
-                false => Ok(Some(self.get_default_period())),
+            let (app_config, _cfg_received_datetime) = app_client.get_config(None).await.unwrap();
+            match self.curr_config == *app_config {
+                true => {
+                    log::warn!("true: configs match");
+                    Ok(Some(self.get_default_period()))
+                }
+                false => {
+                    log::warn!("false: configs dont match");
+                    self.restart()
+                }
             }
         })
     }
-
 }
-
-async fn get_app_config(client : &AppClient) -> Result<ConfigResponse, AppClientError>{
-    let (new_config, _cfg_received_datetime) = 
-            client.get_config(None).await.unwrap();
-    return Ok(*new_config);
-}
-
