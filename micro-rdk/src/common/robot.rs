@@ -108,7 +108,7 @@ type Executor = Esp32Executor;
 
 #[derive(Default)]
 pub struct LocalRobot {
-    pub part_id: String,
+    pub(crate) part_id: String,
     resources: ResourceMap,
     build_time: Option<DateTime<FixedOffset>>,
     executor: Executor,
