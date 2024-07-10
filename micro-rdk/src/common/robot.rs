@@ -287,7 +287,7 @@ impl LocalRobot {
                     let _ = robot
                         .data_manager_collection_task
                         .replace(robot.executor.spawn(async move {
-                            data_manager_svc.data_collection_task().await;
+                            data_manager.data_collection_task().await;
                             unreachable!()
                         }));
                 }
