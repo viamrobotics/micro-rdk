@@ -63,12 +63,12 @@ pub unsafe extern "C" fn viam_server_set_provisioning_model(
         return viam_code::VIAM_INVALID_ARG;
     }
     let ctx = unsafe { &mut *ctx };
-    let name = if let Ok(s) = unsafe { CStr::from_ptr(model) }.to_str() {
+    let model = if let Ok(s) = unsafe { CStr::from_ptr(model) }.to_str() {
         s.to_owned()
     } else {
         return viam_code::VIAM_INVALID_ARG;
     };
-    ctx.provisioning_info.set_model(name);
+    ctx.provisioning_info.set_model(model);
     viam_code::VIAM_OK
 }
 
@@ -87,12 +87,36 @@ pub unsafe extern "C" fn viam_server_set_provisioning_manufacturer(
         return viam_code::VIAM_INVALID_ARG;
     }
     let ctx = unsafe { &mut *ctx };
-    let name = if let Ok(s) = unsafe { CStr::from_ptr(manufacturer) }.to_str() {
+    let manufacturer = if let Ok(s) = unsafe { CStr::from_ptr(manufacturer) }.to_str() {
         s.to_owned()
     } else {
         return viam_code::VIAM_INVALID_ARG;
     };
-    ctx.provisioning_info.set_manufacturer(name);
+    ctx.provisioning_info.set_manufacturer(manufacturer);
+    viam_code::VIAM_OK
+}
+
+/// Sets the provisioning fragment id
+///
+/// returns VIAM_OK on success
+/// # Safety
+/// `ctx`, `fragment_id` must be valid pointers
+/// `manufacturer` must be a null terminated C String
+#[no_mangle]
+pub unsafe extern "C" fn viam_server_set_provisioning_fragment(
+    ctx: *mut viam_server_context,
+    fragment_id: *const c_char,
+) -> viam_code {
+    if ctx.is_null() || fragment_id.is_null() {
+        return viam_code::VIAM_INVALID_ARG;
+    }
+    let ctx = unsafe { &mut *ctx };
+    let fragment_id = if let Ok(s) = unsafe { CStr::from_ptr(fragment_id) }.to_str() {
+        s.to_owned()
+    } else {
+        return viam_code::VIAM_INVALID_ARG;
+    };
+    ctx.provisioning_info.set_fragment_id(fragment_id);
     viam_code::VIAM_OK
 }
 

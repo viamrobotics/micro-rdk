@@ -109,6 +109,12 @@ enum viam_code viam_server_set_provisioning_manufacturer(struct viam_server_cont
                                                          const char *manufacturer);
 
 /*
+ Sets the provisioning fragment id
+ */
+enum viam_code viam_server_set_provisioning_fragment(struct viam_server_context *ctx,
+                                                     const char *fragment_id);
+
+/*
  Register a generic sensor in the Registry making configurable via Viam config
  */
 enum viam_code viam_server_register_c_generic_sensor(struct viam_server_context *ctx,
