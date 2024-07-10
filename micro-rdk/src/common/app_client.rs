@@ -272,6 +272,7 @@ impl AppClient {
             git_revision: "".to_string(),
             platform: Some("esp32".to_string()),
         });
+        
         let req = ConfigRequest {
             agent_info: agent,
             id: self.config.robot_id.clone(),
