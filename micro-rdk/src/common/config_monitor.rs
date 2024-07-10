@@ -40,12 +40,8 @@ impl<'a> PeriodicAppClientTask for ConfigMonitor<'a> {
         Box::pin(async move {
             let (app_config, _cfg_received_datetime) = app_client.get_config(None).await.unwrap();
             match self.curr_config == *app_config {
-                true => {
-                    Ok(Some(self.get_default_period()))
-                }
-                false => {
-                    self.restart()
-                }
+                true => Ok(Some(self.get_default_period())),
+                false => self.restart(),
             }
         })
     }
