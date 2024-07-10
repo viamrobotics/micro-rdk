@@ -18,12 +18,11 @@ impl<'a> ConfigMonitor<'a> {
     }
 
     fn restart(&mut self) -> ! {
-        log::warn!("Robot configuration change detected");
+        log::warn!("Robot configuration change detected restarting micro-rdk");
         (self.restart_hook.take().unwrap())();
         unreachable!();
     }
 }
-
 impl<'a> PeriodicAppClientTask for ConfigMonitor<'a> {
     fn name(&self) -> &str {
         "ConfigMonitor"
@@ -33,6 +32,8 @@ impl<'a> PeriodicAppClientTask for ConfigMonitor<'a> {
         Duration::from_secs(10)
     }
 
+    // TODO(RSDK-8160): Update "restart on config" to compare config version instead of deep 
+    // comparison of config response, which relies on RSDK-8023 adding config version
     fn invoke<'c, 'b: 'c>(
         &'b mut self,
         app_client: &'c AppClient,
