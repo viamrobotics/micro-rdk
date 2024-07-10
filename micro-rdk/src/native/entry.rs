@@ -6,16 +6,15 @@ use crate::{
         config_monitor::ConfigMonitor,
         conn::{
             network::Network,
-            server::{ViamServerBuilder, WebRtcConfiguration},
+            server::{TlsClientConnector, ViamServerBuilder, WebRtcConfiguration},
         },
-        entry::RobotRepresentation,
-        grpc_client::GrpcClient,
+        entry::{validate_robot_credentials, RobotRepresentation},
+        grpc_client::GrpcClientError,
         log::config_log_entry,
-        provisioning::storage::RobotCredentials,
         restart_monitor::RestartMonitor,
         robot::LocalRobot,
     },
-    native::{exec::NativeExecutor, tcp::NativeStream, tls::NativeTls},
+    native::{exec::NativeExecutor, tls::NativeTls},
 };
 use std::{
     net::SocketAddr,
@@ -24,12 +23,15 @@ use std::{
 };
 
 #[cfg(feature = "provisioning")]
-use crate::common::{
-    grpc::ServerError,
-    provisioning::{
-        server::ProvisioningInfo,
-        storage::{RobotCredentialStorage, WifiCredentialStorage},
+use crate::{
+    common::{
+        grpc::ServerError,
+        provisioning::{
+            server::ProvisioningInfo,
+            storage::{RobotConfigurationStorage, WifiCredentialStorage},
+        },
     },
+    proto::app::v1::ConfigResponse,
 };
 
 #[cfg(feature = "provisioning")]
@@ -40,112 +42,69 @@ use super::{
     tls::NativeTlsServerConfig,
 };
 
-#[cfg(feature = "data")]
-use crate::common::{data_manager::DataManager, data_store::StaticMemoryDataStore};
-
-pub async fn serve_web_inner(
-    robot_creds: RobotCredentials,
+pub async fn serve_web_inner<S>(
+    storage: S,
     repr: RobotRepresentation,
     exec: NativeExecutor,
     _max_webrtc_connection: usize,
     network: impl Network,
-) {
-    let app_config = AppClientConfig::new(
-        robot_creds.robot_secret().to_owned(),
-        robot_creds.robot_id().to_owned(),
-        "".to_owned(),
-    );
-    let client_connector = NativeTls::new_client();
+    client_connector: impl TlsClientConnector,
+    mut app_client: AppClient,
+) where
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
+    <S as RobotConfigurationStorage>::Error: Debug,
+    ServerError: From<<S as RobotConfigurationStorage>::Error>,
+    <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
+{
     let mdns = NativeMdns::new("".to_owned(), network.get_ip()).unwrap();
 
-    let (cfg_response, robot, tls_server_config) = {
-        let cloned_exec = exec.clone();
-        let conn = client_connector.open_ssl_context(None).await.unwrap();
-        let conn = NativeStream::TLSStream(Box::new(conn));
-        let grpc_client = GrpcClient::new(conn, cloned_exec, "https://app.viam.com:443")
-            .await
-            .unwrap();
-        let builder = AppClientBuilder::new(Box::new(grpc_client), app_config.clone());
-        log::info!("build client start");
-        let client = builder.build().await.unwrap();
+    let certs = app_client.get_certificates().await.unwrap();
 
-        let certs = client.get_certificates().await.unwrap();
+    let tls_server_config = NativeTlsServerConfig::new(
+        certs.tls_certificate.as_bytes().to_vec(),
+        certs.tls_private_key.as_bytes().to_vec(),
+    );
 
-        let tls_config = NativeTlsServerConfig::new(
-            certs.tls_certificate.as_bytes().to_vec(),
-            certs.tls_private_key.as_bytes().to_vec(),
-        );
+    let (app_config, cfg_response, cfg_received_datetime) =
+        client.get_config(Some(network.get_ip())).await.unwrap();
 
-        let (cfg_response, cfg_received_datetime) =
-            client.get_config(Some(network.get_ip())).await.unwrap();
-
-        let robot = match repr {
-            RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
-            RobotRepresentation::WithRegistry(registry) => {
-                log::info!("building robot from config");
-                let r = match LocalRobot::from_cloud_config(
-                    &cfg_response,
-                    registry,
-                    cfg_received_datetime,
-                ) {
-                    Ok(robot) => {
-                        if let Some(datetime) = cfg_received_datetime {
-                            let logs = vec![config_log_entry(datetime, None)];
-                            client
-                                .push_logs(logs)
-                                .await
-                                .expect("could not push logs to app");
-                        }
-                        robot
+    let robot = match repr {
+        RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
+        RobotRepresentation::WithRegistry(registry) => {
+            log::info!("building robot from config");
+            let r = match LocalRobot::from_cloud_config(
+                exec.clone(),
+                app_config.get_robot_id(),
+                &cfg_response,
+                registry,
+                cfg_received_datetime,
+            ) {
+                Ok(robot) => {
+                    if let Some(datetime) = cfg_received_datetime {
+                        let logs = vec![config_log_entry(datetime, None)];
+                        app_client
+                            .push_logs(logs)
+                            .await
+                            .expect("could not push logs to app");
                     }
-                    Err(err) => {
-                        if let Some(datetime) = cfg_received_datetime {
-                            let logs = vec![config_log_entry(datetime, Some(err))];
-                            client
-                                .push_logs(logs)
-                                .await
-                                .expect("could not push logs to app");
-                        }
-                        //TODO shouldn't panic here, when we support offline mode and reloading configuration this should be removed
-                        panic!("couldn't build robot");
+                    robot
+                }
+                Err(err) => {
+                    if let Some(datetime) = cfg_received_datetime {
+                        let logs = vec![config_log_entry(datetime, Some(err))];
+                        app_client
+                            .push_logs(logs)
+                            .await
+                            .expect("could not push logs to app");
                     }
-                };
-                Arc::new(Mutex::new(r))
-            }
-        };
-
-        (cfg_response, robot, tls_config)
-    };
-
-    #[cfg(feature = "data")]
-    // TODO: Support implementers of the DataStore trait other than StaticMemoryDataStore in a way that is configurable
-    let data_manager_svc = match DataManager::<StaticMemoryDataStore>::from_robot_and_config(
-        &cfg_response,
-        &app_config,
-        robot.clone(),
-    ) {
-        Ok(svc) => svc,
-        Err(err) => {
-            log::error!("error configuring data management: {:?}", err);
-            None
+                    // TODO(RSDK-8127) shouldn't panic here, when we support offline mode and
+                    // reloading configuration this should be removed
+                    panic!("couldn't build robot");
+                }
+            };
+            Arc::new(Mutex::new(r))
         }
     };
-
-    #[cfg(feature = "data")]
-    let data_sync_task = data_manager_svc
-        .as_ref()
-        .map(|data_manager_svc| data_manager_svc.get_sync_task());
-
-    #[cfg(feature = "data")]
-    let data_future = Box::pin(async move {
-        if let Some(mut data_manager_svc) = data_manager_svc {
-            if let Err(err) = data_manager_svc.data_collection_task().await {
-                log::error!("error running data manager: {:?}", err)
-            }
-        }
-    });
-    #[cfg(not(feature = "data"))]
-    let data_future = async move {};
 
     let address: SocketAddr = "0.0.0.0:12346".parse().unwrap();
     let tls = Box::new(NativeTls::new_server(tls_server_config));
@@ -162,47 +121,25 @@ pub async fn serve_web_inner(
         exec.clone(),
     ));
 
-    let mut srv = {
-        let builder =
-            ViamServerBuilder::new(mdns, cloned_exec, client_connector, app_config, 3, network)
-                .with_http2(tls_listener, 12346)
-                .with_webrtc(webrtc)
-                .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| {
-                    std::process::exit(0)
-                })))
-                .with_periodic_app_client_task(Box::new(ConfigMonitor::new(
+    let mut srv =
+        ViamServerBuilder::new(mdns, cloned_exec, client_connector, app_config, 3, network)
+            .with_http2(tls_listener, 12346)
+            .with_webrtc(webrtc)
+            .with_app_client(app_client)
+            .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| std::process::exit(0))))
+            .with_periodic_app_client_task(Box::new(ConfigMonitor::new(
                     || std::process::exit(0),
                     *(cfg_response.clone()),
                 )));
-        #[cfg(feature = "data")]
-        let builder = if let Some(task) = data_sync_task {
-            builder.with_periodic_app_client_task(Box::new(task))
-        } else {
-            builder
-        };
-        builder.build(&cfg_response).unwrap()
-    };
+            .build(&cfg_response)
+            .unwrap();
 
-    futures_lite::future::zip(Box::pin(srv.serve(robot)), data_future).await;
-}
+    // Attempt to cache the config for the machine we are about to `serve`.
+    if let Err(e) = storage.store_robot_configuration(cfg_response.config.unwrap()) {
+        log::warn!("Failed to store robot configuration: {}", e);
+    }
 
-async fn validate_robot_credentials(
-    exec: NativeExecutor,
-    robot_creds: &RobotCredentials,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let app_config = AppClientConfig::new(
-        robot_creds.robot_secret().to_owned(),
-        robot_creds.robot_id().to_owned(),
-        "".to_owned(),
-    );
-    let conn = NativeStream::TLSStream(Box::new(
-        NativeTls::new_client().open_ssl_context(None).await?,
-    ));
-    let client = GrpcClient::new(conn, exec.clone(), "https://app.viam.com:443").await?;
-    let builder = AppClientBuilder::new(Box::new(client), app_config.clone());
-
-    let _client = builder.build().await?;
-    Ok(())
+    srv.serve(robot).await;
 }
 
 #[cfg(feature = "provisioning")]
@@ -210,14 +147,14 @@ async fn serve_async_with_external_network<S>(
     exec: NativeExecutor,
     info: Option<ProvisioningInfo>,
     storage: S,
-    repr: RobotRepresentation,
+    mut repr: RobotRepresentation,
     network: impl Network,
     max_webrtc_connection: usize,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
-    S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
-    <S as RobotCredentialStorage>::Error: Debug,
-    ServerError: From<<S as RobotCredentialStorage>::Error>,
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
+    <S as RobotConfigurationStorage>::Error: Debug,
+    ServerError: From<<S as RobotConfigurationStorage>::Error>,
     <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
     use std::time::Duration;
@@ -226,47 +163,92 @@ where
 
     use crate::common::provisioning::server::serve_provisioning_async;
 
+    let mut client_connector = NativeTls::new_client();
     let info = info.unwrap_or_default();
     let mut last_error: Option<Box<dyn std::error::Error>> = None;
-    let mut mdns = NativeMdns::new("".to_owned(), network.get_ip()).unwrap();
-    loop {
-        // When Credential are present either provisioning has succeeded or
-        // they where stored. We starts by checking that we have a network
-        // if so we can move ahead and confirm the robot exists
-        // Since the network is not managed by us we should just check if robot
-        // credentials are stored
-        if storage.has_stored_credentials() {
-            let validated = loop {
-                // When we have cached config we should still continue in the event the network
-                // fails
-                if let Err(error) = network.is_connected() {
-                    log::info!(
-                        "Externally managed network, not connected yet cause {:?}",
-                        error
-                    );
-                    Timer::after(Duration::from_secs(3)).await;
-                    continue;
+
+    let app_client = 'provisioned: loop {
+        if storage.has_robot_credentials() {
+            log::info!("Found cached robot credentials; attempting to serve");
+
+            if storage.has_robot_configuration() {
+                if let RobotRepresentation::WithRegistry(ref registry) = repr {
+                    log::info!("Found cached robot configuration; speculatively building robot from config");
+                    match LocalRobot::from_cloud_config(
+                        exec.clone(),
+                        storage.get_robot_credentials().unwrap().robot_id,
+                        &ConfigResponse {
+                            config: Some(storage.get_robot_configuration().unwrap()),
+                        },
+                        registry.clone(),
+                        None,
+                    ) {
+                        Ok(robot) => {
+                            repr = RobotRepresentation::WithRobot(robot);
+                        }
+                        Err(e) => {
+                            log::warn!("Failed building robot from cached robot configuration: {}; dropping and ignoring cached config", e);
+                            let _ = storage.reset_robot_configuration();
+                        }
+                    };
                 }
-                // Assume connected to internet so any error should be forwarded to provisioning
-                // Most likely the robot is destroyed
-                if let Err(e) = validate_robot_credentials(
+            }
+
+            let mut duration = None;
+            loop {
+                if let Some(duration) = duration {
+                    Timer::after(duration).await;
+                } else {
+                    // TODO: Maybe some back-off up to a limit
+                    let _ = duration.insert(Duration::from_secs(3));
+                }
+
+                log::info!("Attempting to validate stored robot credentials");
+                match validate_robot_credentials(
                     exec.clone(),
                     &storage.get_robot_credentials().unwrap(),
+                    &mut client_connector,
                 )
                 .await
                 {
-                    if let Err(e) = storage.reset_robot_credentials() {
-                        log::error!("couldn't erase credentials {:?}", e);
+                    Ok(app_client) => {
+                        log::info!("Robot credentials validated OK");
+                        break 'provisioned app_client;
                     }
-                    let _ = last_error.insert(e);
-                    break false;
+                    Err(e) => {
+                        if let Some(app_client_error) = e.downcast_ref::<AppClientError>() {
+                            if matches!(app_client_error, AppClientError::AppGrpcClientError(GrpcClientError::GrpcError{ code, .. }) if *code == 7 || *code == 16)
+                            {
+                                // The validate call failed with an explicit rejection (PERMISSION_DENIED/UNAUTHENTICATED)
+                                // of the credentials. Reset the cached credentials and any robot configuration, and
+                                // move on to provisioning.
+                                log::warn!("Robot credential validation failed permanently with error {:?}; clearing cached state and initiating provisioning", e);
+
+                                if let Err(e) = storage.reset_robot_credentials() {
+                                    log::error!("Couldn't erase robot credentials {:?}", e);
+                                }
+
+                                if let Err(e) = storage.reset_robot_configuration() {
+                                    log::error!("couldn't erase robot configuration {:?}", e);
+                                }
+
+                                // Record the last error so that we can serve it once we reach provisioning.
+                                let _ = last_error.insert(e);
+                                break;
+                            }
+                        }
+
+                        // For all other errors, we assume we could not communicate with app due
+                        // to network issues, and just restart the inner loop until we are able
+                        // to communicate with app.
+                        log::info!("Unable to validate robot credentials {:?}; will retry", e);
+                    }
                 }
-                break true;
-            };
-            if validated {
-                break;
             }
         }
+
+        log::warn!("Entering provisioning...");
+        let mut mdns = NativeMdns::new("".to_owned(), network.get_ip()).unwrap();
         if let Err(e) = serve_provisioning_async::<_, (), _>(
             exec.clone(),
             info.clone(),
@@ -279,13 +261,15 @@ where
         {
             let _ = last_error.insert(e);
         }
-    }
+    };
     serve_web_inner(
-        storage.get_robot_credentials().unwrap(),
+        storage,
         repr,
         exec,
         max_webrtc_connection,
         network,
+        client_connector,
+        app_client,
     )
     .await;
     Ok(())
@@ -298,9 +282,9 @@ pub fn serve_web_with_external_network<S>(
     storage: S,
     network: impl Network,
 ) where
-    S: RobotCredentialStorage + WifiCredentialStorage + Clone + 'static,
-    <S as RobotCredentialStorage>::Error: Debug,
-    ServerError: From<<S as RobotCredentialStorage>::Error>,
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
+    <S as RobotConfigurationStorage>::Error: Debug,
+    ServerError: From<<S as RobotConfigurationStorage>::Error>,
     <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
     let exec = NativeExecutor::new();

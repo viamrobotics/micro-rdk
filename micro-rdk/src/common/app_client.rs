@@ -254,9 +254,16 @@ impl AppClient {
     // taken from its header for the purposes of timestamping configuration logs and returning
     // `last_reconfigured` values for resource statuses.
     pub async fn get_config(
-        &self,
+        &mut self,
         ip: Option<Ipv4Addr>,
-    ) -> Result<(Box<ConfigResponse>, Option<DateTime<FixedOffset>>), AppClientError> {
+    ) -> Result<
+        (
+            AppClientConfig,
+            Box<ConfigResponse>,
+            Option<DateTime<FixedOffset>>,
+        ),
+        AppClientError,
+    > {
         let agent = ip.map(|ip| AgentInfo {
             os: "esp32".to_string(),
             host: "esp32".to_string(),
@@ -292,9 +299,14 @@ impl AppClient {
             None
         };
 
-        let r = r.split_off(5);
+        let cfg_response = ConfigResponse::decode(r.split_off(5))?;
+        if let Some(robot_config) = cfg_response.config.as_ref() {
+            if let Some(cloud_config) = robot_config.cloud.as_ref() {
+                self.config.set_rpc_host(cloud_config.fqdn.clone());
+            }
+        }
 
-        Ok((Box::new(ConfigResponse::decode(r)?), datetime))
+        Ok((self.config.clone(), Box::new(cfg_response), datetime))
     }
 
     pub async fn push_logs(&self, logs: Vec<LogEntry>) -> Result<(), AppClientError> {
