@@ -1,6 +1,5 @@
 use std::pin::Pin;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crate::common::data_collector::{DataCollectionError, DataCollector};
@@ -11,7 +10,7 @@ use crate::proto::app::data_sync::v1::{
 };
 use crate::proto::app::v1::ConfigResponse;
 
-use super::app_client::{AppClient, AppClientConfig, AppClientError, PeriodicAppClientTask};
+use super::app_client::{AppClient, AppClientError, PeriodicAppClientTask};
 use super::data_collector::ResourceMethodKey;
 use super::data_store::{DataStoreError, DataStoreReader, WriteMode};
 use super::robot::{LocalRobot, RobotError};
@@ -26,6 +25,8 @@ use thiserror::Error;
 // as recommended by Viam's data management team is 64K. To accommodate for
 // the smaller amount of available RAM, we've halved it
 static MAX_SENSOR_CONTENTS_SIZE: usize = 32000;
+
+type CollectedReadings = Vec<(ResourceMethodKey, Result<SensorData, DataCollectionError>)>;
 
 #[derive(Debug, Error)]
 pub enum DataManagerError {
@@ -85,7 +86,7 @@ pub struct DataManager<StoreType> {
     store: Rc<AsyncMutex<StoreType>>,
     sync_interval: Duration,
     min_interval: Duration,
-    part_id: String,
+    robot_part_id: String,
 }
 
 impl<StoreType> DataManager<StoreType>
@@ -96,7 +97,7 @@ where
         collectors: Vec<DataCollector>,
         store: StoreType,
         sync_interval: Duration,
-        part_id: String,
+        robot_part_id: String,
     ) -> Result<Self, DataManagerError> {
         let intervals = collectors.iter().map(|x| x.time_interval());
         let min_interval = intervals.min().ok_or(DataManagerError::NoCollectors)?;
@@ -105,23 +106,22 @@ where
             store: Rc::new(AsyncMutex::new(store)),
             sync_interval,
             min_interval,
-            part_id,
+            robot_part_id,
         })
     }
 
     pub fn from_robot_and_config(
+        robot: &LocalRobot,
         cfg: &ConfigResponse,
-        app_config: &AppClientConfig,
-        robot: Arc<Mutex<LocalRobot>>,
     ) -> Result<Option<Self>, DataManagerError> {
-        let part_id = app_config.get_robot_id();
         let sync_interval = get_data_sync_interval(cfg)?;
         if let Some(sync_interval) = sync_interval {
-            let collectors = robot.lock().unwrap().data_collectors()?;
+            let collectors = robot.data_collectors()?;
             let collector_keys: Vec<ResourceMethodKey> =
                 collectors.iter().map(|c| c.resource_method_key()).collect();
             let store = StoreType::from_resource_method_keys(collector_keys)?;
-            let data_manager_svc = DataManager::new(collectors, store, sync_interval, part_id)?;
+            let data_manager_svc =
+                DataManager::new(collectors, store, sync_interval, robot.part_id.clone())?;
             Ok(Some(data_manager_svc))
         } else {
             Ok(None)
@@ -137,7 +137,7 @@ where
     }
 
     pub fn part_id(&self) -> String {
-        self.part_id.clone()
+        self.robot_part_id.clone()
     }
 
     pub(crate) fn collection_intervals(&self) -> Vec<u64> {
@@ -154,10 +154,15 @@ where
         intervals
     }
 
-    pub async fn data_collection_task(&mut self) -> Result<(), DataManagerError> {
+    pub async fn data_collection_task(&mut self) -> ! {
         let mut loop_counter: u64 = 0;
         loop {
-            self.collect_data_inner(loop_counter).await?;
+            if let Err(e) = self.collect_data_inner(loop_counter).await {
+                log::error!(
+                    "data manager error {:?}, will attempt to continue collecting",
+                    e
+                );
+            }
             loop_counter += 1;
             Timer::after(self.min_interval).await;
         }
@@ -180,7 +185,24 @@ where
         let readings = self.collect_readings_for_interval(time_interval_ms)?;
         let mut store_guard = self.store.lock().await;
         for (collector_key, reading) in readings {
-            store_guard.write_message(&collector_key, reading, WriteMode::OverwriteOldest)?;
+            match reading {
+                Err(e) => log::error!(
+                    "collector {} failed to collect data reason {:?}",
+                    &collector_key,
+                    e
+                ),
+                Ok(data) => {
+                    if let Err(e) =
+                        store_guard.write_message(&collector_key, data, WriteMode::OverwriteOldest)
+                    {
+                        log::error!(
+                            "couldn't store data for collector {:?} error : {:?}",
+                            collector_key,
+                            e
+                        );
+                    }
+                }
+            }
         }
         Ok(())
     }
@@ -191,7 +213,7 @@ where
     fn collect_readings_for_interval(
         &mut self,
         time_interval_ms: u64,
-    ) -> Result<Vec<(ResourceMethodKey, SensorData)>, DataManagerError> {
+    ) -> Result<CollectedReadings, DataManagerError> {
         let min_interval_ms = self.min_interval_ms();
         if time_interval_ms % min_interval_ms != 0 {
             return Err(DataManagerError::ImproperTimeInterval(
@@ -205,7 +227,7 @@ where
                 (coll.time_interval().as_millis() as u64 / min_interval_ms)
                     == (time_interval_ms / min_interval_ms)
             })
-            .map(|coll| Ok((coll.resource_method_key(), coll.call_method()?)))
+            .map(|coll| Ok((coll.resource_method_key(), coll.call_method())))
             .collect()
     }
 
@@ -431,6 +453,7 @@ mod tests {
     use ringbuf::{LocalRb, Rb};
 
     use super::DataManager;
+    use crate::common::data_collector::DataCollectionError;
     use crate::common::data_store::{DataStoreReader, WriteMode};
     use crate::common::encoder::EncoderError;
     use crate::common::{
@@ -632,6 +655,14 @@ mod tests {
         let sensor_data = data_manager.collect_readings_for_interval(100);
         assert!(sensor_data.is_ok());
         let sensor_data = sensor_data.unwrap();
+        let sensor_data: Vec<(ResourceMethodKey, SensorData)> = sensor_data
+            .into_iter()
+            .try_fold(vec![], |mut out, val| {
+                out.push((val.0, val.1?));
+                Ok::<Vec<(ResourceMethodKey, SensorData)>, DataCollectionError>(out)
+            })
+            .unwrap();
+
         assert_eq!(sensor_data.len(), 2);
 
         assert_eq!(sensor_data[0].0, method_key_1);
@@ -729,7 +760,12 @@ mod tests {
         assert!(data_manager.is_ok());
         let mut data_manager = data_manager.unwrap();
 
-        let readings = data_manager.collect_readings_for_interval(100);
+        let readings = data_manager.collect_readings_for_interval(100).unwrap();
+        let readings: Result<Vec<(ResourceMethodKey, SensorData)>, DataCollectionError> =
+            readings.into_iter().try_fold(vec![], |mut out, val| {
+                out.push((val.0, val.1?));
+                Ok::<Vec<(ResourceMethodKey, SensorData)>, DataCollectionError>(out)
+            });
         assert!(readings.is_err());
     }
 

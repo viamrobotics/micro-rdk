@@ -1,10 +1,18 @@
 #![allow(dead_code)]
 
+use async_executor::Task;
+
 use chrono::{DateTime, FixedOffset};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
 };
+
+#[cfg(feature = "esp32")]
+use crate::esp32::exec::Esp32Executor;
+
+#[cfg(feature = "native")]
+use crate::native::exec::NativeExecutor;
 
 #[cfg(feature = "camera")]
 use crate::common::camera::{Camera, CameraType};
@@ -28,9 +36,15 @@ use crate::{
 use log::*;
 
 #[cfg(feature = "data")]
-use super::data_collector::{DataCollectionError, DataCollector, DataCollectorConfig};
+use super::{
+    data_collector::{DataCollectionError, DataCollector, DataCollectorConfig},
+    data_manager::DataManager,
+    data_store::StaticMemoryDataStore,
+};
+
 use super::{
     actuator::ActuatorError,
+    app_client::PeriodicAppClientTask,
     base::BaseType,
     board::BoardType,
     config::{AttributeError, Component, ConfigType, DynamicComponentConfig},
@@ -87,12 +101,21 @@ impl ResourceType {
     }
 }
 
+#[cfg(feature = "native")]
+type Executor = NativeExecutor;
+#[cfg(feature = "esp32")]
+type Executor = Esp32Executor;
+
 #[derive(Default)]
 pub struct LocalRobot {
+    pub(crate) part_id: String,
     resources: ResourceMap,
     build_time: Option<DateTime<FixedOffset>>,
+    executor: Executor,
     #[cfg(feature = "data")]
     data_collector_configs: Vec<(ResourceName, DataCollectorConfig)>,
+    data_manager_sync_task: Option<Box<dyn PeriodicAppClientTask>>,
+    data_manager_collection_task: Option<Task<()>>,
 }
 
 #[derive(Error, Debug)]
@@ -217,17 +240,24 @@ impl LocalRobot {
     // component configs within the response are consumed and the corresponding components are generated
     // and added to the created robot.
     pub fn from_cloud_config(
+        exec: Executor,
+        part_id: String,
         config_resp: &ConfigResponse,
         registry: Box<ComponentRegistry>,
         build_time: Option<DateTime<FixedOffset>>,
     ) -> Result<Self, RobotError> {
         let mut robot = LocalRobot {
+            executor: exec,
+            part_id,
             resources: ResourceMap::new(),
             // Use date time pulled off gRPC header as the `build_time` returned in the status of
             // every resource as `last_reconfigured`.
             build_time,
+
             #[cfg(feature = "data")]
             data_collector_configs: vec![],
+            data_manager_sync_task: None,
+            data_manager_collection_task: None,
         };
 
         let components: Result<Vec<Option<DynamicComponentConfig>>, AttributeError> = config_resp
@@ -242,6 +272,31 @@ impl LocalRobot {
             components.map_err(RobotError::RobotParseConfigError)?,
             registry,
         )?;
+
+        // TODO: When cfg's on expressions are valid, remove the outer scope.
+        #[cfg(feature = "data")]
+        {
+            // TODO(RSDK-8125): Support selection of the DataStore trait other than
+            // StaticMemoryDataStore in a way that is configurable
+            match DataManager::<StaticMemoryDataStore>::from_robot_and_config(&robot, config_resp) {
+                Ok(Some(mut data_manager)) => {
+                    let _ = robot
+                        .data_manager_sync_task
+                        .insert(Box::new(data_manager.get_sync_task()));
+
+                    let _ = robot
+                        .data_manager_collection_task
+                        .replace(robot.executor.spawn(async move {
+                            data_manager.data_collection_task().await;
+                        }));
+                }
+                Ok(None) => {}
+                Err(err) => {
+                    log::error!("Error configuring data management: {:?}", err);
+                }
+            };
+        }
+
         Ok(robot)
     }
 
@@ -444,6 +499,17 @@ impl LocalRobot {
             )?);
         }
         Ok(res)
+    }
+
+    pub fn get_periodic_app_client_tasks(&mut self) -> Vec<Box<dyn PeriodicAppClientTask>> {
+        let mut tasks = Vec::<Box<dyn PeriodicAppClientTask>>::new();
+
+        #[cfg(feature = "data")]
+        if let Some(dm_sync_task) = self.data_manager_sync_task.take() {
+            tasks.push(dm_sync_task);
+        }
+
+        tasks
     }
 
     pub fn get_status(
@@ -803,6 +869,16 @@ impl LocalRobot {
     }
 }
 
+impl Drop for LocalRobot {
+    fn drop(&mut self) {
+        if let Some(task) = self.data_manager_collection_task.take() {
+            log::info!("Stopping data manager collection task");
+            self.executor.block_on(task.cancel());
+            log::info!("Stopped data manager collection task");
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -816,11 +892,20 @@ mod tests {
     use crate::common::movement_sensor::MovementSensor;
     use crate::common::robot::LocalRobot;
     use crate::common::sensor::Readings;
+    #[cfg(feature = "esp32")]
+    use crate::esp32::exec::Esp32Executor;
     use crate::google;
     use crate::google::protobuf::Struct;
+    #[cfg(feature = "native")]
+    use crate::native::exec::NativeExecutor;
     use crate::proto::app::v1::{ComponentConfig, ConfigResponse, RobotConfig};
     #[cfg(feature = "data")]
     use {crate::common::data_collector::DataCollectorConfig, std::time::Duration};
+
+    #[cfg(feature = "native")]
+    type Executor = NativeExecutor;
+    #[cfg(feature = "esp32")]
+    type Executor = Esp32Executor;
 
     #[test_log::test]
     fn test_robot_from_components() {
@@ -1284,7 +1369,13 @@ mod tests {
             }),
         };
 
-        let robot = LocalRobot::from_cloud_config(&robot_cfg, Box::default(), None);
+        let robot = LocalRobot::from_cloud_config(
+            Executor::new(),
+            "".to_string(),
+            &robot_cfg,
+            Box::default(),
+            None,
+        );
 
         assert!(robot.is_ok());
 
@@ -1389,7 +1480,13 @@ mod tests {
             }),
         };
 
-        let robot = LocalRobot::from_cloud_config(&robot_cfg, Box::default(), None);
+        let robot = LocalRobot::from_cloud_config(
+            Executor::new(),
+            "".to_string(),
+            &robot_cfg,
+            Box::default(),
+            None,
+        );
 
         assert!(robot.is_ok());
 

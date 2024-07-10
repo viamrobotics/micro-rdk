@@ -436,7 +436,9 @@ where
             match candidate {
                 Ok(candidate) => {
                     if let Some(c) = candidate {
-                        tx.send(c).await.unwrap();
+                        tx.send(c)
+                            .await
+                            .map_err(|e| WebRtcError::SignalingError(e.to_string()))?;
                     } else {
                         break;
                     }

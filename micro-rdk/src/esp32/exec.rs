@@ -9,7 +9,7 @@ use futures_lite::{
 pub struct Esp32Executor {}
 
 std::thread_local! {
-    static EX: LocalExecutor<'static> = LocalExecutor::new();
+    static EX: LocalExecutor<'static> = const { LocalExecutor::new() };
 }
 
 impl Esp32Executor {

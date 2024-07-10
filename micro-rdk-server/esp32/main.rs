@@ -27,6 +27,7 @@ mod esp32 {
     }
 
     use micro_rdk::common::registry::ComponentRegistry;
+    use micro_rdk::esp32::nvs_storage::NVSStorage;
 
     pub(crate) fn main_esp32() {
         micro_rdk::esp32::esp_idf_svc::sys::link_patches();
@@ -57,21 +58,44 @@ mod esp32 {
         // then the entire provisioning step can be skipped
         #[cfg(has_robot_config)]
         {
-            use micro_rdk::common::provisioning::storage::RAMStorage;
-            if SSID.is_some() && PASS.is_some() && ROBOT_ID.is_some() && ROBOT_SECRET.is_some() {
-                let ram_storage = RAMStorage::new(
-                    SSID.unwrap(),
-                    PASS.unwrap(),
-                    ROBOT_ID.unwrap(),
-                    ROBOT_SECRET.unwrap(),
-                );
-                serve_web(None, repr, max_connection, ram_storage);
-            }
+            use micro_rdk::common::provisioning::storage::RobotConfigurationStorage;
+            use micro_rdk::common::provisioning::storage::RobotCredentials;
+            use micro_rdk::common::provisioning::storage::WifiCredentialStorage;
+            use micro_rdk::common::provisioning::storage::WifiCredentials;
+
+            log::warn!("Unconditionally using build-time WiFi and robot configuration");
+
+            let storage = NVSStorage::new("nvs").unwrap();
+            log::info!("Storing static values from build time wifi configuration to NVS");
+            storage
+                .store_wifi_credentials(WifiCredentials::new(
+                    SSID.expect("[cfg(has_robot_config)]: missing WiFi SSID")
+                        .to_string(),
+                    PASS.expect("[cfg(has_robot_config)]: missing WiFi password")
+                        .to_string(),
+                ))
+                .expect("Failed to store WiFi credentials to NVS");
+
+            log::info!("Storing static values from build time robot configuration to NVS");
+            storage
+                .store_robot_credentials(
+                    RobotCredentials::new(
+                        ROBOT_ID
+                            .expect("[cfg(has_robot_config)]: missing robot id")
+                            .to_string(),
+                        ROBOT_SECRET
+                            .expect("[cfg(has_robot_config)]: missing robot secret")
+                            .to_string(),
+                    )
+                    .into(),
+                )
+                .expect("Failed to store robot credentials to NVS");
+
+            serve_web(None, repr, max_connection, storage);
         }
         #[cfg(not(has_robot_config))]
         {
             use micro_rdk::common::provisioning::server::ProvisioningInfo;
-            use micro_rdk::esp32::nvs_storage::NVSStorage;
             let mut info = ProvisioningInfo::default();
             info.set_manufacturer("viam".to_owned());
             info.set_model("test-esp32".to_owned());
