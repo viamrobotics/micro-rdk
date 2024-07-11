@@ -55,3 +55,9 @@ esp_idf_sdkconfig_defaults = [
   "micro-rdk-server/sdkconfig.defaults",
   "micro-rdk-server/sdkconfig.defaults.esp32"
 ]
+
+
+[[package.metadata.esp-idf-sys.extra_components]]
+remote_component = { name = "espressif/esp32-camera", version = "2.0.9"}
+bindings_module = "camera"
+#bindings_header = "your_bindings.h"

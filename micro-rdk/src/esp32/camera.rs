@@ -1,18 +1,25 @@
 #![allow(dead_code)]
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
-use crate::common::camera::{Camera, CameraError};
-use crate::proto::component::camera;
+use crate::{
+    common::{
+        camera::{Camera, CameraError},
+        status::{Status, StatusError},
+    },
+    google::{self, api::HttpBody},
+    proto::component::camera,
+};
 use bytes::{Bytes, BytesMut};
 use log::*;
 use prost::Message;
 
-/*
-use crate::esp32::esp_idf_svc::sys::camera_config_t;
-use crate::esp32::esp_idf_svc::sys::camera_config_t__bindgen_ty_1;
-use crate::esp32::esp_idf_svc::sys::camera_config_t__bindgen_ty_2;
-use crate::esp32::esp_idf_svc::systime::EspSystemTime;
+use crate::esp32::esp_idf_svc::{
+    esp_idf_svc::sys::camera_config_t,
+    sys::{camera_config_t__bindgen_ty_1, camera_config_t__bindgen_ty_2},
+    systime::EspSystemTime,
+};
 
+#[derive(DoCommand)]
 pub struct Esp32Camera {
     config: camera_config_t,
     last_grab: Duration,
@@ -59,9 +66,9 @@ impl Esp32Camera {
         let ret = crate::esp32::esp_idf_svc::sys::EspError::convert(ret);
         ret.map_err(|e| CameraError::CameraInitError(e.into()))
     }
-    pub fn get_cam_frame(&self) -> Option<*mut crate::esp32::esp_idf_svc::sys::camera_fb_t> {
+    pub fn get_cam_frame(&self) -> Option<*mut crate::esp32::esp_idf_svc::sys::esp_camera_fb_t> {
         let ptr = (unsafe { crate::esp32::esp_idf_svc::sys::esp_camera_fb_get() })
-            as *mut crate::esp32::esp_idf_svc::sys::camera_fb_t;
+            as *mut crate::esp32::esp_idf_svc::sys::esp_camera_fb_t;
         if ptr.is_null() {
             None
         } else {
@@ -94,7 +101,7 @@ impl Esp32Camera {
     }
 }
 impl Camera for Esp32Camera {
-    fn get_frame(&mut self, mut buffer: BytesMut) -> Result<BytesMut, CameraError> {
+    fn get_image(&mut self, mut buffer: BytesMut) -> Result<BytesMut, CameraError> {
         if let Some(ptr) = self.get_cam_frame() {
             let buf = unsafe {
                 let buf = (*ptr).buf;
@@ -114,7 +121,38 @@ impl Camera for Esp32Camera {
             self.return_cam_frame(Some(ptr));
             return Ok(buffer);
         }
+        Err(CameraError::FailedToGetImage)
+    }
+
+    fn render_frame(&mut self, mut buffer: BytesMut) -> Result<BytesMut, CameraError> {
+        if let Some(ptr) = self.get_cam_frame() {
+            let buf = unsafe {
+                let buf = (*ptr).buf;
+                let len = (*ptr).len as usize;
+                core::slice::from_raw_parts(buf, len)
+            };
+            if buf.len() > buffer.capacity() {
+                self.return_cam_frame(Some(ptr));
+                return Err(CameraError::CameraFrameTooBig);
+            }
+            let bytes = Bytes::from(buf);
+            let msg = HttpBody {
+                content_type: "image/jpeg".to_string(),
+                data: bytes.to_vec(),
+                ..Default::default()
+            };
+            msg.encode(&mut buffer).unwrap();
+            self.return_cam_frame(Some(ptr));
+            return Ok(buffer);
+        }
         Err(CameraError::CameraCouldntGetFrame)
     }
 }
-*/
+
+impl Status for Esp32Camera {
+    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
+        Ok(Some(google::protobuf::Struct {
+            fields: HashMap::new(),
+        }))
+    }
+}
