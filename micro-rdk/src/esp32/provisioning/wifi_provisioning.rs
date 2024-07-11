@@ -38,11 +38,13 @@ impl Default for Esp32WifiProvisioningBuilder {
             mac_address[4], mac_address[5]
         );
 
-        log::info!("Provisioning SSID: {}", ssid);
+        let password = "viamsetup".to_string();
+
+        log::info!("Provisioning SSID: {} - Password: {}", ssid, password);
 
         Self {
             ssid,
-            password: "viamsetup".to_owned(),
+            password,
             ap_ip_addr: Ipv4Addr::new(10, 42, 0, 1),
         }
     }
