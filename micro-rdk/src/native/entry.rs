@@ -3,6 +3,7 @@
 use crate::{
     common::{
         app_client::{AppClient, AppClientError},
+        config_monitor::ConfigMonitor,
         conn::{
             network::Network,
             server::{TlsClientConnector, ViamServerBuilder, WebRtcConfiguration},
@@ -65,7 +66,7 @@ pub async fn serve_web_inner<S>(
     );
 
     let (app_config, cfg_response, cfg_received_datetime) =
-        app_client.get_config(network.get_ip()).await.unwrap();
+        app_client.get_config(Some(network.get_ip())).await.unwrap();
 
     let robot = match repr {
         RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
@@ -126,6 +127,10 @@ pub async fn serve_web_inner<S>(
             .with_webrtc(webrtc)
             .with_app_client(app_client)
             .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| std::process::exit(0))))
+            .with_periodic_app_client_task(Box::new(ConfigMonitor::new(
+                || std::process::exit(0),
+                *(cfg_response.clone()),
+            )))
             .build(&cfg_response)
             .unwrap();
 
