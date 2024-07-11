@@ -64,7 +64,7 @@ impl Esp32Camera {
         let ret = (unsafe { crate::esp32::esp_idf_svc::sys::esp_camera_init(&self.config) })
             as crate::esp32::esp_idf_svc::sys::esp_err_t;
         let ret = crate::esp32::esp_idf_svc::sys::EspError::convert(ret);
-        ret.map_err(|e| CameraError::CameraInitError(e.into()))
+        ret.map_err(|e| CameraError::InitError(e.into()))
     }
     pub fn get_cam_frame(&self) -> Option<*mut crate::esp32::esp_idf_svc::sys::esp_camera_fb_t> {
         let ptr = (unsafe { crate::esp32::esp_idf_svc::sys::esp_camera_fb_get() })
@@ -110,7 +110,8 @@ impl Camera for Esp32Camera {
             };
             if buf.len() > buffer.capacity() {
                 self.return_cam_frame(Some(ptr));
-                return Err(CameraError::CameraFrameTooBig);
+                // TODO change
+                return Err(CameraError::FailedToGetImage);
             }
             let bytes = Bytes::from(buf);
             let msg = camera::v1::GetImageResponse {
@@ -133,7 +134,8 @@ impl Camera for Esp32Camera {
             };
             if buf.len() > buffer.capacity() {
                 self.return_cam_frame(Some(ptr));
-                return Err(CameraError::CameraFrameTooBig);
+                // TODO change
+                return Err(CameraError::FailedToGetImage);
             }
             let bytes = Bytes::from(buf);
             let msg = HttpBody {
@@ -145,7 +147,7 @@ impl Camera for Esp32Camera {
             self.return_cam_frame(Some(ptr));
             return Ok(buffer);
         }
-        Err(CameraError::CameraCouldntGetFrame)
+        Err(CameraError::FailedToGetImage)
     }
 }
 
