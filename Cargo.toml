@@ -33,6 +33,9 @@ opt-level = "s"
 debug = true # Symbols are nice and they don't increase the size on Flash
 opt-level = "z"
 
+[patch.crates-io]
+esp-idf-sys = { git = "https://github.com/viamrobotics/esp-idf-sys", branch = "camera"}
+
 [workspace.dependencies]
 anyhow = "1.0.71"
 async-channel = "2"
@@ -56,10 +59,10 @@ dialoguer = "0.10.4"
 either = "1.8.0"
 embedded-hal = { version = "0.2.7", features = ["unproven"] }
 embedded-svc = "0.27"
-embuild = "0.31.3"
+embuild = {version = "0.31.3", features = ["espidf"]}
 env_logger = "0.10.1"
 esp-idf-svc = { version = "=0.48.1", default-features = false }
-esp-idf-sys = { git = "https://github.com/viamrobotics/esp-idf-sys", branch = "camera"}
+esp-idf-sys = "0.34.1"
 esp-idf-part = "0.5.0"
 espflash = { git = "https://github.com/viamrobotics/espflash.git", branch = "monitor-output" }
 futures = "0.3.28"

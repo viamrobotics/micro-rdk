@@ -1,6 +1,11 @@
 #![allow(dead_code)]
 use std::{collections::HashMap, time::Duration};
 
+use crate::esp32::esp_idf_svc::{
+    hal::sys::camera_config_t,
+    sys::{camera_config_t__bindgen_ty_1, camera_config_t__bindgen_ty_2},
+    systime::EspSystemTime,
+};
 use crate::{
     common::{
         camera::{Camera, CameraError},
@@ -12,12 +17,6 @@ use crate::{
 use bytes::{Bytes, BytesMut};
 use log::*;
 use prost::Message;
-
-use crate::esp32::esp_idf_svc::{
-    esp_idf_svc::sys::camera_config_t,
-    sys::{camera_config_t__bindgen_ty_1, camera_config_t__bindgen_ty_2},
-    systime::EspSystemTime,
-};
 
 #[derive(DoCommand)]
 pub struct Esp32Camera {
@@ -66,9 +65,9 @@ impl Esp32Camera {
         let ret = crate::esp32::esp_idf_svc::sys::EspError::convert(ret);
         ret.map_err(|e| CameraError::InitError(e.into()))
     }
-    pub fn get_cam_frame(&self) -> Option<*mut crate::esp32::esp_idf_svc::sys::esp_camera_fb_t> {
+    pub fn get_cam_frame(&self) -> Option<*mut crate::esp32::esp_idf_svc::sys::camera_fb_t> {
         let ptr = (unsafe { crate::esp32::esp_idf_svc::sys::esp_camera_fb_get() })
-            as *mut crate::esp32::esp_idf_svc::sys::esp_camera_fb_t;
+            as *mut crate::esp32::esp_idf_svc::sys::camera_fb_t;
         if ptr.is_null() {
             None
         } else {
