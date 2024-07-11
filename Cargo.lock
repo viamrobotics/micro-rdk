@@ -361,24 +361,23 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "bindgen"
-version = "0.69.4"
+version = "0.63.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a00dc851838a2120612785d195287475a3ac45514741da670b735818822129a0"
+checksum = "36d860121800b2a9a94f9b5604b332d5cffb234ce17609ea479d723dbc9d3885"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags 1.3.2",
  "cexpr",
  "clang-sys",
- "itertools",
  "lazy_static",
  "lazycell",
  "log",
- "prettyplease",
+ "peeking_take_while",
  "proc-macro2",
  "quote",
  "regex",
  "rustc-hash",
  "shlex",
- "syn 2.0.70",
+ "syn 1.0.109",
  "which",
 ]
 
@@ -1288,27 +1287,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4caa4f198bb9152a55c0103efb83fa4edfcbb8625f4c9e94ae8ec8e23827c563"
 dependencies = [
  "anyhow",
- "bitflags 1.3.2",
- "filetime",
- "home",
- "log",
- "remove_dir_all",
- "serde",
- "serde_json",
- "shlex",
- "strum 0.24.1",
- "tempfile",
- "thiserror",
- "which",
-]
-
-[[package]]
-name = "embuild"
-version = "0.32.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a6e3e470e31fd4cae065d37f7cad56d42861ba1f9a35aa277694dee3d6b357c4"
-dependencies = [
- "anyhow",
  "bindgen",
  "bitflags 1.3.2",
  "cmake",
@@ -1316,7 +1294,6 @@ dependencies = [
  "globwalk",
  "home",
  "log",
- "regex",
  "remove_dir_all",
  "serde",
  "serde_json",
@@ -1440,7 +1417,7 @@ dependencies = [
  "embedded-hal-nb",
  "embedded-io",
  "embedded-io-async",
- "embuild 0.31.4",
+ "embuild",
  "enumset",
  "esp-idf-sys",
  "heapless",
@@ -1476,7 +1453,7 @@ dependencies = [
  "embassy-futures",
  "embedded-hal-async",
  "embedded-svc",
- "embuild 0.31.4",
+ "embuild",
  "enumset",
  "esp-idf-hal",
  "heapless",
@@ -1488,14 +1465,15 @@ dependencies = [
 [[package]]
 name = "esp-idf-sys"
 version = "0.34.1"
-source = "git+https://github.com/viamrobotics/esp-idf-sys?branch=camera#5dfe4d86979d6a139916e3e381f2943b5cfffa3d"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e148f97c04ed3e9181a08bcdc9560a515aad939b0ba7f50a0022e294665e0af"
 dependencies = [
  "anyhow",
  "bindgen",
  "build-time",
  "cargo_metadata",
  "const_format",
- "embuild 0.32.0",
+ "embuild",
  "envy",
  "libc",
  "regex",
@@ -2510,10 +2488,9 @@ dependencies = [
  "either",
  "embedded-hal 0.2.7",
  "embedded-svc",
- "embuild 0.31.4",
+ "embuild",
  "env_logger 0.10.2",
  "esp-idf-svc",
- "esp-idf-sys",
  "futures-lite 1.13.0",
  "futures-rustls",
  "futures-util",
@@ -2559,7 +2536,7 @@ dependencies = [
  "cbindgen",
  "embedded-hal 0.2.7",
  "embedded-svc",
- "embuild 0.31.4",
+ "embuild",
  "env_logger 0.10.2",
  "futures-lite 1.13.0",
  "lazy_static",
@@ -2619,7 +2596,7 @@ dependencies = [
  "async-channel 2.3.1",
  "embedded-hal 0.2.7",
  "embedded-svc",
- "embuild 0.31.4",
+ "embuild",
  "env_logger 0.10.2",
  "futures-lite 1.13.0",
  "local-ip-address",
@@ -3006,6 +2983,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "peeking_take_while"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19b17cddbe7ec3f8bc800887bab5e717348c95ea2ca0b1bf0837fb964dc67099"
+
+[[package]]
 name = "pem"
 version = "3.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3156,16 +3139,6 @@ name = "ppv-lite86"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
-
-[[package]]
-name = "prettyplease"
-version = "0.2.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f12335488a2f3b0a83b14edad48dca9879ce89b2edd10e80237e4e852dd645e"
-dependencies = [
- "proc-macro2",
- "syn 2.0.70",
-]
 
 [[package]]
 name = "proc-macro-crate"

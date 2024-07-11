@@ -2,8 +2,10 @@
 use std::{collections::HashMap, time::Duration};
 
 use crate::esp32::esp_idf_svc::{
-    hal::sys::camera_config_t,
-    sys::{camera_config_t__bindgen_ty_1, camera_config_t__bindgen_ty_2},
+    sys::camera::{
+        camera_config_t, camera_config_t__bindgen_ty_1, camera_config_t__bindgen_ty_2, camera_fb_t,
+        esp_camera_fb_get, esp_camera_fb_return, esp_camera_init,
+    },
     systime::EspSystemTime,
 };
 use crate::{
@@ -60,31 +62,27 @@ impl Esp32Camera {
         }
     }
     pub fn setup(&self) -> Result<(), CameraError> {
-        let ret = (unsafe { crate::esp32::esp_idf_svc::sys::esp_camera_init(&self.config) })
-            as crate::esp32::esp_idf_svc::sys::esp_err_t;
+        let ret =
+            (unsafe { esp_camera_init(&self.config) }) as crate::esp32::esp_idf_svc::sys::esp_err_t;
         let ret = crate::esp32::esp_idf_svc::sys::EspError::convert(ret);
         ret.map_err(|e| CameraError::InitError(e.into()))
     }
-    pub fn get_cam_frame(&self) -> Option<*mut crate::esp32::esp_idf_svc::sys::camera_fb_t> {
-        let ptr = (unsafe { crate::esp32::esp_idf_svc::sys::esp_camera_fb_get() })
-            as *mut crate::esp32::esp_idf_svc::sys::camera_fb_t;
+    pub fn get_cam_frame(&self) -> Option<*mut camera_fb_t> {
+        let ptr = (unsafe { esp_camera_fb_get() }) as *mut camera_fb_t;
         if ptr.is_null() {
             None
         } else {
             Some(ptr)
         }
     }
-    pub fn return_cam_frame(
-        &self,
-        frame: Option<*mut crate::esp32::esp_idf_svc::sys::camera_fb_t>,
-    ) {
+    pub fn return_cam_frame(&self, frame: Option<*mut camera_fb_t>) {
         if let Some(ptr) = frame {
-            unsafe { crate::esp32::esp_idf_svc::sys::esp_camera_fb_return(ptr) }
+            unsafe { esp_camera_fb_return(ptr) }
         }
     }
-    pub fn debug_print_fb(&self, frame: &Option<*mut crate::esp32::esp_idf_svc::sys::camera_fb_t>) {
+    pub fn debug_print_fb(&self, frame: &Option<*mut camera_fb_t>) {
         if let Some(ptr) = frame {
-            let ptr = ptr as &*mut crate::esp32::esp_idf_svc::sys::camera_fb_t;
+            let ptr = ptr as &*mut camera_fb_t;
             unsafe {
                 println!();
                 info!("camera buf size {}", (*(*ptr)).len);
