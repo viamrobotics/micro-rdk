@@ -19,7 +19,7 @@ static FAKE_JPEG: &[u8] = include_bytes!("./fake_image.jpg");
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
-        .register_camera("fake", &FakeCamera::from_config)
+        .register_camera("rdk:builtin:fake", &FakeCamera::from_config)
         .is_err()
     {
         log::error!("fake camera type is already registered");

@@ -45,7 +45,7 @@ pub static COMPONENT_NAME: &str = "board";
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
-        .register_board("fake", &FakeBoard::from_config)
+        .register_board("rdk:builtin:fake", &FakeBoard::from_config)
         .is_err()
     {
         log::error!("model fake is already registered")
@@ -53,7 +53,7 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 }
 
 /// Represents the functionality of a general purpose compute board that contains various components such as analog readers and digital interrupts.
-pub trait Board: Status + DoCommand {
+pub trait Board: Status + DoCommand + Send {
     /// Set a pin to high or low
     fn set_gpio_pin_level(&mut self, pin: i32, is_high: bool) -> Result<(), BoardError>;
 

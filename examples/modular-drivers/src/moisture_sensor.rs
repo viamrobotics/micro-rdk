@@ -15,11 +15,14 @@ use micro_rdk::{
         },
         status::{Status, StatusError},
     },
-    DoCommand,
+    model, DoCommand,
 };
 
 pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {
-    registry.register_sensor("moisture_sensor", &MoistureSensor::from_config)?;
+    registry.register_sensor(
+        model!("viam", "moisture_sensor"),
+        &MoistureSensor::from_config,
+    )?;
     Ok(())
 }
 #[derive(DoCommand)]

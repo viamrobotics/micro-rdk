@@ -14,14 +14,14 @@ use micro_rdk::{
         status::{Status, StatusError},
     },
     esp32::esp_idf_svc::sys::esp_get_free_heap_size,
-    DoCommand,
+    model, DoCommand,
 };
 
 #[derive(DoCommand)]
 pub struct FreeHeapSensor;
 
 pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {
-    registry.register_sensor("free-heap", &FreeHeapSensor::from_config)?;
+    registry.register_sensor(model!("viam", "free-heap"), &FreeHeapSensor::from_config)?;
     log::debug!("free-heap sensor registration ok");
     Ok(())
 }

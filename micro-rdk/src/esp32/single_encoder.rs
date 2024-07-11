@@ -30,7 +30,7 @@ use crate::common::status::{Status, StatusError};
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
-        .register_encoder("single", &Esp32SingleEncoder::from_config)
+        .register_encoder("rdk:builtin:single", &Esp32SingleEncoder::from_config)
         .is_err()
     {
         log::error!("single model is already registered")

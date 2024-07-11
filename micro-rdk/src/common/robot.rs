@@ -158,20 +158,6 @@ fn resource_name_from_component_cfg(cfg: &DynamicComponentConfig) -> ResourceNam
     }
 }
 
-// Extracts model string from the full namespace provided by incoming instances of ComponentConfig.
-// TODO: This prefix requirement was put in place due to model names sent from app being otherwise
-// prefixed with "rdk:builtin:". A more ideal and robust method of namespacing is preferred.
-fn get_model_without_namespace_prefix(full_model: &mut String) -> Result<String, RobotError> {
-    if !full_model.starts_with(NAMESPACE_PREFIX) {
-        return Err(RobotError::RobotModelWrongPrefix(full_model.to_string()));
-    }
-    let model = full_model.split_off(NAMESPACE_PREFIX.len());
-    if model.is_empty() {
-        return Err(RobotError::RobotModelAbsent);
-    }
-    Ok(model)
-}
-
 impl Default for LocalRobot {
     fn default() -> Self {
         Self::new()
@@ -205,13 +191,12 @@ impl LocalRobot {
             .iter_mut()
             .find(|cfg| cfg.as_ref().map_or(false, |cfg| cfg.r#type == "board"));
         let (board, board_key) = if let Some(Some(config)) = config {
-            let model = get_model_without_namespace_prefix(&mut config.model.to_owned())?;
             let board_key = Some(ResourceKey(
                 crate::common::board::COMPONENT_NAME,
                 config.name.to_string(),
             ));
             let constructor = registry
-                .get_board_constructor(model)
+                .get_board_constructor(config.model.clone())
                 .map_err(RobotError::RobotRegistryError)?;
             let board = constructor(ConfigType::Dynamic(config))
                 .map_err(|e| RobotError::RobotResourceBuildError(e.into()))?;
@@ -329,7 +314,7 @@ impl LocalRobot {
         registry: &mut ComponentRegistry,
     ) -> Result<(), RobotError> {
         let new_resource_name = resource_name_from_component_cfg(config);
-        let model = get_model_without_namespace_prefix(&mut config.get_model().to_owned())?;
+        let model = config.model.to_string();
 
         let mut dependencies = self.get_config_dependencies(config, registry)?;
 
@@ -377,9 +362,9 @@ impl LocalRobot {
                 ))
             }
         };
-        let model = get_model_without_namespace_prefix(&mut config.get_model().to_owned())?;
+        let model = config.model.as_str();
         let deps_keys = registry
-            .get_dependency_function(type_as_static, &model)
+            .get_dependency_function(type_as_static, model)
             .map_or(Vec::new(), |dep_fn| dep_fn(ConfigType::Dynamic(config)));
 
         deps_keys
@@ -523,6 +508,7 @@ impl LocalRobot {
     }
 
     pub fn get_periodic_app_client_tasks(&mut self) -> Vec<Box<dyn PeriodicAppClientTask>> {
+        #[allow(unused_mut)]
         let mut tasks = Vec::<Box<dyn PeriodicAppClientTask>>::new();
 
         #[cfg(feature = "data")]

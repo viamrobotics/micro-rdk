@@ -24,6 +24,8 @@ use crate::proto::common::v1::ResourceName;
 pub enum RegistryError {
     #[error("RegistryError : Model '{0}' not found")]
     ModelNotFound(String),
+    #[error("RegistryError : Component Type '{0}' not found")]
+    ComponentTypeNotFound(String),
     #[error("RegistryError : model '{0}' already exists")]
     ModelAlreadyRegistered(&'static str),
     #[error("RegistryError: model '{0}' dependency getter already registered")]
@@ -51,8 +53,8 @@ pub fn get_board_from_dependencies(deps: Vec<Dependency>) -> Option<BoardType> {
 pub struct ResourceKey(pub &'static str, pub String);
 
 impl ResourceKey {
-    pub fn new(model: &str, name: String) -> Result<Self, RegistryError> {
-        let model_str = match model {
+    pub fn new(component_type: &str, name: String) -> Result<Self, RegistryError> {
+        let component_type_str = match component_type {
             "motor" => crate::common::motor::COMPONENT_NAME,
             "board" => crate::common::board::COMPONENT_NAME,
             #[cfg(all(feature = "camera", feature = "native"))]
@@ -65,10 +67,12 @@ impl ResourceKey {
             "power_sensor" => crate::common::power_sensor::COMPONENT_NAME,
             "generic" => crate::common::generic::COMPONENT_NAME,
             &_ => {
-                return Err(RegistryError::ModelNotFound(model.to_string()));
+                return Err(RegistryError::ComponentTypeNotFound(
+                    component_type.to_string(),
+                ));
             }
         };
-        Ok(Self(model_str, name))
+        Ok(Self(component_type_str, name))
     }
 }
 
@@ -88,7 +92,7 @@ impl TryFrom<ResourceName> for ResourceKey {
             "power_sensor" => crate::common::power_sensor::COMPONENT_NAME,
             "generic" => crate::common::generic::COMPONENT_NAME,
             _ => {
-                return Err(RegistryError::ModelNotFound(comp_type.to_string()));
+                return Err(RegistryError::ComponentTypeNotFound(comp_type.to_string()));
             }
         };
         Ok(Self(comp_name, value.name))
@@ -132,6 +136,27 @@ type GenericComponentConstructor =
     dyn Fn(ConfigType, Vec<Dependency>) -> Result<GenericComponentType, GenericError>;
 
 type DependenciesFromConfig = dyn Fn(ConfigType) -> Vec<ResourceKey>;
+
+/// Macro for modules to create a registration key for their component models.
+/// The first argument should be the name of the organization responsible for
+/// creating and maintaining the module and the second argument should be the name
+/// of the module
+///
+/// Example
+///
+/// ```ignore
+/// pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {
+///     registry.register_motor(model!("viam", "water_pump"), &WaterPump::from_config)?;
+///     log::info!("water_pump motor registration ok");
+///     Ok(())
+/// }
+/// ```
+#[macro_export]
+macro_rules! model {
+    ($org:tt, $mname:tt) => {
+        concat!($org, ":", env!("CARGO_PKG_NAME"), ":", $mname)
+    };
+}
 
 #[derive(Clone)]
 pub struct ComponentRegistry {
@@ -595,25 +620,25 @@ mod tests {
         let mut registry = ComponentRegistry::new();
 
         // sensor should not be registered yet
-        let ctor = registry.get_sensor_constructor("test_sensor".to_string());
+        let ctor = registry.get_sensor_constructor("rdk:builtin:test_sensor".to_string());
         assert!(ctor.is_err());
         assert_eq!(
             ctor.err().unwrap(),
-            RegistryError::ModelNotFound("test_sensor".to_string())
+            RegistryError::ModelNotFound("rdk:builtin:test_sensor".to_string())
         );
 
         // register fake board
         common::board::register_models(&mut registry);
-        let ctor = registry.get_board_constructor("fake".to_string());
+        let ctor = registry.get_board_constructor("rdk:builtin:fake".to_string());
         assert!(ctor.is_ok());
 
         // register test sensor
         assert!(registry
-            .register_sensor("test_sensor", &TestSensor::from_config)
+            .register_sensor("rdk:builtin:test_sensor", &TestSensor::from_config)
             .is_ok());
 
         // check ctor
-        let ctor = registry.get_sensor_constructor("test_sensor".to_string());
+        let ctor = registry.get_sensor_constructor("rdk:builtin:test_sensor".to_string());
         assert!(ctor.is_ok());
 
         // make robot
@@ -651,57 +676,57 @@ mod tests {
     fn test_registry() {
         let mut registry = ComponentRegistry::new();
 
-        let ctor = registry.get_motor_constructor("fake".to_string());
+        let ctor = registry.get_motor_constructor("rdk:builtin:fake".to_string());
         assert!(ctor.is_err());
         assert_eq!(
             ctor.err().unwrap(),
-            RegistryError::ModelNotFound("fake".to_string())
+            RegistryError::ModelNotFound("rdk:builtin:fake".to_string())
         );
         common::motor::register_models(&mut registry);
 
-        let ctor = registry.get_motor_constructor("fake".to_string());
+        let ctor = registry.get_motor_constructor("rdk:builtin:fake".to_string());
         assert!(ctor.is_ok());
 
-        let ret = registry.register_motor("fake", &|_, _| {
+        let ret = registry.register_motor("rdk:builtin:fake", &|_, _| {
             Err(MotorError::MotorMethodUnimplemented(""))
         });
         assert!(ret.is_err());
         assert_eq!(
             ret.err().unwrap(),
-            RegistryError::ModelAlreadyRegistered("fake")
+            RegistryError::ModelAlreadyRegistered("rdk:builtin:fake")
         );
 
-        let ret = registry.register_motor("fake2", &|_, _| {
+        let ret = registry.register_motor("rdk:builtin:fake2", &|_, _| {
             Err(MotorError::MotorMethodUnimplemented(""))
         });
         assert!(ret.is_ok());
 
-        let ctor = registry.get_board_constructor("fake".to_string());
+        let ctor = registry.get_board_constructor("rdk:builtin:fake".to_string());
         assert!(ctor.is_err());
         assert_eq!(
             ctor.err().unwrap(),
-            RegistryError::ModelNotFound("fake".to_string())
+            RegistryError::ModelNotFound("rdk:builtin:fake".to_string())
         );
         common::board::register_models(&mut registry);
 
-        let ctor = registry.get_board_constructor("fake".to_string());
+        let ctor = registry.get_board_constructor("rdk:builtin:fake".to_string());
         assert!(ctor.is_ok());
 
-        let ret = registry.register_board("fake", &|_| {
+        let ret = registry.register_board("rdk:builtin:fake", &|_| {
             Err(common::board::BoardError::BoardMethodNotSupported(""))
         });
         assert!(ret.is_err());
         assert_eq!(
             ret.err().unwrap(),
-            RegistryError::ModelAlreadyRegistered("fake")
+            RegistryError::ModelAlreadyRegistered("rdk:builtin:fake")
         );
 
-        let ret = registry.register_board("fake2", &|_| {
+        let ret = registry.register_board("rdk:builtin:fake2", &|_| {
             Err(common::board::BoardError::BoardMethodNotSupported(""))
         });
         assert!(ret.is_ok());
 
-        let ctor = registry.get_motor_constructor("fake2".to_string());
+        let ctor = registry.get_motor_constructor("rdk:builtin:fake2".to_string());
         assert!(ctor.is_ok());
 
         let ret = ctor.unwrap()(
@@ -712,7 +737,7 @@ mod tests {
         assert!(ret.is_err());
         assert_eq!(format!("{}", ret.err().unwrap()), "unimplemented: ");
 
-        let ctor = registry.get_board_constructor("fake2".to_string());
+        let ctor = registry.get_board_constructor("rdk:builtin:fake2".to_string());
         assert!(ctor.is_ok());
 
         let ret = ctor.unwrap()(ConfigType::Dynamic(&DynamicComponentConfig::default()));

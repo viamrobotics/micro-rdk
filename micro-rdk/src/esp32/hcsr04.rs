@@ -73,7 +73,7 @@ use crate::esp32::esp_idf_svc::sys::{esp, gpio_isr_handler_add, gpio_isr_handler
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
-        .register_sensor("ultrasonic", &HCSR04Sensor::from_config)
+        .register_sensor("rdk:builtin:ultrasonic", &HCSR04Sensor::from_config)
         .is_err()
     {
         log::error!("HCSR04Sensor is already registered");

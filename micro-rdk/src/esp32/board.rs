@@ -36,7 +36,7 @@ use crate::esp32::esp_idf_svc::hal::{
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
-        .register_board("esp32", &EspBoard::from_config)
+        .register_board("rdk:builtin:esp32", &EspBoard::from_config)
         .is_err()
     {
         log::error!("esp32 board type already registered");

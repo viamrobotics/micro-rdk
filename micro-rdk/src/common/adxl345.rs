@@ -22,7 +22,7 @@ use std::sync::{Arc, Mutex};
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
-        .register_movement_sensor("accel-adxl345", &ADXL345::from_config)
+        .register_movement_sensor("rdk:builtin:accel-adxl345", &ADXL345::from_config)
         .is_err()
     {
         log::error!("accel-adxl345 type is already registered");

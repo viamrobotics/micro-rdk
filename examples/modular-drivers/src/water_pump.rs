@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use micro_rdk::DoCommand;
+use micro_rdk::{model, DoCommand};
 
 use micro_rdk::common::{
     actuator::{Actuator, ActuatorError},
@@ -23,7 +23,7 @@ pub struct WaterPump {
 }
 
 pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {
-    registry.register_motor("water_pump", &WaterPump::from_config)?;
+    registry.register_motor(model!("viam", "water_pump"), &WaterPump::from_config)?;
     log::info!("water_pump motor registration ok");
     Ok(())
 }
