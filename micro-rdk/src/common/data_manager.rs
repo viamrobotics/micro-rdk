@@ -28,6 +28,23 @@ static MAX_SENSOR_CONTENTS_SIZE: usize = 32000;
 
 type CollectedReadings = Vec<(ResourceMethodKey, Result<SensorData, DataCollectionError>)>;
 
+/// Allow for a C project using micro-RDK as a library to implement a callback to be run
+/// whenever data has successfully been uploaded. The callback should be identical in signature
+/// to the weak symbol declared here
+///
+/// Ex. for ESP-IDF project
+/// void micro_rdk_data_manager_post_upload_hook(void) {
+///     ESP_LOGI("proj_main", "hit data upload callback");
+/// }
+///
+/// # Safety
+/// The implemented callback should be simple. Long-running operations should be avoided, as should
+/// any interaction with resources managed by micro-RDK or the taking of any resources protected by lock.
+#[cfg(feature = "data-upload-hook-unstable")]
+#[linkage = "weak"]
+#[no_mangle]
+pub unsafe extern "C" fn micro_rdk_data_manager_post_upload_hook() {}
+
 #[derive(Debug, Error)]
 pub enum DataManagerError {
     #[error("no data collectors in manager")]
@@ -404,6 +421,10 @@ where
                             if let Some(next_message) = next_chunk_first_message {
                                 current_chunk_size = next_message.len();
                                 current_chunk = vec![next_message];
+                            }
+                            #[cfg(feature = "data-upload-hook-unstable")]
+                            unsafe {
+                                micro_rdk_data_manager_post_upload_hook();
                             }
                         }
                         Err(err) => {
