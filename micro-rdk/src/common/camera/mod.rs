@@ -4,10 +4,10 @@ use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
 // Enables FakeCamera for native server
-#[cfg(all(feature = "camera", feature = "native", feature = "builtin-components"))]
+#[cfg(all(feature = "camera", feature = "builtin-components"))]
 mod fake_camera;
-#[cfg(all(feature = "camera", feature = "esp32", feature = "builtin-components"))]
-pub(crate) use crate::esp32::camera::fake_camera::register_models;
+#[cfg(all(feature = "camera", feature = "builtin-components"))]
+pub(crate) use fake_camera::register_models;
 
 #[allow(dead_code)]
 pub(crate) type CameraType = Arc<Mutex<dyn Camera>>;

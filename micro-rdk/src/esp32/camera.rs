@@ -7,8 +7,6 @@ use bytes::{Bytes, BytesMut};
 use log::*;
 use prost::Message;
 
-pub mod fake_camera;
-
 /*
 use crate::esp32::esp_idf_svc::sys::camera_config_t;
 use crate::esp32::esp_idf_svc::sys::camera_config_t__bindgen_ty_1;
