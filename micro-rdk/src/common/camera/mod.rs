@@ -3,12 +3,12 @@ use bytes::BytesMut;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
-#[cfg(all(feature = "camera", feature = "builtin-components"))]
+#[cfg(feature = "camera")]
 mod fake_camera;
 
 #[allow(unused)]
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
-    #[cfg(all(feature = "camera", feature = "builtin-components"))]
+    #[cfg(feature = "camera")]
     {
         fake_camera::register_models(registry);
         #[cfg(feature = "esp32")]
