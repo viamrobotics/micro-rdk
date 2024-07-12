@@ -3,7 +3,7 @@ use bytes::BytesMut;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
-// Enables FakeCamera for native server
+#[cfg(all(feature = "camera", feature = "builtin-components"))]
 mod fake_camera;
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
