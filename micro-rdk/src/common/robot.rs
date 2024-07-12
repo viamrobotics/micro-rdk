@@ -6,6 +6,7 @@ use chrono::{DateTime, FixedOffset};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
+    time::Instant,
 };
 
 #[cfg(feature = "esp32")]
@@ -106,7 +107,6 @@ type Executor = NativeExecutor;
 #[cfg(feature = "esp32")]
 type Executor = Esp32Executor;
 
-#[derive(Default)]
 pub struct LocalRobot {
     pub(crate) part_id: String,
     resources: ResourceMap,
@@ -116,6 +116,10 @@ pub struct LocalRobot {
     data_collector_configs: Vec<(ResourceName, DataCollectorConfig)>,
     data_manager_sync_task: Option<Box<dyn PeriodicAppClientTask>>,
     data_manager_collection_task: Option<Task<()>>,
+    // Used for time correcting stored data before upload, see DataSyncTask::run. WARNING: This
+    // is NOT a valid timestamp. For actual timestamps, the real time should be set on the system
+    // at some point using settimeofday (or something equivalent) and referenced thereof.
+    pub(crate) start_time: Instant,
 }
 
 #[derive(Error, Debug)]
@@ -168,9 +172,25 @@ fn get_model_without_namespace_prefix(full_model: &mut String) -> Result<String,
     Ok(model)
 }
 
+impl Default for LocalRobot {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LocalRobot {
     pub fn new() -> Self {
-        Default::default()
+        Self {
+            start_time: Instant::now(),
+            executor: Default::default(),
+            part_id: Default::default(),
+            resources: Default::default(),
+            build_time: Default::default(),
+            data_manager_collection_task: Default::default(),
+            data_manager_sync_task: Default::default(),
+            #[cfg(feature = "data")]
+            data_collector_configs: Default::default(),
+        }
     }
     // Inserts components in order of dependency. If a component's dependencies are not satisfied it is
     // temporarily skipped and sent to the end of the queue. This process repeats until all the components
@@ -258,6 +278,7 @@ impl LocalRobot {
             data_collector_configs: vec![],
             data_manager_sync_task: None,
             data_manager_collection_task: None,
+            start_time: Instant::now(),
         };
 
         let components: Result<Vec<Option<DynamicComponentConfig>>, AttributeError> = config_resp
@@ -282,12 +303,12 @@ impl LocalRobot {
                 Ok(Some(mut data_manager)) => {
                     let _ = robot
                         .data_manager_sync_task
-                        .insert(Box::new(data_manager.get_sync_task()));
+                        .insert(Box::new(data_manager.get_sync_task(robot.start_time)));
 
                     let _ = robot
                         .data_manager_collection_task
                         .replace(robot.executor.spawn(async move {
-                            data_manager.data_collection_task().await;
+                            data_manager.data_collection_task(robot.start_time).await;
                         }));
                 }
                 Ok(None) => {}
