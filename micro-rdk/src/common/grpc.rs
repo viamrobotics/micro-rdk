@@ -1214,11 +1214,10 @@ where
     }
 
     fn robot_shutdown(&mut self, _: &[u8]) -> Option<ServerError> { 
-        #[cfg(feature = "esp32")]
-        (self.(crate::esp32::esp_idf_svc::sys::esp_restart()).take().unwrap())();
         #[cfg(feature = "native")]
-        (self.(std::process::exit(0)).take().unwrap())();
-        unreachable!();
+        std::process::exit(0);
+        #[cfg(feature = "esp32")]
+        crate::esp32::esp_idf_svc::sys::esp_restart().take().unwrap();
     } 
 
     fn robot_status(&mut self, message: &[u8]) -> Result<(), ServerError> {
