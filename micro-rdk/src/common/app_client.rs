@@ -390,6 +390,7 @@ impl AppClient {
     }
 }
 
+    
 impl Drop for AppClient {
     fn drop(&mut self) {
         log::debug!("dropping AppClient")
