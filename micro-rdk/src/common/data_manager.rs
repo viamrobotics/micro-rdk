@@ -343,7 +343,7 @@ where
                 let time_to_subtract = self.get_time_to_subtract(time_received)?;
                 let time_received = current_dt - time_to_subtract;
                 metadata.time_received = Some(Timestamp {
-                    seconds: time_received.timestamp() as i64,
+                    seconds: time_received.timestamp(),
                     nanos: time_received.timestamp_subsec_nanos() as i32,
                 });
             }
@@ -351,7 +351,7 @@ where
                 let time_to_subtract = self.get_time_to_subtract(time_requested)?;
                 let time_requested = current_dt - time_to_subtract;
                 metadata.time_requested = Some(Timestamp {
-                    seconds: time_requested.timestamp() as i64,
+                    seconds: time_requested.timestamp(),
                     nanos: time_requested.timestamp_subsec_nanos() as i32,
                 });
             }
