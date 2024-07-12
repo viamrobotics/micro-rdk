@@ -304,24 +304,30 @@ pub struct DataSyncTask<StoreType> {
     robot_start_time: Instant,
 }
 
-fn get_time_to_subtract(
-    robot_start_time: Instant,
-    stored_time: Timestamp,
-) -> Result<chrono::Duration, DataSyncError> {
-    let stored_time_dur = Duration::new(stored_time.seconds as u64, stored_time.nanos as u32);
-    let time_to_subtract = robot_start_time.elapsed() - stored_time_dur;
-    let time_to_subtract = chrono::Duration::new(
-        time_to_subtract.as_secs() as i64,
-        time_to_subtract.subsec_nanos(),
-    )
-    .ok_or(DataSyncError::TimeOutOfBoundsError)?;
-    Ok(time_to_subtract)
-}
+impl<StoreType> DataSyncTask<StoreType>
+where
+    StoreType: DataStore,
+{
+    #[cfg(test)]
+    async fn get_store_lock(&mut self) -> futures_util::lock::MutexGuard<StoreType> {
+        self.store.lock().await
+    }
 
-fn create_time_corrected_reading(
-    robot_start_time: Instant,
-) -> impl Fn(BytesMut) -> Result<SensorData, DataSyncError> {
-    move |raw_msg| {
+    fn get_time_to_subtract(
+        &self,
+        stored_time: Timestamp,
+    ) -> Result<chrono::Duration, DataSyncError> {
+        let stored_time_dur = Duration::new(stored_time.seconds as u64, stored_time.nanos as u32);
+        let time_to_subtract = self.robot_start_time.elapsed() - stored_time_dur;
+        let time_to_subtract = chrono::Duration::new(
+            time_to_subtract.as_secs() as i64,
+            time_to_subtract.subsec_nanos(),
+        )
+        .ok_or(DataSyncError::TimeOutOfBoundsError)?;
+        Ok(time_to_subtract)
+    }
+
+    fn get_time_corrected_reading(&self, raw_msg: BytesMut) -> Result<SensorData, DataSyncError> {
         let mut msg = SensorData::decode(raw_msg)?;
         // the timestamps of the stored data are measured as offsets from a starting
         // instant (robot_start_time, acquired from DataSyncTask), so we adjust the
@@ -334,7 +340,7 @@ fn create_time_corrected_reading(
                 return Err(DataSyncError::NoCurrentTime);
             }
             if let Some(time_received) = metadata.time_received.clone() {
-                let time_to_subtract = get_time_to_subtract(robot_start_time, time_received)?;
+                let time_to_subtract = self.get_time_to_subtract(time_received)?;
                 let time_received = current_dt - time_to_subtract;
                 metadata.time_received = Some(Timestamp {
                     seconds: time_received.timestamp() as i64,
@@ -342,7 +348,7 @@ fn create_time_corrected_reading(
                 });
             }
             if let Some(time_requested) = metadata.time_requested.clone() {
-                let time_to_subtract = get_time_to_subtract(robot_start_time, time_requested)?;
+                let time_to_subtract = self.get_time_to_subtract(time_requested)?;
                 let time_requested = current_dt - time_to_subtract;
                 metadata.time_requested = Some(Timestamp {
                     seconds: time_requested.timestamp() as i64,
@@ -351,16 +357,6 @@ fn create_time_corrected_reading(
             }
         }
         Ok(msg)
-    }
-}
-
-impl<StoreType> DataSyncTask<StoreType>
-where
-    StoreType: DataStore,
-{
-    #[cfg(test)]
-    async fn get_store_lock(&mut self) -> futures_util::lock::MutexGuard<StoreType> {
-        self.store.lock().await
     }
 
     async fn run<'b>(&mut self, app_client: &'b AppClient) -> Result<(), AppClientError> {
@@ -447,7 +443,7 @@ where
                     {
                         let data: Result<Vec<SensorData>, DataSyncError> = current_chunk
                             .drain(..)
-                            .map(create_time_corrected_reading(self.robot_start_time))
+                            .map(|msg| self.get_time_corrected_reading(msg))
                             .collect();
                         let data = match data {
                             Ok(data) => data,
@@ -661,7 +657,6 @@ mod tests {
 
     #[test_log::test]
     fn test_collection_intervals() {
-        let robot_start_time = Instant::now();
         let resource_1 = ResourceType::Sensor(Arc::new(Mutex::new(TestSensor {})));
         let data_coll_1 = DataCollector::new(
             "r1".to_string(),
