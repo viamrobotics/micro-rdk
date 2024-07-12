@@ -1,5 +1,9 @@
 #![allow(dead_code)]
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use crate::esp32::esp_idf_svc::{
     sys::camera::{
@@ -10,7 +14,9 @@ use crate::esp32::esp_idf_svc::{
 };
 use crate::{
     common::{
-        camera::{Camera, CameraError},
+        camera::{Camera, CameraError, CameraType},
+        config::ConfigType,
+        registry::{ComponentRegistry, Dependency},
         status::{Status, StatusError},
     },
     google::{self, api::HttpBody},
@@ -26,7 +32,25 @@ pub struct Esp32Camera {
     last_grab: Duration,
 }
 
+pub(crate) fn register_models(registry: &mut ComponentRegistry) {
+    if registry
+        .register_camera("esp32camera", &Esp32Camera::from_config)
+        .is_err()
+    {
+        log::error!("esp32camera type is already registered");
+    }
+}
+
 impl Esp32Camera {
+    pub(crate) fn from_config(
+        _cfg: ConfigType,
+        _: Vec<Dependency>,
+    ) -> Result<CameraType, CameraError> {
+        let cam = Self::new();
+        cam.setup()?;
+        Ok(Arc::new(Mutex::new(cam)))
+    }
+
     pub fn new() -> Self {
         let t = EspSystemTime;
         Esp32Camera {
@@ -61,7 +85,7 @@ impl Esp32Camera {
             last_grab: t.now(),
         }
     }
-    pub fn setup(&self) -> Result<(), CameraError> {
+    fn setup(&self) -> Result<(), CameraError> {
         let ret =
             (unsafe { esp_camera_init(&self.config) }) as crate::esp32::esp_idf_svc::sys::esp_err_t;
         let ret = crate::esp32::esp_idf_svc::sys::EspError::convert(ret);
@@ -107,8 +131,7 @@ impl Camera for Esp32Camera {
             };
             if buf.len() > buffer.capacity() {
                 self.return_cam_frame(Some(ptr));
-                // TODO change
-                return Err(CameraError::FailedToGetImage);
+                return Err(CameraError::ImageTooBig);
             }
             let bytes = Bytes::from(buf);
             let msg = camera::v1::GetImageResponse {
@@ -131,8 +154,7 @@ impl Camera for Esp32Camera {
             };
             if buf.len() > buffer.capacity() {
                 self.return_cam_frame(Some(ptr));
-                // TODO change
-                return Err(CameraError::FailedToGetImage);
+                return Err(CameraError::ImageTooBig);
             }
             let bytes = Bytes::from(buf);
             let msg = HttpBody {

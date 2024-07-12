@@ -1,13 +1,18 @@
-use super::{generic::DoCommand, status::Status};
+use super::{generic::DoCommand, registry::ComponentRegistry, status::Status};
 use bytes::BytesMut;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
 // Enables FakeCamera for native server
-#[cfg(all(feature = "camera", feature = "builtin-components"))]
 mod fake_camera;
-#[cfg(all(feature = "camera", feature = "builtin-components"))]
-pub(crate) use fake_camera::register_models;
+
+pub(crate) fn register_models(registry: &mut ComponentRegistry) {
+    #[cfg(all(feature = "camera", feature = "builtin-components"))]
+    fake_camera::register_models(registry);
+
+    #[cfg(all(feature = "camera", feature = "esp32", feature = "builtin-components"))]
+    crate::esp32::camera::register_models(registry);
+}
 
 #[allow(dead_code)]
 pub(crate) type CameraType = Arc<Mutex<dyn Camera>>;
