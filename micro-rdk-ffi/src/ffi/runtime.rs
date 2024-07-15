@@ -7,6 +7,7 @@ use std::{
 use micro_rdk::common::{
     config::ConfigType,
     entry::RobotRepresentation,
+    provisioning::server::ProvisioningInfo,
     registry::{ComponentRegistry, Dependency},
     sensor::{SensorError, SensorType},
 };
@@ -20,6 +21,7 @@ use super::{
 #[allow(non_camel_case_types)]
 pub struct viam_server_context {
     registry: Box<ComponentRegistry>,
+    provisioning_info: ProvisioningInfo,
     _marker: PhantomData<(*mut u8, PhantomPinned)>, // Non Send, Non Sync
 }
 
@@ -36,10 +38,86 @@ extern "C" {
 #[no_mangle]
 pub extern "C" fn init_viam_server_context() -> *mut viam_server_context {
     let registry = Box::<ComponentRegistry>::default();
+    let mut provisioning_info = ProvisioningInfo::default();
+    provisioning_info.set_manufacturer("viam".to_owned());
+    provisioning_info.set_model("ffi-provisioning".to_owned());
     Box::into_raw(Box::new(viam_server_context {
         registry,
+        provisioning_info,
         _marker: Default::default(),
     }))
+}
+
+/// Sets the provisioning model
+///
+/// returns VIAM_OK on success
+/// # Safety
+/// `ctx`, `model` must be valid pointers
+/// `model` must be a null terminated C String
+#[no_mangle]
+pub unsafe extern "C" fn viam_server_set_provisioning_model(
+    ctx: *mut viam_server_context,
+    model: *const c_char,
+) -> viam_code {
+    if ctx.is_null() || model.is_null() {
+        return viam_code::VIAM_INVALID_ARG;
+    }
+    let ctx = unsafe { &mut *ctx };
+    let model = if let Ok(s) = unsafe { CStr::from_ptr(model) }.to_str() {
+        s.to_owned()
+    } else {
+        return viam_code::VIAM_INVALID_ARG;
+    };
+    ctx.provisioning_info.set_model(model);
+    viam_code::VIAM_OK
+}
+
+/// Sets the provisioning manufacturer
+///
+/// returns VIAM_OK on success
+/// # Safety
+/// `ctx`, `manufacturer` must be valid pointers
+/// `manufacturer` must be a null terminated C String
+#[no_mangle]
+pub unsafe extern "C" fn viam_server_set_provisioning_manufacturer(
+    ctx: *mut viam_server_context,
+    manufacturer: *const c_char,
+) -> viam_code {
+    if ctx.is_null() || manufacturer.is_null() {
+        return viam_code::VIAM_INVALID_ARG;
+    }
+    let ctx = unsafe { &mut *ctx };
+    let manufacturer = if let Ok(s) = unsafe { CStr::from_ptr(manufacturer) }.to_str() {
+        s.to_owned()
+    } else {
+        return viam_code::VIAM_INVALID_ARG;
+    };
+    ctx.provisioning_info.set_manufacturer(manufacturer);
+    viam_code::VIAM_OK
+}
+
+/// Sets the provisioning fragment id
+///
+/// returns VIAM_OK on success
+/// # Safety
+/// `ctx`, `fragment_id` must be valid pointers
+/// `manufacturer` must be a null terminated C String
+#[no_mangle]
+pub unsafe extern "C" fn viam_server_set_provisioning_fragment(
+    ctx: *mut viam_server_context,
+    fragment_id: *const c_char,
+) -> viam_code {
+    if ctx.is_null() || fragment_id.is_null() {
+        return viam_code::VIAM_INVALID_ARG;
+    }
+    let ctx = unsafe { &mut *ctx };
+    let fragment_id = if let Ok(s) = unsafe { CStr::from_ptr(fragment_id) }.to_str() {
+        s.to_owned()
+    } else {
+        return viam_code::VIAM_INVALID_ARG;
+    };
+    ctx.provisioning_info.set_fragment_id(fragment_id);
+    viam_code::VIAM_OK
 }
 
 /// Register a generic sensor in the Registry making configurable via Viam config
@@ -202,16 +280,12 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
 
     #[cfg(not(has_robot_config))]
     {
-        use micro_rdk::common::provisioning::server::ProvisioningInfo;
         #[cfg(not(target_os = "espidf"))]
         {
             use micro_rdk::common::provisioning::storage::RAMStorage;
-            let mut info = ProvisioningInfo::default();
-            info.set_manufacturer("viam".to_owned());
-            info.set_model("native".to_owned());
             let storage = RAMStorage::default();
             micro_rdk::native::entry::serve_web_with_external_network(
-                Some(info),
+                Some(ctx.provisioning_info),
                 repr,
                 max_connection,
                 storage,
@@ -220,25 +294,9 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
         }
         #[cfg(target_os = "espidf")]
         {
-            let mut mac_address = [0_u8; 8];
-            unsafe {
-                micro_rdk::esp32::esp_idf_svc::sys::esp!(
-                    micro_rdk::esp32::esp_idf_svc::sys::esp_efuse_mac_get_default(
-                        mac_address.as_mut_ptr()
-                    )
-                )
-                .unwrap();
-            };
-
-            let mut info = ProvisioningInfo::default();
-            info.set_manufacturer("viam".to_owned());
-            info.set_model(format!(
-                "esp32-{:02X}{:02X}",
-                mac_address[4], mac_address[5]
-            ));
             let storage = micro_rdk::esp32::nvs_storage::NVSStorage::new("nvs").unwrap();
             micro_rdk::esp32::entry::serve_web_with_external_network(
-                Some(info),
+                Some(ctx.provisioning_info),
                 repr,
                 max_connection,
                 storage,
