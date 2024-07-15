@@ -1213,7 +1213,7 @@ where
         self.encode_message(operation)
     }
 
-    //cannot guarantee a response if shutdown is successful since robot will be restarting
+    // robot_shutdown will not return anything because will restart
     fn robot_shutdown(&mut self, _: &[u8]) -> ! {
         #[cfg(feature = "native")]
         std::process::exit(0);
