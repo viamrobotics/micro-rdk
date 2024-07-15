@@ -39,12 +39,14 @@ impl<'a> PeriodicAppClientTask for ConfigMonitor<'a> {
         app_client: &'c AppClient,
     ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'c>> {
         Box::pin(async move {
-            let (_app_client_config, new_config, _cfg_received_datetime) =
-                app_client.clone().get_config(None).await.unwrap();
-            match self.curr_config == *new_config {
-                true => Ok(Some(self.get_default_period())),
-                false => self.restart(),
+            if let Ok((_app_client_config, new_config, _cfg_received_datetime)) =
+                app_client.clone().get_config(None).await
+            {
+                if self.curr_config != *new_config {
+                    self.restart()
+                }
             }
+            Ok(Some(self.get_default_period()))
         })
     }
 }
