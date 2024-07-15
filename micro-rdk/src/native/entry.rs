@@ -20,6 +20,7 @@ use std::{
     net::SocketAddr,
     rc::Rc,
     sync::{Arc, Mutex},
+    time::Duration,
 };
 
 #[cfg(feature = "provisioning")]
@@ -157,8 +158,6 @@ where
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
     <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
-    use std::time::Duration;
-
     use async_io::Timer;
 
     use crate::common::provisioning::server::serve_provisioning_async;

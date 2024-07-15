@@ -8,31 +8,31 @@ use std::{
 };
 
 use crate::{
-    common::analog::AnalogReader,
-    common::board::Board,
-    common::robot::LocalRobot,
+    common::{
+        analog::AnalogReader, board::Board, motor::Motor, robot::LocalRobot,
+        webrtc::grpc::WebRtcGrpcService,
+    },
     google::rpc::Status,
     proto::{self, component, robot},
 };
 use bytes::{BufMut, BytesMut};
 use futures_lite::{future, Future};
 use http_body_util::BodyExt;
-use hyper::body::{Body, Frame};
 use hyper::{
-    body::{self, Bytes},
+    body::{self, Body, Bytes, Frame},
     http::HeaderValue,
     service::Service,
     HeaderMap, Request, Response,
 };
 use log::*;
 use prost::Message;
-use std::cell::RefCell;
-use std::pin::Pin;
-use std::rc::Rc;
-use std::task::{Context, Poll};
+use std::{
+    cell::RefCell,
+    pin::Pin,
+    rc::Rc,
+    task::{Context, Poll},
+};
 use thiserror::Error;
-
-use super::{motor::Motor, webrtc::grpc::WebRtcGrpcService};
 
 #[cfg(feature = "camera")]
 static GRPC_BUFFER_SIZE: usize = 1024 * 30; // 30KB
@@ -242,7 +242,7 @@ where
             "/viam.component.motor.v1.MotorService/DoCommand" => self.motor_do_command(payload),
             "/viam.robot.v1.RobotService/ResourceNames" => self.resource_names(payload),
             "/viam.robot.v1.RobotService/GetStatus" => self.robot_status(payload),
-            "/viam.robot.v1.RobotService/GetOperations" => self.robot_get_oprations(payload),
+            "/viam.robot.v1.RobotService/GetOperations" => self.robot_get_operations(payload),
             "/viam.robot.v1.RobotService/Shutdown" => self.robot_shutdown(payload),
             "/proto.rpc.v1.AuthService/Authenticate" => self.auth_service_authentificate(payload),
             "/viam.component.sensor.v1.SensorService/GetReadings" => {
@@ -1208,7 +1208,7 @@ where
 
     // robot_get_operations returns an empty response since operations are not yet
     // supported on micro-rdk
-    fn robot_get_oprations(&mut self, _: &[u8]) -> Result<(), ServerError> {
+    fn robot_get_operations(&mut self, _: &[u8]) -> Result<(), ServerError> {
         let operation = robot::v1::GetOperationsResponse::default();
         self.encode_message(operation)
     }

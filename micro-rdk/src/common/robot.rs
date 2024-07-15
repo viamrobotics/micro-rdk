@@ -6,6 +6,7 @@ use chrono::{DateTime, FixedOffset};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
+    time::Instant,
 };
 
 #[cfg(feature = "esp32")]
@@ -106,7 +107,6 @@ type Executor = NativeExecutor;
 #[cfg(feature = "esp32")]
 type Executor = Esp32Executor;
 
-#[derive(Default)]
 pub struct LocalRobot {
     pub(crate) part_id: String,
     resources: ResourceMap,
@@ -116,6 +116,10 @@ pub struct LocalRobot {
     data_collector_configs: Vec<(ResourceName, DataCollectorConfig)>,
     data_manager_sync_task: Option<Box<dyn PeriodicAppClientTask>>,
     data_manager_collection_task: Option<Task<()>>,
+    // Used for time correcting stored data before upload, see DataSyncTask::run. WARNING: This
+    // is NOT a valid timestamp. For actual timestamps, the real time should be set on the system
+    // at some point using settimeofday (or something equivalent) and referenced thereof.
+    pub(crate) start_time: Instant,
 }
 
 #[derive(Error, Debug)]
@@ -168,15 +172,31 @@ fn get_model_without_namespace_prefix(full_model: &mut String) -> Result<String,
     Ok(model)
 }
 
+impl Default for LocalRobot {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LocalRobot {
     pub fn new() -> Self {
-        Default::default()
+        Self {
+            start_time: Instant::now(),
+            executor: Default::default(),
+            part_id: Default::default(),
+            resources: Default::default(),
+            build_time: Default::default(),
+            data_manager_collection_task: Default::default(),
+            data_manager_sync_task: Default::default(),
+            #[cfg(feature = "data")]
+            data_collector_configs: Default::default(),
+        }
     }
     // Inserts components in order of dependency. If a component's dependencies are not satisfied it is
     // temporarily skipped and sent to the end of the queue. This process repeats until all the components
     // are added (or a max number of iterations are reached, indicating a configuration error). We have not
     // selected the most time-efficient algorithm for solving this problem in order to minimize memory usage
-    fn process_components(
+    pub(crate) fn process_components(
         &mut self,
         mut components: Vec<Option<DynamicComponentConfig>>,
         mut registry: Box<ComponentRegistry>,
@@ -258,6 +278,7 @@ impl LocalRobot {
             data_collector_configs: vec![],
             data_manager_sync_task: None,
             data_manager_collection_task: None,
+            start_time: Instant::now(),
         };
 
         let components: Result<Vec<Option<DynamicComponentConfig>>, AttributeError> = config_resp
@@ -282,12 +303,12 @@ impl LocalRobot {
                 Ok(Some(mut data_manager)) => {
                     let _ = robot
                         .data_manager_sync_task
-                        .insert(Box::new(data_manager.get_sync_task()));
+                        .insert(Box::new(data_manager.get_sync_task(robot.start_time)));
 
                     let _ = robot
                         .data_manager_collection_task
                         .replace(robot.executor.spawn(async move {
-                            data_manager.data_collection_task().await;
+                            data_manager.data_collection_task(robot.start_time).await;
                         }));
                 }
                 Ok(None) => {}
@@ -883,29 +904,29 @@ impl Drop for LocalRobot {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::common::analog::AnalogReader;
-    use crate::common::board::Board;
-    use crate::common::config::{DynamicComponentConfig, Kind};
-    use crate::common::encoder::{Encoder, EncoderPositionType};
-    use crate::common::i2c::I2CHandle;
-    use crate::common::motor::Motor;
-    use crate::common::movement_sensor::MovementSensor;
-    use crate::common::robot::LocalRobot;
-    use crate::common::sensor::Readings;
-    #[cfg(feature = "esp32")]
-    use crate::esp32::exec::Esp32Executor;
-    use crate::google;
-    use crate::google::protobuf::Struct;
-    #[cfg(feature = "native")]
-    use crate::native::exec::NativeExecutor;
-    use crate::proto::app::v1::{ComponentConfig, ConfigResponse, RobotConfig};
+    use crate::{
+        common::{
+            analog::AnalogReader,
+            board::Board,
+            config::{DynamicComponentConfig, Kind},
+            encoder::{Encoder, EncoderPositionType},
+            i2c::I2CHandle,
+            motor::Motor,
+            movement_sensor::MovementSensor,
+            robot::LocalRobot,
+            sensor::Readings,
+        },
+        google::{self, protobuf::Struct},
+        proto::app::v1::{ComponentConfig, ConfigResponse, RobotConfig},
+    };
+
     #[cfg(feature = "data")]
     use {crate::common::data_collector::DataCollectorConfig, std::time::Duration};
 
     #[cfg(feature = "native")]
-    type Executor = NativeExecutor;
+    type Executor = crate::native::exec::NativeExecutor;
     #[cfg(feature = "esp32")]
-    type Executor = Esp32Executor;
+    type Executor = crate::esp32::exec::Esp32Executor;
 
     #[test_log::test]
     fn test_robot_from_components() {
@@ -995,6 +1016,14 @@ mod tests {
                     "fake_value".to_owned(),
                     Kind::StringValue("11.12".to_owned()),
                 )])),
+                ..Default::default()
+            }),
+            #[cfg(feature = "camera")]
+            Some(DynamicComponentConfig {
+                name: "camera".to_owned(),
+                namespace: "rdk".to_owned(),
+                r#type: "camera".to_owned(),
+                model: "rdk:builtin:fake".to_owned(),
                 ..Default::default()
             }),
             Some(DynamicComponentConfig {
@@ -1103,6 +1132,12 @@ mod tests {
                 "rdk:component:movement_sensor"
             );
             assert_eq!(collector.time_interval(), Duration::from_millis(10));
+        }
+
+        #[cfg(feature = "camera")]
+        {
+            let camera = robot.get_camera_by_name("camera".to_string());
+            assert!(camera.is_some());
         }
 
         let motor = robot.get_motor_by_name("motor".to_string());
