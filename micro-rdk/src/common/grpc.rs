@@ -242,7 +242,7 @@ where
             "/viam.component.motor.v1.MotorService/DoCommand" => self.motor_do_command(payload),
             "/viam.robot.v1.RobotService/ResourceNames" => self.resource_names(payload),
             "/viam.robot.v1.RobotService/GetStatus" => self.robot_status(payload),
-            "/viam.robot.v1.RobotService/GetOperations" => self.robot_get_oprations(payload),
+            "/viam.robot.v1.RobotService/GetOperations" => self.robot_get_operations(payload),
             "/proto.rpc.v1.AuthService/Authenticate" => self.auth_service_authentificate(payload),
             "/viam.component.sensor.v1.SensorService/GetReadings" => {
                 self.sensor_get_readings(payload)
@@ -1207,7 +1207,7 @@ where
 
     // robot_get_operations returns an empty response since operations are not yet
     // supported on micro-rdk
-    fn robot_get_oprations(&mut self, _: &[u8]) -> Result<(), ServerError> {
+    fn robot_get_operations(&mut self, _: &[u8]) -> Result<(), ServerError> {
         let operation = robot::v1::GetOperationsResponse::default();
         self.encode_message(operation)
     }
