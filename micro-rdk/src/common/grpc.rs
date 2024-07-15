@@ -1213,7 +1213,8 @@ where
         self.encode_message(operation)
     }
 
-    fn robot_shutdown(&mut self, _: &[u8]) -> Option<ServerError> { 
+    //cannot guarantee a response if shutdown is successful since robot will be restarting
+    fn robot_shutdown(&mut self, _: &[u8]) -> Result<(), ServerError> { 
         #[cfg(feature = "native")]
         std::process::exit(0);
         #[cfg(feature = "esp32")]
