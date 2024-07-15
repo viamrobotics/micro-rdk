@@ -243,6 +243,7 @@ where
             "/viam.robot.v1.RobotService/ResourceNames" => self.resource_names(payload),
             "/viam.robot.v1.RobotService/GetStatus" => self.robot_status(payload),
             "/viam.robot.v1.RobotService/GetOperations" => self.robot_get_operations(payload),
+            "/viam.robot.v1.RobotService/Shutdown" => self.robot_shutdown(payload),
             "/proto.rpc.v1.AuthService/Authenticate" => self.auth_service_authentificate(payload),
             "/viam.component.sensor.v1.SensorService/GetReadings" => {
                 self.sensor_get_readings(payload)
@@ -1210,6 +1211,16 @@ where
     fn robot_get_operations(&mut self, _: &[u8]) -> Result<(), ServerError> {
         let operation = robot::v1::GetOperationsResponse::default();
         self.encode_message(operation)
+    }
+
+    // robot_shutdown will not return anything because will restart
+    fn robot_shutdown(&mut self, _: &[u8]) -> ! {
+        #[cfg(feature = "native")]
+        std::process::exit(0);
+        #[cfg(feature = "esp32")]
+        unsafe {
+            crate::esp32::esp_idf_svc::sys::esp_restart();
+        }
     }
 
     fn robot_status(&mut self, message: &[u8]) -> Result<(), ServerError> {
