@@ -8,6 +8,10 @@ use super::errors::viam_code;
 #[allow(non_camel_case_types)]
 type hashmap_cstring_ptr_callback = extern "C" fn(*mut c_void, *const c_char, *const c_void);
 
+#[allow(non_camel_case_types)]
+type hashmap_cstring_ptr_destroy_callback =
+    Option<extern "C" fn(*mut c_void, *const c_char, *const c_void)>;
+
 /// An helper type which stores key value pairs where key is a Cstring and value
 /// is a pointer to user data
 #[allow(non_camel_case_types)]
@@ -36,7 +40,7 @@ pub extern "C" fn hashmap_cstring_ptr_new() -> *mut hashmap_cstring_ptr {
 pub unsafe extern "C" fn hashmap_cstring_ptr_destroy(
     ctx: *mut hashmap_cstring_ptr,
     user_data: *mut c_void,
-    callback: Option<hashmap_cstring_ptr_callback>,
+    callback: hashmap_cstring_ptr_destroy_callback,
 ) -> viam_code {
     if ctx.is_null() {
         return viam_code::VIAM_INVALID_ARG;

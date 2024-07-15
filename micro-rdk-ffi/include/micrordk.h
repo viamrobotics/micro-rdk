@@ -19,8 +19,6 @@ typedef enum viam_code {
   VIAM_REGISTRY_ERROR,
 } viam_code;
 
-typedef struct Option_hashmap_cstring_ptr_callback Option_hashmap_cstring_ptr_callback;
-
 typedef struct config_context config_context;
 
 typedef struct generic_c_sensor_config generic_c_sensor_config;
@@ -33,6 +31,8 @@ typedef struct get_readings_context get_readings_context;
 typedef struct hashmap_cstring_ptr hashmap_cstring_ptr;
 
 typedef struct viam_server_context viam_server_context;
+
+typedef void (*hashmap_cstring_ptr_destroy_callback)(void*, const char*, const void*);
 
 typedef void (*hashmap_cstring_ptr_callback)(void*, const char*, const void*);
 
@@ -69,7 +69,7 @@ struct hashmap_cstring_ptr *hashmap_cstring_ptr_new(void);
  */
 enum viam_code hashmap_cstring_ptr_destroy(struct hashmap_cstring_ptr *ctx,
                                            void *user_data,
-                                           struct Option_hashmap_cstring_ptr_callback callback);
+                                           hashmap_cstring_ptr_destroy_callback callback);
 
 /*
  Returns a previously stored value if it exists, otherwise returns a null pointer
