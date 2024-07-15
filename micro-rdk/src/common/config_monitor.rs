@@ -65,20 +65,19 @@ where
         app_client: &'c AppClient,
     ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'c>> {
         Box::pin(async move {
-            let (_app_client_config, new_config, _cfg_received_datetime) =
-                app_client.clone().get_config(None).await.unwrap();
-            match self.curr_config == *new_config {
-                true => Ok(Some(self.get_default_period())),
-                false => {
-                    if let Err(e) = self
-                        .storage
-                        .store_robot_configuration(new_config.config.unwrap())
-                    {
-                        log::warn!("Failed to store new robot configuration from app: {}", e);
+            if let Ok((_app_client_config, new_config, _cfg_received_datetime)) =
+                app_client.clone().get_config(None).await
+            {
+                if self.curr_config != *new_config {
+                    if let Some(config) = new_config.config {
+                        if let Err(e) = self.storage.store_robot_configuration(config) {
+                            log::warn!("Failed to store new robot configuration from app: {}", e);
+                        }
                     }
                     self.restart();
                 }
             }
+            Ok(Some(self.get_default_period()))
         })
     }
 }
