@@ -5,13 +5,6 @@ use std::{
     time::Duration,
 };
 
-use crate::esp32::esp_idf_svc::{
-    sys::camera::{
-        camera_config_t, camera_config_t__bindgen_ty_1, camera_config_t__bindgen_ty_2, camera_fb_t,
-        esp_camera_fb_get, esp_camera_fb_return, esp_camera_init,
-    },
-    systime::EspSystemTime,
-};
 use crate::{
     common::{
         camera::{Camera, CameraError, CameraType},
@@ -19,8 +12,13 @@ use crate::{
         registry::{ComponentRegistry, Dependency},
         status::{Status, StatusError},
     },
+    esp32::esp_idf_svc::sys::camera::{
+        camera_config_t, camera_config_t__bindgen_ty_1, camera_config_t__bindgen_ty_2, camera_fb_t,
+        esp_camera_fb_get, esp_camera_fb_return, esp_camera_init,
+    },
     google::{self, api::HttpBody},
     proto::component::camera,
+    systime::EspSystemTime,
 };
 use bytes::{Bytes, BytesMut};
 use log::*;
