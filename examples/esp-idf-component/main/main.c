@@ -1,18 +1,18 @@
+#include "esp_event.h"
+#include "esp_log.h"
+#include "esp_mac.h"
+#include "esp_random.h"
+#include "esp_system.h"
+#include "esp_wifi.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
+#include "freertos/task.h"
+#include "nvs_flash.h"
+#include "sdkconfig.h"
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "esp_mac.h"
-#include "esp_random.h"
-#include "sdkconfig.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/event_groups.h"
-#include "esp_system.h"
-#include "esp_wifi.h"
-#include "esp_event.h"
-#include "esp_log.h"
-#include "nvs_flash.h"
-#include <pthread.h>
 
 
 #ifdef CONFIG_MICRO_RDK_ENABLE_BUILD_LIBRARY
@@ -199,7 +199,7 @@ int get_readings_my_generic_sensorA(struct get_readings_context *ctx, void* data
 
   pthread_mutex_lock(&sensorA->hash_map_lock);
 
-  hashmap_cstring_ptr_iterate_over_keys(sensorA->hash_map, (void*)ctx, from_hash_map_add_readings);
+  hashmap_cstring_ptr_for_each_kv(sensorA->hash_map, (void*)ctx, from_hash_map_add_readings);
 
   get_readings_add_binary_blob(ctx, "an_int", (uint8_t*)&sensorA->an_int, sizeof(sensorA->an_int));
   get_readings_add_binary_blob(ctx, "an_int_from_config", (uint8_t*)&sensorA->an_int_from_config, sizeof(sensorA->an_int_from_config));

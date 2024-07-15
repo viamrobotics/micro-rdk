@@ -19,6 +19,8 @@ typedef enum viam_code {
   VIAM_REGISTRY_ERROR,
 } viam_code;
 
+typedef struct Option_hashmap_cstring_ptr_callback Option_hashmap_cstring_ptr_callback;
+
 typedef struct config_context config_context;
 
 typedef struct generic_c_sensor_config generic_c_sensor_config;
@@ -58,14 +60,16 @@ enum viam_code config_free_string(struct config_context*, char *ptr);
 enum viam_code config_get_i32(struct config_context *ctx, const char *key, int *out);
 
 /*
- Creates an new `hashmap_u32_ptr`
+ Creates an new `hashmap_ctsring_ptr`
  */
 struct hashmap_cstring_ptr *hashmap_cstring_ptr_new(void);
 
 /*
- Destroys an  `hashmap_u32_ptr`
+ Destroys an  `hashmap_cstring_ptr`
  */
-enum viam_code hashmap_cstring_ptr_destroy(struct hashmap_cstring_ptr *ctx);
+enum viam_code hashmap_cstring_ptr_destroy(struct hashmap_cstring_ptr *ctx,
+                                           void *user_data,
+                                           struct Option_hashmap_cstring_ptr_callback callback);
 
 /*
  Returns a previously stored value if it exists, otherwise returns a null pointer
@@ -75,12 +79,12 @@ const void *hashmap_cstring_ptr_get(struct hashmap_cstring_ptr *ctx, const char 
 /*
  Iterate through each key value pair calling callback on each pairs
  */
-void hashmap_cstring_ptr_iterate_over_keys(struct hashmap_cstring_ptr *ctx,
-                                           void *user_data,
-                                           hashmap_cstring_ptr_callback callback);
+void hashmap_cstring_ptr_for_each_kv(struct hashmap_cstring_ptr *ctx,
+                                     void *user_data,
+                                     hashmap_cstring_ptr_callback callback);
 
 /*
- Removes a previously stored value if it exists, otherwise returns a null pointer
+ Removes and returns a previously stored value if it exists, otherwise returns a null pointer
  */
 const void *hashmap_cstring_ptr_remove(struct hashmap_cstring_ptr *ctx, const char *key);
 
