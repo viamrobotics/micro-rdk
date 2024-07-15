@@ -1214,12 +1214,14 @@ where
     }
 
     //cannot guarantee a response if shutdown is successful since robot will be restarting
-    fn robot_shutdown(&mut self, _: &[u8]) -> Result<(), ServerError> { 
+    fn robot_shutdown(&mut self, _: &[u8]) -> Result<(), ServerError> {
         #[cfg(feature = "native")]
         std::process::exit(0);
         #[cfg(feature = "esp32")]
-        crate::esp32::esp_idf_svc::sys::esp_restart().take().unwrap();
-    } 
+        crate::esp32::esp_idf_svc::sys::esp_restart()
+            .take()
+            .unwrap();
+    }
 
     fn robot_status(&mut self, message: &[u8]) -> Result<(), ServerError> {
         let req = robot::v1::GetStatusRequest::decode(message)
