@@ -1,5 +1,9 @@
 // TODO this check is disabled but shouldn't
 #![allow(clippy::arc_with_non_send_sync)]
+// The linkage feature is experimental, so it only works for
+// the nightly channel, which we only use for ESP32 builds.
+// See common/data_manager.rs for why we use this feature at all.
+#![cfg_attr(feature = "data-upload-hook-unstable", feature(linkage))]
 
 pub mod common;
 

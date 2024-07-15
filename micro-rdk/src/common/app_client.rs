@@ -255,7 +255,7 @@ impl AppClient {
     // `last_reconfigured` values for resource statuses.
     pub async fn get_config(
         &mut self,
-        ip: Ipv4Addr,
+        ip: Option<Ipv4Addr>,
     ) -> Result<
         (
             AppClientConfig,
@@ -264,17 +264,17 @@ impl AppClient {
         ),
         AppClientError,
     > {
-        let agent = AgentInfo {
+        let agent = ip.map(|ip| AgentInfo {
             os: "esp32".to_string(),
             host: "esp32".to_string(),
             ips: vec![ip.to_string()],
             version: env!("CARGO_PKG_VERSION").to_string(),
             git_revision: "".to_string(),
             platform: Some("esp32".to_string()),
-        };
+        });
 
         let req = ConfigRequest {
-            agent_info: Some(agent),
+            agent_info: agent,
             id: self.config.robot_id.clone(),
         };
         let body = encode_request(req)?;

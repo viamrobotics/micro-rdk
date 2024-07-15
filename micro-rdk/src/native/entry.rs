@@ -3,6 +3,7 @@
 use crate::{
     common::{
         app_client::{AppClient, AppClientError},
+        config_monitor::ConfigMonitor,
         conn::{
             network::Network,
             server::{TlsClientConnector, ViamServerBuilder, WebRtcConfiguration},
@@ -19,6 +20,7 @@ use std::{
     net::SocketAddr,
     rc::Rc,
     sync::{Arc, Mutex},
+    time::Duration,
 };
 
 #[cfg(feature = "provisioning")]
@@ -65,7 +67,7 @@ pub async fn serve_web_inner<S>(
     );
 
     let (app_config, cfg_response, cfg_received_datetime) =
-        app_client.get_config(network.get_ip()).await.unwrap();
+        app_client.get_config(Some(network.get_ip())).await.unwrap();
 
     let robot = match repr {
         RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
@@ -126,6 +128,10 @@ pub async fn serve_web_inner<S>(
             .with_webrtc(webrtc)
             .with_app_client(app_client)
             .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| std::process::exit(0))))
+            .with_periodic_app_client_task(Box::new(ConfigMonitor::new(
+                || std::process::exit(0),
+                *(cfg_response.clone()),
+            )))
             .build(&cfg_response)
             .unwrap();
 
@@ -152,8 +158,6 @@ where
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
     <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
-    use std::time::Duration;
-
     use async_io::Timer;
 
     use crate::common::provisioning::server::serve_provisioning_async;

@@ -10,6 +10,7 @@ use std::{
 
 use crate::common::{
     app_client::{AppClient, AppClientError},
+    config_monitor::ConfigMonitor,
     conn::{
         mdns::NoMdns,
         network::Network,
@@ -80,7 +81,7 @@ pub async fn serve_web_inner<S>(
     let _tls_server_config = Esp32TLSServerConfig::new(tls_certs, serv_key, serv_key_len);
 
     let (app_config, cfg_response, cfg_received_datetime) =
-        app_client.get_config(network.get_ip()).await.unwrap();
+        app_client.get_config(Some(network.get_ip())).await.unwrap();
 
     if let Some(current_dt) = cfg_received_datetime.as_ref() {
         let tz = chrono_tz::Tz::UTC;
@@ -140,7 +141,6 @@ pub async fn serve_web_inner<S>(
     let dtls = Esp32DtlsBuilder::new(webrtc_certificate.clone());
 
     let cloned_exec = exec.clone();
-
     let webrtc = Box::new(WebRtcConfiguration::new(
         webrtc_certificate,
         dtls,
@@ -160,6 +160,10 @@ pub async fn serve_web_inner<S>(
     .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| unsafe {
         crate::esp32::esp_idf_svc::sys::esp_restart()
     })))
+    .with_periodic_app_client_task(Box::new(ConfigMonitor::new(
+        || unsafe { crate::esp32::esp_idf_svc::sys::esp_restart() },
+        *(cfg_response.clone()),
+    )))
     .build(&cfg_response)
     .unwrap();
 
@@ -173,7 +177,7 @@ pub async fn serve_web_inner<S>(
 
 // Four cases:
 // 1) No Robot Credentials + WiFi without external network
-// 2) No Robot Credentials with external network\
+// 2) No Robot Credentials with external network
 // 3) Robot Credentials with external network
 // 4) Robot Credentials + WiFi without external network
 // The function attempts to connect to the configured Wifi network if any, it then checks the robot credentials. If Wifi credentials are absent it starts provisioning mode

@@ -1,13 +1,13 @@
 [package]
 name = "{{project-name}}"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 authors = ["{{authors}}"]
 resolver = "2"
 rust-version = "1.75"
 
 [dependencies]
-micro-rdk = {git = "https://github.com/viamrobotics/micro-rdk.git", features = ["{{mcu}}"], version = "0.2.0", rev = "ad31cf1"}
+micro-rdk = {git = "https://github.com/viamrobotics/micro-rdk.git", features = ["{{mcu}}"], version = "0.2.1", rev = "deb0687"}
 
 [package.metadata.com.viam]
 module = true
