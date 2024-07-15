@@ -196,7 +196,7 @@ impl LocalRobot {
     // temporarily skipped and sent to the end of the queue. This process repeats until all the components
     // are added (or a max number of iterations are reached, indicating a configuration error). We have not
     // selected the most time-efficient algorithm for solving this problem in order to minimize memory usage
-    fn process_components(
+    pub(crate) fn process_components(
         &mut self,
         mut components: Vec<Option<DynamicComponentConfig>>,
         mut registry: Box<ComponentRegistry>,
@@ -904,29 +904,29 @@ impl Drop for LocalRobot {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::common::analog::AnalogReader;
-    use crate::common::board::Board;
-    use crate::common::config::{DynamicComponentConfig, Kind};
-    use crate::common::encoder::{Encoder, EncoderPositionType};
-    use crate::common::i2c::I2CHandle;
-    use crate::common::motor::Motor;
-    use crate::common::movement_sensor::MovementSensor;
-    use crate::common::robot::LocalRobot;
-    use crate::common::sensor::Readings;
-    #[cfg(feature = "esp32")]
-    use crate::esp32::exec::Esp32Executor;
-    use crate::google;
-    use crate::google::protobuf::Struct;
-    #[cfg(feature = "native")]
-    use crate::native::exec::NativeExecutor;
-    use crate::proto::app::v1::{ComponentConfig, ConfigResponse, RobotConfig};
+    use crate::{
+        common::{
+            analog::AnalogReader,
+            board::Board,
+            config::{DynamicComponentConfig, Kind},
+            encoder::{Encoder, EncoderPositionType},
+            i2c::I2CHandle,
+            motor::Motor,
+            movement_sensor::MovementSensor,
+            robot::LocalRobot,
+            sensor::Readings,
+        },
+        google::{self, protobuf::Struct},
+        proto::app::v1::{ComponentConfig, ConfigResponse, RobotConfig},
+    };
+
     #[cfg(feature = "data")]
     use {crate::common::data_collector::DataCollectorConfig, std::time::Duration};
 
     #[cfg(feature = "native")]
-    type Executor = NativeExecutor;
+    type Executor = crate::native::exec::NativeExecutor;
     #[cfg(feature = "esp32")]
-    type Executor = Esp32Executor;
+    type Executor = crate::esp32::exec::Esp32Executor;
 
     #[test_log::test]
     fn test_robot_from_components() {
@@ -1016,6 +1016,14 @@ mod tests {
                     "fake_value".to_owned(),
                     Kind::StringValue("11.12".to_owned()),
                 )])),
+                ..Default::default()
+            }),
+            #[cfg(feature = "camera")]
+            Some(DynamicComponentConfig {
+                name: "camera".to_owned(),
+                namespace: "rdk".to_owned(),
+                r#type: "camera".to_owned(),
+                model: "rdk:builtin:fake".to_owned(),
                 ..Default::default()
             }),
             Some(DynamicComponentConfig {
@@ -1124,6 +1132,12 @@ mod tests {
                 "rdk:component:movement_sensor"
             );
             assert_eq!(collector.time_interval(), Duration::from_millis(10));
+        }
+
+        #[cfg(feature = "camera")]
+        {
+            let camera = robot.get_camera_by_name("camera".to_string());
+            assert!(camera.is_some());
         }
 
         let motor = robot.get_motor_by_name("motor".to_string());

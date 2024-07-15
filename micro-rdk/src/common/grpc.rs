@@ -8,31 +8,31 @@ use std::{
 };
 
 use crate::{
-    common::analog::AnalogReader,
-    common::board::Board,
-    common::robot::LocalRobot,
+    common::{
+        analog::AnalogReader, board::Board, motor::Motor, robot::LocalRobot,
+        webrtc::grpc::WebRtcGrpcService,
+    },
     google::rpc::Status,
     proto::{self, component, robot},
 };
 use bytes::{BufMut, BytesMut};
 use futures_lite::{future, Future};
 use http_body_util::BodyExt;
-use hyper::body::{Body, Frame};
 use hyper::{
-    body::{self, Bytes},
+    body::{self, Body, Bytes, Frame},
     http::HeaderValue,
     service::Service,
     HeaderMap, Request, Response,
 };
 use log::*;
 use prost::Message;
-use std::cell::RefCell;
-use std::pin::Pin;
-use std::rc::Rc;
-use std::task::{Context, Poll};
+use std::{
+    cell::RefCell,
+    pin::Pin,
+    rc::Rc,
+    task::{Context, Poll},
+};
 use thiserror::Error;
-
-use super::{motor::Motor, webrtc::grpc::WebRtcGrpcService};
 
 #[cfg(feature = "camera")]
 static GRPC_BUFFER_SIZE: usize = 1024 * 30; // 30KB

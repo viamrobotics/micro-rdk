@@ -30,8 +30,8 @@ pub enum CameraError {
 }
 
 pub trait Camera: Status + DoCommand {
-    /// returns an image from a camera of the underlying robot. A specific MIME type
-    /// can be requested but may not necessarily be the same one returned
+    /// Returns a structured image response from a camera of the underlying robot.
+    /// A specific MIME type can be requested but may not necessarily be the same one returned
     fn get_image(&mut self, _buffer: BytesMut) -> Result<BytesMut, CameraError> {
         Err(CameraError::CameraMethodUnimplemented("get_image"))
     }
@@ -69,5 +69,26 @@ where
     }
     fn render_frame(&mut self, buffer: BytesMut) -> Result<BytesMut, CameraError> {
         self.get_mut().unwrap().render_frame(buffer)
+    }
+}
+
+impl<L> Camera for Arc<Mutex<L>>
+where
+    L: ?Sized + Camera,
+{
+    fn get_image(&mut self, buffer: BytesMut) -> Result<BytesMut, CameraError> {
+        self.lock().unwrap().get_image(buffer)
+    }
+    fn get_images(&mut self, buffer: BytesMut) -> Result<BytesMut, CameraError> {
+        self.lock().unwrap().get_images(buffer)
+    }
+    fn get_point_cloud(&mut self, buffer: BytesMut) -> Result<BytesMut, CameraError> {
+        self.lock().unwrap().get_point_cloud(buffer)
+    }
+    fn get_properties(&mut self, buffer: BytesMut) -> Result<BytesMut, CameraError> {
+        self.lock().unwrap().get_properties(buffer)
+    }
+    fn render_frame(&mut self, buffer: BytesMut) -> Result<BytesMut, CameraError> {
+        self.lock().unwrap().render_frame(buffer)
     }
 }
