@@ -161,9 +161,9 @@ pub async fn serve_web_inner<S>(
         crate::esp32::esp_idf_svc::sys::esp_restart()
     })))
     .with_periodic_app_client_task(Box::new(ConfigMonitor::new(
-        || unsafe { crate::esp32::esp_idf_svc::sys::esp_restart() },
         *(cfg_response.clone()),
         storage.clone(),
+        || unsafe { crate::esp32::esp_idf_svc::sys::esp_restart() },
     )))
     .build(&cfg_response)
     .unwrap();

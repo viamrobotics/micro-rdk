@@ -17,9 +17,9 @@ where
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
     <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
-    restart_hook: Option<Box<dyn FnOnce() + 'a>>,
     curr_config: ConfigResponse, //config for robot gotten from last robot startup, aka inputted from entry
     storage: S,
+    restart_hook: Option<Box<dyn FnOnce() + 'a>>,
 }
 
 impl<'a, S> ConfigMonitor<'a, S>
@@ -29,11 +29,11 @@ where
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
     <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
-    pub fn new(restart_hook: impl FnOnce() + 'a, curr_config: ConfigResponse, storage: S) -> Self {
+    pub fn new(curr_config: ConfigResponse, storage: S, restart_hook: impl FnOnce() + 'a) -> Self {
         Self {
-            restart_hook: Some(Box::new(restart_hook)),
             curr_config,
             storage,
+            restart_hook: Some(Box::new(restart_hook)),
         }
     }
 
