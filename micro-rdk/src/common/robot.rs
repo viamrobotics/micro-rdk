@@ -618,7 +618,14 @@ impl LocalRobot {
                         });
                     }
                     #[cfg(feature = "camera")]
-                    _ => continue,
+                    ResourceType::Camera(b) => {
+                        let status = b.get_status()?;
+                        vec.push(robot::v1::Status {
+                            name: Some(name.clone()),
+                            last_reconfigured: last_reconfigured_proto.clone(),
+                            status,
+                        });
+                    }
                 };
             }
             return Ok(vec);
@@ -702,7 +709,14 @@ impl LocalRobot {
                             });
                         }
                         #[cfg(feature = "camera")]
-                        _ => continue,
+                        ResourceType::Camera(b) => {
+                            let status = b.get_status()?;
+                            vec.push(robot::v1::Status {
+                                name: Some(name),
+                                last_reconfigured: last_reconfigured_proto.clone(),
+                                status,
+                            });
+                        }
                     };
                 }
                 None => continue,
@@ -1018,7 +1032,7 @@ mod tests {
                 )])),
                 ..Default::default()
             }),
-            #[cfg(feature = "camera")]
+            #[cfg(all(feature = "camera", feature = "builtin-components"))]
             Some(DynamicComponentConfig {
                 name: "camera".to_owned(),
                 namespace: "rdk".to_owned(),
@@ -1134,7 +1148,7 @@ mod tests {
             assert_eq!(collector.time_interval(), Duration::from_millis(10));
         }
 
-        #[cfg(feature = "camera")]
+        #[cfg(all(feature = "camera", feature = "builtin-components"))]
         {
             let camera = robot.get_camera_by_name("camera".to_string());
             assert!(camera.is_some());
