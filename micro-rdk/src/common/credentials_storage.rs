@@ -1,13 +1,10 @@
 #![allow(dead_code)]
 use std::{convert::Infallible, error::Error, fmt::Debug, rc::Rc, sync::Mutex};
 
-use crate::{
-    common::grpc::ServerError,
-    proto::{
-        app::v1::RobotConfig,
-        provisioning::v1::{CloudConfig, SetNetworkCredentialsRequest},
-    },
-};
+use crate::{common::grpc::ServerError, proto::app::v1::RobotConfig};
+
+#[cfg(feature = "provisioning")]
+use crate::proto::provisioning::v1::{CloudConfig, SetNetworkCredentialsRequest};
 
 #[derive(Clone, Default, Debug)]
 pub struct RobotCredentials {
@@ -32,6 +29,7 @@ impl RobotCredentials {
     }
 }
 
+#[cfg(feature = "provisioning")]
 impl From<SetNetworkCredentialsRequest> for WifiCredentials {
     fn from(value: SetNetworkCredentialsRequest) -> Self {
         Self {
@@ -41,6 +39,7 @@ impl From<SetNetworkCredentialsRequest> for WifiCredentials {
     }
 }
 
+#[cfg(feature = "provisioning")]
 impl From<CloudConfig> for RobotCredentials {
     fn from(value: CloudConfig) -> Self {
         // TODO: make ticket : ignore app_address for now but need to add it later
@@ -51,6 +50,7 @@ impl From<CloudConfig> for RobotCredentials {
     }
 }
 
+#[cfg(feature = "provisioning")]
 impl From<RobotCredentials> for CloudConfig {
     fn from(value: RobotCredentials) -> Self {
         Self {
@@ -90,6 +90,7 @@ pub trait WifiCredentialStorage {
 pub trait RobotConfigurationStorage {
     type Error: Error + Debug + Into<ServerError>;
     fn has_robot_credentials(&self) -> bool;
+    #[cfg(feature = "provisioning")]
     fn store_robot_credentials(&self, cfg: CloudConfig) -> Result<(), Self::Error>;
     fn get_robot_credentials(&self) -> Result<RobotCredentials, Self::Error>;
     fn reset_robot_credentials(&self) -> Result<(), Self::Error>;
@@ -135,6 +136,7 @@ impl RobotConfigurationStorage for RAMStorage {
         let inner_ref = self.0.lock().unwrap();
         inner_ref.robot_creds.is_some()
     }
+    #[cfg(feature = "provisioning")]
     fn store_robot_credentials(&self, cfg: CloudConfig) -> Result<(), Self::Error> {
         let creds: RobotCredentials = cfg.into();
         let mut inner_ref = self.0.lock().unwrap();

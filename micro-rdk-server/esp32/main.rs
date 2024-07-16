@@ -58,10 +58,10 @@ mod esp32 {
         // then the entire provisioning step can be skipped
         #[cfg(has_robot_config)]
         {
-            use micro_rdk::common::provisioning::storage::RobotConfigurationStorage;
-            use micro_rdk::common::provisioning::storage::RobotCredentials;
-            use micro_rdk::common::provisioning::storage::WifiCredentialStorage;
-            use micro_rdk::common::provisioning::storage::WifiCredentials;
+            use micro_rdk::common::credentials_storage::RobotConfigurationStorage;
+            use micro_rdk::common::credentials_storage::RobotCredentials;
+            use micro_rdk::common::credentials_storage::WifiCredentialStorage;
+            use micro_rdk::common::credentials_storage::WifiCredentials;
 
             log::warn!("Unconditionally using build-time WiFi and robot configuration");
 

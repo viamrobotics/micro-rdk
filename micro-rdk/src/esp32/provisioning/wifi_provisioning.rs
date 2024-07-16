@@ -13,9 +13,9 @@ use std::{cell::RefCell, ffi::c_void, net::Ipv4Addr};
 use thiserror::Error;
 
 use crate::{
-    common::provisioning::{
-        server::{NetworkInfo, WifiManager},
-        storage::WifiCredentialStorage,
+    common::{
+        credentials_storage::WifiCredentialStorage,
+        provisioning::server::{NetworkInfo, WifiManager},
     },
     esp32::conn::network::esp32_get_wifi,
 };

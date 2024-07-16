@@ -35,7 +35,7 @@ use futures_util::lock::Mutex;
 use once_cell::sync::OnceCell;
 
 use crate::{
-    common::provisioning::storage::WifiCredentials,
+    common::credentials_storage::WifiCredentials,
     esp32::esp_idf_svc::{
         eth::{BlockingEth, EspEth, OpenEth},
         sys::EspError,
