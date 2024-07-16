@@ -1,18 +1,18 @@
 [template]
 cargo_generate_version = ">=0.10.0"
 ignore = [".git","README.md"]
-description = "Micro-Rdk template"
+description = "Micro-RDK template"
 
 [placeholders.mcu]
 type = "string"
 prompt = "MCU"
 choices = ["esp32"]
-default = "esp32" 
+default = "esp32"
 
 [placeholders.camera]
 type = "bool"
 prompt = "include camera module and traits?"
-default = false 
+default = false
 
 [conditional.'camera == false']
 ignore = [ "bindings.h" ]

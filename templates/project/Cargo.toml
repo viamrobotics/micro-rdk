@@ -30,6 +30,13 @@ futures-lite = "1"
 cargo_metadata = "0.18"
 embuild = "0.29"
 
+[package.metadata.esp-idf-sys]
+esp_idf_version = "v4.4.4"
+esp_idf_tools_install_dir = "global"
+esp_idf_sdkconfig_defaults = [
+  "sdkconfig.defaults",
+]
+
 {% if camera == "true" %}
 [[package.metadata.esp-idf-sys.extra_components]]
 remote_component = { name = "espressif/esp32-camera", version = "2.0.9"}
