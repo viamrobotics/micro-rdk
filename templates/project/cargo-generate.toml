@@ -8,3 +8,11 @@ type = "string"
 prompt = "MCU"
 choices = ["esp32"]
 default = "esp32" 
+
+[placeholders.camera]
+type = "bool"
+prompt = "include camera?"
+default = false 
+
+[conditional.'camera == "false"']
+ignore = [ "bindings.h" ]

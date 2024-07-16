@@ -25,3 +25,10 @@ micro-rdk = {version = "0.2.3", git = "https://github.com/viamrobotics/micro-rdk
 [build-dependencies]
 cargo_metadata = "0.18"
 embuild = "0.29"
+
+{% if camera == "true" %}
+[[package.metadata.esp-idf-sys.extra_components]]
+remote_component = { name = "espressif/esp32-camera", version = "2.0.9"}
+bindings_module = "camera"
+bindings_header = "bindings.h"
+{% endif %}
