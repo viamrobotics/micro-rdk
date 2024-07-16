@@ -77,7 +77,7 @@ impl Status for FakeCamera {
     }
 }
 
-#[cfg(feature = "native")]
+#[cfg(all(test, feature = "native"))]
 mod tests {
     use std::{
         convert::Infallible,
