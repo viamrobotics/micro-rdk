@@ -20,7 +20,7 @@ embedded-hal = { version = "0.2.7", features = ["unproven"]}
 log = "0.4"
 async-channel = "2"
 futures-lite = "1"
-micro-rdk = {version = "0.2.2", git = "https://github.com/viamrobotics/micro-rdk.git", features = ["esp32", "binstart","provisioning"], rev = "deb0687" }
+micro-rdk = {version = "0.2.2", git = "https://github.com/viamrobotics/micro-rdk.git", features = ["esp32", "binstart","provisioning"], rev = "a1863c9" }
 
 [build-dependencies]
 cargo_metadata = "0.18"
