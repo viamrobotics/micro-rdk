@@ -162,12 +162,6 @@ impl Esp32Camera {
     fn get_frame(&mut self) -> Result<Esp32CameraFrameBuffer, CameraError> {
         self.last_grab = Instant::now();
         let frame = Esp32CameraFrameBuffer::get().ok_or_else(|| CameraError::FailedToGetImage)?;
-        log::info!(
-            "width: {} - height: {} - pixformat: {}",
-            frame.width(),
-            frame.height(),
-            frame.format()
-        );
         Ok(frame)
     }
 }
