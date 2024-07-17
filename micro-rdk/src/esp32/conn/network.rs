@@ -109,7 +109,7 @@ impl Esp32WifiNetwork {
                 if let Err(e) = esp_idf_svc::sys::esp!(unsafe {
                     esp_wifi_set_config(esp_interface_t_ESP_IF_WIFI_STA, &mut sta_config as *mut _)
                 }) {
-                    log::warn!("couldn't update wifi station config {:?}", e);
+                    log::warn!("couldn't update wifi station scan/sort config {:?}", e);
                 }
             }
             Err(e) => {
