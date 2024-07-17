@@ -14,5 +14,5 @@ type = "bool"
 prompt = "include camera?"
 default = false 
 
-[conditional.'camera == "false"']
+[conditional.'camera == false']
 ignore = [ "bindings.h" ]
