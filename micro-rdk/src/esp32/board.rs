@@ -70,7 +70,7 @@ impl EspBoard {
         let (analogs, mut pins, i2c_confs) = {
             let analogs =
                 if let Ok(analogs) = cfg.get_attribute::<Vec<AnalogReaderConfig>>("analogs") {
-                    let analogs: Vec<AnalogReaderType<u16>> = analogs
+                    let analogs: Result<Vec<AnalogReaderType<u16>>, BoardError> = analogs
                         .iter()
                         .filter_map(|v| {
                             let adc1 = Arc::new(Mutex::new(
@@ -80,7 +80,7 @@ impl EspBoard {
                                 )
                                 .ok()?,
                             ));
-                            let chan: AnalogReaderType<u16> = match v.pin {
+                            let chan: Result<AnalogReaderType<u16>, BoardError> = match v.pin {
                                 32 => {
                                     let p: AnalogReaderType<u16> =
                                         Arc::new(Mutex::new(Esp32AnalogReader::new(
@@ -91,7 +91,7 @@ impl EspBoard {
                                             .ok()?,
                                             adc1,
                                         )));
-                                    Some(p)
+                                    Ok(p)
                                 }
                                 33 => {
                                     let p: AnalogReaderType<u16> =
@@ -103,7 +103,7 @@ impl EspBoard {
                                             .ok()?,
                                             adc1,
                                         )));
-                                    Some(p)
+                                    Ok(p)
                                 }
                                 34 => {
                                     let p: AnalogReaderType<u16> =
@@ -115,7 +115,7 @@ impl EspBoard {
                                             .ok()?,
                                             adc1,
                                         )));
-                                    Some(p)
+                                    Ok(p)
                                 }
                                 35 => {
                                     let p: AnalogReaderType<u16> =
@@ -127,7 +127,7 @@ impl EspBoard {
                                             .ok()?,
                                             adc1,
                                         )));
-                                    Some(p)
+                                    Ok(p)
                                 }
                                 36 => {
                                     let p: AnalogReaderType<u16> =
@@ -139,7 +139,7 @@ impl EspBoard {
                                             .ok()?,
                                             adc1,
                                         )));
-                                    Some(p)
+                                    Ok(p)
                                 }
                                 37 => {
                                     let p: AnalogReaderType<u16> =
@@ -151,7 +151,7 @@ impl EspBoard {
                                             .ok()?,
                                             adc1,
                                         )));
-                                    Some(p)
+                                    Ok(p)
                                 }
                                 38 => {
                                     let p: AnalogReaderType<u16> =
@@ -163,7 +163,7 @@ impl EspBoard {
                                             .ok()?,
                                             adc1,
                                         )));
-                                    Some(p)
+                                    Ok(p)
                                 }
                                 39 => {
                                     let p: AnalogReaderType<u16> =
@@ -175,20 +175,22 @@ impl EspBoard {
                                             .ok()?,
                                             adc1,
                                         )));
-                                    Some(p)
+                                    Ok(p)
                                 }
                                 _ => {
                                     log::error!("pin {} is not an ADC1 pin", v.pin);
-                                    None
+                                    Err(BoardError::GpioPinError(
+                                        v.pin as u32,
+                                        "pin {} is not an ADC1 pin",
+                                    ))
                                 }
-                            }?;
-
+                            };
                             Some(chan)
                         })
                         .collect();
                     analogs
                 } else {
-                    vec![]
+                    Ok(vec![])
                 };
             let pins = if let Ok(pins) = cfg.get_attribute::<Vec<i32>>("pins") {
                 pins.iter()
@@ -212,6 +214,11 @@ impl EspBoard {
                 vec![]
             };
             (analogs, pins, i2c_confs)
+        };
+        //return BoardError if non-analog pin is configured as an analog pin
+        let analogs = match analogs {
+            Err(e) => return Err(e),
+            Ok(v) => v,
         };
         let mut i2cs = HashMap::new();
         for conf in i2c_confs.iter() {
