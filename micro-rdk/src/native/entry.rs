@@ -2,14 +2,13 @@
 
 use crate::{
     common::{
-        app_client::{AppClient, AppClientError},
+        app_client::AppClient,
         config_monitor::ConfigMonitor,
         conn::{
             network::Network,
             server::{TlsClientConnector, ViamServerBuilder, WebRtcConfiguration},
         },
-        entry::{validate_robot_credentials, RobotRepresentation},
-        grpc_client::GrpcClientError,
+        entry::RobotRepresentation,
         log::config_log_entry,
         restart_monitor::RestartMonitor,
         robot::LocalRobot,
@@ -26,16 +25,17 @@ use std::{
 #[cfg(feature = "provisioning")]
 use crate::{
     common::{
-        grpc::ServerError,
-        provisioning::{
-            server::ProvisioningInfo,
-            storage::{RobotConfigurationStorage, WifiCredentialStorage},
-        },
+        app_client::AppClientError, entry::validate_robot_credentials,
+        grpc_client::GrpcClientError, provisioning::server::ProvisioningInfo,
     },
     proto::app::v1::ConfigResponse,
 };
 
-#[cfg(feature = "provisioning")]
+use crate::common::{
+    credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage},
+    grpc::ServerError,
+};
+
 use std::fmt::Debug;
 
 use super::{
@@ -146,7 +146,7 @@ pub async fn serve_web_inner<S>(
 #[cfg(feature = "provisioning")]
 async fn serve_async_with_external_network<S>(
     exec: NativeExecutor,
-    info: Option<ProvisioningInfo>,
+    #[cfg(feature = "provisioning")] info: Option<ProvisioningInfo>,
     storage: S,
     mut repr: RobotRepresentation,
     network: impl Network,
@@ -163,10 +163,11 @@ where
     use crate::common::provisioning::server::serve_provisioning_async;
 
     let mut client_connector = NativeTls::new_client();
+    #[cfg(feature = "provisioning")]
     let info = info.unwrap_or_default();
     let mut last_error: Option<Box<dyn std::error::Error>> = None;
 
-    let app_client = 'provisioned: loop {
+    let app_client = 'app_connection: loop {
         if storage.has_robot_credentials() {
             log::info!("Found cached robot credentials; attempting to serve");
 
@@ -212,7 +213,7 @@ where
                 {
                     Ok(app_client) => {
                         log::info!("Robot credentials validated OK");
-                        break 'provisioned app_client;
+                        break 'app_connection app_client;
                     }
                     Err(e) => {
                         if let Some(app_client_error) = e.downcast_ref::<AppClientError>() {
@@ -231,9 +232,14 @@ where
                                     log::error!("couldn't erase robot configuration {:?}", e);
                                 }
 
-                                // Record the last error so that we can serve it once we reach provisioning.
-                                let _ = last_error.insert(e);
-                                break;
+                                #[cfg(feature = "provisioning")]
+                                {
+                                    // Record the last error so that we can serve it once we reach provisioning.
+                                    let _ = last_error.insert(e);
+                                    break;
+                                }
+                                #[cfg(not(feature = "provisioning"))]
+                                return Err(e);
                             }
                         }
 
@@ -246,19 +252,22 @@ where
             }
         }
 
-        log::warn!("Entering provisioning...");
-        let mut mdns = NativeMdns::new("".to_owned(), network.get_ip()).unwrap();
-        if let Err(e) = serve_provisioning_async::<_, (), _>(
-            exec.clone(),
-            info.clone(),
-            storage.clone(),
-            last_error.take(),
-            None,
-            &mut mdns,
-        )
-        .await
+        #[cfg(feature = "provisioning")]
         {
-            let _ = last_error.insert(e);
+            log::warn!("Entering provisioning...");
+            let mut mdns = NativeMdns::new("".to_owned(), network.get_ip()).unwrap();
+            if let Err(e) = serve_provisioning_async::<_, (), _>(
+                exec.clone(),
+                info.clone(),
+                storage.clone(),
+                last_error.take(),
+                None,
+                &mut mdns,
+            )
+            .await
+            {
+                let _ = last_error.insert(e);
+            }
         }
     };
     serve_web_inner(
@@ -274,6 +283,7 @@ where
     Ok(())
 }
 
+#[cfg(feature = "provisioning")]
 pub fn serve_web_with_external_network<S>(
     info: Option<ProvisioningInfo>,
     repr: RobotRepresentation,
