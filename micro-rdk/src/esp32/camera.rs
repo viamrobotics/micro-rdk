@@ -26,7 +26,7 @@ use bytes::{Bytes, BytesMut};
 use prost::Message;
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
-        .register_camera("esp32camera", &Esp32Camera::from_config)
+        .register_camera("rdk:builtin:esp32-camera", &Esp32Camera::from_config)
         .is_err()
     {
         log::error!("esp32camera type is already registered");
@@ -109,7 +109,7 @@ impl Esp32Camera {
         let ledc_channel = cfg.get_attribute::<u32>("ledc_channel").unwrap_or(1);
         let frame_size = cfg
             .get_attribute::<u32>("frame_size")
-            .unwrap_or(FrameSize::W240XH240 as u32);
+            .unwrap_or(FrameSize::QVGA as u32);
         // Quality of JPEG output: 0-63 lower means higher quality
         let jpeg_quality = cfg.get_attribute::<i32>("jpeg_quality").unwrap_or(32);
         //  If pin_sccb_sda is -1, use the already configured I2C bus by number
@@ -149,6 +149,17 @@ impl Esp32Camera {
                 sccb_i2c_port,
             },
         };
+
+        /*
+        unsafe {
+            let sensor = esp_camera_sensor_get();
+            if (*sensor).id.PID == 0x3660 {
+                (*sensor).set_vflip.unwrap()(sensor, 1); // inverted by default, flip upright
+                (*sensor).set_brightness.unwrap()(sensor, 1); // increase brightness
+                (*sensor).set_saturation.unwrap()(sensor, -2); // reduce saturation
+            }
+        }
+        */
 
         esp!(unsafe { esp_camera_init(&cam.config) })
             .map_err(|e| CameraError::InitError(Box::new(e)))?;
