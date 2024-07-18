@@ -150,17 +150,6 @@ impl Esp32Camera {
             },
         };
 
-        /*
-        unsafe {
-            let sensor = esp_camera_sensor_get();
-            if (*sensor).id.PID == 0x3660 {
-                (*sensor).set_vflip.unwrap()(sensor, 1); // inverted by default, flip upright
-                (*sensor).set_brightness.unwrap()(sensor, 1); // increase brightness
-                (*sensor).set_saturation.unwrap()(sensor, -2); // reduce saturation
-            }
-        }
-        */
-
         esp!(unsafe { esp_camera_init(&cam.config) })
             .map_err(|e| CameraError::InitError(Box::new(e)))?;
         Ok(Arc::new(Mutex::new(cam)))
