@@ -107,9 +107,6 @@ impl Esp32Camera {
             .unwrap_or(20_000_000);
         let ledc_timer = cfg.get_attribute::<u32>("ledc_timer").unwrap_or(1);
         let ledc_channel = cfg.get_attribute::<u32>("ledc_channel").unwrap_or(1);
-        // let pixel_format = cfg
-        //     .get_attribute::<u32>("pixel_format")
-        //     .unwrap_or(PixelFormat::JPEG as u32);
         let frame_size = cfg
             .get_attribute::<u32>("frame_size")
             .unwrap_or(FrameSize::W240XH240 as u32);
@@ -117,11 +114,6 @@ impl Esp32Camera {
         let jpeg_quality = cfg.get_attribute::<i32>("jpeg_quality").unwrap_or(32);
         //  If pin_sccb_sda is -1, use the already configured I2C bus by number
         let sccb_i2c_port = cfg.get_attribute::<i32>("sccb_i2c_port").unwrap_or(0);
-        // Number of frame buffers to be allocated.
-        // If more than one, then each frame will be acquired (double speed)
-        // when pixel_format == jpeg, fb_count > 1 goes to continuous mode, may need to adjust
-        // xclk_freq_hz down to 10_000_000.
-        let fb_count = cfg.get_attribute::<i32>("fb_count").unwrap_or(1);
 
         let cam = Self {
             config: camera_config_t {
@@ -147,7 +139,11 @@ impl Esp32Camera {
                 pixel_format: PixelFormat::JPEG as u32,
                 frame_size,
                 jpeg_quality,
-                fb_count,
+                // Number of frame buffers to be allocated.
+                // If more than one, then each frame will be acquired (double speed)
+                // when pixel_format == jpeg, fb_count > 1 goes to continuous mode, may need to adjust
+                // xclk_freq_hz down to 10_000_000.
+                fb_count: 1,
                 grab_mode: 0,
                 fb_location: 0,
                 sccb_i2c_port,
