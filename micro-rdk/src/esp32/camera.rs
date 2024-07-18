@@ -18,7 +18,7 @@ use crate::{
             camera_fb_t, esp_camera_deinit, esp_camera_fb_get, esp_camera_fb_return,
             esp_camera_init,
         },
-        EspError,
+        esp,
     },
     google::{self, api::HttpBody},
     proto::component::camera,
@@ -115,11 +115,7 @@ impl Esp32Camera {
             .unwrap_or(FrameSize::W240XH240 as u32);
         // Quality of JPEG output: 0-63 lower means higher quality
         let jpeg_quality = cfg.get_attribute::<i32>("jpeg_quality").unwrap_or(32);
-        // Number of frame buffers to be allocated. If more than one, then each frame will be acquired (double speed)
-        let fb_count = cfg.get_attribute::<u32>("fb_count").unwrap_or(1) as usize;
-        let grab_mode = cfg.get_attribute::<u32>("grab_mode").unwrap_or(0);
-        let fb_location = cfg.get_attribute::<u32>("fb_location").unwrap_or(0);
-        let sccb_i2c_port = cfg.get_attribute::<i32>("sccb_i2c_port").unwrap_or(0);
+        // let sccb_i2c_port = cfg.get_attribute::<i32>("sccb_i2c_port").unwrap_or(0);
 
         let cam = Self {
             config: camera_config_t {
@@ -145,61 +141,57 @@ impl Esp32Camera {
                 pixel_format,
                 frame_size,
                 jpeg_quality,
-                fb_count,
-                grab_mode,
-                fb_location,
-                sccb_i2c_port,
+                // Number of frame buffers to be allocated.
+                // If more than one, then each frame will be acquired (double speed)
+                fb_count: 1,
+                grab_mode: 0,
+                fb_location: 0,
+                sccb_i2c_port: -1,
             },
             last_grab: Instant::now(),
         };
 
-        let ret =
-            (unsafe { esp_camera_init(&cam.config) }) as crate::esp32::esp_idf_svc::sys::esp_err_t;
-        EspError::convert(ret).map_err(|e| CameraError::InitError(e.into()))?;
+        esp!(unsafe { esp_camera_init(&cam.config) })
+            .map_err(|e| CameraError::InitError(Box::new(e)))?;
         Ok(Arc::new(Mutex::new(cam)))
     }
 
     fn get_frame(&mut self) -> Result<Esp32CameraFrameBuffer, CameraError> {
         self.last_grab = Instant::now();
-        let frame = Esp32CameraFrameBuffer::get().ok_or_else(|| CameraError::FailedToGetImage)?;
-        Ok(frame)
+        Esp32CameraFrameBuffer::get().ok_or(CameraError::FailedToGetImage)
     }
 }
 
 impl Camera for Esp32Camera {
     fn get_image(&mut self, mut buffer: BytesMut) -> Result<BytesMut, CameraError> {
-        if let Ok(frame) = self.get_frame() {
-            if frame.len() > buffer.capacity() {
-                return Err(CameraError::ImageTooBig);
-            }
-            self.last_grab = Instant::now();
-            let msg = camera::v1::GetImageResponse {
-                mime_type: "image/jpeg".to_string(),
-                image: unsafe { frame.as_bytes() },
-            };
-            // safety: message must be encoded before the frame is dropped from scope
-            msg.encode(&mut buffer).unwrap();
-
-            return Ok(buffer);
+        let frame = self.get_frame()?;
+        if frame.len() > buffer.capacity() {
+            return Err(CameraError::ImageTooBig);
         }
-        Err(CameraError::FailedToGetImage)
+        self.last_grab = Instant::now();
+        let msg = camera::v1::GetImageResponse {
+            mime_type: "image/jpeg".to_string(),
+            image: frame.as_bytes(),
+        };
+        // safety: message must be encoded before the frame is dropped from scope
+        msg.encode(&mut buffer).unwrap();
+
+        return Ok(buffer);
     }
 
     fn render_frame(&mut self, mut buffer: BytesMut) -> Result<BytesMut, CameraError> {
-        if let Ok(frame) = self.get_frame() {
-            if frame.len() > buffer.capacity() {
-                return Err(CameraError::ImageTooBig);
-            }
-            let msg = HttpBody {
-                content_type: "image/jpeg".to_string(),
-                data: unsafe { frame.as_bytes().to_vec() },
-                ..Default::default()
-            };
-            // safety: message must be encoded before the frame is dropped from scope
-            msg.encode(&mut buffer).unwrap();
-            return Ok(buffer);
+        let frame = self.get_frame()?;
+        if frame.len() > buffer.capacity() {
+            return Err(CameraError::ImageTooBig);
         }
-        Err(CameraError::FailedToGetImage)
+        let msg = HttpBody {
+            content_type: "image/jpeg".to_string(),
+            data: frame.as_bytes().to_vec(),
+            ..Default::default()
+        };
+        // safety: message must be encoded before the frame is dropped from scope
+        msg.encode(&mut buffer).unwrap();
+        return Ok(buffer);
     }
 }
 
@@ -249,10 +241,10 @@ impl Esp32CameraFrameBuffer {
     fn format(&self) -> u32 {
         unsafe { (*(self.0)).format }
     }
-    unsafe fn buf(&self) -> *const u8 {
-        (*(self.0)).buf
+    fn buf(&self) -> *const u8 {
+        unsafe { (*(self.0)).buf }
     }
-    unsafe fn as_bytes(self) -> Bytes {
+    fn as_bytes(self) -> Bytes {
         let buf = unsafe { core::slice::from_raw_parts(self.buf(), self.len()) };
         Bytes::from(buf)
     }
