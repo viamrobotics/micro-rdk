@@ -40,10 +40,3 @@ cbindgen.workspace = true
 embuild.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-
-[package.metadata.esp-idf-sys]
-esp_idf_tools_install_dir = "global"
-esp_idf_sdkconfig_defaults = [
-  "micro-rdk-server/sdkconfig.defaults",
-  "micro-rdk-server/sdkconfig.defaults.esp32"
-]
