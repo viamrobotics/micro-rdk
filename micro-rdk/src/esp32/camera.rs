@@ -107,9 +107,9 @@ impl Esp32Camera {
             .unwrap_or(20_000_000);
         let ledc_timer = cfg.get_attribute::<u32>("ledc_timer").unwrap_or(1);
         let ledc_channel = cfg.get_attribute::<u32>("ledc_channel").unwrap_or(1);
-        let pixel_format = cfg
-            .get_attribute::<u32>("pixel_format")
-            .unwrap_or(PixelFormat::JPEG as u32);
+        // let pixel_format = cfg
+        //     .get_attribute::<u32>("pixel_format")
+        //     .unwrap_or(PixelFormat::JPEG as u32);
         let frame_size = cfg
             .get_attribute::<u32>("frame_size")
             .unwrap_or(FrameSize::W240XH240 as u32);
@@ -144,7 +144,7 @@ impl Esp32Camera {
                 xclk_freq_hz,
                 ledc_channel,
                 ledc_timer,
-                pixel_format,
+                pixel_format: PixelFormat::JPEG as u32,
                 frame_size,
                 jpeg_quality,
                 fb_count,
