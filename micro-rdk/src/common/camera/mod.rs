@@ -8,14 +8,11 @@ mod fake_camera;
 
 #[allow(unused)]
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
-    #[cfg(feature = "camera")]
+    #[cfg(feature = "builtin-components")]
     {
-        #[cfg(feature = "builtin-components")]
-        {
-            fake_camera::register_models(registry);
-            #[cfg(feature = "esp32")]
-            crate::esp32::camera::register_models(registry);
-        }
+        fake_camera::register_models(registry);
+        #[cfg(feature = "esp32")]
+        crate::esp32::camera::register_models(registry);
     }
 }
 
