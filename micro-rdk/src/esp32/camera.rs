@@ -102,7 +102,9 @@ impl Esp32Camera {
         let pin_vsync = cfg.get_attribute::<i32>("pin_vsync").unwrap_or(25);
         let pin_href = cfg.get_attribute::<i32>("pin_href").unwrap_or(23);
         let pin_pclk = cfg.get_attribute::<i32>("pin_pclk").unwrap_or(22);
-        let xclk_freq_hz = cfg.get_attribute::<i32>("xclk_freq_hz").unwrap_or(20000000);
+        let xclk_freq_hz = cfg
+            .get_attribute::<i32>("xclk_freq_hz")
+            .unwrap_or(20_000_000);
         let ledc_timer = cfg.get_attribute::<u32>("ledc_timer").unwrap_or(1);
         let ledc_channel = cfg.get_attribute::<u32>("ledc_channel").unwrap_or(1);
         let pixel_format = cfg
@@ -113,7 +115,13 @@ impl Esp32Camera {
             .unwrap_or(FrameSize::W240XH240 as u32);
         // Quality of JPEG output: 0-63 lower means higher quality
         let jpeg_quality = cfg.get_attribute::<i32>("jpeg_quality").unwrap_or(32);
-        // let sccb_i2c_port = cfg.get_attribute::<i32>("sccb_i2c_port").unwrap_or(0);
+        //  If pin_sccb_sda is -1, use the already configured I2C bus by number
+        let sccb_i2c_port = cfg.get_attribute::<i32>("sccb_i2c_port").unwrap_or(0);
+        // Number of frame buffers to be allocated.
+        // If more than one, then each frame will be acquired (double speed)
+        // when pixel_format == jpeg, fb_count > 1 goes to continuous mode, may need to adjust
+        // xclk_freq_hz down to 10_000_000.
+        let fb_count = cfg.get_attribute::<i32>("fb_count").unwrap_or(1);
 
         let cam = Self {
             config: camera_config_t {
@@ -139,14 +147,11 @@ impl Esp32Camera {
                 pixel_format,
                 frame_size,
                 jpeg_quality,
-                // Number of frame buffers to be allocated.
-                // If more than one, then each frame will be acquired (double speed)
-                fb_count: 1,
+                fb_count,
                 grab_mode: 0,
                 fb_location: 0,
-                sccb_i2c_port: -1,
+                sccb_i2c_port,
             },
-            last_grab: Instant::now(),
         };
 
         esp!(unsafe { esp_camera_init(&cam.config) })
