@@ -2,7 +2,6 @@
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
-    time::Instant,
 };
 
 use crate::{
@@ -80,7 +79,6 @@ enum FrameSize {
 #[derive(DoCommand)]
 pub struct Esp32Camera {
     config: camera_config_t,
-    last_grab: Instant,
 }
 
 impl Esp32Camera {
@@ -157,7 +155,6 @@ impl Esp32Camera {
     }
 
     fn get_frame(&mut self) -> Result<Esp32CameraFrameBuffer, CameraError> {
-        self.last_grab = Instant::now();
         Esp32CameraFrameBuffer::get().ok_or(CameraError::FailedToGetImage)
     }
 }
@@ -168,7 +165,6 @@ impl Camera for Esp32Camera {
         if frame.len() > buffer.capacity() {
             return Err(CameraError::ImageTooBig);
         }
-        self.last_grab = Instant::now();
         let msg = camera::v1::GetImageResponse {
             mime_type: "image/jpeg".to_string(),
             image: frame.as_bytes(),
