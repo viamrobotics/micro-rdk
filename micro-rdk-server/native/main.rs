@@ -6,8 +6,8 @@ mod native {
     const ROBOT_SECRET: Option<&str> = option_env!("MICRO_RDK_ROBOT_SECRET");
 
     use micro_rdk::common::{
-        conn::network::ExternallyManagedNetwork, entry::RobotRepresentation,
-        provisioning::storage::RAMStorage,
+        conn::network::ExternallyManagedNetwork, credentials_storage::RAMStorage,
+        entry::RobotRepresentation,
     };
     use micro_rdk::native::entry::serve_web_with_external_network;
 

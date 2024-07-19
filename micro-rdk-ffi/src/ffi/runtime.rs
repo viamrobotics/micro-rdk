@@ -263,7 +263,7 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
 
     #[cfg(has_robot_config)]
     {
-        use micro_rdk::common::provisioning::storage::RAMStorage;
+        use micro_rdk::common::credentials_storage::RAMStorage;
         let ram_storage = RAMStorage::new(
             "",
             "",
@@ -282,7 +282,7 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
     {
         #[cfg(not(target_os = "espidf"))]
         {
-            use micro_rdk::common::provisioning::storage::RAMStorage;
+            use micro_rdk::common::credentials_storage::RAMStorage;
             let storage = RAMStorage::default();
             micro_rdk::native::entry::serve_web_with_external_network(
                 Some(ctx.provisioning_info),

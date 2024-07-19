@@ -1,12 +1,10 @@
-#[cfg(feature = "esp32")]
-use crate::esp32::exec::Esp32Executor;
-#[cfg(feature = "native")]
-use crate::native::exec::NativeExecutor;
+use super::{
+    app_client::{AppClient, AppClientBuilder, AppClientConfig},
+    conn::server::TlsClientConnector,
+    credentials_storage::RobotCredentials,
+    grpc_client::GrpcClient,
+};
 
-use super::app_client::{AppClient, AppClientBuilder, AppClientConfig};
-use super::conn::server::TlsClientConnector;
-use super::grpc_client::GrpcClient;
-use super::provisioning::storage::RobotCredentials;
 use super::registry::ComponentRegistry;
 use super::robot::LocalRobot;
 
@@ -16,9 +14,10 @@ pub enum RobotRepresentation {
 }
 
 #[cfg(feature = "native")]
-type Executor = NativeExecutor;
+type Executor = crate::native::exec::NativeExecutor;
 #[cfg(feature = "esp32")]
-type Executor = Esp32Executor;
+type Executor = crate::esp32::exec::Esp32Executor;
+
 pub async fn validate_robot_credentials(
     exec: Executor,
     robot_creds: &RobotCredentials,

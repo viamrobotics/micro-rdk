@@ -16,7 +16,7 @@ use crate::common::{
         network::Network,
         server::{TlsClientConnector, ViamServerBuilder, WebRtcConfiguration},
     },
-    entry::{validate_robot_credentials, RobotRepresentation},
+    entry::RobotRepresentation,
     grpc_client::GrpcClientError,
     log::config_log_entry,
     restart_monitor::RestartMonitor,
@@ -34,14 +34,14 @@ use async_io::Timer;
 use esp_idf_svc::sys::{settimeofday, timeval};
 
 #[cfg(feature = "provisioning")]
-use crate::{
-    common::{
-        grpc::ServerError,
-        provisioning::server::ProvisioningInfo,
-        provisioning::storage::{RobotConfigurationStorage, WifiCredentialStorage},
-    },
-    proto::app::v1::ConfigResponse,
+use crate::common::provisioning::server::ProvisioningInfo;
+
+use crate::common::{
+    credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage},
+    entry::validate_robot_credentials,
+    grpc::ServerError,
 };
+use crate::proto::app::v1::ConfigResponse;
 
 pub async fn serve_web_inner<S>(
     storage: S,
@@ -182,10 +182,9 @@ pub async fn serve_web_inner<S>(
 // 4) Robot Credentials + WiFi without external network
 // The function attempts to connect to the configured Wifi network if any, it then checks the robot credentials. If Wifi credentials are absent it starts provisioning mode
 // If they are invalid or absent it will start the provisioning server. Once provision is done it invokes the main server.
-#[cfg(feature = "provisioning")]
 async fn serve_async<S>(
     exec: Esp32Executor,
-    info: Option<ProvisioningInfo>,
+    #[cfg(feature = "provisioning")] info: Option<ProvisioningInfo>,
     storage: S,
     mut repr: RobotRepresentation,
     max_webrtc_connection: usize,
@@ -196,6 +195,7 @@ where
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
     <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
+    #[cfg(feature = "provisioning")]
     use crate::{
         common::provisioning::server::serve_provisioning_async,
         esp32::{
@@ -206,10 +206,12 @@ where
     use super::conn::network::Esp32WifiNetwork;
 
     let mut client_connector = Esp32TLS::new_client();
+    #[cfg(feature = "provisioning")]
     let info = info.unwrap_or_default();
+    #[cfg(feature = "provisioning")]
     let mut last_error: Option<Box<dyn std::error::Error>> = None;
 
-    let (network, app_client) = 'provisioned: loop {
+    let (network, app_client) = 'app_connection: loop {
         if storage.has_robot_credentials() && storage.has_wifi_credentials() {
             log::info!("Found cached network and robot credentials; attempting to serve");
 
@@ -266,9 +268,14 @@ where
                                 }
                             },
                             Err(e) => {
-                                log::warn!("Couldn't determine network connectivity due to {:?}; initiating provisioning", e);
-                                let _ = last_error.insert(e.into());
-                                break;
+                                #[cfg(feature = "provisioning")]
+                                {
+                                    log::warn!("Couldn't determine network connectivity due to {:?}; initiating provisioning", e);
+                                    let _ = last_error.insert(e.into());
+                                    break;
+                                }
+                                #[cfg(not(feature = "provisioning"))]
+                                return Err(Box::new(e));
                             }
                         }
 
@@ -282,7 +289,7 @@ where
                         {
                             Ok(app_client) => {
                                 log::info!("Robot credentials validated OK");
-                                break 'provisioned (network, app_client);
+                                break 'app_connection (network, app_client);
                             }
                             Err(e) => {
                                 if let Some(app_client_error) = e.downcast_ref::<AppClientError>() {
@@ -304,9 +311,14 @@ where
                                             );
                                         }
 
-                                        // Record the last error so that we can serve it once we reach provisioning.
-                                        let _ = last_error.insert(e);
-                                        break;
+                                        #[cfg(feature = "provisioning")]
+                                        {
+                                            // Record the last error so that we can serve it once we reach provisioning.
+                                            let _ = last_error.insert(e);
+                                            break;
+                                        }
+                                        #[cfg(not(feature = "provisioning"))]
+                                        return Err(e);
                                     }
                                 }
 
@@ -322,37 +334,44 @@ where
                     }
                 }
                 Err(e) => {
-                    log::info!(
-                        "Unable to create network with cached credentials; initiating provisioning"
-                    );
-                    // If we can't even construct the network
-                    // with the cached wifi credentials, fall
-                    // back to provisioning.
-                    let _ = last_error.insert(e.into());
+                    #[cfg(feature = "provisioning")]
+                    {
+                        log::info!(
+                            "Unable to create network with cached credentials; initiating provisioning"
+                        );
+                        // If we can't even construct the network
+                        // with the cached wifi credentials, fall
+                        // back to provisioning.
+                        let _ = last_error.insert(e.into());
+                    }
+                    #[cfg(not(feature = "provisioning"))]
+                    return Err(Box::new(e));
                 }
             };
         }
-
-        log::warn!("Entering provisioning...");
-
-        // Start the WiFi in AP + STA mode
-        let wifi_manager = Esp32WifiProvisioningBuilder::default()
-            .build(storage.clone())
-            .await
-            .unwrap();
-
-        let mut mdns = Esp32Mdns::new("".to_owned())?;
-        if let Err(e) = serve_provisioning_async(
-            exec.clone(),
-            info.clone(),
-            storage.clone(),
-            last_error.take(),
-            Some(wifi_manager),
-            &mut mdns,
-        )
-        .await
+        #[cfg(feature = "provisioning")]
         {
-            let _ = last_error.insert(e);
+            log::warn!("Entering provisioning...");
+
+            // Start the WiFi in AP + STA mode
+            let wifi_manager = Esp32WifiProvisioningBuilder::default()
+                .build(storage.clone())
+                .await
+                .unwrap();
+
+            let mut mdns = Esp32Mdns::new("".to_owned())?;
+            if let Err(e) = serve_provisioning_async(
+                exec.clone(),
+                info.clone(),
+                storage.clone(),
+                last_error.take(),
+                Some(wifi_manager),
+                &mut mdns,
+            )
+            .await
+            {
+                let _ = last_error.insert(e);
+            }
         }
     };
 
@@ -393,7 +412,7 @@ where
     let info = info.unwrap_or_default();
     let mut last_error: Option<Box<dyn std::error::Error>> = None;
 
-    let app_client = 'provisioned: loop {
+    let app_client = 'app_connection: loop {
         if storage.has_robot_credentials() {
             log::info!("Found cached robot credentials; attempting to serve");
 
@@ -439,7 +458,7 @@ where
                 {
                     Ok(app_client) => {
                         log::info!("Robot credentials validated OK");
-                        break 'provisioned app_client;
+                        break 'app_connection app_client;
                     }
                     Err(e) => {
                         if let Some(app_client_error) = e.downcast_ref::<AppClientError>() {
@@ -502,7 +521,7 @@ where
 }
 
 pub fn serve_web<S>(
-    info: Option<ProvisioningInfo>,
+    #[cfg(feature = "provisioning")] info: Option<ProvisioningInfo>,
     repr: RobotRepresentation,
     max_webrtc_connection: usize,
     storage: S,
@@ -540,6 +559,7 @@ pub fn serve_web<S>(
 
     let _ = cloned_exec.block_on(Box::pin(serve_async(
         exec,
+        #[cfg(feature = "provisioning")]
         info,
         storage,
         repr,
@@ -549,6 +569,7 @@ pub fn serve_web<S>(
     unreachable!()
 }
 
+#[cfg(feature = "provisioning")]
 pub fn serve_web_with_external_network<S>(
     info: Option<ProvisioningInfo>,
     repr: RobotRepresentation,
