@@ -186,7 +186,7 @@ impl EspBoard {
                             };
                             chan
                         })
-                        .collect()?;
+                        .collect::<Result<Vec<AnalogReaderType<u16>>, BoardError>>();
                     analogs? 
                 } else {
                     vec![]
