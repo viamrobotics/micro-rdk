@@ -41,7 +41,7 @@ pub enum BoardError {
     BoardMethodNotSupported(&'static str),
     #[error(transparent)]
     BoardI2CError(#[from] I2CErrors),
-    #[error(transparent)]
+    #[error("pin {0} error: {1}")]
     #[cfg(feature = "esp32")]
     EspError(#[from] EspError),
 }
