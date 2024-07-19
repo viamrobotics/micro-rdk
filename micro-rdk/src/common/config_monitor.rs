@@ -69,10 +69,11 @@ where
                 app_client.clone().get_config(None).await
             {
                 if self.curr_config != *new_config {
-                    if let Some(config) = new_config.config {
-                        if let Err(e) = self.storage.store_robot_configuration(config) {
-                            log::warn!("Failed to store new robot configuration from app: {}", e);
-                        }
+                    if let Err(e) = self.storage.reset_robot_configuration() {
+                        log::warn!(
+                            "Failed to reset robot config after new config detected: {}",
+                            e
+                        );
                     }
                     self.restart();
                 }
