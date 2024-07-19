@@ -73,13 +73,10 @@ impl EspBoard {
                     let analogs: Result<Vec<AnalogReaderType<u16>>, BoardError> = analogs
                         .iter()
                         .map(|v| {
-                            let adc1 = Arc::new(Mutex::new(
-                                AdcDriver::new(
-                                    unsafe { ADC1::new() },
-                                    &Config::new().calibration(true),
-                                )?
-                                ,
-                            ));
+                            let adc1 = Arc::new(Mutex::new(AdcDriver::new(
+                                unsafe { ADC1::new() },
+                                &Config::new().calibration(true),
+                            )?));
                             let chan: Result<AnalogReaderType<u16>, BoardError> = match v.pin {
                                 32 => {
                                     let p: AnalogReaderType<u16> =
@@ -87,95 +84,96 @@ impl EspBoard {
                                             v.name.to_string(),
                                             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
                                                 crate::esp32::esp_idf_svc::hal::gpio::Gpio32::new()
-                                            }).map_err(BoardError::EspError)?,
+                                            })
+                                            .map_err(BoardError::EspError)?,
                                             adc1,
                                         )));
                                     Ok(p)
                                 }
-                                // 33 => {
-                                //     let p: AnalogReaderType<u16> =
-                                //         Arc::new(Mutex::new(Esp32AnalogReader::new(
-                                //             v.name.to_string(),
-                                //             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
-                                //                 crate::esp32::esp_idf_svc::hal::gpio::Gpio33::new()
-                                //             })
-                                //             .ok()?,
-                                //             adc1,
-                                //         )));
-                                //     Ok(p)
-                                // }
-                                // 34 => {
-                                //     let p: AnalogReaderType<u16> =
-                                //         Arc::new(Mutex::new(Esp32AnalogReader::new(
-                                //             v.name.to_string(),
-                                //             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
-                                //                 crate::esp32::esp_idf_svc::hal::gpio::Gpio34::new()
-                                //             })
-                                //             .ok()?,
-                                //             adc1,
-                                //         )));
-                                //     Ok(p)
-                                // }
-                                // 35 => {
-                                //     let p: AnalogReaderType<u16> =
-                                //         Arc::new(Mutex::new(Esp32AnalogReader::new(
-                                //             v.name.to_string(),
-                                //             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
-                                //                 crate::esp32::esp_idf_svc::hal::gpio::Gpio35::new()
-                                //             })
-                                //             .ok()?,
-                                //             adc1,
-                                //         )));
-                                //     Ok(p)
-                                // }
-                                // 36 => {
-                                //     let p: AnalogReaderType<u16> =
-                                //         Arc::new(Mutex::new(Esp32AnalogReader::new(
-                                //             v.name.to_string(),
-                                //             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
-                                //                 crate::esp32::esp_idf_svc::hal::gpio::Gpio36::new()
-                                //             })
-                                //             .ok()?,
-                                //             adc1,
-                                //         )));
-                                //     Ok(p)
-                                // }
-                                // 37 => {
-                                //     let p: AnalogReaderType<u16> =
-                                //         Arc::new(Mutex::new(Esp32AnalogReader::new(
-                                //             v.name.to_string(),
-                                //             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
-                                //                 crate::esp32::esp_idf_svc::hal::gpio::Gpio37::new()
-                                //             })
-                                //             .ok()?,
-                                //             adc1,
-                                //         )));
-                                //     Ok(p)
-                                // }
-                                // 38 => {
-                                //     let p: AnalogReaderType<u16> =
-                                //         Arc::new(Mutex::new(Esp32AnalogReader::new(
-                                //             v.name.to_string(),
-                                //             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
-                                //                 crate::esp32::esp_idf_svc::hal::gpio::Gpio38::new()
-                                //             })
-                                //             .ok()?,
-                                //             adc1,
-                                //         )));
-                                //     Ok(p)
-                                // }
-                                // 39 => {
-                                //     let p: AnalogReaderType<u16> =
-                                //         Arc::new(Mutex::new(Esp32AnalogReader::new(
-                                //             v.name.to_string(),
-                                //             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
-                                //                 crate::esp32::esp_idf_svc::hal::gpio::Gpio39::new()
-                                //             })
-                                //             .ok()?,
-                                //             adc1,
-                                //         )));
-                                //     Ok(p)
-                                // }
+                                33 => {
+                                    let p: AnalogReaderType<u16> =
+                                        Arc::new(Mutex::new(Esp32AnalogReader::new(
+                                            v.name.to_string(),
+                                            AdcChannelDriver::<Atten11dB, _>::new(unsafe {
+                                                crate::esp32::esp_idf_svc::hal::gpio::Gpio33::new()
+                                            })
+                                            .map_err(BoardError::EspError)?,
+                                            adc1,
+                                        )));
+                                    Ok(p)
+                                }
+                                34 => {
+                                    let p: AnalogReaderType<u16> =
+                                        Arc::new(Mutex::new(Esp32AnalogReader::new(
+                                            v.name.to_string(),
+                                            AdcChannelDriver::<Atten11dB, _>::new(unsafe {
+                                                crate::esp32::esp_idf_svc::hal::gpio::Gpio34::new()
+                                            })
+                                            .map_err(BoardError::EspError)?,
+                                            adc1,
+                                        )));
+                                    Ok(p)
+                                }
+                                35 => {
+                                    let p: AnalogReaderType<u16> =
+                                        Arc::new(Mutex::new(Esp32AnalogReader::new(
+                                            v.name.to_string(),
+                                            AdcChannelDriver::<Atten11dB, _>::new(unsafe {
+                                                crate::esp32::esp_idf_svc::hal::gpio::Gpio35::new()
+                                            })
+                                            .map_err(BoardError::EspError)?,
+                                            adc1,
+                                        )));
+                                    Ok(p)
+                                }
+                                36 => {
+                                    let p: AnalogReaderType<u16> =
+                                        Arc::new(Mutex::new(Esp32AnalogReader::new(
+                                            v.name.to_string(),
+                                            AdcChannelDriver::<Atten11dB, _>::new(unsafe {
+                                                crate::esp32::esp_idf_svc::hal::gpio::Gpio36::new()
+                                            })
+                                            .map_err(BoardError::EspError)?,
+                                            adc1,
+                                        )));
+                                    Ok(p)
+                                }
+                                37 => {
+                                    let p: AnalogReaderType<u16> =
+                                        Arc::new(Mutex::new(Esp32AnalogReader::new(
+                                            v.name.to_string(),
+                                            AdcChannelDriver::<Atten11dB, _>::new(unsafe {
+                                                crate::esp32::esp_idf_svc::hal::gpio::Gpio37::new()
+                                            })
+                                            .map_err(BoardError::EspError)?,
+                                            adc1,
+                                        )));
+                                    Ok(p)
+                                }
+                                38 => {
+                                    let p: AnalogReaderType<u16> =
+                                        Arc::new(Mutex::new(Esp32AnalogReader::new(
+                                            v.name.to_string(),
+                                            AdcChannelDriver::<Atten11dB, _>::new(unsafe {
+                                                crate::esp32::esp_idf_svc::hal::gpio::Gpio38::new()
+                                            })
+                                            .map_err(BoardError::EspError)?,
+                                            adc1,
+                                        )));
+                                    Ok(p)
+                                }
+                                39 => {
+                                    let p: AnalogReaderType<u16> =
+                                        Arc::new(Mutex::new(Esp32AnalogReader::new(
+                                            v.name.to_string(),
+                                            AdcChannelDriver::<Atten11dB, _>::new(unsafe {
+                                                crate::esp32::esp_idf_svc::hal::gpio::Gpio39::new()
+                                            })
+                                            .map_err(BoardError::EspError)?,
+                                            adc1,
+                                        )));
+                                    Ok(p)
+                                }
                                 _ => {
                                     log::error!("pin {} is not an ADC1 pin", v.pin);
                                     Err(BoardError::GpioPinError(
@@ -187,7 +185,7 @@ impl EspBoard {
                             chan
                         })
                         .collect::<Result<Vec<AnalogReaderType<u16>>, BoardError>>();
-                    analogs? 
+                    analogs?
                 } else {
                     vec![]
                 };
