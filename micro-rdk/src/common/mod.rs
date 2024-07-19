@@ -36,6 +36,7 @@ pub mod board;
 pub mod camera;
 pub mod config;
 pub mod config_monitor;
+pub mod credentials_storage;
 pub mod digital_interrupt;
 pub mod encoder;
 pub mod entry;

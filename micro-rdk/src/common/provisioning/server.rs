@@ -10,8 +10,8 @@ use std::{
 use crate::{
     common::{
         conn::mdns::Mdns,
+        credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage, WifiCredentials},
         grpc::{GrpcBody, GrpcError, GrpcResponse, ServerError},
-        provisioning::storage::WifiCredentials,
         webrtc::api::AtomicSync,
     },
     proto::provisioning::{
@@ -33,8 +33,6 @@ use hyper::{
     Response,
 };
 use prost::Message;
-
-use super::storage::{RobotConfigurationStorage, WifiCredentialStorage};
 
 async fn dns_server(ap_ip: Ipv4Addr) {
     let socket = async_io::Async::<UdpSocket>::bind(([0, 0, 0, 0], 53)).unwrap();
@@ -587,9 +585,9 @@ mod tests {
         common::{
             app_client::encode_request,
             conn::mdns::Mdns,
-            provisioning::{
-                server::{ProvisioningInfo, ProvisioningServiceBuilder, ProvisoningServer},
-                storage::{RAMStorage, RobotConfigurationStorage},
+            credentials_storage::{RAMStorage, RobotConfigurationStorage},
+            provisioning::server::{
+                ProvisioningInfo, ProvisioningServiceBuilder, ProvisoningServer,
             },
         },
         native::conn::mdns::NativeMdns,
