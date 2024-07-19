@@ -35,12 +35,13 @@ index 79fbc5c..949b5ab 100644
  smol = "1.2"
  futures-lite = "1.12.0"
  micro-rdk = {version = "0.0.3", git = "https://github.com/viamrobotics/micro-rdk.git", features = ["esp32"]}
-+micro-rdk-modular-driver-example = { git = "https://github.com/viamrobotics/micro-rdk/tree/main/examples/modular-drivers" }
++micro-rdk-modular-driver-example = { git = "https://github.com/viamrobotics/micro-rdk.git", features = ["esp32"] }
 ```
 
 Rebuild the project per the above Micro-RDK Development Setup
 instructions and reflash the board. We will be using the Wifi
-RSSI Sensor and free heap sensor for this example.
+RSSI Sensor and free heap sensor for this example. (Note: the "esp32" feature
+can be omitted if not using the free-heap or wifi sensors)
 
 ### Instantiating the Sensors
 
