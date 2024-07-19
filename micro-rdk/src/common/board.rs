@@ -18,6 +18,8 @@ use super::{
     i2c::{FakeI2CHandle, FakeI2cConfig, I2CErrors, I2CHandle, I2cHandleType},
     registry::ComponentRegistry,
 };
+#[cfg(feature = "esp32")]
+use crate::esp32::esp_idf_svc::sys::EspError;
 
 use thiserror::Error;
 
@@ -39,6 +41,9 @@ pub enum BoardError {
     BoardMethodNotSupported(&'static str),
     #[error(transparent)]
     BoardI2CError(#[from] I2CErrors),
+    #[error(transparent)]
+    #[cfg(feature = "esp32")]
+    EspError(#[from] EspError),
 }
 
 pub static COMPONENT_NAME: &str = "board";
