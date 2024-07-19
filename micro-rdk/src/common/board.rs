@@ -41,7 +41,7 @@ pub enum BoardError {
     BoardMethodNotSupported(&'static str),
     #[error(transparent)]
     BoardI2CError(#[from] I2CErrors),
-    #[error("pin {0} error: {1}")]
+    #[error("Unable to make Adc Channel Driver with Pin")]
     #[cfg(feature = "esp32")]
     EspError(#[from] EspError),
 }

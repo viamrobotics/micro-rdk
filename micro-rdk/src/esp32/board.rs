@@ -121,7 +121,7 @@ impl EspBoard {
                                             AdcChannelDriver::<Atten11dB, _>::new(unsafe {
                                                 crate::esp32::esp_idf_svc::hal::gpio::Gpio35::new()
                                             })
-                                            .map_err(BoardError::EspError(v.pin as u32, "Unable to make Adc Channel Driver with Pin",))?,
+                                            .map_err(BoardError::EspError)?,
                                             adc1,
                                         )));
                                     Ok(p)
