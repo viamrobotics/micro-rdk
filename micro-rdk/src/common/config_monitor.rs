@@ -1,8 +1,8 @@
 use super::app_client::{AppClient, AppClientError, PeriodicAppClientTask};
 #[cfg(feature = "provisioning")]
 use crate::common::{
+    credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage},
     grpc::ServerError,
-    provisioning::storage::{RobotConfigurationStorage, WifiCredentialStorage},
 };
 use crate::proto::app::v1::ConfigResponse;
 use futures_lite::Future;
