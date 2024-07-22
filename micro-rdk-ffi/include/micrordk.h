@@ -32,9 +32,20 @@ typedef struct hashmap_cstring_ptr hashmap_cstring_ptr;
 
 typedef struct viam_server_context viam_server_context;
 
+/*
+ Callback passed to `hashmap_cstring_ptr_destroy`
+ */
 typedef void (*hashmap_cstring_ptr_destroy_callback)(void*, const char*, const void*);
 
+/*
+ Callback passed to `hashmap_cstring_ptr_for_each_kv`
+ */
 typedef void (*hashmap_cstring_ptr_callback)(void*, const char*, const void*);
+
+/*
+ Callback passed to `hashmap_cstring_ptr_retain`
+ */
+typedef bool (*hashmap_cstring_ptr_retain_callback)(void*, const char*, const void*);
 
 typedef int (*config_callback)(struct config_context*, void*, void**);
 
@@ -94,6 +105,13 @@ const void *hashmap_cstring_ptr_remove(struct hashmap_cstring_ptr *ctx, const ch
 const void *hashmap_cstring_ptr_insert(struct hashmap_cstring_ptr *ctx,
                                        const char *key,
                                        const void *ptr);
+
+/*
+ Removes all key value pairs for which the callback returns false.
+ */
+enum viam_code hashmap_cstring_ptr_retain(struct hashmap_cstring_ptr *ctx,
+                                          void *user_data,
+                                          hashmap_cstring_ptr_retain_callback callback);
 
 /*
  Creates a new Viam server context
