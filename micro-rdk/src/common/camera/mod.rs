@@ -1,5 +1,6 @@
 use super::{generic::DoCommand, registry::ComponentRegistry, status::Status};
 use bytes::BytesMut;
+use prost::EncodeError;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
@@ -26,14 +27,16 @@ pub enum CameraError {
     InitError(#[from] Box<dyn std::error::Error + Sync + Send>),
     #[error("config error {0}")]
     ConfigError(&'static str),
-    #[error("frame too big for buffer")]
-    ImageTooBig,
+    #[error("frame of size {0} greater than internal buffer capacity {1}, consider reducing camera's frame_size")]
+    ImageTooBig(usize, usize),
     #[error("failed to get image")]
     FailedToGetImage,
     #[error("method {0} unimplemented")]
     CameraMethodUnimplemented(&'static str),
     #[error("{0}")]
     CameraGenericError(&'static str),
+    #[error("{0}")]
+    MessageEncodeError(#[from] EncodeError),
 }
 
 pub trait Camera: Status + DoCommand {

@@ -26,7 +26,7 @@ use bytes::{Bytes, BytesMut};
 use prost::Message;
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
-        .register_camera("rdk:builtin:esp32-camera", &Esp32Camera::from_config)
+        .register_camera("esp32-camera", &Esp32Camera::from_config)
         .is_err()
     {
         log::error!("esp32camera type is already registered");
@@ -54,25 +54,25 @@ enum PixelFormat {
 }
 
 /// Sizeof output image: QVGA|CIF|VGA|SVGA|XGA|SXGA|UXGA
-/// as u32
+/// as u32.
 enum FrameSize {
-    /// 96x96
+    /// 96x96, ~1.88KB JPEG
     W96XH96 = 0,
-    /// 160x120
+    /// 160x120, ~3.92 KB JPEG
     QQVGA = 1,
-    /// 176x144
+    /// 176x144, ~5.17 KB JPEG
     QCIF = 2,
-    /// 240x176
+    /// 240x176, ~8.62KB JPEG
     HQVGA = 3,
-    /// 240x240
+    /// 240x240, ~11.76KB JPEG
     W240XH240 = 4,
-    /// 320x240
+    /// 320x240, ~15.68 KB JPEG
     QVGA = 5,
-    /// 400x296
+    /// 400x296, ~24.18KB JPEG
     CIF = 6,
-    /// 480x320
+    /// 480x320, ~31.36KB JPEG
     HVGA = 7,
-    /// 640x480
+    /// 640x480, ~62.73KB JPEG
     VGA = 8,
 }
 
@@ -164,14 +164,15 @@ impl Camera for Esp32Camera {
     fn get_image(&mut self, mut buffer: BytesMut) -> Result<BytesMut, CameraError> {
         let frame = self.get_frame()?;
         if frame.len() > buffer.capacity() {
-            return Err(CameraError::ImageTooBig);
+            return Err(CameraError::ImageTooBig(frame.len(), buffer.capacity()));
         }
         let msg = camera::v1::GetImageResponse {
             mime_type: "image/jpeg".to_string(),
             image: frame.as_bytes(),
         };
         // safety: message must be encoded before the frame is dropped from scope
-        msg.encode(&mut buffer).unwrap();
+        msg.encode(&mut buffer)
+            .map_err(CameraError::MessageEncodeError)?;
 
         return Ok(buffer);
     }
@@ -179,7 +180,7 @@ impl Camera for Esp32Camera {
     fn render_frame(&mut self, mut buffer: BytesMut) -> Result<BytesMut, CameraError> {
         let frame = self.get_frame()?;
         if frame.len() > buffer.capacity() {
-            return Err(CameraError::ImageTooBig);
+            return Err(CameraError::ImageTooBig(frame.len(), buffer.capacity()));
         }
         let msg = HttpBody {
             content_type: "image/jpeg".to_string(),
@@ -187,7 +188,8 @@ impl Camera for Esp32Camera {
             ..Default::default()
         };
         // safety: message must be encoded before the frame is dropped from scope
-        msg.encode(&mut buffer).unwrap();
+        msg.encode(&mut buffer)
+            .map_err(CameraError::MessageEncodeError)?;
         return Ok(buffer);
     }
 }
