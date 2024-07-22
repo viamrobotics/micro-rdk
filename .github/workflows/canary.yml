@@ -21,7 +21,7 @@ env:
   ESP32_CANARY_API_KEY_ID: ${{ secrets.ESP32_CANARY_API_KEY_ID }}
 
 jobs:
-  canary:
+  python-canary:
     runs-on: "ubuntu-latest"
     defaults: 
       run:
@@ -36,7 +36,25 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-      - name: Run Canary
+      - name: Run Python Canary
         run: |
           python -m pip install -r requirements.txt
           python canary_test.py
+  go-canary:
+    runs-on: "ubuntu-latest"
+    defaults: 
+      run:
+        working-directory: ./canary
+        shell: bash
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+            go-version: '1.22.3'
+      - name: Run Go Canary
+        run: |
+          go run canary.go
