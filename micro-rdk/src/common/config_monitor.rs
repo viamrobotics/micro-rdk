@@ -1,19 +1,38 @@
 use super::app_client::{AppClient, AppClientError, PeriodicAppClientTask};
+use crate::common::{
+    credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage},
+    grpc::ServerError,
+};
 use crate::proto::app::v1::ConfigResponse;
 use futures_lite::Future;
+use std::fmt::Debug;
 use std::pin::Pin;
 use std::time::Duration;
 
-pub struct ConfigMonitor<'a> {
-    restart_hook: Option<Box<dyn FnOnce() + 'a>>,
+pub struct ConfigMonitor<'a, S>
+where
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
+    <S as RobotConfigurationStorage>::Error: Debug,
+    ServerError: From<<S as RobotConfigurationStorage>::Error>,
+    <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
+{
     curr_config: ConfigResponse, //config for robot gotten from last robot startup, aka inputted from entry
+    storage: S,
+    restart_hook: Option<Box<dyn FnOnce() + 'a>>,
 }
 
-impl<'a> ConfigMonitor<'a> {
-    pub fn new(restart_hook: impl FnOnce() + 'a, curr_config: ConfigResponse) -> Self {
+impl<'a, S> ConfigMonitor<'a, S>
+where
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
+    <S as RobotConfigurationStorage>::Error: Debug,
+    ServerError: From<<S as RobotConfigurationStorage>::Error>,
+    <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
+{
+    pub fn new(curr_config: ConfigResponse, storage: S, restart_hook: impl FnOnce() + 'a) -> Self {
         Self {
-            restart_hook: Some(Box::new(restart_hook)),
             curr_config,
+            storage,
+            restart_hook: Some(Box::new(restart_hook)),
         }
     }
 
@@ -23,7 +42,13 @@ impl<'a> ConfigMonitor<'a> {
         unreachable!();
     }
 }
-impl<'a> PeriodicAppClientTask for ConfigMonitor<'a> {
+impl<'a, S> PeriodicAppClientTask for ConfigMonitor<'a, S>
+where
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
+    <S as RobotConfigurationStorage>::Error: Debug,
+    ServerError: From<<S as RobotConfigurationStorage>::Error>,
+    <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
+{
     fn name(&self) -> &str {
         "ConfigMonitor"
     }
@@ -43,7 +68,14 @@ impl<'a> PeriodicAppClientTask for ConfigMonitor<'a> {
                 app_client.clone().get_config(None).await
             {
                 if self.curr_config != *new_config {
-                    self.restart()
+                    if let Err(e) = self.storage.reset_robot_configuration() {
+                        log::warn!(
+                            "Failed to reset robot config after new config detected: {}",
+                            e
+                        );
+                    } else {
+                        self.restart();
+                    }
                 }
             }
             Ok(Some(self.get_default_period()))

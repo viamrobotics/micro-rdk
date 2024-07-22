@@ -129,8 +129,9 @@ pub async fn serve_web_inner<S>(
             .with_app_client(app_client)
             .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| std::process::exit(0))))
             .with_periodic_app_client_task(Box::new(ConfigMonitor::new(
-                || std::process::exit(0),
                 *(cfg_response.clone()),
+                storage.clone(),
+                || std::process::exit(0),
             )))
             .build(&cfg_response)
             .unwrap();
