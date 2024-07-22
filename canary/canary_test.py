@@ -4,6 +4,7 @@ import numpy as np
 import os
 import time
 
+from importlib.metadata import version
 from pymongo import MongoClient
 from typing import Coroutine, Any
 from viam.robot.client import RobotClient, DialOptions
@@ -28,7 +29,7 @@ async def main():
     timestamp = datetime.datetime.now()
 
     default_item = {
-        "_id": timestamp,
+        "timestamp": timestamp,
         "connection_success": False,
         "connection_error": "",
         "connection_latency_ms": 0,
@@ -36,7 +37,9 @@ async def main():
         "board_api_failures": 0,
         "connection_attempts": 5,
         "board_api_avg_latency_ms": 0,
-        "board_api_latency_ms_std_dev": 0
+        "board_api_latency_ms_std_dev": 0,
+        "sdk_type": "Python",
+        "sdk_version": version("viam-sdk")
     }
 
     robot_address = os.environ["ESP32_CANARY_ROBOT"]
