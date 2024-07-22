@@ -113,7 +113,7 @@ impl Esp32Camera {
         // Quality of JPEG output: 0-63 lower means higher quality
         let jpeg_quality = cfg.get_attribute::<i32>("jpeg_quality").unwrap_or(32);
         //  If pin_sccb_sda is -1, use the already configured I2C bus by number
-        let sccb_i2c_port = cfg.get_attribute::<i32>("sccb_i2c_port").unwrap_or(0);
+        let sccb_i2c_port = cfg.get_attribute::<i32>("sccb_i2c_port").unwrap_or(-1);
 
         let cam = Self {
             config: camera_config_t {
