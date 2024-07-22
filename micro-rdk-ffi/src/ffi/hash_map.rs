@@ -5,9 +5,16 @@ use std::{
 
 use super::errors::viam_code;
 
+/// Callback passed to `hashmap_cstring_ptr_for_each_kv`
 #[allow(non_camel_case_types)]
 type hashmap_cstring_ptr_callback = extern "C" fn(*mut c_void, *const c_char, *const c_void);
 
+/// Callback passed to `hashmap_cstring_ptr_retain`
+#[allow(non_camel_case_types)]
+type hashmap_cstring_ptr_retain_callback =
+    extern "C" fn(*mut c_void, *const c_char, *const c_void) -> bool;
+
+/// Callback passed to `hashmap_cstring_ptr_destroy`
 #[allow(non_camel_case_types)]
 type hashmap_cstring_ptr_destroy_callback =
     Option<extern "C" fn(*mut c_void, *const c_char, *const c_void)>;
@@ -134,4 +141,26 @@ pub unsafe extern "C" fn hashmap_cstring_ptr_insert(
     ctx.inner
         .insert(key, ptr)
         .map_or(std::ptr::null(), |ptr| ptr)
+}
+
+/// Removes all key value pairs for which the callback returns false.
+///
+/// # Safety
+/// `ctx` and `callback` should be valid pointers
+#[no_mangle]
+pub unsafe extern "C" fn hashmap_cstring_ptr_retain(
+    ctx: *mut hashmap_cstring_ptr,
+    user_data: *mut c_void,
+    callback: hashmap_cstring_ptr_retain_callback,
+) -> viam_code {
+    if ctx.is_null() {
+        return viam_code::VIAM_INVALID_ARG;
+    }
+
+    let ctx = unsafe { &mut *ctx };
+
+    ctx.inner
+        .retain(|key, value| callback(user_data, key.as_ptr(), *value));
+
+    viam_code::VIAM_OK
 }
