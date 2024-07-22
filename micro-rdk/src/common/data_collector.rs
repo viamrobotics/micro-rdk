@@ -22,6 +22,7 @@ use thiserror::Error;
 pub struct DataCollectorConfig {
     pub method: CollectionMethod,
     pub capture_frequency_hz: f32,
+    pub capacity: usize,
 }
 
 impl TryFrom<&Kind> for DataCollectorConfig {
@@ -37,6 +38,10 @@ impl TryFrom<&Kind> for DataCollectorConfig {
                 "capture_frequency_hz".to_string(),
             ))?
             .try_into()?;
+        let capacity = value
+            .get("cache_size")?
+            .unwrap_or(&Kind::NumberValue(5120.0))
+            .try_into()?;
         // TODO: RSDK-7127 - Collectors that take arguments (ex. Board Analogs)
         let method = match method_str.as_str() {
             "Readings" => CollectionMethod::Readings,
@@ -50,6 +55,7 @@ impl TryFrom<&Kind> for DataCollectorConfig {
         Ok(DataCollectorConfig {
             method,
             capture_frequency_hz,
+            capacity,
         })
     }
 }
@@ -120,6 +126,7 @@ pub struct DataCollector {
     resource: ResourceType,
     method: CollectionMethod,
     time_interval: Duration,
+    capacity: usize,
 }
 
 fn resource_method_pair_is_valid(resource: &ResourceType, method: &CollectionMethod) -> bool {
@@ -142,6 +149,7 @@ impl DataCollector {
         resource: ResourceType,
         method: CollectionMethod,
         capture_frequency_hz: f32,
+        capacity: usize,
     ) -> Result<Self, DataCollectionError> {
         if capture_frequency_hz == 0.0 {
             return Err(DataCollectionError::UnsupportedCaptureFrequency);
@@ -161,6 +169,7 @@ impl DataCollector {
             resource,
             method,
             time_interval,
+            capacity,
         })
     }
 
@@ -174,6 +183,7 @@ impl DataCollector {
             resource,
             conf.method.clone(),
             conf.capture_frequency_hz,
+            conf.capacity,
         )
     }
 
@@ -191,6 +201,10 @@ impl DataCollector {
 
     pub fn method_str(&self) -> String {
         self.method.to_string()
+    }
+
+    pub fn capacity(&self) -> usize {
+        self.capacity
     }
 
     /// calls the method associated with the collector and returns the resulting data
@@ -282,6 +296,7 @@ mod tests {
         let conf: DataCollectorConfig = (&conf_kind).try_into()?;
         assert!(matches!(conf.method, CollectionMethod::Readings));
         assert_eq!(conf.capture_frequency_hz, 100.0);
+        assert_eq!(conf.capacity, 5120);
 
         let kind_map = HashMap::from([
             (
@@ -289,11 +304,13 @@ mod tests {
                 Kind::StringValue("AngularVelocity".to_string()),
             ),
             ("capture_frequency_hz".to_string(), Kind::NumberValue(100.0)),
+            ("cache_size".to_string(), Kind::NumberValue(200.0)),
         ]);
         let conf_kind = Kind::StructValue(kind_map);
         let conf: DataCollectorConfig = (&conf_kind).try_into()?;
         assert!(matches!(conf.method, CollectionMethod::AngularVelocity));
         assert_eq!(conf.capture_frequency_hz, 100.0);
+        assert_eq!(conf.capacity, 200);
 
         let kind_map = HashMap::from([
             (
