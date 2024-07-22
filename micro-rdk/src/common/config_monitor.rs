@@ -1,5 +1,4 @@
 use super::app_client::{AppClient, AppClientError, PeriodicAppClientTask};
-#[cfg(feature = "provisioning")]
 use crate::common::{
     credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage},
     grpc::ServerError,
@@ -74,8 +73,9 @@ where
                             "Failed to reset robot config after new config detected: {}",
                             e
                         );
+                    } else {
+                        self.restart();
                     }
-                    self.restart();
                 }
             }
             Ok(Some(self.get_default_period()))
