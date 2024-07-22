@@ -1,4 +1,4 @@
-//! Contains the DataStore trait and a usable StaticMemoryDataStore.
+//! Contains the DataStore trait and a usable DefaultDataStore.
 //! Implementers of the trait are meant to be written to by DataCollectors (RSDK-6992, RSDK-6994)
 //! and read from by a task that uploads the data to app (RSDK-6995)
 
@@ -28,8 +28,6 @@ impl Default for WriteMode {
     }
 }
 
-static mut DATA_STORE: [MaybeUninit<u8>; 30240] = [MaybeUninit::uninit(); 30240];
-
 #[derive(Clone, Error, Debug)]
 pub enum DataStoreError {
     #[error("No collector keys supplied")]
@@ -38,8 +36,6 @@ pub enum DataStoreError {
     EncodingError(#[from] EncodeError),
     #[error("SensorDataTooLarge")]
     DataTooLarge,
-    #[error("Store already initialized")]
-    DataStoreInitialized,
     #[error("Data write failure")]
     DataWriteFailure,
     #[error("Buffer full")]
@@ -54,10 +50,6 @@ pub enum DataStoreError {
     BufferInUse(ResourceMethodKey),
     #[error("unimplemented")]
     Unimplemented,
-}
-
-lazy_static::lazy_static! {
-    static ref DATA_STORE_INITIALIZED: AtomicBool = AtomicBool::new(false);
 }
 
 /// A trait for an entity that is capable of reading from a store without consuming
@@ -82,8 +74,8 @@ pub trait DataStore {
     ) -> Result<(), DataStoreError>;
 
     /// Initializes from resource-method keys.
-    fn from_resource_method_keys(
-        collector_keys: Vec<ResourceMethodKey>,
+    fn from_resource_method_settings(
+        settings: Vec<(ResourceMethodKey, usize)>,
     ) -> Result<Self, DataStoreError>
     where
         Self: std::marker::Sized;
@@ -93,29 +85,25 @@ pub trait DataStore {
         -> Result<Self::Reader, DataStoreError>;
 }
 
-pub type StoreRegion = Rc<LocalRb<u8, &'static mut [MaybeUninit<u8>]>>;
+pub type StoreRegion = Rc<LocalRb<u8, Vec<MaybeUninit<u8>>>>;
 
-/// StaticMemoryDataStore is an entity that governs the static bytes memory
-/// reserved in DATA_STORE. The memory is segmented based according to the DataCollectors expected
-/// (identified by collector keys) and each segment view is treated as a separate ring buffer of SensorData
-/// messages. Currently, an equal amount of space is alloted to each collector, which will affect
-/// the maximum allowed size of a single message (computed as the length of DATA_STORE divided by
-/// the number of collector keys). It should be treated as a global struct that should only be initialized once
-/// and is not thread-safe (all interactions should be blocking).
-pub struct StaticMemoryDataStore {
+/// DefaultDataStore is a collection of ring-buffers for storing collected data. It should be
+/// treated as a global struct that should only be initialized once and is not
+/// thread-safe (all interactions should be blocking).
+pub struct DefaultDataStore {
     buffers: Vec<StoreRegion>,
     buffer_usages: Vec<Rc<AtomicBool>>,
     collector_keys: Vec<ResourceMethodKey>,
 }
 
-pub struct StaticMemoryDataStoreReader {
+pub struct DefaultDataStoreReader {
     cons: Consumer<u8, StoreRegion>,
     start_idx: usize,
     current_idx: usize,
     buffer_registration: Rc<AtomicBool>,
 }
 
-impl StaticMemoryDataStoreReader {
+impl DefaultDataStoreReader {
     fn new(cons: Consumer<u8, StoreRegion>, buffer_registration: Rc<AtomicBool>) -> Self {
         let start_idx = cons.rb().head();
         Self {
@@ -127,7 +115,7 @@ impl StaticMemoryDataStoreReader {
     }
 }
 
-impl DataStoreReader for StaticMemoryDataStoreReader {
+impl DataStoreReader for DefaultDataStoreReader {
     fn read_next_message(&mut self) -> Result<BytesMut, DataStoreError> {
         let (left, right) = self.cons.as_slices();
         let mut chained = Buf::chain(left, right);
@@ -152,41 +140,32 @@ impl DataStoreReader for StaticMemoryDataStoreReader {
     }
 }
 
-impl Drop for StaticMemoryDataStoreReader {
+impl Drop for DefaultDataStoreReader {
     fn drop(&mut self) {
         self.buffer_registration.store(false, Ordering::Relaxed);
     }
 }
 
-impl StaticMemoryDataStore {
-    pub fn new(collector_keys: Vec<ResourceMethodKey>) -> Result<Self, DataStoreError> {
-        if !DATA_STORE_INITIALIZED.load(Ordering::Acquire) {
-            if collector_keys.is_empty() {
-                return Err(DataStoreError::NoCollectors);
-            }
-            let len_per_buffer = unsafe { DATA_STORE.len() } / collector_keys.len();
-            let mut buffers = Vec::new();
-            let mut buffer_usages = Vec::new();
-            for i in 0..(collector_keys.len()) {
-                let start_idx = i * len_per_buffer;
-                let end_idx = (i + 1) * len_per_buffer;
-                unsafe {
-                    buffers.push(Rc::new(LocalRb::from_raw_parts(
-                        &mut DATA_STORE[start_idx..end_idx],
-                        0,
-                        0,
-                    )));
-                }
-                buffer_usages.push(Rc::new(AtomicBool::new(false)));
-            }
-            DATA_STORE_INITIALIZED.store(true, Ordering::Release);
-            return Ok(Self {
-                buffers,
-                buffer_usages,
-                collector_keys,
-            });
+impl DefaultDataStore {
+    pub fn new(
+        collector_settings: Vec<(ResourceMethodKey, usize)>,
+    ) -> Result<Self, DataStoreError> {
+        if collector_settings.is_empty() {
+            return Err(DataStoreError::NoCollectors);
         }
-        Err(DataStoreError::DataStoreInitialized)
+        let mut buffers = Vec::new();
+        let mut buffer_usages = Vec::new();
+        let mut collector_keys = vec![];
+        for (collector_key, capacity) in collector_settings {
+            collector_keys.push(collector_key);
+            buffers.push(Rc::new(LocalRb::new(capacity)));
+            buffer_usages.push(Rc::new(AtomicBool::new(false)));
+        }
+        Ok(Self {
+            buffers,
+            buffer_usages,
+            collector_keys,
+        })
     }
 
     fn get_index_for_collector(
@@ -223,8 +202,8 @@ impl StaticMemoryDataStore {
     }
 }
 
-impl DataStore for StaticMemoryDataStore {
-    type Reader = StaticMemoryDataStoreReader;
+impl DataStore for DefaultDataStore {
+    type Reader = DefaultDataStoreReader;
 
     fn write_message(
         &mut self,
@@ -268,16 +247,16 @@ impl DataStore for StaticMemoryDataStore {
         Ok(())
     }
 
-    fn from_resource_method_keys(
-        collector_keys: Vec<ResourceMethodKey>,
+    fn from_resource_method_settings(
+        settings: Vec<(ResourceMethodKey, usize)>,
     ) -> Result<Self, DataStoreError> {
-        Self::new(collector_keys)
+        Self::new(settings)
     }
 
     fn get_reader(
         &self,
         collector_key: &ResourceMethodKey,
-    ) -> Result<StaticMemoryDataStoreReader, DataStoreError> {
+    ) -> Result<DefaultDataStoreReader, DataStoreError> {
         let buffer_index = self.get_index_for_collector(collector_key)?;
         if self.buffer_in_use(buffer_index) {
             return Err(DataStoreError::BufferInUse(collector_key.clone()));
@@ -286,16 +265,10 @@ impl DataStore for StaticMemoryDataStore {
         let buffer = Rc::clone(&self.buffers[buffer_index]);
         let buffer_registration = Rc::clone(&self.buffer_usages[buffer_index]);
 
-        Ok(StaticMemoryDataStoreReader::new(
+        Ok(DefaultDataStoreReader::new(
             unsafe { Consumer::new(buffer) },
             buffer_registration,
         ))
-    }
-}
-
-impl Drop for StaticMemoryDataStore {
-    fn drop(&mut self) {
-        DATA_STORE_INITIALIZED.store(false, Ordering::SeqCst);
     }
 }
 
@@ -303,12 +276,11 @@ impl Drop for StaticMemoryDataStore {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::common::data_collector::{CollectionMethod, ResourceMethodKey};
+    use crate::common::data_collector::{CollectionMethod, ResourceMethodKey, DEFAULT_CACHE_SIZE};
     use crate::common::data_store::DataStore;
     use crate::common::data_store::DataStoreError;
     use crate::common::data_store::DataStoreReader;
     use crate::common::data_store::WriteMode;
-    use crate::common::data_store::DATA_STORE;
     use crate::google::protobuf::Timestamp;
     use crate::google::protobuf::{value::Kind, Struct, Value};
     use crate::proto::app::data_sync::v1::sensor_data::Data;
@@ -318,8 +290,8 @@ mod tests {
     #[test_log::test]
     fn test_data_store() {
         // test failure on attempt to initialize with no collectors
-        let collector_keys: Vec<ResourceMethodKey> = vec![];
-        let store_create_attempt = super::StaticMemoryDataStore::new(collector_keys);
+        let collector_keys: Vec<(ResourceMethodKey, usize)> = vec![];
+        let store_create_attempt = super::DefaultDataStore::new(collector_keys);
         assert!(matches!(
             store_create_attempt,
             Err(DataStoreError::NoCollectors)
@@ -395,8 +367,11 @@ mod tests {
                 ]),
             })),
         };
-        let collector_keys = vec![thing_key.clone(), thing_2_key.clone()];
-        let store = super::StaticMemoryDataStore::new(collector_keys);
+        let collector_keys = vec![
+            (thing_key.clone(), DEFAULT_CACHE_SIZE as usize),
+            (thing_2_key.clone(), DEFAULT_CACHE_SIZE as usize),
+        ];
+        let store = super::DefaultDataStore::new(collector_keys);
         assert!(store.is_ok());
         let mut store = store.unwrap();
 
@@ -597,9 +572,12 @@ mod tests {
             component_type: "rdk::component::movement_sensor".to_string(),
             method: CollectionMethod::Readings,
         };
-        let collector_keys = vec![thing_key.clone(), thing_2_key.clone()];
+        let collector_keys = vec![
+            (thing_key.clone(), DEFAULT_CACHE_SIZE as usize),
+            (thing_2_key.clone(), DEFAULT_CACHE_SIZE as usize),
+        ];
         std::mem::drop(store);
-        let store = super::StaticMemoryDataStore::new(collector_keys);
+        let store = super::DefaultDataStore::new(collector_keys);
         assert!(store.is_ok());
         let mut store = store.unwrap();
 
@@ -628,9 +606,7 @@ mod tests {
         let message_byte_size = data.encoded_len();
         let message_byte_size_total = length_delimiter_len(message_byte_size) + message_byte_size;
 
-        // store was initialized with two keys, so the byte capacity is half the length of DATA_STORE
-        let message_capacity_for_buffer: usize =
-            unsafe { DATA_STORE.len() } / 2 / message_byte_size_total;
+        let message_capacity_for_buffer: usize = 10240 / 2 / message_byte_size_total;
 
         // we want to prove that an additional two messages can only be written once the read pointer
         // has progressed
