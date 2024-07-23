@@ -154,15 +154,11 @@ impl Esp32Camera {
             .map_err(|e| CameraError::InitError(Box::new(e)))?;
         Ok(Arc::new(Mutex::new(cam)))
     }
-
-    fn get_frame(&mut self) -> Result<Esp32CameraFrameBuffer, CameraError> {
-        Esp32CameraFrameBuffer::get().ok_or(CameraError::FailedToGetImage)
-    }
 }
 
 impl Camera for Esp32Camera {
     fn get_image(&mut self, mut buffer: BytesMut) -> Result<BytesMut, CameraError> {
-        let frame = self.get_frame()?;
+        let frame = Esp32CameraFrameBuffer::get().ok_or(CameraError::FailedToGetImage)?;
         if frame.len() > buffer.capacity() {
             return Err(CameraError::ImageTooBig(frame.len(), buffer.capacity()));
         }
@@ -178,7 +174,7 @@ impl Camera for Esp32Camera {
     }
 
     fn render_frame(&mut self, mut buffer: BytesMut) -> Result<BytesMut, CameraError> {
-        let frame = self.get_frame()?;
+        let frame = Esp32CameraFrameBuffer::get().ok_or(CameraError::FailedToGetImage)?;
         if frame.len() > buffer.capacity() {
             return Err(CameraError::ImageTooBig(frame.len(), buffer.capacity()));
         }
@@ -230,6 +226,10 @@ impl Esp32CameraFrameBuffer {
     }
     fn len(&self) -> usize {
         unsafe { (*(self.0)).len as usize }
+    }
+
+    fn as_vec(&self) -> Vec<u8> {
+        unsafe { Vec::from_raw_parts(self.buf() as *mut u8, self.len(), self.len()) }
     }
     fn width(&self) -> usize {
         unsafe { (*(self.0)).width }
