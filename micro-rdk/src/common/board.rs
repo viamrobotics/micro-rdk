@@ -44,6 +44,8 @@ pub enum BoardError {
     #[error(transparent)]
     #[cfg(feature = "esp32")]
     EspError(#[from] EspError),
+    #[error("construction error test")]
+    TestError,
 }
 
 pub static COMPONENT_NAME: &str = "board";
@@ -130,6 +132,10 @@ impl FakeBoard {
     }
 
     pub(crate) fn from_config(cfg: ConfigType) -> Result<BoardType, BoardError> {
+        if cfg.get_attribute::<bool>("fail_new").unwrap_or(false) {
+            return Err(BoardError::TestError);
+        }
+
         let analogs = if let Ok(analog_confs) = cfg.get_attribute::<HashMap<&str, f64>>("analogs") {
             analog_confs
                 .iter()

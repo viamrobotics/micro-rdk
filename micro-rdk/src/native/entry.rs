@@ -91,6 +91,7 @@ pub async fn serve_web_inner<S>(
                     robot
                 }
                 Err(err) => {
+                    log::error!("could not build robot: {:?}", err);
                     if let Some(datetime) = cfg_received_datetime {
                         let logs = vec![config_log_entry(datetime, Some(err))];
                         app_client
@@ -98,9 +99,7 @@ pub async fn serve_web_inner<S>(
                             .await
                             .expect("could not push logs to app");
                     }
-                    // TODO(RSDK-8127) shouldn't panic here, when we support offline mode and
-                    // reloading configuration this should be removed
-                    panic!("couldn't build robot");
+                    LocalRobot::new()
                 }
             };
             Arc::new(Mutex::new(r))
