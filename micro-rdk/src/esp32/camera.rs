@@ -158,7 +158,7 @@ impl Esp32Camera {
             )
         })?;
 
-        if !*is_registered {
+        if *is_registered {
             return Err(CameraError::InitError(
                 "only one camera allowed per machine".into(),
             ));
