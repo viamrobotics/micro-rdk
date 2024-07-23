@@ -27,6 +27,8 @@ pub enum GrpcClientError {
     ConversionError(#[from] std::num::TryFromIntError),
     #[error(transparent)]
     MessageEncodingError(#[from] prost::EncodeError),
+    #[error(transparent)]
+    MessageDecodingError(#[from] prost::DecodeError),
     #[error("http request error {0}")]
     HttpStatusError(status::StatusCode),
     #[error(transparent)]
@@ -87,7 +89,10 @@ pub(crate) struct GrpcMessageStream<T> {
 
 impl<T> Unpin for GrpcMessageStream<T> {}
 
-impl<T> GrpcMessageStream<T> {
+impl<T> GrpcMessageStream<T>
+where
+    T: prost::Message + std::default::Default,
+{
     pub(crate) fn new(receiver_half: Incoming) -> Self {
         Self {
             receiver_half,
@@ -97,6 +102,19 @@ impl<T> GrpcMessageStream<T> {
     }
     pub(crate) fn by_ref(&mut self) -> &mut Self {
         self
+    }
+    fn parse_message(&mut self) -> Option<Result<T, GrpcClientError>> {
+        if self.buffer.len() > 5 {
+            let len =
+                u32::from_be_bytes(self.buffer.split_at(5).0[1..5].try_into().unwrap()) as usize;
+            if len + 5 <= self.buffer.len() {
+                let _ = self.buffer.split_to(5); // discard 5 bytes
+                let msg = self.buffer.split_to(len).freeze();
+                let message = T::decode(msg).map_err(Into::into);
+                return Some(message);
+            }
+        }
+        None
     }
 }
 
@@ -110,6 +128,10 @@ where
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
+        let message = self.parse_message();
+        if message.is_some() {
+            return Poll::Ready(message);
+        }
         let chunk = ready!(Pin::new(&mut self.receiver_half).poll_frame(cx));
 
         // None would indicated a terminated HTTP2 stream
@@ -126,7 +148,7 @@ where
         };
 
         // if we have trailers this RPC can be closed
-        let mut data = match frame.into_data() {
+        let data = match frame.into_data() {
             Ok(data) => data,
             Err(e) => {
                 if let Some(trailers) = e.trailers_ref() {
@@ -153,45 +175,12 @@ where
             }
         };
 
-        // no prior data let's check if the message is complete
-        if self.buffer.is_empty() {
-            if data.len() > 5 {
-                let len =
-                    u32::from_be_bytes(data.slice(1..5).as_ref().try_into().unwrap()) as usize;
-                // enough bytes in buffer
-                if len + 5 <= data.len() {
-                    let msg = data.split_off(5);
-                    let message = match T::decode(msg) {
-                        Err(e) => {
-                            log::error!("decoding error {:?}", e);
-                            return Poll::Pending;
-                        }
-                        Ok(m) => m,
-                    };
-                    return Poll::Ready(Some(Ok(message)));
-                }
-            }
-            // cache the first part of the message
-            self.buffer.extend(data);
-        } else {
-            self.buffer.extend(data);
-            if self.buffer.len() > 5 {
-                let len = u32::from_be_bytes(self.buffer.split_at(5).0[1..5].try_into().unwrap())
-                    as usize;
-                if len + 5 <= self.buffer.len() {
-                    let _ = self.buffer.split_to(5); // discard 5 bytes
-                    let msg = self.buffer.split_to(len).freeze();
-                    let message = match T::decode(msg) {
-                        Err(e) => {
-                            log::error!("decoding error {:?}", e);
-                            return Poll::Pending;
-                        }
-                        Ok(m) => m,
-                    };
-                    return Poll::Ready(Some(Ok(message)));
-                }
-            }
+        self.buffer.extend(data);
+        let message = self.parse_message();
+        if message.is_some() {
+            return Poll::Ready(message);
         }
+
         Poll::Pending
     }
 }
