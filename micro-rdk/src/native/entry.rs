@@ -312,7 +312,7 @@ pub fn serve_web_with_external_network<S>(
 
 #[cfg(test)]
 mod tests {
-    use crate::common::app_client::{encode_request, AppClientBuilder, AppClientConfig};
+    use crate::common::app_client::{AppClientBuilder, AppClientConfig};
 
     use crate::common::grpc_client::GrpcClient;
 
@@ -320,16 +320,7 @@ mod tests {
     use crate::native::tcp::NativeStream;
     use crate::native::tls::NativeTls;
 
-    use crate::proto::rpc::examples::echo::v1::{EchoBiDiRequest, EchoBiDiResponse};
-    use crate::proto::rpc::v1::{AuthenticateRequest, AuthenticateResponse, Credentials};
-
-    use async_io::Async;
     use futures_lite::future::block_on;
-    use futures_lite::StreamExt;
-    use http_body_util::BodyExt;
-    use prost::Message;
-
-    use std::net::TcpStream;
 
     #[test_log::test]
     #[ignore]
@@ -364,110 +355,5 @@ mod tests {
         assert!(client.is_ok());
 
         let _ = client.unwrap();
-    }
-
-    #[test_log::test]
-    #[ignore]
-    fn test_client_bidi() {
-        let exec = NativeExecutor::new();
-        exec.block_on(async { test_client_bidi_inner().await });
-    }
-    async fn test_client_bidi_inner() {
-        let socket = TcpStream::connect("localhost:7888").unwrap();
-        let socket = Async::new(socket);
-        assert!(socket.is_ok());
-        let socket = socket.unwrap();
-        let conn = NativeStream::LocalPlain(socket);
-        let executor = NativeExecutor::new();
-
-        let grpc_client = GrpcClient::new(conn, executor, "https://app.viam.com:443").await;
-        assert!(grpc_client.is_ok());
-        let grpc_client = grpc_client.unwrap();
-
-        let cred = Credentials {
-            r#type: "robot-secret".to_owned(),
-            payload: "some-secret".to_owned(),
-        };
-
-        let req = AuthenticateRequest {
-            entity: "some entity".to_owned(),
-            credentials: Some(cred),
-        };
-
-        let body = encode_request(req);
-        assert!(body.is_ok());
-        let body = body.unwrap();
-        let r = grpc_client.build_request(
-            "/proto.rpc.v1.AuthService/Authenticate",
-            None,
-            "",
-            http_body_util::Full::new(body)
-                .map_err(|never| match never {})
-                .boxed(),
-        );
-
-        assert!(r.is_ok());
-        let r = r.unwrap();
-
-        let r = grpc_client.send_request(r).await;
-        assert!(r.is_ok());
-        let mut r = r.unwrap().0;
-        let r = r.split_off(5);
-        let r = AuthenticateResponse::decode(r).unwrap();
-        let jwt = format!("Bearer {}", r.access_token);
-
-        let (sender, receiver) = async_channel::bounded::<bytes::Bytes>(1);
-        let r = grpc_client.build_request(
-            "/proto.rpc.examples.echo.v1.EchoService/EchoBiDi",
-            Some(&jwt),
-            "",
-            BodyExt::boxed(http_body_util::StreamBody::new(
-                receiver.map(|b| Ok(hyper::body::Frame::data(b))),
-            )),
-        );
-        assert!(r.is_ok());
-        let r = r.unwrap();
-
-        let conn = grpc_client
-            .send_request_bidi::<EchoBiDiRequest, EchoBiDiResponse>(r, sender)
-            .await;
-
-        assert!(conn.is_ok());
-
-        let (mut sender_half, mut recv_half) = conn.unwrap();
-
-        let p = recv_half.next().await.unwrap().unwrap().message;
-
-        assert_eq!("1", p);
-
-        let recv_half_ref = recv_half.by_ref();
-
-        sender_half
-            .send_message(EchoBiDiRequest {
-                message: "hello".to_string(),
-            })
-            .await
-            .unwrap();
-
-        let p = recv_half_ref
-            .take(5)
-            .map(|m| m.unwrap().message)
-            .collect::<String>()
-            .await;
-
-        assert_eq!("hello", p);
-
-        sender_half
-            .send_message(EchoBiDiRequest {
-                message: "123456".to_string(),
-            })
-            .await
-            .unwrap();
-        let p = recv_half_ref
-            .take(6)
-            .map(|m| m.unwrap().message)
-            .collect::<String>()
-            .await;
-        assert_eq!("123456", p);
     }
 }
