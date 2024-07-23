@@ -9,6 +9,11 @@ prompt = "MCU"
 choices = ["esp32"]
 default = "esp32"
 
+[placeholders.provisioning]
+type = "bool"
+prompt = "include provisioning capabilities?"
+default = false 
+
 [placeholders.camera]
 type = "bool"
 prompt = "include camera module and traits?"
