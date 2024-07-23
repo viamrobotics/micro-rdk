@@ -180,7 +180,7 @@ impl Camera for Esp32Camera {
         }
         let msg = HttpBody {
             content_type: "image/jpeg".to_string(),
-            data: frame.as_bytes().to_vec(),
+            data: frame.as_vec(),
             ..Default::default()
         };
         // safety: message must be encoded before the frame is dropped from scope
