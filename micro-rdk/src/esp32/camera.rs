@@ -33,6 +33,8 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     }
 }
 
+static CAMERA_ALREADY_REGISTERED: Mutex<bool> = Mutex::new(false);
+
 enum PixelFormat {
     /// 2BPP
     RGB565 = 0,
@@ -150,8 +152,24 @@ impl Esp32Camera {
             },
         };
 
-        esp!(unsafe { esp_camera_init(&cam.config) })
-            .map_err(|e| CameraError::InitError(Box::new(e)))?;
+        let mut is_registered = CAMERA_ALREADY_REGISTERED.lock().map_err(|_| {
+            CameraError::InitError(
+                "failed to acquire lock, another camera being initialized".into(),
+            )
+        })?;
+
+        if !*is_registered {
+            return Err(CameraError::InitError(
+                "only one camera allowed per machine".into(),
+            ));
+        }
+
+        esp!(unsafe { esp_camera_init(&cam.config) }).map_err(|e| {
+            CameraError::InitError(format!("failed to initialize camera with config: {}", e).into())
+        })?;
+
+        *is_registered = true;
+
         Ok(Arc::new(Mutex::new(cam)))
     }
 }

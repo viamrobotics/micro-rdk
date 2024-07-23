@@ -11,7 +11,7 @@ default = "esp32"
 
 [placeholders.camera]
 type = "bool"
-prompt = "include camera?"
+prompt = "include camera module and traits?"
 default = false 
 
 [conditional.'camera == false']
