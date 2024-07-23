@@ -11,21 +11,20 @@ mod esp32 {
     #[allow(dead_code)]
     const ROBOT_SECRET: Option<&str> = option_env!("MICRO_RDK_ROBOT_SECRET");
 
-    use micro_rdk::common::entry::RobotRepresentation;
-
     #[cfg(feature = "qemu")]
-    use micro_rdk::esp32::conn::network::eth_configure;
-    use micro_rdk::esp32::entry::serve_web;
-    #[cfg(feature = "qemu")]
-    use micro_rdk::esp32::esp_idf_svc::eth::{EspEth, EthDriver};
-    use micro_rdk::esp32::esp_idf_svc::sys::{
-        g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT,
+    use micro_rdk::esp32::{
+        conn::network::eth_configure,
+        esp_idf_svc::eth::{EspEth, EthDriver},
     };
 
+    use micro_rdk::esp32::esp_idf_svc;
+
+    #[allow(unused)]
     extern "C" {
         pub static g_spiram_ok: bool;
     }
 
+<<<<<<< HEAD
     use micro_rdk::common::registry::ComponentRegistry;
     use micro_rdk::esp32::nvs_storage::NVSStorage;
 
@@ -39,40 +38,44 @@ mod esp32 {
     }
 
     pub(crate) fn main_esp32() {
-        micro_rdk::esp32::esp_idf_svc::sys::link_patches();
+        esp_idf_svc::sys::link_patches();
+        esp_idf_svc::log::EspLogger::initialize_default();
 
         micro_rdk::esp32::esp_idf_svc::log::EspLogger::initialize_default();
 
         let mut r = Box::<ComponentRegistry>::default();
         register_examples(&mut r);
         let repr = RobotRepresentation::WithRegistry(r);
+        #[cfg(not(has_robot_config))]
+        #[cfg(not(feature = "provisioning"))]
+        {
+            log::error!(
+                "cannot instantiate robot without configuration or provisioning\n
+                enable provisioning or use build with a config"
+            );
+            unsafe { micro_rdk::esp32::esp_idf_svc::sys::esp_restart() };
+        }
 
         {
-            micro_rdk::esp32::esp_idf_svc::sys::esp!(unsafe {
-                micro_rdk::esp32::esp_idf_svc::sys::esp_vfs_eventfd_register(
-                    &micro_rdk::esp32::esp_idf_svc::sys::esp_vfs_eventfd_config_t { max_fds: 5 },
+            esp_idf_svc::sys::esp!(unsafe {
+                esp_idf_svc::sys::esp_vfs_eventfd_register(
+                    &esp_idf_svc::sys::esp_vfs_eventfd_config_t { max_fds: 5 },
                 )
             })
             .unwrap();
-        }
-
-        let mut max_connection = 3;
-        unsafe {
-            if !g_spiram_ok {
-                log::info!("spiram not initialized disabling cache feature of the wifi driver");
-                g_wifi_feature_caps &= !(CONFIG_FEATURE_CACHE_TX_BUF_BIT as u64);
-                max_connection = 1;
-            }
         }
 
         // When building the server locally if a user gives a "config" (Robot credentials and Wifi Credentials)
         // then the entire provisioning step can be skipped
         #[cfg(has_robot_config)]
         {
-            use micro_rdk::common::credentials_storage::RobotConfigurationStorage;
-            use micro_rdk::common::credentials_storage::RobotCredentials;
-            use micro_rdk::common::credentials_storage::WifiCredentialStorage;
-            use micro_rdk::common::credentials_storage::WifiCredentials;
+            use micro_rdk::{
+                common::credentials_storage::{
+                    RobotConfigurationStorage, RobotCredentials, WifiCredentialStorage,
+                    WifiCredentials,
+                },
+                esp32::nvs_storage::NVSStorage,
+            };
 
             log::warn!("Unconditionally using build-time WiFi and robot configuration");
 
@@ -101,29 +104,49 @@ mod esp32 {
                     .into(),
                 )
                 .expect("Failed to store robot credentials to NVS");
-
-            serve_web(None, repr, max_connection, storage);
         }
-        #[cfg(not(has_robot_config))]
+
+        #[cfg(feature = "provisioning")]
         {
-            use micro_rdk::common::provisioning::server::ProvisioningInfo;
+            use micro_rdk::{
+                common::{
+                    entry::RobotRepresentation, provisioning::server::ProvisioningInfo,
+                    registry::ComponentRegistry,
+                },
+                esp32::{
+                    entry::serve_web,
+                    esp_idf_svc::sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT},
+                },
+            };
+
+            let max_connections = unsafe {
+                if !g_spiram_ok {
+                    log::info!("spiram not initialized disabling cache feature of the wifi driver");
+                    g_wifi_feature_caps &= !(CONFIG_FEATURE_CACHE_TX_BUF_BIT as u64);
+                    1
+                } else {
+                    3
+                }
+            };
+
+            let repr = RobotRepresentation::WithRegistry(Box::<ComponentRegistry>::default());
             let mut info = ProvisioningInfo::default();
             info.set_manufacturer("viam".to_owned());
             info.set_model("test-esp32".to_owned());
             let storage = NVSStorage::new("nvs").unwrap();
-            serve_web(Some(info), repr, max_connection, storage);
+            serve_web(Some(info), repr, max_connections, storage);
         }
 
         #[cfg(feature = "qemu")]
-        let network = {
+        let _network = {
             use micro_rdk::esp32::esp_idf_svc::hal::prelude::Peripherals;
             log::info!("creating eth object");
+            let sys_loop = esp_idf_svc::eventloop::EspEventLoop::take().unwrap();
             let eth = EspEth::wrap(
-                EthDriver::new_openeth(Peripherals::take().unwrap().mac, sys_loop_stack.clone())
-                    .unwrap(),
+                EthDriver::new_openeth(Peripherals::take().unwrap().mac, sys_loop.clone()).unwrap(),
             )
             .unwrap();
-            eth_configure(&sys_loop_stack, eth).unwrap()
+            eth_configure(&sys_loop, eth).unwrap()
         };
     }
 }
