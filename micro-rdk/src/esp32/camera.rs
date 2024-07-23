@@ -180,7 +180,7 @@ impl Camera for Esp32Camera {
         }
         let msg = HttpBody {
             content_type: "image/jpeg".to_string(),
-            data: frame.as_vec(),
+            data: frame.as_bytes().to_vec(),
             ..Default::default()
         };
         // safety: message must be encoded before the frame is dropped from scope
@@ -228,9 +228,6 @@ impl Esp32CameraFrameBuffer {
         unsafe { (*(self.0)).len as usize }
     }
 
-    fn as_vec(&self) -> Vec<u8> {
-        unsafe { Vec::from_raw_parts(self.buf() as *mut u8, self.len(), self.len()) }
-    }
     fn width(&self) -> usize {
         unsafe { (*(self.0)).width }
     }
