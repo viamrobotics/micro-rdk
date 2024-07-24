@@ -15,6 +15,7 @@ use micro_rdk::{
         },
         status::{Status, StatusError},
     },
+    google::protobuf,
     DoCommand,
 };
 
@@ -22,8 +23,8 @@ pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryE
     registry.register_sensor("moisture_sensor", &MoistureSensor::from_config)?;
     Ok(())
 }
-#[derive(DoCommand)]
 
+#[derive(DoCommand)]
 pub struct MoistureSensor {
     reader: AnalogReaderType<u16>,
 }
@@ -59,11 +60,7 @@ impl Readings for MoistureSensor {
 
 impl SensorT<f64> for MoistureSensor {
     fn get_readings(&self) -> Result<TypedReadingsResult<f64>, SensorError> {
-        let reading = self
-            .reader
-            .lock()
-            .map_err(|_| SensorError::SensorGenericError("failed to get sensor lock"))?
-            .read()?;
+        let reading = self.reader.lock().unwrap().read()?;
         let mut x = HashMap::new();
         x.insert("millivolts".to_string(), reading as f64);
         Ok(x)
@@ -72,7 +69,7 @@ impl SensorT<f64> for MoistureSensor {
 
 impl Status for MoistureSensor {
     fn get_status(&self) -> Result<Option<micro_rdk::google::protobuf::Struct>, StatusError> {
-        Ok(Some(micro_rdk::google::protobuf::Struct {
+        Ok(Some(protobuf::Struct {
             fields: HashMap::new(),
         }))
     }
