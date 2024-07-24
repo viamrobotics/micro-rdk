@@ -27,6 +27,8 @@ pub enum GrpcClientError {
     ConversionError(#[from] std::num::TryFromIntError),
     #[error(transparent)]
     MessageEncodingError(#[from] prost::EncodeError),
+    #[error(transparent)]
+    MessageDecodingError(#[from] prost::DecodeError),
     #[error("http request error {0}")]
     HttpStatusError(status::StatusCode),
     #[error(transparent)]
@@ -82,21 +84,37 @@ where
 pub(crate) struct GrpcMessageStream<T> {
     receiver_half: Incoming,
     _marker: PhantomData<T>,
-    buffer: Bytes,
+    buffer: BytesMut,
 }
 
 impl<T> Unpin for GrpcMessageStream<T> {}
 
-impl<T> GrpcMessageStream<T> {
+impl<T> GrpcMessageStream<T>
+where
+    T: prost::Message + std::default::Default,
+{
     pub(crate) fn new(receiver_half: Incoming) -> Self {
         Self {
             receiver_half,
             _marker: PhantomData,
-            buffer: Bytes::new(),
+            buffer: BytesMut::new(),
         }
     }
     pub(crate) fn by_ref(&mut self) -> &mut Self {
         self
+    }
+    fn parse_message(&mut self) -> Option<Result<T, GrpcClientError>> {
+        if self.buffer.len() > 5 {
+            let len =
+                u32::from_be_bytes(self.buffer.split_at(5).0[1..5].try_into().unwrap()) as usize;
+            if len + 5 <= self.buffer.len() {
+                let _ = self.buffer.split_to(5); // discard 5 bytes
+                let msg = self.buffer.split_to(len).freeze();
+                let message = T::decode(msg).map_err(Into::into);
+                return Some(message);
+            }
+        }
+        None
     }
 }
 
@@ -110,63 +128,60 @@ where
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        if self.buffer.is_empty() {
-            let chunk = match std::pin::Pin::new(&mut self.receiver_half).poll_frame(cx) {
-                Poll::Pending => return Poll::Pending,
-                Poll::Ready(r) => match r {
-                    Some(r) => match r {
-                        Err(_) => return Poll::Ready(None),
-                        Ok(r) => r,
-                    },
-                    None => return Poll::Ready(None),
-                },
-            };
-            self.buffer = match chunk.into_data() {
-                Ok(data) => data,
-                Err(e) => {
-                    if let Some(trailers) = e.trailers_ref() {
-                        if trailers.contains_key("grpc-message")
-                            && trailers.contains_key("grpc-status")
-                        {
-                            return Poll::Ready(Some(Err(GrpcClientError::GrpcError {
-                                code: trailers
-                                    .get("grpc-status")
-                                    .unwrap()
-                                    .to_str()
-                                    .unwrap_or("")
-                                    .parse::<i8>()
-                                    .unwrap_or(127), // if status code cannot be parsed return 127
-                                message: trailers
-                                    .get("grpc-message")
-                                    .unwrap()
-                                    .to_str()
-                                    .unwrap_or("couldn't parse message") // message couldn't be extracted from header
-                                    .to_owned(),
-                            })));
-                        }
-                    }
-                    return Poll::Ready(Some(Err(GrpcClientError::FrameError(format!("{:?}", e)))));
-                }
-            };
+        let message = self.parse_message();
+        if message.is_some() {
+            return Poll::Ready(message);
+        }
+        let chunk = ready!(Pin::new(&mut self.receiver_half).poll_frame(cx));
+
+        // None would indicated a terminated HTTP2 stream
+        if chunk.is_none() {
+            return Poll::Ready(None);
         }
 
-        // Split off the length prefixed message containing the compressed flag (B0) and the message length (B1-B4)
-        let mut delim = self.buffer.split_to(5);
-        // Discard compression flag
-        let _ = delim.split_to(1);
-
-        let len = u32::from_be_bytes(delim.as_ref().try_into().unwrap());
-
-        let message = self.buffer.split_to(len as usize);
-
-        let message = match T::decode(message) {
+        // safe to unwrap since we know chunk is not None
+        let frame = match chunk.unwrap() {
             Err(e) => {
-                log::error!("decoding error {:?}", e);
-                return Poll::Pending;
+                return Poll::Ready(Some(Err(e.into())));
             }
-            Ok(m) => m,
+            Ok(frame) => frame,
         };
-        Poll::Ready(Some(Ok(message)))
+
+        // if we have trailers this RPC can be closed
+        let data = match frame.into_data() {
+            Ok(data) => data,
+            Err(e) => {
+                if let Some(trailers) = e.trailers_ref() {
+                    if trailers.contains_key("grpc-message") && trailers.contains_key("grpc-status")
+                    {
+                        return Poll::Ready(Some(Err(GrpcClientError::GrpcError {
+                            code: trailers
+                                .get("grpc-status")
+                                .unwrap()
+                                .to_str()
+                                .unwrap_or("")
+                                .parse::<i8>()
+                                .unwrap_or(127), // if status code cannot be parsed return 127
+                            message: trailers
+                                .get("grpc-message")
+                                .unwrap()
+                                .to_str()
+                                .unwrap_or("couldn't parse message") // message couldn't be extracted from header
+                                .to_owned(),
+                        })));
+                    }
+                }
+                return Poll::Ready(Some(Err(GrpcClientError::FrameError(format!("{:?}", e)))));
+            }
+        };
+
+        self.buffer.extend(data);
+        let message = self.parse_message();
+        if message.is_some() {
+            return Poll::Ready(message);
+        }
+
+        Poll::Pending
     }
 }
 #[cfg(feature = "native")]
@@ -359,5 +374,262 @@ impl GrpcClient {
             }
         }
         Ok((body.to_bytes(), part.headers))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use async_io::{Async, Timer};
+    use bytes::Bytes;
+    use futures_lite::stream::StreamExt;
+    use futures_lite::{ready, FutureExt};
+    use http_body_util::{combinators::BoxBody, BodyExt, BodyStream, StreamBody};
+    use hyper::{
+        body::{Body, Frame},
+        header::CONTENT_TYPE,
+        server::conn::http2,
+        service::service_fn,
+        Request, Response,
+    };
+    use std::{
+        net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream},
+        str::FromStr,
+        task::Poll,
+        time::Duration,
+    };
+
+    use crate::{
+        common::app_client::encode_request,
+        native::{exec::NativeExecutor, tcp::NativeStream},
+        proto::rpc::examples::echo::v1::{EchoBiDiRequest, EchoBiDiResponse},
+    };
+
+    use super::GrpcClient;
+    use prost::Message;
+
+    pin_project_lite::pin_project! {
+    struct BiDiEchoResp{
+        timer: Option<Timer>,
+        body: Option<Bytes>,
+        #[pin]
+        req: Request<hyper::body::Incoming>,
+    }
+    }
+
+    impl Body for BiDiEchoResp {
+        type Data = Bytes;
+        type Error = hyper::Error;
+        fn poll_frame(
+            self: std::pin::Pin<&mut Self>,
+            cx: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Option<Result<hyper::body::Frame<Self::Data>, Self::Error>>> {
+            let this = self.project();
+            if let Some(&mut ref mut timer) = this.timer.as_mut() {
+                let _ = ready!(timer.poll(cx));
+            }
+            let _ = this.timer.take();
+            // simulate split body (eg multiple HTTP2 frames)
+            if let Some(mut body) = this.body.take() {
+                let split = body.iter().position(|k| *k == b'S');
+                if let Some(idx) = split {
+                    let _ = this.body.insert(body.split_off(idx + 1));
+                    let _ = this.timer.insert(Timer::after(Duration::from_millis(150)));
+                }
+                let frame = Frame::data(body);
+                return Poll::Ready(Some(Ok(frame)));
+            }
+            let r = ready!(this.req.poll_frame(cx));
+            if r.is_none() {
+                return Poll::Ready(None);
+            }
+            let frame = match r.unwrap() {
+                Err(e) => {
+                    return Poll::Ready(Some(Err(e)));
+                }
+                Ok(frame) => frame,
+            };
+            // for testing purpose we will always have a full body in  this request
+            // the question for use would be whether or not we simulate splitting
+            let mut data = frame.into_data().unwrap();
+            // Split off the length prefixed message containing the compressed flag (B0) and the message length (B1-B4)
+            let mut delim = data.split_to(5);
+            // Discard compression flag
+            let _ = delim.split_to(1);
+
+            let len = u32::from_be_bytes(delim.as_ref().try_into().unwrap());
+
+            let data = data.split_to(len as usize);
+
+            let msg = EchoBiDiRequest::decode(data).unwrap();
+
+            // copy the content of request in response (echo)
+            let msg = EchoBiDiResponse {
+                message: msg.message,
+            };
+
+            let mut data = encode_request(msg).unwrap();
+            let split = data.iter().position(|k| *k == b'S');
+            if let Some(idx) = split {
+                let _ = this.body.insert(data.split_off(idx + 1));
+                let _ = this.timer.insert(Timer::after(Duration::from_millis(150)));
+            }
+            let frame = Frame::data(data);
+            Poll::Ready(Some(Ok(frame)))
+        }
+    }
+
+    async fn server_fn_echo(
+        req: Request<hyper::body::Incoming>,
+    ) -> Result<Response<BodyStream<BoxBody<Bytes, hyper::Error>>>, hyper::Error> {
+        let r = match req.uri().path() {
+            "/proto.rpc.examples.echo.v1.EchoService/EchoBiDi" => Ok::<_, hyper::Error>(
+                Response::builder()
+                    .status(200)
+                    .header(CONTENT_TYPE, "application/grpc")
+                    .body(BodyStream::new(BoxBody::new(BiDiEchoResp {
+                        req,
+                        timer: None,
+                        body: None,
+                    })))
+                    .unwrap(),
+            ),
+            _ => panic!("unimplemented"),
+        };
+        r
+    }
+
+    async fn grpc_client_test_server(tcp_server: Async<TcpListener>, executor: NativeExecutor) {
+        loop {
+            let incoming = tcp_server.accept().await;
+            assert!(incoming.is_ok());
+            let incoming = incoming.unwrap();
+            let service = service_fn(server_fn_echo);
+            let io = NativeStream::LocalPlain(incoming.0);
+            let cloned_exec = executor.clone();
+            let srv = http2::Builder::new(cloned_exec).serve_connection(io, service);
+            let ret = srv.await;
+            assert!(ret.is_ok());
+        }
+    }
+
+    async fn test_grpc_client_split_streaming_rpcs_async(port: u16, exec: NativeExecutor) {
+        let _ = Timer::after(Duration::from_millis(200)).await;
+        let addr = SocketAddrV4::new(Ipv4Addr::from_str("127.0.0.1").unwrap(), port);
+        let tcp_client = Async::<TcpStream>::connect(addr).await;
+        assert!(tcp_client.is_ok());
+        let tcp_client = tcp_client.unwrap();
+        let tcp_stream = NativeStream::LocalPlain(tcp_client);
+        let client = GrpcClient::new(tcp_stream, exec, "http://localhost").await;
+        assert!(client.is_ok());
+        let client = client.unwrap();
+
+        let (sender, receiver) = async_channel::bounded::<Bytes>(1);
+
+        let r = client.build_request(
+            "/proto.rpc.examples.echo.v1.EchoService/EchoBiDi",
+            None,
+            "",
+            BodyExt::boxed(StreamBody::new(receiver.map(|b| Ok(Frame::data(b))))),
+        );
+        assert!(r.is_ok());
+
+        let r = client
+            .send_request_bidi::<EchoBiDiRequest, EchoBiDiResponse>(r.unwrap(), sender)
+            .await;
+
+        assert!(r.is_ok());
+        let (mut tx, mut rx) = r.unwrap();
+        let p = tx
+            .send_message(EchoBiDiRequest {
+                message: "12345".to_owned(),
+            })
+            .await;
+        assert!(p.is_ok());
+        let r = rx.next().await;
+        assert!(r.is_some());
+        let r = r.unwrap();
+        assert!(r.is_ok());
+        assert_eq!(r.unwrap().message, "12345");
+
+        let p = tx
+            .send_message(EchoBiDiRequest {
+                message: "54321".to_owned(),
+            })
+            .await;
+        assert!(p.is_ok());
+        let r = rx.next().await;
+        assert!(r.is_some());
+        let r = r.unwrap();
+        assert!(r.is_ok());
+        assert_eq!(r.unwrap().message, "54321");
+
+        let p = tx
+            .send_message(EchoBiDiRequest {
+                message: "54321S12345123456789012345".to_owned(),
+            })
+            .await;
+        assert!(p.is_ok());
+        let r = rx.next().await;
+        assert!(r.is_some());
+        let r = r.unwrap();
+        assert!(r.is_ok());
+        assert_eq!(r.unwrap().message, "54321S12345123456789012345");
+
+        let p = tx
+            .send_message(EchoBiDiRequest {
+                message: "5432112345".to_owned(),
+            })
+            .await;
+        assert!(p.is_ok());
+        let r = rx.next().await;
+        assert!(r.is_some());
+        let r = r.unwrap();
+        assert!(r.is_ok());
+        assert_eq!(r.unwrap().message, "5432112345");
+
+        let p = tx
+            .send_message(EchoBiDiRequest {
+                message: "54321S12345123S4567890S12345".to_owned(),
+            })
+            .await;
+        assert!(p.is_ok());
+        let r = rx.next().await;
+        assert!(r.is_some());
+        let r = r.unwrap();
+        assert!(r.is_ok());
+        assert_eq!(r.unwrap().message, "54321S12345123S4567890S12345");
+
+        let p = tx
+            .send_message(EchoBiDiRequest {
+                message: "hello world".to_owned(),
+            })
+            .await;
+        assert!(p.is_ok());
+        let r = rx.next().await;
+        assert!(r.is_some());
+        let r = r.unwrap();
+        assert!(r.is_ok());
+        assert_eq!(r.unwrap().message, "hello world");
+
+        let _ = Timer::after(Duration::from_millis(200)).await;
+    }
+
+    #[test_log::test]
+    fn test_grpc_client_split_streaming_rpcs() {
+        let exec = NativeExecutor::default();
+
+        let tcp_server = TcpListener::bind("127.0.0.1:0");
+        assert!(tcp_server.is_ok());
+        let tcp_server = tcp_server.unwrap();
+        let port = tcp_server.local_addr().unwrap().port();
+        let tcp_server: Async<TcpListener> = tcp_server.try_into().unwrap();
+        let cloned_exec = exec.clone();
+        exec.spawn(async move { grpc_client_test_server(tcp_server, cloned_exec).await })
+            .detach();
+
+        let cloned_exec = exec.clone();
+        exec.block_on(async move {
+            test_grpc_client_split_streaming_rpcs_async(port, cloned_exec).await
+        });
     }
 }
