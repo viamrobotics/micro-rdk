@@ -413,8 +413,8 @@ where
                         // duration, update `duration`. Otherwise, just sleep again and hope that an
                         // `AppClient` will be available on the next wakeup.
                         let _ = async_io::Timer::after(duration).await;
-                        let rguard = app_client.read().await;
-                        for app_client in rguard.as_ref().iter() {
+                        let urguard = app_client.upgradable_read().await;
+                        for app_client in urguard.as_ref().iter() {
                             match task.invoke(app_client).await {
                                 Ok(None) => continue,
                                 Ok(Some(next_duration)) => {
@@ -422,10 +422,12 @@ where
                                 }
                                 Err(e) => {
                                     log::error!(
-                                        "Periodic task {} failed with error {}",
+                                        "Periodic task {} failed with error {:?} - dropping app client",
                                         task.name(),
                                         e
                                     );
+                                    let _ = AsyncRwLockUpgradableReadGuard::upgrade(urguard).await.take();
+                                    break;
                                 }
                             }
                         }
