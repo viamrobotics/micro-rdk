@@ -103,36 +103,23 @@ pub async fn serve_web_inner<S>(
         RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
         RobotRepresentation::WithRegistry(registry) => {
             log::info!("building robot from config");
-            let r = match LocalRobot::from_cloud_config(
+            let (r, err) = match LocalRobot::from_cloud_config(
                 exec.clone(),
                 app_config.get_robot_id(),
                 &cfg_response,
                 registry,
                 cfg_received_datetime,
             ) {
-                Ok(robot) => {
-                    if let Some(datetime) = cfg_received_datetime {
-                        let logs = vec![config_log_entry(datetime, None)];
-                        app_client
-                            .push_logs(logs)
-                            .await
-                            .expect("could not push logs to app");
-                    }
-                    robot
-                }
+                Ok(robot) => (robot, None),
                 Err(err) => {
-                    if let Some(datetime) = cfg_received_datetime {
-                        let logs = vec![config_log_entry(datetime, Some(err))];
-                        app_client
-                            .push_logs(logs)
-                            .await
-                            .expect("could not push logs to app");
-                    }
-                    // TODO(RSDK-8172) shouldn't panic here, when we support offline mode and
-                    // reloading configuration this should be removed
-                    panic!("couldn't build robot");
+                    log::error!("could not build robot from config due to {:?}, defaulting to empty robot until a valid config is accessible", err);
+                    (LocalRobot::new(), Some(err))
                 }
             };
+            if let Some(datetime) = cfg_received_datetime {
+                let logs = vec![config_log_entry(datetime, err)];
+                let _ = app_client.push_logs(logs).await;
+            }
             Arc::new(Mutex::new(r))
         }
     };
