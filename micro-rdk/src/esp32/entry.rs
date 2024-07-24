@@ -118,7 +118,7 @@ pub async fn serve_web_inner<S>(
             };
             if let Some(datetime) = cfg_received_datetime {
                 let logs = vec![config_log_entry(datetime, err)];
-                app_client.push_logs(logs).await;
+                let _ = app_client.push_logs(logs).await;
             }
             Arc::new(Mutex::new(r))
         }
