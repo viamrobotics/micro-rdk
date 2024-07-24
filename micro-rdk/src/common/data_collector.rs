@@ -13,6 +13,8 @@ use super::{
 
 use thiserror::Error;
 
+pub(crate) const DEFAULT_CACHE_SIZE: f64 = 5120.0;
+
 /// A DataCollectorConfig instance is a representation of an element
 /// of the list of "capture_methods" in the "attributes" section of a
 /// component's configuration JSON object as stored in app. Each element
@@ -40,7 +42,7 @@ impl TryFrom<&Kind> for DataCollectorConfig {
             .try_into()?;
         let capacity = value
             .get("cache_size")?
-            .unwrap_or(&Kind::NumberValue(5120.0))
+            .unwrap_or(&Kind::NumberValue(DEFAULT_CACHE_SIZE))
             .try_into()?;
         // TODO: RSDK-7127 - Collectors that take arguments (ex. Board Analogs)
         let method = match method_str.as_str() {
@@ -276,7 +278,10 @@ mod tests {
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
 
-    use super::{CollectionMethod, DataCollectionError, DataCollector, DataCollectorConfig};
+    use super::{
+        CollectionMethod, DataCollectionError, DataCollector, DataCollectorConfig,
+        DEFAULT_CACHE_SIZE,
+    };
     use crate::common::config::{AttributeError, Kind};
     use crate::common::robot::ResourceType;
     use crate::common::sensor::FakeSensor;
@@ -296,7 +301,7 @@ mod tests {
         let conf: DataCollectorConfig = (&conf_kind).try_into()?;
         assert!(matches!(conf.method, CollectionMethod::Readings));
         assert_eq!(conf.capture_frequency_hz, 100.0);
-        assert_eq!(conf.capacity, 5120);
+        assert_eq!(conf.capacity, DEFAULT_CACHE_SIZE as usize);
 
         let kind_map = HashMap::from([
             (

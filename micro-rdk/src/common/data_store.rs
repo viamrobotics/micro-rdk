@@ -36,8 +36,6 @@ pub enum DataStoreError {
     EncodingError(#[from] EncodeError),
     #[error("SensorDataTooLarge")]
     DataTooLarge,
-    #[error("Store already initialized")]
-    DataStoreInitialized,
     #[error("Data write failure")]
     DataWriteFailure,
     #[error("Buffer full")]
@@ -52,10 +50,6 @@ pub enum DataStoreError {
     BufferInUse(ResourceMethodKey),
     #[error("unimplemented")]
     Unimplemented,
-}
-
-lazy_static::lazy_static! {
-    static ref DATA_STORE_INITIALIZED: AtomicBool = AtomicBool::new(false);
 }
 
 /// A trait for an entity that is capable of reading from a store without consuming
@@ -156,26 +150,22 @@ impl DefaultDataStore {
     pub fn new(
         collector_settings: Vec<(ResourceMethodKey, usize)>,
     ) -> Result<Self, DataStoreError> {
-        if !DATA_STORE_INITIALIZED.load(Ordering::Acquire) {
-            if collector_settings.is_empty() {
-                return Err(DataStoreError::NoCollectors);
-            }
-            let mut buffers = Vec::new();
-            let mut buffer_usages = Vec::new();
-            let mut collector_keys = vec![];
-            for (collector_key, capacity) in collector_settings {
-                collector_keys.push(collector_key);
-                buffers.push(Rc::new(LocalRb::new(capacity)));
-                buffer_usages.push(Rc::new(AtomicBool::new(false)));
-            }
-            DATA_STORE_INITIALIZED.store(true, Ordering::Release);
-            return Ok(Self {
-                buffers,
-                buffer_usages,
-                collector_keys,
-            });
+        if collector_settings.is_empty() {
+            return Err(DataStoreError::NoCollectors);
         }
-        Err(DataStoreError::DataStoreInitialized)
+        let mut buffers = Vec::new();
+        let mut buffer_usages = Vec::new();
+        let mut collector_keys = vec![];
+        for (collector_key, capacity) in collector_settings {
+            collector_keys.push(collector_key);
+            buffers.push(Rc::new(LocalRb::new(capacity)));
+            buffer_usages.push(Rc::new(AtomicBool::new(false)));
+        }
+        Ok(Self {
+            buffers,
+            buffer_usages,
+            collector_keys,
+        })
     }
 
     fn get_index_for_collector(
@@ -282,22 +272,15 @@ impl DataStore for DefaultDataStore {
     }
 }
 
-impl Drop for DefaultDataStore {
-    fn drop(&mut self) {
-        DATA_STORE_INITIALIZED.store(false, Ordering::SeqCst);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
-    use crate::common::data_collector::{CollectionMethod, ResourceMethodKey};
+    use crate::common::data_collector::{CollectionMethod, ResourceMethodKey, DEFAULT_CACHE_SIZE};
     use crate::common::data_store::DataStore;
     use crate::common::data_store::DataStoreError;
     use crate::common::data_store::DataStoreReader;
     use crate::common::data_store::WriteMode;
-    // use crate::common::data_store::DATA_STORE;
     use crate::google::protobuf::Timestamp;
     use crate::google::protobuf::{value::Kind, Struct, Value};
     use crate::proto::app::data_sync::v1::sensor_data::Data;
@@ -384,7 +367,10 @@ mod tests {
                 ]),
             })),
         };
-        let collector_keys = vec![(thing_key.clone(), 5120), (thing_2_key.clone(), 5120)];
+        let collector_keys = vec![
+            (thing_key.clone(), DEFAULT_CACHE_SIZE as usize),
+            (thing_2_key.clone(), DEFAULT_CACHE_SIZE as usize),
+        ];
         let store = super::DefaultDataStore::new(collector_keys);
         assert!(store.is_ok());
         let mut store = store.unwrap();
@@ -586,7 +572,10 @@ mod tests {
             component_type: "rdk::component::movement_sensor".to_string(),
             method: CollectionMethod::Readings,
         };
-        let collector_keys = vec![(thing_key.clone(), 5120), (thing_2_key.clone(), 5120)];
+        let collector_keys = vec![
+            (thing_key.clone(), DEFAULT_CACHE_SIZE as usize),
+            (thing_2_key.clone(), DEFAULT_CACHE_SIZE as usize),
+        ];
         std::mem::drop(store);
         let store = super::DefaultDataStore::new(collector_keys);
         assert!(store.is_ok());
@@ -617,7 +606,6 @@ mod tests {
         let message_byte_size = data.encoded_len();
         let message_byte_size_total = length_delimiter_len(message_byte_size) + message_byte_size;
 
-        // store was initialized with two keys, so the byte capacity is half the length of DATA_STORE
         let message_capacity_for_buffer: usize = 10240 / 2 / message_byte_size_total;
 
         // we want to prove that an additional two messages can only be written once the read pointer

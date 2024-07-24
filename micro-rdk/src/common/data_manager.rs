@@ -558,7 +558,7 @@ mod tests {
     use crate::common::data_store::{DataStoreReader, WriteMode};
     use crate::common::encoder::EncoderError;
     use crate::common::{
-        data_collector::{CollectionMethod, DataCollector, ResourceMethodKey},
+        data_collector::{CollectionMethod, DataCollector, ResourceMethodKey, DEFAULT_CACHE_SIZE},
         data_store::{DataStore, DataStoreError},
         robot::ResourceType,
         sensor::{
@@ -665,7 +665,7 @@ mod tests {
             resource_1,
             CollectionMethod::Readings,
             10.0,
-            5120,
+            DEFAULT_CACHE_SIZE as usize,
         );
         assert!(data_coll_1.is_ok());
         let data_coll_1 = data_coll_1.unwrap();
@@ -676,7 +676,7 @@ mod tests {
             resource_2,
             CollectionMethod::Readings,
             50.0,
-            5120,
+            DEFAULT_CACHE_SIZE as usize,
         );
         assert!(data_coll_2.is_ok());
         let data_coll_2 = data_coll_2.unwrap();
@@ -687,7 +687,7 @@ mod tests {
             resource_3,
             CollectionMethod::Readings,
             10.0,
-            5120,
+            DEFAULT_CACHE_SIZE as usize,
         );
         assert!(data_coll_3.is_ok());
         let data_coll_3 = data_coll_3.unwrap();
@@ -719,7 +719,7 @@ mod tests {
             resource_1,
             CollectionMethod::Readings,
             10.0,
-            5120,
+            DEFAULT_CACHE_SIZE as usize,
         );
         assert!(data_coll_1.is_ok());
         let data_coll_1 = data_coll_1.unwrap();
@@ -731,7 +731,7 @@ mod tests {
             resource_2,
             CollectionMethod::Readings,
             50.0,
-            5120,
+            DEFAULT_CACHE_SIZE as usize,
         );
         assert!(data_coll_2.is_ok());
         let data_coll_2 = data_coll_2.unwrap();
@@ -743,7 +743,7 @@ mod tests {
             resource_3,
             CollectionMethod::Readings,
             10.0,
-            5120,
+            DEFAULT_CACHE_SIZE as usize,
         );
         assert!(data_coll_3.is_ok());
         let data_coll_3 = data_coll_3.unwrap();
@@ -845,7 +845,7 @@ mod tests {
             resource_1,
             CollectionMethod::Readings,
             10.0,
-            5120,
+            DEFAULT_CACHE_SIZE as usize,
         );
         assert!(data_coll_1.is_ok());
         let data_coll_1 = data_coll_1.unwrap();
@@ -857,7 +857,7 @@ mod tests {
             resource_3,
             CollectionMethod::Readings,
             10.0,
-            5120,
+            DEFAULT_CACHE_SIZE as usize,
         );
         assert!(data_coll_3.is_ok());
         let data_coll_3 = data_coll_3.unwrap();
@@ -1033,7 +1033,7 @@ mod tests {
             resource_1,
             CollectionMethod::Readings,
             50.0,
-            5120,
+            DEFAULT_CACHE_SIZE as usize,
         );
         assert!(data_coll_1.is_ok());
         let data_coll_1 = data_coll_1.unwrap();
@@ -1044,7 +1044,7 @@ mod tests {
             resource_2,
             CollectionMethod::Readings,
             20.0,
-            5120,
+            DEFAULT_CACHE_SIZE as usize,
         );
         assert!(data_coll_2.is_ok());
         let data_coll_2 = data_coll_2.unwrap();
