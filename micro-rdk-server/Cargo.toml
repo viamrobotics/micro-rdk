@@ -26,10 +26,10 @@ embedded-hal.workspace = true
 embedded-svc.workspace = true
 futures-lite.workspace = true
 micro-rdk = { workspace = true, features = ["esp32", "binstart", "provisioning"], default-features = true }
+micro-rdk-modular-driver-example = {path = "../examples/modular-drivers", features = ["esp32"]}
 
 
 [dependencies]
-micro-rdk-modular-driver-example = {path = "../examples/modular-drivers", features = ["esp32"]}
 log.workspace = true
 serde.workspace = true
 serde_json.workspace = true
