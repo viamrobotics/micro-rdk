@@ -29,6 +29,7 @@ micro-rdk = { workspace = true, features = ["esp32", "binstart", "provisioning"]
 
 
 [dependencies]
+micro-rdk-modular-driver-example = {path = "../examples/modular-drivers", features = ["esp32"]}
 log.workspace = true
 serde.workspace = true
 serde_json.workspace = true

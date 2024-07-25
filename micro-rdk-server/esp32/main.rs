@@ -34,7 +34,11 @@ mod esp32 {
 
         micro_rdk::esp32::esp_idf_svc::log::EspLogger::initialize_default();
 
-        let repr = RobotRepresentation::WithRegistry(Box::<ComponentRegistry>::default());
+        let mut r = Box::<ComponentRegistry>::default();
+        if let Err(e) = micro_rdk_modular_driver_example::register_models(&mut r) {
+            log::error!("failed to load example drivers: {}", e);
+        }
+        let repr = RobotRepresentation::WithRegistry(r);
 
         {
             micro_rdk::esp32::esp_idf_svc::sys::esp!(unsafe {
