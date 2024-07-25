@@ -26,7 +26,7 @@ pub enum GenericError {
 #[cfg(feature = "builtin-components")]
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
-        .register_generic_component("fake", &FakeGenericComponent::from_config)
+        .register_generic_component("rdk:builtin:fake", &FakeGenericComponent::from_config)
         .is_err()
     {
         log::error!("model fake is already registered")

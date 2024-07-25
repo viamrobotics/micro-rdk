@@ -61,7 +61,7 @@ use crate::google;
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
-        .register_motor("gpio", &gpio_motor_from_config)
+        .register_motor("rdk:builtin:gpio", &gpio_motor_from_config)
         .is_err()
     {
         log::error!("gpio model is already registered")
@@ -69,7 +69,7 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
         .register_dependency_getter(
             MotorCompName,
-            "gpio",
+            "rdk:builtin:gpio",
             &PwmABMotor::<BoardType>::dependencies_from_config,
         )
         .is_err()

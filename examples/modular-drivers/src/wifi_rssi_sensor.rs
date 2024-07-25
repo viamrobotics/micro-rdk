@@ -14,14 +14,14 @@ use micro_rdk::{
         status::{Status, StatusError},
     },
     esp32::esp_idf_svc::sys::{esp, esp_wifi_sta_get_ap_info, wifi_ap_record_t},
-    DoCommand,
+    model, DoCommand,
 };
 
 #[derive(DoCommand)]
 pub struct WifiRSSISensor;
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {
-    registry.register_sensor("wifi-rssi", &WifiRSSISensor::from_config)?;
+    registry.register_sensor(model!("viam", "wifi-rssi"), &WifiRSSISensor::from_config)?;
     log::debug!("wifi-rssi sensor registration ok");
     Ok(())
 }

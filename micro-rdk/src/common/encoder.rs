@@ -38,13 +38,16 @@ pub static COMPONENT_NAME: &str = "encoder";
 #[cfg(feature = "builtin-components")]
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
-        .register_encoder("fake", &FakeEncoder::from_config)
+        .register_encoder("rdk:builtin:fake", &FakeEncoder::from_config)
         .is_err()
     {
         log::error!("fake type is already registered");
     }
     if registry
-        .register_encoder("fake_incremental", &FakeIncrementalEncoder::from_config)
+        .register_encoder(
+            "rdk:builtin:fake_incremental",
+            &FakeIncrementalEncoder::from_config,
+        )
         .is_err()
     {
         log::error!("fake_incremental type is already registered");

@@ -35,12 +35,13 @@ index 79fbc5c..949b5ab 100644
  smol = "1.2"
  futures-lite = "1.12.0"
  micro-rdk = {version = "0.0.3", git = "https://github.com/viamrobotics/micro-rdk.git", features = ["esp32"]}
-+micro-rdk-modular-driver-example = { git = "https://github.com/viamrobotics/micro-rdk/tree/main/examples/modular-drivers" }
++micro-rdk-modular-driver-example = { git = "https://github.com/viamrobotics/micro-rdk.git", features = ["esp32"] }
 ```
 
 Rebuild the project per the above Micro-RDK Development Setup
 instructions and reflash the board. We will be using the Wifi
-RSSI Sensor and free heap sensor for this example.
+RSSI Sensor and free heap sensor for this example. (Note: the "esp32" feature
+can be omitted if not using the free-heap or wifi sensors)
 
 ### Instantiating the Sensors
 
@@ -55,7 +56,7 @@ mode):
     {
       "name": "my-wifi-sensor",
       "type": "sensor",
-      "model": "wifi-rssi",
+      "model": "viam:micro-rdk-modular-driver-example:wifi-rssi",
       "attributes": {},
       "depends_on": []
     }
@@ -68,10 +69,14 @@ To instantiate the free heap sensor, add the following:
       "attributes": {},
       "depends_on": [],
       "type": "sensor",
-      "model": "free-heap",
+      "model": "viam:micro-rdk-modular-driver-example:free-heap",
       "name": "my-free-heap-sensor"
     }
 ```
+
+NOTE: The middle of the "model" triplet above is the name of the package specified in
+`Cargo.toml`. If a different package name is used, the middle of the model triplet
+in the config should also be adjusted accordingly 
 
 Reboot the ESP32 board (by, say, pressing the physical "boot" button,
 or hitting Ctrl-R if the monitor is active) so that it can pull the

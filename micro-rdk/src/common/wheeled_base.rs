@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
         .register_base(
-            "two_wheeled_base",
+            "rdk:builtin:two_wheeled_base",
             &WheeledBase::<MotorType, MotorType>::from_config,
         )
         .is_err()
@@ -23,7 +23,7 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
         .register_dependency_getter(
             BaseCompName,
-            "two_wheeled_base",
+            "rdk:builtin:two_wheeled_base",
             &WheeledBase::<MotorType, MotorType>::dependencies_from_config,
         )
         .is_err()
