@@ -16,8 +16,8 @@ opt-level = "z"
 [dependencies.micro-rdk]
 version = "0.2.3"
 git = "https://github.com/viamrobotics/micro-rdk.git"
+rev = "78d13fd"
 features = ["esp32", "binstart", "provisioning", {% if camera == "true" %}"camera"{%endif%}]
-rev = "098d3f1"
 
 [dependencies]
 embedded-svc = "0.27"
