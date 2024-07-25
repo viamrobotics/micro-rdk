@@ -18,6 +18,7 @@ qemu = []
 env_logger.workspace = true
 local-ip-address.workspace = true
 micro-rdk = { workspace = true, features = ["native", "provisioning"], default-features = true }
+micro-rdk-modular-driver-example.workspace = true
 
 
 [target.'cfg(target_os="espidf")'.dependencies]
@@ -26,7 +27,7 @@ embedded-hal.workspace = true
 embedded-svc.workspace = true
 futures-lite.workspace = true
 micro-rdk = { workspace = true, features = ["esp32", "binstart", "provisioning"], default-features = true }
-micro-rdk-modular-driver-example = {path = "../examples/modular-drivers", features = ["esp32"]}
+micro-rdk-modular-driver-example = {workspace = true, features = ["esp32"]}
 
 
 [dependencies]
