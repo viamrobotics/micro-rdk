@@ -20,7 +20,10 @@ use crate::{
 };
 
 #[cfg(feature = "provisioning")]
-use crate::common::provisioning::server::ProvisioningInfo;
+use crate::{
+    common::provisioning::server::{serve_provisioning_async, ProvisioningInfo},
+    esp32::conn::mdns::Esp32Mdns,
+};
 
 // Four cases:
 // 1) No Robot Credentials + WiFi without external network
@@ -43,12 +46,7 @@ where
     <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
     #[cfg(feature = "provisioning")]
-    use crate::{
-        common::provisioning::server::serve_provisioning_async,
-        esp32::{
-            conn::mdns::Esp32Mdns, provisioning::wifi_provisioning::Esp32WifiProvisioningBuilder,
-        },
-    };
+    use super::provisioning::wifi_provisioning::Esp32WifiProvisioningBuilder;
 
     use super::conn::network::Esp32WifiNetwork;
 
@@ -236,10 +234,9 @@ where
 }
 
 // serve_async variant where an external network is provided
-#[cfg(feature = "provisioning")]
 async fn serve_async_with_external_network<S>(
     exec: Esp32Executor,
-    info: Option<ProvisioningInfo>,
+    #[cfg(feature = "provisioning")] info: Option<ProvisioningInfo>,
     storage: S,
     mut repr: RobotRepresentation,
     network: impl Network,
@@ -251,12 +248,10 @@ where
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
     <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
-    use crate::common::provisioning::server::serve_provisioning_async;
-
-    use super::conn::mdns::Esp32Mdns;
-
     let mut client_connector = Esp32TLS::new_client();
+    #[cfg(feature = "provisioning")]
     let info = info.unwrap_or_default();
+    #[cfg(feature = "provisioning")]
     let mut last_error: Option<Box<dyn std::error::Error>> = None;
 
     let app_client = 'app_connection: loop {
@@ -324,9 +319,14 @@ where
                                     log::error!("couldn't erase robot configuration {:?}", e);
                                 }
 
-                                // Record the last error so that we can serve it once we reach provisioning.
-                                let _ = last_error.insert(e);
-                                break;
+                                #[cfg(feature = "provisioning")]
+                                {
+                                    // Record the last error so that we can serve it once we reach provisioning.
+                                    let _ = last_error.insert(e);
+                                    break;
+                                }
+                                #[cfg(not(feature = "provisioning"))]
+                                return Err(e);
                             }
                         }
 
@@ -339,19 +339,22 @@ where
             }
         }
 
-        log::warn!("Entering provisioning...");
-        let mut mdns = Esp32Mdns::new("".to_owned())?;
-        if let Err(e) = serve_provisioning_async::<_, (), _>(
-            exec.clone(),
-            info.clone(),
-            storage.clone(),
-            last_error.take(),
-            None,
-            &mut mdns,
-        )
-        .await
+        #[cfg(feature = "provisioning")]
         {
-            let _ = last_error.insert(e);
+            log::warn!("Entering provisioning...");
+            let mut mdns = Esp32Mdns::new("".to_owned())?;
+            if let Err(e) = serve_provisioning_async::<_, (), _>(
+                exec.clone(),
+                info.clone(),
+                storage.clone(),
+                last_error.take(),
+                None,
+                &mut mdns,
+            )
+            .await
+            {
+                let _ = last_error.insert(e);
+            }
         }
     };
     crate::common::entry::serve_web_inner(
@@ -416,9 +419,8 @@ pub fn serve_web<S>(
     unreachable!()
 }
 
-#[cfg(feature = "provisioning")]
 pub fn serve_web_with_external_network<S>(
-    info: Option<ProvisioningInfo>,
+    #[cfg(feature = "provisioning")] info: Option<ProvisioningInfo>,
     repr: RobotRepresentation,
     max_webrtc_connection: usize,
     storage: S,
@@ -457,6 +459,7 @@ pub fn serve_web_with_external_network<S>(
 
     let _ = cloned_exec.block_on(Box::pin(serve_async_with_external_network(
         exec,
+        #[cfg(feature = "provisioning")]
         info,
         storage,
         repr,

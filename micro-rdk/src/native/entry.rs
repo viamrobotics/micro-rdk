@@ -2,27 +2,29 @@
 
 use std::{fmt::Debug, time::Duration};
 
+use async_io::Timer;
+
 use crate::{
     common::{
+        app_client::AppClientError,
         conn::network::Network,
         credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage},
+        entry::validate_robot_credentials,
         entry::RobotRepresentation,
         grpc::ServerError,
+        grpc_client::GrpcClientError,
         robot::LocalRobot,
     },
-    native::{conn::mdns::NativeMdns, exec::NativeExecutor, tls::NativeTls},
-};
-
-#[cfg(feature = "provisioning")]
-use crate::{
-    common::{
-        app_client::AppClientError, entry::validate_robot_credentials,
-        grpc_client::GrpcClientError, provisioning::server::ProvisioningInfo,
-    },
+    native::{exec::NativeExecutor, tls::NativeTls},
     proto::app::v1::ConfigResponse,
 };
 
 #[cfg(feature = "provisioning")]
+use crate::{
+    common::provisioning::server::{serve_provisioning_async, ProvisioningInfo},
+    native::conn::mdns::NativeMdns,
+};
+
 async fn serve_async_with_external_network<S>(
     exec: NativeExecutor,
     #[cfg(feature = "provisioning")] info: Option<ProvisioningInfo>,
@@ -37,13 +39,10 @@ where
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
     <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
-    use async_io::Timer;
-
-    use crate::common::provisioning::server::serve_provisioning_async;
-
     let mut client_connector = NativeTls::new_client();
     #[cfg(feature = "provisioning")]
     let info = info.unwrap_or_default();
+    #[cfg(feature = "provisioning")]
     let mut last_error: Option<Box<dyn std::error::Error>> = None;
 
     let app_client = 'app_connection: loop {
@@ -162,9 +161,8 @@ where
     Ok(())
 }
 
-#[cfg(feature = "provisioning")]
 pub fn serve_web_with_external_network<S>(
-    info: Option<ProvisioningInfo>,
+    #[cfg(feature = "provisioning")] info: Option<ProvisioningInfo>,
     repr: RobotRepresentation,
     max_webrtc_connection: usize,
     storage: S,
@@ -180,6 +178,7 @@ pub fn serve_web_with_external_network<S>(
 
     let _ = cloned_exec.block_on(Box::pin(serve_async_with_external_network(
         exec,
+        #[cfg(feature = "provisioning")]
         info,
         storage,
         repr,
