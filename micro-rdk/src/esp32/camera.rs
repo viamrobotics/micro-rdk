@@ -80,7 +80,6 @@ enum FrameSize {
 
 #[derive(DoCommand)]
 pub struct Esp32Camera {
-    active: bool,
     config: camera_config_t,
 }
 
@@ -118,40 +117,37 @@ impl Esp32Camera {
         //  If pin_sccb_sda is -1, use the already configured I2C bus by number
         let sccb_i2c_port = cfg.get_attribute::<i32>("sccb_i2c_port").unwrap_or(-1);
 
-        let mut cam = Self {
-            active: false,
-            config: camera_config_t {
-                pin_pwdn,
-                pin_reset,
-                pin_xclk,
-                __bindgen_anon_1: camera_config_t__bindgen_ty_1 { pin_sccb_sda },
-                __bindgen_anon_2: camera_config_t__bindgen_ty_2 { pin_sccb_scl },
-                pin_d7,
-                pin_d6,
-                pin_d5,
-                pin_d4,
-                pin_d3,
-                pin_d2,
-                pin_d1,
-                pin_d0,
-                pin_vsync,
-                pin_href,
-                pin_pclk,
-                xclk_freq_hz,
-                ledc_channel,
-                ledc_timer,
-                pixel_format: PixelFormat::JPEG as u32,
-                frame_size,
-                jpeg_quality,
-                // Number of frame buffers to be allocated.
-                // If more than one, then each frame will be acquired (double speed)
-                // when pixel_format == jpeg, fb_count > 1 goes to continuous mode, may need to adjust
-                // xclk_freq_hz down to 10_000_000.
-                fb_count: 1,
-                grab_mode: 0,
-                fb_location: 0,
-                sccb_i2c_port,
-            },
+        let config = camera_config_t {
+            pin_pwdn,
+            pin_reset,
+            pin_xclk,
+            __bindgen_anon_1: camera_config_t__bindgen_ty_1 { pin_sccb_sda },
+            __bindgen_anon_2: camera_config_t__bindgen_ty_2 { pin_sccb_scl },
+            pin_d7,
+            pin_d6,
+            pin_d5,
+            pin_d4,
+            pin_d3,
+            pin_d2,
+            pin_d1,
+            pin_d0,
+            pin_vsync,
+            pin_href,
+            pin_pclk,
+            xclk_freq_hz,
+            ledc_channel,
+            ledc_timer,
+            pixel_format: PixelFormat::JPEG as u32,
+            frame_size,
+            jpeg_quality,
+            // Number of frame buffers to be allocated.
+            // If more than one, then each frame will be acquired (double speed)
+            // when pixel_format == jpeg, fb_count > 1 goes to continuous mode, may need to adjust
+            // xclk_freq_hz down to 10_000_000.
+            fb_count: 1,
+            grab_mode: 0,
+            fb_location: 0,
+            sccb_i2c_port,
         };
 
         let mut registered = CAMERA_ALREADY_REGISTERED.lock().map_err(|_| {
@@ -166,14 +162,13 @@ impl Esp32Camera {
             ));
         }
 
-        esp!(unsafe { esp_camera_init(&cam.config) }).map_err(|e| {
+        esp!(unsafe { esp_camera_init(&config) }).map_err(|e| {
             CameraError::InitError(format!("failed to initialize camera with config: {}", e).into())
         })?;
 
-        cam.active = true;
         *registered = true;
 
-        Ok(Arc::new(Mutex::new(cam)))
+        Ok(Arc::new(Mutex::new(Self { config })))
     }
 }
 
@@ -214,7 +209,7 @@ impl Camera for Esp32Camera {
 impl Drop for Esp32Camera {
     fn drop(&mut self) {
         let mut registered = CAMERA_ALREADY_REGISTERED.lock().unwrap();
-        if *registered && self.active {
+        if *registered {
             unsafe { esp_camera_deinit() };
             *registered = false;
         }
