@@ -27,10 +27,7 @@ use super::{
 };
 
 use crate::{
-    common::{
-        app_client::AppClientError,
-        grpc_client::GrpcClientError,
-    },
+    common::{app_client::AppClientError, grpc_client::GrpcClientError},
     proto::app::v1::ConfigResponse,
 };
 
