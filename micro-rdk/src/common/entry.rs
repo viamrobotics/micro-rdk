@@ -2,6 +2,7 @@ use std::{
     fmt::Debug,
     rc::Rc,
     sync::{Arc, Mutex},
+    time::Duration,
 };
 
 #[cfg(feature = "native")]
@@ -25,6 +26,17 @@ use super::{
     robot::LocalRobot,
 };
 
+use crate::{
+    common::{
+        app_client::AppClientError,
+        grpc_client::GrpcClientError,
+    },
+    proto::app::v1::ConfigResponse,
+};
+
+#[cfg(feature = "provisioning")]
+use crate::common::provisioning::server::{serve_provisioning_async, ProvisioningInfo};
+
 #[cfg(feature = "native")]
 use crate::native::{
     certificate::WebRtcCertificate,
@@ -41,8 +53,13 @@ use crate::{
         certificate::GeneratedWebRtcCertificateBuilder,
         dtls::Esp32DtlsBuilder,
         esp_idf_svc::sys::{settimeofday, timeval},
+        tls::Esp32TLS,
     },
 };
+
+#[cfg(feature = "esp32")]
+#[cfg(feature = "provisioning")]
+use crate::esp32::conn::mdns::Esp32Mdns;
 
 pub enum RobotRepresentation {
     WithRobot(LocalRobot),
@@ -214,4 +231,149 @@ pub async fn serve_web_inner<S>(
     }
 
     server.serve(robot).await;
+}
+
+pub async fn serve_async_with_external_network<S>(
+    exec: Executor,
+    #[cfg(feature = "provisioning")] info: Option<ProvisioningInfo>,
+    storage: S,
+    mut repr: RobotRepresentation,
+    network: impl Network,
+    max_webrtc_connection: usize,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
+    <S as RobotConfigurationStorage>::Error: Debug,
+    ServerError: From<<S as RobotConfigurationStorage>::Error>,
+    <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
+{
+    #[cfg(feature = "native")]
+    let mut client_connector = NativeTls::new_client();
+    #[cfg(feature = "esp32")]
+    let mut client_connector = Esp32TLS::new_client();
+
+    #[cfg(feature = "provisioning")]
+    let info = info.unwrap_or_default();
+    #[cfg(feature = "provisioning")]
+    let mut last_error: Option<Box<dyn std::error::Error>> = None;
+
+    let app_client = 'app_connection: loop {
+        if storage.has_robot_credentials() {
+            log::info!("Found cached robot credentials; attempting to serve");
+
+            if storage.has_robot_configuration() {
+                if let RobotRepresentation::WithRegistry(ref registry) = repr {
+                    log::info!("Found cached robot configuration; speculatively building robot from config");
+                    match LocalRobot::from_cloud_config(
+                        exec.clone(),
+                        storage.get_robot_credentials().unwrap().robot_id,
+                        &ConfigResponse {
+                            config: Some(storage.get_robot_configuration().unwrap()),
+                        },
+                        registry.clone(),
+                        None,
+                    ) {
+                        Ok(robot) => {
+                            repr = RobotRepresentation::WithRobot(robot);
+                        }
+                        Err(e) => {
+                            log::warn!("Failed building robot from cached robot configuration: {}; dropping and ignoring cached config", e);
+                            let _ = storage.reset_robot_configuration();
+                        }
+                    };
+                }
+            }
+
+            let mut duration = None;
+            loop {
+                if let Some(duration) = duration {
+                    Timer::after(duration).await;
+                } else {
+                    // TODO: Maybe some back-off up to a limit
+                    let _ = duration.insert(Duration::from_secs(3));
+                }
+
+                log::info!("Attempting to validate stored robot credentials");
+                match validate_robot_credentials(
+                    exec.clone(),
+                    &storage.get_robot_credentials().unwrap(),
+                    &mut client_connector,
+                )
+                .await
+                {
+                    Ok(app_client) => {
+                        log::info!("Robot credentials validated OK");
+                        break 'app_connection app_client;
+                    }
+                    Err(e) => {
+                        if let Some(app_client_error) = e.downcast_ref::<AppClientError>() {
+                            if matches!(app_client_error, AppClientError::AppGrpcClientError(GrpcClientError::GrpcError{ code, .. }) if *code == 7 || *code == 16)
+                            {
+                                // The validate call failed with an explicit rejection (PERMISSION_DENIED/UNAUTHENTICATED)
+                                // of the credentials. Reset the cached credentials and any robot configuration, and
+                                // move on to provisioning.
+                                log::warn!("Robot credential validation failed permanently with error {:?}; clearing cached state and initiating provisioning", e);
+
+                                if let Err(e) = storage.reset_robot_credentials() {
+                                    log::error!("Couldn't erase robot credentials {:?}", e);
+                                }
+
+                                if let Err(e) = storage.reset_robot_configuration() {
+                                    log::error!("couldn't erase robot configuration {:?}", e);
+                                }
+
+                                #[cfg(feature = "provisioning")]
+                                {
+                                    // Record the last error so that we can serve it once we reach provisioning.
+                                    let _ = last_error.insert(e);
+                                    break;
+                                }
+                                #[cfg(not(feature = "provisioning"))]
+                                return Err(e);
+                            }
+                        }
+
+                        // For all other errors, we assume we could not communicate with app due
+                        // to network issues, and just restart the inner loop until we are able
+                        // to communicate with app.
+                        log::info!("Unable to validate robot credentials {:?}; will retry", e);
+                    }
+                }
+            }
+        }
+
+        #[cfg(feature = "provisioning")]
+        {
+            log::warn!("Entering provisioning...");
+
+            #[cfg(feature = "native")]
+            let mut mdns = NativeMdns::new("".to_owned(), network.get_ip()).unwrap();
+            #[cfg(feature = "esp32")]
+            let mut mdns = Esp32Mdns::new("".to_owned())?;
+
+            if let Err(e) = serve_provisioning_async::<_, (), _>(
+                exec.clone(),
+                info.clone(),
+                storage.clone(),
+                last_error.take(),
+                None,
+                &mut mdns,
+            )
+            .await
+            {
+                let _ = last_error.insert(e);
+            }
+        }
+    };
+    serve_web_inner(
+        storage,
+        repr,
+        exec,
+        max_webrtc_connection,
+        network,
+        client_connector,
+        app_client,
+    )
+    .await;
+    Ok(())
 }
