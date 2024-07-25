@@ -18,7 +18,6 @@ qemu = []
 env_logger.workspace = true
 local-ip-address.workspace = true
 micro-rdk = { workspace = true, features = ["native", "provisioning"], default-features = true }
-micro-rdk-modular-driver-example.workspace = true
 
 
 [target.'cfg(target_os="espidf")'.dependencies]
