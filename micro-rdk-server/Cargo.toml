@@ -51,7 +51,7 @@ path = "esp32/main.rs"
 
 
 [package.metadata.esp-idf-sys]
-esp_idf_version = "v4.4.4"
+esp_idf_version = "v4.4.8"
 esp_idf_tools_install_dir = "custom:target/.embuild/espressif"
 esp_idf_sdkconfig_defaults = [
   "micro-rdk-server/sdkconfig.defaults",
