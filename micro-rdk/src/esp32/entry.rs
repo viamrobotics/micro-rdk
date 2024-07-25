@@ -143,7 +143,7 @@ where
                                         // The validate call failed with an explicit rejection (PERMISSION_DENIED/UNAUTHENTICATED)
                                         // of the credentials. Reset the cached credentials and any robot configuration, and
                                         // move on to provisioning.
-                                        log::warn!("Robot credential validation failed permanently with error {:?}; initiating provisioning", e);
+                                        log::warn!("Robot credential validation failed permanently with error {:?}; clearing cached state and initiating provisioning", e);
 
                                         if let Err(e) = storage.reset_robot_credentials() {
                                             log::error!("Couldn't erase robot credentials {:?}", e);
@@ -309,7 +309,7 @@ where
                                 // The validate call failed with an explicit rejection (PERMISSION_DENIED/UNAUTHENTICATED)
                                 // of the credentials. Reset the cached credentials and any robot configuration, and
                                 // move on to provisioning.
-                                log::warn!("Robot credential validation failed permanently with error {:?}; initiating provisioning", e);
+                                log::warn!("Robot credential validation failed permanently with error {:?}; clearing cached state and initiating provisioning", e);
 
                                 if let Err(e) = storage.reset_robot_credentials() {
                                     log::error!("Couldn't erase robot credentials {:?}", e);
