@@ -24,7 +24,7 @@ use super::{api::WebRtcError, sctp::Channel};
 // sizeof(fake_image) + headers/encodings
 static WEBRTC_GRPC_BUFFER_SIZE: usize = 1024 * 11;
 #[cfg(not(feature = "camera"))]
-static WEBRTC_GRPC_BUFFER_SIZE: usize = 1650;
+static WEBRTC_GRPC_BUFFER_SIZE: usize = 9216;
 
 #[derive(Debug, Default)]
 pub struct WebRtcGrpcBody {

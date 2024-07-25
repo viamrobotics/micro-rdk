@@ -37,7 +37,7 @@ use thiserror::Error;
 #[cfg(feature = "camera")]
 static GRPC_BUFFER_SIZE: usize = 1024 * 30; // 30KB
 #[cfg(not(feature = "camera"))]
-static GRPC_BUFFER_SIZE: usize = 4096;
+static GRPC_BUFFER_SIZE: usize = 9216;
 
 #[derive(Clone, Debug)]
 pub struct GrpcBody {

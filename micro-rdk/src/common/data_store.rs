@@ -28,7 +28,7 @@ impl Default for WriteMode {
     }
 }
 
-static mut DATA_STORE: [MaybeUninit<u8>; 10240] = [MaybeUninit::uninit(); 10240];
+static mut DATA_STORE: [MaybeUninit<u8>; 30240] = [MaybeUninit::uninit(); 30240];
 
 #[derive(Clone, Error, Debug)]
 pub enum DataStoreError {
