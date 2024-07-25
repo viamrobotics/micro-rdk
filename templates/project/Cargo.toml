@@ -13,6 +13,11 @@ opt-level = "s"
 debug = true # Symbols are nice and they don't increase the size on Flash
 opt-level = "z"
 
+[dependencies.micro-rdk]
+version = "0.2.3"
+git = "https://github.com/viamrobotics/micro-rdk.git"
+features = ["esp32", "binstart", "provisioning", {% if camera == "true" %}"camera"{%endif%}]
+rev = "098d3f1"
 
 [dependencies]
 embedded-svc = "0.27"
@@ -20,18 +25,6 @@ embedded-hal = { version = "0.2.7", features = ["unproven"]}
 log = "0.4"
 async-channel = "2"
 futures-lite = "1"
-micro-rdk = {
-    version = "0.2.3",
-    git = "https://github.com/viamrobotics/micro-rdk.git",
-    features = [
-      "esp32",
-      "binstart",
-      "provisioning",
-      {% if camera == "true" %}
-      "camera"
-      {%endif%}
-    ],
-  rev = "098d3f1"}
 
 [build-dependencies]
 cargo_metadata = "0.18"
