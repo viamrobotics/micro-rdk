@@ -5,6 +5,7 @@ use crate::esp32::esp_idf_svc::hal::gpio::{
 };
 use crate::esp32::esp_idf_svc::sys::{
     esp, gpio_install_isr_service, gpio_isr_handler_add, ESP_INTR_FLAG_IRAM,
+    SOC_GPIO_VALID_DIGITAL_IO_PAD_MASK,
 };
 use once_cell::sync::{Lazy, OnceCell};
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -33,6 +34,17 @@ fn install_gpio_isr_service() -> Result<(), BoardError> {
     Ok(())
 }
 
+// Since C macros are not usable in Rust via FFI, we cannot GPIO_IS_VALID_DIGITAL_IO_PAD from
+// ESP-IDF, so we must replicate the logic from that function here. If we do not validate,
+// PinDriver::input_output will panic because esp-idf-hal does not perform the same check
+unsafe fn validate_pin_as_io(pin: i32) -> Result<(), BoardError> {
+    let io_check = (1_u32 << (pin as u32)) & SOC_GPIO_VALID_DIGITAL_IO_PAD_MASK;
+    if io_check != 0 {
+        return Err(BoardError::InvalidGpioNumber(pin as u32));
+    }
+    Ok(())
+}
+
 /// Esp32GPIOPin is a wrapper for a pin on ESP32 as represented in esp-idf-hal
 /// and esp-idf-sys. This exists so that all micro-RDK drivers can interact
 /// with pins through the board instance and avoid conflicting uses of pins
@@ -47,6 +59,7 @@ pub struct Esp32GPIOPin {
 
 impl Esp32GPIOPin {
     pub fn new(pin: i32, pull: Option<Pull>) -> Result<Self, BoardError> {
+        unsafe { validate_pin_as_io(pin) }?;
         let mut driver = PinDriver::input_output(unsafe { AnyIOPin::new(pin) })
             .map_err(|e| BoardError::GpioPinOtherError(pin as u32, Box::new(e)))?;
         if let Some(pull) = pull {

@@ -193,10 +193,12 @@ impl EspBoard {
                 pins.iter()
                     .filter_map(|pin| {
                         let p = Esp32GPIOPin::new(*pin, None);
-                        if let Ok(p) = p {
-                            Some(p)
-                        } else {
-                            None
+                        match p {
+                            Ok(p) => Some(p),
+                            Err(err) => {
+                                log::error!("Error configuring pin: {:?}", err);
+                                None
+                            }
                         }
                     })
                     .collect()
