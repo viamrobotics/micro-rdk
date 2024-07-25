@@ -1,25 +1,16 @@
 #![allow(dead_code)]
 
+use std::{fmt::Debug, time::Duration};
+
 use crate::{
     common::{
-        app_client::AppClient,
-        config_monitor::ConfigMonitor,
-        conn::{
-            network::Network,
-            server::{TlsClientConnector, ViamServerBuilder, WebRtcConfiguration},
-        },
+        conn::network::Network,
+        credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage},
         entry::RobotRepresentation,
-        log::config_log_entry,
-        restart_monitor::RestartMonitor,
+        grpc::ServerError,
         robot::LocalRobot,
     },
-    native::{exec::NativeExecutor, tls::NativeTls},
-};
-use std::{
-    net::SocketAddr,
-    rc::Rc,
-    sync::{Arc, Mutex},
-    time::Duration,
+    native::{conn::mdns::NativeMdns, exec::NativeExecutor, tls::NativeTls},
 };
 
 #[cfg(feature = "provisioning")]
@@ -30,106 +21,6 @@ use crate::{
     },
     proto::app::v1::ConfigResponse,
 };
-
-use crate::common::{
-    credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage},
-    grpc::ServerError,
-};
-
-use std::fmt::Debug;
-
-use super::{
-    certificate::WebRtcCertificate, conn::mdns::NativeMdns, dtls::NativeDtls, tcp::NativeListener,
-    tls::NativeTlsServerConfig,
-};
-
-pub async fn serve_web_inner<S>(
-    storage: S,
-    repr: RobotRepresentation,
-    exec: NativeExecutor,
-    _max_webrtc_connection: usize,
-    network: impl Network,
-    client_connector: impl TlsClientConnector,
-    mut app_client: AppClient,
-) where
-    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
-    <S as RobotConfigurationStorage>::Error: Debug,
-    ServerError: From<<S as RobotConfigurationStorage>::Error>,
-    <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
-{
-    let mdns = NativeMdns::new("".to_owned(), network.get_ip()).unwrap();
-
-    let certs = app_client.get_certificates().await.unwrap();
-
-    let tls_server_config = NativeTlsServerConfig::new(
-        certs.tls_certificate.as_bytes().to_vec(),
-        certs.tls_private_key.as_bytes().to_vec(),
-    );
-
-    let (app_config, cfg_response, cfg_received_datetime) =
-        app_client.get_config(Some(network.get_ip())).await.unwrap();
-
-    let robot = match repr {
-        RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
-        RobotRepresentation::WithRegistry(registry) => {
-            log::info!("building robot from config");
-            let (r, err) = match LocalRobot::from_cloud_config(
-                exec.clone(),
-                app_config.get_robot_id(),
-                &cfg_response,
-                registry,
-                cfg_received_datetime,
-            ) {
-                Ok(robot) => (robot, None),
-                Err(err) => {
-                    log::error!("could not build robot from config due to {:?}, defaulting to empty robot until a valid config is accessible", err);
-                    (LocalRobot::new(), Some(err))
-                }
-            };
-            if let Some(datetime) = cfg_received_datetime {
-                let logs = vec![config_log_entry(datetime, err)];
-                let _ = app_client.push_logs(logs).await;
-            }
-            Arc::new(Mutex::new(r))
-        }
-    };
-
-    let address: SocketAddr = "0.0.0.0:12346".parse().unwrap();
-    let tls = Box::new(NativeTls::new_server(tls_server_config));
-    let tls_listener = NativeListener::new(address.into(), Some(tls)).unwrap();
-
-    let webrtc_certificate = Rc::new(WebRtcCertificate::new());
-    let dtls = NativeDtls::new(webrtc_certificate.clone());
-
-    let cloned_exec = exec.clone();
-
-    let webrtc = Box::new(WebRtcConfiguration::new(
-        webrtc_certificate,
-        dtls,
-        exec.clone(),
-    ));
-
-    let mut srv =
-        ViamServerBuilder::new(mdns, cloned_exec, client_connector, app_config, 3, network)
-            .with_http2(tls_listener, 12346)
-            .with_webrtc(webrtc)
-            .with_app_client(app_client)
-            .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| std::process::exit(0))))
-            .with_periodic_app_client_task(Box::new(ConfigMonitor::new(
-                *(cfg_response.clone()),
-                storage.clone(),
-                || std::process::exit(0),
-            )))
-            .build(&cfg_response)
-            .unwrap();
-
-    // Attempt to cache the config for the machine we are about to `serve`.
-    if let Err(e) = storage.store_robot_configuration(cfg_response.config.unwrap()) {
-        log::warn!("Failed to store robot configuration: {}", e);
-    }
-
-    srv.serve(robot).await;
-}
 
 #[cfg(feature = "provisioning")]
 async fn serve_async_with_external_network<S>(
@@ -258,7 +149,7 @@ where
             }
         }
     };
-    serve_web_inner(
+    crate::common::entry::serve_web_inner(
         storage,
         repr,
         exec,

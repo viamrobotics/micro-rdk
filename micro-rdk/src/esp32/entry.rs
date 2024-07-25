@@ -1,167 +1,26 @@
 #![allow(dead_code)]
 
-use std::{
-    ffi::CString,
-    fmt::Debug,
-    rc::Rc,
-    sync::{Arc, Mutex},
-    time::Duration,
-};
-
-use crate::common::{
-    app_client::{AppClient, AppClientError},
-    config_monitor::ConfigMonitor,
-    conn::{
-        mdns::NoMdns,
-        network::Network,
-        server::{TlsClientConnector, ViamServerBuilder, WebRtcConfiguration},
-    },
-    entry::RobotRepresentation,
-    grpc_client::GrpcClientError,
-    log::config_log_entry,
-    restart_monitor::RestartMonitor,
-    robot::LocalRobot,
-};
-
-use super::{
-    certificate::GeneratedWebRtcCertificateBuilder,
-    dtls::Esp32DtlsBuilder,
-    exec::Esp32Executor,
-    tls::{Esp32TLS, Esp32TLSServerConfig},
-};
+use std::{fmt::Debug, time::Duration};
 
 use async_io::Timer;
-use esp_idf_svc::sys::{settimeofday, timeval};
+
+use crate::{
+    common::{
+        app_client::AppClientError,
+        conn::network::Network,
+        credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage},
+        entry::validate_robot_credentials,
+        entry::RobotRepresentation,
+        grpc::ServerError,
+        grpc_client::GrpcClientError,
+        robot::LocalRobot,
+    },
+    esp32::{exec::Esp32Executor, tls::Esp32TLS},
+    proto::app::v1::ConfigResponse,
+};
 
 #[cfg(feature = "provisioning")]
 use crate::common::provisioning::server::ProvisioningInfo;
-
-use crate::common::{
-    credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage},
-    entry::validate_robot_credentials,
-    grpc::ServerError,
-};
-use crate::proto::app::v1::ConfigResponse;
-
-pub async fn serve_web_inner<S>(
-    storage: S,
-    repr: RobotRepresentation,
-    exec: Esp32Executor,
-    max_webrtc_connection: usize,
-    network: impl Network,
-    client_connector: impl TlsClientConnector,
-    mut app_client: AppClient,
-) where
-    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
-    <S as RobotConfigurationStorage>::Error: Debug,
-    ServerError: From<<S as RobotConfigurationStorage>::Error>,
-    <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
-{
-    // TODO(NPM) this is a workaround so that async-io thread has started before we
-    // instantiate the Async<TCPStream> for the connection to app.viam.com
-    // otherwise there is a chance a race happens and will listen to events before full
-    // initialization is done
-    let _ = Timer::after(std::time::Duration::from_millis(60)).await;
-
-    let webrtc_certificate = GeneratedWebRtcCertificateBuilder::default()
-        .build()
-        .unwrap();
-
-    let mdns = NoMdns {};
-
-    let certs = app_client.get_certificates().await.unwrap();
-
-    let serv_key = CString::new(certs.tls_private_key).unwrap();
-    let serv_key_len = serv_key.as_bytes_with_nul().len() as u32;
-    let serv_key: *const u8 = serv_key.into_raw() as *const u8;
-
-    let tls_certs = CString::new(certs.tls_certificate)
-        .unwrap()
-        .into_bytes_with_nul();
-    let _tls_server_config = Esp32TLSServerConfig::new(tls_certs, serv_key, serv_key_len);
-
-    let (app_config, cfg_response, cfg_received_datetime) =
-        app_client.get_config(Some(network.get_ip())).await.unwrap();
-
-    if let Some(current_dt) = cfg_received_datetime.as_ref() {
-        let tz = chrono_tz::Tz::UTC;
-        std::env::set_var("TZ", tz.name());
-        let tv_sec = current_dt.timestamp() as i32;
-        let tv_usec = current_dt.timestamp_subsec_micros() as i32;
-        let current_timeval = timeval { tv_sec, tv_usec };
-        let res = unsafe { settimeofday(&current_timeval as *const timeval, std::ptr::null()) };
-        if res != 0 {
-            log::error!(
-                "could not set time of day for timezone {:?} and timestamp {:?}",
-                tz.name(),
-                current_dt
-            );
-        }
-    }
-
-    let robot = match repr {
-        RobotRepresentation::WithRobot(robot) => Arc::new(Mutex::new(robot)),
-        RobotRepresentation::WithRegistry(registry) => {
-            log::info!("building robot from config");
-            let (r, err) = match LocalRobot::from_cloud_config(
-                exec.clone(),
-                app_config.get_robot_id(),
-                &cfg_response,
-                registry,
-                cfg_received_datetime,
-            ) {
-                Ok(robot) => (robot, None),
-                Err(err) => {
-                    log::error!("could not build robot from config due to {:?}, defaulting to empty robot until a valid config is accessible", err);
-                    (LocalRobot::new(), Some(err))
-                }
-            };
-            if let Some(datetime) = cfg_received_datetime {
-                let logs = vec![config_log_entry(datetime, err)];
-                let _ = app_client.push_logs(logs).await;
-            }
-            Arc::new(Mutex::new(r))
-        }
-    };
-
-    let webrtc_certificate = Rc::new(webrtc_certificate);
-    let dtls = Esp32DtlsBuilder::new(webrtc_certificate.clone());
-
-    let cloned_exec = exec.clone();
-    let webrtc = Box::new(WebRtcConfiguration::new(
-        webrtc_certificate,
-        dtls,
-        exec.clone(),
-    ));
-
-    let mut srv = ViamServerBuilder::new(
-        mdns,
-        cloned_exec,
-        client_connector,
-        app_config,
-        max_webrtc_connection,
-        network,
-    )
-    .with_webrtc(webrtc)
-    .with_app_client(app_client)
-    .with_periodic_app_client_task(Box::new(RestartMonitor::new(|| unsafe {
-        crate::esp32::esp_idf_svc::sys::esp_restart()
-    })))
-    .with_periodic_app_client_task(Box::new(ConfigMonitor::new(
-        *(cfg_response.clone()),
-        storage.clone(),
-        || unsafe { crate::esp32::esp_idf_svc::sys::esp_restart() },
-    )))
-    .build(&cfg_response)
-    .unwrap();
-
-    // Attempt to cache the config for the machine we are about to `serve`.
-    if let Err(e) = storage.store_robot_configuration(cfg_response.config.unwrap()) {
-        log::warn!("Failed to store robot configuration: {}", e);
-    }
-
-    srv.serve(robot).await;
-}
 
 // Four cases:
 // 1) No Robot Credentials + WiFi without external network
@@ -363,7 +222,7 @@ where
         }
     };
 
-    serve_web_inner(
+    crate::common::entry::serve_web_inner(
         storage,
         repr,
         exec,
@@ -495,7 +354,7 @@ where
             let _ = last_error.insert(e);
         }
     };
-    serve_web_inner(
+    crate::common::entry::serve_web_inner(
         storage,
         repr,
         exec,
