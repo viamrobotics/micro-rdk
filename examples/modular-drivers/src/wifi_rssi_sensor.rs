@@ -20,7 +20,7 @@ use micro_rdk::{
 #[derive(DoCommand)]
 pub struct WifiRSSISensor;
 
-pub(crate) fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {
+pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {
     registry.register_sensor("wifi-rssi", &WifiRSSISensor::from_config)?;
     log::debug!("wifi-rssi sensor registration ok");
     Ok(())
