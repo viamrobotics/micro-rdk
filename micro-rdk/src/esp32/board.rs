@@ -189,7 +189,9 @@ impl EspBoard {
                 } else {
                     vec![]
                 };
-            let pins = if let Ok(pins) = cfg.get_attribute::<Vec<i32>>("pins") {
+            let pins = if let Ok(mut pins) = cfg.get_attribute::<Vec<i32>>("pins") {
+                pins.sort();
+                pins.dedup();
                 pins.iter()
                     .filter_map(|pin| match Esp32GPIOPin::new(*pin, None) {
                         Ok(p) => Some(p),
