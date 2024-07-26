@@ -2602,6 +2602,7 @@ dependencies = [
  "local-ip-address",
  "log",
  "micro-rdk",
+ "micro-rdk-modular-driver-example",
  "serde",
  "serde_json",
  "thiserror",
