@@ -29,6 +29,8 @@ pub enum BoardError {
     GpioPinError(u32, &'static str),
     #[error("pin {0} error: {1}")]
     GpioPinOtherError(u32, Box<dyn std::error::Error + Send + Sync>),
+    #[error("{0} is an invalid GPIO number")]
+    InvalidGpioNumber(u32),
     #[error("analog reader {0} not found")]
     AnalogReaderNotFound(String),
     #[error("board unsupported argument {0} ")]
