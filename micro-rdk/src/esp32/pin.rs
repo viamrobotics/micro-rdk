@@ -37,12 +37,11 @@ fn install_gpio_isr_service() -> Result<(), BoardError> {
 // Since C macros are not usable in Rust via FFI, we cannot GPIO_IS_VALID_DIGITAL_IO_PAD from
 // ESP-IDF, so we must replicate the logic from that function here. If we do not validate,
 // PinDriver::input_output will panic because esp-idf-hal does not perform the same check
-unsafe fn validate_pin_as_io(pin: i32) -> Result<(), BoardError> {
-    let io_check = (1_u32 << (pin as u32)) & SOC_GPIO_VALID_DIGITAL_IO_PAD_MASK;
-    if io_check != 0 {
-        return Err(BoardError::InvalidGpioNumber(pin as u32));
+fn is_valid_gpio_pin(pin: i32) -> Result<(), BoardError> {
+    match (1_u32 << (pin as u32)) & SOC_GPIO_VALID_DIGITAL_IO_PAD_MASK {
+        0 => Ok(()),
+        _ => Err(BoardError::InvalidGpioNumber(pin as u32)),
     }
-    Ok(())
 }
 
 /// Esp32GPIOPin is a wrapper for a pin on ESP32 as represented in esp-idf-hal
@@ -59,7 +58,7 @@ pub struct Esp32GPIOPin {
 
 impl Esp32GPIOPin {
     pub fn new(pin: i32, pull: Option<Pull>) -> Result<Self, BoardError> {
-        unsafe { validate_pin_as_io(pin) }?;
+        is_valid_gpio_pin(pin)?;
         let mut driver = PinDriver::input_output(unsafe { AnyIOPin::new(pin) })
             .map_err(|e| BoardError::GpioPinOtherError(pin as u32, Box::new(e)))?;
         if let Some(pull) = pull {

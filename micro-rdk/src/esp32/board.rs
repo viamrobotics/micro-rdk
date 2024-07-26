@@ -191,14 +191,11 @@ impl EspBoard {
                 };
             let pins = if let Ok(pins) = cfg.get_attribute::<Vec<i32>>("pins") {
                 pins.iter()
-                    .filter_map(|pin| {
-                        let p = Esp32GPIOPin::new(*pin, None);
-                        match p {
-                            Ok(p) => Some(p),
-                            Err(err) => {
-                                log::error!("Error configuring pin: {:?}", err);
-                                None
-                            }
+                    .filter_map(|pin| match Esp32GPIOPin::new(*pin, None) {
+                        Ok(p) => Some(p),
+                        Err(err) => {
+                            log::error!("Error configuring pin: {:?}", err);
+                            None
                         }
                     })
                     .collect()
