@@ -8,7 +8,7 @@ on:
 jobs:
   tests:
     uses: ./.github/workflows/test.yml
-  
+
   build-installer:
     strategy:
       fail-fast: false
@@ -18,7 +18,7 @@ jobs:
           - { target: x86_64-apple-darwin, file_suffix: macos, os: macos-latest}
           - { target: x86_64-pc-windows-gnu, file_suffix: windows.exe, os: windows-latest}
     runs-on: ${{ matrix.job.os }}
-    defaults: 
+    defaults:
       run:
         shell: bash
     steps:
@@ -74,7 +74,7 @@ jobs:
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:arm64
     needs: tests
-    defaults: 
+    defaults:
       run:
         shell: bash
     steps:
@@ -99,7 +99,7 @@ jobs:
       with:
         name: micro-rdk-installer-arm64-linux
         path: micro-rdk-installer-arm64-linux
-      
+
 
   build-micro-RDK:
     runs-on: ubuntu-latest
@@ -113,8 +113,8 @@ jobs:
         fetch-depth: 2
     - name: Build esp32 binary
       run: |
-        bash -c 'git config --global --add safe.directory "$ESP_ROOT"/esp-idf && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && make build-esp32-bin &&  cargo +esp build -p micro-rdk-ffi --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --locked --release'
-        cp target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin  micro-rdk-server-esp32.bin
+        bash -c '. /home/testbot/.bash_profile ; git config --global --add safe.directory "$ESP_ROOT"/esp-idf && make build-esp32-bin && cargo +esp build -p micro-rdk-ffi --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --locked --release'
+        cp target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin micro-rdk-server-esp32.bin
         cp target/xtensa-esp32-espidf/release/libmicrordk.a libmicrordk.a
         cp micro-rdk-ffi/include/micrordk.h micrordk.h
     - name: Upload release Lib
