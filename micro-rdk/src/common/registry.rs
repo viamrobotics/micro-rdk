@@ -483,6 +483,7 @@ impl ComponentRegistry {
 }
 #[cfg(test)]
 mod tests {
+    use crate::common::exec::CPUBoundExecutor;
     use crate::common::generic::DoCommand;
     use crate::common::motor::MotorError;
     use crate::google;
@@ -499,11 +500,6 @@ mod tests {
         },
         status::Status,
     };
-
-    #[cfg(feature = "esp32")]
-    use crate::esp32::exec::Esp32Executor;
-    #[cfg(feature = "native")]
-    use crate::native::exec::NativeExecutor;
 
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
@@ -559,11 +555,6 @@ mod tests {
 
     impl DoCommand for TestSensor {}
 
-    #[cfg(feature = "native")]
-    type Executor = NativeExecutor;
-    #[cfg(feature = "esp32")]
-    type Executor = Esp32Executor;
-
     #[test_log::test]
     fn test_driver() {
         use crate::proto::app::v1::{ComponentConfig, ConfigResponse, RobotConfig};
@@ -618,7 +609,7 @@ mod tests {
 
         // make robot
         let robot = LocalRobot::from_cloud_config(
-            Executor::new(),
+            CPUBoundExecutor::new(),
             "".to_string(),
             &cfg_resp,
             Box::new(registry),

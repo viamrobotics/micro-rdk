@@ -18,6 +18,7 @@ use super::{
         server::{TlsClientConnector, ViamServerBuilder, WebRtcConfiguration},
     },
     credentials_storage::{RobotConfigurationStorage, RobotCredentials, WifiCredentialStorage},
+    exec::CPUBoundExecutor,
     grpc::ServerError,
     grpc_client::GrpcClient,
     log::config_log_entry,
@@ -63,13 +64,8 @@ pub enum RobotRepresentation {
     WithRegistry(Box<ComponentRegistry>),
 }
 
-#[cfg(feature = "native")]
-type Executor = crate::native::exec::NativeExecutor;
-#[cfg(feature = "esp32")]
-type Executor = crate::esp32::exec::Esp32Executor;
-
 pub async fn validate_robot_credentials(
-    exec: Executor,
+    exec: CPUBoundExecutor,
     robot_creds: &RobotCredentials,
     client_connector: &mut impl TlsClientConnector,
 ) -> Result<AppClient, Box<dyn std::error::Error>> {
@@ -92,7 +88,7 @@ pub async fn validate_robot_credentials(
 pub async fn serve_web_inner<S>(
     storage: S,
     repr: RobotRepresentation,
-    exec: Executor,
+    exec: CPUBoundExecutor,
     max_webrtc_connection: usize,
     network: impl Network,
     client_connector: impl TlsClientConnector,
@@ -231,7 +227,7 @@ pub async fn serve_web_inner<S>(
 }
 
 pub async fn serve_async_with_external_network<S>(
-    exec: Executor,
+    exec: CPUBoundExecutor,
     #[cfg(feature = "provisioning")] info: Option<ProvisioningInfo>,
     storage: S,
     mut repr: RobotRepresentation,

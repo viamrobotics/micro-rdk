@@ -1,8 +1,4 @@
 #![allow(dead_code)]
-#[cfg(feature = "esp32")]
-use crate::esp32::exec::Esp32Executor;
-#[cfg(feature = "native")]
-use crate::native::exec::NativeExecutor;
 use async_channel::Sender;
 use async_io::Timer;
 use bytes::{BufMut, Bytes, BytesMut};
@@ -20,6 +16,8 @@ use std::pin::Pin;
 use std::time::Instant;
 use std::{marker::PhantomData, task::Poll};
 use thiserror::Error;
+
+use super::exec::CPUBoundExecutor;
 
 #[derive(Error, Debug)]
 pub enum GrpcClientError {
@@ -184,12 +182,9 @@ where
         Poll::Pending
     }
 }
-#[cfg(feature = "native")]
-type Executor = NativeExecutor;
-#[cfg(feature = "esp32")]
-type Executor = Esp32Executor;
+
 pub struct GrpcClient {
-    executor: Executor,
+    executor: CPUBoundExecutor,
     http2_connection: SendRequest<BoxBody<Bytes, hyper::Error>>,
     #[allow(dead_code)]
     http2_task: Option<Task<()>>,
@@ -237,7 +232,11 @@ impl rt::Timer for H2Timer {
 }
 
 impl GrpcClient {
-    pub async fn new<T>(io: T, executor: Executor, uri: &str) -> Result<GrpcClient, GrpcClientError>
+    pub async fn new<T>(
+        io: T,
+        executor: CPUBoundExecutor,
+        uri: &str,
+    ) -> Result<GrpcClient, GrpcClientError>
     where
         T: rt::Read + rt::Write + Unpin + 'static,
     {
@@ -399,8 +398,8 @@ mod tests {
     };
 
     use crate::{
-        common::app_client::encode_request,
-        native::{exec::NativeExecutor, tcp::NativeStream},
+        common::{app_client::encode_request, exec::CPUBoundExecutor},
+        native::tcp::NativeStream,
         proto::rpc::examples::echo::v1::{EchoBiDiRequest, EchoBiDiResponse},
     };
 
@@ -498,7 +497,7 @@ mod tests {
         r
     }
 
-    async fn grpc_client_test_server(tcp_server: Async<TcpListener>, executor: NativeExecutor) {
+    async fn grpc_client_test_server(tcp_server: Async<TcpListener>, executor: CPUBoundExecutor) {
         loop {
             let incoming = tcp_server.accept().await;
             assert!(incoming.is_ok());
@@ -512,7 +511,7 @@ mod tests {
         }
     }
 
-    async fn test_grpc_client_split_streaming_rpcs_async(port: u16, exec: NativeExecutor) {
+    async fn test_grpc_client_split_streaming_rpcs_async(port: u16, exec: CPUBoundExecutor) {
         let _ = Timer::after(Duration::from_millis(200)).await;
         let addr = SocketAddrV4::new(Ipv4Addr::from_str("127.0.0.1").unwrap(), port);
         let tcp_client = Async::<TcpStream>::connect(addr).await;
@@ -616,7 +615,7 @@ mod tests {
 
     #[test_log::test]
     fn test_grpc_client_split_streaming_rpcs() {
-        let exec = NativeExecutor::default();
+        let exec = CPUBoundExecutor::default();
 
         let tcp_server = TcpListener::bind("127.0.0.1:0");
         assert!(tcp_server.is_ok());

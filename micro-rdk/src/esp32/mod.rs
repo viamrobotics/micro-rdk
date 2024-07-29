@@ -10,7 +10,6 @@ pub mod dtls;
 pub mod encoder;
 pub mod entry;
 pub mod esp_idf_svc;
-pub mod exec;
 #[cfg(feature = "builtin-components")]
 pub mod hcsr04;
 pub mod i2c;

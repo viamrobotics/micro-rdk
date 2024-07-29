@@ -9,12 +9,6 @@ use std::{
     time::Instant,
 };
 
-#[cfg(feature = "esp32")]
-use crate::esp32::exec::Esp32Executor;
-
-#[cfg(feature = "native")]
-use crate::native::exec::NativeExecutor;
-
 #[cfg(feature = "camera")]
 use crate::common::camera::{Camera, CameraType};
 
@@ -50,6 +44,7 @@ use super::{
     board::BoardType,
     config::{AttributeError, Component, ConfigType, DynamicComponentConfig},
     encoder::EncoderType,
+    exec::CPUBoundExecutor,
     generic::{GenericComponent, GenericComponentType},
     motor::MotorType,
     movement_sensor::MovementSensorType,
@@ -102,16 +97,11 @@ impl ResourceType {
     }
 }
 
-#[cfg(feature = "native")]
-type Executor = NativeExecutor;
-#[cfg(feature = "esp32")]
-type Executor = Esp32Executor;
-
 pub struct LocalRobot {
     pub(crate) part_id: String,
     resources: ResourceMap,
     build_time: Option<DateTime<FixedOffset>>,
-    executor: Executor,
+    executor: CPUBoundExecutor,
     #[cfg(feature = "data")]
     data_collector_configs: Vec<(ResourceName, DataCollectorConfig)>,
     data_manager_sync_task: Option<Box<dyn PeriodicAppClientTask>>,
@@ -260,7 +250,7 @@ impl LocalRobot {
     // component configs within the response are consumed and the corresponding components are generated
     // and added to the created robot.
     pub fn from_cloud_config(
-        exec: Executor,
+        exec: CPUBoundExecutor,
         part_id: String,
         config_resp: &ConfigResponse,
         registry: Box<ComponentRegistry>,
@@ -924,6 +914,7 @@ mod tests {
             board::Board,
             config::{DynamicComponentConfig, Kind},
             encoder::{Encoder, EncoderPositionType},
+            exec::CPUBoundExecutor,
             i2c::I2CHandle,
             motor::Motor,
             movement_sensor::MovementSensor,
@@ -936,11 +927,6 @@ mod tests {
 
     #[cfg(feature = "data")]
     use {crate::common::data_collector::DataCollectorConfig, std::time::Duration};
-
-    #[cfg(feature = "native")]
-    type Executor = crate::native::exec::NativeExecutor;
-    #[cfg(feature = "esp32")]
-    type Executor = crate::esp32::exec::Esp32Executor;
 
     #[test_log::test]
     fn test_robot_from_components() {
@@ -1419,7 +1405,7 @@ mod tests {
         };
 
         let robot = LocalRobot::from_cloud_config(
-            Executor::new(),
+            CPUBoundExecutor::new(),
             "".to_string(),
             &robot_cfg,
             Box::default(),
@@ -1530,7 +1516,7 @@ mod tests {
         };
 
         let robot = LocalRobot::from_cloud_config(
-            Executor::new(),
+            CPUBoundExecutor::new(),
             "".to_string(),
             &robot_cfg,
             Box::default(),

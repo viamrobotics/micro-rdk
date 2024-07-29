@@ -10,11 +10,6 @@ use std::{
     time::Duration,
 };
 
-#[cfg(feature = "esp32")]
-use crate::esp32::exec::Esp32Executor;
-
-#[cfg(feature = "native")]
-use crate::native::exec::NativeExecutor;
 use crate::{
     common::grpc_client::{GrpcClientError, GrpcMessageSender, GrpcMessageStream},
     proto::rpc::webrtc::v1::{
@@ -310,11 +305,6 @@ impl WebRtcSignalingChannel {
         }
     }
 }
-
-#[cfg(feature = "native")]
-type Executor = NativeExecutor;
-#[cfg(feature = "esp32")]
-type Executor = Esp32Executor;
 
 pub struct WebRtcApi<S, D, E> {
     executor: E,

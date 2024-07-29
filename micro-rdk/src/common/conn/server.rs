@@ -4,16 +4,13 @@ use super::{
     network::Network,
     utils::{NoHttp2, WebRtcNoOp},
 };
-#[cfg(feature = "esp32")]
-use crate::esp32::exec::Esp32Executor;
-#[cfg(feature = "native")]
-use crate::native::exec::NativeExecutor;
 use crate::{
     common::{
         app_client::{
             AppClient, AppClientBuilder, AppClientConfig, AppClientError, AppSignaling,
             PeriodicAppClientTask,
         },
+        exec::CPUBoundExecutor,
         grpc::{GrpcBody, GrpcServer},
         grpc_client::GrpcClient,
         robot::LocalRobot,
@@ -47,11 +44,6 @@ use std::{
     task::Poll,
     time::Duration,
 };
-
-#[cfg(feature = "native")]
-type Executor = NativeExecutor;
-#[cfg(feature = "esp32")]
-type Executor = Esp32Executor;
 
 pub trait TlsClientConnector {
     type Stream: rt::Read + rt::Write + Unpin + 'static;
@@ -101,7 +93,7 @@ pub struct ViamServerBuilder<M, C, T, NetworkType, CC = WebRtcNoOp, D = WebRtcNo
     port: u16, // gRPC/HTTP2 port
     http2_listener: L,
     _marker: PhantomData<T>,
-    exec: Executor,
+    exec: CPUBoundExecutor,
     app_connector: C,
     app_config: AppClientConfig,
     max_connections: usize,
@@ -119,7 +111,7 @@ where
 {
     pub fn new(
         mdns: M,
-        exec: Executor,
+        exec: CPUBoundExecutor,
         app_connector: C,
         app_config: AppClientConfig,
         max_connections: usize,
@@ -341,7 +333,7 @@ where
 pub struct ViamServer<C, T, CC, D, L, NetworkType> {
     http_listener: HttpListener<L, T>,
     webrtc_config: Option<Box<WebRtcConfiguration<D, CC>>>,
-    exec: Executor,
+    exec: CPUBoundExecutor,
     app_connector: C,
     app_config: AppClientConfig,
     app_client: Rc<AsyncRwLock<Option<AppClient>>>,
@@ -364,7 +356,7 @@ where
     fn new(
         http_listener: HttpListener<L, T>,
         webrtc_config: Option<Box<WebRtcConfiguration<D, CC>>>,
-        exec: Executor,
+        exec: CPUBoundExecutor,
         app_connector: C,
         app_config: AppClientConfig,
         max_concurent_connections: usize,
@@ -569,7 +561,7 @@ where
     }
     async fn serve_http2(
         connection: T,
-        exec: Executor,
+        exec: CPUBoundExecutor,
         robot: Arc<Mutex<LocalRobot>>,
     ) -> Result<(), ServerError> {
         let srv = GrpcServer::new(robot.clone(), GrpcBody::new());
@@ -595,7 +587,7 @@ pub enum IncomingConnection<L, U> {
 pub struct WebRtcConfiguration<D, CC> {
     pub dtls: D,
     pub cert: Rc<CC>,
-    pub exec: Executor,
+    pub exec: CPUBoundExecutor,
 }
 
 impl<D, CC> WebRtcConfiguration<D, CC>
@@ -603,7 +595,7 @@ where
     D: DtlsBuilder,
     CC: Certificate,
 {
-    pub fn new(cert: Rc<CC>, dtls: D, exec: Executor) -> Self {
+    pub fn new(cert: Rc<CC>, dtls: D, exec: CPUBoundExecutor) -> Self {
         Self { dtls, cert, exec }
     }
 }
@@ -701,7 +693,7 @@ where
     C: Certificate,
     D: DtlsBuilder,
 {
-    type Output = Result<WebRtcApi<C, D::Output, Executor>, ServerError>;
+    type Output = Result<WebRtcApi<C, D::Output, CPUBoundExecutor>, ServerError>;
     fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
         let r = ready!(this.future.poll(cx));
