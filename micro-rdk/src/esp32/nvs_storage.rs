@@ -23,7 +23,7 @@ pub enum NVSStorageError {
     #[error(transparent)]
     EspError(#[from] EspError),
     #[error("nvs key {0} is absent")]
-    NVSKeyAbsent(&'static str),
+    NVSKeyAbsent(String),
     #[error(transparent)]
     NVSValueDecodeError(#[from] DecodeError),
 }
@@ -46,19 +46,25 @@ impl NVSStorage {
         })
     }
 
-    fn get_string(&self, key: &'static str) -> Result<String, NVSStorageError> {
+    fn get_string(&self, key: &str) -> Result<String, NVSStorageError> {
         let nvs = self.nvs.borrow_mut();
         let len = nvs
             .str_len(key)?
-            .ok_or(NVSStorageError::NVSKeyAbsent(key))?;
+            .ok_or(NVSStorageError::NVSKeyAbsent(key.to_string()))?;
         let mut buf = vec![0_u8; len];
         Ok(nvs
             .get_str(key, buf.as_mut_slice())?
-            .ok_or(NVSStorageError::NVSKeyAbsent(key))?
+            .ok_or(NVSStorageError::NVSKeyAbsent(key.to_string()))?
             .to_owned())
     }
 
     fn set_string(&self, key: &str, string: &str) -> Result<(), NVSStorageError> {
+        if self.has_string(key).unwrap_or_default()
+            && self.get_string(key).unwrap_or_default().as_str() == string
+        {
+            log::debug!("no change in write to NVS key {:?}, skipping", key);
+            return Ok(());
+        }
         let mut nvs = self.nvs.borrow_mut();
         Ok(nvs.set_str(key, string)?)
     }
@@ -68,18 +74,23 @@ impl NVSStorage {
         Ok(nvs.str_len(key)?.is_some())
     }
 
-    fn get_blob(&self, key: &'static str) -> Result<Vec<u8>, NVSStorageError> {
+    fn get_blob(&self, key: &str) -> Result<Vec<u8>, NVSStorageError> {
         let nvs = self.nvs.borrow_mut();
         let len = nvs
             .blob_len(key)?
-            .ok_or(NVSStorageError::NVSKeyAbsent(key))?;
+            .ok_or(NVSStorageError::NVSKeyAbsent(key.to_string()))?;
         let mut buf = vec![0_u8; len];
         nvs.get_blob(key, buf.as_mut_slice())?
-            .ok_or(NVSStorageError::NVSKeyAbsent(key))?;
+            .ok_or(NVSStorageError::NVSKeyAbsent(key.to_string()))?;
         Ok(buf)
     }
 
     fn set_blob(&self, key: &str, bytes: Bytes) -> Result<(), NVSStorageError> {
+        if self.has_blob(key).unwrap_or_default() && self.get_blob(key).unwrap_or_default() == bytes
+        {
+            log::debug!("no change in write to NVS key {:?} for blob, skipping", key);
+            return Ok(());
+        }
         let mut nvs = self.nvs.borrow_mut();
         Ok(nvs.set_blob(key, bytes.as_ref())?)
     }
