@@ -13,6 +13,7 @@ publish = false
 
 [features]
 qemu = []
+provisioning = ["micro-rdk/provisioning"]
 
 [target.'cfg(not(target_os = "espidf"))'.dependencies]
 env_logger.workspace = true
@@ -25,7 +26,7 @@ async-channel.workspace = true
 embedded-hal.workspace = true
 embedded-svc.workspace = true
 futures-lite.workspace = true
-micro-rdk = { workspace = true, features = ["esp32", "binstart", "provisioning"], default-features = true }
+micro-rdk = { workspace = true, features = ["esp32", "binstart"], default-features = true }
 micro-rdk-modular-driver-example = {workspace = true, features = ["esp32"]}
 
 
