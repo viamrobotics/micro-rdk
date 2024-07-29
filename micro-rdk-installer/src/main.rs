@@ -526,8 +526,5 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
 }
 
 fn monitor_message() {
-    log::info!(
-        "Once the moitor is enabled, the device must be reset to connect to the live output"
-    );
-    log::info!("Starting monitor...");
+    log::info!("In order to begin monitoring (viewing the log output), you must run the command to reset the chip");
 }
