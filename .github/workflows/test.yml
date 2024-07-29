@@ -24,7 +24,6 @@ jobs:
       src-ffi: ${{ steps.filter.outputs.src-ffi }}
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
-      options: --user testbot
     steps:
     - name : Checkout main branch code
       if: github.event_name != 'pull_request_target'
@@ -64,7 +63,6 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
-      options: --user testbot
     steps:
     - name : Checkout main branch code
       if: github.event_name != 'pull_request_target'
@@ -88,7 +86,6 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
-      options: --user testbot
     steps:
     - name : Checkout main branch code
       if: github.event_name != 'pull_request_target'
@@ -115,7 +112,6 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
-      options: --user testbot
     timeout-minutes: 20
     steps:
     - name : Checkout main branch code
