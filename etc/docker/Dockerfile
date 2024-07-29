@@ -2,7 +2,7 @@ FROM rust:1.75-bookworm AS builder
 RUN apt update && apt-get install -y --no-install-recommends git libudev-dev make bzip2 gcc libgcrypt20 libgcrypt20-dev  ninja-build libudev-dev sudo wget git flex bison gperf ccache libffi-dev libssl-dev dfu-util libusb-1.0-0 cmake pkg-config libglib2.0-dev libpixman-1-dev software-properties-common openssh-client libslirp-dev python3-venv
 
 RUN export TARGET=$(rustc -vV | sed -En 's/^host: //p') && \
-    curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash && \ 
+    curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash && \
     cargo binstall --pkg-url='https://github.com/esp-rs/espflash/releases/download/v{ version }/{ name }-{ target }{ archive-suffix }' --pkg-fmt='zip' cargo-espflash@3.0.0 --install-path /usr -y --target $TARGET && \
     cargo binstall --pkg-url='https://github.com/esp-rs/espup/releases/download/v{ version }/{ name }-{ target }{ archive-suffix }' --pkg-fmt='zip' espup@0.11 --install-path /usr -y --target $TARGET && \
     cargo binstall --pkg-url='https://github.com/esp-rs/embuild/releases/download/{ name }-v{ version }/{ name }-{ target }{ archive-suffix }' --pkg-fmt='zip' ldproxy@0.3.2 --install-path /usr -y --target $TARGET && \
@@ -99,6 +99,7 @@ RUN rm -rf $CARGO_HOME/registry
 RUN echo "PATH=$PATH" >> ~/.bash_profile && \
     echo ". $ESP_ROOT/export-esp.sh" >> ~/.bash_profile && \
     echo ". $IDF_PATH/export.sh"  >> ~/.bash_profile && \
+    echo "export ESP_IDF_TOOLS_INSTALL_DIR=fromenv"  >> ~/.bash_profile && \
     echo "CARGO_HOME=/host/.micro-rdk-docker-caches/cargo-registry" >> ~/.bash_profile && \
     echo "[[ -v SCCACHE ]] && export RUSTC_WRAPPER=/usr/bin/sccache" >> ~/.bash_profile && \
     echo "[[ -v SCCACHE ]] && export SCCACHE_DIR=/host/.micro-rdk-docker-caches/sccache" >> ~/.bash_profile

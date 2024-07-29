@@ -29,12 +29,23 @@ mod esp32 {
     use micro_rdk::common::registry::ComponentRegistry;
     use micro_rdk::esp32::nvs_storage::NVSStorage;
 
+    fn register_examples(r: &mut ComponentRegistry) {
+        if let Err(e) = micro_rdk_modular_driver_example::free_heap_sensor::register_models(r) {
+            log::error!("failed to register `free_heap_sensor`: {}", e);
+        }
+        if let Err(e) = micro_rdk_modular_driver_example::wifi_rssi_sensor::register_models(r) {
+            log::error!("failed to register `wifi_rssi_sensor`: {}", e);
+        }
+    }
+
     pub(crate) fn main_esp32() {
         micro_rdk::esp32::esp_idf_svc::sys::link_patches();
 
         micro_rdk::esp32::esp_idf_svc::log::EspLogger::initialize_default();
 
-        let repr = RobotRepresentation::WithRegistry(Box::<ComponentRegistry>::default());
+        let mut r = Box::<ComponentRegistry>::default();
+        register_examples(&mut r);
+        let repr = RobotRepresentation::WithRegistry(r);
 
         {
             micro_rdk::esp32::esp_idf_svc::sys::esp!(unsafe {
