@@ -137,7 +137,7 @@ impl RobotConfigurationStorage for NVSStorage {
     #[cfg(feature = "provisioning")]
     fn store_robot_credentials(
         &self,
-        cfg: provisioning::v1::CloudConfig,
+        cfg: crate::proto::provisioning::v1::CloudConfig,
     ) -> Result<(), Self::Error> {
         self.set_string(NVS_ROBOT_SECRET_KEY, &cfg.secret)?;
         self.set_string(NVS_ROBOT_ID_KEY, &cfg.id)?;
