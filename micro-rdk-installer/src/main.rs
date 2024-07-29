@@ -190,7 +190,7 @@ fn request_wifi(
         ssid
     } else {
         Input::with_theme(&ColorfulTheme::default())
-            .with_prompt("Please enter WiFi SSID")
+            .with_prompt("Please enter the WiFi SSID (i.e. WiFi network name) for the network that Micro-RDK will connect to")
             .interact_text()
             .unwrap()
     };
