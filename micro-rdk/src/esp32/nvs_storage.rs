@@ -15,7 +15,7 @@ use crate::{
         nvs::{EspCustomNvs, EspCustomNvsPartition, EspNvs},
         sys::EspError,
     },
-    proto::{app::v1::RobotConfig, provisioning::v1::CloudConfig},
+    proto::app::v1::RobotConfig,
 };
 
 #[derive(Error, Debug)]
@@ -135,7 +135,10 @@ impl RobotConfigurationStorage for NVSStorage {
     }
 
     #[cfg(feature = "provisioning")]
-    fn store_robot_credentials(&self, cfg: CloudConfig) -> Result<(), Self::Error> {
+    fn store_robot_credentials(
+        &self,
+        cfg: provisioning::v1::CloudConfig,
+    ) -> Result<(), Self::Error> {
         self.set_string(NVS_ROBOT_SECRET_KEY, &cfg.secret)?;
         self.set_string(NVS_ROBOT_ID_KEY, &cfg.id)?;
         Ok(())
