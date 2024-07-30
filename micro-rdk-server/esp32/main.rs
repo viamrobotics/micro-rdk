@@ -17,7 +17,14 @@ mod esp32 {
         esp_idf_svc::eth::{EspEth, EthDriver},
     };
 
-    use micro_rdk::esp32::{entry::serve_web, esp_idf_svc, nvs_storage::NVSStorage};
+    use micro_rdk::esp32::{
+        entry::serve_web,
+        esp_idf_svc::{
+            self,
+            sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT},
+        },
+        nvs_storage::NVSStorage,
+    };
 
     #[allow(unused)]
     extern "C" {
@@ -98,22 +105,20 @@ mod esp32 {
                 )
                 .expect("Failed to store robot credentials to NVS");
         }
+        let max_connections = unsafe {
+            if !g_spiram_ok {
+                log::info!("spiram not initialized disabling cache feature of the wifi driver");
+                g_wifi_feature_caps &= !(CONFIG_FEATURE_CACHE_TX_BUF_BIT as u64);
+                1
+            } else {
+                3
+            }
+        };
 
         #[cfg(feature = "provisioning")]
         {
-            use micro_rdk::{
-                common::{provisioning::server::ProvisioningInfo, registry::ComponentRegistry},
-                esp32::esp_idf_svc::sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT},
-            };
-
-            let max_connections = unsafe {
-                if !g_spiram_ok {
-                    log::info!("spiram not initialized disabling cache feature of the wifi driver");
-                    g_wifi_feature_caps &= !(CONFIG_FEATURE_CACHE_TX_BUF_BIT as u64);
-                    1
-                } else {
-                    3
-                }
+            use micro_rdk::common::{
+                provisioning::server::ProvisioningInfo, registry::ComponentRegistry,
             };
 
             let mut info = ProvisioningInfo::default();
@@ -124,7 +129,7 @@ mod esp32 {
         // check for cached credentials/wifi
         // if present, serve web, otherwise deep sleep
         #[cfg(not(feature = "provisioning"))]
-        serve_web(repr, 3, storage);
+        serve_web(repr, max_connections, storage);
     }
 }
 
