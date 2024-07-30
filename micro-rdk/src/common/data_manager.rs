@@ -137,9 +137,11 @@ where
         let sync_interval = get_data_sync_interval(cfg)?;
         if let Some(sync_interval) = sync_interval {
             let collectors = robot.data_collectors()?;
-            let collector_keys: Vec<ResourceMethodKey> =
-                collectors.iter().map(|c| c.resource_method_key()).collect();
-            let store = StoreType::from_resource_method_keys(collector_keys)?;
+            let collector_settings: Vec<(ResourceMethodKey, usize)> = collectors
+                .iter()
+                .map(|c| (c.resource_method_key(), c.capacity()))
+                .collect();
+            let store = StoreType::from_resource_method_settings(collector_settings)?;
             let data_manager_svc =
                 DataManager::new(collectors, store, sync_interval, robot.part_id.clone())?;
             Ok(Some(data_manager_svc))
@@ -556,7 +558,7 @@ mod tests {
     use crate::common::data_store::{DataStoreReader, WriteMode};
     use crate::common::encoder::EncoderError;
     use crate::common::{
-        data_collector::{CollectionMethod, DataCollector, ResourceMethodKey},
+        data_collector::{CollectionMethod, DataCollector, ResourceMethodKey, DEFAULT_CACHE_SIZE},
         data_store::{DataStore, DataStoreError},
         robot::ResourceType,
         sensor::{
@@ -642,8 +644,8 @@ mod tests {
         ) -> Result<(), DataStoreError> {
             Err(DataStoreError::Unimplemented)
         }
-        fn from_resource_method_keys(
-            _collector_keys: Vec<ResourceMethodKey>,
+        fn from_resource_method_settings(
+            _collector_settings: Vec<(ResourceMethodKey, usize)>,
         ) -> Result<Self, DataStoreError> {
             Ok(Self {})
         }
@@ -663,6 +665,7 @@ mod tests {
             resource_1,
             CollectionMethod::Readings,
             10.0,
+            DEFAULT_CACHE_SIZE as usize,
         );
         assert!(data_coll_1.is_ok());
         let data_coll_1 = data_coll_1.unwrap();
@@ -673,6 +676,7 @@ mod tests {
             resource_2,
             CollectionMethod::Readings,
             50.0,
+            DEFAULT_CACHE_SIZE as usize,
         );
         assert!(data_coll_2.is_ok());
         let data_coll_2 = data_coll_2.unwrap();
@@ -683,6 +687,7 @@ mod tests {
             resource_3,
             CollectionMethod::Readings,
             10.0,
+            DEFAULT_CACHE_SIZE as usize,
         );
         assert!(data_coll_3.is_ok());
         let data_coll_3 = data_coll_3.unwrap();
@@ -714,6 +719,7 @@ mod tests {
             resource_1,
             CollectionMethod::Readings,
             10.0,
+            DEFAULT_CACHE_SIZE as usize,
         );
         assert!(data_coll_1.is_ok());
         let data_coll_1 = data_coll_1.unwrap();
@@ -725,6 +731,7 @@ mod tests {
             resource_2,
             CollectionMethod::Readings,
             50.0,
+            DEFAULT_CACHE_SIZE as usize,
         );
         assert!(data_coll_2.is_ok());
         let data_coll_2 = data_coll_2.unwrap();
@@ -736,6 +743,7 @@ mod tests {
             resource_3,
             CollectionMethod::Readings,
             10.0,
+            DEFAULT_CACHE_SIZE as usize,
         );
         assert!(data_coll_3.is_ok());
         let data_coll_3 = data_coll_3.unwrap();
@@ -837,6 +845,7 @@ mod tests {
             resource_1,
             CollectionMethod::Readings,
             10.0,
+            DEFAULT_CACHE_SIZE as usize,
         );
         assert!(data_coll_1.is_ok());
         let data_coll_1 = data_coll_1.unwrap();
@@ -848,6 +857,7 @@ mod tests {
             resource_3,
             CollectionMethod::Readings,
             10.0,
+            DEFAULT_CACHE_SIZE as usize,
         );
         assert!(data_coll_3.is_ok());
         let data_coll_3 = data_coll_3.unwrap();
@@ -957,8 +967,8 @@ mod tests {
             .map_err(|_| DataStoreError::DataBufferFull(collector_key.clone()))?;
             Ok(())
         }
-        fn from_resource_method_keys(
-            _collector_keys: Vec<ResourceMethodKey>,
+        fn from_resource_method_settings(
+            _collector_settings: Vec<(ResourceMethodKey, usize)>,
         ) -> Result<Self, DataStoreError> {
             Ok(Self::new())
         }
@@ -1023,6 +1033,7 @@ mod tests {
             resource_1,
             CollectionMethod::Readings,
             50.0,
+            DEFAULT_CACHE_SIZE as usize,
         );
         assert!(data_coll_1.is_ok());
         let data_coll_1 = data_coll_1.unwrap();
@@ -1033,6 +1044,7 @@ mod tests {
             resource_2,
             CollectionMethod::Readings,
             20.0,
+            DEFAULT_CACHE_SIZE as usize,
         );
         assert!(data_coll_2.is_ok());
         let data_coll_2 = data_coll_2.unwrap();
