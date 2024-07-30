@@ -298,7 +298,7 @@ fn flash(
         .map_err(Error::EspFlashError)?;
     log::info!("Flashing completed.");
     if flash_args.monitor {
-        log::info!("Starting monitor...");
+        monitor_message();
         let pid = flasher.get_usb_pid().map_err(Error::EspFlashError)?;
         monitor(
             flasher.into_serial(),
@@ -395,6 +395,7 @@ fn main() -> Result<(), Error> {
             .map_err(Error::FileError)?;
         }
         Some(Commands::Monitor(args)) => {
+            monitor_message();
             let config = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
             serial_monitor(args, &config).map_err(|err| Error::MonitorError(err.to_string()))?
         }
@@ -508,7 +509,7 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
         .map_err(Error::EspFlashError)?;
     log::info!("Running image has been updated");
     if args.flash_args.monitor {
-        log::info!("Starting monitor...");
+        monitor_message();
         let pid = flasher.get_usb_pid().map_err(Error::EspFlashError)?;
         monitor(
             flasher.into_serial(),
@@ -522,4 +523,8 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
         .map_err(|err| Error::MonitorError(err.to_string()))?;
     }
     Ok(())
+}
+
+fn monitor_message() {
+    log::info!("In order to begin monitoring (viewing the log output), you must run the command to reset the chip (e.g. Ctrl-R)");
 }
