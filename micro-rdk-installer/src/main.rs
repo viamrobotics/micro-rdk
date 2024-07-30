@@ -526,5 +526,5 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
 }
 
 fn monitor_message() {
-    log::info!("In order to begin monitoring (viewing the log output), you must run the command to reset the chip");
+    log::info!("In order to begin monitoring (viewing the log output), you must run the command to reset the chip (e.g. Ctrl-R)");
 }
