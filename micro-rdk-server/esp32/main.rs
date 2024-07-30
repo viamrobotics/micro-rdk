@@ -39,6 +39,13 @@ mod esp32 {
         esp_idf_svc::sys::link_patches();
         esp_idf_svc::log::EspLogger::initialize_default();
 
+        esp_idf_svc::sys::esp!(unsafe {
+            esp_idf_svc::sys::esp_vfs_eventfd_register(
+                &esp_idf_svc::sys::esp_vfs_eventfd_config_t { max_fds: 5 },
+            )
+        })
+        .unwrap();
+
         #[cfg(feature = "qemu")]
         let _network = {
             use micro_rdk::esp32::esp_idf_svc::hal::prelude::Peripherals;
@@ -51,23 +58,13 @@ mod esp32 {
             eth_configure(&sys_loop, eth).unwrap()
         };
 
-        {
-            esp_idf_svc::sys::esp!(unsafe {
-                esp_idf_svc::sys::esp_vfs_eventfd_register(
-                    &esp_idf_svc::sys::esp_vfs_eventfd_config_t { max_fds: 5 },
-                )
-            })
-            .unwrap();
-        }
-
         let mut r = Box::<ComponentRegistry>::default();
         register_examples(&mut r);
         let repr = RobotRepresentation::WithRegistry(r);
 
         // When building the server locally if a user gives a "config" (Robot credentials and Wifi Credentials)
         // then the entire provisioning step can be skipped
-        #[allow(unused_mut)]
-        let mut storage = NVSStorage::new("nvs").unwrap();
+        let storage = NVSStorage::new("nvs").unwrap();
 
         #[cfg(has_robot_config)]
         {
@@ -124,6 +121,8 @@ mod esp32 {
             info.set_model("test-esp32".to_owned());
             serve_web(Some(info), repr, max_connections, storage);
         }
+        // check for cached credentials/wifi
+        // if present, serve web, otherwise deep sleep
         #[cfg(not(feature = "provisioning"))]
         serve_web(repr, 3, storage);
     }
