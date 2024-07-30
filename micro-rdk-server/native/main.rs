@@ -28,11 +28,16 @@ mod native {
             _ => panic!("oops expected ipv4"),
         };
 
-        let storage = if cfg!(has_robot_config) && ROBOT_ID.is_some() && ROBOT_SECRET.is_some() {
-            RAMStorage::new("", "", ROBOT_ID.unwrap(), ROBOT_SECRET.unwrap())
-        } else {
-            RAMStorage::default()
-        };
+        #[cfg(has_robot_config)]
+        let storage = RAMStorage::new(
+            "",
+            "",
+            ROBOT_ID.expect("robot config missing ID"),
+            ROBOT_SECRET.expect("robot config missing secret"),
+        );
+
+        #[cfg(not(has_robot_config))]
+        let storage = RAMStorage::default();
 
         #[cfg(feature = "provisioning")]
         {
