@@ -11,7 +11,7 @@ use crate::{
     common::{
         conn::mdns::Mdns,
         credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage, WifiCredentials},
-        exec::CPUBoundExecutor,
+        exec::Executor,
         grpc::{GrpcBody, GrpcError, GrpcResponse, ServerError},
         webrtc::api::AtomicSync,
     },
@@ -473,7 +473,7 @@ type Stream = crate::esp32::tcp::Esp32Stream;
 async fn accept_connections<S, Wifi>(
     listener: Async<TcpListener>,
     service: ProvisioningService<S, Wifi>,
-    exec: CPUBoundExecutor,
+    exec: Executor,
 ) where
     S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
@@ -501,7 +501,7 @@ async fn accept_connections<S, Wifi>(
 }
 
 pub(crate) async fn serve_provisioning_async<S, Wifi, M>(
-    exec: CPUBoundExecutor,
+    exec: Executor,
     info: ProvisioningInfo,
     storage: S,
     last_error: Option<Box<dyn std::error::Error>>,
@@ -575,7 +575,7 @@ mod tests {
 
     use async_io::{Async, Timer};
 
-    use crate::common::exec::CPUBoundExecutor;
+    use crate::common::exec::Executor;
     use crate::native::tcp::NativeStream;
     use crate::{
         common::{
@@ -604,10 +604,7 @@ mod tests {
 
     use super::ProvisioningService;
 
-    async fn run_provisioning_server(
-        ex: CPUBoundExecutor,
-        srv: ProvisioningService<RAMStorage, ()>,
-    ) {
+    async fn run_provisioning_server(ex: Executor, srv: ProvisioningService<RAMStorage, ()>) {
         let listen = TcpListener::bind("127.0.0.1:56432");
         assert!(listen.is_ok());
         let listen: Async<TcpListener> = listen.unwrap().try_into().unwrap();
@@ -624,7 +621,7 @@ mod tests {
         }
     }
 
-    async fn test_provisioning_server_inner(exec: CPUBoundExecutor, addr: SocketAddr) {
+    async fn test_provisioning_server_inner(exec: Executor, addr: SocketAddr) {
         let stream = async_io::Async::<TcpStream>::connect(addr).await;
         assert!(stream.is_ok());
 
@@ -835,7 +832,7 @@ mod tests {
 
     #[test_log::test]
     fn test_provisioning_server() {
-        let exec = CPUBoundExecutor::default();
+        let exec = Executor::default();
 
         let mut provisioning_info = ProvisioningInfo::default();
         provisioning_info.set_fragment_id("a-fragment-id".to_owned());
@@ -867,7 +864,7 @@ mod tests {
     }
 
     async fn run_provisioning_server_with_mdns(
-        ex: CPUBoundExecutor,
+        ex: Executor,
         srv: ProvisioningService<RAMStorage, ()>,
         mut mdns: NativeMdns,
         ip: Ipv4Addr,
@@ -918,7 +915,7 @@ mod tests {
         let mdns = mdns.unwrap();
         let daemon = mdns.daemon();
 
-        let exec = CPUBoundExecutor::default();
+        let exec = Executor::default();
 
         let mut provisioning_info = ProvisioningInfo::default();
         provisioning_info.set_fragment_id("a-fragment-id".to_owned());

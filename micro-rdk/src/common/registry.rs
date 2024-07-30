@@ -483,7 +483,7 @@ impl ComponentRegistry {
 }
 #[cfg(test)]
 mod tests {
-    use crate::common::exec::CPUBoundExecutor;
+    use crate::common::exec::Executor;
     use crate::common::generic::DoCommand;
     use crate::common::motor::MotorError;
     use crate::google;
@@ -609,7 +609,7 @@ mod tests {
 
         // make robot
         let robot = LocalRobot::from_cloud_config(
-            CPUBoundExecutor::new(),
+            Executor::new(),
             "".to_string(),
             &cfg_resp,
             Box::new(registry),

@@ -10,7 +10,7 @@ use crate::{
             AppClient, AppClientBuilder, AppClientConfig, AppClientError, AppSignaling,
             PeriodicAppClientTask,
         },
-        exec::CPUBoundExecutor,
+        exec::Executor,
         grpc::{GrpcBody, GrpcServer},
         grpc_client::GrpcClient,
         robot::LocalRobot,
@@ -93,7 +93,7 @@ pub struct ViamServerBuilder<M, C, T, NetworkType, CC = WebRtcNoOp, D = WebRtcNo
     port: u16, // gRPC/HTTP2 port
     http2_listener: L,
     _marker: PhantomData<T>,
-    exec: CPUBoundExecutor,
+    exec: Executor,
     app_connector: C,
     app_config: AppClientConfig,
     max_connections: usize,
@@ -111,7 +111,7 @@ where
 {
     pub fn new(
         mdns: M,
-        exec: CPUBoundExecutor,
+        exec: Executor,
         app_connector: C,
         app_config: AppClientConfig,
         max_connections: usize,
@@ -333,7 +333,7 @@ where
 pub struct ViamServer<C, T, CC, D, L, NetworkType> {
     http_listener: HttpListener<L, T>,
     webrtc_config: Option<Box<WebRtcConfiguration<D, CC>>>,
-    exec: CPUBoundExecutor,
+    exec: Executor,
     app_connector: C,
     app_config: AppClientConfig,
     app_client: Rc<AsyncRwLock<Option<AppClient>>>,
@@ -356,7 +356,7 @@ where
     fn new(
         http_listener: HttpListener<L, T>,
         webrtc_config: Option<Box<WebRtcConfiguration<D, CC>>>,
-        exec: CPUBoundExecutor,
+        exec: Executor,
         app_connector: C,
         app_config: AppClientConfig,
         max_concurent_connections: usize,
@@ -561,7 +561,7 @@ where
     }
     async fn serve_http2(
         connection: T,
-        exec: CPUBoundExecutor,
+        exec: Executor,
         robot: Arc<Mutex<LocalRobot>>,
     ) -> Result<(), ServerError> {
         let srv = GrpcServer::new(robot.clone(), GrpcBody::new());
@@ -587,7 +587,7 @@ pub enum IncomingConnection<L, U> {
 pub struct WebRtcConfiguration<D, CC> {
     pub dtls: D,
     pub cert: Rc<CC>,
-    pub exec: CPUBoundExecutor,
+    pub exec: Executor,
 }
 
 impl<D, CC> WebRtcConfiguration<D, CC>
@@ -595,7 +595,7 @@ where
     D: DtlsBuilder,
     CC: Certificate,
 {
-    pub fn new(cert: Rc<CC>, dtls: D, exec: CPUBoundExecutor) -> Self {
+    pub fn new(cert: Rc<CC>, dtls: D, exec: Executor) -> Self {
         Self { dtls, cert, exec }
     }
 }
@@ -693,7 +693,7 @@ where
     C: Certificate,
     D: DtlsBuilder,
 {
-    type Output = Result<WebRtcApi<C, D::Output, CPUBoundExecutor>, ServerError>;
+    type Output = Result<WebRtcApi<C, D::Output, Executor>, ServerError>;
     fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
         let r = ready!(this.future.poll(cx));

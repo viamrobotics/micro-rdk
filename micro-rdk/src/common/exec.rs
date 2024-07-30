@@ -11,13 +11,13 @@ use crate::common::webrtc::exec::WebRtcExecutor;
 
 #[derive(Clone, Debug, Default)]
 /// This executor is local and bounded to the CPU that created it usually you would create it after spwaning a thread on a specific core
-pub struct CPUBoundExecutor {}
+pub struct Executor {}
 
 std::thread_local! {
     static EX: LocalExecutor<'static> = const { LocalExecutor::new() };
 }
 
-impl CPUBoundExecutor {
+impl Executor {
     pub fn new() -> Self {
         Self {}
     }
@@ -32,7 +32,7 @@ impl CPUBoundExecutor {
 }
 
 /// helper trait for hyper to spwan future onto a local executor
-impl<F> hyper::rt::Executor<F> for CPUBoundExecutor
+impl<F> hyper::rt::Executor<F> for Executor
 where
     F: future::Future + 'static,
 {
@@ -41,7 +41,7 @@ where
     }
 }
 
-impl<F> WebRtcExecutor<F> for CPUBoundExecutor
+impl<F> WebRtcExecutor<F> for Executor
 where
     F: future::Future + 'static,
 {
@@ -51,7 +51,7 @@ where
 }
 
 #[cfg(feature = "provisioning")]
-impl ProvisioningExecutor for CPUBoundExecutor {
+impl ProvisioningExecutor for Executor {
     fn spawn<F: future::Future<Output = ()> + 'static>(&self, future: F) -> Task<()> {
         self.spawn(future)
     }

@@ -18,7 +18,7 @@ use super::{
         server::{TlsClientConnector, ViamServerBuilder, WebRtcConfiguration},
     },
     credentials_storage::{RobotConfigurationStorage, RobotCredentials, WifiCredentialStorage},
-    exec::CPUBoundExecutor,
+    exec::Executor,
     grpc::ServerError,
     grpc_client::GrpcClient,
     log::config_log_entry,
@@ -65,7 +65,7 @@ pub enum RobotRepresentation {
 }
 
 pub async fn validate_robot_credentials(
-    exec: CPUBoundExecutor,
+    exec: Executor,
     robot_creds: &RobotCredentials,
     client_connector: &mut impl TlsClientConnector,
 ) -> Result<AppClient, Box<dyn std::error::Error>> {
@@ -88,7 +88,7 @@ pub async fn validate_robot_credentials(
 pub async fn serve_web_inner<S>(
     storage: S,
     repr: RobotRepresentation,
-    exec: CPUBoundExecutor,
+    exec: Executor,
     max_webrtc_connection: usize,
     network: impl Network,
     client_connector: impl TlsClientConnector,
@@ -227,7 +227,7 @@ pub async fn serve_web_inner<S>(
 }
 
 pub async fn serve_async_with_external_network<S>(
-    exec: CPUBoundExecutor,
+    exec: Executor,
     #[cfg(feature = "provisioning")] info: Option<ProvisioningInfo>,
     storage: S,
     mut repr: RobotRepresentation,

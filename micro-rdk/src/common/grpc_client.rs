@@ -17,7 +17,7 @@ use std::time::Instant;
 use std::{marker::PhantomData, task::Poll};
 use thiserror::Error;
 
-use super::exec::CPUBoundExecutor;
+use super::exec::Executor;
 
 #[derive(Error, Debug)]
 pub enum GrpcClientError {
@@ -184,7 +184,7 @@ where
 }
 
 pub struct GrpcClient {
-    executor: CPUBoundExecutor,
+    executor: Executor,
     http2_connection: SendRequest<BoxBody<Bytes, hyper::Error>>,
     #[allow(dead_code)]
     http2_task: Option<Task<()>>,
@@ -232,11 +232,7 @@ impl rt::Timer for H2Timer {
 }
 
 impl GrpcClient {
-    pub async fn new<T>(
-        io: T,
-        executor: CPUBoundExecutor,
-        uri: &str,
-    ) -> Result<GrpcClient, GrpcClientError>
+    pub async fn new<T>(io: T, executor: Executor, uri: &str) -> Result<GrpcClient, GrpcClientError>
     where
         T: rt::Read + rt::Write + Unpin + 'static,
     {
@@ -398,7 +394,7 @@ mod tests {
     };
 
     use crate::{
-        common::{app_client::encode_request, exec::CPUBoundExecutor},
+        common::{app_client::encode_request, exec::Executor},
         native::tcp::NativeStream,
         proto::rpc::examples::echo::v1::{EchoBiDiRequest, EchoBiDiResponse},
     };
@@ -497,7 +493,7 @@ mod tests {
         r
     }
 
-    async fn grpc_client_test_server(tcp_server: Async<TcpListener>, executor: CPUBoundExecutor) {
+    async fn grpc_client_test_server(tcp_server: Async<TcpListener>, executor: Executor) {
         loop {
             let incoming = tcp_server.accept().await;
             assert!(incoming.is_ok());
@@ -511,7 +507,7 @@ mod tests {
         }
     }
 
-    async fn test_grpc_client_split_streaming_rpcs_async(port: u16, exec: CPUBoundExecutor) {
+    async fn test_grpc_client_split_streaming_rpcs_async(port: u16, exec: Executor) {
         let _ = Timer::after(Duration::from_millis(200)).await;
         let addr = SocketAddrV4::new(Ipv4Addr::from_str("127.0.0.1").unwrap(), port);
         let tcp_client = Async::<TcpStream>::connect(addr).await;
@@ -615,7 +611,7 @@ mod tests {
 
     #[test_log::test]
     fn test_grpc_client_split_streaming_rpcs() {
-        let exec = CPUBoundExecutor::default();
+        let exec = Executor::default();
 
         let tcp_server = TcpListener::bind("127.0.0.1:0");
         assert!(tcp_server.is_ok());

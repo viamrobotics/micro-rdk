@@ -44,7 +44,7 @@ use super::{
     board::BoardType,
     config::{AttributeError, Component, ConfigType, DynamicComponentConfig},
     encoder::EncoderType,
-    exec::CPUBoundExecutor,
+    exec::Executor,
     generic::{GenericComponent, GenericComponentType},
     motor::MotorType,
     movement_sensor::MovementSensorType,
@@ -101,7 +101,7 @@ pub struct LocalRobot {
     pub(crate) part_id: String,
     resources: ResourceMap,
     build_time: Option<DateTime<FixedOffset>>,
-    executor: CPUBoundExecutor,
+    executor: Executor,
     #[cfg(feature = "data")]
     data_collector_configs: Vec<(ResourceName, DataCollectorConfig)>,
     data_manager_sync_task: Option<Box<dyn PeriodicAppClientTask>>,
@@ -250,7 +250,7 @@ impl LocalRobot {
     // component configs within the response are consumed and the corresponding components are generated
     // and added to the created robot.
     pub fn from_cloud_config(
-        exec: CPUBoundExecutor,
+        exec: Executor,
         part_id: String,
         config_resp: &ConfigResponse,
         registry: Box<ComponentRegistry>,
@@ -914,7 +914,7 @@ mod tests {
             board::Board,
             config::{DynamicComponentConfig, Kind},
             encoder::{Encoder, EncoderPositionType},
-            exec::CPUBoundExecutor,
+            exec::Executor,
             i2c::I2CHandle,
             motor::Motor,
             movement_sensor::MovementSensor,
@@ -1405,7 +1405,7 @@ mod tests {
         };
 
         let robot = LocalRobot::from_cloud_config(
-            CPUBoundExecutor::new(),
+            Executor::new(),
             "".to_string(),
             &robot_cfg,
             Box::default(),
@@ -1516,7 +1516,7 @@ mod tests {
         };
 
         let robot = LocalRobot::from_cloud_config(
-            CPUBoundExecutor::new(),
+            Executor::new(),
             "".to_string(),
             &robot_cfg,
             Box::default(),

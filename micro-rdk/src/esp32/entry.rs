@@ -11,7 +11,7 @@ use crate::{
         credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage},
         entry::RobotRepresentation,
         entry::{serve_async_with_external_network, validate_robot_credentials},
-        exec::CPUBoundExecutor,
+        exec::Executor,
         grpc::ServerError,
         grpc_client::GrpcClientError,
         robot::LocalRobot,
@@ -34,7 +34,7 @@ use crate::{
 // The function attempts to connect to the configured Wifi network if any, it then checks the robot credentials. If Wifi credentials are absent it starts provisioning mode
 // If they are invalid or absent it will start the provisioning server. Once provision is done it invokes the main server.
 async fn serve_async<S>(
-    exec: CPUBoundExecutor,
+    exec: Executor,
     #[cfg(feature = "provisioning")] info: Option<ProvisioningInfo>,
     storage: S,
     mut repr: RobotRepresentation,
@@ -259,7 +259,7 @@ pub fn serve_web<S>(
     })
     .unwrap();
 
-    let exec = CPUBoundExecutor::new();
+    let exec = Executor::new();
     let cloned_exec = exec.clone();
 
     cloned_exec
@@ -309,7 +309,7 @@ pub fn serve_web_with_external_network<S>(
     })
     .unwrap();
 
-    let exec = CPUBoundExecutor::new();
+    let exec = Executor::new();
     let cloned_exec = exec.clone();
 
     cloned_exec

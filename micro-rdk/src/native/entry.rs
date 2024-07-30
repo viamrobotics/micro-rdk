@@ -6,7 +6,7 @@ use crate::common::{
     conn::network::Network,
     credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage},
     entry::{serve_async_with_external_network, RobotRepresentation},
-    exec::CPUBoundExecutor,
+    exec::Executor,
     grpc::ServerError,
 };
 
@@ -25,7 +25,7 @@ pub fn serve_web_with_external_network<S>(
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
     <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
-    let exec = CPUBoundExecutor::new();
+    let exec = Executor::new();
     let cloned_exec = exec.clone();
 
     let _ = cloned_exec.block_on(Box::pin(serve_async_with_external_network(
@@ -45,7 +45,7 @@ mod tests {
 
     use crate::common::grpc_client::GrpcClient;
 
-    use crate::common::exec::CPUBoundExecutor;
+    use crate::common::exec::Executor;
     use crate::native::tcp::NativeStream;
     use crate::native::tls::NativeTls;
 
@@ -54,7 +54,7 @@ mod tests {
     #[test_log::test]
     #[ignore]
     fn test_app_client() {
-        let exec = CPUBoundExecutor::new();
+        let exec = Executor::new();
         exec.block_on(async { test_app_client_inner().await });
     }
     async fn test_app_client_inner() {
@@ -67,7 +67,7 @@ mod tests {
 
         let conn = NativeStream::TLSStream(Box::new(conn));
 
-        let exec = CPUBoundExecutor::new();
+        let exec = Executor::new();
 
         let grpc_client = GrpcClient::new(conn, exec, "https://app.viam.com:443").await;
 
