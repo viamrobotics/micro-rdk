@@ -23,16 +23,12 @@ mod native {
             _ => panic!("oops expected ipv4"),
         };
 
-        let storage = if cfg!(has_robot_config) {
-            RAMStorage::new(
-                "",
-                "",
-                ROBOT_ID.expect("robot config missing ID"),
-                ROBOT_SECRET.expect("robot config missing secret"),
-            )
-        } else {
-            RAMStorage::default()
-        };
+        let storage = RAMStorage::new(
+            "",
+            "",
+            ROBOT_ID.expect("[cfg(has_robot_config)]: missing robot id"),
+            ROBOT_SECRET.expect("[cfg(has_robot_config)]: missing robot secret"),
+        );
 
         let info = if cfg!(feature = "provisioning") {
             let mut info = ProvisioningInfo::default();
