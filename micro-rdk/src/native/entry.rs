@@ -41,8 +41,9 @@ pub fn serve_web_with_external_network<S>(
 
 #[cfg(test)]
 mod tests {
-    use crate::common::app_client::{AppClientBuilder, AppClientConfig};
+    use crate::common::app_client::AppClientBuilder;
 
+    use crate::common::credentials_storage::RobotCredentials;
     use crate::common::grpc_client::GrpcClient;
 
     use crate::common::exec::Executor;
@@ -75,7 +76,7 @@ mod tests {
 
         let grpc_client = Box::new(grpc_client.unwrap());
 
-        let config = AppClientConfig::new("".to_string(), "".to_string(), "".to_owned());
+        let config = RobotCredentials::new("".to_string(), "".to_string());
 
         let builder = AppClientBuilder::new(grpc_client, config);
 

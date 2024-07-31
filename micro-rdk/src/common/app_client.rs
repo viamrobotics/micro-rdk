@@ -30,6 +30,7 @@ use crate::proto::{
 };
 
 use super::conn::network::Network;
+use super::credentials_storage::RobotCredentials;
 use super::{
     grpc_client::{GrpcClient, GrpcClientError, GrpcMessageSender, GrpcMessageStream},
     webrtc::{
@@ -66,44 +67,9 @@ pub enum AppClientError {
     AppClientRequestTimeout,
 }
 
-#[derive(Debug, Clone)]
-pub struct AppClientConfig {
-    robot_id: String,
-    robot_secret: String,
-    rpc_host: String,
-}
-
-impl Default for AppClientConfig {
-    fn default() -> Self {
-        Self {
-            robot_id: "".to_owned(),
-            robot_secret: "".to_owned(),
-            rpc_host: "".to_owned(),
-        }
-    }
-}
-
-impl AppClientConfig {
-    pub fn new(robot_secret: String, robot_id: String, rpc_host: String) -> Self {
-        AppClientConfig {
-            robot_id,
-            robot_secret,
-            rpc_host,
-        }
-    }
-
-    pub fn get_robot_id(&self) -> String {
-        self.robot_id.clone()
-    }
-
-    pub fn set_rpc_host(&mut self, rpc_host: String) {
-        self.rpc_host = rpc_host
-    }
-}
-
 pub struct AppClientBuilder {
     grpc_client: Box<GrpcClient>,
-    config: AppClientConfig,
+    robot_credentials: RobotCredentials,
 }
 
 pub(crate) fn encode_request<T>(req: T) -> Result<Bytes, AppClientError>
@@ -124,10 +90,10 @@ where
 
 impl AppClientBuilder {
     /// Create a new AppClientBuilder
-    pub fn new(grpc_client: Box<GrpcClient>, config: AppClientConfig) -> Self {
+    pub fn new(grpc_client: Box<GrpcClient>, config: RobotCredentials) -> Self {
         Self {
             grpc_client,
-            config,
+            robot_credentials: config,
         }
     }
 
@@ -139,17 +105,17 @@ impl AppClientBuilder {
         Ok(AppClient {
             grpc_client: self.grpc_client.into(),
             jwt,
-            config: self.config,
+            robot_credentials: self.robot_credentials,
         })
     }
     pub async fn get_jwt_token(&mut self) -> Result<String, AppClientError> {
         let cred = Credentials {
             r#type: "robot-secret".to_owned(),
-            payload: self.config.robot_secret.clone(),
+            payload: self.robot_credentials.robot_secret.clone(),
         };
 
         let req = AuthenticateRequest {
-            entity: self.config.robot_id.clone(),
+            entity: self.robot_credentials.robot_id.clone(),
             credentials: Some(cred),
         };
 
@@ -178,7 +144,7 @@ impl AppClientBuilder {
 
 #[derive(Clone)]
 pub struct AppClient {
-    config: AppClientConfig,
+    robot_credentials: RobotCredentials,
     jwt: String,
     grpc_client: Rc<GrpcClient>,
 }
@@ -189,29 +155,9 @@ pub(crate) struct AppSignaling(
 );
 
 impl AppClient {
-    pub(crate) async fn connect_signaling(&self) -> Result<AppSignaling, AppClientError> {
-        let (sender, receiver) = async_channel::bounded::<Bytes>(1);
-        let r = self
-            .grpc_client
-            .build_request(
-                "/proto.rpc.webrtc.v1.SignalingService/Answer",
-                Some(&self.jwt),
-                &self.config.rpc_host,
-                BodyExt::boxed(StreamBody::new(receiver.map(|b| Ok(Frame::data(b))))),
-            )
-            .map_err(AppClientError::AppGrpcClientError)?;
-
-        let (tx, rx) = self
-            .grpc_client
-            .send_request_bidi::<AnswerResponse, AnswerRequest>(r, sender)
-            .await
-            .map_err(AppClientError::AppGrpcClientError)?;
-        Ok(AppSignaling(tx, rx))
-    }
-
     pub async fn get_certificates(&self) -> Result<CertificateResponse, AppClientError> {
         let req = CertificateRequest {
-            id: self.config.robot_id.clone(),
+            id: self.robot_credentials.robot_id.clone(),
         };
         let body = encode_request(req)?;
         let r = self
@@ -231,12 +177,13 @@ impl AppClient {
 
     pub(crate) fn initiate_signaling(
         &self,
+        rpc_host: String,
     ) -> impl Future<Output = Result<AppSignaling, AppClientError>> {
         let (sender, receiver) = async_channel::bounded::<Bytes>(1);
         let r = self.grpc_client.build_request(
             "/proto.rpc.webrtc.v1.SignalingService/Answer",
             Some(&self.jwt),
-            &self.config.rpc_host,
+            &rpc_host,
             BodyExt::boxed(StreamBody::new(receiver.map(|b| Ok(Frame::data(b))))),
         );
 
@@ -250,20 +197,17 @@ impl AppClient {
         }
     }
 
+    pub fn robot_credentials(&self) -> RobotCredentials {
+        self.robot_credentials.clone()
+    }
+
     // returns both a response from the robot config request and the timestamp of the response
     // taken from its header for the purposes of timestamping configuration logs and returning
     // `last_reconfigured` values for resource statuses.
-    pub async fn get_config(
-        &mut self,
+    pub async fn get_app_config(
+        &self,
         ip: Option<Ipv4Addr>,
-    ) -> Result<
-        (
-            AppClientConfig,
-            Box<ConfigResponse>,
-            Option<DateTime<FixedOffset>>,
-        ),
-        AppClientError,
-    > {
+    ) -> Result<(Box<ConfigResponse>, Option<DateTime<FixedOffset>>), AppClientError> {
         let agent = ip.map(|ip| AgentInfo {
             os: "esp32".to_string(),
             host: "esp32".to_string(),
@@ -275,7 +219,7 @@ impl AppClient {
 
         let req = ConfigRequest {
             agent_info: agent,
-            id: self.config.robot_id.clone(),
+            id: self.robot_credentials.robot_id.clone(),
         };
         let body = encode_request(req)?;
 
@@ -301,18 +245,13 @@ impl AppClient {
         };
 
         let cfg_response = ConfigResponse::decode(r.split_off(5))?;
-        if let Some(robot_config) = cfg_response.config.as_ref() {
-            if let Some(cloud_config) = robot_config.cloud.as_ref() {
-                self.config.set_rpc_host(cloud_config.fqdn.clone());
-            }
-        }
 
-        Ok((self.config.clone(), Box::new(cfg_response), datetime))
+        Ok((Box::new(cfg_response), datetime))
     }
 
     pub async fn push_logs(&self, logs: Vec<LogEntry>) -> Result<(), AppClientError> {
         let req = LogRequest {
-            id: self.config.robot_id.clone(),
+            id: self.robot_credentials.robot_id.clone(),
             logs,
         };
 
@@ -356,7 +295,7 @@ impl AppClient {
     /// app has signaled that we should restart now.
     pub async fn check_for_restart(&self) -> Result<Option<Duration>, AppClientError> {
         let req = NeedsRestartRequest {
-            id: self.config.robot_id.clone(),
+            id: self.robot_credentials.robot_id.clone(),
         };
         let body = encode_request(req)?;
         let r = self

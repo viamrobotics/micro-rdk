@@ -7,9 +7,9 @@ use super::{
 use crate::{
     common::{
         app_client::{
-            AppClient, AppClientBuilder, AppClientConfig, AppClientError, AppSignaling,
-            PeriodicAppClientTask,
+            AppClient, AppClientBuilder, AppClientError, AppSignaling, PeriodicAppClientTask,
         },
+        credentials_storage::RobotCredentials,
         exec::Executor,
         grpc::{GrpcBody, GrpcServer},
         grpc_client::GrpcClient,
@@ -95,11 +95,12 @@ pub struct ViamServerBuilder<M, C, T, NetworkType, CC = WebRtcNoOp, D = WebRtcNo
     _marker: PhantomData<T>,
     exec: Executor,
     app_connector: C,
-    app_config: AppClientConfig,
+    robot_credentials: RobotCredentials,
     max_connections: usize,
     app_client_tasks: Vec<Box<dyn PeriodicAppClientTask>>,
     network: NetworkType,
     app_client: Option<AppClient>,
+    rpc_host: String,
 }
 
 impl<M, C, T, NetworkType> ViamServerBuilder<M, C, T, NetworkType>
@@ -113,9 +114,10 @@ where
         mdns: M,
         exec: Executor,
         app_connector: C,
-        app_config: AppClientConfig,
+        robot_credentials: RobotCredentials,
         max_connections: usize,
         network: NetworkType,
+        rpc_host: String,
     ) -> Self {
         Self {
             mdns,
@@ -125,11 +127,12 @@ where
             _marker: PhantomData,
             exec,
             app_connector,
-            app_config,
+            robot_credentials,
             max_connections,
             app_client_tasks: vec![],
             network,
             app_client: None,
+            rpc_host,
         }
     }
 }
@@ -159,11 +162,12 @@ where
             exec: self.exec,
             webrtc: self.webrtc,
             app_connector: self.app_connector,
-            app_config: self.app_config,
+            robot_credentials: self.robot_credentials,
             max_connections: self.max_connections,
             app_client_tasks: self.app_client_tasks,
             network: self.network,
             app_client: self.app_client,
+            rpc_host: self.rpc_host,
         }
     }
 
@@ -179,11 +183,12 @@ where
             _marker: self._marker,
             exec: self.exec,
             app_connector: self.app_connector,
-            app_config: self.app_config,
+            robot_credentials: self.robot_credentials,
             max_connections: self.max_connections,
             app_client_tasks: self.app_client_tasks,
             network: self.network,
             app_client: self.app_client,
+            rpc_host: self.rpc_host,
         }
     }
 
@@ -199,11 +204,12 @@ where
             _marker: self._marker,
             exec: self.exec,
             app_connector: self.app_connector,
-            app_config: self.app_config,
+            robot_credentials: self.robot_credentials,
             max_connections: self.max_connections,
             app_client_tasks: self.app_client_tasks,
             network: self.network,
             app_client: Some(app_client),
+            rpc_host: self.rpc_host,
         }
     }
 
@@ -219,7 +225,7 @@ where
             _marker: self._marker,
             exec: self.exec,
             app_connector: self.app_connector,
-            app_config: self.app_config,
+            robot_credentials: self.robot_credentials,
             max_connections: self.max_connections,
             app_client_tasks: {
                 self.app_client_tasks.push(task);
@@ -227,6 +233,7 @@ where
             },
             network: self.network,
             app_client: self.app_client,
+            rpc_host: self.rpc_host,
         }
     }
 
@@ -273,11 +280,12 @@ where
             self.webrtc,
             cloned_exec,
             self.app_connector,
-            self.app_config,
+            self.robot_credentials,
             self.max_connections,
             self.app_client_tasks,
             self.network,
             self.app_client,
+            self.rpc_host,
         );
 
         Ok(srv)
@@ -335,11 +343,12 @@ pub struct ViamServer<C, T, CC, D, L, NetworkType> {
     webrtc_config: Option<Box<WebRtcConfiguration<D, CC>>>,
     exec: Executor,
     app_connector: C,
-    app_config: AppClientConfig,
+    robot_credentials: RobotCredentials,
     app_client: Rc<AsyncRwLock<Option<AppClient>>>,
     incoming_connection_manager: IncomingConnectionManager,
     app_client_tasks: Vec<Box<dyn PeriodicAppClientTask>>,
     network: NetworkType,
+    rpc_host: String,
 }
 impl<C, T, CC, D, L, NetworkType> ViamServer<C, T, CC, D, L, NetworkType>
 where
@@ -358,22 +367,24 @@ where
         webrtc_config: Option<Box<WebRtcConfiguration<D, CC>>>,
         exec: Executor,
         app_connector: C,
-        app_config: AppClientConfig,
+        robot_credentials: RobotCredentials,
         max_concurent_connections: usize,
         app_client_tasks: Vec<Box<dyn PeriodicAppClientTask>>,
         network: NetworkType,
         app_client: Option<AppClient>,
+        rpc_host: String,
     ) -> Self {
         Self {
             http_listener,
             webrtc_config,
             exec,
             app_connector,
-            app_config,
+            robot_credentials,
             app_client: Rc::new(AsyncRwLock::new(app_client)),
             incoming_connection_manager: IncomingConnectionManager::new(max_concurent_connections),
             app_client_tasks,
             network,
+            rpc_host,
         }
     }
     pub async fn serve(&mut self, robot: Arc<Mutex<LocalRobot>>) {
@@ -453,10 +464,11 @@ where
                             .await
                             .unwrap(),
                     );
-                    let app_client = AppClientBuilder::new(grpc_client, self.app_config.clone())
-                        .build()
-                        .await
-                        .unwrap();
+                    let app_client =
+                        AppClientBuilder::new(grpc_client, self.robot_credentials.clone())
+                            .build()
+                            .await
+                            .unwrap();
                     let _ = AsyncRwLockUpgradableReadGuard::upgrade(urguard)
                         .await
                         .insert(app_client);
@@ -465,7 +477,10 @@ where
             let sig = if let Some(webrtc_config) = self.webrtc_config.as_ref() {
                 let ip = self.network.get_ip();
                 let rguard = self.app_client.read().await;
-                let signaling = rguard.as_ref().unwrap().initiate_signaling();
+                let signaling = rguard
+                    .as_ref()
+                    .unwrap()
+                    .initiate_signaling(self.rpc_host.clone());
                 futures_util::future::Either::Left(WebRTCSignalingAnswerer {
                     webrtc_config: Some(webrtc_config),
                     future: signaling,

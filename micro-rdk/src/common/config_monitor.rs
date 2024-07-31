@@ -64,8 +64,8 @@ where
         app_client: &'c AppClient,
     ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'c>> {
         Box::pin(async move {
-            if let Ok((_app_client_config, new_config, _cfg_received_datetime)) =
-                app_client.clone().get_config(None).await
+            if let Ok((new_config, _cfg_received_datetime)) =
+                app_client.clone().get_app_config(None).await
             {
                 if self.curr_config != *new_config {
                     if let Err(e) = self.storage.reset_robot_configuration() {

@@ -11,7 +11,7 @@ use std::net::SocketAddr;
 use async_io::Timer;
 
 use super::{
-    app_client::{AppClient, AppClientBuilder, AppClientConfig},
+    app_client::{AppClient, AppClientBuilder},
     config_monitor::ConfigMonitor,
     conn::{
         network::Network,
@@ -69,18 +69,13 @@ pub async fn validate_robot_credentials(
     robot_creds: &RobotCredentials,
     client_connector: &mut impl TlsClientConnector,
 ) -> Result<AppClient, Box<dyn std::error::Error>> {
-    let app_config = AppClientConfig::new(
-        robot_creds.robot_secret().to_owned(),
-        robot_creds.robot_id().to_owned(),
-        "".to_owned(),
-    );
     let client = GrpcClient::new(
         client_connector.connect().await?,
         exec.clone(),
         "https://app.viam.com:443",
     )
     .await?;
-    let builder = AppClientBuilder::new(Box::new(client), app_config.clone());
+    let builder = AppClientBuilder::new(Box::new(client), robot_creds.clone());
 
     builder.build().await.map_err(|e| e.into())
 }
@@ -92,7 +87,7 @@ pub async fn serve_web_inner<S>(
     max_webrtc_connection: usize,
     network: impl Network,
     client_connector: impl TlsClientConnector,
-    mut app_client: AppClient,
+    app_client: AppClient,
 ) where
     S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
     <S as RobotConfigurationStorage>::Error: Debug,
@@ -105,8 +100,22 @@ pub async fn serve_web_inner<S>(
     // initialization is done
     let _ = Timer::after(std::time::Duration::from_millis(60)).await;
 
-    let (app_config, cfg_response, cfg_received_datetime) =
-        app_client.get_config(Some(network.get_ip())).await.unwrap();
+    let robot_credentials = app_client.robot_credentials();
+
+    let (cfg_response, cfg_received_datetime) = app_client
+        .get_app_config(Some(network.get_ip()))
+        .await
+        .unwrap();
+
+    let rpc_host = if let Some(robot_config) = cfg_response.config.as_ref() {
+        if let Some(cloud_config) = robot_config.cloud.as_ref() {
+            cloud_config.fqdn.clone()
+        } else {
+            "".to_string()
+        }
+    } else {
+        "".to_string()
+    };
 
     #[cfg(feature = "esp32")]
     if let Some(current_dt) = cfg_received_datetime.as_ref() {
@@ -131,7 +140,7 @@ pub async fn serve_web_inner<S>(
             log::info!("building robot from config");
             let (r, err) = match LocalRobot::from_cloud_config(
                 exec.clone(),
-                app_config.get_robot_id(),
+                robot_credentials.robot_id.clone(),
                 &cfg_response,
                 registry,
                 cfg_received_datetime,
@@ -184,9 +193,10 @@ pub async fn serve_web_inner<S>(
         mdns,
         exec.clone(),
         client_connector,
-        app_config,
+        robot_credentials,
         max_webrtc_connection,
         network,
+        rpc_host,
     )
     .with_webrtc(webrtc)
     .with_periodic_app_client_task(Box::new(RestartMonitor::new(restart)))
