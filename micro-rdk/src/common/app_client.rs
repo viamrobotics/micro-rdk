@@ -90,10 +90,10 @@ where
 
 impl AppClientBuilder {
     /// Create a new AppClientBuilder
-    pub fn new(grpc_client: Box<GrpcClient>, config: RobotCredentials) -> Self {
+    pub fn new(grpc_client: Box<GrpcClient>, robot_credentials: RobotCredentials) -> Self {
         Self {
             grpc_client,
-            robot_credentials: config,
+            robot_credentials,
         }
     }
 
