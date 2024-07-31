@@ -50,5 +50,4 @@ fn main() {
             }
         }
     }
-    println!("cargo:rustc-check-cfg=cfg(has_robot_config)");
 }
