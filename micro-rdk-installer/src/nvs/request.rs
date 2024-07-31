@@ -22,7 +22,16 @@ pub async fn download_micro_rdk_release(
                 RELEASES_BASE_URL, "latest/download", BINARY_NAME
             )
         },
-        |version| format!("{}/download/{}/{}", RELEASES_BASE_URL, version, BINARY_NAME),
+        |version| {
+            if version == "latest" {
+                format!(
+                    "{}/{}/{}",
+                    RELEASES_BASE_URL, "latest/download", BINARY_NAME
+                )
+            } else {
+                format!("{}/download/{}/{}", RELEASES_BASE_URL, version, BINARY_NAME)
+            }
+        },
     );
 
     log::info!("Downloading micro-RDK release from {:?}", release_url);
