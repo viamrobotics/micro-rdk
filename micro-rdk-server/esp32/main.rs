@@ -121,6 +121,11 @@ mod esp32 {
             None
         };
 
+        if info.is_none() && !storage.has_wifi_credentials() {
+            log::error!("device in an unusable state, sleeping indefinitely");
+            unsafe {
+                crate::esp32::esp_idf_svc::sys::esp_deep_sleep_start();
+            }
         }
 
         serve_web(info, repr, max_connections, storage);
