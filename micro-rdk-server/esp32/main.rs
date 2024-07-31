@@ -1,14 +1,8 @@
 #[cfg(target_os = "espidf")]
 mod esp32 {
-    #[allow(dead_code)]
-    #[cfg(not(feature = "qemu"))]
     const SSID: Option<&str> = option_env!("MICRO_RDK_WIFI_SSID");
-    #[allow(dead_code)]
-    #[cfg(not(feature = "qemu"))]
     const PASS: Option<&str> = option_env!("MICRO_RDK_WIFI_PASSWORD");
-    #[allow(dead_code)]
     const ROBOT_ID: Option<&str> = option_env!("MICRO_RDK_ROBOT_ID");
-    #[allow(dead_code)]
     const ROBOT_SECRET: Option<&str> = option_env!("MICRO_RDK_ROBOT_SECRET");
 
     #[cfg(feature = "qemu")]
@@ -17,21 +11,24 @@ mod esp32 {
         esp_idf_svc::eth::{EspEth, EthDriver},
     };
 
-    use micro_rdk::esp32::{
-        entry::serve_web,
-        esp_idf_svc::{
-            self,
-            sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT},
+    use micro_rdk::{
+        common::{
+            credentials_storage::WifiCredentialStorage, entry::RobotRepresentation,
+            provisioning::ProvisioningInfo, registry::ComponentRegistry,
         },
-        nvs_storage::NVSStorage,
+        esp32::{
+            entry::serve_web,
+            esp_idf_svc::{
+                self,
+                sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT},
+            },
+            nvs_storage::NVSStorage,
+        },
     };
 
-    #[allow(unused)]
     extern "C" {
         pub static g_spiram_ok: bool;
     }
-
-    use micro_rdk::common::{entry::RobotRepresentation, registry::ComponentRegistry};
 
     fn register_examples(r: &mut ComponentRegistry) {
         if let Err(e) = micro_rdk_modular_driver_example::free_heap_sensor::register_models(r) {
@@ -73,10 +70,9 @@ mod esp32 {
         // then the entire provisioning step can be skipped
         let storage = NVSStorage::new("nvs").unwrap();
 
-        #[cfg(has_robot_config)]
-        {
+        if cfg!(has_robot_config) {
             use micro_rdk::common::credentials_storage::{
-                RobotConfigurationStorage, RobotCredentials, WifiCredentialStorage, WifiCredentials,
+                RobotConfigurationStorage, RobotCredentials, WifiCredentials,
             };
 
             log::warn!("Unconditionally using build-time WiFi and robot configuration");
@@ -105,6 +101,7 @@ mod esp32 {
                 )
                 .expect("Failed to store robot credentials to NVS");
         }
+
         let max_connections = unsafe {
             if !g_spiram_ok {
                 log::info!("spiram not initialized disabling cache feature of the wifi driver");
@@ -115,21 +112,18 @@ mod esp32 {
             }
         };
 
-        #[cfg(feature = "provisioning")]
-        {
-            use micro_rdk::common::{
-                provisioning::server::ProvisioningInfo, registry::ComponentRegistry,
-            };
-
+        let info = if cfg!(feature = "provisioning") {
             let mut info = ProvisioningInfo::default();
             info.set_manufacturer("viam".to_owned());
             info.set_model("test-esp32".to_owned());
-            serve_web(Some(info), repr, max_connections, storage);
+            Some(info)
+        } else {
+            None
+        };
+
         }
-        // check for cached credentials/wifi
-        // if present, serve web, otherwise deep sleep
-        #[cfg(not(feature = "provisioning"))]
-        serve_web(repr, max_connections, storage);
+
+        serve_web(info, repr, max_connections, storage);
     }
 }
 
