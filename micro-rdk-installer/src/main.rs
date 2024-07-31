@@ -349,7 +349,6 @@ fn main() -> Result<(), Error> {
             )?;
         }
         Some(Commands::WriteFlash(args)) => {
-            let config = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
             let tmp_path = tempfile::NamedTempFile::new()
                 .map_err(Error::FileError)?
                 .path()
@@ -357,10 +356,19 @@ fn main() -> Result<(), Error> {
             let app_path = match &args.binary_path {
                 Some(path) => PathBuf::from(path),
                 None => {
-                    let rt = Runtime::new().map_err(Error::AsyncError)?;
-                    rt.block_on(download_micro_rdk_release(&tmp_path, args.version.clone()))?
+                    let use_latest = dialoguer::Confirm::new()
+                        .with_prompt("Download and flash the latest Micro-RDK release?")
+                        .interact()
+                        .unwrap();
+                    if use_latest {
+                        let rt = Runtime::new().map_err(Error::AsyncError)?;
+                        rt.block_on(download_micro_rdk_release(&tmp_path, args.version.clone()))?
+                    } else {
+                        return Ok(());
+                    }
                 }
             };
+            let config = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
             if let Some(app_config) = args.config.as_ref() {
                 let nvs_metadata = read_nvs_metadata(app_path.clone())?;
 
