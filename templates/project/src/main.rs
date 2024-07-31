@@ -1,3 +1,8 @@
+const SSID: Option<&str> = option_env!("MICRO_RDK_WIFI_SSID");
+const PASS: Option<&str> = option_env!("MICRO_RDK_WIFI_PASSWORD");
+const ROBOT_ID: Option<&str> = option_env!("MICRO_RDK_ROBOT_ID");
+const ROBOT_SECRET: Option<&str> = option_env!("MICRO_RDK_ROBOT_SECRET");
+
 use micro_rdk::{
     common::{
         entry::RobotRepresentation,
@@ -51,6 +56,37 @@ fn main() {
     };
 
     let storage = NVSStorage::new("nvs").unwrap();
+    if cfg!(has_robot_config) {
+        use micro_rdk::common::credentials_storage::{
+            RobotConfigurationStorage, RobotCredentials, WifiCredentials,
+        };
+
+        log::warn!("Unconditionally using build-time WiFi and robot configuration");
+        log::info!("Storing static values from build time wifi configuration to NVS");
+        storage
+            .store_wifi_credentials(WifiCredentials::new(
+                SSID.expect("[cfg(has_robot_config)]: missing WiFi SSID")
+                    .to_string(),
+                PASS.expect("[cfg(has_robot_config)]: missing WiFi password")
+                    .to_string(),
+            ))
+            .expect("Failed to store WiFi credentials to NVS");
+
+        log::info!("Storing static values from build time robot configuration to NVS");
+        storage
+            .store_robot_credentials(
+                RobotCredentials::new(
+                    ROBOT_ID
+                        .expect("[cfg(has_robot_config)]: missing robot id")
+                        .to_string(),
+                    ROBOT_SECRET
+                        .expect("[cfg(has_robot_config)]: missing robot secret")
+                        .to_string(),
+                )
+                .into(),
+            )
+            .expect("Failed to store robot credentials to NVS");
+    }
 
     let info = if cfg!(feature = "provisioning") {
         let mut info = ProvisioningInfo::default();
