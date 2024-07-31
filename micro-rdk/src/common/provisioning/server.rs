@@ -11,6 +11,7 @@ use crate::{
     common::{
         conn::mdns::Mdns,
         credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage, WifiCredentials},
+        exec::Executor,
         grpc::{GrpcBody, GrpcError, GrpcResponse, ServerError},
         webrtc::api::AtomicSync,
     },
@@ -465,11 +466,6 @@ impl WifiManager for () {
 }
 
 #[cfg(feature = "native")]
-type Executor = crate::native::exec::NativeExecutor;
-#[cfg(feature = "esp32")]
-type Executor = crate::esp32::exec::Esp32Executor;
-
-#[cfg(feature = "native")]
 type Stream = crate::native::tcp::NativeStream;
 #[cfg(feature = "esp32")]
 type Stream = crate::esp32::tcp::Esp32Stream;
@@ -579,7 +575,7 @@ mod tests {
 
     use async_io::{Async, Timer};
 
-    use crate::native::exec::NativeExecutor;
+    use crate::common::exec::Executor;
     use crate::native::tcp::NativeStream;
     use crate::{
         common::{
@@ -608,7 +604,7 @@ mod tests {
 
     use super::ProvisioningService;
 
-    async fn run_provisioning_server(ex: NativeExecutor, srv: ProvisioningService<RAMStorage, ()>) {
+    async fn run_provisioning_server(ex: Executor, srv: ProvisioningService<RAMStorage, ()>) {
         let listen = TcpListener::bind("127.0.0.1:56432");
         assert!(listen.is_ok());
         let listen: Async<TcpListener> = listen.unwrap().try_into().unwrap();
@@ -625,7 +621,7 @@ mod tests {
         }
     }
 
-    async fn test_provisioning_server_inner(exec: NativeExecutor, addr: SocketAddr) {
+    async fn test_provisioning_server_inner(exec: Executor, addr: SocketAddr) {
         let stream = async_io::Async::<TcpStream>::connect(addr).await;
         assert!(stream.is_ok());
 
@@ -836,7 +832,7 @@ mod tests {
 
     #[test_log::test]
     fn test_provisioning_server() {
-        let exec = NativeExecutor::default();
+        let exec = Executor::default();
 
         let mut provisioning_info = ProvisioningInfo::default();
         provisioning_info.set_fragment_id("a-fragment-id".to_owned());
@@ -868,7 +864,7 @@ mod tests {
     }
 
     async fn run_provisioning_server_with_mdns(
-        ex: NativeExecutor,
+        ex: Executor,
         srv: ProvisioningService<RAMStorage, ()>,
         mut mdns: NativeMdns,
         ip: Ipv4Addr,
@@ -919,7 +915,7 @@ mod tests {
         let mdns = mdns.unwrap();
         let daemon = mdns.daemon();
 
-        let exec = NativeExecutor::default();
+        let exec = Executor::default();
 
         let mut provisioning_info = ProvisioningInfo::default();
         provisioning_info.set_fragment_id("a-fragment-id".to_owned());

@@ -4,16 +4,13 @@ use super::{
     network::Network,
     utils::{NoHttp2, WebRtcNoOp},
 };
-#[cfg(feature = "esp32")]
-use crate::esp32::exec::Esp32Executor;
-#[cfg(feature = "native")]
-use crate::native::exec::NativeExecutor;
 use crate::{
     common::{
         app_client::{
             AppClient, AppClientBuilder, AppClientConfig, AppClientError, AppSignaling,
             PeriodicAppClientTask,
         },
+        exec::Executor,
         grpc::{GrpcBody, GrpcServer},
         grpc_client::GrpcClient,
         robot::LocalRobot,
@@ -47,11 +44,6 @@ use std::{
     task::Poll,
     time::Duration,
 };
-
-#[cfg(feature = "native")]
-type Executor = NativeExecutor;
-#[cfg(feature = "esp32")]
-type Executor = Esp32Executor;
 
 pub trait TlsClientConnector {
     type Stream: rt::Read + rt::Write + Unpin + 'static;

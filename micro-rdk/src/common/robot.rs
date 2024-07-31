@@ -9,12 +9,6 @@ use std::{
     time::Instant,
 };
 
-#[cfg(feature = "esp32")]
-use crate::esp32::exec::Esp32Executor;
-
-#[cfg(feature = "native")]
-use crate::native::exec::NativeExecutor;
-
 #[cfg(feature = "camera")]
 use crate::common::camera::{Camera, CameraType};
 
@@ -50,6 +44,7 @@ use super::{
     board::BoardType,
     config::{AttributeError, Component, ConfigType, DynamicComponentConfig},
     encoder::EncoderType,
+    exec::Executor,
     generic::{GenericComponent, GenericComponentType},
     motor::MotorType,
     movement_sensor::MovementSensorType,
@@ -101,11 +96,6 @@ impl ResourceType {
         .to_string()
     }
 }
-
-#[cfg(feature = "native")]
-type Executor = NativeExecutor;
-#[cfg(feature = "esp32")]
-type Executor = Esp32Executor;
 
 pub struct LocalRobot {
     pub(crate) part_id: String,
@@ -924,6 +914,7 @@ mod tests {
             board::Board,
             config::{DynamicComponentConfig, Kind},
             encoder::{Encoder, EncoderPositionType},
+            exec::Executor,
             i2c::I2CHandle,
             motor::Motor,
             movement_sensor::MovementSensor,
@@ -936,11 +927,6 @@ mod tests {
 
     #[cfg(feature = "data")]
     use {crate::common::data_collector::DataCollectorConfig, std::time::Duration};
-
-    #[cfg(feature = "native")]
-    type Executor = crate::native::exec::NativeExecutor;
-    #[cfg(feature = "esp32")]
-    type Executor = crate::esp32::exec::Esp32Executor;
 
     #[test_log::test]
     fn test_robot_from_components() {

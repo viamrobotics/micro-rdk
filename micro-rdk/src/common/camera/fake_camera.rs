@@ -94,15 +94,13 @@ mod tests {
             app_client::encode_request,
             config::DynamicComponentConfig,
             conn::server::{AsyncableTcpListener, Http2Connector},
+            exec::Executor,
             grpc::GrpcError,
             grpc::{GrpcBody, GrpcServer},
             robot::{LocalRobot, RobotError},
         },
         google::api::HttpBody,
-        native::{
-            exec::NativeExecutor,
-            tcp::{NativeListener, NativeStream},
-        },
+        native::tcp::{NativeListener, NativeStream},
         proto::component::camera::v1::{GetImageRequest, GetImageResponse, RenderFrameRequest},
     };
 
@@ -138,7 +136,7 @@ mod tests {
         Ok(robot)
     }
 
-    async fn setup_grpc_server(exec: NativeExecutor, addr: SocketAddr) {
+    async fn setup_grpc_server(exec: Executor, addr: SocketAddr) {
         let mut listener = NativeListener::new((addr).into(), None)
             .unwrap()
             .as_async_listener()
@@ -276,7 +274,7 @@ mod tests {
 
     #[test_log::test]
     fn test_fake_camera() {
-        let exec = NativeExecutor::default();
+        let exec = Executor::default();
 
         let addr = TcpListener::bind("127.0.0.1:0")
             .unwrap()

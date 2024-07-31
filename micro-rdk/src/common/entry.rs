@@ -18,6 +18,7 @@ use super::{
         server::{TlsClientConnector, ViamServerBuilder, WebRtcConfiguration},
     },
     credentials_storage::{RobotConfigurationStorage, RobotCredentials, WifiCredentialStorage},
+    exec::Executor,
     grpc::ServerError,
     grpc_client::GrpcClient,
     log::config_log_entry,
@@ -62,11 +63,6 @@ pub enum RobotRepresentation {
     WithRobot(LocalRobot),
     WithRegistry(Box<ComponentRegistry>),
 }
-
-#[cfg(feature = "native")]
-type Executor = crate::native::exec::NativeExecutor;
-#[cfg(feature = "esp32")]
-type Executor = crate::esp32::exec::Esp32Executor;
 
 pub async fn validate_robot_credentials(
     exec: Executor,
