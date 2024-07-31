@@ -13,6 +13,7 @@ use crate::{
         credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage, WifiCredentials},
         exec::Executor,
         grpc::{GrpcBody, GrpcError, GrpcResponse, ServerError},
+        provisioning::ProvisioningInfo,
         webrtc::api::AtomicSync,
     },
     proto::provisioning::{
@@ -156,27 +157,6 @@ pub(crate) enum ProvisioningReason {
 
 #[derive(Default, Debug)]
 pub(crate) struct NetworkInfo(pub(crate) provisioning::v1::NetworkInfo);
-
-#[derive(Default, Clone)]
-pub struct ProvisioningInfo(provisioning::v1::ProvisioningInfo);
-
-impl ProvisioningInfo {
-    pub fn set_fragment_id(&mut self, frag_id: String) {
-        self.0.fragment_id = frag_id;
-    }
-    pub fn set_model(&mut self, model: String) {
-        self.0.model = model;
-    }
-    pub fn set_manufacturer(&mut self, manufacturer: String) {
-        self.0.manufacturer = manufacturer;
-    }
-    pub fn get_model(&self) -> &str {
-        &self.0.model
-    }
-    pub fn get_manufacturer(&self) -> &str {
-        &self.0.manufacturer
-    }
-}
 
 pub(crate) trait ProvisioningExecutor {
     fn spawn<F: Future<Output = ()> + 'static>(&self, future: F) -> Task<()>;
@@ -582,8 +562,9 @@ mod tests {
             app_client::encode_request,
             conn::mdns::Mdns,
             credentials_storage::{RAMStorage, RobotConfigurationStorage},
-            provisioning::server::{
-                ProvisioningInfo, ProvisioningServiceBuilder, ProvisoningServer,
+            provisioning::{
+                server::{ProvisioningServiceBuilder, ProvisoningServer},
+                ProvisioningInfo,
             },
         },
         native::conn::mdns::NativeMdns,

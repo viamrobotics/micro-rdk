@@ -22,6 +22,7 @@ use super::{
     grpc::ServerError,
     grpc_client::GrpcClient,
     log::config_log_entry,
+    provisioning::ProvisioningInfo,
     registry::ComponentRegistry,
     restart_monitor::RestartMonitor,
     robot::LocalRobot,
@@ -33,7 +34,7 @@ use crate::{
 };
 
 #[cfg(feature = "provisioning")]
-use crate::common::provisioning::server::{serve_provisioning_async, ProvisioningInfo};
+use crate::common::provisioning::server::serve_provisioning_async;
 
 #[cfg(feature = "native")]
 use crate::native::{
@@ -242,7 +243,7 @@ pub async fn serve_web_inner<S>(
 
 pub async fn serve_async_with_external_network<S>(
     exec: Executor,
-    #[cfg(feature = "provisioning")] info: Option<ProvisioningInfo>,
+    #[allow(unused)] info: Option<ProvisioningInfo>,
     storage: S,
     mut repr: RobotRepresentation,
     network: impl Network,

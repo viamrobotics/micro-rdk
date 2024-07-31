@@ -10,11 +10,10 @@ use crate::common::{
     grpc::ServerError,
 };
 
-#[cfg(feature = "provisioning")]
-use crate::common::provisioning::server::ProvisioningInfo;
+use crate::common::provisioning::ProvisioningInfo;
 
 pub fn serve_web_with_external_network<S>(
-    #[cfg(feature = "provisioning")] info: Option<ProvisioningInfo>,
+    info: Option<ProvisioningInfo>,
     repr: RobotRepresentation,
     max_webrtc_connection: usize,
     storage: S,
@@ -30,7 +29,6 @@ pub fn serve_web_with_external_network<S>(
 
     let _ = cloned_exec.block_on(Box::pin(serve_async_with_external_network(
         exec,
-        #[cfg(feature = "provisioning")]
         info,
         storage,
         repr,

@@ -14,6 +14,7 @@ use crate::{
         exec::Executor,
         grpc::ServerError,
         grpc_client::GrpcClientError,
+        provisioning::ProvisioningInfo,
         robot::LocalRobot,
     },
     esp32::tls::Esp32TLS,
@@ -21,10 +22,7 @@ use crate::{
 };
 
 #[cfg(feature = "provisioning")]
-use crate::{
-    common::provisioning::server::{serve_provisioning_async, ProvisioningInfo},
-    esp32::conn::mdns::Esp32Mdns,
-};
+use crate::{common::provisioning::server::serve_provisioning_async, esp32::conn::mdns::Esp32Mdns};
 
 // Four cases:
 // 1) No Robot Credentials + WiFi without external network
@@ -35,7 +33,7 @@ use crate::{
 // If they are invalid or absent it will start the provisioning server. Once provision is done it invokes the main server.
 async fn serve_async<S>(
     exec: Executor,
-    #[cfg(feature = "provisioning")] info: Option<ProvisioningInfo>,
+    #[allow(unused)] info: Option<ProvisioningInfo>,
     storage: S,
     mut repr: RobotRepresentation,
     max_webrtc_connection: usize,
@@ -235,7 +233,7 @@ where
 }
 
 pub fn serve_web<S>(
-    #[cfg(feature = "provisioning")] info: Option<ProvisioningInfo>,
+    info: Option<ProvisioningInfo>,
     repr: RobotRepresentation,
     max_webrtc_connection: usize,
     storage: S,
@@ -273,7 +271,6 @@ pub fn serve_web<S>(
 
     let _ = cloned_exec.block_on(Box::pin(serve_async(
         exec,
-        #[cfg(feature = "provisioning")]
         info,
         storage,
         repr,
@@ -284,7 +281,7 @@ pub fn serve_web<S>(
 }
 
 pub fn serve_web_with_external_network<S>(
-    #[cfg(feature = "provisioning")] info: Option<ProvisioningInfo>,
+    info: Option<ProvisioningInfo>,
     repr: RobotRepresentation,
     max_webrtc_connection: usize,
     storage: S,
@@ -323,7 +320,6 @@ pub fn serve_web_with_external_network<S>(
 
     let _ = cloned_exec.block_on(Box::pin(serve_async_with_external_network(
         exec,
-        #[cfg(feature = "provisioning")]
         info,
         storage,
         repr,
