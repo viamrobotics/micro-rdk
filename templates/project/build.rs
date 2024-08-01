@@ -1,6 +1,19 @@
 use cargo_metadata::{CargoOpt, DependencyKind, MetadataCommand};
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 use std::env;
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct Config {
+    pub cloud: Cloud,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct Cloud {
+    pub id: String,
+    pub secret: String,
+    pub app_address: String,
+}
 
 fn main() {
     if Regex::new(r"\w+-esp3?2?s?\d?-espidf")
