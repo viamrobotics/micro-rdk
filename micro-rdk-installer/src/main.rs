@@ -120,8 +120,8 @@ struct WriteFlashArgs {
     /// File path to the JSON config of the robot, downloaded from app.viam.com
     #[arg(long = "app-config")]
     config: Option<String>,
-    /// Version of the compiled micro-RDK server to download.
-    /// See https://github.com/viamrobotics/micro-rdk/releases for the version options
+    /// Version of the compiled micro-RDK server to download (ex. v0.2.3, latest).
+    /// See https://github.com/viamrobotics/micro-rdk/releases for available versions
     #[arg(long = "version", value_parser = validate_version)]
     version: Option<String>,
     /// Wi-Fi SSID to write to NVS partition of binary. If not provided, user will be
@@ -171,13 +171,15 @@ fn validate_version(version: &str) -> Result<String, String> {
     // With 0.1.9+ release the installer will not be backward compatible
     // with prior version, therefore we return an error letting the user know they should
     // use an older installer
-    let version_019 = version_compare::Version::from("0.1.9").unwrap();
+    if version != "latest" {
+        let version_019 = version_compare::Version::from("0.1.9").unwrap();
 
-    let requested_version = version_compare::Version::from(version)
-        .ok_or(format!("{} is not a valid version string", version))?;
+        let requested_version = version_compare::Version::from(version)
+            .ok_or(format!("{} is not a valid version string", version))?;
 
-    if requested_version < version_019 {
-        return Err(format!("this version of the installer does not support version of micro-rdk < 0.1.9. If you want to install micro-rdk {} please downgrade the installer to v0.1.8 first",version));
+        if requested_version < version_019 {
+            return Err(format!("this version of the installer does not support version of micro-rdk < 0.1.9. If you want to install micro-rdk {} please downgrade the installer to v0.1.8 first",version));
+        }
     }
     Ok(version.to_owned())
 }
@@ -349,7 +351,6 @@ fn main() -> Result<(), Error> {
             )?;
         }
         Some(Commands::WriteFlash(args)) => {
-            let config = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
             let tmp_path = tempfile::NamedTempFile::new()
                 .map_err(Error::FileError)?
                 .path()
@@ -357,10 +358,22 @@ fn main() -> Result<(), Error> {
             let app_path = match &args.binary_path {
                 Some(path) => PathBuf::from(path),
                 None => {
+                    if args.version.is_none() {
+                        let use_latest = dialoguer::Confirm::new()
+                            .with_prompt("Download and flash the latest Micro-RDK release?")
+                            .default(false)
+                            .interact()
+                            .unwrap();
+                        if !use_latest {
+                            return Ok(());
+                        }
+                    }
+
                     let rt = Runtime::new().map_err(Error::AsyncError)?;
                     rt.block_on(download_micro_rdk_release(&tmp_path, args.version.clone()))?
                 }
             };
+            let config = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
             if let Some(app_config) = args.config.as_ref() {
                 let nvs_metadata = read_nvs_metadata(app_path.clone())?;
 
