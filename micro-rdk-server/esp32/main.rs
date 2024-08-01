@@ -13,8 +13,12 @@ mod esp32 {
 
     use micro_rdk::{
         common::{
-            credentials_storage::WifiCredentialStorage, entry::RobotRepresentation,
-            provisioning::ProvisioningInfo, registry::ComponentRegistry,
+            credentials_storage::{
+                RobotConfigurationStorage, WifiCredentialStorage, WifiCredentials,
+            },
+            entry::RobotRepresentation,
+            provisioning::ProvisioningInfo,
+            registry::ComponentRegistry,
         },
         esp32::{
             entry::serve_web,
@@ -70,21 +74,18 @@ mod esp32 {
         // then the entire provisioning step can be skipped
         let storage = NVSStorage::new("nvs").unwrap();
 
-        if cfg!(has_robot_config) {
-            use micro_rdk::common::credentials_storage::{
-                RobotConfigurationStorage, RobotCredentials, WifiCredentials,
-            };
-
-            log::warn!("Unconditionally using build-time WiFi and robot configuration");
+        if SSID.is_some() && PASS.is_some() {
             log::info!("Storing static values from build time wifi configuration to NVS");
             storage
                 .store_wifi_credentials(WifiCredentials::new(
-                    SSID.expect("[cfg(has_robot_config)]: missing WiFi SSID")
-                        .to_string(),
-                    PASS.expect("[cfg(has_robot_config)]: missing WiFi password")
-                        .to_string(),
+                    SSID.unwrap().to_string(),
+                    PASS.unwrap().to_string(),
                 ))
                 .expect("Failed to store WiFi credentials to NVS");
+        }
+
+        if cfg!(has_robot_config) {
+            use micro_rdk::common::credentials_storage::RobotCredentials;
 
             log::info!("Storing static values from build time robot configuration to NVS");
             storage
@@ -121,8 +122,12 @@ mod esp32 {
             None
         };
 
-        if info.is_none() && !storage.has_wifi_credentials() {
+        if info.is_none() && !(storage.has_wifi_credentials() && storage.has_robot_credentials()) {
             log::error!("device in an unusable state, sleeping indefinitely");
+            log::warning!(
+                "enable the `provisioning` feature or build with wifi and robot credentials"
+            );
+            log::error!("sleeping indefinitely...");
             unsafe {
                 crate::esp32::esp_idf_svc::sys::esp_deep_sleep_start();
             }

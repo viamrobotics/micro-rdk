@@ -5,6 +5,7 @@ const ROBOT_SECRET: Option<&str> = option_env!("MICRO_RDK_ROBOT_SECRET");
 
 use micro_rdk::{
     common::{
+        credentials_storage::WifiCredentials,
         entry::RobotRepresentation,
         provisioning::server::ProvisioningInfo,
         registry::{ComponentRegistry, RegistryError},
@@ -56,21 +57,19 @@ fn main() {
     };
 
     let storage = NVSStorage::new("nvs").unwrap();
-    if cfg!(has_robot_config) {
-        use micro_rdk::common::credentials_storage::{
-            RobotConfigurationStorage, RobotCredentials, WifiCredentials,
-        };
 
-        log::warn!("Unconditionally using build-time WiFi and robot configuration");
+    if SSID.is_some() && PASS.is_some() {
         log::info!("Storing static values from build time wifi configuration to NVS");
         storage
             .store_wifi_credentials(WifiCredentials::new(
-                SSID.expect("[cfg(has_robot_config)]: missing WiFi SSID")
-                    .to_string(),
-                PASS.expect("[cfg(has_robot_config)]: missing WiFi password")
-                    .to_string(),
+                SSID.unwrap().to_string(),
+                PASS.unwrap().to_string(),
             ))
             .expect("Failed to store WiFi credentials to NVS");
+    }
+
+    if cfg!(has_robot_config) {
+        use micro_rdk::common::credentials_storage::{RobotConfigurationStorage, RobotCredentials};
 
         log::info!("Storing static values from build time robot configuration to NVS");
         storage
@@ -97,9 +96,9 @@ fn main() {
         None
     };
 
-    if info.is_none() && !storage.has_wifi_credentials() {
+    if info.is_none() && !(storage.has_wifi_credentials() && storage.has_robot_credentials()) {
         log::error!("device in an unusable state");
-        log::warning!("enable the `provisioning` feature or build with wifi credentials");
+        log::warning!("enable the `provisioning` feature or build with wifi and robot credentials");
         log::error!("sleeping indefinitely...");
         unsafe {
             sys::esp_deep_sleep_start();
