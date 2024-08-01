@@ -124,7 +124,7 @@ mod esp32 {
 
         if info.is_none() && !(storage.has_wifi_credentials() && storage.has_robot_credentials()) {
             log::error!("device in an unusable state, sleeping indefinitely");
-            log::warning!(
+            log::warn!(
                 "enable the `provisioning` feature or build with wifi and robot credentials"
             );
             log::error!("sleeping indefinitely...");

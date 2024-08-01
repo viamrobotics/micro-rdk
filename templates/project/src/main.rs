@@ -98,7 +98,7 @@ fn main() {
 
     if info.is_none() && !(storage.has_wifi_credentials() && storage.has_robot_credentials()) {
         log::error!("device in an unusable state");
-        log::warning!("enable the `provisioning` feature or build with wifi and robot credentials");
+        log::warn!("enable the `provisioning` feature or build with wifi and robot credentials");
         log::error!("sleeping indefinitely...");
         unsafe {
             sys::esp_deep_sleep_start();
