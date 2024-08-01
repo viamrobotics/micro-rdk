@@ -20,9 +20,6 @@ fn main() {
     #[cfg(not(feature = "test"))]
     {
         if env::var("TARGET").unwrap() == "xtensa-esp32-espidf" {
-            if std::env::var_os("IDF_PATH").is_none() {
-                panic!("You need to run IDF's export.sh before building");
-            }
             embuild::build::CfgArgs::output_propagated("MICRO_RDK").unwrap();
             embuild::build::LinkArgs::output_propagated("MICRO_RDK").unwrap();
         }

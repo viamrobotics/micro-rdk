@@ -1,7 +1,7 @@
 [target.xtensa-esp32-espidf]
 linker = "ldproxy"
 runner = "espflash --monitor"
-rustflags = ["-C", "default-linker-libraries", "-Clink-args=-Wl,-Map=./esp-build.map"] 
+rustflags = ["-C", "default-linker-libraries", "-Clink-args=-Wl,-Map=./esp-build.map"]
 
 
 [target.xtensa-esp32s2-espidf]
@@ -22,6 +22,4 @@ rustflags = ["-C", "default-linker-libraries"]
 
 [env]
 CARGO_WORKSPACE_DIR = { value = "", relative = true }
-ESP_IDF_TOOLS_INSTALL_DIR = { value = "fromenv", force = true}
 ESP_IDF_SYS_ROOT_CRATE = { value = "micro-rdk-server" }
-MCU = { value= "esp32", force = true}

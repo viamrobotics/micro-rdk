@@ -17,10 +17,3 @@ rustflags = ["-C", "default-linker-libraries"]
 linker = "ldproxy"
 runner = "espflash --monitor"
 rustflags = ["-C", "default-linker-libraries"]
-
-
-
-[env]
-ESP_IDF_TOOLS_INSTALL_DIR = {value = "fromenv", force = true}
-ESP_IDF_VERSION= { value = "v4.4.4", force = true}
-MCU = { value= "esp32", force = true}

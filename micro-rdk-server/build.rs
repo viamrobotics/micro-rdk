@@ -18,9 +18,6 @@ fn main() {
     println!("cargo:rerun-if-env-changed=MICRO_RDK_WIFI_SSID");
     println!("cargo:rerun-if-env-changed=MICRO_RDK_WIFI_PASSWORD");
     if env::var("TARGET").unwrap() == "xtensa-esp32-espidf" {
-        if std::env::var_os("IDF_PATH").is_none() {
-            panic!("You need to run IDF's export.sh before building");
-        }
         if !std::env::var_os("CARGO_FEATURE_QEMU").is_some() {
             if std::env::var_os("MICRO_RDK_WIFI_PASSWORD")
                 .or(std::env::var_os("MICRO_RDK_WIFI_SSID"))

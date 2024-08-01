@@ -30,8 +30,3 @@ rustflags = ["-C", "default-linker-libraries"]
 
 build-std = ["std", "panic_abort"]
 #build-std-features = ["panic_immediate_abort"] # Required for older ESP-IDF versions without a realpath implementation
-
-[env]
-ESP_IDF_TOOLS_INSTALL_DIR = {value = "fromenv", force = true}
-ESP_IDF_VERSION= { value = "v4.4.1", force = true}
-MCU = { value= "esp32", force = true}

@@ -103,8 +103,8 @@ jobs:
         bash -c 'cargo fmt -p micro-rdk-ffi -- --check'
     - name: Clippy Micro-RDK FFI
       run: |
-        bash -c 'git config --global --add safe.directory /opt/esp/esp-idf && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && make clippy-ffi'
-    
+        bash -c '. /home/testbot/.bash_profile ; git config --global --add safe.directory "$ESP_ROOT"/esp-idf && make clippy-ffi'
+
   test_and_build:
     needs: changes
     name: Tests, Format, Clippy Micro-Rdk
@@ -135,8 +135,8 @@ jobs:
     - name: ESP32 Build & Clippy
       if : needs.changes.outputs.src-esp32 == 'true' || needs.changes.outputs.src-common == 'true' ||  needs.changes.outputs.src-servers == 'true'
       run: |
-        bash -c 'git config --global --add safe.directory /opt/esp/esp-idf && . "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && make clippy-esp32'
-        bash -c '. "$IDF_PATH"/export.sh && . "$ESP_ROOT"/export-esp.sh && cd micro-rdk-server && cd ../ && make build-esp32-bin'
+        bash -c '. /home/testbot/.bash_profile ; git config --global --add safe.directory "$ESP_ROOT"/esp-idf && make clippy-esp32'
+        bash -c '. /home/testbot/.bash_profile ; cd micro-rdk-server && cd ../ && make build-esp32-bin'
 
     - name: Native Build & Clippy
       if : needs.changes.outputs.src-native == 'true' || needs.changes.outputs.src-common == 'true' || needs.changes.outputs.src-servers == 'true'
