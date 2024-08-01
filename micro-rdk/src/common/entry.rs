@@ -29,7 +29,7 @@ use super::{
 
 use crate::{
     common::{app_client::AppClientError, grpc_client::GrpcClientError},
-    proto::app::v1::ConfigResponse,
+    proto::app::v1::{CloudConfig, ConfigResponse, RobotConfig},
 };
 
 #[cfg(feature = "provisioning")]
@@ -107,15 +107,19 @@ pub async fn serve_web_inner<S>(
         .await
         .unwrap();
 
-    let rpc_host = if let Some(robot_config) = cfg_response.config.as_ref() {
-        if let Some(cloud_config) = robot_config.cloud.as_ref() {
-            cloud_config.fqdn.clone()
-        } else {
-            "".to_string()
-        }
-    } else {
-        "".to_string()
-    };
+    let rpc_host = cfg_response
+        .config
+        .clone()
+        .unwrap_or(RobotConfig {
+            ..Default::default()
+        })
+        .cloud
+        .clone()
+        .unwrap_or(CloudConfig {
+            ..Default::default()
+        })
+        .fqdn
+        .clone();
 
     #[cfg(feature = "esp32")]
     if let Some(current_dt) = cfg_received_datetime.as_ref() {
