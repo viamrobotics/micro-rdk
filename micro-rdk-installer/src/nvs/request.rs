@@ -15,24 +15,19 @@ pub async fn download_micro_rdk_release(
     path: &Path,
     version: Option<String>,
 ) -> Result<PathBuf, Error> {
-    let release_url = version.map_or_else(
-        || {
-            format!(
-                "{}/{}/{}",
-                RELEASES_BASE_URL, "latest/download", BINARY_NAME
-            )
-        },
-        |version| {
-            if version == "latest" {
-                format!(
-                    "{}/{}/{}",
-                    RELEASES_BASE_URL, "latest/download", BINARY_NAME
-                )
-            } else {
-                format!("{}/download/{}/{}", RELEASES_BASE_URL, version, BINARY_NAME)
-            }
-        },
-    );
+    let release_url = if version.is_none() || version.clone().unwrap() == "latest" {
+        format!(
+            "{}/{}/{}",
+            RELEASES_BASE_URL, "latest/download", BINARY_NAME
+        )
+    } else {
+        format!(
+            "{}/download/{}/{}",
+            RELEASES_BASE_URL,
+            version.unwrap(),
+            BINARY_NAME
+        )
+    };
 
     log::info!("Downloading micro-RDK release from {:?}", release_url);
     let fname = path.to_path_buf();
