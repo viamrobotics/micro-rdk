@@ -120,8 +120,8 @@ struct WriteFlashArgs {
     /// File path to the JSON config of the robot, downloaded from app.viam.com
     #[arg(long = "app-config")]
     config: Option<String>,
-    /// Version of the compiled micro-RDK server to download.
-    /// See https://github.com/viamrobotics/micro-rdk/releases for the version options
+    /// Version of the compiled micro-RDK server to download (ex. v0.2.3, latest).
+    /// See https://github.com/viamrobotics/micro-rdk/releases for available versions
     #[arg(long = "version", value_parser = validate_version)]
     version: Option<String>,
     /// Wi-Fi SSID to write to NVS partition of binary. If not provided, user will be
