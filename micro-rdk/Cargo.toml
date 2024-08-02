@@ -85,3 +85,4 @@ dns-message-parser.workspace = true
 
 [build-dependencies]
 embuild.workspace = true
+regex.workspace = true

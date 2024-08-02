@@ -1,6 +1,7 @@
 extern crate cbindgen;
 
 use cargo_metadata::{CargoOpt, DependencyKind, MetadataCommand};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::env;
 
@@ -19,7 +20,10 @@ pub struct Cloud {
 fn main() {
     #[cfg(not(feature = "test"))]
     {
-        if env::var("TARGET").unwrap() == "xtensa-esp32-espidf" {
+        if Regex::new(r"\w+-esp3?2?s?\d?-espidf")
+            .unwrap()
+            .is_match(&env::var("TARGET").unwrap())
+        {
             embuild::build::CfgArgs::output_propagated("MICRO_RDK").unwrap();
             embuild::build::LinkArgs::output_propagated("MICRO_RDK").unwrap();
         }

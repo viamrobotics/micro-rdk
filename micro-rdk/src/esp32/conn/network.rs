@@ -34,13 +34,10 @@ use esp_idf_svc::{
 use futures_util::lock::Mutex;
 use once_cell::sync::OnceCell;
 
-use crate::{
-    common::credentials_storage::WifiCredentials,
-    esp32::esp_idf_svc::{
-        eth::{BlockingEth, EspEth, OpenEth},
-        sys::EspError,
-    },
-};
+use crate::{common::credentials_storage::WifiCredentials, esp32::esp_idf_svc::sys::EspError};
+
+#[cfg(feature = "qemu")]
+use crate::esp32::esp_idf_svc::eth::{BlockingEth, EspEth, OpenEth};
 
 pub(crate) fn esp32_get_system_event_loop() -> Result<&'static EspSystemEventLoop, EspError> {
     static INSTANCE: OnceCell<EspSystemEventLoop> = OnceCell::new();
@@ -174,6 +171,7 @@ impl Network for Esp32WifiNetwork {
     }
 }
 
+#[cfg(feature = "qemu")]
 pub fn eth_configure<'d, T>(
     sl_stack: &EspSystemEventLoop,
     eth: EspEth<'d, T>,
@@ -184,6 +182,7 @@ pub fn eth_configure<'d, T>(
     Ok(Box::new(eth))
 }
 
+#[cfg(feature = "qemu")]
 impl Network for Box<BlockingEth<EspEth<'static, OpenEth>>> {
     fn get_ip(&self) -> Ipv4Addr {
         self.eth()

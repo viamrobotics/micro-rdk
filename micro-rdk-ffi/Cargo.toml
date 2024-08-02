@@ -38,5 +38,6 @@ thiserror.workspace = true
 cargo_metadata.workspace = true
 cbindgen.workspace = true
 embuild.workspace = true
+regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
