@@ -108,19 +108,11 @@ struct RAMCredentialStorageInner {
 pub struct RAMStorage(Rc<Mutex<RAMCredentialStorageInner>>);
 
 impl RAMStorage {
-    pub fn new(ssid: &str, pass: &str, robot_id: &str, robot_secret: &str) -> Self {
-        let robot_creds = RobotCredentials {
-            robot_id: robot_id.to_owned(),
-            robot_secret: robot_secret.to_owned(),
-        };
-        let wifi_creds = WifiCredentials {
-            ssid: ssid.to_owned(),
-            pwd: pass.to_owned(),
-        };
+    pub fn new() -> Self {
         Self(Rc::new(Mutex::new(RAMCredentialStorageInner {
-            robot_creds: Some(robot_creds),
+            robot_creds: None,
             robot_config: None,
-            wifi_creds: Some(wifi_creds),
+            wifi_creds: None,
         })))
     }
 }

@@ -5,8 +5,10 @@ mod native {
 
     use micro_rdk::{
         common::{
-            conn::network::ExternallyManagedNetwork, credentials_storage::RAMStorage,
-            entry::RobotRepresentation, provisioning::ProvisioningInfo,
+            conn::network::ExternallyManagedNetwork,
+            credentials_storage::{RAMStorage, RobotConfigurationStorage, RobotCredentials},
+            entry::RobotRepresentation,
+            provisioning::ProvisioningInfo,
         },
         native::entry::serve_web_with_external_network,
     };
@@ -23,12 +25,18 @@ mod native {
             _ => panic!("oops expected ipv4"),
         };
 
-        let storage = RAMStorage::new(
-            "",
-            "",
-            ROBOT_ID.expect("[cfg(has_robot_config)]: missing robot id"),
-            ROBOT_SECRET.expect("[cfg(has_robot_config)]: missing robot secret"),
-        );
+        let storage = RAMStorage::new();
+        if ROBOT_ID.is_some() && ROBOT_SECRET.is_some() {
+            if let Err(e) = storage.store_robot_credentials(
+                RobotCredentials::new(
+                    ROBOT_ID.unwrap().to_string(),
+                    ROBOT_SECRET.unwrap().to_string(),
+                )
+                .into(),
+            ) {
+                log::error!("Failed to store RobotCredentials: {}", e);
+            }
+        }
 
         let info = if cfg!(feature = "provisioning") {
             let mut info = ProvisioningInfo::default();
