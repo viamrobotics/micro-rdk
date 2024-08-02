@@ -16,7 +16,7 @@ opt-level = "z"
 [dependencies.micro-rdk]
 version = "0.2.3"
 git = "https://github.com/viamrobotics/micro-rdk.git"
-features = ["esp32", "binstart", {% if provisioning == "true" %} "provisioning",{% endif %}{% if camera == "true" %}"camera"{%endif%}]
+features = ["esp32", "binstart",{% if provisioning == "true" %} "provisioning",{% endif %}{% if camera == "true" %}"camera"{%endif%}]
 rev = "098d3f1"
 
 [dependencies]
