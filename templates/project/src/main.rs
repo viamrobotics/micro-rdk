@@ -5,9 +5,9 @@ const ROBOT_SECRET: Option<&str> = option_env!("MICRO_RDK_ROBOT_SECRET");
 
 use micro_rdk::{
     common::{
-        credentials_storage::WifiCredentials,
+        credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage, WifiCredentials},
         entry::RobotRepresentation,
-        provisioning::server::ProvisioningInfo,
+        provisioning::ProvisioningInfo,
         registry::{ComponentRegistry, RegistryError},
     },
     esp32::{
@@ -58,18 +58,13 @@ fn main() {
 
     let storage = NVSStorage::new("nvs").unwrap();
 
-    if SSID.is_some() && PASS.is_some() {
-        log::info!("Storing static values from build time wifi configuration to NVS");
-        storage
-            .store_wifi_credentials(WifiCredentials::new(
-                SSID.unwrap().to_string(),
-                PASS.unwrap().to_string(),
-            ))
-            .expect("Failed to store WiFi credentials to NVS");
-    }
-
     if cfg!(has_robot_config) {
-        use micro_rdk::common::credentials_storage::{RobotConfigurationStorage, RobotCredentials};
+        #[cfg(not(has_wifi_config))]
+        {
+            compile_error!("building with robot config requires wifi config");
+        }
+
+        use micro_rdk::common::credentials_storage::RobotCredentials;
 
         log::info!("Storing static values from build time robot configuration to NVS");
         storage
@@ -87,6 +82,16 @@ fn main() {
             .expect("Failed to store robot credentials to NVS");
     }
 
+    if SSID.is_some() && PASS.is_some() {
+        log::info!("Storing static values from build time wifi configuration to NVS");
+        storage
+            .store_wifi_credentials(WifiCredentials::new(
+                SSID.unwrap().to_string(),
+                PASS.unwrap().to_string(),
+            ))
+            .expect("Failed to store WiFi credentials to NVS");
+    }
+
     let info = if cfg!(feature = "provisioning") {
         let mut info = ProvisioningInfo::default();
         info.set_manufacturer("viam".to_owned());
@@ -96,6 +101,7 @@ fn main() {
         None
     };
 
+    // TODO: RSDK-8445
     if info.is_none() && !(storage.has_wifi_credentials() && storage.has_robot_credentials()) {
         log::error!("device in an unusable state");
         log::warn!("enable the `provisioning` feature or build with wifi and robot credentials");

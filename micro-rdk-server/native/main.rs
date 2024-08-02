@@ -47,6 +47,7 @@ mod native {
             None
         };
 
+        // TODO: RSDK-8445
         if info.is_none() && !storage.has_robot_credentials() {
             log::error!("device in an unusable state");
             log::warn!(
