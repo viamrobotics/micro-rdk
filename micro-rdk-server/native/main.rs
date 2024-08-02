@@ -47,6 +47,15 @@ mod native {
             None
         };
 
+        if info.is_none() && !storage.has_robot_credentials() {
+            log::error!("device in an unusable state");
+            log::warn!(
+                "enable the `provisioning` feature or build with robot credentials (ex. viam.json)"
+            );
+            log::error!("exiting...");
+            return;
+        }
+
         serve_web_with_external_network(info, repr, 3, storage, network);
     }
 }
