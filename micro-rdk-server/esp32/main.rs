@@ -74,12 +74,17 @@ mod esp32 {
         // then the entire provisioning step can be skipped
         let storage = NVSStorage::new("nvs").unwrap();
 
-        if cfg!(has_robot_config) {
-            #[cfg(not(has_wifi_config))]
-            {
-                compile_error!("building with robot config requires wifi config");
-            }
+        if SSID.is_some() && PASS.is_some() {
+            log::info!("Storing static values from build time wifi configuration to NVS");
+            storage
+                .store_wifi_credentials(WifiCredentials::new(
+                    SSID.unwrap().to_string(),
+                    PASS.unwrap().to_string(),
+                ))
+                .expect("Failed to store WiFi credentials to NVS");
+        }
 
+        if cfg!(has_robot_config) {
             use micro_rdk::common::credentials_storage::RobotCredentials;
 
             log::info!("Storing static values from build time robot configuration to NVS");
@@ -96,16 +101,6 @@ mod esp32 {
                     .into(),
                 )
                 .expect("Failed to store robot credentials to NVS");
-        }
-
-        if SSID.is_some() && PASS.is_some() {
-            log::info!("Storing static values from build time wifi configuration to NVS");
-            storage
-                .store_wifi_credentials(WifiCredentials::new(
-                    SSID.unwrap().to_string(),
-                    PASS.unwrap().to_string(),
-                ))
-                .expect("Failed to store WiFi credentials to NVS");
         }
 
         let max_connections = unsafe {
