@@ -69,6 +69,11 @@ fn main() {
     }
 
     if cfg!(has_robot_config) {
+        #[cfg(not(has_wifi_config))]
+        {
+            compile_error!("building with robot config requires wifi credentials");
+        }
+
         use micro_rdk::common::credentials_storage::RobotCredentials;
 
         log::info!("Storing static values from build time robot configuration to NVS");
