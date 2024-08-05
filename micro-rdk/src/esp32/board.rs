@@ -73,6 +73,8 @@ impl EspBoard {
     /// The potential approach is described in esp32/motor.rs:383
     pub(crate) fn from_config(cfg: ConfigType) -> Result<BoardType, BoardError> {
         let (analogs, mut pins, i2c_confs) = {
+            // TODO(RSDK-8451): The logic below is hardcoded for esp32
+            // and is not appropriate for esp32s3 (or other boards).
             #[cfg(not(esp32))]
             let analogs = vec![];
             #[cfg(esp32)]
