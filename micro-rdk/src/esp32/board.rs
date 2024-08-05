@@ -8,7 +8,7 @@ use std::{
 
 use crate::{
     common::{
-        analog::{AnalogReader, AnalogReaderConfig, AnalogReaderType},
+        analog::{AnalogReader, AnalogReaderType},
         board::{Board, BoardError, BoardType},
         config::ConfigType,
         digital_interrupt::DigitalInterruptConfig,
@@ -20,19 +20,24 @@ use crate::{
     proto::component,
 };
 
+#[cfg(esp32)]
+use crate::common::analog::AnalogReaderConfig;
+
 use super::{
-    analog::Esp32AnalogReader,
     i2c::{Esp32I2C, Esp32I2cConfig},
     pin::Esp32GPIOPin,
 };
 
-use crate::esp32::esp_idf_svc::hal::{
-    adc::{
-        attenuation::adc_atten_t_ADC_ATTEN_DB_11 as Atten11dB, config::Config, AdcChannelDriver,
-        AdcDriver, ADC1,
-    },
-    gpio::InterruptType,
+#[cfg(esp32)]
+use super::analog::Esp32AnalogReader;
+
+#[cfg(esp32)]
+use crate::esp32::esp_idf_svc::hal::adc::{
+    attenuation::adc_atten_t_ADC_ATTEN_DB_11 as Atten11dB, config::Config, AdcChannelDriver,
+    AdcDriver, ADC1,
 };
+
+use crate::esp32::esp_idf_svc::hal::gpio::InterruptType;
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
@@ -68,6 +73,11 @@ impl EspBoard {
     /// The potential approach is described in esp32/motor.rs:383
     pub(crate) fn from_config(cfg: ConfigType) -> Result<BoardType, BoardError> {
         let (analogs, mut pins, i2c_confs) = {
+            // TODO(RSDK-8451): The logic below is hardcoded for esp32
+            // and is not appropriate for esp32s3 (or other boards).
+            #[cfg(not(esp32))]
+            let analogs = vec![];
+            #[cfg(esp32)]
             let analogs =
                 if let Ok(analogs) = cfg.get_attribute::<Vec<AnalogReaderConfig>>("analogs") {
                     let analogs: Result<Vec<AnalogReaderType<u16>>, BoardError> = analogs
@@ -189,6 +199,7 @@ impl EspBoard {
                 } else {
                     vec![]
                 };
+
             let pins = if let Ok(mut pins) = cfg.get_attribute::<Vec<i32>>("pins") {
                 pins.sort();
                 pins.dedup();

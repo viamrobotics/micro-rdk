@@ -29,6 +29,7 @@ futures-lite = "1"
 [build-dependencies]
 cargo_metadata = "0.18"
 embuild = "0.29"
+regex = "1.10"
 
 [package.metadata.esp-idf-sys]
 esp_idf_version = "v4.4.8"

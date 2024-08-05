@@ -38,7 +38,9 @@ fn install_gpio_isr_service() -> Result<(), BoardError> {
 // ESP-IDF, so we must replicate the logic from that function here. If we do not validate,
 // PinDriver::input_output will panic because esp-idf-hal does not perform the same check
 fn is_valid_gpio_pin(pin: i32) -> Result<(), BoardError> {
-    match (1_u32 << (pin as u32)) & SOC_GPIO_VALID_DIGITAL_IO_PAD_MASK {
+    // Do this masking in 64-bit space because it works for both esp32
+    // where the mask is 32 bits and esp32s3 where it is 64.
+    match (1_u64 << (pin as u64)) & (SOC_GPIO_VALID_DIGITAL_IO_PAD_MASK as u64) {
         0 => Ok(()),
         _ => Err(BoardError::InvalidGpioNumber(pin as u32)),
     }

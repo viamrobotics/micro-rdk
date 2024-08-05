@@ -1,3 +1,4 @@
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::env;
 
@@ -17,7 +18,11 @@ fn main() {
     println!("cargo:rerun-if-changed=viam.json");
     println!("cargo:rerun-if-env-changed=MICRO_RDK_WIFI_SSID");
     println!("cargo:rerun-if-env-changed=MICRO_RDK_WIFI_PASSWORD");
-    if env::var("TARGET").unwrap() == "xtensa-esp32-espidf" {
+
+    if Regex::new(r"\w+-esp3?2?s?\d?-espidf")
+        .unwrap()
+        .is_match(&env::var("TARGET").unwrap())
+    {
         if !std::env::var_os("CARGO_FEATURE_QEMU").is_some() {
             if std::env::var_os("MICRO_RDK_WIFI_PASSWORD")
                 .or(std::env::var_os("MICRO_RDK_WIFI_SSID"))
