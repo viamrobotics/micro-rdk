@@ -5,7 +5,9 @@ const ROBOT_SECRET: Option<&str> = option_env!("MICRO_RDK_ROBOT_SECRET");
 
 use micro_rdk::{
     common::{
-        credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage, WifiCredentials},
+        credentials_storage::{
+            RobotConfigurationStorage, RobotCredentials, WifiCredentialStorage, WifiCredentials,
+        },
         entry::RobotRepresentation,
         provisioning::ProvisioningInfo,
         registry::{ComponentRegistry, RegistryError},
@@ -68,23 +70,33 @@ fn main() {
             .expect("Failed to store WiFi credentials to NVS");
     }
 
-    if cfg!(has_robot_config) {
-        use micro_rdk::common::credentials_storage::RobotCredentials;
+    if !storage.has_wifi_credentials() {
+        // check if any were statically compiled
+        if SSID.is_some() && PASS.is_some() {
+            log::info!("Storing static values from build time wifi configuration to NVS");
+            storage
+                .store_wifi_credentials(WifiCredentials::new(
+                    SSID.unwrap().to_string(),
+                    PASS.unwrap().to_string(),
+                ))
+                .expect("Failed to store WiFi credentials to NVS");
+        }
+    }
 
-        log::info!("Storing static values from build time robot configuration to NVS");
-        storage
-            .store_robot_credentials(
-                RobotCredentials::new(
-                    ROBOT_ID
-                        .expect("[cfg(has_robot_config)]: missing robot id")
-                        .to_string(),
-                    ROBOT_SECRET
-                        .expect("[cfg(has_robot_config)]: missing robot secret")
-                        .to_string(),
+    if !storage.has_robot_config() {
+        // check if any were statically compiled
+        if ROBOT_ID.is_some() && ROBOT_SERCRET.is_some() {
+            log::info!("Storing static values from build time robot configuration to NVS");
+            storage
+                .store_robot_credentials(
+                    RobotCredentials::new(
+                        ROBOT_ID.unwrap().to_string(),
+                        ROBOT_SECRET.unwrap().to_string(),
+                    )
+                    .into(),
                 )
-                .into(),
-            )
-            .expect("Failed to store robot credentials to NVS");
+                .expect("Failed to store robot credentials to NVS");
+        }
     }
 
     let info = if cfg!(feature = "provisioning") {
