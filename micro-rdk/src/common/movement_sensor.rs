@@ -23,7 +23,7 @@ pub static COMPONENT_NAME: &str = "movement_sensor";
 #[cfg(feature = "builtin-components")]
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
-        .register_movement_sensor("fake", &FakeMovementSensor::from_config)
+        .register_movement_sensor("fake".to_string(), &FakeMovementSensor::from_config)
         .is_err()
     {
         log::error!("fake type is already registered");

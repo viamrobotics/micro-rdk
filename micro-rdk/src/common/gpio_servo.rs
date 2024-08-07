@@ -48,7 +48,7 @@ const SAFE_ANGULAR_POSITION_LIMITS: (u32, u32) = (0, 180);
 const SAFE_DEFAULT_FREQUENCY_HZ: u32 = 300;
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
-    if registry.register_servo("gpio", &from_config).is_err() {
+    if registry.register_servo("gpio".to_string(), &from_config).is_err() {
         log::error!("gpio model is already registered")
     }
 }

@@ -23,7 +23,7 @@ pub struct WaterPump {
 }
 
 pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {
-    registry.register_motor("water_pump", &WaterPump::from_config)?;
+    registry.register_motor("water_pump".to_string(), &WaterPump::from_config)?;
     log::info!("water_pump motor registration ok");
     Ok(())
 }

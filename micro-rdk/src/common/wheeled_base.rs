@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
         .register_base(
-            "two_wheeled_base",
+            "two_wheeled_base".to_string(),
             &WheeledBase::<MotorType, MotorType>::from_config,
         )
         .is_err()
@@ -22,8 +22,8 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     }
     if registry
         .register_dependency_getter(
-            BaseCompName,
-            "two_wheeled_base",
+            BaseCompName.to_string(),
+            "two_wheeled_base".to_string(),
             &WheeledBase::<MotorType, MotorType>::dependencies_from_config,
         )
         .is_err()
@@ -98,11 +98,11 @@ where
     pub(crate) fn dependencies_from_config(cfg: ConfigType) -> Vec<ResourceKey> {
         let mut r_keys = Vec::new();
         if let Ok(l_motor_name) = cfg.get_attribute::<String>("left") {
-            let r_key = ResourceKey(MotorCompName, l_motor_name);
+            let r_key = ResourceKey(MotorCompName.to_string(), l_motor_name);
             r_keys.push(r_key)
         }
         if let Ok(r_motor_name) = cfg.get_attribute::<String>("right") {
-            let r_key = ResourceKey(MotorCompName, r_motor_name);
+            let r_key = ResourceKey(MotorCompName.to_string(), r_motor_name);
             r_keys.push(r_key)
         }
         r_keys

@@ -20,7 +20,7 @@ use micro_rdk::{
 };
 
 pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {
-    registry.register_sensor("moisture_sensor", &MoistureSensor::from_config)?;
+    registry.register_sensor("moisture_sensor".to_string(), &MoistureSensor::from_config)?;
     Ok(())
 }
 
