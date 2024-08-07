@@ -40,7 +40,8 @@ build-installer:
 	cargo build -p micro-rdk-installer --bin micro-rdk-installer --release
 
 install-tools:
-	cargo install cargo-generate espflash espup cargo-espflash ldproxy; espup install -s -f ~/esp/export-rs.sh -v 1.67.0
+	cargo install cargo-generate espflash espup cargo-espflash
+	espup install -s -v 1.75.0
 
 native:
 	cargo run -p micro-rdk-server --bin micro-rdk-server-native
