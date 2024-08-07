@@ -197,7 +197,7 @@ impl LocalRobot {
         let (board, board_key) = if let Some(Some(config)) = config {
             let model = get_model_without_namespace_prefix(&mut config.model.to_owned())?;
             let board_key = Some(ResourceKey(
-                crate::common::board::COMPONENT_NAME,
+                crate::common::board::COMPONENT_NAME.to_string(),
                 config.name.to_string(),
             ));
             let constructor = registry
@@ -349,27 +349,9 @@ impl LocalRobot {
         config: &DynamicComponentConfig,
         registry: &mut ComponentRegistry,
     ) -> Result<Vec<Dependency>, RobotError> {
-        let type_as_static = match config.get_type() {
-            "motor" => crate::common::motor::COMPONENT_NAME,
-            "board" => crate::common::board::COMPONENT_NAME,
-            #[cfg(feature = "camera")]
-            "camera" => crate::common::camera::COMPONENT_NAME,
-            "encoder" => crate::common::encoder::COMPONENT_NAME,
-            "movement_sensor" => crate::common::movement_sensor::COMPONENT_NAME,
-            "sensor" => crate::common::sensor::COMPONENT_NAME,
-            "base" => crate::common::base::COMPONENT_NAME,
-            "power_sensor" => crate::common::power_sensor::COMPONENT_NAME,
-            "servo" => crate::common::servo::COMPONENT_NAME,
-            "generic" => crate::common::generic::COMPONENT_NAME,
-            &_ => {
-                return Err(RobotError::RobotComponentTypeNotSupported(
-                    config.get_type().to_owned(),
-                ))
-            }
-        };
         let model = get_model_without_namespace_prefix(&mut config.get_model().to_owned())?;
         let deps_keys = registry
-            .get_dependency_function(type_as_static, &model)
+            .get_dependency_function(config.get_type().to_string(), model)
             .map_or(Vec::new(), |dep_fn| dep_fn(ConfigType::Dynamic(config)));
 
         deps_keys
