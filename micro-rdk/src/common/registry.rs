@@ -608,7 +608,7 @@ mod tests {
 
         // register test sensor
         assert!(registry
-            .register_sensor("test_sensor", &TestSensor::from_config)
+            .register_sensor("test_sensor".to_string(), &TestSensor::from_config)
             .is_ok());
 
         // check ctor
@@ -661,16 +661,16 @@ mod tests {
         let ctor = registry.get_motor_constructor("fake".to_string());
         assert!(ctor.is_ok());
 
-        let ret = registry.register_motor("fake", &|_, _| {
+        let ret = registry.register_motor("fake".to_string(), &|_, _| {
             Err(MotorError::MotorMethodUnimplemented(""))
         });
         assert!(ret.is_err());
         assert_eq!(
             ret.err().unwrap(),
-            RegistryError::ModelAlreadyRegistered("fake")
+            RegistryError::ModelAlreadyRegistered("fake".to_string())
         );
 
-        let ret = registry.register_motor("fake2", &|_, _| {
+        let ret = registry.register_motor("fake2".to_string(), &|_, _| {
             Err(MotorError::MotorMethodUnimplemented(""))
         });
         assert!(ret.is_ok());
@@ -686,16 +686,16 @@ mod tests {
         let ctor = registry.get_board_constructor("fake".to_string());
         assert!(ctor.is_ok());
 
-        let ret = registry.register_board("fake", &|_| {
+        let ret = registry.register_board("fake".to_string(), &|_| {
             Err(common::board::BoardError::BoardMethodNotSupported(""))
         });
         assert!(ret.is_err());
         assert_eq!(
             ret.err().unwrap(),
-            RegistryError::ModelAlreadyRegistered("fake")
+            RegistryError::ModelAlreadyRegistered("fake".to_string())
         );
 
-        let ret = registry.register_board("fake2", &|_| {
+        let ret = registry.register_board("fake2".to_string(), &|_| {
             Err(common::board::BoardError::BoardMethodNotSupported(""))
         });
         assert!(ret.is_ok());
