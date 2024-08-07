@@ -187,15 +187,33 @@ impl ComponentRegistry {
     pub fn new() -> Self {
         let mut dependency_func_map = Map::new();
         dependency_func_map.insert(crate::common::motor::COMPONENT_NAME.to_string(), Map::new());
-        dependency_func_map.insert(crate::common::movement_sensor::COMPONENT_NAME.to_string(), Map::new());
-        dependency_func_map.insert(crate::common::encoder::COMPONENT_NAME.to_string(), Map::new());
-        dependency_func_map.insert(crate::common::sensor::COMPONENT_NAME.to_string(), Map::new());
+        dependency_func_map.insert(
+            crate::common::movement_sensor::COMPONENT_NAME.to_string(),
+            Map::new(),
+        );
+        dependency_func_map.insert(
+            crate::common::encoder::COMPONENT_NAME.to_string(),
+            Map::new(),
+        );
+        dependency_func_map.insert(
+            crate::common::sensor::COMPONENT_NAME.to_string(),
+            Map::new(),
+        );
         dependency_func_map.insert(crate::common::base::COMPONENT_NAME.to_string(), Map::new());
         #[cfg(feature = "camera")]
-        dependency_func_map.insert(crate::common::camera::COMPONENT_NAME.to_string(), Map::new());
+        dependency_func_map.insert(
+            crate::common::camera::COMPONENT_NAME.to_string(),
+            Map::new(),
+        );
         dependency_func_map.insert(crate::common::servo::COMPONENT_NAME.to_string(), Map::new());
-        dependency_func_map.insert(crate::common::power_sensor::COMPONENT_NAME.to_string(), Map::new());
-        dependency_func_map.insert(crate::common::generic::COMPONENT_NAME.to_string(), Map::new());
+        dependency_func_map.insert(
+            crate::common::power_sensor::COMPONENT_NAME.to_string(),
+            Map::new(),
+        );
+        dependency_func_map.insert(
+            crate::common::generic::COMPONENT_NAME.to_string(),
+            Map::new(),
+        );
         Self {
             motors: Map::new(),
             board: Map::new(),

@@ -44,7 +44,10 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
         log::error!("fake type is already registered");
     }
     if registry
-        .register_encoder("fake_incremental".to_string(), &FakeIncrementalEncoder::from_config)
+        .register_encoder(
+            "fake_incremental".to_string(),
+            &FakeIncrementalEncoder::from_config,
+        )
         .is_err()
     {
         log::error!("fake_incremental type is already registered");
