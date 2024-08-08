@@ -39,10 +39,6 @@ build-native:
 build-installer:
 	cargo build -p micro-rdk-installer --bin micro-rdk-installer --release
 
-install-tools:
-	cargo install cargo-generate espflash espup cargo-espflash
-	espup install -s -v 1.75.0
-
 native:
 	cargo run -p micro-rdk-server --bin micro-rdk-server-native
 
