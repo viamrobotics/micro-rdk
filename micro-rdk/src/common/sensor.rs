@@ -54,7 +54,7 @@ pub enum SensorError {
 #[cfg(feature = "builtin-components")]
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
-        .register_sensor("fake", &FakeSensor::from_config)
+        .register_sensor("fake".to_string(), &FakeSensor::from_config)
         .is_err()
     {
         log::error!("fake sensor type is already registered");
