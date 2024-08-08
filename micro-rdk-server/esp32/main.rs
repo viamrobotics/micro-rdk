@@ -70,10 +70,10 @@ mod esp32 {
         register_examples(&mut r);
         let repr = RobotRepresentation::WithRegistry(r);
 
-        // When building the server locally if a user gives a "config" (Robot credentials and Wifi Credentials)
-        // then the entire provisioning step can be skipped
         let storage = NVSStorage::new("nvs").unwrap();
 
+        // At runtime, if the program does not detect credentials or configs in storage,
+        // it will try to load statically compiled values.
         if !storage.has_wifi_credentials() {
             // check if any were statically compiled
             if SSID.is_some() && PASS.is_some() {
@@ -87,9 +87,9 @@ mod esp32 {
             }
         }
 
-        if !storage.has_robot_config() {
+        if !storage.has_robot_configuration() {
             // check if any were statically compiled
-            if ROBOT_ID.is_some() && ROBOT_SERCRET.is_some() {
+            if ROBOT_ID.is_some() && ROBOT_SECRET.is_some() {
                 log::info!("Storing static values from build time robot configuration to NVS");
                 storage
                     .store_robot_credentials(
@@ -113,28 +113,11 @@ mod esp32 {
             }
         };
 
-        let info = if cfg!(feature = "provisioning") {
-            let mut info = ProvisioningInfo::default();
-            info.set_manufacturer("viam".to_owned());
-            info.set_model("test-esp32".to_owned());
-            Some(info)
-        } else {
-            None
-        };
+        let mut info = ProvisioningInfo::default();
+        info.set_manufacturer("viam".to_owned());
+        info.set_model("test-esp32".to_owned());
 
-        // TODO: RSDK-8445
-        if info.is_none() && !(storage.has_wifi_credentials() && storage.has_robot_credentials()) {
-            log::error!("device in an unusable state, sleeping indefinitely");
-            log::warn!(
-                "enable the `provisioning` feature or build with wifi and robot credentials"
-            );
-            log::error!("sleeping indefinitely...");
-            unsafe {
-                crate::esp32::esp_idf_svc::sys::esp_deep_sleep_start();
-            }
-        }
-
-        serve_web(info, repr, max_connections, storage);
+        serve_web(Some(info), repr, max_connections, storage);
     }
 }
 

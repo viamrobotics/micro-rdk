@@ -20,7 +20,6 @@ rev = "098d3f1"
 features = [
   "esp32", 
   "binstart",
-  {% if provisioning == "true" %}"provisioning",{% endif %}
   {% if camera == "true" %}"camera",{% endif %}
 ]
 

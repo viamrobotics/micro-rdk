@@ -38,26 +38,11 @@ mod native {
             }
         }
 
-        let info = if cfg!(feature = "provisioning") {
-            let mut info = ProvisioningInfo::default();
-            info.set_manufacturer("viam".to_owned());
-            info.set_model("test-esp32".to_owned());
-            Some(info)
-        } else {
-            None
-        };
+        let mut info = ProvisioningInfo::default();
+        info.set_manufacturer("viam".to_owned());
+        info.set_model("test-esp32".to_owned());
 
-        // TODO: RSDK-8445
-        if info.is_none() && !storage.has_robot_credentials() {
-            log::error!("device in an unusable state");
-            log::warn!(
-                "enable the `provisioning` feature or build with robot credentials (ex. viam.json)"
-            );
-            log::error!("exiting...");
-            return;
-        }
-
-        serve_web_with_external_network(info, repr, 3, storage, network);
+        serve_web_with_external_network(Some(info), repr, 3, storage, network);
     }
 }
 

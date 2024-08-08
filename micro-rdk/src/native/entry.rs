@@ -8,9 +8,8 @@ use crate::common::{
     entry::{serve_async_with_external_network, RobotRepresentation},
     exec::Executor,
     grpc::ServerError,
+    provisioning::ProvisioningInfo,
 };
-
-use crate::common::provisioning::ProvisioningInfo;
 
 pub fn serve_web_with_external_network<S>(
     info: Option<ProvisioningInfo>,

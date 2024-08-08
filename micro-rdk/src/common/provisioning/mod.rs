@@ -1,4 +1,3 @@
-#[cfg(feature = "provisioning")]
 pub mod server;
 
 #[derive(Default, Clone)]

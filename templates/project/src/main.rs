@@ -60,16 +60,6 @@ fn main() {
 
     let storage = NVSStorage::new("nvs").unwrap();
 
-    if SSID.is_some() && PASS.is_some() {
-        log::info!("Storing static values from build time wifi configuration to NVS");
-        storage
-            .store_wifi_credentials(WifiCredentials::new(
-                SSID.unwrap().to_string(),
-                PASS.unwrap().to_string(),
-            ))
-            .expect("Failed to store WiFi credentials to NVS");
-    }
-
     if !storage.has_wifi_credentials() {
         // check if any were statically compiled
         if SSID.is_some() && PASS.is_some() {
@@ -83,9 +73,9 @@ fn main() {
         }
     }
 
-    if !storage.has_robot_config() {
+    if !storage.has_robot_configuration() {
         // check if any were statically compiled
-        if ROBOT_ID.is_some() && ROBOT_SERCRET.is_some() {
+        if ROBOT_ID.is_some() && ROBOT_SECRET.is_some() {
             log::info!("Storing static values from build time robot configuration to NVS");
             storage
                 .store_robot_credentials(
@@ -99,29 +89,14 @@ fn main() {
         }
     }
 
-    let info = if cfg!(feature = "provisioning") {
-        let mut info = ProvisioningInfo::default();
-        info.set_manufacturer("viam".to_owned());
-        info.set_model("esp32".to_owned());
-        Some(info)
-    } else {
-        None
-    };
-
-    // TODO: RSDK-8445
-    if info.is_none() && !(storage.has_wifi_credentials() && storage.has_robot_credentials()) {
-        log::error!("device in an unusable state");
-        log::warn!("enable the `provisioning` feature or build with wifi and robot credentials");
-        log::error!("sleeping indefinitely...");
-        unsafe {
-            sys::esp_deep_sleep_start();
-        }
-    }
+    let mut info = ProvisioningInfo::default();
+    info.set_manufacturer("viam".to_owned());
+    info.set_model("esp32".to_owned());
 
     let mut registry = Box::<ComponentRegistry>::default();
     if let Err(e) = register_modules(&mut registry) {
         log::error!("couldn't register modules {:?}", e);
     }
     let repr = RobotRepresentation::WithRegistry(registry);
-    serve_web(info, repr, max_connections, storage);
+    serve_web(Some(info), repr, max_connections, storage);
 }

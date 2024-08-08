@@ -29,7 +29,6 @@ pub mod conn {
     pub mod network;
 }
 pub mod nvs_storage;
-#[cfg(feature = "provisioning")]
 pub mod provisioning {
     pub mod wifi_provisioning;
 }

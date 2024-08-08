@@ -27,12 +27,12 @@ fn main() {
         if !std::env::var_os("CARGO_FEATURE_QEMU").is_some() {
             if std::env::var_os("MICRO_RDK_WIFI_PASSWORD")
                 .or(std::env::var_os("MICRO_RDK_WIFI_SSID"))
-                .is_some()
+                .is_none()
                 && std::env::var_os("MICRO_RDK_WIFI_SSID")
                     .zip(std::env::var_os("MICRO_RDK_WIFI_PASSWORD"))
                     .is_none()
             {
-                panic!("Both or none of environment variables MICRO_RDK_WIFI_SSID and MICRO_RDK_WIFI_PASSWORD should be set");
+                panic!("Both environment variables MICRO_RDK_WIFI_SSID and MICRO_RDK_WIFI_PASSWORD should be set");
             }
         }
 
@@ -47,7 +47,6 @@ fn main() {
                 cfg.cloud.secret
             );
             println!("cargo:rustc-env=MICRO_RDK_ROBOT_ID={}", cfg.cloud.id);
-            println!("cargo:rustc-cfg=has_robot_config");
         }
     }
 

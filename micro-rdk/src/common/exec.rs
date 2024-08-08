@@ -5,9 +5,7 @@ use futures_lite::{
     Future,
 };
 
-#[cfg(feature = "provisioning")]
-use crate::common::provisioning::server::ProvisioningExecutor;
-use crate::common::webrtc::exec::WebRtcExecutor;
+use crate::common::{provisioning::server::ProvisioningExecutor, webrtc::exec::WebRtcExecutor};
 
 #[derive(Clone, Debug, Default)]
 /// This executor is local and bounded to the CPU that created it usually you would create it after spwaning a thread on a specific core
@@ -50,7 +48,6 @@ where
     }
 }
 
-#[cfg(feature = "provisioning")]
 impl ProvisioningExecutor for Executor {
     fn spawn<F: future::Future<Output = ()> + 'static>(&self, future: F) -> Task<()> {
         self.spawn(future)
