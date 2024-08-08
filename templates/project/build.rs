@@ -48,6 +48,8 @@ fn main() {
             );
             println!("cargo:rustc-env=MICRO_RDK_ROBOT_ID={}", cfg.cloud.id);
         }
+    } else {
+        panic!("`viam.json` configuration file not found in project root directory");
     }
 
     // Dynamic Module Magic
