@@ -36,6 +36,9 @@ build:
 build-native:
 	cargo build -p micro-rdk-server --bin micro-rdk-server-native
 
+build-installer:
+	cargo build -p micro-rdk-installer --bin micro-rdk-installer --release
+
 native:
 	cargo run -p micro-rdk-server --bin micro-rdk-server-native
 
