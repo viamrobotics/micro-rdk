@@ -7,7 +7,7 @@ use std::{
 use micro_rdk::common::{
     config::ConfigType,
     entry::RobotRepresentation,
-    provisioning::ProvisioningInfo,
+    provisioning::server::ProvisioningInfo,
     registry::{ComponentRegistry, Dependency},
     sensor::{SensorError, SensorType},
 };

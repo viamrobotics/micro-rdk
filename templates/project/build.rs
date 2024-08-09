@@ -20,24 +20,25 @@ fn main() {
         .unwrap()
         .is_match(&env::var("TARGET").unwrap())
     {
-    println!("cargo:rerun-if-changed=viam.json");
-    println!("cargo:rerun-if-env-changed=MICRO_RDK_WIFI_SSID");
-    println!("cargo:rerun-if-env-changed=MICRO_RDK_WIFI_PASSWORD");
-    if env::var("TARGET").unwrap() == "xtensa-esp32-espidf" {
-        if !std::env::var_os("CARGO_FEATURE_QEMU").is_some() {
-            if std::env::var_os("MICRO_RDK_WIFI_PASSWORD")
-                .or(std::env::var_os("MICRO_RDK_WIFI_SSID"))
-                .is_none()
-                && std::env::var_os("MICRO_RDK_WIFI_SSID")
-                    .zip(std::env::var_os("MICRO_RDK_WIFI_PASSWORD"))
+        println!("cargo:rerun-if-changed=viam.json");
+        println!("cargo:rerun-if-env-changed=MICRO_RDK_WIFI_SSID");
+        println!("cargo:rerun-if-env-changed=MICRO_RDK_WIFI_PASSWORD");
+        if env::var("TARGET").unwrap() == "xtensa-esp32-espidf" {
+            if !std::env::var_os("CARGO_FEATURE_QEMU").is_some() {
+                if std::env::var_os("MICRO_RDK_WIFI_PASSWORD")
+                    .or(std::env::var_os("MICRO_RDK_WIFI_SSID"))
                     .is_none()
-            {
-                panic!("Both environment variables MICRO_RDK_WIFI_SSID and MICRO_RDK_WIFI_PASSWORD should be set");
+                    && std::env::var_os("MICRO_RDK_WIFI_SSID")
+                        .zip(std::env::var_os("MICRO_RDK_WIFI_PASSWORD"))
+                        .is_none()
+                {
+                    panic!("Both environment variables MICRO_RDK_WIFI_SSID and MICRO_RDK_WIFI_PASSWORD should be set");
+                }
             }
-        }
 
-        embuild::build::CfgArgs::output_propagated("MICRO_RDK").unwrap();
-        embuild::build::LinkArgs::output_propagated("MICRO_RDK").unwrap();
+            embuild::build::CfgArgs::output_propagated("MICRO_RDK").unwrap();
+            embuild::build::LinkArgs::output_propagated("MICRO_RDK").unwrap();
+        }
     }
 
     if let Ok(content) = std::fs::read_to_string("viam.json") {

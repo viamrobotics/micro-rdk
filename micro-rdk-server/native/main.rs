@@ -8,7 +8,7 @@ mod native {
             conn::network::ExternallyManagedNetwork,
             credentials_storage::{RAMStorage, RobotConfigurationStorage, RobotCredentials},
             entry::RobotRepresentation,
-            provisioning::ProvisioningInfo,
+            provisioning::server::ProvisioningInfo,
         },
         native::entry::serve_web_with_external_network,
     };

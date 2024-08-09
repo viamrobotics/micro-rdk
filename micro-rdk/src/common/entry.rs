@@ -22,7 +22,7 @@ use super::{
     grpc::ServerError,
     grpc_client::GrpcClient,
     log::config_log_entry,
-    provisioning::{server::serve_provisioning_async, ProvisioningInfo},
+    provisioning::server::{serve_provisioning_async, ProvisioningInfo},
     registry::ComponentRegistry,
     restart_monitor::RestartMonitor,
     robot::LocalRobot,

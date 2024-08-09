@@ -9,7 +9,7 @@ use micro_rdk::{
             RobotConfigurationStorage, RobotCredentials, WifiCredentialStorage, WifiCredentials,
         },
         entry::RobotRepresentation,
-        provisioning::ProvisioningInfo,
+        provisioning::server::ProvisioningInfo,
         registry::{ComponentRegistry, RegistryError},
     },
     esp32::{

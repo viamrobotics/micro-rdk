@@ -17,7 +17,7 @@ mod esp32 {
                 RobotConfigurationStorage, RobotCredentials, WifiCredentialStorage, WifiCredentials,
             },
             entry::RobotRepresentation,
-            provisioning::ProvisioningInfo,
+            provisioning::server::ProvisioningInfo,
             registry::ComponentRegistry,
         },
         esp32::{

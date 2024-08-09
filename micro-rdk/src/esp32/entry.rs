@@ -14,7 +14,7 @@ use crate::{
         exec::Executor,
         grpc::ServerError,
         grpc_client::GrpcClientError,
-        provisioning::{server::serve_provisioning_async, ProvisioningInfo},
+        provisioning::server::{serve_provisioning_async, ProvisioningInfo},
         robot::LocalRobot,
     },
     esp32::{
