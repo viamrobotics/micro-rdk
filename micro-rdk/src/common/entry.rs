@@ -254,7 +254,6 @@ where
     #[cfg(feature = "esp32")]
     let mut client_connector = Esp32TLS::new_client();
 
-    let info = info.unwrap_or_default();
     let mut last_error: Option<Box<dyn std::error::Error>> = None;
 
     let app_client = 'app_connection: loop {

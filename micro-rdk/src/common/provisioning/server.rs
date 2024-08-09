@@ -502,7 +502,7 @@ async fn accept_connections<S, Wifi>(
 
 pub(crate) async fn serve_provisioning_async<S, Wifi, M>(
     exec: Executor,
-    info: ProvisioningInfo,
+    info: Option<ProvisioningInfo>,
     storage: S,
     last_error: Option<Box<dyn std::error::Error>>,
     mut wifi_manager: Option<Wifi>,
@@ -516,6 +516,7 @@ where
     Wifi: WifiManager + 'static,
     M: Mdns,
 {
+    let info = info.unwrap_or_default();
     let hostname = format!(
         "provisioning-{}-{}",
         info.get_model(),
