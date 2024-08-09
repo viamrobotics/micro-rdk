@@ -14,10 +14,14 @@ debug = true # Symbols are nice and they don't increase the size on Flash
 opt-level = "z"
 
 [dependencies.micro-rdk]
-version = "0.2.3"
 git = "https://github.com/viamrobotics/micro-rdk.git"
-features = ["esp32", "binstart", "provisioning", {% if camera == "true" %}"camera"{%endif%}]
+version = "0.2.3"
 rev = "098d3f1"
+features = [
+  "esp32", 
+  "binstart",
+  {% if camera == "true" %}"camera",{% endif %}
+]
 
 [dependencies]
 embedded-svc = "0.27"
@@ -30,6 +34,8 @@ futures-lite = "1"
 cargo_metadata = "0.18"
 embuild = "0.29"
 regex = "1.10"
+serde = { version = "1.0.156", features = ["derive"] }
+serde_json = "1.0.97"
 
 [package.metadata.esp-idf-sys]
 esp_idf_version = "v4.4.8"

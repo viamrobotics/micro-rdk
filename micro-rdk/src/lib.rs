@@ -51,7 +51,6 @@ pub mod proto {
     // Don't bother to clippy generated proto code
     #![allow(clippy::all)]
 
-    #[cfg(feature = "provisioning")]
     pub mod provisioning {
         pub mod v1 {
             include!("gen/viam.provisioning.v1.rs");
