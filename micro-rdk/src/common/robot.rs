@@ -351,7 +351,7 @@ impl LocalRobot {
     ) -> Result<Vec<Dependency>, RobotError> {
         let model = get_model_without_namespace_prefix(&mut config.get_model().to_owned())?;
         let deps_keys = registry
-            .get_dependency_function(config.get_type().to_string(), model)
+            .get_dependency_function(config.get_type(), &model)
             .map_or(Vec::new(), |dep_fn| dep_fn(ConfigType::Dynamic(config)));
 
         deps_keys

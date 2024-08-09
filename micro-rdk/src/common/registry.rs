@@ -370,21 +370,21 @@ impl ComponentRegistry {
 
     pub(crate) fn get_dependency_function(
         &self,
-        component_type: String,
-        model_name: String,
+        component_type: &str,
+        model_name: &str,
     ) -> Result<&'static DependenciesFromConfig, RegistryError> {
-        if !self.dependencies.contains_key(&component_type) {
+        if !self.dependencies.contains_key(component_type) {
             return Err(RegistryError::ComponentTypeNotInDependencies(
-                component_type,
+                component_type.to_owned(),
             ));
         }
-        let comp_deps = self.dependencies.get(&component_type).unwrap();
-        if let Some(func) = comp_deps.get(&model_name) {
+        let comp_deps = self.dependencies.get(component_type).unwrap();
+        if let Some(func) = comp_deps.get(model_name) {
             return Ok(*func);
         }
         Err(RegistryError::ModelNotFoundInDependencies(
-            model_name,
-            component_type,
+            model_name.to_owned(),
+            component_type.to_owned(),
         ))
     }
 
