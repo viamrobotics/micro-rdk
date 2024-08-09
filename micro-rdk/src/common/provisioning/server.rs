@@ -583,9 +583,8 @@ mod tests {
             app_client::encode_request,
             conn::mdns::Mdns,
             credentials_storage::{RAMStorage, RobotConfigurationStorage},
-            provisioning::{
-                server::{ProvisioningServiceBuilder, ProvisoningServer},
-                ProvisioningInfo,
+            provisioning::server::{
+                ProvisioningInfo, ProvisioningServiceBuilder, ProvisoningServer,
             },
         },
         native::conn::mdns::NativeMdns,
