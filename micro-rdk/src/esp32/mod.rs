@@ -28,9 +28,7 @@ pub mod conn {
     pub mod mdns;
     pub mod network;
 }
-#[cfg(feature = "provisioning")]
 pub mod nvs_storage;
-#[cfg(feature = "provisioning")]
 pub mod provisioning {
     pub mod wifi_provisioning;
 }

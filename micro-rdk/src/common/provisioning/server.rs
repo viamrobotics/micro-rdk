@@ -158,7 +158,7 @@ pub(crate) enum ProvisioningReason {
 pub(crate) struct NetworkInfo(pub(crate) provisioning::v1::NetworkInfo);
 
 #[derive(Default, Clone)]
-pub struct ProvisioningInfo(provisioning::v1::ProvisioningInfo);
+pub struct ProvisioningInfo(crate::proto::provisioning::v1::ProvisioningInfo);
 
 impl ProvisioningInfo {
     pub fn set_fragment_id(&mut self, frag_id: String) {
@@ -502,7 +502,7 @@ async fn accept_connections<S, Wifi>(
 
 pub(crate) async fn serve_provisioning_async<S, Wifi, M>(
     exec: Executor,
-    info: ProvisioningInfo,
+    info: Option<ProvisioningInfo>,
     storage: S,
     last_error: Option<Box<dyn std::error::Error>>,
     mut wifi_manager: Option<Wifi>,
@@ -516,6 +516,7 @@ where
     Wifi: WifiManager + 'static,
     M: Mdns,
 {
+    let info = info.unwrap_or_default();
     let hostname = format!(
         "provisioning-{}-{}",
         info.get_model(),

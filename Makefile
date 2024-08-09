@@ -43,7 +43,7 @@ native:
 	cargo run -p micro-rdk-server --bin micro-rdk-server-native
 
 build-qemu:
-	cargo +esp build -p micro-rdk-server --bin micro-rdk-server-esp32  --features qemu --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort && cargo espflash save-image --package micro-rdk-server --features qemu --merge --chip esp32 target/xtensa-esp32-espidf/debug/debug.bin -T micro-rdk-server/esp32/partitions.csv -s 4mb  --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
+	cargo +esp build -p micro-rdk-server --bin micro-rdk-server-esp32  --features qemu --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort && cargo +esp espflash save-image --package micro-rdk-server --features qemu --merge --chip esp32 target/xtensa-esp32-espidf/debug/debug.bin -T micro-rdk-server/esp32/partitions.csv -s 4mb  --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
 
 
 sim-local: cargo-ver build-qemu
@@ -66,13 +66,13 @@ upload: cargo-ver
 	cargo +esp espflash flash --package micro-rdk-server --monitor --partition-table micro-rdk-server/esp32/partitions.csv --baud 460800 -f 80mhz --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
 
 test:
-	cargo test -p micro-rdk --lib --features native,provisioning
+	cargo test -p micro-rdk --lib --features native
 
 clippy-native:
-	cargo clippy -p micro-rdk --no-deps --features native,provisioning  -- -Dwarnings
+	cargo clippy -p micro-rdk --no-deps --features native  -- -Dwarnings
 
 clippy-esp32:
-	cargo +esp clippy -p micro-rdk  --features esp32,provisioning  --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
+	cargo +esp clippy -p micro-rdk  --features esp32  --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
 
 clippy-cli:
 	cargo clippy -p micro-rdk-installer --no-default-features -- -Dwarnings

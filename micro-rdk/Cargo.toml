@@ -24,7 +24,6 @@ esp32 = ["dep:esp-idf-svc", "dep:embedded-svc", "dep:embedded-hal", "esp-idf-svc
 native = ["dep:rustls", "dep:webpki-roots", "dep:rustls-pemfile", "dep:mdns-sd", "dep:local-ip-address", "dep:openssl", "dep:rcgen", "dep:async-std-openssl"]
 data-upload-hook-unstable = ["data", "esp32"]
 data = []
-provisioning = []
 
 [dev-dependencies]
 test-log.workspace = true

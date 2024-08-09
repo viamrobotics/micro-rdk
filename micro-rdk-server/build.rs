@@ -38,16 +38,14 @@ fn main() {
         embuild::build::CfgArgs::output_propagated("MICRO_RDK").unwrap();
         embuild::build::LinkArgs::output_propagated("MICRO_RDK").unwrap();
     }
-    if std::env::var_os("MICRO_RDK_WIFI_PASSWORD").is_some() {
-        if let Ok(content) = std::fs::read_to_string("viam.json") {
-            if let Ok(cfg) = serde_json::from_str::<Config>(content.as_str()) {
-                println!(
-                    "cargo:rustc-env=MICRO_RDK_ROBOT_SECRET={}",
-                    cfg.cloud.secret
-                );
-                println!("cargo:rustc-env=MICRO_RDK_ROBOT_ID={}", cfg.cloud.id);
-                println!("cargo:rustc-cfg=has_robot_config");
-            }
+
+    if let Ok(content) = std::fs::read_to_string("viam.json") {
+        if let Ok(cfg) = serde_json::from_str::<Config>(content.as_str()) {
+            println!(
+                "cargo:rustc-env=MICRO_RDK_ROBOT_SECRET={}",
+                cfg.cloud.secret
+            );
+            println!("cargo:rustc-env=MICRO_RDK_ROBOT_ID={}", cfg.cloud.id);
         }
     }
 }

@@ -18,14 +18,14 @@ crate-type = ["staticlib"] # Creates static lib
 [target.'cfg(not(target_os = "espidf"))'.dependencies]
 env_logger.workspace = true
 local-ip-address.workspace = true
-micro-rdk = { workspace = true, features = ["data", "native", "provisioning"], default-features = true }
+micro-rdk = { workspace = true, features = ["data", "native"], default-features = true }
 
 [target.'cfg(target_os="espidf")'.dependencies]
 async-channel.workspace = true
 embedded-hal.workspace = true
 embedded-svc.workspace = true
 futures-lite.workspace = true
-micro-rdk = { workspace = true, features = ["esp32", "data", "provisioning", "data-upload-hook-unstable"], default-features = true }
+micro-rdk = { workspace = true, features = ["esp32", "data", "data-upload-hook-unstable"], default-features = true }
 
 
 [dependencies]

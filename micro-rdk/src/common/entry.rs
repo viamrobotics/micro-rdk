@@ -22,6 +22,7 @@ use super::{
     grpc::ServerError,
     grpc_client::GrpcClient,
     log::config_log_entry,
+    provisioning::server::{serve_provisioning_async, ProvisioningInfo},
     registry::ComponentRegistry,
     restart_monitor::RestartMonitor,
     robot::LocalRobot,
@@ -31,9 +32,6 @@ use crate::{
     common::{app_client::AppClientError, grpc_client::GrpcClientError},
     proto::app::v1::{CloudConfig, ConfigResponse, RobotConfig},
 };
-
-#[cfg(feature = "provisioning")]
-use crate::common::provisioning::server::{serve_provisioning_async, ProvisioningInfo};
 
 #[cfg(feature = "native")]
 use crate::native::{
@@ -49,15 +47,12 @@ use crate::{
     common::conn::mdns::NoMdns,
     esp32::{
         certificate::GeneratedWebRtcCertificateBuilder,
+        conn::mdns::Esp32Mdns,
         dtls::Esp32DtlsBuilder,
         esp_idf_svc::sys::{settimeofday, timeval},
         tls::Esp32TLS,
     },
 };
-
-#[cfg(feature = "esp32")]
-#[cfg(feature = "provisioning")]
-use crate::esp32::conn::mdns::Esp32Mdns;
 
 pub enum RobotRepresentation {
     WithRobot(LocalRobot),
@@ -242,7 +237,7 @@ pub async fn serve_web_inner<S>(
 
 pub async fn serve_async_with_external_network<S>(
     exec: Executor,
-    #[cfg(feature = "provisioning")] info: Option<ProvisioningInfo>,
+    info: Option<ProvisioningInfo>,
     storage: S,
     mut repr: RobotRepresentation,
     network: impl Network,
@@ -259,9 +254,6 @@ where
     #[cfg(feature = "esp32")]
     let mut client_connector = Esp32TLS::new_client();
 
-    #[cfg(feature = "provisioning")]
-    let info = info.unwrap_or_default();
-    #[cfg(feature = "provisioning")]
     let mut last_error: Option<Box<dyn std::error::Error>> = None;
 
     let app_client = 'app_connection: loop {
@@ -329,14 +321,9 @@ where
                                     log::error!("couldn't erase robot configuration {:?}", e);
                                 }
 
-                                #[cfg(feature = "provisioning")]
-                                {
-                                    // Record the last error so that we can serve it once we reach provisioning.
-                                    let _ = last_error.insert(e);
-                                    break;
-                                }
-                                #[cfg(not(feature = "provisioning"))]
-                                return Err(e);
+                                // Record the last error so that we can serve it once we reach provisioning.
+                                let _ = last_error.insert(e);
+                                break;
                             }
                         }
 
@@ -349,27 +336,24 @@ where
             }
         }
 
-        #[cfg(feature = "provisioning")]
+        log::warn!("Entering provisioning...");
+
+        #[cfg(feature = "native")]
+        let mut mdns = NativeMdns::new("".to_owned(), network.get_ip()).unwrap();
+        #[cfg(feature = "esp32")]
+        let mut mdns = Esp32Mdns::new("".to_owned())?;
+
+        if let Err(e) = serve_provisioning_async::<_, (), _>(
+            exec.clone(),
+            info.clone(),
+            storage.clone(),
+            last_error.take(),
+            None,
+            &mut mdns,
+        )
+        .await
         {
-            log::warn!("Entering provisioning...");
-
-            #[cfg(feature = "native")]
-            let mut mdns = NativeMdns::new("".to_owned(), network.get_ip()).unwrap();
-            #[cfg(feature = "esp32")]
-            let mut mdns = Esp32Mdns::new("".to_owned())?;
-
-            if let Err(e) = serve_provisioning_async::<_, (), _>(
-                exec.clone(),
-                info.clone(),
-                storage.clone(),
-                last_error.take(),
-                None,
-                &mut mdns,
-            )
-            .await
-            {
-                let _ = last_error.insert(e);
-            }
+            let _ = last_error.insert(e);
         }
     };
     serve_web_inner(
