@@ -34,7 +34,7 @@ use crate::{
 // If they are invalid or absent it will start the provisioning server. Once provision is done it invokes the main server.
 async fn serve_async<S>(
     exec: Executor,
-    info: ProvisioningInfo,
+    info: Option<ProvisioningInfo>,
     storage: S,
     mut repr: RobotRepresentation,
     max_webrtc_connection: usize,
@@ -234,7 +234,6 @@ pub fn serve_web<S>(
 
     let exec = Executor::new();
     let cloned_exec = exec.clone();
-    let info = info.unwrap_or_default();
 
     cloned_exec
         .spawn(async {
