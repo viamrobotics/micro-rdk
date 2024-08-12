@@ -1,9 +1,10 @@
 use micro_rdk::{
     common::{
+        config::Kind,
         sensor::{GenericReadingsResult, Readings, Sensor, SensorError},
         status::Status,
     },
-    google::protobuf::Value,
+    google::protobuf::{value, Value},
     DoCommand,
 };
 use std::{
@@ -11,7 +12,10 @@ use std::{
     ffi::{c_char, c_int, c_uchar, c_uint, c_void, CStr},
 };
 
-use super::{config::config_context, errors::viam_code};
+use super::{
+    config::{config_context, raw_attributes},
+    errors::viam_code,
+};
 
 #[allow(non_camel_case_types)]
 type config_callback = extern "C" fn(*mut config_context, *mut c_void, *mut *mut c_void) -> c_int;
@@ -220,6 +224,43 @@ pub unsafe extern "C" fn get_readings_add_string(
             )),
         },
     );
+
+    viam_code::VIAM_OK
+}
+
+// converts a config::Kind to value::Kind purposefully skipping "nested" Kinds
+fn into_value(kind: Kind) -> value::Kind {
+    match kind {
+        Kind::BoolValue(b) => value::Kind::BoolValue(b),
+        Kind::NullValue(n) => value::Kind::NullValue(n),
+        Kind::NumberValue(f) => value::Kind::NumberValue(f),
+        Kind::StringValue(s) => value::Kind::StringValue(s),
+        _ => value::Kind::NullValue(0),
+    }
+}
+
+/// This function  adds raw attributes to a sensor reading request
+///
+/// # Safety
+/// `ctx`, and `raw_attrs` and `value` must be valid pointers for the duration of the call
+#[no_mangle]
+pub unsafe extern "C" fn get_readings_add_raw_attributes(
+    ctx: *mut get_readings_context,
+    raw_attrs: *const raw_attributes,
+) -> viam_code {
+    if ctx.is_null() || raw_attrs.is_null() {
+        return viam_code::VIAM_INVALID_ARG;
+    }
+    let ctx = unsafe { &mut *ctx };
+    let attrs = unsafe { &*raw_attrs };
+    for attr in &attrs.0 {
+        let _ = ctx.readings.insert(
+            attr.0.clone(),
+            Value {
+                kind: Some(into_value(attr.1.clone())),
+            },
+        );
+    }
 
     viam_code::VIAM_OK
 }

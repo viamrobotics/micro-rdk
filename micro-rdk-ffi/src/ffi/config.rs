@@ -1,6 +1,9 @@
-use std::ffi::{c_char, c_int, CStr, CString};
+use std::{
+    collections::HashMap,
+    ffi::{c_char, c_int, CStr, CString},
+};
 
-use micro_rdk::common::config::{AttributeError, ConfigType};
+use micro_rdk::common::config::{AttributeError, ConfigType, Kind};
 
 use super::errors;
 
@@ -8,6 +11,9 @@ use super::errors;
 pub struct config_context<'a> {
     pub(crate) cfg: ConfigType<'a>,
 }
+
+#[allow(non_camel_case_types)]
+pub struct raw_attributes(pub(crate) HashMap<String, Kind>);
 
 /// Get a string from the attribute section of a sensor configuration
 /// if found the content of the string will be written to `out`
@@ -40,6 +46,47 @@ pub unsafe extern "C" fn config_get_string(
     unsafe { *out = c_str };
     errors::viam_code::VIAM_OK
 }
+
+/// Returns a pointer to the raw attribute structure of a component config
+/// pointers remains valid until `config_raw_attributes_free` is called
+///
+/// # Safety
+/// `ctx` must be a valid pointer
+#[no_mangle]
+pub unsafe extern "C" fn config_get_raw_attributes(
+    ctx: *mut config_context,
+) -> *mut raw_attributes {
+    if ctx.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    let ctx = unsafe { &mut *ctx };
+
+    let ConfigType::Dynamic(cfg) = ctx.cfg;
+    if let Some(attrs) = &cfg.attributes {
+        return Box::into_raw(Box::new(raw_attributes(attrs.clone())));
+    }
+
+    std::ptr::null_mut()
+}
+
+/// Free a raw_attributes structure previously obtained with `config_get_raw_attributes`
+///
+/// # Safety
+/// `attrs` must be a valid pointer
+#[no_mangle]
+pub unsafe extern "C" fn config_raw_attributes_free(
+    attrs: *mut raw_attributes,
+) -> errors::viam_code {
+    if attrs.is_null() {
+        return errors::viam_code::VIAM_INVALID_ARG;
+    }
+
+    drop(Box::from_raw(attrs));
+
+    errors::viam_code::VIAM_OK
+}
+
 /// Free a string allocated by a successful call to `config_get_string`
 ///
 /// # Safety

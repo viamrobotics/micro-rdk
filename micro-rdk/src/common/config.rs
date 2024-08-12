@@ -155,7 +155,7 @@ impl TryFrom<&Kind> for Kind {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Kind {
     NullValue(i32),
     NumberValue(f64),
