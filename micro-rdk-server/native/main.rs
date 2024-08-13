@@ -10,7 +10,7 @@ mod native {
             entry::RobotRepresentation,
             provisioning::server::ProvisioningInfo,
         },
-        native::entry::serve_web_with_external_network,
+        common::entry::serve_web_with_external_network,
     };
 
     pub(crate) fn main_native() {
