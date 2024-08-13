@@ -48,7 +48,8 @@ pub unsafe extern "C" fn config_get_string(
 }
 
 /// Returns a pointer to the raw attribute structure of a component config
-/// pointers remains valid until `config_raw_attributes_free` is called
+/// pointers remains valid until `config_raw_attributes_free` is called.
+/// Free the structure with `config_raw_attributes_free` when done using it.
 ///
 /// # Safety
 /// `ctx` must be a valid pointer

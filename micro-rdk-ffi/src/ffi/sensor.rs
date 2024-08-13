@@ -239,7 +239,8 @@ fn into_value(kind: Kind) -> value::Kind {
     }
 }
 
-/// This function  adds raw attributes to a sensor reading request
+/// This function can be use by a sensor during the call to `get_readings_callback` to add a `raw_attributes` struct
+/// to get_readings
 ///
 /// # Safety
 /// `ctx`, and `raw_attrs` and `value` must be valid pointers for the duration of the call
