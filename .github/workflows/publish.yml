@@ -113,9 +113,9 @@ jobs:
         fetch-depth: 2
     - name: Build esp32 binary
       run: |
-        bash -c '. /home/testbot/.bash_profile ; git config --global --add safe.directory "$ESP_ROOT"/esp-idf && make build-esp32-bin && cargo +esp build -p micro-rdk-ffi --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --locked --release'
+        bash -c '. /home/testbot/.bash_profile ; git config --global --add safe.directory "$ESP_ROOT"/esp-idf && make build-esp32-bin && cargo +esp build -p micro-rdk-ffi --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --locked --profile release-ffi'
         cp target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin micro-rdk-server-esp32.bin
-        cp target/xtensa-esp32-espidf/release/libmicrordk.a libmicrordk.a
+        cp target/xtensa-esp32-espidf/release-ffi/libmicrordk.a libmicrordk.a
         cp micro-rdk-ffi/include/micrordk.h micrordk.h
     - name: Upload release Lib
       uses: actions/upload-artifact@v4

@@ -199,7 +199,7 @@ enum viam_code get_readings_add_string(struct get_readings_context *ctx,
                                        const char *value);
 
 /*
- This function  adds raw attributes to a sensor reading request
+ This function can be use by a sensor during the call to `get_readings_callback` to add a `raw_attributes` struct
  */
 enum viam_code get_readings_add_raw_attributes(struct get_readings_context *ctx,
                                                const struct raw_attributes *raw_attrs);

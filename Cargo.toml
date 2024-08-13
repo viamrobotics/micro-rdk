@@ -22,16 +22,20 @@ description = "Viam RDK for microcontroller"
 edition = "2021"
 license = "AGPL-3.0"
 repository = "https://github.com/viamrobotics/micro-rdk"
-version = "0.2.3"
+version = "0.2.4"
 rust-version = "1.75"
 
 [profile.release]
-debug = true # Symbols are nice and they don't increase the size on Flash
 opt-level = "s"
 
 [profile.dev]
 debug = true # Symbols are nice and they don't increase the size on Flash
 opt-level = "z"
+
+[profile.release-ffi]
+inherits = "release"
+debug = true # Symbols are nice and they don't increase the size on Flash
+opt-level = "s"
 
 [workspace.dependencies]
 anyhow = "1.0.71"
