@@ -30,6 +30,8 @@ typedef struct get_readings_context get_readings_context;
  */
 typedef struct hashmap_cstring_ptr hashmap_cstring_ptr;
 
+typedef struct raw_attributes raw_attributes;
+
 typedef struct viam_server_context viam_server_context;
 
 /*
@@ -59,6 +61,16 @@ extern "C" {
  Get a string from the attribute section of a sensor configuration
  */
 enum viam_code config_get_string(struct config_context *ctx, const char *key, char **out);
+
+/*
+ Returns a pointer to the raw attribute structure of a component config
+ */
+struct raw_attributes *config_get_raw_attributes(struct config_context *ctx);
+
+/*
+ Free a raw_attributes structure previously obtained with `config_get_raw_attributes`
+ */
+enum viam_code config_raw_attributes_free(struct raw_attributes *attrs);
 
 /*
  Free a string allocated by a successful call to `config_get_string`
@@ -185,6 +197,12 @@ enum viam_code get_readings_add_binary_blob(struct get_readings_context *ctx,
 enum viam_code get_readings_add_string(struct get_readings_context *ctx,
                                        const char *key,
                                        const char *value);
+
+/*
+ This function  adds raw attributes to a sensor reading request
+ */
+enum viam_code get_readings_add_raw_attributes(struct get_readings_context *ctx,
+                                               const struct raw_attributes *raw_attrs);
 
 #ifdef __cplusplus
 } // extern "C"
