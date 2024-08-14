@@ -13,14 +13,18 @@ use micro_rdk::{
         registry::{ComponentRegistry, RegistryError},
     },
     esp32::{
-        entry::serve_web,
+        entry::serve,
         esp_idf_svc::{
-            log::EspLogger,
-            sys::{self, esp, g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT},
+            self,
+            sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT},
         },
         nvs_storage::NVSStorage,
     },
 };
+
+extern "C" {
+    pub static g_spiram_ok: bool;
+}
 
 macro_rules! generate_register_modules {
     ($($module:ident),*) => {
@@ -37,28 +41,27 @@ macro_rules! generate_register_modules {
 
 include!(concat!(env!("OUT_DIR"), "/modules.rs"));
 
-extern "C" {
-    pub static g_spiram_ok: bool;
-}
-
 fn main() {
-    sys::link_patches();
-    EspLogger::initialize_default();
+    esp_idf_svc::sys::link_patches();
+    esp_idf_svc::log::EspLogger::initialize_default();
 
-    esp!(unsafe { sys::esp_vfs_eventfd_register(&sys::esp_vfs_eventfd_config_t { max_fds: 5 },) })
-        .unwrap();
+    esp_idf_svc::sys::esp!(unsafe {
+        esp_idf_svc::sys::esp_vfs_eventfd_register(&esp_idf_svc::sys::esp_vfs_eventfd_config_t {
+            max_fds: 5,
+        })
+    })
+    .unwrap();
 
-    let max_connections = unsafe {
-        if !g_spiram_ok {
-            log::info!("spiram not initialized disabling cache feature of the wifi driver");
-            g_wifi_feature_caps &= !(CONFIG_FEATURE_CACHE_TX_BUF_BIT as u64);
-            1
-        } else {
-            3
-        }
-    };
+    let mut registry = Box::<ComponentRegistry>::default();
+    if let Err(e) = register_modules(&mut registry) {
+        log::error!("couldn't register modules {:?}", e);
+    }
+    let repr = RobotRepresentation::WithRegistry(registry);
 
     let storage = NVSStorage::new("nvs").unwrap();
+
+    // At runtime, if the program does not detect credentials or configs in storage,
+    // it will try to load statically compiled values.
 
     if !storage.has_wifi_credentials() {
         // check if any were statically compiled
@@ -89,14 +92,19 @@ fn main() {
         }
     }
 
+    let max_connections = unsafe {
+        if !g_spiram_ok {
+            log::info!("spiram not initialized disabling cache feature of the wifi driver");
+            g_wifi_feature_caps &= !(CONFIG_FEATURE_CACHE_TX_BUF_BIT as u64);
+            1
+        } else {
+            3
+        }
+    };
+
     let mut info = ProvisioningInfo::default();
     info.set_manufacturer("viam".to_owned());
     info.set_model("esp32".to_owned());
 
-    let mut registry = Box::<ComponentRegistry>::default();
-    if let Err(e) = register_modules(&mut registry) {
-        log::error!("couldn't register modules {:?}", e);
-    }
-    let repr = RobotRepresentation::WithRegistry(registry);
-    serve_web(Some(info), repr, max_connections, storage);
+    serve(Some(info), repr, max_connections, storage);
 }

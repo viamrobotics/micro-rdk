@@ -3,14 +3,12 @@ mod native {
     const ROBOT_ID: Option<&str> = option_env!("MICRO_RDK_ROBOT_ID");
     const ROBOT_SECRET: Option<&str> = option_env!("MICRO_RDK_ROBOT_SECRET");
 
-    use micro_rdk::{
-        common::{
-            conn::network::ExternallyManagedNetwork,
-            credentials_storage::{RAMStorage, RobotConfigurationStorage, RobotCredentials},
-            entry::RobotRepresentation,
-            provisioning::server::ProvisioningInfo,
-        },
-        common::entry::serve_with_external_network,
+    use micro_rdk::common::{
+        conn::network::ExternallyManagedNetwork,
+        credentials_storage::{RAMStorage, RobotConfigurationStorage, RobotCredentials},
+        entry::{serve_with_external_network, RobotRepresentation},
+        provisioning::server::ProvisioningInfo,
+        registry::ComponentRegistry,
     };
 
     pub(crate) fn main_native() {
@@ -18,31 +16,42 @@ mod native {
             .format_timestamp(Some(env_logger::TimestampPrecision::Millis))
             .init();
 
-        let repr = RobotRepresentation::WithRegistry(Box::default());
-
         let network = match local_ip_address::local_ip().expect("error parsing local IP") {
             std::net::IpAddr::V4(ip) => ExternallyManagedNetwork::new(ip),
             _ => panic!("oops expected ipv4"),
         };
 
+        let registry = Box::<ComponentRegistry>::default();
+        let repr = RobotRepresentation::WithRegistry(registry);
+
         let storage = RAMStorage::new();
-        if ROBOT_ID.is_some() && ROBOT_SECRET.is_some() {
-            if let Err(e) = storage.store_robot_credentials(
-                RobotCredentials::new(
-                    ROBOT_ID.unwrap().to_string(),
-                    ROBOT_SECRET.unwrap().to_string(),
-                )
-                .into(),
-            ) {
-                log::error!("Failed to store RobotCredentials: {}", e);
+
+        // At runtime, if the program does not detect credentials or configs in storage,
+        // it will try to load statically compiled values.
+
+        if !storage.has_robot_configuration() {
+            // check if any were statically compiled
+            if ROBOT_ID.is_some() && ROBOT_SECRET.is_some() {
+                log::info!("Storing static values from build time robot configuration");
+                storage
+                    .store_robot_credentials(
+                        RobotCredentials::new(
+                            ROBOT_ID.unwrap().to_string(),
+                            ROBOT_SECRET.unwrap().to_string(),
+                        )
+                        .into(),
+                    )
+                    .expect("Failed to store robot credentials");
             }
         }
+
+        let max_connections = 3;
 
         let mut info = ProvisioningInfo::default();
         info.set_manufacturer("viam".to_owned());
         info.set_model("test-esp32".to_owned());
 
-        serve_with_external_network(Some(info), repr, 3, storage, network);
+        serve_with_external_network(Some(info), repr, max_connections, storage, network);
     }
 }
 
