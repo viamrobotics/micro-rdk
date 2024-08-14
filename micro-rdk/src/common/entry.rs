@@ -235,7 +235,7 @@ pub async fn serve_inner<S>(
     server.serve(robot).await;
 }
 
-pub async fn async_serve_with_external_network<S>(
+pub async fn async_serve_with_network<S>(
     exec: Executor,
     info: Option<ProvisioningInfo>,
     storage: S,
@@ -369,7 +369,7 @@ where
     Ok(())
 }
 
-pub fn serve_with_external_network<S>(
+pub fn serve_with_network<S>(
     info: Option<ProvisioningInfo>,
     repr: RobotRepresentation,
     max_webrtc_connection: usize,
@@ -409,7 +409,7 @@ pub fn serve_with_external_network<S>(
             .detach();
     }
 
-    let _ = exec.block_on(Box::pin(async_serve_with_external_network(
+    let _ = exec.block_on(Box::pin(async_serve_with_network(
         exec.clone(),
         info,
         storage,

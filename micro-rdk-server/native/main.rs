@@ -6,7 +6,7 @@ mod native {
     use micro_rdk::common::{
         conn::network::ExternallyManagedNetwork,
         credentials_storage::{RAMStorage, RobotConfigurationStorage, RobotCredentials},
-        entry::{serve_with_external_network, RobotRepresentation},
+        entry::{serve_with_network, RobotRepresentation},
         provisioning::server::ProvisioningInfo,
         registry::ComponentRegistry,
     };
@@ -51,7 +51,7 @@ mod native {
         info.set_manufacturer("viam".to_owned());
         info.set_model("test-esp32".to_owned());
 
-        serve_with_external_network(Some(info), repr, max_connections, storage, network);
+        serve_with_network(Some(info), repr, max_connections, storage, network);
     }
 }
 
