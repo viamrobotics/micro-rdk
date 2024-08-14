@@ -16,3 +16,18 @@ default = false
 
 [conditional.'camera == false']
 ignore = [ "bindings.h" ]
+
+[placeholders.viam]
+type = "string"
+prompt = "Viam's robot config (copied from app.viam.com)"
+default = ""
+
+[placeholders.ssid]
+type = "string"
+prompt = "Enter wifi name (only 2.4 gHz network are supported)"
+default = ""
+
+[placeholders.pwd]
+type = "string"
+prompt = "Enter the wifi password (leave blank if you don't want to store it)"
+default = ""

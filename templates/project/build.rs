@@ -1,5 +1,4 @@
 use cargo_metadata::{CargoOpt, DependencyKind, MetadataCommand};
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::env;
 
@@ -15,23 +14,26 @@ pub struct Cloud {
     pub app_address: String,
 }
 
-fn main() {
+fn main() -> Result<(), &'static str> {
     println!("cargo:rerun-if-env-changed=MICRO_RDK_WIFI_SSID");
     println!("cargo:rerun-if-env-changed=MICRO_RDK_WIFI_PASSWORD");
     println!("cargo:rerun-if-changed=viam.json");
 
-    if std::env::var_os("MICRO_RDK_WIFI_PASSWORD")
-        .or(std::env::var_os("MICRO_RDK_WIFI_SSID"))
-        .is_none()
-        && std::env::var_os("MICRO_RDK_WIFI_SSID")
-            .zip(std::env::var_os("MICRO_RDK_WIFI_PASSWORD"))
-            .is_none()
-    {
-        panic!("Both environment variables MICRO_RDK_WIFI_SSID and MICRO_RDK_WIFI_PASSWORD should be set");
+    if std::env::var_os("MICRO_RDK_WIFI_PASSWORD").is_none() {
+        let pass: &'static str = "{{pwd}}";
+        if !(pass.len() > 0) {
+            return Err("WiFi password wasn't set during the template generation. You can set with MICRO_RDK_WIFI_PASSWORD environment variable");
+        }
+        println!("cargo:rustc-env=MICRO_RDK_WIFI_PASSWORD={}", pass);
     }
 
-    embuild::build::CfgArgs::output_propagated("MICRO_RDK").unwrap();
-    embuild::build::LinkArgs::output_propagated("MICRO_RDK").unwrap();
+    if std::env::var_os("MICRO_RDK_WIFI_SSID").is_none() {
+        let ssid: &'static str = "{{ssid}}";
+        if !(ssid.len() > 0) {
+            return Err("WiFi ssid wasn't set during the template generation. You can set with MICRO_RDK_WIFI_SSID environment variable");
+        }
+        println!("cargo:rustc-env=MICRO_RDK_WIFI_SSID={}", ssid);
+    }
 
     if let Ok(content) = std::fs::read_to_string("viam.json") {
         if let Ok(cfg) = serde_json::from_str::<Config>(content.as_str()) {
@@ -40,10 +42,15 @@ fn main() {
                 cfg.cloud.secret
             );
             println!("cargo:rustc-env=MICRO_RDK_ROBOT_ID={}", cfg.cloud.id);
+        } else {
+            return Err("`viam.json` is empty or it's content are invalid, re download it from app.viam.com");
         }
     } else {
-        panic!("`viam.json` configuration file not found in project root directory");
+        return Err("`viam.json` configuration file not found in project root directory");
     }
+
+    embuild::build::CfgArgs::output_propagated("MICRO_RDK").unwrap();
+    embuild::build::LinkArgs::output_propagated("MICRO_RDK").unwrap();
 
     // Dynamic Module Magic
     let metadata = MetadataCommand::new()
@@ -98,4 +105,5 @@ fn main() {
     ));
     let dest_path = std::path::Path::new(&out_dir).join("modules.rs");
     std::fs::write(dest_path, modules_rs_content).expect("couldn't write modules.rs file");
+    Ok(())
 }
