@@ -32,7 +32,7 @@ use crate::{
 // 4) Robot Credentials + WiFi without external network
 // The function attempts to connect to the configured Wifi network if any, it then checks the robot credentials. If Wifi credentials are absent it starts provisioning mode
 // If they are invalid or absent it will start the provisioning server. Once provision is done it invokes the main server.
-async fn serve_async<S>(
+async fn async_serve<S>(
     exec: Executor,
     info: Option<ProvisioningInfo>,
     storage: S,
@@ -207,7 +207,7 @@ where
     Ok(())
 }
 
-pub fn serve_web<S>(
+pub fn serve<S>(
     info: Option<ProvisioningInfo>,
     repr: RobotRepresentation,
     max_webrtc_connection: usize,
@@ -244,7 +244,7 @@ pub fn serve_web<S>(
         })
         .detach();
 
-    let _ = cloned_exec.block_on(Box::pin(serve_async(
+    let _ = cloned_exec.block_on(Box::pin(async_serve(
         exec,
         info,
         storage,

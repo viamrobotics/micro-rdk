@@ -10,7 +10,7 @@ mod native {
             entry::RobotRepresentation,
             provisioning::server::ProvisioningInfo,
         },
-        common::entry::serve_web_with_external_network,
+        common::entry::serve_with_external_network,
     };
 
     pub(crate) fn main_native() {
@@ -42,7 +42,7 @@ mod native {
         info.set_manufacturer("viam".to_owned());
         info.set_model("test-esp32".to_owned());
 
-        serve_web_with_external_network(Some(info), repr, 3, storage, network);
+        serve_with_external_network(Some(info), repr, 3, storage, network);
     }
 }
 

@@ -261,7 +261,7 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
         }
     };
 
-    use micro_rdk::common::entry::serve_web_with_external_network;
+    use micro_rdk::common::entry::serve_with_external_network;
 
     #[cfg(has_robot_config)]
     {
@@ -273,7 +273,7 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
             ROBOT_SECRET.expect("Provided build-time configuration failed to set `ROBOT_SECRET`"),
         );
         log::info!("Robot configuration information was provided at build time - bypassing Viam provisioning flow");
-        serve_web_with_external_network(None, repr, max_connection, ram_storage, network);
+        serve_with_external_network(None, repr, max_connection, ram_storage, network);
     }
 
     #[cfg(not(has_robot_config))]
@@ -283,7 +283,7 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
         #[cfg(target_os = "espidf")]
         let storage = micro_rdk::esp32::nvs_storage::NVSStorage::new("nvs").unwrap();
 
-        serve_web_with_external_network(
+        serve_with_external_network(
                 Some(ctx.provisioning_info),
                 repr,
                 max_connection,

@@ -21,7 +21,7 @@ mod esp32 {
             registry::ComponentRegistry,
         },
         esp32::{
-            entry::serve_web,
+            entry::serve,
             esp_idf_svc::{
                 self,
                 sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT},
@@ -117,7 +117,7 @@ mod esp32 {
         info.set_manufacturer("viam".to_owned());
         info.set_model("test-esp32".to_owned());
 
-        serve_web(Some(info), repr, max_connections, storage);
+        serve(Some(info), repr, max_connections, storage);
     }
 }
 
