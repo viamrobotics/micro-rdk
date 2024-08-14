@@ -194,7 +194,7 @@ where
         }
     };
 
-    crate::common::entry::serve_web_inner(
+    crate::common::entry::serve_inner(
         storage,
         repr,
         exec,

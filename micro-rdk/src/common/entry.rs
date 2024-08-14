@@ -75,7 +75,7 @@ pub async fn validate_robot_credentials(
     builder.build().await.map_err(|e| e.into())
 }
 
-pub async fn serve_web_inner<S>(
+pub async fn serve_inner<S>(
     storage: S,
     repr: RobotRepresentation,
     exec: Executor,
@@ -356,7 +356,7 @@ where
             let _ = last_error.insert(e);
         }
     };
-    serve_web_inner(
+    serve_inner(
         storage,
         repr,
         exec,
