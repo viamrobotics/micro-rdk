@@ -4,7 +4,7 @@ use micro_rdk::{
         sensor::{GenericReadingsResult, Readings, Sensor, SensorError},
         status::Status,
     },
-    google::protobuf::{value, Value},
+    google::protobuf::{value, ListValue, Value},
     DoCommand,
 };
 use std::{
@@ -235,6 +235,14 @@ fn into_value(kind: Kind) -> value::Kind {
         Kind::NullValue(n) => value::Kind::NullValue(n),
         Kind::NumberValue(f) => value::Kind::NumberValue(f),
         Kind::StringValue(s) => value::Kind::StringValue(s),
+        Kind::VecValue(v) => value::Kind::ListValue(ListValue {
+            values: v
+                .into_iter()
+                .map(|v| Value {
+                    kind: Some(into_value(v)),
+                })
+                .collect(),
+        }),
         _ => value::Kind::NullValue(0),
     }
 }
