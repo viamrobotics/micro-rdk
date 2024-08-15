@@ -85,7 +85,7 @@ struct AppImageArgs {
 #[derive(Args)]
 struct WriteCredentialsArgs {
     /// File path to the JSON config of the robot, downloaded from app.viam.com
-    #[arg(long = "app-config")]
+    #[arg(long = "app-config", required = true)]
     config: String,
     /// File path to the compiled micro-RDK binary. The portion reserved for the NVS
     /// data partition will be edited with Wi-Fi and robot credentials
@@ -93,7 +93,7 @@ struct WriteCredentialsArgs {
     binary_path: String,
     /// Wi-Fi SSID to write to NVS partition of binary. If not provided, user will be
     /// prompted for it
-    #[arg(long = "wifi-ssid")]
+    #[arg(long = "wifi-ssid", required = true)]
     wifi_ssid: Option<String>,
     /// Wi-Fi password to write to NVS partition of binary. If not provided, user will be
     /// prompted for it
@@ -118,7 +118,7 @@ struct WriteFlashArgs {
     binary_path: Option<PathBuf>,
 
     /// File path to the JSON config of the robot, downloaded from app.viam.com
-    #[arg(long = "app-config")]
+    #[arg(long = "app-config", required = true)]
     config: Option<String>,
     /// Version of the compiled micro-RDK server to download (ex. v0.2.3, latest).
     /// See https://github.com/viamrobotics/micro-rdk/releases for available versions
@@ -126,7 +126,7 @@ struct WriteFlashArgs {
     version: Option<String>,
     /// Wi-Fi SSID to write to NVS partition of binary. If not provided, user will be
     /// prompted for it
-    #[arg(long = "wifi-ssid")]
+    #[arg(long = "wifi-ssid", required = true)]
     wifi_ssid: Option<String>,
     /// Wi-Fi password to write to NVS partition of binary. If not provided, user will be
     /// prompted for it
