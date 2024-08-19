@@ -284,13 +284,12 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
         let storage = micro_rdk::esp32::nvs_storage::NVSStorage::new("nvs").unwrap();
 
         serve_with_network(
-                Some(ctx.provisioning_info),
-                repr,
-                max_connection,
-                storage,
-                network,
-            )
-
+            Some(ctx.provisioning_info),
+            repr,
+            max_connection,
+            storage,
+            network,
+        )
     }
 
     viam_code::VIAM_OK

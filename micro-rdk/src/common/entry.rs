@@ -399,14 +399,13 @@ pub fn serve_with_network<S>(
         })
         .unwrap();
 
-        exec
-            .spawn(async {
-                loop {
-                    Timer::after(Duration::from_secs(150)).await;
-                    unsafe { crate::esp32::esp_idf_svc::sys::esp_task_wdt_reset() };
-                }
-            })
-            .detach();
+        exec.spawn(async {
+            loop {
+                Timer::after(Duration::from_secs(150)).await;
+                unsafe { crate::esp32::esp_idf_svc::sys::esp_task_wdt_reset() };
+            }
+        })
+        .detach();
     }
 
     let _ = exec.block_on(Box::pin(async_serve_with_network(
