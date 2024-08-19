@@ -201,7 +201,7 @@ impl LocalRobot {
                 config.name.to_string(),
             ));
             let constructor = registry
-                .get_board_constructor(model)
+                .get_board_constructor(&model)
                 .map_err(RobotError::RobotRegistryError)?;
             let board = constructor(ConfigType::Dynamic(config))
                 .map_err(|e| RobotError::RobotResourceBuildError(e.into()))?;
@@ -390,7 +390,7 @@ impl LocalRobot {
         let res = match r_type {
             "motor" => {
                 let ctor = registry
-                    .get_motor_constructor(model)
+                    .get_motor_constructor(&model)
                     .map_err(RobotError::RobotRegistryError)?;
                 ResourceType::Motor(
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
@@ -413,7 +413,7 @@ impl LocalRobot {
             }
             "movement_sensor" => {
                 let ctor = registry
-                    .get_movement_sensor_constructor(model)
+                    .get_movement_sensor_constructor(&model)
                     .map_err(RobotError::RobotRegistryError)?;
                 ResourceType::MovementSensor(
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
@@ -421,7 +421,7 @@ impl LocalRobot {
             }
             "encoder" => {
                 let ctor = registry
-                    .get_encoder_constructor(model)
+                    .get_encoder_constructor(&model)
                     .map_err(RobotError::RobotRegistryError)?;
                 ResourceType::Encoder(
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
@@ -429,7 +429,7 @@ impl LocalRobot {
             }
             "base" => {
                 let ctor = registry
-                    .get_base_constructor(model)
+                    .get_base_constructor(&model)
                     .map_err(RobotError::RobotRegistryError)?;
                 ResourceType::Base(
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
@@ -438,7 +438,7 @@ impl LocalRobot {
             #[cfg(feature = "camera")]
             "camera" => {
                 let ctor = registry
-                    .get_camera_constructor(model)
+                    .get_camera_constructor(&model)
                     .map_err(RobotError::RobotRegistryError)?;
                 ResourceType::Camera(
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
@@ -446,7 +446,7 @@ impl LocalRobot {
             }
             "power_sensor" => {
                 let ctor = registry
-                    .get_power_sensor_constructor(model)
+                    .get_power_sensor_constructor(&model)
                     .map_err(RobotError::RobotRegistryError)?;
                 ResourceType::PowerSensor(
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
@@ -454,7 +454,7 @@ impl LocalRobot {
             }
             "servo" => {
                 let ctor = registry
-                    .get_servo_constructor(model)
+                    .get_servo_constructor(&model)
                     .map_err(RobotError::RobotRegistryError)?;
                 ResourceType::Servo(
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
@@ -462,7 +462,7 @@ impl LocalRobot {
             }
             "generic" => {
                 let ctor = registry
-                    .get_generic_component_constructor(model)
+                    .get_generic_component_constructor(&model)
                     .map_err(RobotError::RobotRegistryError)?;
                 ResourceType::Generic(
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
