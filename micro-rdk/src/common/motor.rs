@@ -57,24 +57,21 @@ pub enum MotorError {
 #[cfg(feature = "builtin-components")]
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
-        .register_motor("fake".to_string(), &FakeMotor::from_config)
+        .register_motor("fake", &FakeMotor::from_config)
         .is_err()
     {
         log::error!("fake type is already registered");
     }
     if registry
-        .register_motor(
-            "fake_with_dep".to_string(),
-            &FakeMotorWithDependency::from_config,
-        )
+        .register_motor("fake_with_dep", &FakeMotorWithDependency::from_config)
         .is_err()
     {
         log::error!("fake_with_dep type is already registered");
     }
     if registry
         .register_dependency_getter(
-            COMPONENT_NAME.to_string(),
-            "fake_with_dep".to_string(),
+            COMPONENT_NAME,
+            "fake_with_dep",
             &FakeMotorWithDependency::dependencies_from_config,
         )
         .is_err()

@@ -32,7 +32,7 @@ use embedded_hal::digital::v2::InputPin;
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
         .register_encoder(
-            "incremental".to_string(),
+            "incremental",
             &Esp32Encoder::<
                 PinDriver<'_, AnyInputPin, Input>,
                 PinDriver<'_, AnyInputPin, Input>,

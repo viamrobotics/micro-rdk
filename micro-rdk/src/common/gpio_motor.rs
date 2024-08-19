@@ -61,15 +61,15 @@ use crate::google;
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
-        .register_motor("gpio".to_string(), &gpio_motor_from_config)
+        .register_motor("gpio", &gpio_motor_from_config)
         .is_err()
     {
         log::error!("gpio model is already registered")
     }
     if registry
         .register_dependency_getter(
-            MotorCompName.to_string(),
-            "gpio".to_string(),
+            MotorCompName,
+            "gpio",
             &PwmABMotor::<BoardType>::dependencies_from_config,
         )
         .is_err()
@@ -239,7 +239,7 @@ where
     pub(crate) fn dependencies_from_config(cfg: ConfigType) -> Vec<ResourceKey> {
         let mut r_keys = Vec::new();
         if let Ok(enc_name) = cfg.get_attribute::<String>("encoder") {
-            let r_key = ResourceKey(EncoderCompName.to_string(), enc_name.to_string());
+            let r_key = ResourceKey(EncoderCompName.to_string(), enc_name);
             r_keys.push(r_key)
         }
         r_keys

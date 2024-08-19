@@ -43,13 +43,13 @@ const POWER_REGISTER: [u8; 1] = [0x03];
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
-        .register_power_sensor("ina219".to_string(), &ina219_from_config)
+        .register_power_sensor("ina219", &ina219_from_config)
         .is_err()
     {
         log::error!("gpio model is already registered")
     }
     if registry
-        .register_power_sensor("ina226".to_string(), &ina226_from_config)
+        .register_power_sensor("ina226", &ina226_from_config)
         .is_err()
     {
         log::error!("gpio model is already registered")
