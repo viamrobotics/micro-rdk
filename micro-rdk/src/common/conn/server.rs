@@ -412,12 +412,12 @@ where
                     loop {
                         // Wait for the period to expire, then inspect the state of the `AppClient`
                         // under the read lock. If there is currently an `AppClient` in play, let
-                        // the task use it to conduct it's business. If the task returns a new wait
+                        // the task use a clone to conduct it's business. If the task returns a new wait
                         // duration, update `duration`. Otherwise, just sleep again and hope that an
                         // `AppClient` will be available on the next wakeup.
                         let _ = async_io::Timer::after(duration).await;
-                        let urguard = app_client.upgradable_read().await;
-                        for app_client in urguard.as_ref().iter() {
+                        let app_client = app_client.read().await.clone();
+                        if let Some(app_client) = app_client.as_ref() {
                             match task.invoke(app_client).await {
                                 Ok(None) => continue,
                                 Ok(Some(next_duration)) => {
@@ -425,12 +425,10 @@ where
                                 }
                                 Err(e) => {
                                     log::error!(
-                                        "Periodic task {} failed with error {:?} - dropping app client",
+                                        "Periodic task {} failed with error {:?}",
                                         task.name(),
                                         e
                                     );
-                                    let _ = AsyncRwLockUpgradableReadGuard::upgrade(urguard).await.take();
-                                    break;
                                 }
                             }
                         }
