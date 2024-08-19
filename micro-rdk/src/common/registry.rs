@@ -615,7 +615,7 @@ mod tests {
 
         // register fake board
         common::board::register_models(&mut registry);
-        let ctor = registry.get_board_constructor("fake".to_string());
+        let ctor = registry.get_board_constructor("fake");
         assert!(ctor.is_ok());
 
         // register test sensor
@@ -662,7 +662,7 @@ mod tests {
     fn test_registry() {
         let mut registry = ComponentRegistry::new();
 
-        let ctor = registry.get_motor_constructor("fake".to_string());
+        let ctor = registry.get_motor_constructor("fake");
         assert!(ctor.is_err());
         assert_eq!(
             ctor.err().unwrap(),
@@ -670,7 +670,7 @@ mod tests {
         );
         common::motor::register_models(&mut registry);
 
-        let ctor = registry.get_motor_constructor("fake".to_string());
+        let ctor = registry.get_motor_constructor("fake");
         assert!(ctor.is_ok());
 
         let ret = registry.register_motor("fake".to_string(), &|_, _| {
@@ -687,7 +687,7 @@ mod tests {
         });
         assert!(ret.is_ok());
 
-        let ctor = registry.get_board_constructor("fake".to_string());
+        let ctor = registry.get_board_constructor("fake");
         assert!(ctor.is_err());
         assert_eq!(
             ctor.err().unwrap(),
@@ -695,7 +695,7 @@ mod tests {
         );
         common::board::register_models(&mut registry);
 
-        let ctor = registry.get_board_constructor("fake".to_string());
+        let ctor = registry.get_board_constructor("fake");
         assert!(ctor.is_ok());
 
         let ret = registry.register_board("fake".to_string(), &|_| {
@@ -712,7 +712,7 @@ mod tests {
         });
         assert!(ret.is_ok());
 
-        let ctor = registry.get_motor_constructor("fake2".to_string());
+        let ctor = registry.get_motor_constructor("fake2");
         assert!(ctor.is_ok());
 
         let ret = ctor.unwrap()(
@@ -723,7 +723,7 @@ mod tests {
         assert!(ret.is_err());
         assert_eq!(format!("{}", ret.err().unwrap()), "unimplemented: ");
 
-        let ctor = registry.get_board_constructor("fake2".to_string());
+        let ctor = registry.get_board_constructor("fake2");
         assert!(ctor.is_ok());
 
         let ret = ctor.unwrap()(ConfigType::Dynamic(&DynamicComponentConfig::default()));
