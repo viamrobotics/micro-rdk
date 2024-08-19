@@ -15,8 +15,8 @@ opt-level = "z"
 
 [dependencies.micro-rdk]
 git = "https://github.com/viamrobotics/micro-rdk.git"
-version = "0.2.4"
-rev = "60ab246"
+version = "0.2.5"
+rev = "a400ef2"
 features = [
   "esp32", 
   "binstart",
