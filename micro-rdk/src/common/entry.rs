@@ -101,7 +101,7 @@ pub async fn serve_inner<S>(
         .get_app_config(Some(network.get_ip()))
         .await
         .unwrap_or_else(|e| {
-            log::error!("failed to `get_app_config`: {}", e.to_string());
+            log::error!("failed to get valid app config: {}", e.to_string());
             (Box::new(ConfigResponse::default()), None)
         });
 
