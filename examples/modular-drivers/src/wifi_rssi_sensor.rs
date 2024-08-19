@@ -21,7 +21,7 @@ use micro_rdk::{
 pub struct WifiRSSISensor;
 
 pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {
-    registry.register_sensor("wifi-rssi".to_string(), &WifiRSSISensor::from_config)?;
+    registry.register_sensor("wifi-rssi", &WifiRSSISensor::from_config)?;
     log::debug!("wifi-rssi sensor registration ok");
     Ok(())
 }

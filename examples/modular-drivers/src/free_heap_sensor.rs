@@ -21,7 +21,7 @@ use micro_rdk::{
 pub struct FreeHeapSensor;
 
 pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {
-    registry.register_sensor("free-heap".to_string(), &FreeHeapSensor::from_config)?;
+    registry.register_sensor("free-heap", &FreeHeapSensor::from_config)?;
     log::debug!("free-heap sensor registration ok");
     Ok(())
 }
