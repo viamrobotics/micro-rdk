@@ -102,7 +102,7 @@ pub async fn serve_inner<S>(
         .await
         .unwrap_or_else(|e| {
             log::error!("failed to get valid app config: {}", e.to_string());
-            (Box::new(ConfigResponse::default()), None)
+            (Box::<ConfigResponse>::default(), None)
         });
 
     let rpc_host = cfg_response
