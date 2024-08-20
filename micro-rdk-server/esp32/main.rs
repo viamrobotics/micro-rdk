@@ -21,7 +21,7 @@ mod esp32 {
             registry::ComponentRegistry,
         },
         esp32::{
-            entry::serve_web,
+            entry::serve,
             esp_idf_svc::{
                 self,
                 sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT},
@@ -34,7 +34,7 @@ mod esp32 {
         pub static g_spiram_ok: bool;
     }
 
-    fn register_examples(r: &mut ComponentRegistry) {
+    fn register_example_modules(r: &mut ComponentRegistry) {
         if let Err(e) = micro_rdk_modular_driver_example::free_heap_sensor::register_models(r) {
             log::error!("failed to register `free_heap_sensor`: {}", e);
         }
@@ -66,14 +66,15 @@ mod esp32 {
             eth_configure(&sys_loop, eth).unwrap()
         };
 
-        let mut r = Box::<ComponentRegistry>::default();
-        register_examples(&mut r);
-        let repr = RobotRepresentation::WithRegistry(r);
+        let mut registry = Box::<ComponentRegistry>::default();
+        register_example_modules(&mut registry);
+        let repr = RobotRepresentation::WithRegistry(registry);
 
         let storage = NVSStorage::new("nvs").unwrap();
 
         // At runtime, if the program does not detect credentials or configs in storage,
         // it will try to load statically compiled values.
+
         if !storage.has_wifi_credentials() {
             // check if any were statically compiled
             if SSID.is_some() && PASS.is_some() {
@@ -117,7 +118,7 @@ mod esp32 {
         info.set_manufacturer("viam".to_owned());
         info.set_model("test-esp32".to_owned());
 
-        serve_web(Some(info), repr, max_connections, storage);
+        serve(Some(info), repr, max_connections, storage);
     }
 }
 

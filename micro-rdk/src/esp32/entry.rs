@@ -9,8 +9,8 @@ use crate::{
         app_client::AppClientError,
         conn::network::Network,
         credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage},
+        entry::validate_robot_credentials,
         entry::RobotRepresentation,
-        entry::{serve_async_with_external_network, validate_robot_credentials},
         exec::Executor,
         grpc::ServerError,
         grpc_client::GrpcClientError,
@@ -32,7 +32,7 @@ use crate::{
 // 4) Robot Credentials + WiFi without external network
 // The function attempts to connect to the configured Wifi network if any, it then checks the robot credentials. If Wifi credentials are absent it starts provisioning mode
 // If they are invalid or absent it will start the provisioning server. Once provision is done it invokes the main server.
-async fn serve_async<S>(
+async fn async_serve<S>(
     exec: Executor,
     info: Option<ProvisioningInfo>,
     storage: S,
@@ -194,7 +194,7 @@ where
         }
     };
 
-    crate::common::entry::serve_web_inner(
+    crate::common::entry::serve_inner(
         storage,
         repr,
         exec,
@@ -207,7 +207,7 @@ where
     Ok(())
 }
 
-pub fn serve_web<S>(
+pub fn serve<S>(
     info: Option<ProvisioningInfo>,
     repr: RobotRepresentation,
     max_webrtc_connection: usize,
@@ -244,61 +244,11 @@ pub fn serve_web<S>(
         })
         .detach();
 
-    let _ = cloned_exec.block_on(Box::pin(serve_async(
+    let _ = cloned_exec.block_on(Box::pin(async_serve(
         exec,
         info,
         storage,
         repr,
-        max_webrtc_connection,
-    )));
-
-    unreachable!()
-}
-
-pub fn serve_web_with_external_network<S>(
-    info: Option<ProvisioningInfo>,
-    repr: RobotRepresentation,
-    max_webrtc_connection: usize,
-    storage: S,
-    network: impl Network,
-) where
-    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
-    <S as RobotConfigurationStorage>::Error: Debug,
-    ServerError: From<<S as RobotConfigurationStorage>::Error>,
-    <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
-{
-    // set the TWDT to expire after 5 minutes
-    crate::esp32::esp_idf_svc::sys::esp!(unsafe {
-        crate::esp32::esp_idf_svc::sys::esp_task_wdt_init(300, true)
-    })
-    .unwrap();
-
-    // Register the current task on the TWDT. The TWDT runs in the IDLE Task.
-    crate::esp32::esp_idf_svc::sys::esp!(unsafe {
-        crate::esp32::esp_idf_svc::sys::esp_task_wdt_add(
-            crate::esp32::esp_idf_svc::sys::xTaskGetCurrentTaskHandle(),
-        )
-    })
-    .unwrap();
-
-    let exec = Executor::new();
-    let cloned_exec = exec.clone();
-
-    cloned_exec
-        .spawn(async {
-            loop {
-                Timer::after(Duration::from_secs(150)).await;
-                unsafe { crate::esp32::esp_idf_svc::sys::esp_task_wdt_reset() };
-            }
-        })
-        .detach();
-
-    let _ = cloned_exec.block_on(Box::pin(serve_async_with_external_network(
-        exec,
-        info,
-        storage,
-        repr,
-        network,
         max_webrtc_connection,
     )));
 

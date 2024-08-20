@@ -75,7 +75,7 @@ pub async fn validate_robot_credentials(
     builder.build().await.map_err(|e| e.into())
 }
 
-pub async fn serve_web_inner<S>(
+pub async fn serve_inner<S>(
     storage: S,
     repr: RobotRepresentation,
     exec: Executor,
@@ -235,7 +235,7 @@ pub async fn serve_web_inner<S>(
     server.serve(robot).await;
 }
 
-pub async fn serve_async_with_external_network<S>(
+pub async fn async_serve_with_network<S>(
     exec: Executor,
     info: Option<ProvisioningInfo>,
     storage: S,
@@ -356,7 +356,7 @@ where
             let _ = last_error.insert(e);
         }
     };
-    serve_web_inner(
+    serve_inner(
         storage,
         repr,
         exec,
@@ -367,4 +367,55 @@ where
     )
     .await;
     Ok(())
+}
+
+pub fn serve_with_network<S>(
+    info: Option<ProvisioningInfo>,
+    repr: RobotRepresentation,
+    max_webrtc_connection: usize,
+    storage: S,
+    network: impl Network,
+) where
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
+    <S as RobotConfigurationStorage>::Error: Debug,
+    ServerError: From<<S as RobotConfigurationStorage>::Error>,
+    <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
+{
+    let exec = Executor::new();
+
+    #[cfg(feature = "esp32")]
+    {
+        // set the TWDT to expire after 5 minutes
+        crate::esp32::esp_idf_svc::sys::esp!(unsafe {
+            crate::esp32::esp_idf_svc::sys::esp_task_wdt_init(300, true)
+        })
+        .unwrap();
+
+        // Register the current task on the TWDT. The TWDT runs in the IDLE Task.
+        crate::esp32::esp_idf_svc::sys::esp!(unsafe {
+            crate::esp32::esp_idf_svc::sys::esp_task_wdt_add(
+                crate::esp32::esp_idf_svc::sys::xTaskGetCurrentTaskHandle(),
+            )
+        })
+        .unwrap();
+
+        exec.spawn(async {
+            loop {
+                Timer::after(Duration::from_secs(150)).await;
+                unsafe { crate::esp32::esp_idf_svc::sys::esp_task_wdt_reset() };
+            }
+        })
+        .detach();
+    }
+
+    let _ = exec.block_on(Box::pin(async_serve_with_network(
+        exec.clone(),
+        info,
+        storage,
+        repr,
+        network,
+        max_webrtc_connection,
+    )));
+
+    unreachable!()
 }
