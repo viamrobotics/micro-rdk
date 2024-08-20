@@ -126,7 +126,7 @@ impl Esp32WifiNetwork {
         crate::esp32::esp_idf_svc::sys::esp!(unsafe {
             esp_wifi_set_ps(crate::esp32::esp_idf_svc::sys::wifi_ps_type_t_WIFI_PS_NONE)
         })?;
-        
+
         let sl_stack = esp32_get_system_event_loop()?;
 
         let subscription = sl_stack.subscribe::<WifiEvent, _>(move |event: WifiEvent| {
