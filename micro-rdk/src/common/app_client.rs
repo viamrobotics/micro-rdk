@@ -327,6 +327,13 @@ impl AppClient {
             },
         })
     }
+
+    /// Returns the strong count of the AppClient's internal
+    /// gRPC client, serving as a rough proxy for the number of
+    /// concurrent tasks using this app client.
+    pub(crate) fn get_grpc_client_count(&self) -> usize {
+        Rc::strong_count(&self.grpc_client)
+    }
 }
 
 impl Drop for AppClient {
