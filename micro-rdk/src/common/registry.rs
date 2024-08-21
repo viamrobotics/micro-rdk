@@ -65,7 +65,7 @@ impl ResourceKey {
             "power_sensor" => crate::common::power_sensor::COMPONENT_NAME,
             "generic" => crate::common::generic::COMPONENT_NAME,
             &_ => {
-                return Err(RegistryError::ModelNotFound(model.to_string()));
+                return Err(RegistryError::ModelNotFound(model.into()));
             }
         };
         Ok(Self(model_str.to_string(), name))
@@ -88,7 +88,7 @@ impl TryFrom<ResourceName> for ResourceKey {
             "power_sensor" => crate::common::power_sensor::COMPONENT_NAME,
             "generic" => crate::common::generic::COMPONENT_NAME,
             _ => {
-                return Err(RegistryError::ModelNotFound(comp_type.to_string()));
+                return Err(RegistryError::ModelNotFound(comp_type.into()));
             }
         };
         Ok(Self(comp_name.to_string(), value.name))
@@ -186,34 +186,22 @@ impl Default for ComponentRegistry {
 impl ComponentRegistry {
     pub fn new() -> Self {
         let mut dependency_func_map = Map::new();
-        dependency_func_map.insert(crate::common::motor::COMPONENT_NAME.to_string(), Map::new());
+        dependency_func_map.insert(crate::common::motor::COMPONENT_NAME.into(), Map::new());
         dependency_func_map.insert(
-            crate::common::movement_sensor::COMPONENT_NAME.to_string(),
+            crate::common::movement_sensor::COMPONENT_NAME.into(),
             Map::new(),
         );
-        dependency_func_map.insert(
-            crate::common::encoder::COMPONENT_NAME.to_string(),
-            Map::new(),
-        );
-        dependency_func_map.insert(
-            crate::common::sensor::COMPONENT_NAME.to_string(),
-            Map::new(),
-        );
-        dependency_func_map.insert(crate::common::base::COMPONENT_NAME.to_string(), Map::new());
+        dependency_func_map.insert(crate::common::encoder::COMPONENT_NAME.into(), Map::new());
+        dependency_func_map.insert(crate::common::sensor::COMPONENT_NAME.into(), Map::new());
+        dependency_func_map.insert(crate::common::base::COMPONENT_NAME.into(), Map::new());
         #[cfg(feature = "camera")]
+        dependency_func_map.insert(crate::common::camera::COMPONENT_NAME.into(), Map::new());
+        dependency_func_map.insert(crate::common::servo::COMPONENT_NAME.into(), Map::new());
         dependency_func_map.insert(
-            crate::common::camera::COMPONENT_NAME.to_string(),
+            crate::common::power_sensor::COMPONENT_NAME.into(),
             Map::new(),
         );
-        dependency_func_map.insert(crate::common::servo::COMPONENT_NAME.to_string(), Map::new());
-        dependency_func_map.insert(
-            crate::common::power_sensor::COMPONENT_NAME.to_string(),
-            Map::new(),
-        );
-        dependency_func_map.insert(
-            crate::common::generic::COMPONENT_NAME.to_string(),
-            Map::new(),
-        );
+        dependency_func_map.insert(crate::common::generic::COMPONENT_NAME.into(), Map::new());
         Self {
             motors: Map::new(),
             board: Map::new(),
@@ -230,9 +218,9 @@ impl ComponentRegistry {
         }
     }
     #[cfg(feature = "camera")]
-    pub fn register_camera<S: Into<String>>(
+    pub fn register_camera(
         &mut self,
-        model: S,
+        model: impl Into<String>,
         constructor: &'static CameraConstructor,
     ) -> Result<(), RegistryError> {
         let model = model.into();
@@ -242,9 +230,9 @@ impl ComponentRegistry {
         let _ = self.camera.insert(model, constructor);
         Ok(())
     }
-    pub fn register_motor<S: Into<String>>(
+    pub fn register_motor(
         &mut self,
-        model: S,
+        model: impl Into<String>,
         constructor: &'static MotorConstructor,
     ) -> Result<(), RegistryError> {
         let model = model.into();
@@ -255,9 +243,9 @@ impl ComponentRegistry {
         Ok(())
     }
 
-    pub fn register_sensor<S: Into<String>>(
+    pub fn register_sensor(
         &mut self,
-        model: S,
+        model: impl Into<String>,
         constructor: &'static SensorConstructor,
     ) -> Result<(), RegistryError> {
         let model = model.into();
@@ -268,9 +256,9 @@ impl ComponentRegistry {
         Ok(())
     }
 
-    pub fn register_movement_sensor<S: Into<String>>(
+    pub fn register_movement_sensor(
         &mut self,
-        model: S,
+        model: impl Into<String>,
         constructor: &'static MovementSensorConstructor,
     ) -> Result<(), RegistryError> {
         let model = model.into();
@@ -281,9 +269,9 @@ impl ComponentRegistry {
         Ok(())
     }
 
-    pub fn register_board<S: Into<String>>(
+    pub fn register_board(
         &mut self,
-        model: S,
+        model: impl Into<String>,
         constructor: &'static BoardConstructor,
     ) -> Result<(), RegistryError> {
         let model = model.into();
@@ -294,9 +282,9 @@ impl ComponentRegistry {
         Ok(())
     }
 
-    pub fn register_encoder<S: Into<String>>(
+    pub fn register_encoder(
         &mut self,
-        model: S,
+        model: impl Into<String>,
         constructor: &'static EncoderConstructor,
     ) -> Result<(), RegistryError> {
         let model = model.into();
@@ -307,9 +295,9 @@ impl ComponentRegistry {
         Ok(())
     }
 
-    pub fn register_base<S: Into<String>>(
+    pub fn register_base(
         &mut self,
-        model: S,
+        model: impl Into<String>,
         constructor: &'static BaseConstructor,
     ) -> Result<(), RegistryError> {
         let model = model.into();
@@ -320,9 +308,9 @@ impl ComponentRegistry {
         Ok(())
     }
 
-    pub fn register_power_sensor<S: Into<String>>(
+    pub fn register_power_sensor(
         &mut self,
-        model: S,
+        model: impl Into<String>,
         constructor: &'static PowerSensorConstructor,
     ) -> Result<(), RegistryError> {
         let model = model.into();
@@ -333,9 +321,9 @@ impl ComponentRegistry {
         Ok(())
     }
 
-    pub fn register_servo<S: Into<String>>(
+    pub fn register_servo(
         &mut self,
-        model: S,
+        model: impl Into<String>,
         constructor: &'static ServoConstructor,
     ) -> Result<(), RegistryError> {
         let model = model.into();
@@ -346,9 +334,9 @@ impl ComponentRegistry {
         Ok(())
     }
 
-    pub fn register_generic_component<S: Into<String>>(
+    pub fn register_generic_component(
         &mut self,
-        model: S,
+        model: impl Into<String>,
         constructor: &'static GenericComponentConstructor,
     ) -> Result<(), RegistryError> {
         let model = model.into();
@@ -359,10 +347,10 @@ impl ComponentRegistry {
         Ok(())
     }
 
-    pub fn register_dependency_getter<S: Into<String>>(
+    pub fn register_dependency_getter(
         &mut self,
-        component_type: S,
-        model: S,
+        component_type: impl Into<String>,
+        model: impl Into<String>,
         getter: &'static DependenciesFromConfig,
     ) -> Result<(), RegistryError> {
         let component_type = component_type.into();
@@ -395,8 +383,8 @@ impl ComponentRegistry {
             return Ok(*func);
         }
         Err(RegistryError::ModelNotFoundInDependencies(
-            model_name.to_owned(),
-            component_type.to_owned(),
+            model_name.into(),
+            component_type.into(),
         ))
     }
 
@@ -407,7 +395,7 @@ impl ComponentRegistry {
         if let Some(ctor) = self.board.get(model) {
             return Ok(*ctor);
         }
-        Err(RegistryError::ModelNotFound(model.to_string()))
+        Err(RegistryError::ModelNotFound(model.into()))
     }
 
     #[cfg(feature = "camera")]
@@ -418,7 +406,7 @@ impl ComponentRegistry {
         if let Some(ctor) = self.camera.get(model) {
             return Ok(*ctor);
         }
-        Err(RegistryError::ModelNotFound(model.to_string()))
+        Err(RegistryError::ModelNotFound(model.into()))
     }
 
     pub(crate) fn get_motor_constructor(
