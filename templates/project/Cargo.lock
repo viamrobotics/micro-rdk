@@ -1388,8 +1388,8 @@ checksum = "523dc4f511e55ab87b694dc30d0f820d60906ef06413f93d4d7a1385599cc149"
 
 [[package]]
 name = "micro-rdk"
-version = "0.2.5"
-source = "git+https://github.com/viamrobotics/micro-rdk.git?rev=a400ef2#a400ef2d95325f2215b242de81cf210559a021d0"
+version = "0.2.6"
+source = "git+https://github.com/viamrobotics/micro-rdk.git?rev=832b541#832b5412891b701d0f2b5c3b0d63d578706633bc"
 dependencies = [
  "async-channel",
  "async-executor",
@@ -1438,8 +1438,8 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-macros"
-version = "0.2.5"
-source = "git+https://github.com/viamrobotics/micro-rdk.git?rev=a400ef2#a400ef2d95325f2215b242de81cf210559a021d0"
+version = "0.2.6"
+source = "git+https://github.com/viamrobotics/micro-rdk.git?rev=832b541#832b5412891b701d0f2b5c3b0d63d578706633bc"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
