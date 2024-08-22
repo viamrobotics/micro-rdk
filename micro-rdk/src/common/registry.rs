@@ -358,7 +358,7 @@ impl ComponentRegistry {
     ) -> Result<&'static DependenciesFromConfig, RegistryError> {
         if !self.dependencies.contains_key(component_type) {
             return Err(RegistryError::ComponentTypeNotInDependencies(
-                component_type.to_owned(),
+                component_type.into(),
             ));
         }
         let comp_deps = self.dependencies.get(component_type).unwrap();
@@ -637,23 +637,23 @@ mod tests {
         assert!(ctor.is_err());
         assert_eq!(
             ctor.err().unwrap(),
-            RegistryError::ModelNotFound("fake".to_string())
+            RegistryError::ModelNotFound("fake".into())
         );
         common::motor::register_models(&mut registry);
 
         let ctor = registry.get_motor_constructor("fake");
         assert!(ctor.is_ok());
 
-        let ret = registry.register_motor("fake".to_string(), &|_, _| {
+        let ret = registry.register_motor("fake", &|_, _| {
             Err(MotorError::MotorMethodUnimplemented(""))
         });
         assert!(ret.is_err());
         assert_eq!(
             ret.err().unwrap(),
-            RegistryError::ModelAlreadyRegistered("fake".to_string())
+            RegistryError::ModelAlreadyRegistered("fake".into())
         );
 
-        let ret = registry.register_motor("fake2".to_string(), &|_, _| {
+        let ret = registry.register_motor("fake2", &|_, _| {
             Err(MotorError::MotorMethodUnimplemented(""))
         });
         assert!(ret.is_ok());
@@ -662,23 +662,23 @@ mod tests {
         assert!(ctor.is_err());
         assert_eq!(
             ctor.err().unwrap(),
-            RegistryError::ModelNotFound("fake".to_string())
+            RegistryError::ModelNotFound("fake".into())
         );
         common::board::register_models(&mut registry);
 
         let ctor = registry.get_board_constructor("fake");
         assert!(ctor.is_ok());
 
-        let ret = registry.register_board("fake".to_string(), &|_| {
+        let ret = registry.register_board("fake", &|_| {
             Err(common::board::BoardError::BoardMethodNotSupported(""))
         });
         assert!(ret.is_err());
         assert_eq!(
             ret.err().unwrap(),
-            RegistryError::ModelAlreadyRegistered("fake".to_string())
+            RegistryError::ModelAlreadyRegistered("fake".into())
         );
 
-        let ret = registry.register_board("fake2".to_string(), &|_| {
+        let ret = registry.register_board("fake2", &|_| {
             Err(common::board::BoardError::BoardMethodNotSupported(""))
         });
         assert!(ret.is_ok());
