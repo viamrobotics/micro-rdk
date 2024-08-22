@@ -17,7 +17,7 @@ default = false
 [conditional.'camera == false']
 ignore = [ "bindings.h" ]
 
-[placeholders.credentials]
+[placeholders.cloud_credentials]
 type = "string"
 prompt = "Machine Cloud Credentials (copied from app.viam.com)"
 default = ""
