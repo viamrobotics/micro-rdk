@@ -4,6 +4,7 @@
 // the nightly channel, which we only use for ESP32 builds.
 // See common/data_manager.rs for why we use this feature at all.
 #![cfg_attr(feature = "data-upload-hook-unstable", feature(linkage))]
+#![cfg_attr(feature = "esp32", feature(c_variadic))]
 
 pub mod common;
 

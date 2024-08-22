@@ -20,7 +20,7 @@ binstart = ["esp-idf-svc/binstart"]
 libstart = ["esp-idf-svc/libstart"]
 builtin-components = []
 camera = []
-esp32 = ["dep:esp-idf-svc", "dep:embedded-svc", "dep:embedded-hal", "esp-idf-svc/std", "esp-idf-svc/alloc"]
+esp32 = ["dep:esp-idf-svc", "dep:embedded-svc", "dep:embedded-hal", "esp-idf-svc/std", "esp-idf-svc/alloc", "dep:printf-compat"]
 native = ["dep:rustls", "dep:webpki-roots", "dep:rustls-pemfile", "dep:mdns-sd", "dep:local-ip-address", "dep:openssl", "dep:rcgen", "dep:async-std-openssl"]
 data-upload-hook-unstable = ["data", "esp32"]
 data = []
@@ -31,6 +31,7 @@ env_logger.workspace = true
 
 [target.'cfg(not(target_os = "espidf"))'.dependencies]
 async-std-openssl = { workspace = true, optional = true }
+env_logger.workspace = true
 futures-rustls.workspace = true
 local-ip-address = { workspace = true, optional = true }
 mdns-sd = { workspace = true, optional = true }
@@ -81,6 +82,7 @@ ringbuf.workspace = true
 pin-project.workspace = true
 async-lock.workspace = true
 dns-message-parser.workspace = true
+printf-compat = { workspace = true, optional = true }
 
 [build-dependencies]
 embuild.workspace = true
