@@ -37,7 +37,7 @@ use std::sync::{Arc, Mutex};
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
-        .register_movement_sensor("gyro-mpu6050".to_string(), &MPU6050::from_config)
+        .register_movement_sensor("gyro-mpu6050", &MPU6050::from_config)
         .is_err()
     {
         log::error!("gyro-mpu6050 type is already registered");

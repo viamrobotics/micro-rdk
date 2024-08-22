@@ -51,24 +51,8 @@ pub fn get_board_from_dependencies(deps: Vec<Dependency>) -> Option<BoardType> {
 pub struct ResourceKey(pub String, pub String);
 
 impl ResourceKey {
-    pub fn new(model: String, name: String) -> Result<Self, RegistryError> {
-        let model_str = match model.as_str() {
-            "motor" => crate::common::motor::COMPONENT_NAME,
-            "board" => crate::common::board::COMPONENT_NAME,
-            #[cfg(feature = "camera")]
-            "camera" => crate::common::camera::COMPONENT_NAME,
-            "encoder" => crate::common::encoder::COMPONENT_NAME,
-            "movement_sensor" => crate::common::movement_sensor::COMPONENT_NAME,
-            "sensor" => crate::common::sensor::COMPONENT_NAME,
-            "base" => crate::common::base::COMPONENT_NAME,
-            "servo" => crate::common::servo::COMPONENT_NAME,
-            "power_sensor" => crate::common::power_sensor::COMPONENT_NAME,
-            "generic" => crate::common::generic::COMPONENT_NAME,
-            &_ => {
-                return Err(RegistryError::ModelNotFound(model.into()));
-            }
-        };
-        Ok(Self(model_str.to_string(), name))
+    pub fn new(model: impl Into<String>, name: impl Into<String>) -> Self {
+        Self(model.into(), name.into())
     }
 }
 
@@ -416,17 +400,17 @@ impl ComponentRegistry {
         if let Some(ctor) = self.motors.get(model) {
             return Ok(*ctor);
         }
-        Err(RegistryError::ModelNotFound(model.to_string()))
+        Err(RegistryError::ModelNotFound(model.into()))
     }
 
     pub(crate) fn get_sensor_constructor(
         &self,
-        model: String,
+        model: &str,
     ) -> Result<&'static SensorConstructor, RegistryError> {
-        if let Some(ctor) = self.sensor.get(&model) {
+        if let Some(ctor) = self.sensor.get(model) {
             return Ok(*ctor);
         }
-        Err(RegistryError::ModelNotFound(model))
+        Err(RegistryError::ModelNotFound(model.into()))
     }
 
     pub(crate) fn get_movement_sensor_constructor(
@@ -436,7 +420,7 @@ impl ComponentRegistry {
         if let Some(ctor) = self.movement_sensors.get(model) {
             return Ok(*ctor);
         }
-        Err(RegistryError::ModelNotFound(model.to_string()))
+        Err(RegistryError::ModelNotFound(model.into()))
     }
 
     pub(crate) fn get_encoder_constructor(
@@ -594,7 +578,7 @@ mod tests {
         let mut registry = ComponentRegistry::new();
 
         // sensor should not be registered yet
-        let ctor = registry.get_sensor_constructor("test_sensor".to_string());
+        let ctor = registry.get_sensor_constructor("test_sensor");
         assert!(ctor.is_err());
         assert_eq!(
             ctor.err().unwrap(),
@@ -612,7 +596,7 @@ mod tests {
             .is_ok());
 
         // check ctor
-        let ctor = registry.get_sensor_constructor("test_sensor".to_string());
+        let ctor = registry.get_sensor_constructor("test_sensor");
         assert!(ctor.is_ok());
 
         // make robot

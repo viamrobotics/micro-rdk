@@ -239,7 +239,7 @@ where
     pub(crate) fn dependencies_from_config(cfg: ConfigType) -> Vec<ResourceKey> {
         let mut r_keys = Vec::new();
         if let Ok(enc_name) = cfg.get_attribute::<String>("encoder") {
-            let r_key = ResourceKey(EncoderCompName.to_string(), enc_name);
+            let r_key = ResourceKey::new(EncoderCompName, enc_name);
             r_keys.push(r_key)
         }
         r_keys

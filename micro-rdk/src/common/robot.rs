@@ -196,9 +196,9 @@ impl LocalRobot {
             .find(|cfg| cfg.as_ref().map_or(false, |cfg| cfg.r#type == "board"));
         let (board, board_key) = if let Some(Some(config)) = config {
             let model = get_model_without_namespace_prefix(&mut config.model.to_owned())?;
-            let board_key = Some(ResourceKey(
-                crate::common::board::COMPONENT_NAME.to_string(),
-                config.name.to_string(),
+            let board_key = Some(ResourceKey::new(
+                crate::common::board::COMPONENT_NAME,
+                &config.name,
             ));
             let constructor = registry
                 .get_board_constructor(&model)
@@ -373,7 +373,7 @@ impl LocalRobot {
                         ));
                     }
                 };
-                Ok(Dependency(ResourceKey(key.0, key.1.clone()), res))
+                Ok(Dependency(ResourceKey::new(key.0, key.1), res))
             })
             .collect()
     }
@@ -405,7 +405,7 @@ impl LocalRobot {
             }
             "sensor" => {
                 let ctor = registry
-                    .get_sensor_constructor(model)
+                    .get_sensor_constructor(&model)
                     .map_err(RobotError::RobotRegistryError)?;
                 ResourceType::Sensor(
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
