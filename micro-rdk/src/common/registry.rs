@@ -333,18 +333,17 @@ impl ComponentRegistry {
 
     pub fn register_dependency_getter(
         &mut self,
-        component_type: impl Into<String>,
+        component_type: &str,
         model: impl Into<String>,
         getter: &'static DependenciesFromConfig,
     ) -> Result<(), RegistryError> {
-        let component_type = component_type.into();
         let model = model.into();
-        if !self.dependencies.contains_key(&component_type) {
+        if !self.dependencies.contains_key(component_type) {
             return Err(RegistryError::ComponentTypeNotInDependencies(
-                component_type,
+                component_type.to_string(),
             ));
         }
-        let comp_deps = self.dependencies.get_mut(&component_type).unwrap();
+        let comp_deps = self.dependencies.get_mut(component_type).unwrap();
         if comp_deps.contains_key(&model) {
             return Err(RegistryError::ModelDependencyFuncRegistered(model));
         }
