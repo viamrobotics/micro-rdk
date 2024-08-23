@@ -196,12 +196,12 @@ impl LocalRobot {
             .find(|cfg| cfg.as_ref().map_or(false, |cfg| cfg.r#type == "board"));
         let (board, board_key) = if let Some(Some(config)) = config {
             let model = get_model_without_namespace_prefix(&mut config.model.to_owned())?;
-            let board_key = Some(ResourceKey(
+            let board_key = Some(ResourceKey::new(
                 crate::common::board::COMPONENT_NAME,
-                config.name.to_string(),
+                &config.name,
             ));
             let constructor = registry
-                .get_board_constructor(model)
+                .get_board_constructor(&model)
                 .map_err(RobotError::RobotRegistryError)?;
             let board = constructor(ConfigType::Dynamic(config))
                 .map_err(|e| RobotError::RobotResourceBuildError(e.into()))?;
@@ -349,27 +349,9 @@ impl LocalRobot {
         config: &DynamicComponentConfig,
         registry: &mut ComponentRegistry,
     ) -> Result<Vec<Dependency>, RobotError> {
-        let type_as_static = match config.get_type() {
-            "motor" => crate::common::motor::COMPONENT_NAME,
-            "board" => crate::common::board::COMPONENT_NAME,
-            #[cfg(feature = "camera")]
-            "camera" => crate::common::camera::COMPONENT_NAME,
-            "encoder" => crate::common::encoder::COMPONENT_NAME,
-            "movement_sensor" => crate::common::movement_sensor::COMPONENT_NAME,
-            "sensor" => crate::common::sensor::COMPONENT_NAME,
-            "base" => crate::common::base::COMPONENT_NAME,
-            "power_sensor" => crate::common::power_sensor::COMPONENT_NAME,
-            "servo" => crate::common::servo::COMPONENT_NAME,
-            "generic" => crate::common::generic::COMPONENT_NAME,
-            &_ => {
-                return Err(RobotError::RobotComponentTypeNotSupported(
-                    config.get_type().to_owned(),
-                ))
-            }
-        };
         let model = get_model_without_namespace_prefix(&mut config.get_model().to_owned())?;
         let deps_keys = registry
-            .get_dependency_function(type_as_static, &model)
+            .get_dependency_function(config.get_type(), &model)
             .map_or(Vec::new(), |dep_fn| dep_fn(ConfigType::Dynamic(config)));
 
         deps_keys
@@ -391,7 +373,7 @@ impl LocalRobot {
                         ));
                     }
                 };
-                Ok(Dependency(ResourceKey(key.0, key.1.clone()), res))
+                Ok(Dependency(ResourceKey::new(key.0, key.1), res))
             })
             .collect()
     }
@@ -408,7 +390,7 @@ impl LocalRobot {
         let res = match r_type {
             "motor" => {
                 let ctor = registry
-                    .get_motor_constructor(model)
+                    .get_motor_constructor(&model)
                     .map_err(RobotError::RobotRegistryError)?;
                 ResourceType::Motor(
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
@@ -423,7 +405,7 @@ impl LocalRobot {
             }
             "sensor" => {
                 let ctor = registry
-                    .get_sensor_constructor(model)
+                    .get_sensor_constructor(&model)
                     .map_err(RobotError::RobotRegistryError)?;
                 ResourceType::Sensor(
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
@@ -431,7 +413,7 @@ impl LocalRobot {
             }
             "movement_sensor" => {
                 let ctor = registry
-                    .get_movement_sensor_constructor(model)
+                    .get_movement_sensor_constructor(&model)
                     .map_err(RobotError::RobotRegistryError)?;
                 ResourceType::MovementSensor(
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
@@ -439,7 +421,7 @@ impl LocalRobot {
             }
             "encoder" => {
                 let ctor = registry
-                    .get_encoder_constructor(model)
+                    .get_encoder_constructor(&model)
                     .map_err(RobotError::RobotRegistryError)?;
                 ResourceType::Encoder(
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
@@ -447,7 +429,7 @@ impl LocalRobot {
             }
             "base" => {
                 let ctor = registry
-                    .get_base_constructor(model)
+                    .get_base_constructor(&model)
                     .map_err(RobotError::RobotRegistryError)?;
                 ResourceType::Base(
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
@@ -456,7 +438,7 @@ impl LocalRobot {
             #[cfg(feature = "camera")]
             "camera" => {
                 let ctor = registry
-                    .get_camera_constructor(model)
+                    .get_camera_constructor(&model)
                     .map_err(RobotError::RobotRegistryError)?;
                 ResourceType::Camera(
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
@@ -464,7 +446,7 @@ impl LocalRobot {
             }
             "power_sensor" => {
                 let ctor = registry
-                    .get_power_sensor_constructor(model)
+                    .get_power_sensor_constructor(&model)
                     .map_err(RobotError::RobotRegistryError)?;
                 ResourceType::PowerSensor(
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
@@ -472,7 +454,7 @@ impl LocalRobot {
             }
             "servo" => {
                 let ctor = registry
-                    .get_servo_constructor(model)
+                    .get_servo_constructor(&model)
                     .map_err(RobotError::RobotRegistryError)?;
                 ResourceType::Servo(
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
@@ -480,7 +462,7 @@ impl LocalRobot {
             }
             "generic" => {
                 let ctor = registry
-                    .get_generic_component_constructor(model)
+                    .get_generic_component_constructor(&model)
                     .map_err(RobotError::RobotRegistryError)?;
                 ResourceType::Generic(
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,

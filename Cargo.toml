@@ -70,7 +70,7 @@ futures-lite = "1"
 futures-rustls = "0.24"
 futures-util = "0.3.30"
 http-body-util = "0.1.1"
-hyper = { version = "1.2", default-features = false, features = ["server", "client", "http2"] }
+hyper = { version = "1.4", default-features = false, features = ["server", "client", "http2"] }
 ignore = "=0.4.20"
 lazy_static = "1.4.0"
 local-ip-address = "0.5.3"

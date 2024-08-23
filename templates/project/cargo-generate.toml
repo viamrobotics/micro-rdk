@@ -11,15 +11,15 @@ default = "esp32"
 
 [placeholders.camera]
 type = "bool"
-prompt = "include camera module and traits?"
+prompt = "Include camera module and traits?"
 default = false
 
 [conditional.'camera == false']
 ignore = [ "bindings.h" ]
 
-[placeholders.viam]
+[placeholders.cloud_credentials]
 type = "string"
-prompt = "Viam's robot config (copied from app.viam.com)"
+prompt = "Machine Cloud Credentials (copied from app.viam.com)"
 default = ""
 
 [placeholders.ssid]
