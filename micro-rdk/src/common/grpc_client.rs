@@ -238,10 +238,6 @@ impl GrpcClient {
     {
         let (http2_connection, conn) = {
             let client = hyper::client::conn::http2::Builder::new(executor.clone())
-                .initial_stream_window_size(4096)
-                .initial_connection_window_size(4096)
-                .max_concurrent_reset_streams(2)
-                .max_send_buf_size(4096)
                 .keep_alive_interval(Some(std::time::Duration::from_secs(120))) // will send ping frames every 120 seconds
                 .keep_alive_timeout(std::time::Duration::from_secs(300)) // if ping frame is not answered after 300 seconds the connection will be dropped
                 .timer(H2Timer)
