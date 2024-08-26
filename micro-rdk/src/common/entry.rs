@@ -1,12 +1,13 @@
 use std::{
     fmt::Debug,
+    net::SocketAddr,
     rc::Rc,
     sync::{Arc, Mutex},
     time::Duration,
 };
 
-#[cfg(feature = "native")]
-use std::net::SocketAddr;
+#[cfg(feature = "esp32")]
+use std::ffi::CString;
 
 use async_io::Timer;
 
@@ -43,15 +44,13 @@ use crate::native::{
 };
 
 #[cfg(feature = "esp32")]
-use crate::{
-    common::conn::mdns::NoMdns,
-    esp32::{
-        certificate::GeneratedWebRtcCertificateBuilder,
-        conn::mdns::Esp32Mdns,
-        dtls::Esp32DtlsBuilder,
-        esp_idf_svc::sys::{settimeofday, timeval},
-        tls::Esp32TLS,
-    },
+use crate::esp32::{
+    certificate::GeneratedWebRtcCertificateBuilder,
+    conn::mdns::Esp32Mdns,
+    dtls::Esp32DtlsBuilder,
+    esp_idf_svc::sys::{settimeofday, timeval},
+    tcp::Esp32Listener,
+    tls::{Esp32TLS, Esp32TLSServerConfig},
 };
 
 pub enum RobotRepresentation {
@@ -181,7 +180,7 @@ pub async fn serve_inner<S>(
     #[cfg(feature = "native")]
     let mdns = NativeMdns::new("".to_owned(), network.get_ip()).unwrap();
     #[cfg(feature = "esp32")]
-    let mdns = NoMdns {};
+    let mdns = Esp32Mdns::new("".to_owned()).unwrap();
 
     #[cfg(feature = "native")]
     let restart = || std::process::exit(0);
@@ -205,20 +204,36 @@ pub async fn serve_inner<S>(
         restart,
     )));
 
-    #[cfg(feature = "native")]
     let server_builder = {
+        let http2_port = 12346;
         server_builder.with_http2(
             {
                 let certs = app_client.get_certificates().await.unwrap();
-                let tls_server_config = NativeTlsServerConfig::new(
-                    certs.tls_certificate.as_bytes().to_vec(),
-                    certs.tls_private_key.as_bytes().to_vec(),
-                );
-                let address: SocketAddr = "0.0.0.0:12346".parse().unwrap();
-                let tls = Box::new(NativeTls::new_server(tls_server_config));
-                NativeListener::new(address.into(), Some(tls)).unwrap()
+                let address = SocketAddr::new("0.0.0.0".parse().unwrap(), http2_port);
+                #[cfg(feature = "native")]
+                {
+                    let tls_server_config = NativeTlsServerConfig::new(
+                        certs.tls_certificate.as_bytes().to_vec(),
+                        certs.tls_private_key.as_bytes().to_vec(),
+                    );
+                    let tls = Box::new(NativeTls::new_server(tls_server_config));
+                    NativeListener::new(address.into(), Some(tls)).unwrap()
+                }
+                #[cfg(feature = "esp32")]
+                {
+                    let tls_server_config = Esp32TLSServerConfig::new(
+                        CString::new(certs.tls_certificate)
+                            .unwrap()
+                            .into_bytes_with_nul(),
+                        CString::new(certs.tls_private_key)
+                            .unwrap()
+                            .into_bytes_with_nul(),
+                    );
+                    let tls = Box::new(Esp32TLS::new_server(tls_server_config));
+                    Esp32Listener::new(address.into(), Some(tls)).unwrap()
+                }
             },
-            12346,
+            http2_port,
         )
     };
 

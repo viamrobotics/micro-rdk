@@ -240,7 +240,7 @@ where
     pub fn build(
         mut self,
         config: &ConfigResponse,
-    ) -> Result<ViamServer<C, T, CC, D, L, NetworkType>, ServerError> {
+    ) -> Result<ViamServer<M, C, T, CC, D, L, NetworkType>, ServerError> {
         let cfg: RobotCloudConfig = config
             .config
             .as_ref()
@@ -286,6 +286,7 @@ where
             self.network,
             self.app_client,
             self.rpc_host,
+            self.mdns,
         );
 
         Ok(srv)
@@ -338,7 +339,7 @@ where
     }
 }
 
-pub struct ViamServer<C, T, CC, D, L, NetworkType> {
+pub struct ViamServer<M, C, T, CC, D, L, NetworkType> {
     http_listener: HttpListener<L, T>,
     webrtc_config: Option<Box<WebRtcConfiguration<D, CC>>>,
     exec: Executor,
@@ -349,9 +350,11 @@ pub struct ViamServer<C, T, CC, D, L, NetworkType> {
     app_client_tasks: Vec<Box<dyn PeriodicAppClientTask>>,
     network: NetworkType,
     rpc_host: String,
+    _mdns: M,
 }
-impl<C, T, CC, D, L, NetworkType> ViamServer<C, T, CC, D, L, NetworkType>
+impl<M, C, T, CC, D, L, NetworkType> ViamServer<M, C, T, CC, D, L, NetworkType>
 where
+    M: Mdns,
     C: TlsClientConnector,
     T: rt::Read + rt::Write + Unpin + 'static,
     CC: Certificate + 'static,
@@ -373,6 +376,7 @@ where
         network: NetworkType,
         app_client: Option<AppClient>,
         rpc_host: String,
+        mdns: M,
     ) -> Self {
         Self {
             http_listener,
@@ -385,6 +389,7 @@ where
             app_client_tasks,
             network,
             rpc_host,
+            _mdns: mdns,
         }
     }
     pub async fn serve(&mut self, robot: Arc<Mutex<LocalRobot>>) {
