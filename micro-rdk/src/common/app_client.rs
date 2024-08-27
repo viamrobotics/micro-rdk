@@ -139,7 +139,7 @@ impl AppClientBuilder {
             .map_err(AppClientError::AppGrpcClientError)?
             .0;
 
-        if r.len() == 0 {
+        if r.is_empty() {
             return Err(AppClientError::AppClientEmptyBody);
         }
         let r = r.split_off(5);
@@ -177,7 +177,7 @@ impl AppClient {
             .map_err(AppClientError::AppGrpcClientError)?;
 
         let (mut r, headers) = self.grpc_client.send_request(r).await?;
-        if r.len() == 0 {
+        if r.is_empty() {
             return Err(AppClientError::AppClientEmptyBody);
         }
         let r = r.split_off(5);
@@ -252,7 +252,7 @@ impl AppClient {
         } else {
             None
         };
-        if r.len() == 0 {
+        if r.is_empty() {
             return Err(AppClientError::AppClientEmptyBody);
         }
         let cfg_response = ConfigResponse::decode(r.split_off(5))?;
@@ -319,7 +319,7 @@ impl AppClient {
             )
             .map_err(AppClientError::AppGrpcClientError)?;
         let (mut response, headers_) = self.grpc_client.send_request(r).await?;
-        if response.len() == 0 {
+        if response.is_empty() {
             return Err(AppClientError::AppClientEmptyBody);
         }
         let response = NeedsRestartResponse::decode(response.split_off(5))?;
