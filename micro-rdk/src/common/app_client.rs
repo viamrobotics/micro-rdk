@@ -319,7 +319,7 @@ impl AppClient {
             )
             .map_err(AppClientError::AppGrpcClientError)?;
         let (mut response, headers_) = self.grpc_client.send_request(r).await?;
-        if r.len() == 0 {
+        if response.len() == 0 {
             return Err(AppClientError::AppClientEmptyBody);
         }
         let response = NeedsRestartResponse::decode(response.split_off(5))?;
