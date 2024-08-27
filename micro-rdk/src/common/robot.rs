@@ -273,8 +273,8 @@ impl LocalRobot {
 
         let components: Result<Vec<Option<DynamicComponentConfig>>, AttributeError> = config_resp
             .config
-            .as_ref()
-            .unwrap()
+            .clone()
+            .unwrap_or_default()
             .components
             .iter()
             .map(|x| x.try_into().map(Option::Some))

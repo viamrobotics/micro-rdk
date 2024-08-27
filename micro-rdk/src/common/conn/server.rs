@@ -241,36 +241,32 @@ where
         mut self,
         config: &ConfigResponse,
     ) -> Result<ViamServer<C, T, CC, D, L, NetworkType>, ServerError> {
-        let cfg: RobotCloudConfig = config
-            .config
-            .as_ref()
-            .unwrap()
-            .cloud
-            .as_ref()
-            .unwrap()
-            .into();
-
-        self.mdns
-            .set_hostname(&cfg.name)
-            .map_err(|e| ServerError::Other(e.into()))?;
-        self.mdns
-            .add_service(
-                &cfg.local_fqdn.replace('.', "-"),
-                "_rpc",
-                "_tcp",
-                self.port,
-                &[("grpc", "")],
-            )
-            .map_err(|e| ServerError::Other(e.into()))?;
-        self.mdns
-            .add_service(
-                &cfg.fqdn.replace('.', "-"),
-                "_rpc",
-                "_tcp",
-                self.port,
-                &[("grpc", "")],
-            )
-            .map_err(|e| ServerError::Other(e.into()))?;
+        if let Some(cloud_config) = config.config.clone().unwrap_or_default().cloud {
+            let cfg: RobotCloudConfig = cloud_config.into();
+            self.mdns
+                .set_hostname(&cfg.name)
+                .map_err(|e| ServerError::Other(e.into()))?;
+            self.mdns
+                .add_service(
+                    &cfg.local_fqdn.replace('.', "-"),
+                    "_rpc",
+                    "_tcp",
+                    self.port,
+                    &[("grpc", "")],
+                )
+                .map_err(|e| ServerError::Other(e.into()))?;
+            self.mdns
+                .add_service(
+                    &cfg.fqdn.replace('.', "-"),
+                    "_rpc",
+                    "_tcp",
+                    self.port,
+                    &[("grpc", "")],
+                )
+                .map_err(|e| ServerError::Other(e.into()))?;
+        } else {
+            log::error!("RobotCloudConfig not available, mdns not set");
+        }
 
         let cloned_exec = self.exec.clone();
         let http2_listener = HttpListener::new(self.http2_listener);
