@@ -230,7 +230,7 @@ pub async fn serve_inner<S>(
                             .into_bytes_with_nul(),
                     );
                     let tls = Box::new(Esp32TLS::new_server(tls_server_config));
-                    Esp32Listener::new(address.into(), Some(tls)).unwrap()
+                    Esp32Listener::new(address, Some(tls)).unwrap()
                 }
             },
             http2_port,

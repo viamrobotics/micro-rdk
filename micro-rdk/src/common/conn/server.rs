@@ -237,6 +237,7 @@ where
         }
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn build(
         mut self,
         config: &ConfigResponse,
