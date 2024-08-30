@@ -232,8 +232,10 @@ pub async fn serve_inner<S>(
         .unwrap();
 
     // Attempt to cache the config for the machine we are about to `serve`.
-    if let Err(e) = storage.store_robot_configuration(cfg_response.config.unwrap_or_default()) {
-        log::warn!("Failed to store robot configuration: {}", e);
+    if let Some(config) = cfg_response.config {
+        if let Err(e) = storage.store_robot_configuration(config) {
+            log::warn!("Failed to store robot configuration: {}", e);
+        }
     }
 
     server.serve(robot).await;
