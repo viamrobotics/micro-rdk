@@ -264,8 +264,6 @@ where
                     &[("grpc", "")],
                 )
                 .map_err(|e| ServerError::Other(e.into()))?;
-        } else {
-            log::error!("RobotCloudConfig not available, mdns not set");
         }
 
         let cloned_exec = self.exec.clone();
