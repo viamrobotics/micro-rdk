@@ -6,9 +6,11 @@ use std::{
 
 use crate::{
     common::{
+        board::Board,
         camera::{Camera, CameraError, CameraType},
         config::ConfigType,
-        registry::{ComponentRegistry, Dependency},
+        i2c::I2cHandleType,
+        registry::{get_board_from_dependencies, ComponentRegistry, Dependency},
         status::{Status, StatusError},
     },
     esp32::esp_idf_svc::sys::{
@@ -81,18 +83,35 @@ enum FrameSize {
 #[derive(DoCommand)]
 pub struct Esp32Camera {
     config: camera_config_t,
+    i2c_handle: I2cHandleType,
 }
 
 impl Esp32Camera {
     pub(crate) fn from_config(
         cfg: ConfigType,
-        _: Vec<Dependency>,
+        dependencies: Vec<Dependency>,
     ) -> Result<CameraType, CameraError> {
+        let board = get_board_from_dependencies(dependencies);
+        if board.is_none() {
+            return Err(CameraError::ConfigError("Esp32Camera missing board"));
+        }
+        let board = board.unwrap();
+        let i2c_handle: I2cHandleType;
+        if let Ok(i2c_name) = cfg.get_attribute::<String>("i2c_bus") {
+            i2c_handle = board.get_i2c_by_name(i2c_name)?;
+        } else {
+            return Err(CameraError::ConfigError("Esp32Camera missing i2c_bus"));
+        }
+
+        // esp32-camera can initialize an i2c bus via `camera_config_t` and
+        // `esp_camera_init`; we are choosing not exposing it, enforcing i2c bus
+        // initialization through a `Board`.
+        let sccb_i2c_port: i32 = *(i2c_handle.lock().unwrap()).port();
+        let pin_sccb_sda = -1;
+        let pin_sccb_scl = -1;
+
         let pin_pwdn = cfg.get_attribute::<i32>("pin_pwdn").unwrap_or(-1);
         let pin_reset = cfg.get_attribute::<i32>("pin_reset").unwrap_or(-1);
-        let pin_xclk = cfg.get_attribute::<i32>("pin_xclk").unwrap_or(21);
-        let pin_sccb_sda = cfg.get_attribute::<i32>("pin_sccb_sda").unwrap_or(26);
-        let pin_sccb_scl = cfg.get_attribute::<i32>("pin_sccb_scl").unwrap_or(27);
         let pin_d7 = cfg.get_attribute::<i32>("pin_d7").unwrap_or(35);
         let pin_d6 = cfg.get_attribute::<i32>("pin_d6").unwrap_or(34);
         let pin_d5 = cfg.get_attribute::<i32>("pin_d5").unwrap_or(39);
@@ -104,6 +123,7 @@ impl Esp32Camera {
         let pin_vsync = cfg.get_attribute::<i32>("pin_vsync").unwrap_or(25);
         let pin_href = cfg.get_attribute::<i32>("pin_href").unwrap_or(23);
         let pin_pclk = cfg.get_attribute::<i32>("pin_pclk").unwrap_or(22);
+        let pin_xclk = cfg.get_attribute::<i32>("pin_xclk").unwrap_or(21);
         let xclk_freq_hz = cfg
             .get_attribute::<i32>("xclk_freq_hz")
             .unwrap_or(20_000_000);
@@ -121,8 +141,6 @@ impl Esp32Camera {
             pin_pwdn,
             pin_reset,
             pin_xclk,
-            __bindgen_anon_1: camera_config_t__bindgen_ty_1 { pin_sccb_sda },
-            __bindgen_anon_2: camera_config_t__bindgen_ty_2 { pin_sccb_scl },
             pin_d7,
             pin_d6,
             pin_d5,
@@ -147,6 +165,9 @@ impl Esp32Camera {
             fb_count: 1,
             grab_mode: 0,
             fb_location: 0,
+
+            __bindgen_anon_1: camera_config_t__bindgen_ty_1 { pin_sccb_sda },
+            __bindgen_anon_2: camera_config_t__bindgen_ty_2 { pin_sccb_scl },
             sccb_i2c_port,
         };
 
@@ -168,7 +189,7 @@ impl Esp32Camera {
 
         *registered = true;
 
-        Ok(Arc::new(Mutex::new(Self { config })))
+        Ok(Arc::new(Mutex::new(Self { config, i2c_handle })))
     }
 }
 

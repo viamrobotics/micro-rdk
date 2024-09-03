@@ -1,4 +1,4 @@
-use super::{generic::DoCommand, registry::ComponentRegistry, status::Status};
+use super::{board::BoardError, generic::DoCommand, registry::ComponentRegistry, status::Status};
 use bytes::BytesMut;
 use prost::EncodeError;
 use std::sync::{Arc, Mutex};
@@ -25,6 +25,8 @@ pub static COMPONENT_NAME: &str = "camera";
 pub enum CameraError {
     #[error("cannot build camera {0}")]
     InitError(#[from] Box<dyn std::error::Error + Sync + Send>),
+    #[error(transparent)]
+    BoardError(#[from] BoardError),
     #[error("config error {0}")]
     ConfigError(&'static str),
     #[error("frame of size {0} greater than internal buffer capacity {1}, consider reducing camera's frame_size")]
