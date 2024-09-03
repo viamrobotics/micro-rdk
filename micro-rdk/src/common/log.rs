@@ -12,7 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use super::app_client::PeriodicAppClientTask;
+use super::app_client::{AppClient, AppClientError, PeriodicAppClientTask};
 
 // We need a static buffer of logs on the heap, but because we cannot guarantee that the current time has been set
 // at every instance of logging, so we store each log alongside an instance of Instant. We assume that current time
@@ -111,11 +111,11 @@ impl PeriodicAppClientTask for LogUploadTask {
     }
     fn invoke<'b, 'a: 'b>(
         &'a mut self,
-        app_client: &'b super::app_client::AppClient,
+        app_client: &'b AppClient,
     ) -> std::pin::Pin<
         Box<
             dyn std::future::Future<
-                    Output = Result<Option<Duration>, super::app_client::AppClientError>,
+                    Output = Result<Option<Duration>, AppClientError>,
                 > + 'b,
         >,
     > {

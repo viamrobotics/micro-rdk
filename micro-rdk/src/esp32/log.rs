@@ -2,7 +2,7 @@
 //! (see common/log.rs for more details). On an ESP32, there are two sources of logs: logs from ESP-IDF,
 //! and logs from various Rust crates. The EspLogger from esp-idf-svc efficiently redirects the latter
 //! logs to UART in a format matching the first, so it is sufficient to simply wrap it. However
-//! to capture ESP-IDF logs, it is necessary to use the replace the default vprintf function to write to LOG_BUFFER
+//! to capture ESP-IDF logs, it is necessary to replace the default vprintf function to write to LOG_BUFFER
 //! (again, see common/log.rs) before invoking the previously existing vprintf function in order to write to
 //! UART. We store the previous vprintf function in PREVIOUS_LOGGER and use esp_log_set_vprintf for this purpose.
 use crate::{
@@ -20,19 +20,15 @@ use std::{ffi::c_char, sync::Mutex};
 
 use crate::common::log::{get_log_buffer, ViamLogAdapter};
 
-fn previous_logger() -> &'static Mutex<vprintf_like_t> {
-    static PREVIOUS_LOGGER: OnceLock<Mutex<vprintf_like_t>> = OnceLock::new();
-    PREVIOUS_LOGGER.get_or_init(|| Mutex::new(None))
-}
+static PREVIOUS_LOGGER: OnceLock<Mutex<vprintf_like_t>> = OnceLock::new();
+static CURRENT_LOG_STATEMENT: OnceLock<Mutex<Vec<String>>> = OnceLock::new();
 
-fn current_log_statement() -> &'static Mutex<Vec<String>> {
-    static CURRENT_LOG_STATEMENT: OnceLock<Mutex<Vec<String>>> = OnceLock::new();
-    CURRENT_LOG_STATEMENT.get_or_init(|| Mutex::new(vec![]))
-}
+const MESSAGE_START: &str = "\x1b[0;";
+const MESSAGE_END: &str = "\x1b[0m";
 
 // A single log statement is often broken up into multiple calls to vprintf. So we store
 // the fragments in CURRENT_LOG_STATEMENT. Detecting whether we have encountered the start
-// of a new statement is futher complicated by the fact that, depending on the ESP-IDF component
+// of a new statement is further complicated by the fact that, depending on the ESP-IDF component
 // producing the log, the statement can be in one of the following formats
 //
 // "\x1b[0;<color_indicator>m<level_indicator> ... \x1b[0m"
@@ -48,8 +44,8 @@ unsafe extern "C" fn log_handler(arg1: *const c_char, arg2: va_list) -> i32 {
     let message_clone = message.clone();
     let start_of_new_statement = (message_clone.len() >= 3)
         && (matches!(&message_clone[..3], "I (" | "E (" | "W (" | "D (" | "V (")
-            || message_clone.starts_with("\x1b[0;"));
-    let mut current_fragments = current_log_statement().lock().unwrap();
+            || message_clone.starts_with(MESSAGE_START));
+    let mut current_fragments = CURRENT_LOG_STATEMENT.get_or_init(|| Mutex::new(vec![])).lock().unwrap();
     if start_of_new_statement && !current_fragments.is_empty() {
         let full_message = current_fragments.join(" ");
         let _ = get_log_buffer()
@@ -58,7 +54,7 @@ unsafe extern "C" fn log_handler(arg1: *const c_char, arg2: va_list) -> i32 {
         current_fragments.clear();
     }
     current_fragments.push(message_clone);
-    if let Some(prev_logger) = *(previous_logger().lock().unwrap()) {
+    if let Some(prev_logger) = *(PREVIOUS_LOGGER.get_or_init(|| Mutex::new(None)).lock().unwrap()) {
         prev_logger(arg1, arg2)
     } else {
         0
@@ -66,10 +62,10 @@ unsafe extern "C" fn log_handler(arg1: *const c_char, arg2: va_list) -> i32 {
 }
 
 fn process_current_statement_and_level(mut full_message: String) -> ViamLogEntry {
-    let (mut message, level_initial) = if full_message.starts_with("\x1b[0;") {
-        let stripped = full_message.split_off("\x1b[0;".len() + 3);
+    let (mut message, level_initial) = if full_message.starts_with(MESSAGE_START) {
+        let stripped = full_message.split_off(MESSAGE_START.len() + 3);
         let mut stripped_end = stripped
-            .strip_suffix("\x1b[0m")
+            .strip_suffix(MESSAGE_END)
             .unwrap_or(stripped.as_str())
             .to_string();
         let stripped_without_level = stripped_end.split_off(2);
@@ -116,7 +112,7 @@ fn process_current_statement_and_level(mut full_message: String) -> ViamLogEntry
 
 impl ViamLogAdapter for EspLogger {
     fn before_log_setup(&self) {
-        let mut guard = previous_logger().lock().unwrap();
+        let mut guard = PREVIOUS_LOGGER.get_or_init(|| Mutex::new(None)).lock().unwrap();
         *guard = unsafe { esp_log_set_vprintf(Some(log_handler)) };
         self.initialize();
     }
