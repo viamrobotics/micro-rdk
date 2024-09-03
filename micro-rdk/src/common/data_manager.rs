@@ -363,8 +363,28 @@ where
 
     async fn run<'b>(&mut self, app_client: &'b AppClient) -> Result<(), AppClientError> {
         for collector_key in self.resource_method_keys.iter() {
+            // Since a write may occur in between uploading consecutive chunks of data, we want to make
+            // sure only to process the messages initially present in this region of the store.
+            let total_messages = {
+                let store_lock = self.store.lock().await;
+                match store_lock.get_reader(collector_key) {
+                    Ok(reader) => reader.len(),
+                    Err(err) => {
+                        log::error!(
+                            "error acquiring reader for collector key ({:?}): {:?}",
+                            collector_key,
+                            err
+                        );
+                        0
+                    }
+                }
+            };
+            if total_messages == 0 {
+                continue;
+            }
+            let mut messages_processed = 0;
+
             let mut current_chunk: Vec<BytesMut> = vec![];
-            let mut current_chunk_size: usize = 0;
             // we process the data for this region of the store in chunks, each iteration of this loop
             // should represent the processing and uploading of a single chunk of data
             loop {
@@ -381,7 +401,10 @@ where
                     }
                 };
                 let next_message = match reader.read_next_message() {
-                    Ok(msg) => msg,
+                    Ok(msg) => {
+                        messages_processed += 1;
+                        msg
+                    }
                     Err(err) => {
                         log::error!(
                             "error reading message from store for collector key ({:?}): {:?}",
@@ -395,17 +418,12 @@ where
                     }
                 };
 
-                // if the first message is empty, we've reached the end of the store region
-                // and it's time to move on to the next collector
-                if next_message.is_empty() {
-                    break;
-                } else if next_message.len() > MAX_SENSOR_CONTENTS_SIZE {
+                if next_message.len() > MAX_SENSOR_CONTENTS_SIZE {
                     log::error!(
                         "message encountered that was too large (>32K bytes) for collector {:?}",
                         collector_key
                     );
                 } else {
-                    current_chunk_size = next_message.len();
                     current_chunk.push(next_message);
                 }
 
@@ -417,7 +435,10 @@ where
                 // uploaded it
                 let (upload_data, next_chunk_first_message) = loop {
                     let next_message = match reader.read_next_message() {
-                        Ok(msg) => msg,
+                        Ok(msg) => {
+                            messages_processed += 1;
+                            msg
+                        }
                         Err(err) => {
                             log::error!(
                                 "error reading message from store for collector key ({:?}): {:?}",
@@ -440,7 +461,8 @@ where
                         );
                         continue;
                     }
-                    if next_message.is_empty()
+                    let current_chunk_size: usize = current_chunk.iter().map(|c| c.len()).sum();
+                    if (messages_processed >= total_messages)
                         || ((next_message.len() + current_chunk_size) > MAX_SENSOR_CONTENTS_SIZE)
                     {
                         let data: Result<Vec<SensorData>, DataSyncError> = current_chunk
@@ -467,7 +489,6 @@ where
                         }
                         break (data, Some(next_message));
                     } else {
-                        current_chunk_size += next_message.len();
                         current_chunk.push(next_message);
                     }
                 };
@@ -499,7 +520,6 @@ where
                     match app_client.upload_data(upload_request).await {
                         Ok(_) => {
                             if let Some(next_message) = next_chunk_first_message {
-                                current_chunk_size = next_message.len();
                                 current_chunk = vec![next_message];
                             }
                             #[cfg(feature = "data-upload-hook-unstable")]
@@ -628,6 +648,9 @@ mod tests {
     impl DataStoreReader for NoOpReader {
         fn read_next_message(&mut self) -> Result<BytesMut, DataStoreError> {
             Err(DataStoreError::Unimplemented)
+        }
+        fn len(&self) -> usize {
+            1
         }
         fn flush(self) {}
     }
@@ -932,6 +955,9 @@ mod tests {
                 }
                 None => Ok(BytesMut::with_capacity(0)),
             }
+        }
+        fn len(&self) -> usize {
+            self.store.borrow().len()
         }
         fn flush(self) {}
     }

@@ -52,12 +52,14 @@ pub enum DataStoreError {
     Unimplemented,
 }
 
-/// A trait for an entity that is capable of reading from a store without consuming
-/// the messages until a command to flush the read messages is sent
+/// A trait for an entity that is capable of reading from a store region without consuming
+/// the messages until a command to flush the read messages is sent.
 pub trait DataStoreReader {
     /// Reads the next available message in the store for the given ResourceMethodKey. It should return
     /// an empty BytesMut with 0 capacity when there are no available messages left.
     fn read_next_message(&mut self) -> Result<BytesMut, DataStoreError>;
+    /// Returns the number of messages currently in the store region.
+    fn len(&self) -> usize;
     fn flush(self);
 }
 
@@ -134,6 +136,9 @@ impl DataStoreReader for DefaultDataStoreReader {
         msg_bytes.extend(chained_iter);
         self.current_idx += len_len + encoded_len;
         Ok(msg_bytes)
+    }
+    fn len(&self) -> usize {
+        self.cons.len()
     }
     fn flush(mut self) {
         self.cons.skip(self.current_idx - self.start_idx);
