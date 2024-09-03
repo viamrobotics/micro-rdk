@@ -332,6 +332,7 @@ fn init_logger() {
 
 fn main() -> Result<(), Error> {
     init_logger();
+    log::info!("Running Micro-RDK installer version {}", clap::crate_version!());
     let cli = Cli::parse();
     match &cli.command {
         Some(Commands::UpdateAppImage(args)) => update_app_image(args)?,
