@@ -145,10 +145,11 @@ pub async fn serve_inner<S>(
                 cfg_received_datetime,
             ) {
                 Ok(robot) => (robot, None),
-                Err(err) => (LocalRobot::new(), Some(err))
+                Err(err) => (LocalRobot::new(), Some(err)),
             };
             if let Some(err) = err {
-                log::error!("could not build robot from config due to {:?}, defaulting to empty robot until a valid config is accessible", err);            } else {
+                log::error!("could not build robot from config due to {:?}, defaulting to empty robot until a valid config is accessible", err);
+            } else {
                 log::info!("successfully created robot from config");
             };
             Arc::new(Mutex::new(r))

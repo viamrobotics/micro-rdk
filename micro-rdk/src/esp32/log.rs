@@ -45,7 +45,10 @@ unsafe extern "C" fn log_handler(arg1: *const c_char, arg2: va_list) -> i32 {
     let start_of_new_statement = (message_clone.len() >= 3)
         && (matches!(&message_clone[..3], "I (" | "E (" | "W (" | "D (" | "V (")
             || message_clone.starts_with(MESSAGE_START));
-    let mut current_fragments = CURRENT_LOG_STATEMENT.get_or_init(|| Mutex::new(vec![])).lock().unwrap();
+    let mut current_fragments = CURRENT_LOG_STATEMENT
+        .get_or_init(|| Mutex::new(vec![]))
+        .lock()
+        .unwrap();
     if start_of_new_statement && !current_fragments.is_empty() {
         let full_message = current_fragments.join(" ");
         let _ = get_log_buffer()
@@ -54,7 +57,11 @@ unsafe extern "C" fn log_handler(arg1: *const c_char, arg2: va_list) -> i32 {
         current_fragments.clear();
     }
     current_fragments.push(message_clone);
-    if let Some(prev_logger) = *(PREVIOUS_LOGGER.get_or_init(|| Mutex::new(None)).lock().unwrap()) {
+    if let Some(prev_logger) = *(PREVIOUS_LOGGER
+        .get_or_init(|| Mutex::new(None))
+        .lock()
+        .unwrap())
+    {
         prev_logger(arg1, arg2)
     } else {
         0
@@ -112,7 +119,10 @@ fn process_current_statement_and_level(mut full_message: String) -> ViamLogEntry
 
 impl ViamLogAdapter for EspLogger {
     fn before_log_setup(&self) {
-        let mut guard = PREVIOUS_LOGGER.get_or_init(|| Mutex::new(None)).lock().unwrap();
+        let mut guard = PREVIOUS_LOGGER
+            .get_or_init(|| Mutex::new(None))
+            .lock()
+            .unwrap();
         *guard = unsafe { esp_log_set_vprintf(Some(log_handler)) };
         self.initialize();
     }

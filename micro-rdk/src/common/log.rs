@@ -113,24 +113,19 @@ impl PeriodicAppClientTask for LogUploadTask {
         &'a mut self,
         app_client: &'b AppClient,
     ) -> std::pin::Pin<
-        Box<
-            dyn std::future::Future<
-                    Output = Result<Option<Duration>, AppClientError>,
-                > + 'b,
-        >,
+        Box<dyn std::future::Future<Output = Result<Option<Duration>, AppClientError>> + 'b>,
     > {
         Box::pin(async move {
-            let mut logs = get_log_buffer().lock().await;
-            if logs.len() > 0 {
-                let entries: Vec<LogEntry> = logs
-                    .pop_iter()
+            let entries: Vec<LogEntry> = {
+                let mut logs = get_log_buffer().lock().await;
+                logs.pop_iter()
                     .map(|log_entry| log_entry.get_time_corrected_entry())
-                    .collect();
-                // don't hold on to the buffer lock over the outgoing request to app.viam.com
-                std::mem::drop(logs);
-                app_client.push_logs(entries).await.map(|_| None)
-            } else {
+                    .collect()
+            };
+            if entries.is_empty() {
                 Ok(None)
+            } else {
+                app_client.push_logs(entries).await.map(|_| None)
             }
         })
     }
@@ -140,19 +135,6 @@ pub trait ViamLogAdapter {
     fn before_log_setup(&self);
     fn get_level_filter(&self) -> ::log::LevelFilter;
     fn new() -> Self;
-}
-
-#[cfg(not(feature = "esp32"))]
-impl ViamLogAdapter for env_logger::Logger {
-    fn before_log_setup(&self) {}
-    fn get_level_filter(&self) -> ::log::LevelFilter {
-        self.filter()
-    }
-    fn new() -> Self {
-        env_logger::builder()
-            .format_timestamp(Some(env_logger::TimestampPrecision::Millis))
-            .build()
-    }
 }
 
 // ViamLogger is a wrapper around an existing logger that stores a copy into LOG_BUFFER for later
