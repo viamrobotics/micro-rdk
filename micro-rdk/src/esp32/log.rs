@@ -123,7 +123,9 @@ impl ViamLogAdapter for EspLogger {
             .get_or_init(|| Mutex::new(None))
             .lock()
             .unwrap();
-        *guard = unsafe { esp_log_set_vprintf(Some(log_handler)) };
+        if guard.is_none() {
+            *guard = unsafe { esp_log_set_vprintf(Some(log_handler)) };
+        }
         self.initialize();
     }
     fn get_level_filter(&self) -> ::log::LevelFilter {
