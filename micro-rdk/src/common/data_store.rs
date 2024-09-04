@@ -59,7 +59,7 @@ pub trait DataStoreReader {
     /// an empty BytesMut with 0 capacity when there are no available messages left.
     fn read_next_message(&mut self) -> Result<BytesMut, DataStoreError>;
     /// Returns the number of messages currently in the store region.
-    fn len(&self) -> usize;
+    fn messages_remaining(&self) -> usize;
     fn flush(self);
 }
 
@@ -137,7 +137,7 @@ impl DataStoreReader for DefaultDataStoreReader {
         self.current_idx += len_len + encoded_len;
         Ok(msg_bytes)
     }
-    fn len(&self) -> usize {
+    fn messages_remaining(&self) -> usize {
         self.cons.len()
     }
     fn flush(mut self) {

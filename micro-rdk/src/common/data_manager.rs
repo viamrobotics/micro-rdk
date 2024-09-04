@@ -368,7 +368,7 @@ where
             let total_messages = {
                 let store_lock = self.store.lock().await;
                 match store_lock.get_reader(collector_key) {
-                    Ok(reader) => reader.len(),
+                    Ok(reader) => reader.messages_remaining(),
                     Err(err) => {
                         log::error!(
                             "error acquiring reader for collector key ({:?}): {:?}",
@@ -649,7 +649,7 @@ mod tests {
         fn read_next_message(&mut self) -> Result<BytesMut, DataStoreError> {
             Err(DataStoreError::Unimplemented)
         }
-        fn len(&self) -> usize {
+        fn messages_remaining(&self) -> usize {
             1
         }
         fn flush(self) {}
@@ -956,7 +956,7 @@ mod tests {
                 None => Ok(BytesMut::with_capacity(0)),
             }
         }
-        fn len(&self) -> usize {
+        fn messages_remaining(&self) -> usize {
             self.store.borrow().len()
         }
         fn flush(self) {}
