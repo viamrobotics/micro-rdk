@@ -106,7 +106,7 @@ impl Esp32Camera {
         // esp32-camera can initialize an i2c bus via `camera_config_t` and
         // `esp_camera_init`; we are choosing not exposing it, enforcing i2c bus
         // initialization through a `Board`.
-        let sccb_i2c_port: i32 = *(i2c_handle.lock().unwrap()).port();
+        let sccb_i2c_port: i32 = i2c_handle.lock().bus_no() as i32;
         let pin_sccb_sda = -1;
         let pin_sccb_scl = -1;
 
