@@ -57,13 +57,9 @@ unsafe extern "C" fn log_handler(arg1: *const c_char, arg2: va_list) -> i32 {
         current_fragments.clear();
     }
     current_fragments.push(message_clone);
-    if let Some(prev_logger) = PREVIOUS_LOGGER.get() {
-        if let Some(prev_logger) = prev_logger {
-            let fmt_c_str = CString::new(message).unwrap();
-            prev_logger(fmt_c_str.as_ptr() as *const c_char, [0; 3])
-        } else {
-            0
-        }
+    if let Some(prev_logger) = PREVIOUS_LOGGER.get().unwrap_or(&None) {
+        let fmt_c_str = CString::new(message).unwrap();
+        prev_logger(fmt_c_str.as_ptr() as *const c_char, [0; 3])
     } else {
         0
     }
