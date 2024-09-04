@@ -51,6 +51,10 @@ pub mod proto {
     // Don't bother to clippy generated proto code
     #![allow(clippy::all)]
 
+    pub mod api_version {
+        include!("gen/api_version.rs");
+    }
+
     pub mod provisioning {
         pub mod v1 {
             include!("gen/viam.provisioning.v1.rs");
