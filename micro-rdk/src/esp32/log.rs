@@ -15,12 +15,12 @@ use esp_idf_svc::log::EspLogger;
 use esp_idf_svc::sys::{esp_log_set_vprintf, va_list, vprintf_like_t};
 use printf_compat::output::display;
 use ringbuf::Rb;
-use std::{collections::HashMap, sync::OnceLock};
+use std::{collections::HashMap, ffi::CString, sync::OnceLock};
 use std::{ffi::c_char, sync::Mutex};
 
 use crate::common::log::{get_log_buffer, ViamLogAdapter};
 
-static PREVIOUS_LOGGER: OnceLock<Mutex<vprintf_like_t>> = OnceLock::new();
+static PREVIOUS_LOGGER: OnceLock<vprintf_like_t> = OnceLock::new();
 static CURRENT_LOG_STATEMENT: OnceLock<Mutex<Vec<String>>> = OnceLock::new();
 
 const MESSAGE_START: &str = "\x1b[0;";
@@ -40,7 +40,7 @@ const MESSAGE_END: &str = "\x1b[0m";
 unsafe extern "C" fn log_handler(arg1: *const c_char, arg2: va_list) -> i32 {
     let va_list: core::ffi::VaList = std::mem::transmute(&arg2);
     let fmt_message = display(arg1, va_list);
-    let message = format!("{}", fmt_message).trim().to_string();
+    let message = format!("{}", fmt_message).to_string();
     let message_clone = message.clone();
     let start_of_new_statement = (message_clone.len() >= 3)
         && (matches!(&message_clone[..3], "I (" | "E (" | "W (" | "D (" | "V (")
@@ -57,12 +57,13 @@ unsafe extern "C" fn log_handler(arg1: *const c_char, arg2: va_list) -> i32 {
         current_fragments.clear();
     }
     current_fragments.push(message_clone);
-    if let Some(prev_logger) = *(PREVIOUS_LOGGER
-        .get_or_init(|| Mutex::new(None))
-        .lock()
-        .unwrap())
-    {
-        prev_logger(arg1, arg2)
+    if let Some(prev_logger) = PREVIOUS_LOGGER.get() {
+        if let Some(prev_logger) = prev_logger {
+            let fmt_c_str = CString::new(message).unwrap();
+            prev_logger(fmt_c_str.as_ptr() as *const c_char, [0; 3])
+        } else {
+            0
+        }
     } else {
         0
     }
@@ -119,13 +120,7 @@ fn process_current_statement_and_level(mut full_message: String) -> ViamLogEntry
 
 impl ViamLogAdapter for EspLogger {
     fn before_log_setup(&self) {
-        let mut guard = PREVIOUS_LOGGER
-            .get_or_init(|| Mutex::new(None))
-            .lock()
-            .unwrap();
-        if guard.is_none() {
-            *guard = unsafe { esp_log_set_vprintf(Some(log_handler)) };
-        }
+        let _ = PREVIOUS_LOGGER.get_or_init(|| unsafe { esp_log_set_vprintf(Some(log_handler)) });
         self.initialize();
     }
     fn get_level_filter(&self) -> ::log::LevelFilter {
