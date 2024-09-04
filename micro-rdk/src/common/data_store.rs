@@ -281,7 +281,7 @@ impl DataStore for DefaultDataStore {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::common::data_collector::{CollectionMethod, ResourceMethodKey, DEFAULT_CACHE_SIZE};
+    use crate::common::data_collector::{CollectionMethod, ResourceMethodKey};
     use crate::common::data_store::DataStore;
     use crate::common::data_store::DataStoreError;
     use crate::common::data_store::DataStoreReader;
@@ -372,10 +372,7 @@ mod tests {
                 ]),
             })),
         };
-        let collector_keys = vec![
-            (thing_key.clone(), DEFAULT_CACHE_SIZE as usize),
-            (thing_2_key.clone(), DEFAULT_CACHE_SIZE as usize),
-        ];
+        let collector_keys = vec![(thing_key.clone(), 5120), (thing_2_key.clone(), 5120)];
         let store = super::DefaultDataStore::new(collector_keys);
         assert!(store.is_ok());
         let mut store = store.unwrap();
@@ -577,10 +574,7 @@ mod tests {
             component_type: "rdk::component::movement_sensor".to_string(),
             method: CollectionMethod::Readings,
         };
-        let collector_keys = vec![
-            (thing_key.clone(), DEFAULT_CACHE_SIZE as usize),
-            (thing_2_key.clone(), DEFAULT_CACHE_SIZE as usize),
-        ];
+        let collector_keys = vec![(thing_key.clone(), 5120), (thing_2_key.clone(), 5120)];
         std::mem::drop(store);
         let store = super::DefaultDataStore::new(collector_keys);
         assert!(store.is_ok());
