@@ -97,6 +97,7 @@ pub async fn serve_inner<S>(
 
     let robot_credentials = app_client.robot_credentials();
 
+    // TODO(RSDK-8689)
     let (cfg_response, cfg_received_datetime) = {
         let config = app_client.get_app_config(Some(network.get_ip())).await;
         config.unwrap_or_else(|e| {
