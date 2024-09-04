@@ -90,7 +90,7 @@ impl<'a> Esp32I2C<'a> {
                     .map_err(|e| I2CErrors::I2COtherError(Box::new(e)))?;
                 Ok(Esp32I2C {
                     name,
-		    bus_no: 0,
+                    bus_no: 0,
                     driver,
                     timeout_ns,
                 })
@@ -101,7 +101,7 @@ impl<'a> Esp32I2C<'a> {
                     .map_err(|e| I2CErrors::I2COtherError(Box::new(e)))?;
                 Ok(Esp32I2C {
                     name,
-		    bus_no: 1,
+                    bus_no: 1,
                     driver,
                     timeout_ns,
                 })

@@ -106,7 +106,7 @@ impl Esp32Camera {
         // esp32-camera can initialize an i2c bus via `camera_config_t` and
         // `esp_camera_init`; we are choosing not exposing it, enforcing i2c bus
         // initialization through a `Board`.
-        let sccb_i2c_port: i32 = i2c_handle.lock().bus_no() as i32;
+        let sccb_i2c_port: i32 = i2c_handle.lock().unwrap().bus_no() as i32;
         let pin_sccb_sda = -1;
         let pin_sccb_scl = -1;
 
@@ -135,7 +135,6 @@ impl Esp32Camera {
         // Quality of JPEG output: 0-63 lower means higher quality
         let jpeg_quality = cfg.get_attribute::<i32>("jpeg_quality").unwrap_or(32);
         //  If pin_sccb_sda is -1, use the already configured I2C bus by number
-        let sccb_i2c_port = cfg.get_attribute::<i32>("sccb_i2c_port").unwrap_or(-1);
 
         let config = camera_config_t {
             pin_pwdn,
