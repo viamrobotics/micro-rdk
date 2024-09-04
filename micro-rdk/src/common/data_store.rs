@@ -34,6 +34,8 @@ pub enum DataStoreError {
     NoCollectors,
     #[error(transparent)]
     EncodingError(#[from] EncodeError),
+    #[error("Maximum allowed capacity (64 KB) across data collectors exceeded")]
+    MaxAllowedCapacity,
     #[error("SensorDataTooLarge")]
     DataTooLarge,
     #[error("Data write failure")]
@@ -86,6 +88,8 @@ pub trait DataStore {
     fn get_reader(&self, collector_key: &ResourceMethodKey)
         -> Result<Self::Reader, DataStoreError>;
 }
+
+const MAX_ALLOWED_TOTAL_CAPACITY: usize = 64000;
 
 pub type StoreRegion = Rc<LocalRb<u8, Vec<MaybeUninit<u8>>>>;
 
@@ -161,8 +165,14 @@ impl DefaultDataStore {
         let mut buffers = Vec::new();
         let mut buffer_usages = Vec::new();
         let mut collector_keys = vec![];
+        let mut total_capacity = 0;
         for (collector_key, capacity) in collector_settings {
             collector_keys.push(collector_key);
+            if total_capacity + capacity > MAX_ALLOWED_TOTAL_CAPACITY {
+                return Err(DataStoreError::MaxAllowedCapacity);
+            } else {
+                total_capacity += capacity;
+            }
             buffers.push(Rc::new(LocalRb::new(capacity)));
             buffer_usages.push(Rc::new(AtomicBool::new(false)));
         }

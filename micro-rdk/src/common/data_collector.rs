@@ -13,7 +13,7 @@ use super::{
 
 use thiserror::Error;
 
-pub(crate) const DEFAULT_CACHE_SIZE: f64 = 30240.0;
+pub(crate) const DEFAULT_CACHE_SIZE_KB: f64 = 1.0;
 
 /// A DataCollectorConfig instance is a representation of an element
 /// of the list of "capture_methods" in the "attributes" section of a
@@ -40,10 +40,16 @@ impl TryFrom<&Kind> for DataCollectorConfig {
                 "capture_frequency_hz".to_string(),
             ))?
             .try_into()?;
-        let capacity = value
-            .get("cache_size")?
-            .unwrap_or(&Kind::NumberValue(DEFAULT_CACHE_SIZE))
+        let capacity_kb: f64 = value
+            .get("cache_size_kb")?
+            .unwrap_or(&Kind::NumberValue(DEFAULT_CACHE_SIZE_KB))
             .try_into()?;
+        let capacity = (capacity_kb * 1000.0) as usize;
+        if capacity < 1000 {
+            return Err(AttributeError::ValidationError(
+                "cache size must be at least 1KB".to_string(),
+            ));
+        }
         // TODO: RSDK-7127 - Collectors that take arguments (ex. Board Analogs)
         let method = match method_str.as_str() {
             "Readings" => CollectionMethod::Readings,
@@ -280,7 +286,7 @@ mod tests {
 
     use super::{
         CollectionMethod, DataCollectionError, DataCollector, DataCollectorConfig,
-        DEFAULT_CACHE_SIZE,
+        DEFAULT_CACHE_SIZE_KB,
     };
     use crate::common::config::{AttributeError, Kind};
     use crate::common::robot::ResourceType;
@@ -301,7 +307,7 @@ mod tests {
         let conf: DataCollectorConfig = (&conf_kind).try_into()?;
         assert!(matches!(conf.method, CollectionMethod::Readings));
         assert_eq!(conf.capture_frequency_hz, 100.0);
-        assert_eq!(conf.capacity, DEFAULT_CACHE_SIZE as usize);
+        assert_eq!(conf.capacity, (DEFAULT_CACHE_SIZE_KB * 1000.0) as usize);
 
         let kind_map = HashMap::from([
             (
@@ -309,13 +315,25 @@ mod tests {
                 Kind::StringValue("AngularVelocity".to_string()),
             ),
             ("capture_frequency_hz".to_string(), Kind::NumberValue(100.0)),
-            ("cache_size".to_string(), Kind::NumberValue(200.0)),
+            ("cache_size_kb".to_string(), Kind::NumberValue(2.0)),
         ]);
         let conf_kind = Kind::StructValue(kind_map);
         let conf: DataCollectorConfig = (&conf_kind).try_into()?;
         assert!(matches!(conf.method, CollectionMethod::AngularVelocity));
         assert_eq!(conf.capture_frequency_hz, 100.0);
-        assert_eq!(conf.capacity, 200);
+        assert_eq!(conf.capacity, 2000);
+
+        let kind_map = HashMap::from([
+            (
+                "method".to_string(),
+                Kind::StringValue("AngularVelocity".to_string()),
+            ),
+            ("capture_frequency_hz".to_string(), Kind::NumberValue(100.0)),
+            ("cache_size_kb".to_string(), Kind::NumberValue(0.5)),
+        ]);
+        let conf_kind = Kind::StructValue(kind_map);
+        let conf = DataCollectorConfig::try_from(&conf_kind);
+        assert!(conf.is_err());
 
         let kind_map = HashMap::from([
             (

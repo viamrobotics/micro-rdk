@@ -16,6 +16,8 @@ pub enum AttributeError {
     ConversionImpossibleError,
     #[error("attribute `{0}` was not found")]
     KeyNotFound(String),
+    #[error("{0}")]
+    ValidationError(String),
 }
 
 impl From<ParseIntError> for AttributeError {
