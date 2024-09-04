@@ -70,6 +70,7 @@ impl TryFrom<&Kind> for Esp32I2cConfig {
 
 pub struct Esp32I2C<'a> {
     name: String,
+    bus_no: u8,
     driver: I2cDriver<'a>,
     timeout_ns: u32,
 }
@@ -89,6 +90,7 @@ impl<'a> Esp32I2C<'a> {
                     .map_err(|e| I2CErrors::I2COtherError(Box::new(e)))?;
                 Ok(Esp32I2C {
                     name,
+		    bus_no: 0,
                     driver,
                     timeout_ns,
                 })
@@ -99,6 +101,7 @@ impl<'a> Esp32I2C<'a> {
                     .map_err(|e| I2CErrors::I2COtherError(Box::new(e)))?;
                 Ok(Esp32I2C {
                     name,
+		    bus_no: 1,
                     driver,
                     timeout_ns,
                 })
@@ -111,6 +114,10 @@ impl<'a> Esp32I2C<'a> {
 impl<'a> I2CHandle for Esp32I2C<'a> {
     fn name(&self) -> String {
         self.name.clone()
+    }
+
+    fn bus_no(&self) -> u8 {
+        self.bus_no
     }
 
     fn read_i2c(&mut self, address: u8, buffer: &mut [u8]) -> Result<(), I2CErrors> {

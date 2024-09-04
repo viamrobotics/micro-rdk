@@ -25,7 +25,7 @@ pub enum I2CErrors {
 // embedded_hal I2C trait when supporting boards beyond ESP32.
 pub trait I2CHandle {
     fn name(&self) -> String;
-
+    fn bus_no(&self) -> u8;
     fn read_i2c(&mut self, _address: u8, _buffer: &mut [u8]) -> Result<(), I2CErrors> {
         Err(I2CErrors::I2CUnimplemented("read_i2c"))
     }
@@ -107,6 +107,10 @@ impl I2CHandle for FakeI2CHandle {
         self.name.clone()
     }
 
+    fn bus_no(&self) -> u8 {
+        0
+    }
+
     fn read_i2c(&mut self, _address: u8, buffer: &mut [u8]) -> Result<(), I2CErrors> {
         for (i, x) in self.value.iter().enumerate() {
             if i < buffer.len() {
@@ -130,6 +134,10 @@ where
 {
     fn name(&self) -> String {
         self.lock().unwrap().name()
+    }
+
+    fn bus_no(&self) -> u8 {
+        self.lock().unwrap().bus_no()
     }
 
     fn read_i2c(&mut self, address: u8, buffer: &mut [u8]) -> Result<(), I2CErrors> {
