@@ -159,6 +159,7 @@ struct CreateNVSPartitionArgs {
 
 #[derive(Parser)]
 #[command(
+    version,
     about = "A CLI that can flash a compilation of micro-RDK directly to an ESP32 provided configuration information",
     arg_required_else_help = true
 )]
@@ -331,6 +332,7 @@ fn init_logger() {
 
 fn main() -> Result<(), Error> {
     init_logger();
+    log::info!("Running Micro-RDK installer version {}", clap::crate_version!());
     let cli = Cli::parse();
     match &cli.command {
         Some(Commands::UpdateAppImage(args)) => update_app_image(args)?,
