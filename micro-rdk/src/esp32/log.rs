@@ -5,58 +5,57 @@
 //! to capture ESP-IDF logs, it is necessary to replace the default vprintf function to write to LOG_BUFFER
 //! (again, see common/log.rs) before invoking the previously existing vprintf function in order to write to
 //! UART. We store the previous vprintf function in PREVIOUS_LOGGER and use esp_log_set_vprintf for this purpose.
+//! The capture of ESP-IDF logs is only available with the "esp-idf-logs" feature.
+#[cfg(feature = "esp-idf-logs")]
 use crate::{
-    common::log::ViamLogEntry,
+    common::log::{get_log_buffer, ViamLogEntry},
     google::protobuf::{value::Kind, Struct, Value},
     proto::common::v1::LogEntry,
 };
 
 use esp_idf_svc::log::EspLogger;
+#[cfg(feature = "esp-idf-logs")]
 use esp_idf_svc::sys::{esp_log_set_vprintf, va_list, vprintf_like_t};
+#[cfg(feature = "esp-idf-logs")]
 use printf_compat::output::display;
+#[cfg(feature = "esp-idf-logs")]
 use ringbuf::Rb;
+#[cfg(feature = "esp-idf-logs")]
 use std::{collections::HashMap, ffi::CString, sync::OnceLock};
+#[cfg(feature = "esp-idf-logs")]
 use std::{ffi::c_char, sync::Mutex};
 
-use crate::common::log::{get_log_buffer, ViamLogAdapter};
+use crate::common::log::ViamLogAdapter;
 
+#[cfg(feature = "esp-idf-logs")]
 static PREVIOUS_LOGGER: OnceLock<vprintf_like_t> = OnceLock::new();
-static CURRENT_LOG_STATEMENT: OnceLock<Mutex<Vec<String>>> = OnceLock::new();
 
+#[cfg(feature = "esp-idf-logs")]
 const MESSAGE_START: &str = "\x1b[0;";
+#[cfg(feature = "esp-idf-logs")]
 const MESSAGE_END: &str = "\x1b[0m";
 
-// A single log statement is often broken up into multiple calls to vprintf. So we store
-// the fragments in CURRENT_LOG_STATEMENT. Detecting whether we have encountered the start
-// of a new statement is further complicated by the fact that, depending on the ESP-IDF component
-// producing the log, the statement can be in one of the following formats
+// Detecting whether we have encountered the start of a new statement is complicated
+// by the fact that, depending on the ESP-IDF component producing the log, the statement
+// can be in one of the following formats.
 //
 // "\x1b[0;<color_indicator>m<level_indicator> ... \x1b[0m"
 //
 // "<level_indicator> (<timestamp>) ..."
+//
 // This complication is reflected in the function below and its helper function
-// process_current_statement_and_level
+// process_current_statement_and_level. Additionally, any IDF component that does not
+// properly call ESP_LOGx (for instance, esp-wifi) will have some if its logs uploaded in
+// segments (to be potentially revisited)
+#[cfg(feature = "esp-idf-logs")]
 #[allow(improper_ctypes_definitions)]
 unsafe extern "C" fn log_handler(arg1: *const c_char, arg2: va_list) -> i32 {
     let va_list: core::ffi::VaList = std::mem::transmute(&arg2);
     let fmt_message = display(arg1, va_list);
     let message = format!("{}", fmt_message).to_string();
-    let message_clone = message.clone();
-    let start_of_new_statement = (message_clone.len() >= 3)
-        && (matches!(&message_clone[..3], "I (" | "E (" | "W (" | "D (" | "V (")
-            || message_clone.starts_with(MESSAGE_START));
-    let mut current_fragments = CURRENT_LOG_STATEMENT
-        .get_or_init(|| Mutex::new(vec![]))
-        .lock()
-        .unwrap();
-    if start_of_new_statement && !current_fragments.is_empty() {
-        let full_message = current_fragments.join(" ");
-        let _ = get_log_buffer()
-            .lock_blocking()
-            .push_overwrite(process_current_statement_and_level(full_message));
-        current_fragments.clear();
-    }
-    current_fragments.push(message_clone);
+    let _ = get_log_buffer()
+        .lock_blocking()
+        .push_overwrite(process_current_statement_and_level(message.clone()));
     if let Some(prev_logger) = PREVIOUS_LOGGER.get().unwrap_or(&None) {
         let fmt_c_str = CString::new(message).unwrap();
         prev_logger(fmt_c_str.as_ptr() as *const c_char, [0; 3])
@@ -65,6 +64,7 @@ unsafe extern "C" fn log_handler(arg1: *const c_char, arg2: va_list) -> i32 {
     }
 }
 
+#[cfg(feature = "esp-idf-logs")]
 fn process_current_statement_and_level(mut full_message: String) -> ViamLogEntry {
     let (mut message, level_initial) = if full_message.starts_with(MESSAGE_START) {
         let stripped = full_message.split_off(MESSAGE_START.len() + 3);
@@ -74,7 +74,9 @@ fn process_current_statement_and_level(mut full_message: String) -> ViamLogEntry
             .to_string();
         let stripped_without_level = stripped_end.split_off(2);
         (stripped_without_level, stripped_end)
-    } else if full_message.len() > 1 {
+    } else if (full_message.len() >= 3)
+        && matches!(&full_message[..3], "I (" | "E (" | "W (" | "D (" | "V (")
+    {
         let stripped_message = full_message.split_off(2);
         (stripped_message, full_message)
     } else {
@@ -116,6 +118,7 @@ fn process_current_statement_and_level(mut full_message: String) -> ViamLogEntry
 
 impl ViamLogAdapter for EspLogger {
     fn before_log_setup(&self) {
+        #[cfg(feature = "esp-idf-logs")]
         let _ = PREVIOUS_LOGGER.get_or_init(|| unsafe { esp_log_set_vprintf(Some(log_handler)) });
         self.initialize();
     }
