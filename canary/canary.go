@@ -51,8 +51,8 @@ func main() {
 	}()
 	coll := mongo_client.Database("micrordk_canary").Collection("raw_results")
 
-	machine, connStats, err := tryConnect(ctx, logger)
-	if err != nil {
+	machine, connStats, connectionErr := tryConnect(ctx, logger)
+	if connectionErr != nil {
 		record, err := buildRecord(runTimestamp, connStats, boardAPIStats{})
 		if err != nil {
 			logger.Error(err)
@@ -61,7 +61,7 @@ func main() {
 		if _, err := coll.InsertOne(ctx, record); err != nil {
 			logger.Error("could not upload canary result to database")
 		}
-		logger.Fatal(err)
+		logger.Fatal(connectionErr)
 	}
 	defer machine.Close(ctx)
 
@@ -92,7 +92,7 @@ func main() {
 func tryConnect(ctx context.Context, logger logging.Logger) (*client.RobotClient, connectionStats, error) {
 	apiKey := os.Getenv("ESP32_CANARY_API_KEY")
 	apiKeyId := os.Getenv("ESP32_CANARY_API_KEY_ID")
-	robotAddress := os.Getenv("ESP32_CANARY_API_KEY_ID")
+	robotAddress := os.Getenv("ESP32_CANARY_ROBOT")
 	stats := connectionStats{}
 	var startTime time.Time
 	var machine *client.RobotClient
