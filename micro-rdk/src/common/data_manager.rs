@@ -387,7 +387,7 @@ where
             let mut current_chunk: Vec<BytesMut> = vec![];
             // we process the data for this region of the store in chunks, each iteration of this loop
             // should represent the processing and uploading of a single chunk of data
-            loop {
+            'outer: loop {
                 let store_lock = self.store.lock().await;
                 let mut reader = match store_lock.get_reader(collector_key) {
                     Ok(reader) => reader,
@@ -402,6 +402,11 @@ where
                 };
                 let next_message = match reader.read_next_message() {
                     Ok(msg) => {
+                        // this can occur when the last message in the store was the last message
+                        // in the previously uploaded chunk
+                        if msg.is_empty() {
+                            break;
+                        }
                         messages_processed += 1;
                         msg
                     }
@@ -464,6 +469,7 @@ where
                     let current_chunk_size: usize = current_chunk.iter().map(|c| c.len()).sum();
                     if (messages_processed >= total_messages)
                         || ((next_message.len() + current_chunk_size) > MAX_SENSOR_CONTENTS_SIZE)
+                        || (next_message.is_empty())
                     {
                         let data: Result<Vec<SensorData>, DataSyncError> = current_chunk
                             .drain(..)
@@ -486,6 +492,8 @@ where
                         };
                         if next_message.is_empty() {
                             break (data, None);
+                        } else if messages_processed >= total_messages {
+                            break 'outer;
                         }
                         break (data, Some(next_message));
                     } else {
