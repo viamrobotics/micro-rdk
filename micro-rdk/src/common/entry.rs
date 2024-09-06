@@ -97,10 +97,15 @@ pub async fn serve_inner<S>(
 
     let robot_credentials = app_client.robot_credentials();
 
-    let (cfg_response, cfg_received_datetime) = app_client
-        .get_app_config(Some(network.get_ip()))
-        .await
-        .unwrap();
+    // TODO(RSDK-8689)
+    let (cfg_response, cfg_received_datetime) = {
+        let config = app_client.get_app_config(Some(network.get_ip())).await;
+        config.unwrap_or_else(|e| {
+            let config = storage.get_robot_configuration().ok();
+            log::error!("Failed to get_app_config CloudConfig, falling back to cached config if available: {e}");
+            (Box::new(ConfigResponse { config }), None)
+        })
+    };
 
     let rpc_host = cfg_response
         .config
@@ -229,8 +234,10 @@ pub async fn serve_inner<S>(
         .unwrap();
 
     // Attempt to cache the config for the machine we are about to `serve`.
-    if let Err(e) = storage.store_robot_configuration(cfg_response.config.unwrap()) {
-        log::warn!("Failed to store robot configuration: {}", e);
+    if let Some(config) = cfg_response.config {
+        if let Err(e) = storage.store_robot_configuration(config) {
+            log::warn!("Failed to store robot configuration: {}", e);
+        }
     }
 
     server.serve(robot).await;
