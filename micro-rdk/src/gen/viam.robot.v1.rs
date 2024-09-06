@@ -337,6 +337,111 @@ pub struct ShutdownRequest {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ShutdownResponse {
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetMachineStatusRequest {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetMachineStatusResponse {
+    #[prost(message, repeated, tag="1")]
+    pub resources: ::prost::alloc::vec::Vec<ResourceStatus>,
+    #[prost(message, optional, tag="2")]
+    pub config: ::core::option::Option<ConfigStatus>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ResourceStatus {
+    /// resource name.
+    #[prost(message, optional, tag="1")]
+    pub name: ::core::option::Option<super::super::common::v1::ResourceName>,
+    /// current state.
+    #[prost(enumeration="resource_status::State", tag="2")]
+    pub state: i32,
+    /// state transition timestamp.
+    #[prost(message, optional, tag="3")]
+    pub last_updated: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
+    /// revision of the last config that successfully updated this resource.
+    #[prost(string, tag="4")]
+    pub revision: ::prost::alloc::string::String,
+    /// error details for a resource. This is guaranteed to be null if the
+    /// resource is ready and non-null if the resource unhealthy.
+    #[prost(string, tag="5")]
+    pub error: ::prost::alloc::string::String,
+}
+/// Nested message and enum types in `ResourceStatus`.
+pub mod resource_status {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+    #[repr(i32)]
+    pub enum State {
+        Unspecified = 0,
+        /// a newly created resource.
+        Unconfigured = 1,
+        /// a resource that is being configured.
+        Configuring = 2,
+        /// a resource that has been successfully configured once, and is not re-configuring,
+        /// being removed, or unhealthy.
+        Ready = 3,
+        /// a resource that is being removed from the robot.
+        Removing = 4,
+        /// a resource that is in an unhealthy state.
+        Unhealthy = 5,
+    }
+    impl State {
+        /// String value of the enum field names used in the ProtoBuf definition.
+        ///
+        /// The values are not transformed in any way and thus are considered stable
+        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        pub fn as_str_name(&self) -> &'static str {
+            match self {
+                State::Unspecified => "STATE_UNSPECIFIED",
+                State::Unconfigured => "STATE_UNCONFIGURED",
+                State::Configuring => "STATE_CONFIGURING",
+                State::Ready => "STATE_READY",
+                State::Removing => "STATE_REMOVING",
+                State::Unhealthy => "STATE_UNHEALTHY",
+            }
+        }
+        /// Creates an enum from field names used in the ProtoBuf definition.
+        pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+            match value {
+                "STATE_UNSPECIFIED" => Some(Self::Unspecified),
+                "STATE_UNCONFIGURED" => Some(Self::Unconfigured),
+                "STATE_CONFIGURING" => Some(Self::Configuring),
+                "STATE_READY" => Some(Self::Ready),
+                "STATE_REMOVING" => Some(Self::Removing),
+                "STATE_UNHEALTHY" => Some(Self::Unhealthy),
+                _ => None,
+            }
+        }
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ConfigStatus {
+    /// revision of the last config that the machine successfully ingested.
+    #[prost(string, tag="1")]
+    pub revision: ::prost::alloc::string::String,
+    /// config ingestion timestamp.
+    #[prost(message, optional, tag="2")]
+    pub last_updated: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetVersionRequest {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetVersionResponse {
+    /// platform type of viam-server (ie. `rdk` or `micro-rdk`).
+    #[prost(string, tag="1")]
+    pub platform: ::prost::alloc::string::String,
+    /// version of viam-server. If built without a version, it will be dev-<git hash>.
+    #[prost(string, tag="2")]
+    pub version: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub api_version: ::prost::alloc::string::String,
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum PeerConnectionType {
