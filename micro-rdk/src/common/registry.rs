@@ -161,6 +161,7 @@ impl Default for ComponentRegistry {
                 crate::esp32::encoder::register_models(&mut r);
                 crate::esp32::hcsr04::register_models(&mut r);
                 crate::esp32::single_encoder::register_models(&mut r);
+                crate::esp32::coredump::register_models(&mut r);
             }
         }
         r
