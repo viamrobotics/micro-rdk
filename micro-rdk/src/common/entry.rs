@@ -21,7 +21,7 @@ use super::{
     exec::Executor,
     grpc::ServerError,
     grpc_client::GrpcClient,
-    log::config_log_entry,
+    log::LogUploadTask,
     provisioning::server::{serve_provisioning_async, ProvisioningInfo},
     registry::ComponentRegistry,
     restart_monitor::RestartMonitor,
@@ -150,15 +150,13 @@ pub async fn serve_inner<S>(
                 cfg_received_datetime,
             ) {
                 Ok(robot) => (robot, None),
-                Err(err) => {
-                    log::error!("could not build robot from config due to {:?}, defaulting to empty robot until a valid config is accessible", err);
-                    (LocalRobot::new(), Some(err))
-                }
+                Err(err) => (LocalRobot::new(), Some(err)),
             };
-            if let Some(datetime) = cfg_received_datetime {
-                let logs = vec![config_log_entry(datetime, err)];
-                let _ = app_client.push_logs(logs).await;
-            }
+            if let Some(err) = err {
+                log::error!("could not build robot from config due to {:?}, defaulting to empty robot until a valid config is accessible", err);
+            } else {
+                log::info!("successfully created robot from config");
+            };
             Arc::new(Mutex::new(r))
         }
     };
@@ -202,13 +200,16 @@ pub async fn serve_inner<S>(
         network,
         rpc_host,
     )
-    .with_webrtc(webrtc)
-    .with_periodic_app_client_task(Box::new(RestartMonitor::new(restart)))
-    .with_periodic_app_client_task(Box::new(ConfigMonitor::new(
-        *(cfg_response.clone()),
-        storage.clone(),
-        restart,
-    )));
+    .with_webrtc(webrtc);
+
+    let server_builder = server_builder
+        .with_periodic_app_client_task(Box::new(RestartMonitor::new(restart)))
+        .with_periodic_app_client_task(Box::new(ConfigMonitor::new(
+            *(cfg_response.clone()),
+            storage.clone(),
+            restart,
+        )))
+        .with_periodic_app_client_task(Box::new(LogUploadTask {}));
 
     #[cfg(feature = "native")]
     let server_builder = {

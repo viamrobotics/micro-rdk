@@ -7,6 +7,7 @@ use std::{
 use micro_rdk::common::{
     config::ConfigType,
     entry::RobotRepresentation,
+    log::initialize_logger,
     provisioning::server::ProvisioningInfo,
     registry::{ComponentRegistry, Dependency},
     sensor::{SensorError, SensorType},
@@ -206,16 +207,12 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
 
     #[cfg(not(target_os = "espidf"))]
     {
-        use log::LevelFilter;
-        env_logger::builder()
-            .format_timestamp(Some(env_logger::TimestampPrecision::Millis))
-            .filter_level(LevelFilter::Info)
-            .init()
+        initialize_logger::<env_logger::Logger>();
     }
     #[cfg(target_os = "espidf")]
     {
         micro_rdk::esp32::esp_idf_svc::sys::link_patches();
-        micro_rdk::esp32::esp_idf_svc::log::EspLogger::initialize_default();
+        initialize_logger::<micro_rdk::esp32::esp_idf_svc::log::EspLogger>();
         micro_rdk::esp32::esp_idf_svc::sys::esp!(unsafe {
             micro_rdk::esp32::esp_idf_svc::sys::esp_vfs_eventfd_register(
                 &micro_rdk::esp32::esp_idf_svc::sys::esp_vfs_eventfd_config_t { max_fds: 5 },
