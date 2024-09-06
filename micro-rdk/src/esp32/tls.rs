@@ -42,6 +42,8 @@ pub struct Esp32TLS {
     #[allow(dead_code)]
     alpn_ptr: Vec<*const c_char>,
     tls_cfg: Either<Box<esp_tls_cfg_server>, Box<esp_tls_cfg>>,
+    #[allow(dead_code)]
+    cfg: Option<Box<Esp32TLSServerConfig>>,
 }
 
 impl TlsClientConnector for Esp32TLS {
@@ -91,22 +93,18 @@ pub struct Esp32TLSStream {
     socket: Async<TcpStream>, // may store the raw socket
 }
 
+#[derive(Clone)]
 pub struct Esp32TLSServerConfig {
-    srv_cert: Vec<u8>,
-    srv_key: *const u8,
-    srv_key_len: u32,
+    pub srv_cert: Vec<u8>,
+    pub srv_key: Vec<u8>,
 }
 
 impl Esp32TLSServerConfig {
     // An Esp32TlsServerConfig takes a certificate and key bytearray (in the form of a pointer and length)
     // The PEM certificate has two parts: the first is the certificate chain and the second is the
     // certificate authority.
-    pub fn new(srv_cert: Vec<u8>, srv_key: *const u8, srv_key_len: u32) -> Self {
-        Esp32TLSServerConfig {
-            srv_cert,
-            srv_key,
-            srv_key_len,
-        }
+    pub fn new(srv_cert: Vec<u8>, srv_key: Vec<u8>) -> Self {
+        Esp32TLSServerConfig { srv_cert, srv_key }
     }
 }
 
@@ -176,11 +174,13 @@ impl Esp32TLS {
         Self {
             alpn_ptr,
             tls_cfg: Either::Right(tls_cfg_client),
+            cfg: None,
         }
     }
     /// Creates a TLS object ready to accept connection or connect to a server
-    pub fn new_server(cfg: &Esp32TLSServerConfig) -> Self {
+    pub fn new_server(cfg: Esp32TLSServerConfig) -> Self {
         let mut alpn_ptr: Vec<_> = vec![ALPN_PROTOCOLS.as_ptr() as *const i8, std::ptr::null()];
+        let cfg = Box::new(cfg);
         let tls_cfg_srv = Box::new(esp_tls_cfg_server {
             alpn_protos: alpn_ptr.as_mut_ptr(),
             __bindgen_anon_1: crate::esp32::esp_idf_svc::sys::esp_tls_cfg_server__bindgen_ty_1 {
@@ -198,10 +198,10 @@ impl Esp32TLS {
                 servercert_bytes: cfg.srv_cert.len() as u32,
             },
             __bindgen_anon_5: crate::esp32::esp_idf_svc::sys::esp_tls_cfg_server__bindgen_ty_5 {
-                serverkey_buf: cfg.srv_key,
+                serverkey_buf: cfg.srv_key.as_ptr(),
             },
             __bindgen_anon_6: crate::esp32::esp_idf_svc::sys::esp_tls_cfg_server__bindgen_ty_6 {
-                serverkey_bytes: cfg.srv_key_len,
+                serverkey_bytes: cfg.srv_key.len() as u32,
             },
             serverkey_password: std::ptr::null(),
             serverkey_password_len: 0_u32,
@@ -210,6 +210,7 @@ impl Esp32TLS {
         Self {
             alpn_ptr,
             tls_cfg: Either::Left(tls_cfg_srv),
+            cfg: Some(cfg),
         }
     }
 
