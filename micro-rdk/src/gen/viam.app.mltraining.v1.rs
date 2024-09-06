@@ -72,8 +72,6 @@ pub struct ListTrainingJobsResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TrainingJobMetadata {
-    #[prost(message, optional, tag="1")]
-    pub request: ::core::option::Option<SubmitTrainingJobRequest>,
     #[prost(string, tag="7")]
     pub id: ::prost::alloc::string::String,
     #[prost(string, tag="11")]
@@ -130,6 +128,32 @@ pub struct DeleteCompletedTrainingJobRequest {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DeleteCompletedTrainingJobResponse {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TrainingJobLogEntry {
+    #[prost(string, tag="1")]
+    pub level: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="2")]
+    pub time: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
+    #[prost(string, tag="3")]
+    pub message: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetTrainingJobLogsRequest {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(string, optional, tag="2")]
+    pub page_token: ::core::option::Option<::prost::alloc::string::String>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetTrainingJobLogsResponse {
+    #[prost(message, repeated, tag="1")]
+    pub logs: ::prost::alloc::vec::Vec<TrainingJobLogEntry>,
+    #[prost(string, tag="2")]
+    pub next_page_token: ::prost::alloc::string::String,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]

@@ -240,6 +240,7 @@ where
             "/viam.component.motor.v1.MotorService/Stop" => self.motor_stop(payload),
             "/viam.component.motor.v1.MotorService/SetRPM" => self.motor_set_rpm(payload),
             "/viam.component.motor.v1.MotorService/DoCommand" => self.motor_do_command(payload),
+            "/viam.robot.v1.RobotService/GetVersion" => self.get_version(),
             "/viam.robot.v1.RobotService/ResourceNames" => self.resource_names(payload),
             "/viam.robot.v1.RobotService/GetStatus" => self.robot_status(payload),
             "/viam.robot.v1.RobotService/GetOperations" => self.robot_get_operations(payload),
@@ -1310,6 +1311,15 @@ where
             .do_command(req.command)
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let resp = proto::common::v1::DoCommandResponse { result: res };
+        self.encode_message(resp)
+    }
+
+    fn get_version(&mut self) -> Result<(), ServerError> {
+        let resp = proto::robot::v1::GetVersionResponse {
+            platform: "viam-micro-server".to_string(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            api_version: proto::api_version::VIAM_API_VERSION.to_string(),
+        };
         self.encode_message(resp)
     }
 

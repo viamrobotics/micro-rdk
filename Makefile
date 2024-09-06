@@ -2,6 +2,7 @@ SHELL := /bin/bash
 ESPFLASHVERSION_MAJ := $(shell expr `cargo espflash -V | grep ^cargo-espflash | sed 's/^.* //g' | cut -f1 -d. `)
 ESPFLASHVERSION_MIN := $(shell expr `cargo espflash -V | grep ^cargo-espflash | sed 's/^.* //g' | cut -f2 -d. `)
 ESPFLASHVERSION := $(shell [ $(ESPFLASHVERSION_MAJ) -gt 2 -a $(ESPFLASHVERSION_MIN) -ge 0 ] && echo true)
+VIAM_API_VERSION := v0.1.336
 
 DATE := $(shell date +%F)
 IMAGE_BASE = ghcr.io/viamrobotics/micro-rdk-dev-env
@@ -19,7 +20,8 @@ buf-clean:
 buf: buf-clean
 	buf generate buf.build/viamrobotics/goutils --template micro-rdk/buf.gen.yaml
 	buf generate buf.build/googleapis/googleapis --template micro-rdk/buf.gen.yaml --path google/rpc --path google/api
-	buf generate buf.build/viamrobotics/api --template micro-rdk/buf.gen.yaml
+	buf generate buf.build/viamrobotics/api:${VIAM_API_VERSION} --template micro-rdk/buf.gen.yaml
+	printf "// AUTO-GENERATED CODE; DO NOT DELETE OR EDIT\npub const VIAM_API_VERSION: &str = \"${VIAM_API_VERSION}\";\n" > micro-rdk/src/gen/api_version.rs
 	buf generate buf.build/protocolbuffers/wellknowntypes --template micro-rdk/buf.gen.yaml 
 
 license-finder:

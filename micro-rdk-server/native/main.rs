@@ -7,14 +7,13 @@ mod native {
         conn::network::ExternallyManagedNetwork,
         credentials_storage::{RAMStorage, RobotConfigurationStorage, RobotCredentials},
         entry::{serve_with_network, RobotRepresentation},
+        log::initialize_logger,
         provisioning::server::ProvisioningInfo,
         registry::ComponentRegistry,
     };
 
     pub(crate) fn main_native() {
-        env_logger::builder()
-            .format_timestamp(Some(env_logger::TimestampPrecision::Millis))
-            .init();
+        initialize_logger::<env_logger::Logger>();
 
         let network = match local_ip_address::local_ip().expect("error parsing local IP") {
             std::net::IpAddr::V4(ip) => ExternallyManagedNetwork::new(ip),
