@@ -12,7 +12,7 @@ version.workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
-clap = { workspace = true, features = ["derive"] }
+clap = { workspace = true, features = ["derive", "cargo"] }
 crc32fast.workspace = true
 dialoguer.workspace = true
 env_logger.workspace = true

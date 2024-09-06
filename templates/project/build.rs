@@ -15,6 +15,7 @@ pub struct Cloud {
 }
 
 fn main() -> Result<(), &'static str> {
+    println!("cargo:rerun-if-changed=Cargo.toml");
     println!("cargo:rerun-if-env-changed=MICRO_RDK_WIFI_SSID");
     println!("cargo:rerun-if-env-changed=MICRO_RDK_WIFI_PASSWORD");
     println!("cargo:rerun-if-changed=viam.json");

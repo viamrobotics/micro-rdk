@@ -13,6 +13,7 @@ pub mod esp_idf_svc;
 #[cfg(feature = "builtin-components")]
 pub mod hcsr04;
 pub mod i2c;
+pub mod log;
 pub mod pin;
 #[cfg(feature = "builtin-components")]
 pub mod pulse_counter;

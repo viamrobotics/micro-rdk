@@ -22,7 +22,7 @@ use super::{
     exec::Executor,
     grpc::ServerError,
     grpc_client::GrpcClient,
-    log::config_log_entry,
+    log::LogUploadTask,
     provisioning::server::{serve_provisioning_async, ProvisioningInfo},
     registry::ComponentRegistry,
     restart_monitor::RestartMonitor,
@@ -96,10 +96,15 @@ pub async fn serve_inner<S>(
 
     let robot_credentials = app_client.robot_credentials();
 
-    let (cfg_response, cfg_received_datetime) = app_client
-        .get_app_config(Some(network.get_ip()))
-        .await
-        .unwrap();
+    // TODO(RSDK-8689)
+    let (cfg_response, cfg_received_datetime) = {
+        let config = app_client.get_app_config(Some(network.get_ip())).await;
+        config.unwrap_or_else(|e| {
+            let config = storage.get_robot_configuration().ok();
+            log::error!("Failed to get_app_config CloudConfig, falling back to cached config if available: {e}");
+            (Box::new(ConfigResponse { config }), None)
+        })
+    };
 
     let rpc_host = cfg_response
         .config
@@ -144,15 +149,13 @@ pub async fn serve_inner<S>(
                 cfg_received_datetime,
             ) {
                 Ok(robot) => (robot, None),
-                Err(err) => {
-                    log::error!("could not build robot from config due to {:?}, defaulting to empty robot until a valid config is accessible", err);
-                    (LocalRobot::new(), Some(err))
-                }
+                Err(err) => (LocalRobot::new(), Some(err)),
             };
-            if let Some(datetime) = cfg_received_datetime {
-                let logs = vec![config_log_entry(datetime, err)];
-                let _ = app_client.push_logs(logs).await;
-            }
+            if let Some(err) = err {
+                log::error!("could not build robot from config due to {:?}, defaulting to empty robot until a valid config is accessible", err);
+            } else {
+                log::info!("successfully created robot from config");
+            };
             Arc::new(Mutex::new(r))
         }
     };
@@ -196,13 +199,16 @@ pub async fn serve_inner<S>(
         network,
         rpc_host,
     )
-    .with_webrtc(webrtc)
-    .with_periodic_app_client_task(Box::new(RestartMonitor::new(restart)))
-    .with_periodic_app_client_task(Box::new(ConfigMonitor::new(
-        *(cfg_response.clone()),
-        storage.clone(),
-        restart,
-    )));
+    .with_webrtc(webrtc);
+
+    let server_builder = server_builder
+        .with_periodic_app_client_task(Box::new(RestartMonitor::new(restart)))
+        .with_periodic_app_client_task(Box::new(ConfigMonitor::new(
+            *(cfg_response.clone()),
+            storage.clone(),
+            restart,
+        )))
+        .with_periodic_app_client_task(Box::new(LogUploadTask {}));
 
     let server_builder = {
         let http2_port = 12346;
@@ -243,8 +249,10 @@ pub async fn serve_inner<S>(
         .unwrap();
 
     // Attempt to cache the config for the machine we are about to `serve`.
-    if let Err(e) = storage.store_robot_configuration(cfg_response.config.unwrap()) {
-        log::warn!("Failed to store robot configuration: {}", e);
+    if let Some(config) = cfg_response.config {
+        if let Err(e) = storage.store_robot_configuration(config) {
+            log::warn!("Failed to store robot configuration: {}", e);
+        }
     }
 
     server.serve(robot).await;
