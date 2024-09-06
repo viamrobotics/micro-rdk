@@ -17,6 +17,7 @@ mod esp32 {
                 RobotConfigurationStorage, RobotCredentials, WifiCredentialStorage, WifiCredentials,
             },
             entry::RobotRepresentation,
+            log::initialize_logger,
             provisioning::server::ProvisioningInfo,
             registry::ComponentRegistry,
         },
@@ -24,6 +25,7 @@ mod esp32 {
             entry::serve,
             esp_idf_svc::{
                 self,
+                log::EspLogger,
                 sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT},
             },
             nvs_storage::NVSStorage,
@@ -45,7 +47,7 @@ mod esp32 {
 
     pub(crate) fn main_esp32() {
         esp_idf_svc::sys::link_patches();
-        esp_idf_svc::log::EspLogger::initialize_default();
+        initialize_logger::<EspLogger>();
 
         esp_idf_svc::sys::esp!(unsafe {
             esp_idf_svc::sys::esp_vfs_eventfd_register(
