@@ -61,7 +61,7 @@ pub trait DataStoreReader {
     /// an empty BytesMut with 0 capacity when there are no available messages left.
     fn read_next_message(&mut self) -> Result<BytesMut, DataStoreError>;
     /// Returns the number of messages currently in the store region.
-    fn messages_remaining(&self) -> usize;
+    fn messages_remaining(&self) -> Result<usize, DataStoreError>;
     fn flush(self);
 }
 
@@ -141,8 +141,23 @@ impl DataStoreReader for DefaultDataStoreReader {
         self.current_idx += len_len + encoded_len;
         Ok(msg_bytes)
     }
-    fn messages_remaining(&self) -> usize {
-        self.cons.len()
+    fn messages_remaining(&self) -> Result<usize, DataStoreError> {
+        let mut messages = 0;
+        let (left, right) = self.cons.as_slices();
+        let mut chained = Buf::chain(left, right);
+        chained.advance(self.current_idx - self.start_idx);
+        loop {
+            if !chained.has_remaining() {
+                break;
+            }
+            let encoded_len = decode_varint(&mut chained)? as usize;
+            if encoded_len > chained.remaining() {
+                return Err(DataStoreError::DataIntegrityError);
+            }
+            chained.advance(encoded_len);
+            messages += 1;
+        }
+        Ok(messages)
     }
     fn flush(mut self) {
         self.cons.skip(self.current_idx - self.start_idx);
@@ -431,6 +446,11 @@ mod tests {
         assert!(reader.is_ok());
         let mut reader = reader.unwrap();
 
+        let num_msgs = reader.messages_remaining();
+        assert!(num_msgs.is_ok());
+        let num_msgs = num_msgs.unwrap();
+        assert_eq!(num_msgs, 3);
+
         let read_message = reader.read_next_message();
         assert!(read_message.is_ok());
         let mut read_message = read_message.unwrap();
@@ -519,6 +539,11 @@ mod tests {
         assert!(reader_2.is_ok());
         let mut reader_2 = reader_2.unwrap();
 
+        let num_msgs = reader_2.messages_remaining();
+        assert!(num_msgs.is_ok());
+        let num_msgs = num_msgs.unwrap();
+        assert_eq!(num_msgs, 2);
+
         let read_message = reader_2.read_next_message();
         assert!(read_message.is_ok());
         let mut read_message = read_message.unwrap();
@@ -584,7 +609,11 @@ mod tests {
             component_type: "rdk::component::movement_sensor".to_string(),
             method: CollectionMethod::Readings,
         };
-        let collector_keys = vec![(thing_key.clone(), 5120), (thing_2_key.clone(), 5120)];
+        let collector_capacity_bytes = 5120;
+        let collector_keys = vec![
+            (thing_key.clone(), collector_capacity_bytes),
+            (thing_2_key.clone(), collector_capacity_bytes),
+        ];
         std::mem::drop(store);
         let store = super::DefaultDataStore::new(collector_keys);
         assert!(store.is_ok());
@@ -615,7 +644,7 @@ mod tests {
         let message_byte_size = data.encoded_len();
         let message_byte_size_total = length_delimiter_len(message_byte_size) + message_byte_size;
 
-        let message_capacity_for_buffer: usize = 10240 / 2 / message_byte_size_total;
+        let message_capacity_for_buffer: usize = collector_capacity_bytes / message_byte_size_total;
 
         // we want to prove that an additional two messages can only be written once the read pointer
         // has progressed

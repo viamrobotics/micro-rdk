@@ -368,7 +368,13 @@ where
             let total_messages = {
                 let store_lock = self.store.lock().await;
                 match store_lock.get_reader(collector_key) {
-                    Ok(reader) => reader.messages_remaining(),
+                    Ok(reader) => match reader.messages_remaining() {
+                        Ok(num_msgs) => num_msgs,
+                        Err(err) => {
+                            log::error!("could not get number of messages remaining in store for collector key ({:?}): {:?}", collector_key, err);
+                            0
+                        }
+                    },
                     Err(err) => {
                         log::error!(
                             "error acquiring reader for collector key ({:?}): {:?}",
@@ -387,7 +393,7 @@ where
             let mut current_chunk: Vec<BytesMut> = vec![];
             // we process the data for this region of the store in chunks, each iteration of this loop
             // should represent the processing and uploading of a single chunk of data
-            'outer: loop {
+            loop {
                 let store_lock = self.store.lock().await;
                 let mut reader = match store_lock.get_reader(collector_key) {
                     Ok(reader) => reader,
@@ -492,8 +498,6 @@ where
                         };
                         if next_message.is_empty() {
                             break (data, None);
-                        } else if messages_processed >= total_messages {
-                            break 'outer;
                         }
                         break (data, Some(next_message));
                     } else {
@@ -543,6 +547,9 @@ where
                             return Err(err);
                         }
                     };
+                }
+                if messages_processed >= total_messages {
+                    break;
                 }
             }
         }
@@ -659,8 +666,8 @@ mod tests {
         fn read_next_message(&mut self) -> Result<BytesMut, DataStoreError> {
             Err(DataStoreError::Unimplemented)
         }
-        fn messages_remaining(&self) -> usize {
-            1
+        fn messages_remaining(&self) -> Result<usize, DataStoreError> {
+            Ok(1)
         }
         fn flush(self) {}
     }
@@ -966,8 +973,8 @@ mod tests {
                 None => Ok(BytesMut::with_capacity(0)),
             }
         }
-        fn messages_remaining(&self) -> usize {
-            self.store.borrow().len()
+        fn messages_remaining(&self) -> Result<usize, DataStoreError> {
+            Ok(self.store.borrow().len())
         }
         fn flush(self) {}
     }

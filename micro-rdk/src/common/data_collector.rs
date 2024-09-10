@@ -13,7 +13,7 @@ use super::{
 
 use thiserror::Error;
 
-pub(crate) const DEFAULT_CACHE_SIZE_KB: f64 = 1.0;
+pub(crate) const DEFAULT_CACHE_SIZE_KB: f64 = 8.0;
 
 /// A DataCollectorConfig instance is a representation of an element
 /// of the list of "capture_methods" in the "attributes" section of a
