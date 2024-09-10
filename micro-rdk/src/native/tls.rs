@@ -78,6 +78,12 @@ impl NativeTlsStream {
                     .iter()
                     .map(|c| rustls::Certificate(c.clone()))
                     .collect();
+            let priv_keys: Vec<_> =
+                rustls_pemfile::rsa_private_keys(&mut BufReader::new(tls_cfg.srv_key.as_slice()))
+                    .unwrap()
+                    .iter()
+                    .map(|k| rustls::PrivateKey(k.clone()))
+                    .collect();
 
             let mut cfg = ServerConfig::builder()
                 .with_safe_default_cipher_suites()
@@ -85,7 +91,7 @@ impl NativeTlsStream {
                 .with_protocol_versions(&[&rustls::version::TLS12])
                 .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?
                 .with_no_client_auth()
-                .with_single_cert(cert_chain, rustls::PrivateKey(tls_cfg.srv_key.clone()))
+                .with_single_cert(cert_chain, priv_keys[0].clone())
                 .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
             cfg.alpn_protocols = vec!["h2".as_bytes().to_vec()];
             let stream = async_io::Async::new(socket.unwrap())?;
