@@ -271,19 +271,17 @@ impl LocalRobot {
             start_time: Instant::now(),
         };
 
-        let components: Result<Vec<Option<DynamicComponentConfig>>, AttributeError> = config_resp
-            .config
-            .as_ref()
-            .unwrap()
-            .components
-            .iter()
-            .map(|x| x.try_into().map(Option::Some))
-            .collect();
-        robot.process_components(
-            components.map_err(RobotError::RobotParseConfigError)?,
-            registry,
-        )?;
-
+        if let Some(config) = &config_resp.config {
+            let components: Result<Vec<Option<DynamicComponentConfig>>, AttributeError> = config
+                .components
+                .iter()
+                .map(|x| x.try_into().map(Option::Some))
+                .collect();
+            robot.process_components(
+                components.map_err(RobotError::RobotParseConfigError)?,
+                registry,
+            )?;
+        };
         // TODO: When cfg's on expressions are valid, remove the outer scope.
         #[cfg(feature = "data")]
         {

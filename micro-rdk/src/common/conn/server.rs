@@ -237,40 +237,37 @@ where
         }
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn build(
         mut self,
         config: &ConfigResponse,
-    ) -> Result<ViamServer<C, T, CC, D, L, NetworkType>, ServerError> {
-        let cfg: RobotCloudConfig = config
-            .config
-            .as_ref()
-            .unwrap()
-            .cloud
-            .as_ref()
-            .unwrap()
-            .into();
-
-        self.mdns
-            .set_hostname(&cfg.name)
-            .map_err(|e| ServerError::Other(e.into()))?;
-        self.mdns
-            .add_service(
-                &cfg.local_fqdn.replace('.', "-"),
-                "_rpc",
-                "_tcp",
-                self.port,
-                &[("grpc", "")],
-            )
-            .map_err(|e| ServerError::Other(e.into()))?;
-        self.mdns
-            .add_service(
-                &cfg.fqdn.replace('.', "-"),
-                "_rpc",
-                "_tcp",
-                self.port,
-                &[("grpc", "")],
-            )
-            .map_err(|e| ServerError::Other(e.into()))?;
+    ) -> Result<ViamServer<M, C, T, CC, D, L, NetworkType>, ServerError> {
+        if let Some(robot_config) = &config.config {
+            if let Some(cloud_config) = &robot_config.cloud {
+                let cfg: RobotCloudConfig = cloud_config.into();
+                self.mdns
+                    .set_hostname(&cfg.name)
+                    .map_err(|e| ServerError::Other(e.into()))?;
+                self.mdns
+                    .add_service(
+                        &cfg.local_fqdn.replace('.', "-"),
+                        "_rpc",
+                        "_tcp",
+                        self.port,
+                        &[("grpc", "")],
+                    )
+                    .map_err(|e| ServerError::Other(e.into()))?;
+                self.mdns
+                    .add_service(
+                        &cfg.fqdn.replace('.', "-"),
+                        "_rpc",
+                        "_tcp",
+                        self.port,
+                        &[("grpc", "")],
+                    )
+                    .map_err(|e| ServerError::Other(e.into()))?;
+            }
+        }
 
         let cloned_exec = self.exec.clone();
         let http2_listener = HttpListener::new(self.http2_listener);
@@ -286,6 +283,7 @@ where
             self.network,
             self.app_client,
             self.rpc_host,
+            self.mdns,
         );
 
         Ok(srv)
@@ -338,7 +336,7 @@ where
     }
 }
 
-pub struct ViamServer<C, T, CC, D, L, NetworkType> {
+pub struct ViamServer<M, C, T, CC, D, L, NetworkType> {
     http_listener: HttpListener<L, T>,
     webrtc_config: Option<Box<WebRtcConfiguration<D, CC>>>,
     exec: Executor,
@@ -349,9 +347,11 @@ pub struct ViamServer<C, T, CC, D, L, NetworkType> {
     app_client_tasks: Vec<Box<dyn PeriodicAppClientTask>>,
     network: NetworkType,
     rpc_host: String,
+    _mdns: M,
 }
-impl<C, T, CC, D, L, NetworkType> ViamServer<C, T, CC, D, L, NetworkType>
+impl<M, C, T, CC, D, L, NetworkType> ViamServer<M, C, T, CC, D, L, NetworkType>
 where
+    M: Mdns,
     C: TlsClientConnector,
     T: rt::Read + rt::Write + Unpin + 'static,
     CC: Certificate + 'static,
@@ -373,6 +373,7 @@ where
         network: NetworkType,
         app_client: Option<AppClient>,
         rpc_host: String,
+        mdns: M,
     ) -> Self {
         Self {
             http_listener,
@@ -385,6 +386,7 @@ where
             app_client_tasks,
             network,
             rpc_host,
+            _mdns: mdns,
         }
     }
     pub async fn serve(&mut self, robot: Arc<Mutex<LocalRobot>>) {

@@ -4,6 +4,7 @@
 // the nightly channel, which we only use for ESP32 builds.
 // See common/data_manager.rs for why we use this feature at all.
 #![cfg_attr(feature = "data-upload-hook-unstable", feature(linkage))]
+#![cfg_attr(feature = "esp-idf-logs", feature(c_variadic))]
 
 pub mod common;
 
@@ -50,6 +51,10 @@ pub mod proto {
 
     // Don't bother to clippy generated proto code
     #![allow(clippy::all)]
+
+    pub mod api_version {
+        include!("gen/api_version.rs");
+    }
 
     pub mod provisioning {
         pub mod v1 {

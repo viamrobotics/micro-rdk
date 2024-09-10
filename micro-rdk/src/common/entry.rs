@@ -1,12 +1,13 @@
 use std::{
     fmt::Debug,
+    net::SocketAddr,
     rc::Rc,
     sync::{Arc, Mutex},
     time::Duration,
 };
 
-#[cfg(feature = "native")]
-use std::net::SocketAddr;
+#[cfg(feature = "esp32")]
+use std::ffi::CString;
 
 use async_io::Timer;
 
@@ -21,7 +22,7 @@ use super::{
     exec::Executor,
     grpc::ServerError,
     grpc_client::GrpcClient,
-    log::config_log_entry,
+    log::LogUploadTask,
     provisioning::server::{serve_provisioning_async, ProvisioningInfo},
     registry::ComponentRegistry,
     restart_monitor::RestartMonitor,
@@ -43,15 +44,13 @@ use crate::native::{
 };
 
 #[cfg(feature = "esp32")]
-use crate::{
-    common::conn::mdns::NoMdns,
-    esp32::{
-        certificate::GeneratedWebRtcCertificateBuilder,
-        conn::mdns::Esp32Mdns,
-        dtls::Esp32DtlsBuilder,
-        esp_idf_svc::sys::{settimeofday, timeval},
-        tls::Esp32TLS,
-    },
+use crate::esp32::{
+    certificate::GeneratedWebRtcCertificateBuilder,
+    conn::mdns::Esp32Mdns,
+    dtls::Esp32DtlsBuilder,
+    esp_idf_svc::sys::{settimeofday, timeval},
+    tcp::Esp32Listener,
+    tls::{Esp32TLS, Esp32TLSServerConfig},
 };
 
 pub enum RobotRepresentation {
@@ -97,10 +96,15 @@ pub async fn serve_inner<S>(
 
     let robot_credentials = app_client.robot_credentials();
 
-    let (cfg_response, cfg_received_datetime) = app_client
-        .get_app_config(Some(network.get_ip()))
-        .await
-        .unwrap();
+    // TODO(RSDK-8689)
+    let (cfg_response, cfg_received_datetime) = {
+        let config = app_client.get_app_config(Some(network.get_ip())).await;
+        config.unwrap_or_else(|e| {
+            let config = storage.get_robot_configuration().ok();
+            log::error!("Failed to get_app_config CloudConfig, falling back to cached config if available: {e}");
+            (Box::new(ConfigResponse { config }), None)
+        })
+    };
 
     let rpc_host = cfg_response
         .config
@@ -145,15 +149,13 @@ pub async fn serve_inner<S>(
                 cfg_received_datetime,
             ) {
                 Ok(robot) => (robot, None),
-                Err(err) => {
-                    log::error!("could not build robot from config due to {:?}, defaulting to empty robot until a valid config is accessible", err);
-                    (LocalRobot::new(), Some(err))
-                }
+                Err(err) => (LocalRobot::new(), Some(err)),
             };
-            if let Some(datetime) = cfg_received_datetime {
-                let logs = vec![config_log_entry(datetime, err)];
-                let _ = app_client.push_logs(logs).await;
-            }
+            if let Some(err) = err {
+                log::error!("could not build robot from config due to {:?}, defaulting to empty robot until a valid config is accessible", err);
+            } else {
+                log::info!("successfully created robot from config");
+            };
             Arc::new(Mutex::new(r))
         }
     };
@@ -181,7 +183,7 @@ pub async fn serve_inner<S>(
     #[cfg(feature = "native")]
     let mdns = NativeMdns::new("".to_owned(), network.get_ip()).unwrap();
     #[cfg(feature = "esp32")]
-    let mdns = NoMdns {};
+    let mdns = Esp32Mdns::new("".to_owned()).unwrap();
 
     #[cfg(feature = "native")]
     let restart = || std::process::exit(0);
@@ -197,28 +199,47 @@ pub async fn serve_inner<S>(
         network,
         rpc_host,
     )
-    .with_webrtc(webrtc)
-    .with_periodic_app_client_task(Box::new(RestartMonitor::new(restart)))
-    .with_periodic_app_client_task(Box::new(ConfigMonitor::new(
-        *(cfg_response.clone()),
-        storage.clone(),
-        restart,
-    )));
+    .with_webrtc(webrtc);
 
-    #[cfg(feature = "native")]
+    let server_builder = server_builder
+        .with_periodic_app_client_task(Box::new(RestartMonitor::new(restart)))
+        .with_periodic_app_client_task(Box::new(ConfigMonitor::new(
+            *(cfg_response.clone()),
+            storage.clone(),
+            restart,
+        )))
+        .with_periodic_app_client_task(Box::new(LogUploadTask {}));
+
     let server_builder = {
+        let http2_port = 12346;
         server_builder.with_http2(
             {
                 let certs = app_client.get_certificates().await.unwrap();
-                let tls_server_config = NativeTlsServerConfig::new(
-                    certs.tls_certificate.as_bytes().to_vec(),
-                    certs.tls_private_key.as_bytes().to_vec(),
-                );
-                let address: SocketAddr = "0.0.0.0:12346".parse().unwrap();
-                let tls = Box::new(NativeTls::new_server(tls_server_config));
-                NativeListener::new(address.into(), Some(tls)).unwrap()
+                let address = SocketAddr::new("0.0.0.0".parse().unwrap(), http2_port);
+                #[cfg(feature = "native")]
+                {
+                    let tls_server_config = NativeTlsServerConfig::new(
+                        certs.tls_certificate.as_bytes().to_vec(),
+                        certs.tls_private_key.as_bytes().to_vec(),
+                    );
+                    let tls = Box::new(NativeTls::new_server(tls_server_config));
+                    NativeListener::new(address.into(), Some(tls)).unwrap()
+                }
+                #[cfg(feature = "esp32")]
+                {
+                    let tls_server_config = Esp32TLSServerConfig::new(
+                        CString::new(certs.tls_certificate)
+                            .unwrap()
+                            .into_bytes_with_nul(),
+                        CString::new(certs.tls_private_key)
+                            .unwrap()
+                            .into_bytes_with_nul(),
+                    );
+                    let tls = Box::new(Esp32TLS::new_server(tls_server_config));
+                    Esp32Listener::new(address, Some(tls)).unwrap()
+                }
             },
-            12346,
+            http2_port,
         )
     };
 
@@ -228,8 +249,10 @@ pub async fn serve_inner<S>(
         .unwrap();
 
     // Attempt to cache the config for the machine we are about to `serve`.
-    if let Err(e) = storage.store_robot_configuration(cfg_response.config.unwrap()) {
-        log::warn!("Failed to store robot configuration: {}", e);
+    if let Some(config) = cfg_response.config {
+        if let Err(e) = storage.store_robot_configuration(config) {
+            log::warn!("Failed to store robot configuration: {}", e);
+        }
     }
 
     server.serve(robot).await;

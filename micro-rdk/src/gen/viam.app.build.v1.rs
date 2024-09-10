@@ -83,6 +83,125 @@ pub struct ListJobsResponse {
     #[prost(message, repeated, tag="1")]
     pub jobs: ::prost::alloc::vec::Vec<JobInfo>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RepoLink {
+    /// viam internal ID which maps to an external oauth app
+    #[prost(string, tag="1")]
+    pub oauth_app_link_id: ::prost::alloc::string::String,
+    /// OrgID of the module
+    #[prost(string, tag="2")]
+    pub org_id: ::prost::alloc::string::String,
+    /// Public namespace of the module. This is for user display in ListRepoLinksResponse.
+    /// It is ignored in LinkRepoRequest.
+    #[prost(string, optional, tag="3")]
+    pub namespace: ::core::option::Option<::prost::alloc::string::String>,
+    /// name of the module (just the name, not the dotted org:name form)
+    #[prost(string, tag="4")]
+    pub module_name: ::prost::alloc::string::String,
+    /// git repo in owner/repository form
+    #[prost(string, tag="5")]
+    pub repo: ::prost::alloc::string::String,
+    /// email of the viam user who created this
+    #[prost(string, tag="6")]
+    pub viam_user: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct LinkRepoRequest {
+    #[prost(message, optional, tag="1")]
+    pub link: ::core::option::Option<RepoLink>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct LinkRepoResponse {
+    #[prost(string, tag="1")]
+    pub repo_link_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UnlinkRepoRequest {
+    #[prost(string, tag="1")]
+    pub repo_link_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UnlinkRepoResponse {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListRepoLinksRequest {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListRepoLinksResponse {
+    #[prost(message, repeated, tag="1")]
+    pub links: ::prost::alloc::vec::Vec<RepoLink>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListAppLinksRequest {
+}
+/// represents a link between viam users / orgs and an external oauth app
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AppLink {
+    /// viam internal ID which maps to an external oauth app
+    #[prost(string, tag="1")]
+    pub oauth_app_link_id: ::prost::alloc::string::String,
+    /// email of the viam user that owns this
+    #[prost(string, tag="2")]
+    pub viam_user: ::prost::alloc::string::String,
+    /// username of the external user who created this
+    #[prost(string, tag="3")]
+    pub external_user: ::prost::alloc::string::String,
+    /// list of org public namespace (where available) or org UUIDs attached to the external app
+    #[prost(string, repeated, tag="4")]
+    pub org_id_or_ns: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListAppLinksResponse {
+    #[prost(message, repeated, tag="1")]
+    pub links: ::prost::alloc::vec::Vec<AppLink>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RemoveAppLinkRequest {
+    /// viam internal ID which maps to an external oauth app
+    #[prost(string, tag="1")]
+    pub oauth_app_link_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RemoveAppLinkResponse {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct LinkOrgRequest {
+    /// viam internal ID which maps to an external oauth app
+    #[prost(string, tag="1")]
+    pub oauth_app_link_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub org_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct LinkOrgResponse {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UnlinkOrgRequest {
+    /// viam internal ID which maps to an external oauth app
+    #[prost(string, tag="1")]
+    pub oauth_app_link_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub org_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UnlinkOrgResponse {
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum JobStatus {

@@ -48,6 +48,9 @@ pub struct RobotPart {
     /// List of secrets allowed for authentication.
     #[prost(message, repeated, tag="14")]
     pub secrets: ::prost::alloc::vec::Vec<SharedSecret>,
+    /// latest timestamp when a robot part was updated
+    #[prost(message, optional, tag="15")]
+    pub last_updated: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -646,6 +649,14 @@ pub struct GetRobotPartLogsRequest {
     /// logs of all levels are returned when the levels field is empty
     #[prost(string, repeated, tag="5")]
     pub levels: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(message, optional, tag="6")]
+    pub start: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
+    #[prost(message, optional, tag="7")]
+    pub end: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
+    #[prost(int64, optional, tag="8")]
+    pub limit: ::core::option::Option<i64>,
+    #[prost(string, optional, tag="9")]
+    pub source: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -776,6 +787,21 @@ pub struct Fragment {
     /// the visibility of a fragment; public, private or unlisted
     #[prost(enumeration="FragmentVisibility", tag="12")]
     pub visibility: i32,
+    /// latest timestamp when fragment was updated
+    #[prost(message, optional, tag="13")]
+    pub last_updated: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FragmentHistoryEntry {
+    #[prost(string, tag="1")]
+    pub fragment: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="2")]
+    pub edited_on: ::core::option::Option<super::super::super::google::protobuf::Timestamp>,
+    #[prost(message, optional, tag="3")]
+    pub old: ::core::option::Option<Fragment>,
+    #[prost(message, optional, tag="4")]
+    pub edited_by: ::core::option::Option<AuthenticatorInfo>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -814,6 +840,8 @@ pub struct CreateFragmentRequest {
     pub config: ::core::option::Option<super::super::super::google::protobuf::Struct>,
     #[prost(string, tag="3")]
     pub organization_id: ::prost::alloc::string::String,
+    #[prost(enumeration="FragmentVisibility", optional, tag="4")]
+    pub visibility: ::core::option::Option<i32>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -853,9 +881,45 @@ pub struct DeleteFragmentResponse {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetFragmentHistoryRequest {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(string, optional, tag="2")]
+    pub page_token: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(int64, optional, tag="3")]
+    pub page_limit: ::core::option::Option<i64>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetFragmentHistoryResponse {
+    #[prost(message, repeated, tag="1")]
+    pub history: ::prost::alloc::vec::Vec<FragmentHistoryEntry>,
+    #[prost(string, tag="2")]
+    pub next_page_token: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListRobotsRequest {
     #[prost(string, tag="1")]
     pub location_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListMachineFragmentsRequest {
+    /// the machine_id used to filter fragments defined in a machine's parts.
+    /// Also returns any fragments nested within the fragments defined in parts.
+    #[prost(string, tag="1")]
+    pub machine_id: ::prost::alloc::string::String,
+    /// additional fragment_ids to append to the response. useful when needing to view fragments that will be
+    /// provisionally added to the machine alongside existing fragments.
+    #[prost(string, repeated, tag="2")]
+    pub additional_fragment_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListMachineFragmentsResponse {
+    #[prost(message, repeated, tag="1")]
+    pub fragments: ::prost::alloc::vec::Vec<Fragment>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1204,6 +1268,8 @@ pub struct UpdateRegistryItemRequest {
     pub description: ::prost::alloc::string::String,
     #[prost(enumeration="Visibility", tag="4")]
     pub visibility: i32,
+    #[prost(string, optional, tag="5")]
+    pub url: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -2012,6 +2078,21 @@ pub struct RobotConfig {
     /// Turns on pprof http server on localhost. By default false.
     #[prost(bool, tag="13")]
     pub enable_web_profile: bool,
+    #[prost(message, repeated, tag="14")]
+    pub log: ::prost::alloc::vec::Vec<LogPatternConfig>,
+    /// Attributes a particular revision to the config.
+    #[prost(string, tag="15")]
+    pub revision: ::prost::alloc::string::String,
+}
+/// LogPatternConfig allows you to specify a 2-tuple consisting
+/// of a logger name and its corresponding log level.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct LogPatternConfig {
+    #[prost(string, tag="1")]
+    pub pattern: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub level: ::prost::alloc::string::String,
 }
 /// Valid location secret that can be used for authentication to the robot.
 #[allow(clippy::derive_partial_eq_without_eq)]
