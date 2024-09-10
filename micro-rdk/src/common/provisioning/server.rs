@@ -67,19 +67,19 @@ async fn dns_server(ap_ip: Ipv4Addr) {
     }
 }
 
-pub(crate) struct ProvisioningServiceBuilder<Wifi, Exec> {
+pub(crate) struct ProvisioningServiceBuilder<Exec> {
     last_connection_attempt: Option<NetworkInfo>,
     provisioning_info: Option<ProvisioningInfo>,
     reason: ProvisioningReason,
     last_error: Option<String>,
-    wifi_manager: Option<Wifi>,
+    wifi_manager: Rc<Option<Box<dyn WifiManager>>>,
     executor: Exec,
 }
 
-impl<Wifi, Exec> ProvisioningServiceBuilder<Wifi, Exec> {
+impl<Exec> ProvisioningServiceBuilder<Exec> {
     pub(crate) fn new(executor: Exec) -> Self {
         Self {
-            wifi_manager: None,
+            wifi_manager: Rc::new(None),
             last_connection_attempt: None,
             provisioning_info: None,
             reason: ProvisioningReason::Unprovisioned,
@@ -89,7 +89,7 @@ impl<Wifi, Exec> ProvisioningServiceBuilder<Wifi, Exec> {
     }
 }
 
-impl<Wifi, Exec> ProvisioningServiceBuilder<Wifi, Exec> {
+impl<Exec> ProvisioningServiceBuilder<Exec> {
     pub(crate) fn with_provisioning_info(mut self, info: ProvisioningInfo) -> Self {
         let _ = self.provisioning_info.insert(info);
         self
@@ -106,32 +106,33 @@ impl<Wifi, Exec> ProvisioningServiceBuilder<Wifi, Exec> {
         let _ = self.last_error.insert(error);
         self
     }
-    pub(crate) fn with_wifi_manager<W: WifiManager>(
+    pub(crate) fn with_wifi_manager(
         self,
-        wifi_manager: W,
-    ) -> ProvisioningServiceBuilder<W, Exec> {
+        wifi_manager: Rc<Option<Box<dyn WifiManager>>>,
+    ) -> ProvisioningServiceBuilder<Exec> {
         ProvisioningServiceBuilder {
             last_connection_attempt: self.last_connection_attempt,
             provisioning_info: self.provisioning_info,
             reason: self.reason,
             last_error: self.last_error,
-            wifi_manager: Some(wifi_manager),
+            wifi_manager,
             executor: self.executor,
         }
     }
     pub(crate) fn build<S: RobotConfigurationStorage + Clone>(
         self,
         storage: S,
-    ) -> ProvisioningService<S, Wifi>
+    ) -> ProvisioningService<S>
     where
         Exec: ProvisioningExecutor,
-        Wifi: WifiManager,
     {
+        let p = self.wifi_manager.as_ref().as_ref();
         // Provisioning relies on DNS query to find the IP of the server. Specifically it will
         // make a request for viam.setup. All other queries are answered failed to express the lack of
         // internet
         let dns_task = self
             .wifi_manager
+            .as_ref()
             .as_ref()
             .map(|wifi_manager| self.executor.spawn(dns_server(wifi_manager.get_ap_ip())));
 
@@ -142,7 +143,7 @@ impl<Wifi, Exec> ProvisioningServiceBuilder<Wifi, Exec> {
             storage,
             credential_ready: AtomicSync::default(),
             last_error: self.last_error,
-            wifi_manager: Rc::new(self.wifi_manager),
+            wifi_manager: self.wifi_manager,
             dns_task: Rc::new(dns_task),
         }
     }
@@ -156,7 +157,7 @@ pub(crate) enum ProvisioningReason {
 }
 
 #[derive(Default, Debug)]
-pub(crate) struct NetworkInfo(pub(crate) provisioning::v1::NetworkInfo);
+pub struct NetworkInfo(pub(crate) provisioning::v1::NetworkInfo);
 
 #[derive(Default, Clone)]
 pub struct ProvisioningInfo(crate::proto::provisioning::v1::ProvisioningInfo);
@@ -183,18 +184,18 @@ pub(crate) trait ProvisioningExecutor {
     fn spawn<F: Future<Output = ()> + 'static>(&self, future: F) -> Task<()>;
 }
 
-pub(crate) struct ProvisioningService<S, Wifi> {
+pub(crate) struct ProvisioningService<S> {
     provisioning_info: Rc<Option<ProvisioningInfo>>,
     last_connection_attempt: Rc<Option<NetworkInfo>>,
     reason: Rc<ProvisioningReason>,
     storage: S,
     credential_ready: AtomicSync,
     last_error: Option<String>,
-    wifi_manager: Rc<Option<Wifi>>,
+    wifi_manager: Rc<Option<Box<dyn WifiManager>>>,
     dns_task: Rc<Option<Task<()>>>,
 }
 
-impl<S: Clone, Wifi> Clone for ProvisioningService<S, Wifi> {
+impl<S: Clone> Clone for ProvisioningService<S> {
     fn clone(&self) -> Self {
         Self {
             provisioning_info: self.provisioning_info.clone(),
@@ -209,11 +210,10 @@ impl<S: Clone, Wifi> Clone for ProvisioningService<S, Wifi> {
     }
 }
 
-impl<S, Wifi> ProvisioningService<S, Wifi>
+impl<S> ProvisioningService<S>
 where
     S: RobotConfigurationStorage + WifiCredentialStorage + Clone,
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
-    Wifi: WifiManager,
 {
     async fn process_request_inner(&self, req: Request<Incoming>) -> Result<Bytes, ServerError> {
         let (parts, body) = req.into_parts();
@@ -368,11 +368,10 @@ where
     }
 }
 
-impl<S, Wifi> Service<Request<Incoming>> for ProvisioningService<S, Wifi>
+impl<S> Service<Request<Incoming>> for ProvisioningService<S>
 where
     S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
-    Wifi: WifiManager + 'static,
 {
     type Response = Response<GrpcBody>;
     type Error = http::Error;
@@ -383,30 +382,28 @@ where
     }
 }
 #[pin_project::pin_project]
-pub(crate) struct ProvisoningServer<I, S, E, Wifi>
+pub(crate) struct ProvisoningServer<I, S, E>
 where
     S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
-    Wifi: WifiManager + 'static,
 {
     _exec: PhantomData<E>,
     _stream: PhantomData<I>,
     _storage: PhantomData<S>,
     #[pin]
-    connection: http2::Connection<I, ProvisioningService<S, Wifi>, E>,
+    connection: http2::Connection<I, ProvisioningService<S>, E>,
     credential_ready: AtomicSync,
 }
 
-impl<I, S, E, Wifi> Future for ProvisoningServer<I, S, E, Wifi>
+impl<I, S, E> Future for ProvisoningServer<I, S, E>
 where
     S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
     I: rt::Read + rt::Write + std::marker::Unpin + 'static,
     E: rt::bounds::Http2ServerConnExec<
-        <ProvisioningService<S, Wifi> as Service<Request<Incoming>>>::Future,
+        <ProvisioningService<S> as Service<Request<Incoming>>>::Future,
         GrpcBody,
     >,
-    Wifi: WifiManager + 'static,
 {
     type Output = Result<(), hyper::Error>;
     fn poll(
@@ -421,18 +418,17 @@ where
     }
 }
 
-impl<I, S, E, Wifi> ProvisoningServer<I, S, E, Wifi>
+impl<I, S, E> ProvisoningServer<I, S, E>
 where
     S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
     I: rt::Read + rt::Write + std::marker::Unpin + 'static,
     E: rt::bounds::Http2ServerConnExec<
-        <ProvisioningService<S, Wifi> as Service<Request<Incoming>>>::Future,
+        <ProvisioningService<S> as Service<Request<Incoming>>>::Future,
         GrpcBody,
     >,
-    Wifi: WifiManager + 'static,
 {
-    pub(crate) fn new(service: ProvisioningService<S, Wifi>, executor: E, stream: I) -> Self {
+    pub(crate) fn new(service: ProvisioningService<S>, executor: E, stream: I) -> Self {
         let credential_ready = service.get_credential_ready();
         credential_ready.reset();
         let connection = http2::Builder::new(executor).serve_connection(stream, service);
@@ -457,22 +453,38 @@ pub enum WifiManagerError {
     OtherError(#[from] Box<dyn std::error::Error + Send + Sync + 'static>),
 }
 
-pub(crate) trait WifiManager {
-    async fn scan_networks(&self) -> Result<Vec<NetworkInfo>, WifiManagerError>;
-    async fn try_connect(&self, ssid: &str, password: &str) -> Result<(), WifiManagerError>;
+pub trait WifiManager {
+    fn scan_networks(
+        &self,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<NetworkInfo>, WifiManagerError>>>>;
+    fn try_connect(
+        &self,
+        ssid: &str,
+        password: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), WifiManagerError>>>>;
     fn get_ap_ip(&self) -> Ipv4Addr;
 }
 
 impl WifiManager for () {
-    async fn scan_networks(&self) -> Result<Vec<NetworkInfo>, WifiManagerError> {
-        Err(WifiManagerError::OtherError(
-            ServerError::new(GrpcError::RpcUnimplemented, None).into(),
-        ))
+    fn scan_networks(
+        &self,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<NetworkInfo>, WifiManagerError>>>> {
+        Box::pin(async {
+            Err(WifiManagerError::OtherError(
+                ServerError::new(GrpcError::RpcUnimplemented, None).into(),
+            ))
+        })
     }
-    async fn try_connect(&self, _: &str, _: &str) -> Result<(), WifiManagerError> {
-        Err(WifiManagerError::OtherError(
-            ServerError::new(GrpcError::RpcUnimplemented, None).into(),
-        ))
+    fn try_connect(
+        &self,
+        _: &str,
+        _: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), WifiManagerError>>>> {
+        Box::pin(async {
+            Err(WifiManagerError::OtherError(
+                ServerError::new(GrpcError::RpcUnimplemented, None).into(),
+            ))
+        })
     }
     fn get_ap_ip(&self) -> Ipv4Addr {
         Ipv4Addr::UNSPECIFIED
@@ -484,14 +496,13 @@ type Stream = crate::native::tcp::NativeStream;
 #[cfg(feature = "esp32")]
 type Stream = crate::esp32::tcp::Esp32Stream;
 
-async fn accept_connections<S, Wifi>(
+pub(crate) async fn accept_connections<S>(
     listener: Async<TcpListener>,
-    service: ProvisioningService<S, Wifi>,
+    service: ProvisioningService<S>,
     exec: Executor,
 ) where
     S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
-    Wifi: WifiManager + 'static,
 {
     // Annoyingly VIAM app creates a new HTTP2 connection for each provisioning request
     loop {
@@ -514,19 +525,18 @@ async fn accept_connections<S, Wifi>(
     }
 }
 
-pub(crate) async fn serve_provisioning_async<S, Wifi, M>(
+pub(crate) async fn serve_provisioning_async<S, M>(
     exec: Executor,
     info: Option<ProvisioningInfo>,
     storage: S,
     last_error: Option<Box<dyn std::error::Error>>,
-    mut wifi_manager: Option<Wifi>,
-    mut mdns: M,
+    wifi_manager: Rc<Option<Box<dyn WifiManager>>>,
+    mdns: &mut M,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
     <S as RobotConfigurationStorage>::Error: Debug,
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
-    Wifi: WifiManager + 'static,
     M: Mdns,
 {
     let info = info.unwrap_or_default();
@@ -537,13 +547,8 @@ where
     );
 
     mdns.set_hostname(&hostname)?;
-    let srv = ProvisioningServiceBuilder::<Wifi, _>::new(exec.clone()).with_provisioning_info(info);
-
-    let srv = if let Some(wifi_manager) = wifi_manager.take() {
-        srv.with_wifi_manager(wifi_manager)
-    } else {
-        srv
-    };
+    let srv = ProvisioningServiceBuilder::<_>::new(exec.clone()).with_provisioning_info(info);
+    let srv = srv.with_wifi_manager(wifi_manager);
 
     let srv = if let Some(error) = last_error {
         srv.with_last_error(error.to_string())
@@ -618,7 +623,7 @@ mod tests {
 
     use super::ProvisioningService;
 
-    async fn run_provisioning_server(ex: Executor, srv: ProvisioningService<RAMStorage, ()>) {
+    async fn run_provisioning_server(ex: Executor, srv: ProvisioningService<RAMStorage>) {
         let listen = TcpListener::bind("127.0.0.1:56432");
         assert!(listen.is_ok());
         let listen: Async<TcpListener> = listen.unwrap().try_into().unwrap();
@@ -855,7 +860,7 @@ mod tests {
 
         let storage = RAMStorage::default();
 
-        let srv = ProvisioningServiceBuilder::<(), _>::new(exec.clone())
+        let srv = ProvisioningServiceBuilder::<_>::new(exec.clone())
             .with_provisioning_info(provisioning_info)
             .build(storage.clone());
 
@@ -879,7 +884,7 @@ mod tests {
 
     async fn run_provisioning_server_with_mdns(
         ex: Executor,
-        srv: ProvisioningService<RAMStorage, ()>,
+        srv: ProvisioningService<RAMStorage>,
         mut mdns: NativeMdns,
         ip: Ipv4Addr,
     ) {
@@ -937,7 +942,7 @@ mod tests {
         provisioning_info.set_manufacturer("a-manufacturer".to_owned());
         let storage = RAMStorage::default();
 
-        let srv = ProvisioningServiceBuilder::<(), _>::new(exec.clone())
+        let srv = ProvisioningServiceBuilder::<_>::new(exec.clone())
             .with_provisioning_info(provisioning_info)
             .build(storage.clone());
 

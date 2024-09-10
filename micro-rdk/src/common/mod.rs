@@ -85,6 +85,7 @@ pub mod conn {
     pub mod network;
     pub mod server;
     mod utils;
+    pub mod viam;
 }
 #[cfg(feature = "data")]
 pub mod data_collector;

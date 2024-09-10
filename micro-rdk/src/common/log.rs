@@ -110,7 +110,7 @@ impl PeriodicAppClientTask for LogUploadTask {
         "LogUpload"
     }
     fn invoke<'b, 'a: 'b>(
-        &'a mut self,
+        &'a self,
         app_client: &'b AppClient,
     ) -> std::pin::Pin<
         Box<dyn std::future::Future<Output = Result<Option<Duration>, AppClientError>> + 'b>,

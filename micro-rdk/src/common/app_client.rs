@@ -67,6 +67,8 @@ pub enum AppClientError {
     AppClientRequestTimeout,
     #[error("empty body")]
     AppClientEmptyBody,
+    #[error(transparent)]
+    AppClientIoError(#[from] std::io::Error),
 }
 
 pub struct AppClientBuilder {
@@ -371,7 +373,7 @@ pub trait PeriodicAppClientTask {
     /// A desugared `async fn` (so we can declare it in a trait) which will be periodically invoked
     /// by the `ViamServer` per the currently negotiated `Duration`.
     fn invoke<'b, 'a: 'b>(
-        &'a mut self,
+        &'a self,
         app_client: &'b AppClient,
     ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'b>>;
 }

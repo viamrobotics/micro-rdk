@@ -13,7 +13,7 @@ pub struct NativeTls {
 }
 
 /// TCP like stream for encrypted communication over TLS
-pub struct NativeTlsStream(futures_rustls::TlsStream<Async<TcpStream>>);
+pub struct NativeTlsStream(pub futures_rustls::TlsStream<Async<TcpStream>>);
 
 #[derive(Clone, Debug, Default)]
 pub struct NativeTlsServerConfig {

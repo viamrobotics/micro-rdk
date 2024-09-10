@@ -1,10 +1,9 @@
 use std::io::Write;
 use std::pin::Pin;
 
+use std::task::Poll;
 use std::time::SystemTime;
 use std::{fs::OpenOptions, rc::Rc};
-
-use async_std_openssl::SslStream;
 
 use futures_lite::Future;
 use openssl::ec::EcKey;
@@ -17,7 +16,9 @@ use openssl::ssl::{
 };
 
 use crate::common::webrtc::certificate::Certificate;
-use crate::common::webrtc::dtls::{DtlsBuilder, DtlsConnector, DtlsError};
+use crate::common::webrtc::dtls::{
+    DtlsBuilder, DtlsConnector, DtlsError, DtlsStream, IntoDtlsStream,
+};
 use crate::common::webrtc::udp_mux::UdpMux;
 
 fn dtls_log_session_key(_: &SslRef, line: &str) {
@@ -103,11 +104,27 @@ impl Dtls {
     }
 }
 
+pub struct DtlsAcceptor(Option<async_std_openssl::SslStream<UdpMux>>);
+impl IntoDtlsStream for DtlsAcceptor {}
+
+impl Future for DtlsAcceptor {
+    type Output = Result<Box<dyn DtlsStream>, DtlsError>;
+    fn poll(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        let this = std::pin::Pin::new(self.0.as_mut().unwrap());
+
+        let result = futures_lite::ready!(this.poll_accept(cx));
+        match result {
+            Ok(()) => Poll::Ready(Ok(Box::new(self.0.take().unwrap()))),
+            Err(e) => Poll::Ready(Err(DtlsError::DtlsError(Box::new(e)))),
+        }
+    }
+}
+
 impl DtlsConnector for Dtls {
-    type Error = openssl::ssl::Error;
-    type Stream = SslStream<UdpMux>;
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Stream, Self::Error>>>>;
-    fn accept(mut self) -> Result<Self::Future, Self::Error> {
+    fn accept(&mut self) -> Result<std::pin::Pin<Box<dyn IntoDtlsStream>>, DtlsError> {
         let mut ssl = Ssl::new(&self.context).unwrap();
         ssl.set_accept_state();
         let eckey = EcKey::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
@@ -116,14 +133,8 @@ impl DtlsConnector for Dtls {
 
         let transport = self.transport.take().unwrap();
 
-        let mut stream = async_std_openssl::SslStream::new(ssl, transport).unwrap();
-
-        Ok(Box::pin(async move {
-            let pin = unsafe { std::pin::Pin::new_unchecked(&mut stream) };
-            pin.accept().await?;
-
-            Ok(stream)
-        }))
+        let stream = async_std_openssl::SslStream::new(ssl, transport).unwrap();
+        Ok(Box::pin(DtlsAcceptor(Some(stream))))
     }
     fn set_transport(&mut self, transport: UdpMux) {
         let _ = self.transport.insert(transport);
@@ -131,8 +142,7 @@ impl DtlsConnector for Dtls {
 }
 
 impl<C: Certificate> DtlsBuilder for NativeDtls<C> {
-    type Output = Dtls;
-    fn make(&self) -> Result<Self::Output, DtlsError> {
-        Dtls::new(self.cert.clone())
+    fn make(&self) -> Result<Box<dyn DtlsConnector>, DtlsError> {
+        Ok(Box::new(Dtls::new(self.cert.clone())?))
     }
 }

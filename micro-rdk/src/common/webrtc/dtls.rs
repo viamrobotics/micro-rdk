@@ -10,16 +10,15 @@ pub enum DtlsError {
     DtlsError(#[from] Box<dyn std::error::Error + Send + Sync>),
 }
 
-pub trait DtlsConnector {
-    type Stream: AsyncRead + AsyncWrite + Send + Unpin + 'static;
-    type Error: std::error::Error + Send + Sync + 'static;
-    type Future: Future<Output = Result<Self::Stream, Self::Error>>;
+pub trait DtlsStream: AsyncRead + AsyncWrite + Send + Unpin {}
+impl<T> DtlsStream for T where T: AsyncRead + AsyncWrite + Send + Unpin {}
+pub trait IntoDtlsStream: Future<Output = Result<Box<dyn DtlsStream>, DtlsError>> {}
 
-    fn accept(self) -> Result<Self::Future, Self::Error>;
+pub trait DtlsConnector {
+    fn accept(&mut self) -> Result<std::pin::Pin<Box<dyn IntoDtlsStream>>, DtlsError>;
     fn set_transport(&mut self, transport: UdpMux);
 }
 
 pub trait DtlsBuilder {
-    type Output: DtlsConnector;
-    fn make(&self) -> Result<Self::Output, DtlsError>;
+    fn make(&self) -> Result<Box<dyn DtlsConnector>, DtlsError>;
 }

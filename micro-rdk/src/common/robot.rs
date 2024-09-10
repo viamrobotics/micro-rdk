@@ -13,17 +13,13 @@ use std::{
 use crate::common::camera::{Camera, CameraType};
 
 use crate::{
-    common::actuator::Actuator,
-    common::base::Base,
-    common::board::Board,
-    common::encoder::Encoder,
-    common::motor::Motor,
-    common::movement_sensor::MovementSensor,
-    common::sensor::Sensor,
-    common::status::Status,
+    common::{
+        actuator::Actuator, base::Base, board::Board, encoder::Encoder, motor::Motor,
+        movement_sensor::MovementSensor, sensor::Sensor, status::Status,
+    },
     google,
     proto::{
-        app::v1::ConfigResponse,
+        app::v1::{ConfigResponse, RobotConfig},
         common::{self, v1::ResourceName},
         robot,
     },
@@ -189,7 +185,7 @@ impl LocalRobot {
     pub(crate) fn process_components(
         &mut self,
         mut components: Vec<Option<DynamicComponentConfig>>,
-        mut registry: Box<ComponentRegistry>,
+        registry: &mut Box<ComponentRegistry>,
     ) -> Result<(), RobotError> {
         let config = components
             .iter_mut()
@@ -218,8 +214,7 @@ impl LocalRobot {
             let cfg_outer = &mut components[iter.next().unwrap()];
             if let Some(cfg) = cfg_outer.as_ref() {
                 // capture the error and make it available to LocalRobot so it can be pushed in the logs?
-                if let Err(e) =
-                    self.build_resource(cfg, board.clone(), board_key.clone(), &mut registry)
+                if let Err(e) = self.build_resource(cfg, board.clone(), board_key.clone(), registry)
                 {
                     log::error!(
                         "Failed to build resource `{}` of type `{}`: {:?}",
@@ -253,7 +248,7 @@ impl LocalRobot {
         exec: Executor,
         part_id: String,
         config_resp: &ConfigResponse,
-        registry: Box<ComponentRegistry>,
+        mut registry: Box<ComponentRegistry>,
         build_time: Option<DateTime<FixedOffset>>,
     ) -> Result<Self, RobotError> {
         let mut robot = LocalRobot {
@@ -279,7 +274,7 @@ impl LocalRobot {
                 .collect();
             robot.process_components(
                 components.map_err(RobotError::RobotParseConfigError)?,
-                registry,
+                &mut registry,
             )?;
         };
         // TODO: When cfg's on expressions are valid, remove the outer scope.
@@ -292,6 +287,68 @@ impl LocalRobot {
                     if let Some(task) = data_manager.get_sync_task(robot.start_time) {
                         let _ = robot.data_manager_sync_task.insert(Box::new(task));
                     }
+                    let _ = robot
+                        .data_manager_collection_task
+                        .replace(robot.executor.spawn(async move {
+                            data_manager.data_collection_task(robot.start_time).await;
+                        }));
+                }
+                Ok(None) => {}
+                Err(err) => {
+                    log::error!("Error configuring data management: {:?}", err);
+                }
+            };
+        }
+
+        Ok(robot)
+    }
+
+    // Creates a robot from the response of a gRPC call to acquire the robot configuration. The individual
+    // component configs within the response are consumed and the corresponding components are generated
+    // and added to the created robot.
+    pub fn from_cloud_config2(
+        exec: Executor,
+        part_id: String,
+        config: &RobotConfig,
+        registry: &mut Box<ComponentRegistry>,
+        build_time: Option<DateTime<FixedOffset>>,
+    ) -> Result<Self, RobotError> {
+        let mut robot = LocalRobot {
+            executor: exec,
+            part_id,
+            resources: ResourceMap::new(),
+            // Use date time pulled off gRPC header as the `build_time` returned in the status of
+            // every resource as `last_reconfigured`.
+            build_time,
+
+            #[cfg(feature = "data")]
+            data_collector_configs: vec![],
+            data_manager_sync_task: None,
+            data_manager_collection_task: None,
+            start_time: Instant::now(),
+        };
+
+        let components: Result<Vec<Option<DynamicComponentConfig>>, AttributeError> = config
+            .components
+            .iter()
+            .map(|x| x.try_into().map(Option::Some))
+            .collect();
+        robot.process_components(
+            components.map_err(RobotError::RobotParseConfigError)?,
+            registry,
+        )?;
+
+        // TODO: When cfg's on expressions are valid, remove the outer scope.
+        #[cfg(feature = "data")]
+        {
+            // TODO(RSDK-8125): Support selection of the DataStore trait other than
+            // DefaultDataStore in a way that is configurable
+            match DataManager::<DefaultDataStore>::from_robot_and_config2(&robot, config) {
+                Ok(Some(mut data_manager)) => {
+                    let _ = robot
+                        .data_manager_sync_task
+                        .insert(Box::new(data_manager.get_sync_task(robot.start_time)));
+
                     let _ = robot
                         .data_manager_collection_task
                         .replace(robot.executor.spawn(async move {
@@ -1097,7 +1154,7 @@ mod tests {
 
         let mut robot = LocalRobot::default();
 
-        let ret = robot.process_components(robot_config, Box::default());
+        let ret = robot.process_components(robot_config, &mut Box::default());
         ret.unwrap();
 
         #[cfg(feature = "data")]

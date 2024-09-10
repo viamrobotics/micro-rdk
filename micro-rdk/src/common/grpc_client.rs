@@ -297,7 +297,6 @@ impl GrpcClient {
         http2_connection.ready().await?;
 
         let response = http2_connection.send_request(r).await?;
-
         let r: GrpcMessageSender<R> = GrpcMessageSender::new(sender);
 
         let (part, body) = response.into_parts();
@@ -306,7 +305,6 @@ impl GrpcClient {
             return Err(GrpcClientError::HttpStatusError(part.status));
         }
         let p: GrpcMessageStream<P> = GrpcMessageStream::new(body);
-
         Ok((r, p))
     }
 

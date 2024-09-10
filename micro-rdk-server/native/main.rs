@@ -3,13 +3,26 @@ mod native {
     const ROBOT_ID: Option<&str> = option_env!("MICRO_RDK_ROBOT_ID");
     const ROBOT_SECRET: Option<&str> = option_env!("MICRO_RDK_ROBOT_SECRET");
 
-    use micro_rdk::common::{
-        conn::network::ExternallyManagedNetwork,
-        credentials_storage::{RAMStorage, RobotConfigurationStorage, RobotCredentials},
-        entry::{serve_with_network, RobotRepresentation},
-        log::initialize_logger,
-        provisioning::server::ProvisioningInfo,
-        registry::ComponentRegistry,
+    use std::{net::Ipv4Addr, rc::Rc};
+
+    use micro_rdk::{
+        common::{
+            conn::{
+                network::ExternallyManagedNetwork, server::WebRtcConfiguration2,
+                viam::ViamServerBuilder2,
+            },
+            credentials_storage::{RAMStorage, RobotConfigurationStorage, RobotCredentials},
+            exec::Executor,
+            log::initialize_logger,
+            provisioning::server::ProvisioningInfo,
+            registry::ComponentRegistry,
+            restart_monitor::RestartMonitor,
+            webrtc::certificate::Certificate,
+        },
+        native::{
+            certificate::WebRtcCertificate, conn::mdns::NativeMdns, dtls::NativeDtls,
+            tcp::NativeH2Connector,
+        },
     };
 
     pub(crate) fn main_native() {
@@ -21,7 +34,6 @@ mod native {
         };
 
         let registry = Box::<ComponentRegistry>::default();
-        let repr = RobotRepresentation::WithRegistry(registry);
 
         let storage = RAMStorage::new();
 
@@ -44,13 +56,33 @@ mod native {
             }
         }
 
-        let max_connections = 3;
-
         let mut info = ProvisioningInfo::default();
         info.set_manufacturer("viam".to_owned());
         info.set_model("test-esp32".to_owned());
 
-        serve_with_network(Some(info), repr, max_connections, storage, network);
+        let webrtc_certs = Rc::new(Box::new(WebRtcCertificate::new()) as Box<dyn Certificate>);
+        let dtls = Box::new(NativeDtls::new(webrtc_certs.clone()));
+        let webrtc_config = WebRtcConfiguration2::new(webrtc_certs, dtls);
+        let mut builder = ViamServerBuilder2::new(storage);
+        let mdns = NativeMdns::new("".to_string(), Ipv4Addr::UNSPECIFIED).unwrap();
+        let restart_monitor = RestartMonitor::new(|| std::process::exit(0));
+        builder
+            .with_app_uri("https://app.viam.com:443".try_into().unwrap())
+            .with_http2_server_insecure(false)
+            .with_http2_server(NativeH2Connector::default(), 12346)
+            .with_webrtc_configuration(webrtc_config)
+            .with_max_concurrent_connection(3)
+            .with_provisioning_info(info)
+            .with_component_registry(registry)
+            .with_app_client_task(Box::new(restart_monitor));
+
+        let mut server = builder.build(
+            NativeH2Connector::default(),
+            Executor::new(),
+            mdns,
+            Box::new(network),
+        );
+        server.run_forever();
     }
 }
 

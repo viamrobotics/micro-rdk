@@ -18,7 +18,7 @@ where
 {
     curr_config: ConfigResponse, //config for robot gotten from last robot startup, aka inputted from entry
     storage: S,
-    restart_hook: Option<Box<dyn FnOnce() + 'a>>,
+    restart_hook: Option<Box<dyn Fn() + 'a>>,
 }
 
 impl<'a, S> ConfigMonitor<'a, S>
@@ -28,7 +28,7 @@ where
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
     <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
 {
-    pub fn new(curr_config: ConfigResponse, storage: S, restart_hook: impl FnOnce() + 'a) -> Self {
+    pub fn new(curr_config: ConfigResponse, storage: S, restart_hook: impl Fn() + 'a) -> Self {
         Self {
             curr_config,
             storage,
@@ -36,9 +36,9 @@ where
         }
     }
 
-    fn restart(&mut self) -> ! {
+    fn restart(&self) -> ! {
         log::warn!("Robot configuration change detected restarting micro-rdk");
-        (self.restart_hook.take().unwrap())();
+        (self.restart_hook.as_ref().unwrap())();
         unreachable!();
     }
 }
@@ -60,7 +60,7 @@ where
     // TODO(RSDK-8160): Update "restart on config" to compare config version instead of deep
     // comparison of config response, which relies on RSDK-8023 adding config version
     fn invoke<'c, 'b: 'c>(
-        &'b mut self,
+        &'b self,
         app_client: &'c AppClient,
     ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'c>> {
         Box::pin(async move {
