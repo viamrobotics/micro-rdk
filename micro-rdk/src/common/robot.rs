@@ -34,7 +34,7 @@ use log::*;
 use super::{
     data_collector::{DataCollectionError, DataCollector, DataCollectorConfig},
     data_manager::DataManager,
-    data_store::StaticMemoryDataStore,
+    data_store::DefaultDataStore,
 };
 
 use super::{
@@ -286,8 +286,8 @@ impl LocalRobot {
         #[cfg(feature = "data")]
         {
             // TODO(RSDK-8125): Support selection of the DataStore trait other than
-            // StaticMemoryDataStore in a way that is configurable
-            match DataManager::<StaticMemoryDataStore>::from_robot_and_config(&robot, config_resp) {
+            // DefaultDataStore in a way that is configurable
+            match DataManager::<DefaultDataStore>::from_robot_and_config(&robot, config_resp) {
                 Ok(Some(mut data_manager)) => {
                     let _ = robot
                         .data_manager_sync_task
