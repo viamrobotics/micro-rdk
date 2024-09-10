@@ -148,7 +148,14 @@ impl DoCommand for Coredump {
                 .get("get_nth_chunk")
                 .and_then(|v| v.kind.as_ref())
             {
-                let offset = ((val.floor() as usize) * CORE_FRAGMENT_SIZE).min(self.len);
+                val.is_sign_positive()
+                    .then_some(Null)
+                    .ok_or(GenericError::Other(
+                        "chunk requested outside of bounds".into(),
+                    ))?;
+
+                let offset = (val.floor() as usize) * CORE_FRAGMENT_SIZE;
+
                 offset
                     .lt(&self.len)
                     .then_some(Null)
