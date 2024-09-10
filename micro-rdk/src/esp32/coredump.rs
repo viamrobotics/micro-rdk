@@ -39,6 +39,10 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 /// Instantiate a coredump sensor if : any partition of type data and subtype coredump can be found, we will use the first found partition is more than one exists (similar to the behavior of the coredump code in esp-idf)
 /// A coredump is consider available if the 4th byte of the version field is not 0xFF (flash erase value)
 /// The coredump is implemented as a sensor and can be downloaded through the DoCommand interface ( since GetReading cannot return a stream of bytes object)
+///
+/// To download a coredump you can either call DoCommand passing {"get_nth_chunk":n} where n is the chunk number until it returns an error (no more data available) or
+/// first call DoCommand passing {"sizes":null} to get the number of chunks.
+/// To erase the coredump call DoCommand passing{"erase_coredump":null}
 impl Coredump {
     pub fn from_config(_: ConfigType, _: Vec<Dependency>) -> Result<SensorType, SensorError> {
         let mut len = 0;
@@ -100,6 +104,9 @@ impl Status for Coredump {
 
 struct Null;
 
+// Coredump would be chunked into 4096 bytes encoded in Base64
+// len(bases64) = 4*(n/3) therefore n = (4096/4)*3 rounded down
+// which yield n = 3072
 const CORE_FRAGMENT_SIZE: usize = 3072;
 
 impl DoCommand for Coredump {
@@ -108,9 +115,6 @@ impl DoCommand for Coredump {
         command_struct: Option<protobuf::Struct>,
     ) -> Result<Option<protobuf::Struct>, crate::common::generic::GenericError> {
         if let Some(cmd) = command_struct {
-            // Coredump would be chunked into 4096 bytes encoded in Base64
-            // len(bases64) = 4*(n/3) therefore n = (4096/4)*3 rounded down
-            // which yield n = 3072
             if cmd.fields.get("sizes").is_some() {
                 return Ok(Some(Struct {
                     fields: HashMap::from([
