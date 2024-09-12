@@ -12,9 +12,10 @@ use std::{
 
 use crate::{
     common::grpc_client::{GrpcClientError, GrpcMessageSender, GrpcMessageStream},
+    google::rpc::{Code, Status},
     proto::rpc::webrtc::v1::{
         answer_request, answer_response, AnswerRequest, AnswerResponse, AnswerResponseDoneStage,
-        AnswerResponseInitStage, AnswerResponseUpdateStage, IceCandidate,
+        AnswerResponseErrorStage, AnswerResponseInitStage, AnswerResponseUpdateStage, IceCandidate,
     },
 };
 
@@ -65,8 +66,8 @@ pub enum WebRtcError {
     GprcEncodeError(#[from] EncodeError),
     #[error(transparent)]
     DtlsError(#[from] Box<dyn std::error::Error + Send + Sync>),
-    #[error("the active webrtc connection has a higher priority")]
-    CurrentConnectionHigherPrority(),
+    #[error("no available connection slots available")]
+    NoAvailableConnection(),
     #[error("cannot parse candidate")]
     CannotParseCandidate,
     #[error("Operation timeout")]
@@ -211,6 +212,28 @@ impl WebRtcSignalingChannel {
             }
         }
     }
+
+    pub(crate) async fn send_sdp_error(&mut self, sdp: &WebRtcSdp) -> Result<(), WebRtcError> {
+        let answer = AnswerResponse {
+            uuid: sdp.uuid.clone(),
+            stage: Some(answer_response::Stage::Error(AnswerResponseErrorStage {
+                status: Some(Status {
+                    code: Code::ResourceExhausted.into(),
+                    message: "no available connections".to_string(),
+                    ..Default::default()
+                }),
+            })),
+        };
+
+        if let Err(e) = self.signaling_tx.send_message(answer).await {
+            log::error!("error sending signaling message: {:?}", e);
+            Err(WebRtcError::SignalingDisconnected())
+        } else {
+            log::warn!("no available connection");
+            Ok(())
+        }
+    }
+
     pub(crate) async fn send_sdp_answer(&mut self, sdp: &WebRtcSdp) -> Result<(), WebRtcError> {
         let answer = SdpOffer {
             sdp_type: "answer".to_owned(),
@@ -489,7 +512,7 @@ where
             .wait_sdp_offer()
             .await?;
 
-        let answer = SessionDescription::new_jsep_session_description(false);
+        let sess_desc = SessionDescription::new_jsep_session_description(false);
 
         let attribute = offer
             .sdp
@@ -505,7 +528,15 @@ where
 
         // TODO use is_some_then when rust min version reach 1.70
         if current_prio >= caller_prio {
-            return Err(WebRtcError::CurrentConnectionHigherPrority());
+            let sdp = WebRtcSdp::new(sess_desc, offer.uuid.clone());
+            let sig_channel = self
+                .signaling
+                .as_mut()
+                .ok_or(WebRtcError::SignalingDisconnected())?;
+
+            sig_channel.send_sdp_error(&sdp).await?;
+
+            return Err(WebRtcError::NoAvailableConnections());
         }
 
         let remote_creds = ICECredentials::new(
@@ -564,12 +595,15 @@ where
         )
         .with_fingerprint(fp.get_algo().to_string(), fp.get_hash().to_string());
 
-        let answer = answer.with_value_attribute("group".to_owned(), "BUNDLE 0".to_owned());
+        let sess_desc = sess_desc.with_value_attribute("group".to_owned(), "BUNDLE 0".to_owned());
 
-        let answer = answer.with_media(media);
+        let sess_desc = sess_desc.with_media(media);
 
         Ok((
-            Box::new(WebRtcSdp::new(answer, self.uuid.as_ref().unwrap().clone())),
+            Box::new(WebRtcSdp::new(
+                sess_desc,
+                self.uuid.as_ref().unwrap().clone(),
+            )),
             caller_prio,
         ))
     }
