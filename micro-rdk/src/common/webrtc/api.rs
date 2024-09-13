@@ -536,7 +536,7 @@ where
 
             sig_channel.send_sdp_error(&sdp).await?;
 
-            return Err(WebRtcError::NoAvailableConnections());
+            return Err(WebRtcError::NoAvailableConnection());
         }
 
         let remote_creds = ICECredentials::new(
