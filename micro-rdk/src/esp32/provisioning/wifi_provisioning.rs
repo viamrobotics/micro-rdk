@@ -2,23 +2,21 @@
 use esp_idf_svc::{
     handle::RawHandle,
     netif::EspNetif,
-    sys::{self, esp_ip4_addr, ip4_addr, EspError},
+    sys::{self, esp_ip4_addr, ip4_addr},
     wifi::{
         AccessPointConfiguration, AccessPointInfo, AuthMethod, ClientConfiguration, Configuration,
         Protocol,
     },
 };
 
-use std::{cell::RefCell, ffi::c_void, net::Ipv4Addr};
-use thiserror::Error;
-
 use crate::{
     common::{
         credentials_storage::WifiCredentialStorage,
-        provisioning::server::{NetworkInfo, WifiManager},
+        provisioning::server::{NetworkInfo, WifiManager, WifiManagerError},
     },
     esp32::conn::network::esp32_get_wifi,
 };
+use std::{cell::RefCell, ffi::c_void, net::Ipv4Addr};
 
 pub struct Esp32WifiProvisioningBuilder {
     ap_ip_addr: Ipv4Addr,
@@ -63,25 +61,12 @@ impl Esp32WifiProvisioningBuilder {
         self.password = password;
         self
     }
-    pub async fn build<S>(
-        self,
-        storage: S,
-    ) -> Result<Esp32WifiProvisioning<S>, Esp32WifiProvisioningError>
+    pub async fn build<S>(self, storage: S) -> Result<Esp32WifiProvisioning<S>, WifiManagerError>
     where
         S: WifiCredentialStorage,
-        <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
     {
         Esp32WifiProvisioning::new(storage, &self.ssid, &self.password, self.ap_ip_addr).await
     }
-}
-#[derive(Error, Debug)]
-pub enum Esp32WifiProvisioningError {
-    #[error("cannot assign to heapless string")]
-    HeaplessStringError,
-    #[error(transparent)]
-    EspError(#[from] EspError),
-    #[error(transparent)]
-    OtherError(#[from] Box<dyn std::error::Error + Send + Sync + 'static>),
 }
 
 pub struct Esp32WifiProvisioning<S> {
@@ -108,15 +93,14 @@ where
     S: WifiCredentialStorage,
     <S as WifiCredentialStorage>::Error: 'static + Send + Sync,
 {
-    type Error = Esp32WifiProvisioningError;
     async fn scan_networks(
         &self,
-    ) -> Result<Vec<crate::common::provisioning::server::NetworkInfo>, Self::Error> {
+    ) -> Result<Vec<crate::common::provisioning::server::NetworkInfo>, WifiManagerError> {
         let networks = self.scan_networks().await?;
         let networks = networks.iter().map(NetworkInfo::from).collect();
         Ok(networks)
     }
-    async fn try_connect(&self, ssid: &str, password: &str) -> Result<(), Self::Error> {
+    async fn try_connect(&self, ssid: &str, password: &str) -> Result<(), WifiManagerError> {
         self.try_connect_to(ssid, password)
             .await
             .map_err(Into::into)
@@ -129,18 +113,17 @@ where
 impl<S> Esp32WifiProvisioning<S>
 where
     S: WifiCredentialStorage,
-    <S as WifiCredentialStorage>::Error: Send + Sync + 'static,
 {
     async fn new(
         storage: S,
         ssid: &str,
         password: &str,
         ip: Ipv4Addr,
-    ) -> Result<Self, Esp32WifiProvisioningError> {
+    ) -> Result<Self, WifiManagerError> {
         let ap_conf = AccessPointConfiguration {
             ssid: ssid
                 .try_into()
-                .map_err(|_| Esp32WifiProvisioningError::HeaplessStringError)?,
+                .map_err(|_| WifiManagerError::HeaplessStringError)?,
             ssid_hidden: false,
             channel: 10,
             secondary_channel: None,
@@ -148,7 +131,7 @@ where
             auth_method: esp_idf_svc::wifi::AuthMethod::WPA2Personal,
             password: password
                 .try_into()
-                .map_err(|_| Esp32WifiProvisioningError::HeaplessStringError)?,
+                .map_err(|_| WifiManagerError::HeaplessStringError)?,
             max_connections: 1,
         };
         let sta_conf = ClientConfiguration {
@@ -179,7 +162,7 @@ where
         &self,
         addr: Ipv4Addr,
         netif: &mut EspNetif,
-    ) -> Result<(), Esp32WifiProvisioningError> {
+    ) -> Result<(), WifiManagerError> {
         let handle = netif.handle();
         let ip = esp_ip4_addr {
             addr: u32::from_le_bytes(addr.octets()),
@@ -240,26 +223,22 @@ where
         unsafe { sys::esp!(sys::esp_netif_dhcps_start(handle)) }?;
         Ok(())
     }
-    async fn scan_networks(&self) -> Result<Vec<AccessPointInfo>, Esp32WifiProvisioningError> {
+    async fn scan_networks(&self) -> Result<Vec<AccessPointInfo>, WifiManagerError> {
         let mut wifi = esp32_get_wifi()?.lock().await;
         wifi.scan().await.map_err(Into::into)
     }
-    async fn try_connect_to(
-        &self,
-        ssid: &str,
-        password: &str,
-    ) -> Result<(), Esp32WifiProvisioningError> {
+    async fn try_connect_to(&self, ssid: &str, password: &str) -> Result<(), WifiManagerError> {
         let mut wifi = esp32_get_wifi()?.lock().await;
         {
             let mut conf = self.esp_wifi_config.borrow_mut();
             let (sta, _) = conf.as_mixed_conf_mut();
             sta.ssid = ssid
                 .try_into()
-                .map_err(|_| Esp32WifiProvisioningError::HeaplessStringError)?;
+                .map_err(|_| WifiManagerError::HeaplessStringError)?;
             sta.auth_method = AuthMethod::None;
             sta.password = password
                 .try_into()
-                .map_err(|_| Esp32WifiProvisioningError::HeaplessStringError)?;
+                .map_err(|_| WifiManagerError::HeaplessStringError)?;
             wifi.set_configuration(&conf)?;
         }
         wifi.connect().await?;
