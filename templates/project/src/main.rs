@@ -8,6 +8,7 @@ use micro_rdk::{
         credentials_storage::{
             RobotConfigurationStorage, RobotCredentials, WifiCredentialStorage, WifiCredentials,
         },
+        log::initialize_logger,
         entry::RobotRepresentation,
         provisioning::server::ProvisioningInfo,
         registry::{ComponentRegistry, RegistryError},
@@ -16,6 +17,7 @@ use micro_rdk::{
         entry::serve,
         esp_idf_svc::{
             self,
+            log::EspLogger,
             sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT},
         },
         nvs_storage::NVSStorage,
@@ -43,7 +45,7 @@ include!(concat!(env!("OUT_DIR"), "/modules.rs"));
 
 fn main() {
     esp_idf_svc::sys::link_patches();
-    esp_idf_svc::log::EspLogger::initialize_default();
+    initialize_logger::<EspLogger>();
 
     esp_idf_svc::sys::esp!(unsafe {
         esp_idf_svc::sys::esp_vfs_eventfd_register(&esp_idf_svc::sys::esp_vfs_eventfd_config_t {
