@@ -536,6 +536,9 @@ where
 
             sig_channel.send_sdp_error(&sdp).await?;
 
+            // this delay ensures that the sdp error is properly sent and received before closing the connection.
+            async_io::Timer::after(Duration::from_millis(200)).await;
+
             return Err(WebRtcError::NoAvailableConnection());
         }
 
