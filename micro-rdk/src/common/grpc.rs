@@ -1305,8 +1305,7 @@ impl<'a> GrpcServerInner<'a> {
         buffer.put_u8(0);
         buffer.put_u32(msg_buf.len() as u32);
         buffer.unsplit(msg_buf);
-        self.response.put_data(buffer.freeze());
-        Ok(())
+        Ok(buffer.freeze())
     }
 
     #[cfg(feature = "camera")]
@@ -1333,8 +1332,7 @@ impl<'a> GrpcServerInner<'a> {
         buffer.put_u8(0);
         buffer.put_u32(msg_buf.len() as u32);
         buffer.unsplit(msg_buf);
-        self.response.put_data(buffer.freeze());
-        Ok(())
+        Ok(buffer.freeze())
     }
 
     #[cfg(feature = "camera")]
