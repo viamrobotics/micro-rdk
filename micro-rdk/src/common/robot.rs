@@ -328,8 +328,10 @@ impl LocalRobot {
         }
         #[cfg(feature = "data")]
         for cfg in config.data_collector_configs.iter() {
-            self.data_collector_configs
-                .push((new_resource_name.clone(), cfg.clone()));
+            if !cfg.disabled {
+                self.data_collector_configs
+                    .push((new_resource_name.clone(), cfg.clone()));
+            }
         }
         self.insert_resource(
             model,
