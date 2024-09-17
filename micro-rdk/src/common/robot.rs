@@ -289,10 +289,9 @@ impl LocalRobot {
             // DefaultDataStore in a way that is configurable
             match DataManager::<DefaultDataStore>::from_robot_and_config(&robot, config_resp) {
                 Ok(Some(mut data_manager)) => {
-                    let _ = robot
-                        .data_manager_sync_task
-                        .insert(Box::new(data_manager.get_sync_task(robot.start_time)));
-
+                    if let Some(task) = data_manager.get_sync_task(robot.start_time) {
+                        let _ = robot.data_manager_sync_task.insert(Box::new(task));
+                    }
                     let _ = robot
                         .data_manager_collection_task
                         .replace(robot.executor.spawn(async move {
