@@ -66,7 +66,7 @@ pub enum WebRtcError {
     GprcEncodeError(#[from] EncodeError),
     #[error(transparent)]
     DtlsError(#[from] Box<dyn std::error::Error + Send + Sync>),
-    #[error("no available connection slots available")]
+    #[error("no connection slots available")]
     NoAvailableConnection(),
     #[error("cannot parse candidate")]
     CannotParseCandidate,
@@ -213,13 +213,16 @@ impl WebRtcSignalingChannel {
         }
     }
 
-    pub(crate) async fn send_sdp_error(&mut self, sdp: &WebRtcSdp) -> Result<(), WebRtcError> {
+    pub(crate) async fn send_sdp_error_too_many_connections(
+        &mut self,
+        sdp: &WebRtcSdp,
+    ) -> Result<(), WebRtcError> {
         let answer = AnswerResponse {
             uuid: sdp.uuid.clone(),
             stage: Some(answer_response::Stage::Error(AnswerResponseErrorStage {
                 status: Some(Status {
                     code: Code::ResourceExhausted.into(),
-                    message: "no available connections".to_string(),
+                    message: "too many active connections".to_string(),
                     ..Default::default()
                 }),
             })),
@@ -229,7 +232,7 @@ impl WebRtcSignalingChannel {
             log::error!("error sending signaling message: {:?}", e);
             Err(WebRtcError::SignalingDisconnected())
         } else {
-            log::warn!("no available connection");
+            log::warn!("too many active connections");
             Ok(())
         }
     }
@@ -512,8 +515,6 @@ where
             .wait_sdp_offer()
             .await?;
 
-        let sess_desc = SessionDescription::new_jsep_session_description(false);
-
         let attribute = offer
             .sdp
             .media_descriptions
@@ -528,19 +529,21 @@ where
 
         // TODO use is_some_then when rust min version reach 1.70
         if current_prio >= caller_prio {
-            let sdp = WebRtcSdp::new(sess_desc, offer.uuid.clone());
             let sig_channel = self
                 .signaling
                 .as_mut()
                 .ok_or(WebRtcError::SignalingDisconnected())?;
 
-            sig_channel.send_sdp_error(&sdp).await?;
+            sig_channel
+                .send_sdp_error_too_many_connections(&offer)
+                .await?;
 
             // this delay ensures that the sdp error is properly sent and received before closing the connection.
             async_io::Timer::after(Duration::from_millis(200)).await;
 
             return Err(WebRtcError::NoAvailableConnection());
         }
+        let answer = SessionDescription::new_jsep_session_description(false);
 
         let remote_creds = ICECredentials::new(
             attribute
@@ -598,15 +601,12 @@ where
         )
         .with_fingerprint(fp.get_algo().to_string(), fp.get_hash().to_string());
 
-        let sess_desc = sess_desc.with_value_attribute("group".to_owned(), "BUNDLE 0".to_owned());
+        let answer = answer.with_value_attribute("group".to_owned(), "BUNDLE 0".to_owned());
 
-        let sess_desc = sess_desc.with_media(media);
+        let answer = answer.with_media(media);
 
         Ok((
-            Box::new(WebRtcSdp::new(
-                sess_desc,
-                self.uuid.as_ref().unwrap().clone(),
-            )),
+            Box::new(WebRtcSdp::new(answer, self.uuid.as_ref().unwrap().clone())),
             caller_prio,
         ))
     }
