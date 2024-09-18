@@ -1,6 +1,6 @@
 [package]
 name = "{{project-name}}"
-version = "0.2.8"
+version = "0.2.9"
 edition = "2021"
 authors = ["{{authors}}"]
 resolver = "2"
@@ -15,8 +15,8 @@ opt-level = "z"
 
 [dependencies.micro-rdk]
 git = "https://github.com/viamrobotics/micro-rdk.git"
-version = "0.2.8"
-rev = "4a00116"
+version = "0.2.9"
+rev = "a37724a"
 features = [
   "esp32", 
   "binstart",

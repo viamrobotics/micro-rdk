@@ -25,11 +25,19 @@ pub struct DataCollectorConfig {
     pub method: CollectionMethod,
     pub capture_frequency_hz: f32,
     pub capacity: usize,
+    pub disabled: bool,
 }
 
 impl TryFrom<&Kind> for DataCollectorConfig {
     type Error = AttributeError;
     fn try_from(value: &Kind) -> Result<Self, Self::Error> {
+        let disabled = match value.get("disabled") {
+            Ok(val) => match val {
+                Some(Kind::BoolValue(v)) => *v,
+                _ => false,
+            },
+            Err(_) => false,
+        };
         let method_str: String = value
             .get("method")?
             .ok_or(AttributeError::KeyNotFound("method".to_string()))?
@@ -45,7 +53,7 @@ impl TryFrom<&Kind> for DataCollectorConfig {
             .unwrap_or(&Kind::NumberValue(DEFAULT_CACHE_SIZE_KB))
             .try_into()?;
         let capacity = (capacity_kb * 1000.0) as usize;
-        if capacity < 1000 {
+        if (capacity < 1000) && !disabled {
             return Err(AttributeError::ValidationError(
                 "cache size must be at least 1KB".to_string(),
             ));
@@ -64,6 +72,7 @@ impl TryFrom<&Kind> for DataCollectorConfig {
             method,
             capture_frequency_hz,
             capacity,
+            disabled,
         })
     }
 }
@@ -308,6 +317,7 @@ mod tests {
         assert!(matches!(conf.method, CollectionMethod::Readings));
         assert_eq!(conf.capture_frequency_hz, 100.0);
         assert_eq!(conf.capacity, (DEFAULT_CACHE_SIZE_KB * 1000.0) as usize);
+        assert_eq!(conf.disabled, false);
 
         let kind_map = HashMap::from([
             (
@@ -316,12 +326,27 @@ mod tests {
             ),
             ("capture_frequency_hz".to_string(), Kind::NumberValue(100.0)),
             ("cache_size_kb".to_string(), Kind::NumberValue(2.0)),
+            ("disabled".to_string(), Kind::BoolValue(true)),
         ]);
         let conf_kind = Kind::StructValue(kind_map);
         let conf: DataCollectorConfig = (&conf_kind).try_into()?;
         assert!(matches!(conf.method, CollectionMethod::AngularVelocity));
         assert_eq!(conf.capture_frequency_hz, 100.0);
         assert_eq!(conf.capacity, 2000);
+        assert_eq!(conf.disabled, true);
+
+        let kind_map = HashMap::from([
+            (
+                "method".to_string(),
+                Kind::StringValue("AngularVelocity".to_string()),
+            ),
+            ("capture_frequency_hz".to_string(), Kind::NumberValue(100.0)),
+            ("cache_size_kb".to_string(), Kind::NumberValue(2.0)),
+            ("disabled".to_string(), Kind::BoolValue(false)),
+        ]);
+        let conf_kind = Kind::StructValue(kind_map);
+        let conf: DataCollectorConfig = (&conf_kind).try_into()?;
+        assert_eq!(conf.disabled, false);
 
         let kind_map = HashMap::from([
             (
@@ -334,6 +359,21 @@ mod tests {
         let conf_kind = Kind::StructValue(kind_map);
         let conf = DataCollectorConfig::try_from(&conf_kind);
         assert!(conf.is_err());
+
+        let kind_map = HashMap::from([
+            (
+                "method".to_string(),
+                Kind::StringValue("AngularVelocity".to_string()),
+            ),
+            ("capture_frequency_hz".to_string(), Kind::NumberValue(100.0)),
+            ("cache_size_kb".to_string(), Kind::NumberValue(0.5)),
+            ("disabled".to_string(), Kind::BoolValue(true)),
+        ]);
+        let conf_kind = Kind::StructValue(kind_map);
+        let conf = DataCollectorConfig::try_from(&conf_kind);
+        assert!(conf.is_ok());
+        let conf = conf.unwrap();
+        assert_eq!(conf.disabled, true);
 
         let kind_map = HashMap::from([
             (
