@@ -217,7 +217,7 @@ impl<'a> GrpcServerInner<'a> {
         &mut self,
         path: &str,
         payload: &[u8],
-    ) -> Result<std::time::Instant, ServerError> {
+    ) -> Result<(Bytes, std::time::Instant), ServerError> {
         match path {
             "/viam.robot.v1.RobotService/StreamStatus" => self.robot_status_stream(payload),
             _ => Err(ServerError::from(GrpcError::RpcUnavailable)),
@@ -1226,7 +1226,10 @@ impl<'a> GrpcServerInner<'a> {
         self.encode_message(resp)
     }
 
-    fn robot_status_stream(&mut self, message: &[u8]) -> Result<std::time::Instant, ServerError> {
+    fn robot_status_stream(
+        &mut self,
+        message: &[u8],
+    ) -> Result<(Bytes, std::time::Instant), ServerError> {
         let req = robot::v1::StreamStatusRequest::decode(message)
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let duration = Instant::now()
@@ -1244,7 +1247,7 @@ impl<'a> GrpcServerInner<'a> {
                 .get_status(req)
                 .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?,
         };
-        self.encode_message(status).map(|_| duration)
+        self.encode_message(status).map(|b| (b, duration))
     }
 
     // robot_get_operations returns an empty response since operations are not yet
@@ -1386,7 +1389,7 @@ where
             robot: &self.robot,
         };
         grpc.handle_request(method, data)
-            .map(|_| self.response.get_data().split_off(5))
+            .map(|mut b| b.split_off(5))
     }
     fn server_stream_rpc(
         &mut self,
@@ -1402,7 +1405,7 @@ where
             robot: &self.robot,
         };
         grpc.handle_rpc_stream(method, data)
-            .map(|dur| (self.response.get_data().split_off(5), dur))
+            .map(|mut dur| (dur.0.split_off(5), dur.1))
     }
 }
 
