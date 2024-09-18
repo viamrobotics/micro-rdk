@@ -16,6 +16,8 @@ pub enum AttributeError {
     ConversionImpossibleError,
     #[error("attribute `{0}` was not found")]
     KeyNotFound(String),
+    #[error("{0}")]
+    ValidationError(String),
 }
 
 impl From<ParseIntError> for AttributeError {
@@ -51,7 +53,7 @@ macro_rules! primitives
         )*
     }
 }
-primitives!(u32, i32, u8, u16, i16, i8);
+primitives!(u32, i32, u8, u16, i16, i8, usize);
 
 macro_rules! floats
 {
