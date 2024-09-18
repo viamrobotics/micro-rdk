@@ -67,7 +67,7 @@ pub enum WebRtcError {
     #[error(transparent)]
     DtlsError(#[from] Box<dyn std::error::Error + Send + Sync>),
     #[error("no connection slots available")]
-    NoAvailableConnection(),
+    NoConnectionAvailable(),
     #[error("cannot parse candidate")]
     CannotParseCandidate,
     #[error("Operation timeout")]
@@ -541,7 +541,7 @@ where
             // this delay ensures that the sdp error is properly sent and received before closing the connection.
             async_io::Timer::after(Duration::from_millis(200)).await;
 
-            return Err(WebRtcError::NoAvailableConnection());
+            return Err(WebRtcError::NoConnectionAvailable());
         }
         let answer = SessionDescription::new_jsep_session_description(false);
 
