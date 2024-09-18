@@ -33,3 +33,4 @@ pub mod nvs_storage;
 pub mod provisioning {
     pub mod wifi_provisioning;
 }
+pub mod coredump;
