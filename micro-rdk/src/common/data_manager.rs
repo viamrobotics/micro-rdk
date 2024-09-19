@@ -5,11 +5,11 @@ use std::time::{Duration, Instant};
 use crate::common::data_collector::{DataCollectionError, DataCollector};
 use crate::common::data_store::DataStore;
 use crate::google::protobuf::value::Kind;
-use crate::google::protobuf::Timestamp;
+use crate::google::protobuf::{Struct, Timestamp};
 use crate::proto::app::data_sync::v1::{
     DataCaptureUploadRequest, DataType, SensorData, UploadMetadata,
 };
-use crate::proto::app::v1::ConfigResponse;
+use crate::proto::app::v1::{ConfigResponse, ServiceConfig};
 
 use super::app_client::{AppClient, AppClientError, PeriodicAppClientTask};
 use super::data_collector::ResourceMethodKey;
@@ -66,7 +66,9 @@ pub enum DataManagerError {
     InitializationRobotError(#[from] RobotError),
 }
 
-fn get_data_sync_interval(cfg: &ConfigResponse) -> Result<Option<Duration>, DataManagerError> {
+fn get_data_service_config(
+    cfg: &ConfigResponse,
+) -> Result<Option<ServiceConfig>, DataManagerError> {
     let robot_config = cfg.config.clone().ok_or(DataManagerError::ConfigError)?;
     let num_configs_detected = robot_config
         .services
@@ -76,16 +78,27 @@ fn get_data_sync_interval(cfg: &ConfigResponse) -> Result<Option<Duration>, Data
     if num_configs_detected > 1 {
         return Err(DataManagerError::MultipleConfigError);
     }
+    Ok(robot_config
+        .services
+        .iter()
+        .find(|svc_cfg| svc_cfg.r#type == *"data_manager")
+        .cloned())
+}
+
+fn get_data_sync_interval(attrs: &Struct) -> Result<Option<Duration>, DataManagerError> {
     Ok(
-        if let Some(data_cfg) = robot_config
-            .services
-            .iter()
-            .find(|svc_cfg| svc_cfg.r#type == *"data_manager")
+        // If cloud sync is disabled, we'll communicate this by having the sync interval be None
+        if attrs
+            .fields
+            .get("sync_disabled")
+            .map(|v| match v.kind {
+                Some(Kind::BoolValue(b)) => b,
+                _ => false,
+            })
+            .unwrap_or(false)
         {
-            let attrs = data_cfg
-                .attributes
-                .clone()
-                .ok_or(DataManagerError::ConfigError)?;
+            None
+        } else {
             let sync_interval_mins = attrs
                 .fields
                 .get("sync_interval_mins")
@@ -95,8 +108,6 @@ fn get_data_sync_interval(cfg: &ConfigResponse) -> Result<Option<Duration>, Data
             } else {
                 return Err(DataManagerError::ConfigError);
             }
-        } else {
-            None
         },
     )
 }
@@ -104,7 +115,7 @@ fn get_data_sync_interval(cfg: &ConfigResponse) -> Result<Option<Duration>, Data
 pub struct DataManager<StoreType> {
     collectors: Vec<DataCollector>,
     store: Rc<AsyncMutex<StoreType>>,
-    sync_interval: Duration,
+    sync_interval: Option<Duration>,
     min_interval: Duration,
     robot_part_id: String,
 }
@@ -116,7 +127,7 @@ where
     pub fn new(
         collectors: Vec<DataCollector>,
         store: StoreType,
-        sync_interval: Duration,
+        sync_interval: Option<Duration>,
         robot_part_id: String,
     ) -> Result<Self, DataManagerError> {
         let intervals = collectors.iter().map(|x| x.time_interval());
@@ -134,24 +145,43 @@ where
         robot: &LocalRobot,
         cfg: &ConfigResponse,
     ) -> Result<Option<Self>, DataManagerError> {
-        let sync_interval = get_data_sync_interval(cfg)?;
-        if let Some(sync_interval) = sync_interval {
-            let collectors = robot.data_collectors()?;
-            let collector_settings: Vec<(ResourceMethodKey, usize)> = collectors
-                .iter()
-                .map(|c| (c.resource_method_key(), c.capacity()))
-                .collect();
-            let store = StoreType::from_resource_method_settings(collector_settings)?;
-            let data_manager_svc =
-                DataManager::new(collectors, store, sync_interval, robot.part_id.clone())?;
-            Ok(Some(data_manager_svc))
+        if let Some(cfg) = get_data_service_config(cfg)? {
+            let attrs = cfg.attributes.ok_or(DataManagerError::ConfigError)?;
+            let sync_interval = get_data_sync_interval(&attrs)?;
+            let collectors = if attrs
+                .fields
+                .get("capture_disabled")
+                .map(|v| match v.kind {
+                    Some(Kind::BoolValue(b)) => b,
+                    _ => false,
+                })
+                .unwrap_or(false)
+            {
+                vec![]
+            } else {
+                robot.data_collectors()?
+            };
+
+            // if there are no collectors and cloud sync is off, simply don't create a DataManager
+            if collectors.is_empty() && sync_interval.is_none() {
+                Ok(None)
+            } else {
+                let collector_settings: Vec<(ResourceMethodKey, usize)> = collectors
+                    .iter()
+                    .map(|c| (c.resource_method_key(), c.capacity()))
+                    .collect();
+                let store = StoreType::from_resource_method_settings(collector_settings)?;
+                let data_manager_svc =
+                    DataManager::new(collectors, store, sync_interval, robot.part_id.clone())?;
+                Ok(Some(data_manager_svc))
+            }
         } else {
             Ok(None)
         }
     }
 
     pub fn sync_interval_ms(&self) -> u64 {
-        self.sync_interval.as_millis() as u64
+        self.sync_interval.unwrap_or_default().as_millis() as u64
     }
 
     pub fn min_interval_ms(&self) -> u64 {
@@ -268,18 +298,22 @@ where
             .collect()
     }
 
-    pub fn get_sync_task(&self, robot_start_time: Instant) -> DataSyncTask<StoreType> {
-        let resource_method_keys: Vec<ResourceMethodKey> = self
-            .collectors
-            .iter()
-            .map(|coll| coll.resource_method_key())
-            .collect();
-        DataSyncTask {
-            store: self.store.clone(),
-            resource_method_keys,
-            sync_interval: self.sync_interval,
-            part_id: self.part_id(),
-            robot_start_time,
+    pub fn get_sync_task(&self, robot_start_time: Instant) -> Option<DataSyncTask<StoreType>> {
+        if let Some(sync_interval) = self.sync_interval {
+            let resource_method_keys: Vec<ResourceMethodKey> = self
+                .collectors
+                .iter()
+                .map(|coll| coll.resource_method_key())
+                .collect();
+            Some(DataSyncTask {
+                store: self.store.clone(),
+                resource_method_keys,
+                sync_interval,
+                part_id: self.part_id(),
+                robot_start_time,
+            })
+        } else {
+            None
         }
     }
 }
@@ -738,7 +772,7 @@ mod tests {
         let data_manager = DataManager::new(
             data_colls,
             store,
-            Duration::from_millis(30),
+            Some(Duration::from_millis(30)),
             "1".to_string(),
         );
         assert!(data_manager.is_ok());
@@ -794,7 +828,7 @@ mod tests {
         let data_manager = DataManager::new(
             data_colls,
             store,
-            Duration::from_millis(30),
+            Some(Duration::from_millis(30)),
             "1".to_string(),
         );
         assert!(data_manager.is_ok());
@@ -905,7 +939,7 @@ mod tests {
         let data_manager = DataManager::new(
             vec![data_coll_1, data_coll_3],
             store,
-            Duration::from_millis(30),
+            Some(Duration::from_millis(30)),
             "1".to_string(),
         );
         assert!(data_manager.is_ok());
@@ -1096,13 +1130,15 @@ mod tests {
         let manager = DataManager::new(
             vec![data_coll_1, data_coll_2],
             ReadSavingStore::new(),
-            Duration::from_millis(65),
+            Some(Duration::from_millis(65)),
             "boop".to_string(),
         );
         assert!(manager.is_ok());
         let mut manager = manager.unwrap();
 
-        let mut sync_task = manager.get_sync_task(robot_start_time);
+        let sync_task = manager.get_sync_task(robot_start_time);
+        assert!(sync_task.is_some());
+        let mut sync_task = sync_task.unwrap();
 
         async_io::block_on(async move {
             let store_lock = sync_task.get_store_lock().await;

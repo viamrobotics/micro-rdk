@@ -22,6 +22,8 @@ pub static COMPONENT_NAME: &str = "generic";
 pub enum GenericError {
     #[error("Generic: method {0} unimplemented")]
     MethodUnimplemented(&'static str),
+    #[error("Generic other error: {0}")]
+    Other(Box<dyn std::error::Error + Send + Sync>),
 }
 #[cfg(feature = "builtin-components")]
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
