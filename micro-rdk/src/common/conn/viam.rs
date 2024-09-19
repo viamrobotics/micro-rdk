@@ -348,8 +348,9 @@ where
             app_client_tasks.push(AppClientTaskRunner {
                 app_client: &app_client,
                 invoker: task,
-                timer: None,
-                task: None,
+                state: TaskRunnerState::Run {
+                    task: task.invoke(&app_client),
+                },
             });
         }
         while let Some(res) = app_client_tasks.next().await {
@@ -512,13 +513,37 @@ impl PeriodicAppClientTask for SignalingTask {
     }
 }
 
-struct AppClientTaskRunner<'a> {
-    task: Option<
-        std::pin::Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'a>>,
-    >,
+pin_project_lite::pin_project! {
+    #[project = TaskRunnerStateProj]
+    enum TaskRunnerState<'a> {
+    Sleep{#[pin]timer : Timer},
+    Run{ task: std::pin::Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'a>>},
+    }
+}
+
+impl<'a> Future for TaskRunnerState<'a> {
+    type Output = Result<Option<Duration>, AppClientError>;
+    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        match self.project() {
+            TaskRunnerStateProj::Run { task } => {
+                let res = futures_lite::ready!(task.poll(cx));
+                Poll::Ready(res)
+            }
+            TaskRunnerStateProj::Sleep { timer } => {
+                let _ = futures_lite::ready!(timer.poll(cx));
+                Poll::Ready(Ok(None))
+            }
+        }
+    }
+}
+
+pin_project_lite::pin_project! {
+    struct AppClientTaskRunner<'a> {
     invoker: &'a Box<dyn PeriodicAppClientTask>, //need to impl deref?
     app_client: &'a AppClient,
-    timer: Option<async_io::Timer>,
+    #[pin]
+    state: TaskRunnerState<'a>
+    }
 }
 
 impl<'a> Future for AppClientTaskRunner<'a> {
@@ -527,30 +552,41 @@ impl<'a> Future for AppClientTaskRunner<'a> {
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
-        if let Some(&mut ref mut timer) = self.timer.as_mut() {
-            let _ = futures_lite::ready!(timer.poll(cx));
+        let res = {
+            let this = self.as_mut().project();
+            futures_lite::ready!(this.state.poll(cx))?
+        };
+        // we need to swap the state between Run,Sleep such as Run -> Sleep or Sleep -> Run
+        // it's not possible in safe rust to mutate the inner state therefore we need to resort to
+        // unsafe code
+        unsafe {
+            // move self.state out of self, from this point on self.state is in an invalid state
+            // because we have it pinned there are no risk of another part of the code reading this field
+            // however if a panic occurs while mutating the state this will lead to UB since
+            // dropping TaskRunner will be invalid
+            // To circumvent this we catch panic as they happen (either when calling self.invoker.invoke() or instantiating
+            // the new timer.
+            // If a panic occurs and abort call will be issued. We could return an error but we would need to either write the value
+            // moved self.state back or put a default value.
+            let old = std::ptr::read(&mut self.state);
+            let next = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match old {
+                TaskRunnerState::Run { task: _ } => TaskRunnerState::Sleep {
+                    timer: res.map_or(
+                        Timer::after(self.invoker.get_default_period()),
+                        Timer::after,
+                    ),
+                },
+                TaskRunnerState::Sleep { timer: _ } => TaskRunnerState::Run {
+                    task: self.invoker.invoke(&self.app_client),
+                },
+            }))
+            .unwrap_or_else(|_| std::process::abort());
+            // move the new value into self.state, the old value will be dropped when leaving the unsafe block
+            std::ptr::write(&mut self.state, next);
         }
-        let _ = self.timer.take();
-        if self.task.is_none() {
-            let task = self.invoker.invoke(self.app_client);
-            let _old_task = self.task.insert(task);
-        }
-        if let Some(&mut ref mut task) = self.task.as_mut() {
-            let r = futures_lite::ready!(task.poll(cx));
-            match r {
-                Ok(next) => {
-                    let next = next.map_or(Timer::after(self.invoker.get_default_period()), |d| {
-                        Timer::after(d)
-                    });
-                    let old_timer = self.timer.insert(next);
-                    std::mem::drop(old_timer);
-                    cx.waker().wake_by_ref();
-                }
-                Err(e) => return Poll::Ready(Err(e)),
-            }
-        }
-        let old_task = self.task.take();
-        std::mem::drop(old_task);
+        // state has changed we need to poll again immediately
+        cx.waker().wake_by_ref();
+
         Poll::Pending
     }
 }
