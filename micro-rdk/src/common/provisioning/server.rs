@@ -34,6 +34,7 @@ use hyper::{
     Response,
 };
 use prost::Message;
+use thiserror::Error;
 
 async fn dns_server(ap_ip: Ipv4Addr) {
     let socket = async_io::Async::<UdpSocket>::bind(([0, 0, 0, 0], 53)).unwrap();
@@ -445,20 +446,33 @@ where
     }
 }
 
+#[derive(Error, Debug)]
+pub enum WifiManagerError {
+    #[error("cannot assign to heapless string")]
+    HeaplessStringError,
+    #[cfg(feature = "esp32")]
+    #[error(transparent)]
+    EspError(#[from] crate::esp32::esp_idf_svc::sys::EspError),
+    #[error(transparent)]
+    OtherError(#[from] Box<dyn std::error::Error + Send + Sync + 'static>),
+}
+
 pub(crate) trait WifiManager {
-    type Error: std::error::Error + Send + Sync + 'static;
-    async fn scan_networks(&self) -> Result<Vec<NetworkInfo>, Self::Error>;
-    async fn try_connect(&self, ssid: &str, password: &str) -> Result<(), Self::Error>;
+    async fn scan_networks(&self) -> Result<Vec<NetworkInfo>, WifiManagerError>;
+    async fn try_connect(&self, ssid: &str, password: &str) -> Result<(), WifiManagerError>;
     fn get_ap_ip(&self) -> Ipv4Addr;
 }
 
 impl WifiManager for () {
-    type Error = ServerError;
-    async fn scan_networks(&self) -> Result<Vec<NetworkInfo>, Self::Error> {
-        Err(ServerError::new(GrpcError::RpcUnimplemented, None))
+    async fn scan_networks(&self) -> Result<Vec<NetworkInfo>, WifiManagerError> {
+        Err(WifiManagerError::OtherError(
+            ServerError::new(GrpcError::RpcUnimplemented, None).into(),
+        ))
     }
-    async fn try_connect(&self, _: &str, _: &str) -> Result<(), Self::Error> {
-        Err(ServerError::new(GrpcError::RpcUnimplemented, None))
+    async fn try_connect(&self, _: &str, _: &str) -> Result<(), WifiManagerError> {
+        Err(WifiManagerError::OtherError(
+            ServerError::new(GrpcError::RpcUnimplemented, None).into(),
+        ))
     }
     fn get_ap_ip(&self) -> Ipv4Addr {
         Ipv4Addr::UNSPECIFIED
@@ -512,7 +526,6 @@ where
     S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
     <S as RobotConfigurationStorage>::Error: Debug,
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
-    <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
     Wifi: WifiManager + 'static,
     M: Mdns,
 {
