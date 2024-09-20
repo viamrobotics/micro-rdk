@@ -582,6 +582,9 @@ where
     credential_ready.await;
 
     provisioning_server_task.cancel().await;
+    if let Err(e) = mdns.remove_service("provisioning", "_rpc", "_tcp") {
+        log::error!("provisioning couldn't remove mdns record error {:?}", e);
+    }
     Ok(())
 }
 

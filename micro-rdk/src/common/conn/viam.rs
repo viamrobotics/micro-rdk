@@ -247,7 +247,7 @@ where
         let exec = self.executor.clone();
         exec.block_on(self.run());
     }
-    async fn run(&mut self) {
+    pub(crate) async fn run(&mut self) {
         // The first step is to check whether or not credentials are populated in
         // storage. If not, we should go straight to provisioning.
         if !self.storage.has_robot_credentials() {
@@ -595,7 +595,7 @@ impl<'a> Future for AppClientTaskRunner<'a> {
 mod tests {
     use std::{
         future::Future,
-        net::{Ipv4Addr, TcpListener},
+        net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
         pin::Pin,
         rc::Rc,
         time::Duration,
@@ -603,20 +603,31 @@ mod tests {
 
     use async_io::{Async, Timer};
     use bytes::{BufMut, Bytes, BytesMut};
-    use http_body_util::BodyExt;
-    use hyper::{body::Incoming, header::CONTENT_TYPE, server::conn::http2, service::Service};
+    use futures_lite::FutureExt;
+    use http_body_util::{BodyExt, Full};
+    use hyper::{
+        body::Incoming,
+        header::{CONTENT_TYPE, TE},
+        server::conn::http2,
+        service::Service,
+        Method,
+    };
+    use mdns_sd::{ServiceEvent, ServiceInfo};
     use prost::Message;
 
     use crate::{
         common::{
+            app_client::encode_request,
             conn::{
-                network::ExternallyManagedNetwork, server::WebRtcConfiguration2,
+                network::{ExternallyManagedNetwork, Network},
+                server::WebRtcConfiguration2,
                 viam::ViamServerBuilder2,
             },
             credentials_storage::{RAMStorage, RobotConfigurationStorage, RobotCredentials},
             exec::Executor,
             grpc::{GrpcBody, GrpcResponse},
             log::LogUploadTask,
+            provisioning::server::ProvisioningInfo,
             restart_monitor::RestartMonitor,
             webrtc::certificate::Certificate,
         },
@@ -627,10 +638,14 @@ mod tests {
             tcp::{NativeH2Connector, NativeStream},
         },
         proto::{
-            app::v1::{
-                CertificateResponse, NeedsRestartRequest, NeedsRestartResponse, RobotConfig,
+            app::{
+                self,
+                v1::{
+                    CertificateResponse, ConfigResponse, NeedsRestartRequest, NeedsRestartResponse,
+                    RobotConfig,
+                },
             },
-            provisioning::v1::CloudConfig,
+            provisioning::v1::{CloudConfig, SetSmartMachineCredentialsRequest},
             robot::v1::{LogRequest, LogResponse},
             rpc::v1::{AuthenticateRequest, AuthenticateResponse},
         },
@@ -640,11 +655,15 @@ mod tests {
     struct AppServerInsecure {
         config_fn: Option<&'static dyn Fn() -> RobotConfig>,
         log_fn: Option<&'static dyn Fn()>,
+        auth_fn: Option<Rc<Box<dyn Fn(&AuthenticateRequest)>>>,
     }
 
     impl AppServerInsecure {
         fn authenticate(&self, body: Bytes) -> Bytes {
             let req = AuthenticateRequest::decode(body).unwrap();
+            if let Some(auth_fn) = &self.auth_fn {
+                auth_fn(&req);
+            }
             let resp = AuthenticateResponse {
                 access_token: "fake".to_string(),
             };
@@ -700,6 +719,18 @@ mod tests {
             resp.encode(&mut buffer).unwrap();
             buffer.freeze()
         }
+        fn get_config(&self) -> Bytes {
+            let cfg = self
+                .config_fn
+                .map_or(make_sample_config(), |cfg_fn| cfg_fn());
+            let resp = ConfigResponse { config: Some(cfg) };
+            let len = resp.encoded_len();
+            let mut buffer = BytesMut::with_capacity(5 + len);
+            buffer.put_u8(0);
+            buffer.put_u32(len.try_into().unwrap());
+            resp.encode(&mut buffer).unwrap();
+            buffer.freeze()
+        }
         async fn process_request_inner(&self, req: hyper::http::Request<Incoming>) -> Bytes {
             let (parts, body) = req.into_parts();
             let mut body = body.collect().await.unwrap().to_bytes();
@@ -708,6 +739,7 @@ mod tests {
                 "/viam.app.v1.RobotService/Certificate" => self.certificates(body.split_off(5)),
                 "/viam.app.v1.RobotService/Log" => self.log(body.split_off(5)),
                 "/viam.app.v1.RobotService/NeedsRestart" => self.needs_restart(body.split_off(5)),
+                "/viam.app.v1.RobotService/Config" => self.get_config(),
                 _ => panic!("unsupported uri {:?}", parts.uri.path()),
             }
         }
@@ -735,6 +767,181 @@ mod tests {
     }
 
     #[test_log::test]
+    fn test_provisioning() {
+        let ram_storage = RAMStorage::new();
+        let network = match local_ip_address::local_ip().expect("error parsing local IP") {
+            std::net::IpAddr::V4(ip) => ExternallyManagedNetwork::new(ip),
+            _ => panic!("oops expected ipv4"),
+        };
+
+        let mut viam_server = ViamServerBuilder2::new(ram_storage);
+        let mdns = NativeMdns::new("rust-test-provisioning".to_owned(), network.get_ip());
+        assert!(mdns.is_ok());
+        let mdns = mdns.unwrap();
+        let mut provisioning_info = ProvisioningInfo::default();
+        provisioning_info.set_manufacturer("viam".to_owned());
+        provisioning_info.set_model("provisioning-test".to_owned());
+        viam_server
+            .with_provisioning_info(provisioning_info)
+            .with_app_uri("http://localhost:56563".try_into().unwrap());
+
+        let exec = Executor::new();
+
+        let mut viam_server = viam_server.build(
+            NativeH2Connector::default(),
+            exec.clone(),
+            mdns,
+            Box::new(network),
+        );
+        let cloned_exec = exec.clone();
+
+        let mut app = AppServerInsecure::default();
+        app.auth_fn = Some(Rc::new(Box::new(|req: &AuthenticateRequest| {
+            assert!(req.credentials.is_some());
+            assert_eq!(
+                req.credentials.as_ref().unwrap().payload,
+                "a-secret-test".to_owned()
+            );
+            assert_eq!(req.entity, "an-id-test".to_owned());
+        })));
+
+        let fake_server_task =
+            exec.spawn(async move { run_fake_app_server(cloned_exec, app).await });
+
+        let cloned_exec = exec.clone();
+        exec.block_on(async move {
+            let task = cloned_exec.spawn(async move {
+                viam_server.run().await;
+            });
+            let record = look_for_an_mdns_record(
+                "_rpc._tcp.local.",
+                "provisioning",
+                "provisioning-test-viam",
+            )
+            .or(async {
+                let _ = Timer::after(Duration::from_secs(1)).await;
+                Err("timeout".into())
+            })
+            .await;
+
+            assert!(record.is_ok());
+            let record = record.unwrap();
+
+            let addr = record.get_addresses_v4().into_iter().take(1).next();
+            assert!(addr.is_some());
+            let addr = addr.unwrap();
+            let port = record.get_port();
+            let addr = SocketAddr::new(std::net::IpAddr::V4(*addr), port);
+
+            let ret = do_provisioning_step(cloned_exec.clone(), addr)
+                .or(async {
+                    let _ = Timer::after(Duration::from_secs(1)).await;
+                    Err("timeout".into())
+                })
+                .await;
+            assert!(ret.is_ok());
+            Timer::after(Duration::from_secs(1)).await;
+
+            let record = look_for_an_mdns_record(
+                "_rpc._tcp.local.",
+                "provisioning",
+                "provisioning-test-viam",
+            )
+            .or(async {
+                let _ = Timer::after(Duration::from_secs(1)).await;
+                Err("timeout".into())
+            })
+            .await;
+
+            assert!(record.is_err());
+        });
+    }
+    async fn look_for_an_mdns_record(
+        service: &str,
+        prop: &str,
+        name: &str,
+    ) -> Result<ServiceInfo, Box<dyn std::error::Error + Send + Sync>> {
+        let mdns_querying = mdns_sd::ServiceDaemon::new();
+        assert!(mdns_querying.is_ok());
+        let mdns_querying = mdns_querying.unwrap();
+        let service = "_rpc._tcp.local.";
+
+        let receiver = mdns_querying.browse(service);
+        assert!(receiver.is_ok());
+        let receiver = receiver.unwrap();
+        loop {
+            let record = receiver.recv_async().await;
+            match record? {
+                ServiceEvent::ServiceResolved(srv) => {
+                    if srv.get_property(prop).is_some() && srv.get_hostname().contains(name) {
+                        return Ok(srv);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    async fn do_provisioning_step(
+        exec: Executor,
+        addr: SocketAddr,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let stream = async_io::Async::<TcpStream>::connect(addr).await;
+        assert!(stream.is_ok());
+
+        let host = format!("http://{}", addr);
+
+        let stream = NativeStream::LocalPlain(stream.unwrap());
+        let client = hyper::client::conn::http2::Builder::new(exec.clone())
+            .handshake(stream)
+            .await;
+
+        assert!(client.is_ok());
+        let (mut send_request, conn) = client.unwrap();
+        let _sender = exec.spawn(async move {
+            let _ = conn.await;
+        });
+
+        let mut req = SetSmartMachineCredentialsRequest::default();
+        req.cloud = Some(CloudConfig {
+            id: "an-id-test".to_owned(),
+            secret: "a-secret-test".to_owned(),
+            app_address: "".to_owned(),
+        });
+
+        let body = encode_request(req);
+        assert!(body.is_ok());
+        let req = hyper::Request::builder()
+            .method(Method::POST)
+            .uri(
+                host.clone()
+                    + "/viam.provisioning.v1.ProvisioningService/SetSmartMachineCredentials",
+            )
+            .header(CONTENT_TYPE, "application/grpc")
+            .header(TE, "trailers")
+            .body(Full::new(body.unwrap()).boxed());
+        assert!(req.is_ok());
+        let req = req.unwrap();
+        assert!(send_request.ready().await.is_ok());
+
+        let resp = send_request.send_request(req).await;
+        assert!(resp.is_ok());
+        let (_, body) = resp.unwrap().into_parts();
+        let body = body.collect().await.unwrap();
+        assert!(body.trailers().is_some());
+        assert_eq!(
+            body.trailers()
+                .as_ref()
+                .unwrap()
+                .get("grpc-status")
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "0"
+        );
+        Ok(())
+    }
+
+    #[test_log::test]
     fn test_viam_builder() {
         let ram_storage = RAMStorage::new();
         let creds = CloudConfig {
@@ -756,9 +963,7 @@ mod tests {
         let cc = NativeH2Connector::default();
         a.with_http2_server(cc, 12346);
         a.with_app_uri("http://localhost:56563".try_into().unwrap());
-        a.with_app_client_task(Box::new(RestartMonitor::new(|| {
-            log::info!("hello restart")
-        })));
+        a.with_app_client_task(Box::new(RestartMonitor::new(|| {})));
         a.with_app_client_task(Box::new(LogUploadTask {}));
 
         let cert = Rc::new(Box::new(WebRtcCertificate::new()) as Box<dyn Certificate>);
@@ -770,23 +975,29 @@ mod tests {
         let cc = NativeH2Connector::default();
         let mut b = a.build(cc, exec.clone(), mdns, Box::new(network));
         let cloned_exec = exec.clone();
-        let t = exec.spawn(async move { run_fake_app_server(cloned_exec).await });
+        let t = exec.spawn(async move {
+            run_fake_app_server(cloned_exec, AppServerInsecure::default()).await
+        });
         exec.block_on(async {
             Timer::after(Duration::from_millis(200)).await;
         });
         b.run_forever();
     }
 
-    async fn run_fake_app_server(exec: Executor) {
-        let svc = AppServerInsecure::default();
+    async fn run_fake_app_server(exec: Executor, app: AppServerInsecure) {
         let listener = Async::new(TcpListener::bind("0.0.0.0:56563").unwrap()).unwrap();
         loop {
             let (incoming, peer) = listener.accept().await.unwrap();
             log::info!("peer is {:?}", peer);
             let stream = NativeStream::LocalPlain(incoming);
-            let conn = http2::Builder::new(exec.clone()).serve_connection(stream, svc.clone());
+            let conn = http2::Builder::new(exec.clone()).serve_connection(stream, app.clone());
             conn.await;
         }
     }
-    fn make_sample_config() {}
+    fn make_sample_config() -> RobotConfig {
+        RobotConfig {
+            cloud: Some(app::v1::CloudConfig::default()),
+            ..Default::default()
+        }
+    }
 }
