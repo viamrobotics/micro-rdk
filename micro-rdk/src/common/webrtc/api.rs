@@ -538,11 +538,14 @@ where
                 .send_sdp_error_too_many_connections(&offer)
                 .await?;
 
-            // this delay ensures that the sdp error is properly sent and received before closing the connection.
+            // TODO(APP-6381): Without this delay, sdks receive a `ContextCancelled` error instead
+            // of `ResourceExhausted`. It's possible a race condition on the App side is closing
+            // the connection before the error is properly recorded for an sdk to see.
             async_io::Timer::after(Duration::from_millis(200)).await;
 
             return Err(WebRtcError::NoConnectionAvailable());
         }
+
         let answer = SessionDescription::new_jsep_session_description(false);
 
         let remote_creds = ICECredentials::new(
