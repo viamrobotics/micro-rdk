@@ -34,42 +34,6 @@ pub trait TlsClientConnector {
     fn connect(&mut self) -> impl std::future::Future<Output = Result<Self::Stream, ServerError>>;
 }
 
-pub struct RobotCloudConfig {
-    local_fqdn: String,
-    name: String,
-    fqdn: String,
-}
-
-impl RobotCloudConfig {
-    pub fn new(local_fqdn: String, name: String, fqdn: String) -> Self {
-        Self {
-            local_fqdn,
-            name,
-            fqdn,
-        }
-    }
-}
-
-impl From<proto::app::v1::CloudConfig> for RobotCloudConfig {
-    fn from(c: proto::app::v1::CloudConfig) -> Self {
-        Self {
-            local_fqdn: c.local_fqdn.clone(),
-            name: c.local_fqdn.split('.').next().unwrap_or("").to_owned(),
-            fqdn: c.fqdn.clone(),
-        }
-    }
-}
-
-impl From<&proto::app::v1::CloudConfig> for RobotCloudConfig {
-    fn from(c: &proto::app::v1::CloudConfig) -> Self {
-        Self {
-            local_fqdn: c.local_fqdn.clone(),
-            name: c.local_fqdn.split('.').next().unwrap_or("").to_owned(),
-            fqdn: c.fqdn.clone(),
-        }
-    }
-}
-
 pub trait Http2Connector: std::fmt::Debug {
     type Stream;
     fn accept(&mut self) -> impl std::future::Future<Output = std::io::Result<Self::Stream>>;
@@ -189,25 +153,25 @@ impl IncomingConnectionTask {
     }
 }
 
-struct IncomingConnectionManager {
+pub(crate) struct IncomingConnectionManager {
     connections: Vec<IncomingConnectionTask>,
 }
 
 impl IncomingConnectionManager {
-    fn new(size: usize) -> Self {
+    pub(crate) fn new(size: usize) -> Self {
         let mut connections = Vec::with_capacity(size);
         connections.resize_with(size, Default::default);
         Self { connections }
     }
     // return the lowest priority of active webrtc tasks or 0
-    fn get_lowest_prio(&self) -> u32 {
+    pub(crate) fn get_lowest_prio(&self) -> u32 {
         self.connections
             .iter()
             .min_by(|a, b| a.get_prio().cmp(&b.get_prio()))
             .map_or(0, |c| c.get_prio())
     }
     // function will never fail and the lowest priority will always be replaced
-    async fn insert_new_conn(&mut self, task: Task<Result<(), ServerError>>, prio: u32) {
+    pub(crate) async fn insert_new_conn(&mut self, task: Task<Result<(), ServerError>>, prio: u32) {
         if let Some(slot) = self
             .connections
             .iter_mut()

@@ -1,15 +1,17 @@
 use async_channel::{Receiver, RecvError, Sender};
+use async_executor::Task;
 use async_io::{Async, Timer};
 use either::Either;
 
 use futures_lite::{FutureExt, StreamExt};
-
 use futures_util::stream::FuturesUnordered;
+use futures_util::TryFutureExt;
 use hyper::server::conn::http2;
 use hyper::{rt, Uri};
 use std::future::Future;
 
 use std::net::{SocketAddr, TcpListener};
+use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::task::Poll;
@@ -34,10 +36,48 @@ use crate::common::{
     credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage},
     exec::Executor,
 };
+use crate::proto;
 
+use super::errors;
 use super::mdns::Mdns;
 use super::network::Network;
-use super::server::{WebRTCConnection, WebRtcConfiguration2};
+use super::server::{IncomingConnectionManager, WebRTCConnection, WebRtcConfiguration2};
+
+pub struct RobotCloudConfig {
+    local_fqdn: String,
+    name: String,
+    fqdn: String,
+}
+
+impl RobotCloudConfig {
+    pub fn new(local_fqdn: String, name: String, fqdn: String) -> Self {
+        Self {
+            local_fqdn,
+            name,
+            fqdn,
+        }
+    }
+}
+
+impl From<proto::app::v1::CloudConfig> for RobotCloudConfig {
+    fn from(c: proto::app::v1::CloudConfig) -> Self {
+        Self {
+            local_fqdn: c.local_fqdn.clone(),
+            name: c.local_fqdn.split('.').next().unwrap_or("").to_owned(),
+            fqdn: c.fqdn.clone(),
+        }
+    }
+}
+
+impl From<&proto::app::v1::CloudConfig> for RobotCloudConfig {
+    fn from(c: &proto::app::v1::CloudConfig) -> Self {
+        Self {
+            local_fqdn: c.local_fqdn.clone(),
+            name: c.local_fqdn.split('.').next().unwrap_or("").to_owned(),
+            fqdn: c.fqdn.clone(),
+        }
+    }
+}
 
 pub trait ViamServerStorage:
     RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static
@@ -281,6 +321,11 @@ where
 
         let app_client = self.connect_to_app().await.unwrap();
 
+        let ip = self.network.get_ip();
+
+        let config = app_client.get_app_config(Some(ip)).await.unwrap();
+        self.rpc_host = config.clone().0.config.unwrap().cloud.unwrap().fqdn;
+
         let certs = app_client.get_certificates().await.unwrap();
 
         if let HTTP2Server::HTTP2Connector(s) = &mut self.http2_server {
@@ -288,23 +333,49 @@ where
                 certs.tls_certificate.into_bytes(),
                 certs.tls_private_key.into_bytes(),
             );
+            if let Some(cfg) = config.0.config.as_ref().and_then(|cfg| cfg.cloud.as_ref()) {
+                let cfg: RobotCloudConfig = cfg.into();
+                self.mdns
+                    .set_hostname(&cfg.name)
+                    .map_err(|e| errors::ServerError::Other(e.into()))
+                    .unwrap();
+                self.mdns
+                    .add_service(
+                        &cfg.local_fqdn.replace('.', "-"),
+                        "_rpc",
+                        "_tcp",
+                        self.http2_server_port,
+                        &[("grpc", "")],
+                    )
+                    .map_err(|e| errors::ServerError::Other(e.into()))
+                    .unwrap();
+                self.mdns
+                    .add_service(
+                        &cfg.fqdn.replace('.', "-"),
+                        "_rpc",
+                        "_tcp",
+                        self.http2_server_port,
+                        &[("grpc", "")],
+                    )
+                    .map_err(|e| errors::ServerError::Other(e.into()))
+                    .unwrap();
+            }
         }
-        let ip = self.network.get_ip();
-
-        let config = app_client.get_app_config(Some(ip)).await.unwrap();
-        self.rpc_host = config.0.config.unwrap().cloud.unwrap().fqdn;
 
         let (tx, rx) = async_channel::bounded(1);
-        let inner = RobotServer::new(
-            &self.http2_server,
-            &self.webrtc_configuration,
-            self.executor.clone(),
-            robot.clone(),
-            &self.mdns,
-            self.http2_server_port,
-            rx,
-            &self.network,
-        );
+        let mut inner = RobotServer {
+            http2_server: &self.http2_server,
+            http2_server_port: self.http2_server_port,
+            executor: self.executor.clone(),
+            robot: robot.clone(),
+            mdns: &self.mdns,
+            webrtc_signaling: rx,
+            webrtc_config: &self.webrtc_configuration,
+            network: &self.network,
+            incommin_connection_manager: IncomingConnectionManager::new(
+                self.max_concurrent_connections as usize,
+            ),
+        };
 
         self.app_client_tasks.push(Box::new(SignalingTask {
             sender: tx,
@@ -394,6 +465,7 @@ struct RobotServer<'a, M> {
     http2_server_port: u16,
     webrtc_signaling: Receiver<AppSignaling>,
     network: &'a Box<dyn Network>,
+    incommin_connection_manager: IncomingConnectionManager,
 }
 
 pub(crate) enum IncomingConnection2 {
@@ -405,44 +477,46 @@ impl<'a, M> RobotServer<'a, M>
 where
     M: Mdns,
 {
-    fn new(
-        http2_server: &'a HTTP2Server,
-        webrtc_config: &'a WebRtcListener,
-        executor: Executor,
-        robot: Arc<Mutex<LocalRobot>>,
-        mdns: &'a M,
-        http2_server_port: u16,
-        webrtc_signaling: Receiver<AppSignaling>,
-        network: &'a Box<dyn Network>,
-    ) -> Self {
-        RobotServer {
-            http2_server,
-            webrtc_config,
-            executor,
-            robot,
-            mdns,
-            http2_server_port,
-            webrtc_signaling,
-            network,
-        }
-    }
-    async fn run(&self) {
+    async fn run(&mut self) {
         loop {
-            let listener = async_io::Async::new(
-                TcpListener::bind(format!("0.0.0.0:{}", self.http2_server_port)).unwrap(),
-            )
-            .unwrap();
+            let h2_conn: Pin<Box<dyn Future<Output = IncomingConnection2>>> =
+                if let HTTP2Server::Empty = self.http2_server {
+                    Box::pin(async {
+                        IncomingConnection2::HTTP2Connection(futures_lite::future::pending().await)
+                    })
+                } else {
+                    let listener = async_io::Async::new(
+                        TcpListener::bind(format!("0.0.0.0:{}", self.http2_server_port)).unwrap(),
+                    )
+                    .unwrap();
+                    Box::pin(async move {
+                        IncomingConnection2::HTTP2Connection(listener.accept().await)
+                    })
+                };
 
-            let r = futures_lite::future::or(
-                async { IncomingConnection2::HTTP2Connection(listener.accept().await) },
-                async { IncomingConnection2::WebRTCConnection(self.webrtc_signaling.recv().await) },
-            );
+            let webrtc_conn: Pin<Box<dyn Future<Output = IncomingConnection2>>> =
+                if let WebRtcListener::Empty = self.webrtc_config {
+                    Box::pin(async {
+                        IncomingConnection2::HTTP2Connection(futures_lite::future::pending().await)
+                    })
+                } else {
+                    Box::pin(async {
+                        IncomingConnection2::WebRTCConnection(self.webrtc_signaling.recv().await)
+                    })
+                };
+
+            let r = futures_lite::future::or(h2_conn, webrtc_conn);
             match r.await {
                 IncomingConnection2::HTTP2Connection(conn) => {
                     if let HTTP2Server::HTTP2Connector(h) = self.http2_server {
-                        let stream = conn.unwrap();
-                        let io = h.accept_connection(stream.0).unwrap().await.unwrap();
-                        let _ = self.server_peer_http2(io).await;
+                        if self.incommin_connection_manager.get_lowest_prio() < u32::MAX {
+                            let stream = conn.unwrap();
+                            let io = h.accept_connection(stream.0).unwrap().await.unwrap();
+                            let task = self.server_peer_http2(io);
+                            self.incommin_connection_manager
+                                .insert_new_conn(task, u32::MAX)
+                                .await;
+                        }
                     }
                 }
                 IncomingConnection2::WebRTCConnection(conn) => {
@@ -472,7 +546,7 @@ where
             }
         }
     }
-    async fn server_peer_http2(&self, io: Box<dyn HTTP2Stream>) {
+    fn server_peer_http2(&self, io: Box<dyn HTTP2Stream>) -> Task<Result<(), errors::ServerError>> {
         let robot = self.robot.clone();
         let exec = self.executor.clone();
         let srv = GrpcServer::new(robot, GrpcBody::new());
@@ -484,7 +558,8 @@ where
                 .max_concurrent_streams(2)
                 .serve_connection(io, srv),
         );
-        let t = self.executor.spawn(srv).await;
+        self.executor
+            .spawn(srv.map_err(|e| errors::ServerError::Other(e.into())))
     }
 }
 
@@ -598,9 +673,11 @@ mod tests {
         net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
         pin::Pin,
         rc::Rc,
+        sync::Arc,
         time::Duration,
     };
 
+    use async_executor::Task;
     use async_io::{Async, Timer};
     use bytes::{BufMut, Bytes, BytesMut};
     use futures_lite::FutureExt;
@@ -614,6 +691,7 @@ mod tests {
     };
     use mdns_sd::{ServiceEvent, ServiceInfo};
     use prost::Message;
+    use rustls::client::ServerCertVerifier;
 
     use crate::{
         common::{
@@ -653,7 +731,7 @@ mod tests {
 
     #[derive(Clone, Default)]
     struct AppServerInsecure {
-        config_fn: Option<&'static dyn Fn() -> RobotConfig>,
+        config_fn: Option<Rc<Box<dyn Fn() -> RobotConfig>>>,
         log_fn: Option<&'static dyn Fn()>,
         auth_fn: Option<Rc<Box<dyn Fn(&AuthenticateRequest)>>>,
     }
@@ -722,6 +800,7 @@ mod tests {
         fn get_config(&self) -> Bytes {
             let cfg = self
                 .config_fn
+                .as_ref()
                 .map_or(make_sample_config(), |cfg_fn| cfg_fn());
             let resp = ConfigResponse { config: Some(cfg) };
             let len = resp.encoded_len();
@@ -764,6 +843,133 @@ mod tests {
 
             Box::pin(async move { svc.process_request(req).await })
         }
+    }
+
+    #[derive(Debug)]
+    struct InsecureCertAcceptor;
+    impl ServerCertVerifier for InsecureCertAcceptor {
+        fn verify_server_cert(
+            &self,
+            end_entity: &rustls::Certificate,
+            intermediates: &[rustls::Certificate],
+            server_name: &rustls::ServerName,
+            scts: &mut dyn Iterator<Item = &[u8]>,
+            ocsp_response: &[u8],
+            now: std::time::SystemTime,
+        ) -> Result<rustls::client::ServerCertVerified, rustls::Error> {
+            Ok(rustls::client::ServerCertVerified::assertion())
+        }
+    }
+
+    #[test_log::test]
+    fn test_multiple_connection_http2() {
+        let ram_storage = RAMStorage::new();
+        let network = match local_ip_address::local_ip().expect("error parsing local IP") {
+            std::net::IpAddr::V4(ip) => ExternallyManagedNetwork::new(ip),
+            _ => panic!("oops expected ipv4"),
+        };
+
+        let creds = CloudConfig {
+            id: "".to_string(),
+            secret: "".to_string(),
+            app_address: "".to_owned(),
+        };
+
+        assert!(ram_storage.store_robot_credentials(creds).is_ok());
+
+        let mdns = NativeMdns::new("rust-test-provisioning".to_owned(), network.get_ip());
+        assert!(mdns.is_ok());
+        let mdns = mdns.unwrap();
+
+        let mut viam_server = ViamServerBuilder2::new(ram_storage);
+        viam_server
+            .with_app_uri("http://localhost:56563".try_into().unwrap())
+            .with_http2_server(NativeH2Connector::default(), 12346)
+            .with_max_concurrent_connection(3);
+
+        let exec = Executor::new();
+
+        let mut viam_server = viam_server.build(
+            NativeH2Connector::default(),
+            exec.clone(),
+            mdns,
+            Box::new(network),
+        );
+        let cloned_exec = exec.clone();
+
+        let mut app = AppServerInsecure::default();
+        app.config_fn = Some(Rc::new(Box::new(|| {
+            let mut cfg = make_sample_config();
+            if let Some(mut cloud) = cfg.cloud.as_mut() {
+                cloud.fqdn = "test-bot.xxds65ui.viam.cloud".to_owned();
+                cloud.local_fqdn = "test-bot.xxds65ui.viam.local.cloud".to_owned();
+            }
+            cfg
+        })));
+
+        let fake_server_task =
+            exec.spawn(async move { run_fake_app_server(cloned_exec, app).await });
+
+        let cloned_exec = exec.clone();
+        exec.block_on(async move {
+            let task = cloned_exec.spawn(async move {
+                viam_server.run().await;
+            });
+            let record = look_for_an_mdns_record("_rpc._tcp.local.", "grpc", "test-bot")
+                .or(async {
+                    let _ = Timer::after(Duration::from_secs(1)).await;
+                    Err("timeout".into())
+                })
+                .await;
+
+            assert!(record.is_ok());
+            let record = record.unwrap();
+
+            let addr = record.get_addresses_v4().into_iter().take(1).next();
+            assert!(addr.is_some());
+            let addr = addr.unwrap();
+            let port = record.get_port();
+            let addr = SocketAddr::new(std::net::IpAddr::V4(*addr), port);
+
+            let t1 = test_connect_to(addr, cloned_exec.clone()).await;
+            assert!(t1.is_ok());
+
+            let t2 = test_connect_to(addr, cloned_exec.clone()).await;
+            assert!(t2.is_ok());
+
+            let t3 = test_connect_to(addr, cloned_exec.clone()).await;
+            assert!(t3.is_ok());
+
+            let t4 = test_connect_to(addr, cloned_exec.clone()).await;
+            assert!(t4.is_err());
+        });
+    }
+    async fn test_connect_to(
+        addr: SocketAddr,
+        exec: Executor,
+    ) -> Result<Task<()>, Box<dyn std::error::Error + Send + Sync>> {
+        let stream = Async::<TcpStream>::connect(addr).await?;
+        let mut cfg = rustls::ClientConfig::builder()
+            .with_safe_defaults()
+            .with_custom_certificate_verifier(Arc::new(InsecureCertAcceptor))
+            .with_no_client_auth();
+        cfg.alpn_protocols = vec!["h2".as_bytes().to_vec()];
+        let conn = futures_rustls::TlsConnector::from(Arc::new(cfg));
+        let conn = conn
+            .connect("localhost".try_into().unwrap(), stream)
+            .await?;
+        let conn = Box::new(NativeStream::NewTlsStream(conn.into()));
+
+        let h2_client = hyper::client::conn::http2::Builder::new(exec.clone())
+            .handshake::<_, Incoming>(conn)
+            .await;
+        assert!(h2_client.is_ok());
+        let mut h2_client = h2_client.unwrap();
+        let task = exec.spawn(async move {
+            h2_client.1.await;
+            h2_client.0.ready().await.unwrap();
+        });
+        Ok(task)
     }
 
     #[test_log::test]
@@ -988,7 +1194,6 @@ mod tests {
         let listener = Async::new(TcpListener::bind("0.0.0.0:56563").unwrap()).unwrap();
         loop {
             let (incoming, peer) = listener.accept().await.unwrap();
-            log::info!("peer is {:?}", peer);
             let stream = NativeStream::LocalPlain(incoming);
             let conn = http2::Builder::new(exec.clone()).serve_connection(stream, app.clone());
             conn.await;

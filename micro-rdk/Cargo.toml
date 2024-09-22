@@ -29,6 +29,7 @@ esp-idf-logs = ["esp32"]
 [dev-dependencies]
 test-log.workspace = true
 env_logger.workspace = true
+rustls = { workspace = true, features = ["dangerous_configuration"] }
 
 [target.'cfg(not(target_os = "espidf"))'.dependencies]
 async-std-openssl = { workspace = true, optional = true }
