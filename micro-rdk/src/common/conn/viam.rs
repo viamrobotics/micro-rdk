@@ -408,7 +408,10 @@ where
             .build()
             .await
     }
-    async fn run_app_client_tasks(&self, app_client: Option<AppClient>) {
+    async fn run_app_client_tasks(
+        &self,
+        app_client: Option<AppClient>,
+    ) -> Result<(), errors::ServerError> {
         let app_client = if let Some(app) = app_client {
             app
         } else {
@@ -427,6 +430,7 @@ where
         while let Some(res) = app_client_tasks.next().await {
             res.unwrap();
         }
+        Ok(())
     }
     // I am adding provisioning in the main flow of viamserver
     // this is however outside of the scope IMO. What could be a better way?
@@ -477,7 +481,7 @@ impl<'a, M> RobotServer<'a, M>
 where
     M: Mdns,
 {
-    async fn run(&mut self) {
+    async fn run(&mut self) -> Result<(), errors::ServerError> {
         loop {
             let h2_conn: Pin<Box<dyn Future<Output = IncomingConnection2>>> =
                 if let HTTP2Server::Empty = self.http2_server {
@@ -485,10 +489,11 @@ where
                         IncomingConnection2::HTTP2Connection(futures_lite::future::pending().await)
                     })
                 } else {
-                    let listener = async_io::Async::new(
-                        TcpListener::bind(format!("0.0.0.0:{}", self.http2_server_port)).unwrap(),
-                    )
-                    .unwrap();
+                    // creates an delete listener not good
+                    let listener = async_io::Async::new(TcpListener::bind(format!(
+                        "0.0.0.0:{}",
+                        self.http2_server_port
+                    ))?)?;
                     Box::pin(async move {
                         IncomingConnection2::HTTP2Connection(listener.accept().await)
                     })
@@ -506,12 +511,14 @@ where
                 };
 
             let r = futures_lite::future::or(h2_conn, webrtc_conn);
+            // TODO consider moving these errors out of the run fn
+            // in practice we may want to recover in case of failure to not disrupt existing connections
             match r.await {
                 IncomingConnection2::HTTP2Connection(conn) => {
                     if let HTTP2Server::HTTP2Connector(h) = self.http2_server {
                         if self.incommin_connection_manager.get_lowest_prio() < u32::MAX {
-                            let stream = conn.unwrap();
-                            let io = h.accept_connection(stream.0).unwrap().await.unwrap();
+                            let stream = conn?;
+                            let io = h.accept_connection(stream.0)?.await?;
                             let task = self.server_peer_http2(io);
                             self.incommin_connection_manager
                                 .insert_new_conn(task, u32::MAX)
@@ -520,7 +527,7 @@ where
                     }
                 }
                 IncomingConnection2::WebRTCConnection(conn) => {
-                    let sig = conn.unwrap();
+                    let sig = conn.map_err(|e| errors::ServerError::Other(e.into()))?;
                     let ip = self.network.get_ip();
                     if let WebRtcListener::WebRtc(conf) = self.webrtc_config {
                         let mut api = WebRtcApi::new(
@@ -529,9 +536,9 @@ where
                             sig.1,
                             conf.cert.clone(),
                             ip,
-                            conf.dtls.make().unwrap(),
+                            conf.dtls.make()?,
                         );
-                        let sdp = api.answer(0).await.unwrap();
+                        let sdp = api.answer(0).await?;
                         let mut c = WebRTCConnection {
                             webrtc_api: api,
                             sdp: sdp.0,
@@ -539,8 +546,12 @@ where
                             robot: self.robot.clone(),
                             prio: sdp.1,
                         };
-                        let p = c.open_data_channel().await.unwrap();
-                        let p = c.run().await.unwrap();
+                        c.open_data_channel().await?;
+                        let prio = c.prio;
+                        let task = self.executor.spawn(async move { c.run().await });
+                        self.incommin_connection_manager
+                            .insert_new_conn(task, u32::MAX)
+                            .await;
                     }
                 }
             }
@@ -857,11 +868,16 @@ mod tests {
             ocsp_response: &[u8],
             now: std::time::SystemTime,
         ) -> Result<rustls::client::ServerCertVerified, rustls::Error> {
+            // always return  yes, we **may** want to validate the generated cert for the sake
+            // of it. But considering we are running tests might not be needed.
             Ok(rustls::client::ServerCertVerified::assertion())
         }
     }
 
     #[test_log::test]
+    /// Runs viam server exposing HTTP2 connections, since each HTTP2 connection gets a
+    /// max_prio assigned we can't test preemption
+    /// Testing webrtc would require to add support for ice control agent
     fn test_multiple_connection_http2() {
         let ram_storage = RAMStorage::new();
         let network = match local_ip_address::local_ip().expect("error parsing local IP") {
@@ -960,12 +976,14 @@ mod tests {
             .await?;
         let conn = Box::new(NativeStream::NewTlsStream(conn.into()));
 
+        // bit of an hack here using Incoming as a type
         let h2_client = hyper::client::conn::http2::Builder::new(exec.clone())
             .handshake::<_, Incoming>(conn)
             .await;
         assert!(h2_client.is_ok());
         let mut h2_client = h2_client.unwrap();
         let task = exec.spawn(async move {
+            // connection  does nothing but hang around
             h2_client.1.await;
             h2_client.0.ready().await.unwrap();
         });
@@ -973,6 +991,11 @@ mod tests {
     }
 
     #[test_log::test]
+    /// Test that in  absence of credentials the robot starts in provisioning mode
+    /// we confirm this by looking  for relevant mDNS records
+    /// Once provisioning is done mDNS records should be deleted
+    /// and when viam server connects to the fake app we can confirm the secrets
+    /// are the one we set
     fn test_provisioning() {
         let ram_storage = RAMStorage::new();
         let network = match local_ip_address::local_ip().expect("error parsing local IP") {
