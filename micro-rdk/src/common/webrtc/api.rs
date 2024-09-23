@@ -12,9 +12,10 @@ use std::{
 
 use crate::{
     common::grpc_client::{GrpcClientError, GrpcMessageSender, GrpcMessageStream},
+    google::rpc::{Code, Status},
     proto::rpc::webrtc::v1::{
         answer_request, answer_response, AnswerRequest, AnswerResponse, AnswerResponseDoneStage,
-        AnswerResponseInitStage, AnswerResponseUpdateStage, IceCandidate,
+        AnswerResponseErrorStage, AnswerResponseInitStage, AnswerResponseUpdateStage, IceCandidate,
     },
 };
 
@@ -65,8 +66,8 @@ pub enum WebRtcError {
     GprcEncodeError(#[from] EncodeError),
     #[error(transparent)]
     DtlsError(#[from] Box<dyn std::error::Error + Send + Sync>),
-    #[error("the active webrtc connection has a higher priority")]
-    CurrentConnectionHigherPrority(),
+    #[error("no connection slots available")]
+    NoConnectionAvailable(),
     #[error("cannot parse candidate")]
     CannotParseCandidate,
     #[error("Operation timeout")]
@@ -211,6 +212,31 @@ impl WebRtcSignalingChannel {
             }
         }
     }
+
+    pub(crate) async fn send_sdp_error_too_many_connections(
+        &mut self,
+        sdp: &WebRtcSdp,
+    ) -> Result<(), WebRtcError> {
+        let answer = AnswerResponse {
+            uuid: sdp.uuid.clone(),
+            stage: Some(answer_response::Stage::Error(AnswerResponseErrorStage {
+                status: Some(Status {
+                    code: Code::ResourceExhausted.into(),
+                    message: "too many active connections".to_string(),
+                    ..Default::default()
+                }),
+            })),
+        };
+
+        if let Err(e) = self.signaling_tx.send_message(answer).await {
+            log::error!("error sending signaling message: {:?}", e);
+            Err(WebRtcError::SignalingDisconnected())
+        } else {
+            log::warn!("too many active connections");
+            Ok(())
+        }
+    }
+
     pub(crate) async fn send_sdp_answer(&mut self, sdp: &WebRtcSdp) -> Result<(), WebRtcError> {
         let answer = SdpOffer {
             sdp_type: "answer".to_owned(),
@@ -489,8 +515,6 @@ where
             .wait_sdp_offer()
             .await?;
 
-        let answer = SessionDescription::new_jsep_session_description(false);
-
         let attribute = offer
             .sdp
             .media_descriptions
@@ -505,8 +529,24 @@ where
 
         // TODO use is_some_then when rust min version reach 1.70
         if current_prio >= caller_prio {
-            return Err(WebRtcError::CurrentConnectionHigherPrority());
+            let sig_channel = self
+                .signaling
+                .as_mut()
+                .ok_or(WebRtcError::SignalingDisconnected())?;
+
+            sig_channel
+                .send_sdp_error_too_many_connections(&offer)
+                .await?;
+
+            // TODO(APP-6381): Without this delay, sdks receive a `ContextCancelled` error instead
+            // of `ResourceExhausted`. It's possible a race condition on the App side is closing
+            // the connection before the error is properly recorded for an sdk to see.
+            async_io::Timer::after(Duration::from_millis(200)).await;
+
+            return Err(WebRtcError::NoConnectionAvailable());
         }
+
+        let answer = SessionDescription::new_jsep_session_description(false);
 
         let remote_creds = ICECredentials::new(
             attribute
