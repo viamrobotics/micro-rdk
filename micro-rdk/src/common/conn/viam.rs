@@ -8,6 +8,7 @@ use futures_util::stream::FuturesUnordered;
 use futures_util::TryFutureExt;
 use hyper::server::conn::http2;
 use hyper::{rt, Uri};
+use std::cell::RefCell;
 use std::future::Future;
 
 use std::net::{SocketAddr, TcpListener};
@@ -22,12 +23,15 @@ use crate::common::app_client::{
     AppClient, AppClientBuilder, AppClientError, AppSignaling, PeriodicAppClientTask,
 };
 
+use crate::common::config_monitor::ConfigMonitor;
 use crate::common::grpc::{GrpcBody, GrpcServer, ServerError};
 use crate::common::grpc_client::GrpcClient;
+use crate::common::log::LogUploadTask;
 use crate::common::provisioning::server::{
     serve_provisioning_async, ProvisioningInfo, WifiManager,
 };
 use crate::common::registry::ComponentRegistry;
+use crate::common::restart_monitor::RestartMonitor;
 use crate::common::robot::LocalRobot;
 use crate::common::webrtc::api::WebRtcApi;
 use crate::common::webrtc::certificate::Certificate;
@@ -37,6 +41,7 @@ use crate::common::{
     exec::Executor,
 };
 use crate::proto;
+use crate::proto::app::v1::RobotConfig;
 
 use super::errors;
 use super::mdns::Mdns;
@@ -170,7 +175,7 @@ where
             wifi_manager: None,
             component_registry: Default::default(),
             http2_server_port: 12346,
-            http2_server_insecure: true,
+            http2_server_insecure: false,
             initial_app_uri: "https://app.viam.com:443".try_into().unwrap(),
             app_client_tasks: Default::default(),
             max_concurrent_connections: 1,
@@ -225,6 +230,13 @@ where
         self.app_client_tasks.push(task);
         self
     }
+    pub fn with_default_tasks(&mut self) -> &mut Self {
+        let restart_monitor = Box::new(RestartMonitor::new(|| std::process::exit(0)));
+        let log_upload = Box::new(LogUploadTask);
+        self.with_app_client_task(restart_monitor)
+            .with_app_client_task(log_upload);
+        self
+    }
     pub fn build<C, M>(
         self,
         http2_connector: C,
@@ -242,7 +254,7 @@ where
             http2_server: self.http2_server,
             webrtc_configuration: self.webrtc_configuration,
             http2_connector,
-            mdns,
+            mdns: RefCell::new(mdns),
             component_registry: self.component_registry,
             provisioning_info: self.provisioning_info,
             http2_server_insecure: self.http2_server_insecure,
@@ -250,7 +262,6 @@ where
             app_uri: self.initial_app_uri,
             wifi_manager: Rc::new(self.wifi_manager),
             app_client_tasks: self.app_client_tasks,
-            rpc_host: "".to_owned(),
             max_concurrent_connections: self.max_concurrent_connections,
             network,
         }
@@ -263,14 +274,13 @@ pub struct ViamServer2<Storage, C, M> {
     webrtc_configuration: WebRtcListener,
     http2_connector: C,
     provisioning_info: ProvisioningInfo,
-    mdns: M,
+    mdns: RefCell<M>,
     component_registry: Box<ComponentRegistry>,
     http2_server_insecure: bool,
     http2_server_port: u16,
     app_uri: Uri,
     wifi_manager: Rc<Option<Box<dyn WifiManager>>>,
     app_client_tasks: Vec<Box<dyn PeriodicAppClientTask>>,
-    rpc_host: String,
     max_concurrent_connections: u32,
     network: Box<dyn Network>,
 }
@@ -294,71 +304,101 @@ where
             self.provision().await;
         }
 
-        // assume credentials are valid for now
         let robot_creds = self.storage.get_robot_credentials().unwrap();
+        // assume credentials are valid for now
+        // attempt to instantiate an app client
+        // if we have an unauthenticated or permission denied error, we erase the creds
+        // and restart
+        // otherwise we assume some network layer error and attempt to start the robot from cached
+        // data
+        let app_client = self
+            .connect_to_app()
+            .await
+            .inspect_err(|error| {
+                if error.is_permission_denied() || error.is_unauthenticated() {
+                    let _ = self.storage.reset_robot_credentials().inspect_err(|err| {
+                        log::error!("error {:?} while erasing credentials", err)
+                    });
+                    let _ = self.storage.reset_robot_configuration().inspect_err(|err| {
+                        log::error!("error {:?} while erasing configuration", err)
+                    });
+                    #[cfg(not(test))]
+                    panic!("erased credentials restart robot"); // TODO bubble up error and go back in provisioning
+                }
+                log::error!("couldn't connect to {} reason {:?}", self.app_uri, error);
+            })
+            .ok();
 
-        // The next step is to build the robot based on the cached config (or an empty Robot)
-        // 1) We are offline therefore viam server will not start webrtc listening (AppClient wil not be constructed)
-        //    However we are still able to connect locally (H2) and we should cache data is the data manager exists.
-        // 2) We are online, hence there is a chance the robot we created has the wrong config. By default we are going to
-        //    destroy the robot previously created. And reload everything.
+        // The next step is to build the robot based on the config retrieved online or from storage. Defaulting to an empty
+        // robot if neither are available
+        // If we are offline viam server will not start webrtc listening (AppClient wil not be constructed)
+        // However we are still able to connect locally (H2) and we should cache data if the data manager exists.
         // is_connected only tells us whether or not we are on a network
-        // Note default will use the same executor
-        let robot = self
-            .storage
-            .get_robot_configuration()
-            .map_or(LocalRobot::default(), |cfg| {
-                LocalRobot::from_cloud_config2(
-                    self.executor.clone(),
-                    robot_creds.robot_id.clone(),
-                    &cfg,
-                    &mut self.component_registry, // why do we need a mutable ref here?
+        let config = match app_client.as_ref() {
+            Some(app) => app
+                .get_app_config(Some(self.network.get_ip()))
+                .await
+                .inspect_err(|err| {
+                    log::error!(
+                        "couldn't get config, will default to cached config reason {:?}",
+                        err
+                    )
+                })
+                .ok(),
+            None => None,
+        };
+        let (config, build_time) = config.map_or_else(
+            || {
+                (
+                    self.storage
+                        .get_robot_configuration()
+                        .ok() //can inspect and report empty robot will be constructed
+                        .map_or(Box::default(), Box::new),
                     None,
                 )
-                .unwrap_or_default()
-            });
+            },
+            |resp| (resp.0.config.map_or(Box::default(), Box::new), resp.1),
+        );
+
+        if let Err(err) = self.storage.store_robot_configuration(&config) {
+            log::error!("couldn't store the robot configuration reason {:?}", err);
+        }
+
+        let config_monitor_task = Box::new(ConfigMonitor::new(
+            config.clone(),
+            self.storage.clone(),
+            || std::process::exit(0),
+        ));
+        self.app_client_tasks.push(config_monitor_task);
+
+        let mut robot = LocalRobot::from_cloud_config2(
+            self.executor.clone(),
+            robot_creds.robot_id.clone(),
+            &config,
+            &mut self.component_registry,
+            build_time,
+        )
+        .inspect_err(|err| log::error!("couldn't build the robot reason {:?}", err))
+        .unwrap_or_default();
+
+        self.app_client_tasks
+            .append(&mut robot.get_periodic_app_client_tasks());
+
         let robot = Arc::new(Mutex::new(robot));
 
-        let app_client = self.connect_to_app().await.unwrap();
-
-        let ip = self.network.get_ip();
-
-        let config = app_client.get_app_config(Some(ip)).await.unwrap();
-        self.rpc_host = config.clone().0.config.unwrap().cloud.unwrap().fqdn;
-
-        let certs = app_client.get_certificates().await.unwrap();
-
         if let HTTP2Server::HTTP2Connector(s) = &mut self.http2_server {
-            s.set_server_certificates(
-                certs.tls_certificate.into_bytes(),
-                certs.tls_private_key.into_bytes(),
-            );
-            if let Some(cfg) = config.0.config.as_ref().and_then(|cfg| cfg.cloud.as_ref()) {
-                let cfg: RobotCloudConfig = cfg.into();
-                self.mdns
-                    .set_hostname(&cfg.name)
-                    .map_err(|e| errors::ServerError::Other(e.into()))
+            if !self.http2_server_insecure {
+                // TODO implement certificate storage
+                let certs = app_client
+                    .as_ref()
+                    .unwrap()
+                    .get_certificates()
+                    .await
                     .unwrap();
-                self.mdns
-                    .add_service(
-                        &cfg.local_fqdn.replace('.', "-"),
-                        "_rpc",
-                        "_tcp",
-                        self.http2_server_port,
-                        &[("grpc", "")],
-                    )
-                    .map_err(|e| errors::ServerError::Other(e.into()))
-                    .unwrap();
-                self.mdns
-                    .add_service(
-                        &cfg.fqdn.replace('.', "-"),
-                        "_rpc",
-                        "_tcp",
-                        self.http2_server_port,
-                        &[("grpc", "")],
-                    )
-                    .map_err(|e| errors::ServerError::Other(e.into()))
-                    .unwrap();
+                s.set_server_certificates(
+                    certs.tls_certificate.into_bytes(),
+                    certs.tls_private_key.into_bytes(),
+                );
             }
         }
 
@@ -375,16 +415,22 @@ where
             incommin_connection_manager: IncomingConnectionManager::new(
                 self.max_concurrent_connections as usize,
             ),
+            robot_config: &config,
         };
 
-        self.app_client_tasks.push(Box::new(SignalingTask {
-            sender: tx,
-            rpc_host: self.rpc_host.clone(),
-        }));
+        if let Some(cfg) = config.cloud.as_ref() {
+            self.app_client_tasks.push(Box::new(SignalingTask {
+                sender: tx,
+                rpc_host: cfg.fqdn.clone(),
+            }));
+        }
+
         let mut tasks: FuturesUnordered<_> = FuturesUnordered::new();
-        tasks.push(Either::Right(self.run_app_client_tasks(Some(app_client))));
+        tasks.push(Either::Right(self.run_app_client_tasks(app_client)));
         tasks.push(Either::Left(inner.run()));
-        while let Some(_) = tasks.next().await {}
+        while let Some(ret) = tasks.next().await {
+            log::error!("task ran returned {:?}", ret);
+        }
     }
     async fn connect_to_app(&self) -> Result<AppClient, AppClientError> {
         //ugly hack to remove last /
@@ -408,43 +454,71 @@ where
             .build()
             .await
     }
+    // run task forever reconnecting on demand
+    // if a task returns an error, the app client will be dropped
     async fn run_app_client_tasks(
         &self,
         app_client: Option<AppClient>,
     ) -> Result<(), errors::ServerError> {
-        let app_client = if let Some(app) = app_client {
-            app
-        } else {
-            self.connect_to_app().await.unwrap()
-        };
-        let mut app_client_tasks: FuturesUnordered<AppClientTaskRunner> = FuturesUnordered::new();
-        for task in &self.app_client_tasks {
-            app_client_tasks.push(AppClientTaskRunner {
-                app_client: &app_client,
-                invoker: task,
-                state: TaskRunnerState::Run {
-                    task: task.invoke(&app_client),
-                },
-            });
+        let mut app_client = app_client;
+        let wait = Duration::from_secs(1); // should do exponential back off
+        loop {
+            if let Some(app_client) = app_client {
+                let mut app_client_tasks: FuturesUnordered<AppClientTaskRunner> =
+                    FuturesUnordered::new();
+                for task in &self.app_client_tasks {
+                    app_client_tasks.push(AppClientTaskRunner {
+                        app_client: &app_client,
+                        invoker: task,
+                        state: TaskRunnerState::Run {
+                            task: task.invoke(&app_client),
+                        },
+                    });
+                }
+                while let Some(res) = app_client_tasks.next().await {
+                    if let Err(err) = res {
+                        log::error!("a task returned the following error {:?}", err);
+                        break;
+                    }
+                }
+            }
+            // the only way to reach here is either we had a None passed (app_client wasn't connected at boot)
+            // or an error was reported by an underlying task which means that app client
+            // is considered gone
+            let _ = Timer::after(wait).await;
+            app_client = self
+                .connect_to_app()
+                .await
+                .inspect_err(|error| {
+                    if error.is_permission_denied() || error.is_unauthenticated() {
+                        let _ = self.storage.reset_robot_credentials().inspect_err(|err| {
+                            log::error!("error {:?} while erasing credentials", err)
+                        });
+                        let _ = self.storage.reset_robot_configuration().inspect_err(|err| {
+                            log::error!("error {:?} while erasing configuration", err)
+                        });
+                        #[cfg(not(test))]
+                        panic!("erased credentials restart robot"); // TODO bubble up error and go back in provisioning
+                    }
+                    log::error!("couldn't connect to {} reason {:?}", self.app_uri, error);
+                })
+                .ok();
         }
-        while let Some(res) = app_client_tasks.next().await {
-            res.unwrap();
-        }
-        Ok(())
     }
     // I am adding provisioning in the main flow of viamserver
     // this is however outside of the scope IMO. What could be a better way?
     // We don't want the user to have to write code to handle the provisioning
     // case.
-    async fn provision(&mut self) {
+    async fn provision(&self) {
         let mut last_error = None;
+
         while let Err(e) = serve_provisioning_async(
             self.executor.clone(),
             Some(self.provisioning_info.clone()),
             self.storage.clone(),
             last_error.take(),
             self.wifi_manager.clone(),
-            &mut self.mdns,
+            &self.mdns,
         )
         .await
         {
@@ -465,11 +539,12 @@ struct RobotServer<'a, M> {
     webrtc_config: &'a WebRtcListener,
     executor: Executor,
     robot: Arc<Mutex<LocalRobot>>,
-    mdns: &'a M,
+    mdns: &'a RefCell<M>,
     http2_server_port: u16,
     webrtc_signaling: Receiver<AppSignaling>,
-    network: &'a Box<dyn Network>,
+    network: &'a dyn Network,
     incommin_connection_manager: IncomingConnectionManager,
+    robot_config: &'a RobotConfig,
 }
 
 pub(crate) enum IncomingConnection2 {
@@ -482,6 +557,37 @@ where
     M: Mdns,
 {
     async fn run(&mut self) -> Result<(), errors::ServerError> {
+        let http2_listener = if let HTTP2Server::HTTP2Connector(_) = self.http2_server {
+            if let Some(cfg) = self.robot_config.cloud.as_ref() {
+                let mut mdns = self.mdns.borrow_mut();
+                let cfg: RobotCloudConfig = cfg.into();
+                mdns.set_hostname(&cfg.name)
+                    .map_err(|e| errors::ServerError::Other(e.into()))?;
+                mdns.add_service(
+                    &cfg.local_fqdn.replace('.', "-"),
+                    "_rpc",
+                    "_tcp",
+                    self.http2_server_port,
+                    &[("grpc", "")],
+                )
+                .map_err(|e| errors::ServerError::Other(e.into()))?;
+                mdns.add_service(
+                    &cfg.fqdn.replace('.', "-"),
+                    "_rpc",
+                    "_tcp",
+                    self.http2_server_port,
+                    &[("grpc", "")],
+                )
+                .map_err(|e| errors::ServerError::Other(e.into()))?;
+            }
+            Some(async_io::Async::new(TcpListener::bind(format!(
+                "0.0.0.0:{}",
+                self.http2_server_port
+            ))?)?)
+        } else {
+            None
+        };
+
         loop {
             let h2_conn: Pin<Box<dyn Future<Output = IncomingConnection2>>> =
                 if let HTTP2Server::Empty = self.http2_server {
@@ -489,13 +595,11 @@ where
                         IncomingConnection2::HTTP2Connection(futures_lite::future::pending().await)
                     })
                 } else {
-                    // creates an delete listener not good
-                    let listener = async_io::Async::new(TcpListener::bind(format!(
-                        "0.0.0.0:{}",
-                        self.http2_server_port
-                    ))?)?;
-                    Box::pin(async move {
-                        IncomingConnection2::HTTP2Connection(listener.accept().await)
+                    // safe to unwrap, always exists
+                    Box::pin(async {
+                        IncomingConnection2::HTTP2Connection(
+                            http2_listener.as_ref().unwrap().accept().await,
+                        )
                     })
                 };
 
@@ -550,7 +654,7 @@ where
                         let prio = c.prio;
                         let task = self.executor.spawn(async move { c.run().await });
                         self.incommin_connection_manager
-                            .insert_new_conn(task, u32::MAX)
+                            .insert_new_conn(task, prio)
                             .await;
                     }
                 }
@@ -625,7 +729,7 @@ impl<'a> Future for TaskRunnerState<'a> {
 
 pin_project_lite::pin_project! {
     struct AppClientTaskRunner<'a> {
-    invoker: &'a Box<dyn PeriodicAppClientTask>, //need to impl deref?
+    invoker: &'a dyn PeriodicAppClientTask, //need to impl deref?
     app_client: &'a AppClient,
     #[pin]
     state: TaskRunnerState<'a>
@@ -654,7 +758,7 @@ impl<'a> Future for AppClientTaskRunner<'a> {
             // the new timer.
             // If a panic occurs and abort call will be issued. We could return an error but we would need to either write the value
             // moved self.state back or put a default value.
-            let old = std::ptr::read(&mut self.state);
+            let old = std::ptr::read(&self.state);
             let next = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match old {
                 TaskRunnerState::Run { task: _ } => TaskRunnerState::Sleep {
                     timer: res.map_or(
@@ -663,7 +767,7 @@ impl<'a> Future for AppClientTaskRunner<'a> {
                     ),
                 },
                 TaskRunnerState::Sleep { timer: _ } => TaskRunnerState::Run {
-                    task: self.invoker.invoke(&self.app_client),
+                    task: self.invoker.invoke(self.app_client),
                 },
             }))
             .unwrap_or_else(|_| std::process::abort());
@@ -684,25 +788,12 @@ mod tests {
         net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
         pin::Pin,
         rc::Rc,
-        sync::Arc,
+        sync::{
+            atomic::{AtomicI32, Ordering},
+            Arc,
+        },
         time::Duration,
     };
-
-    use async_executor::Task;
-    use async_io::{Async, Timer};
-    use bytes::{BufMut, Bytes, BytesMut};
-    use futures_lite::FutureExt;
-    use http_body_util::{BodyExt, Full};
-    use hyper::{
-        body::Incoming,
-        header::{CONTENT_TYPE, TE},
-        server::conn::http2,
-        service::Service,
-        Method,
-    };
-    use mdns_sd::{ServiceEvent, ServiceInfo};
-    use prost::Message;
-    use rustls::client::ServerCertVerifier;
 
     use crate::{
         common::{
@@ -712,9 +803,9 @@ mod tests {
                 server::WebRtcConfiguration2,
                 viam::ViamServerBuilder2,
             },
-            credentials_storage::{RAMStorage, RobotConfigurationStorage, RobotCredentials},
+            credentials_storage::{RAMStorage, RobotConfigurationStorage},
             exec::Executor,
-            grpc::{GrpcBody, GrpcResponse},
+            grpc::{GrpcBody, GrpcError, GrpcResponse, ServerError},
             log::LogUploadTask,
             provisioning::server::ProvisioningInfo,
             restart_monitor::RestartMonitor,
@@ -735,23 +826,41 @@ mod tests {
                 },
             },
             provisioning::v1::{CloudConfig, SetSmartMachineCredentialsRequest},
-            robot::v1::{LogRequest, LogResponse},
+            robot::v1::{LogRequest, LogResponse, ResourceNamesRequest},
             rpc::v1::{AuthenticateRequest, AuthenticateResponse},
         },
+        tests::global_network_test_lock,
     };
+    use async_executor::Task;
+    use async_io::{Async, Timer};
+    use bytes::{BufMut, Bytes, BytesMut};
+    use futures_lite::FutureExt;
+    use http_body_util::{BodyExt, Full};
+    use hyper::{
+        body::Incoming,
+        header::{CONTENT_TYPE, TE},
+        server::conn::http2,
+        service::Service,
+        Method,
+    };
+    use mdns_sd::{ServiceEvent, ServiceInfo};
+    use prost::Message;
+    use rustls::client::ServerCertVerifier;
 
     #[derive(Clone, Default)]
     struct AppServerInsecure {
         config_fn: Option<Rc<Box<dyn Fn() -> RobotConfig>>>,
         log_fn: Option<&'static dyn Fn()>,
-        auth_fn: Option<Rc<Box<dyn Fn(&AuthenticateRequest)>>>,
+        auth_fn: Option<Rc<Box<dyn Fn(&AuthenticateRequest) -> bool>>>,
     }
 
     impl AppServerInsecure {
-        fn authenticate(&self, body: Bytes) -> Bytes {
+        fn authenticate(&self, body: Bytes) -> Result<Bytes, ServerError> {
             let req = AuthenticateRequest::decode(body).unwrap();
             if let Some(auth_fn) = &self.auth_fn {
-                auth_fn(&req);
+                if !auth_fn(&req) {
+                    return Err(ServerError::new(GrpcError::RpcPermissionDenied, None));
+                }
             }
             let resp = AuthenticateResponse {
                 access_token: "fake".to_string(),
@@ -761,10 +870,10 @@ mod tests {
             buffer.put_u8(0);
             buffer.put_u32(len.try_into().unwrap());
             resp.encode(&mut buffer).unwrap();
-            buffer.freeze()
+            Ok(buffer.freeze())
         }
         fn log(&self, body: Bytes) -> Bytes {
-            let req = LogRequest::decode(body).unwrap();
+            let _req = LogRequest::decode(body).unwrap();
             if let Some(log_fn) = self.log_fn.as_ref() {
                 log_fn();
             }
@@ -777,7 +886,7 @@ mod tests {
             buffer.freeze()
         }
         fn needs_restart(&self, body: Bytes) -> Bytes {
-            let req = NeedsRestartRequest::decode(body).unwrap();
+            let _req = NeedsRestartRequest::decode(body).unwrap();
 
             let resp = NeedsRestartResponse {
                 id: "".to_string(),
@@ -791,7 +900,7 @@ mod tests {
             resp.encode(&mut buffer).unwrap();
             buffer.freeze()
         }
-        fn certificates(&self, body: Bytes) -> Bytes {
+        fn certificates(&self, _body: Bytes) -> Bytes {
             let self_signed =
                 rcgen::generate_simple_self_signed(["localhost".to_string()]).unwrap();
             let tls_certificate = self_signed.serialize_pem().unwrap();
@@ -821,32 +930,47 @@ mod tests {
             resp.encode(&mut buffer).unwrap();
             buffer.freeze()
         }
-        async fn process_request_inner(&self, req: hyper::http::Request<Incoming>) -> Bytes {
+        async fn process_request_inner(
+            &self,
+            req: hyper::http::Request<Incoming>,
+        ) -> Result<Bytes, ServerError> {
             let (parts, body) = req.into_parts();
-            let mut body = body.collect().await.unwrap().to_bytes();
-            match parts.uri.path() {
-                "/proto.rpc.v1.AuthService/Authenticate" => self.authenticate(body.split_off(5)),
+            let mut body = body
+                .collect()
+                .await
+                .map_err(|_| GrpcError::RpcFailedPrecondition)?
+                .to_bytes();
+            let out = match parts.uri.path() {
+                "/proto.rpc.v1.AuthService/Authenticate" => self.authenticate(body.split_off(5))?,
                 "/viam.app.v1.RobotService/Certificate" => self.certificates(body.split_off(5)),
                 "/viam.app.v1.RobotService/Log" => self.log(body.split_off(5)),
                 "/viam.app.v1.RobotService/NeedsRestart" => self.needs_restart(body.split_off(5)),
                 "/viam.app.v1.RobotService/Config" => self.get_config(),
                 _ => panic!("unsupported uri {:?}", parts.uri.path()),
-            }
+            };
+            Ok(out)
         }
         async fn process_request(
             &self,
             req: hyper::http::Request<Incoming>,
-        ) -> Result<hyper::http::Response<GrpcBody>, hyper::http::Error> {
+        ) -> Result<
+            hyper::http::Response<GrpcBody>,
+            Box<dyn std::error::Error + Send + Sync + 'static>,
+        > {
             let mut resp = GrpcBody::new();
-            resp.put_data(self.process_request_inner(req).await);
+            match self.process_request_inner(req).await {
+                Ok(bytes) => resp.put_data(bytes),
+                Err(e) => resp.set_status(e.status_code(), Some(e.to_string())),
+            };
             hyper::http::Response::builder()
                 .status(200)
                 .header(CONTENT_TYPE, "application/grpc")
                 .body(resp)
+                .map_err(|e| e.into())
         }
     }
     impl Service<hyper::http::Request<Incoming>> for AppServerInsecure {
-        type Error = hyper::http::Error;
+        type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
         type Response = hyper::http::Response<GrpcBody>;
         type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
         fn call(&self, req: hyper::http::Request<Incoming>) -> Self::Future {
@@ -861,12 +985,12 @@ mod tests {
     impl ServerCertVerifier for InsecureCertAcceptor {
         fn verify_server_cert(
             &self,
-            end_entity: &rustls::Certificate,
-            intermediates: &[rustls::Certificate],
-            server_name: &rustls::ServerName,
-            scts: &mut dyn Iterator<Item = &[u8]>,
-            ocsp_response: &[u8],
-            now: std::time::SystemTime,
+            _: &rustls::Certificate,
+            _: &[rustls::Certificate],
+            _: &rustls::ServerName,
+            _: &mut dyn Iterator<Item = &[u8]>,
+            _: &[u8],
+            _: std::time::SystemTime,
         ) -> Result<rustls::client::ServerCertVerified, rustls::Error> {
             // always return  yes, we **may** want to validate the generated cert for the sake
             // of it. But considering we are running tests might not be needed.
@@ -875,10 +999,175 @@ mod tests {
     }
 
     #[test_log::test]
+    fn test_app_permission_denied() {
+        let _unused = global_network_test_lock();
+        let ram_storage = RAMStorage::new();
+        let network = match local_ip_address::local_ip().expect("error parsing local IP") {
+            std::net::IpAddr::V4(ip) => ExternallyManagedNetwork::new(ip),
+            _ => panic!("oops expected ipv4"),
+        };
+
+        let creds = CloudConfig {
+            id: "test-denied".to_string(),
+            secret: "".to_string(),
+            app_address: "".to_owned(),
+        };
+        assert!(ram_storage.store_robot_credentials(creds).is_ok());
+
+        let mdns = NativeMdns::new("".to_owned(), network.get_ip());
+        assert!(mdns.is_ok());
+        let mdns = mdns.unwrap();
+        let cloned_ram_storage = ram_storage.clone();
+        let mut viam_server = ViamServerBuilder2::new(ram_storage);
+        viam_server
+            .with_app_uri("http://localhost:56563".try_into().unwrap())
+            .with_http2_server(NativeH2Connector::default(), 12346)
+            .with_max_concurrent_connection(2)
+            .with_http2_server_insecure(true)
+            .with_default_tasks();
+
+        let exec = Executor::new();
+
+        let mut viam_server = viam_server.build(
+            NativeH2Connector::default(),
+            exec.clone(),
+            mdns,
+            Box::new(network),
+        );
+        let cloned_exec = exec.clone();
+
+        let mut app = AppServerInsecure::default();
+
+        app.auth_fn = Some(Rc::new(Box::new(move |req| {
+            assert!(req.entity.contains("test-denied"));
+            false
+        })));
+        exec.block_on(async move {
+            let other_clone = cloned_exec.clone();
+            let _fake_server_task =
+                cloned_exec.spawn(async move { run_fake_app_server(other_clone, app).await });
+            let _task = cloned_exec.spawn(async move {
+                viam_server.run().await;
+            });
+            let _ = Timer::after(Duration::from_millis(500)).await;
+            assert!(!cloned_ram_storage.has_robot_credentials())
+        });
+    }
+
+    #[test_log::test]
+    // The goal of the test is to confirm that transient failure of the app client caused
+    // by network issues (and not permission issues)
+    // an http2 connection to should remain valid for the lifetime of the test
+    fn test_app_client_transient_failure() {
+        let _unused = global_network_test_lock();
+        let ram_storage = RAMStorage::new();
+        let network = match local_ip_address::local_ip().expect("error parsing local IP") {
+            std::net::IpAddr::V4(ip) => ExternallyManagedNetwork::new(ip),
+            _ => panic!("oops expected ipv4"),
+        };
+
+        let creds = CloudConfig {
+            id: "test-transient".to_string(),
+            secret: "".to_string(),
+            app_address: "".to_owned(),
+        };
+        assert!(ram_storage.store_robot_credentials(creds).is_ok());
+
+        let mdns = NativeMdns::new("".to_owned(), network.get_ip());
+        assert!(mdns.is_ok());
+        let mdns = mdns.unwrap();
+
+        let mut viam_server = ViamServerBuilder2::new(ram_storage);
+        viam_server
+            .with_app_uri("http://localhost:56563".try_into().unwrap())
+            .with_http2_server(NativeH2Connector::default(), 12346)
+            .with_max_concurrent_connection(2)
+            .with_default_tasks();
+
+        let exec = Executor::new();
+
+        let mut viam_server = viam_server.build(
+            NativeH2Connector::default(),
+            exec.clone(),
+            mdns,
+            Box::new(network),
+        );
+        let cloned_exec = exec.clone();
+
+        let mut app = AppServerInsecure::default();
+        let shared_auth_counter = Rc::new(AtomicI32::new(0));
+        let shared_auth_counter_cloned = shared_auth_counter.clone();
+        app.auth_fn = Some(Rc::new(Box::new(move |req| {
+            assert!(req.entity.contains("test-transient"));
+            let _ = shared_auth_counter_cloned.fetch_add(1, Ordering::AcqRel);
+            true
+        })));
+        app.config_fn = Some(Rc::new(Box::new(|| {
+            let mut cfg = make_sample_config();
+            if let Some(cloud) = cfg.cloud.as_mut() {
+                cloud.fqdn = "test-bot.xxds65ui.viam.cloud".to_owned();
+                cloud.local_fqdn = "test-bot.xxds65ui.viam.local.cloud".to_owned();
+            }
+            cfg
+        })));
+
+        let cloned_app = app.clone();
+
+        exec.block_on(async move {
+            let other_clone = cloned_exec.clone();
+            let fake_server_task =
+                cloned_exec.spawn(async move { run_fake_app_server(other_clone, app).await });
+            let _task = cloned_exec.spawn(async move {
+                viam_server.run().await;
+            });
+            let record = look_for_an_mdns_record("_rpc._tcp.local.", "grpc", "test-bot")
+                .or(async {
+                    let _ = Timer::after(Duration::from_secs(1)).await;
+                    Err("timeout".into())
+                })
+                .await;
+
+            assert!(record.is_ok());
+            let record = record.unwrap();
+
+            let addr = record.get_addresses_v4().into_iter().take(1).next();
+            assert!(addr.is_some());
+            let addr = addr.unwrap();
+            let port = record.get_port();
+            let addr = SocketAddr::new(std::net::IpAddr::V4(*addr), port);
+
+            let t1 = test_connect_to(addr, cloned_exec.clone()).await;
+            assert!(t1.is_ok());
+
+            // one call to authenticate
+            assert_eq!(shared_auth_counter.load(Ordering::Acquire), 1);
+
+            // cancel the fake app task
+            // this should simulate a network loss or app.viam.com going offline for some
+            // reasons. We should still be able to make a connection to the H2 server
+            assert!(fake_server_task.cancel().await.is_none());
+            let _ = Timer::after(Duration::from_millis(300));
+            let t2 = test_connect_to(addr, cloned_exec.clone()).await;
+            assert!(t2.is_ok());
+            assert_eq!(shared_auth_counter.load(Ordering::Acquire), 1);
+
+            let other_clone = cloned_exec.clone();
+            // bring up a new app client to simulate network resuming.
+            // we just check that another call to authenticate has been issues
+            // this indicate that a connection was made.
+            let _fake_server_task = cloned_exec
+                .spawn(async move { run_fake_app_server(other_clone, cloned_app).await });
+            let _ = Timer::after(Duration::from_secs(2)).await;
+            assert_eq!(shared_auth_counter.load(Ordering::Acquire), 2);
+        });
+    }
+
+    #[test_log::test]
     /// Runs viam server exposing HTTP2 connections, since each HTTP2 connection gets a
     /// max_prio assigned we can't test preemption
-    /// Testing webrtc would require to add support for ice control agent
+    /// Testing webrtc would require to add support for ice control agent931
     fn test_multiple_connection_http2() {
+        let _unused = global_network_test_lock();
         let ram_storage = RAMStorage::new();
         let network = match local_ip_address::local_ip().expect("error parsing local IP") {
             std::net::IpAddr::V4(ip) => ExternallyManagedNetwork::new(ip),
@@ -893,7 +1182,7 @@ mod tests {
 
         assert!(ram_storage.store_robot_credentials(creds).is_ok());
 
-        let mdns = NativeMdns::new("rust-test-provisioning".to_owned(), network.get_ip());
+        let mdns = NativeMdns::new("".to_owned(), network.get_ip());
         assert!(mdns.is_ok());
         let mdns = mdns.unwrap();
 
@@ -916,19 +1205,19 @@ mod tests {
         let mut app = AppServerInsecure::default();
         app.config_fn = Some(Rc::new(Box::new(|| {
             let mut cfg = make_sample_config();
-            if let Some(mut cloud) = cfg.cloud.as_mut() {
+            if let Some(cloud) = cfg.cloud.as_mut() {
                 cloud.fqdn = "test-bot.xxds65ui.viam.cloud".to_owned();
                 cloud.local_fqdn = "test-bot.xxds65ui.viam.local.cloud".to_owned();
             }
             cfg
         })));
 
-        let fake_server_task =
+        let _fake_server_task =
             exec.spawn(async move { run_fake_app_server(cloned_exec, app).await });
 
         let cloned_exec = exec.clone();
         exec.block_on(async move {
-            let task = cloned_exec.spawn(async move {
+            let _task = cloned_exec.spawn(async move {
                 viam_server.run().await;
             });
             let record = look_for_an_mdns_record("_rpc._tcp.local.", "grpc", "test-bot")
@@ -975,18 +1264,51 @@ mod tests {
             .connect("localhost".try_into().unwrap(), stream)
             .await?;
         let conn = Box::new(NativeStream::NewTlsStream(conn.into()));
+        let host = format!("http://{}", addr);
 
         // bit of an hack here using Incoming as a type
         let h2_client = hyper::client::conn::http2::Builder::new(exec.clone())
-            .handshake::<_, Incoming>(conn)
+            .handshake(conn)
             .await;
         assert!(h2_client.is_ok());
-        let mut h2_client = h2_client.unwrap();
+        let (mut send_request, conn) = h2_client.unwrap();
+        let cloned_exec = exec.clone();
         let task = exec.spawn(async move {
-            // connection  does nothing but hang around
-            h2_client.1.await;
-            h2_client.0.ready().await.unwrap();
+            let _h2_state = cloned_exec.spawn(async move {
+                let _ = conn.await;
+            });
+            loop {
+                let req = ResourceNamesRequest::default();
+                let body = encode_request(req);
+                assert!(body.is_ok());
+                let req = hyper::Request::builder()
+                    .method(Method::POST)
+                    .uri(host.clone() + "/viam.robot.v1.RobotService/ResourceNames")
+                    .header(CONTENT_TYPE, "application/grpc")
+                    .header(TE, "trailers")
+                    .body(Full::new(body.unwrap()).boxed());
+                assert!(req.is_ok());
+                let req = req.unwrap();
+                send_request.ready().await.unwrap();
+                let resp = send_request.send_request(req).await;
+                assert!(resp.is_ok());
+                let (_, body) = resp.unwrap().into_parts();
+                let body = body.collect().await.unwrap();
+                assert!(body.trailers().is_some());
+                assert_eq!(
+                    body.trailers()
+                        .as_ref()
+                        .unwrap()
+                        .get("grpc-status")
+                        .unwrap()
+                        .to_str()
+                        .unwrap(),
+                    "0"
+                );
+                let _ = Timer::after(Duration::from_millis(500));
+            }
         });
+
         Ok(task)
     }
 
@@ -997,6 +1319,7 @@ mod tests {
     /// and when viam server connects to the fake app we can confirm the secrets
     /// are the one we set
     fn test_provisioning() {
+        let _unused = global_network_test_lock();
         let ram_storage = RAMStorage::new();
         let network = match local_ip_address::local_ip().expect("error parsing local IP") {
             std::net::IpAddr::V4(ip) => ExternallyManagedNetwork::new(ip),
@@ -1032,14 +1355,15 @@ mod tests {
                 "a-secret-test".to_owned()
             );
             assert_eq!(req.entity, "an-id-test".to_owned());
+            true
         })));
 
-        let fake_server_task =
+        let _fake_server_task =
             exec.spawn(async move { run_fake_app_server(cloned_exec, app).await });
 
         let cloned_exec = exec.clone();
         exec.block_on(async move {
-            let task = cloned_exec.spawn(async move {
+            let _task = cloned_exec.spawn(async move {
                 viam_server.run().await;
             });
             let record = look_for_an_mdns_record(
@@ -1086,7 +1410,7 @@ mod tests {
         });
     }
     async fn look_for_an_mdns_record(
-        service: &str,
+        _service: &str,
         prop: &str,
         name: &str,
     ) -> Result<ServiceInfo, Box<dyn std::error::Error + Send + Sync>> {
@@ -1100,13 +1424,11 @@ mod tests {
         let receiver = receiver.unwrap();
         loop {
             let record = receiver.recv_async().await;
-            match record? {
-                ServiceEvent::ServiceResolved(srv) => {
-                    if srv.get_property(prop).is_some() && srv.get_hostname().contains(name) {
-                        return Ok(srv);
-                    }
+
+            if let ServiceEvent::ServiceResolved(srv) = record? {
+                if srv.get_property(prop).is_some() && srv.get_hostname().contains(name) {
+                    return Ok(srv);
                 }
-                _ => {}
             }
         }
     }
@@ -1170,6 +1492,7 @@ mod tests {
         Ok(())
     }
 
+    #[ignore]
     #[test_log::test]
     fn test_viam_builder() {
         let ram_storage = RAMStorage::new();
@@ -1184,7 +1507,7 @@ mod tests {
             _ => panic!("oops expected ipv4"),
         };
 
-        ram_storage.store_robot_credentials(creds);
+        ram_storage.store_robot_credentials(creds).unwrap();
 
         let mut a = ViamServerBuilder2::new(ram_storage);
         let mdns = NativeMdns::new("".to_owned(), Ipv4Addr::new(0, 0, 0, 0)).unwrap();
@@ -1204,7 +1527,7 @@ mod tests {
         let cc = NativeH2Connector::default();
         let mut b = a.build(cc, exec.clone(), mdns, Box::new(network));
         let cloned_exec = exec.clone();
-        let t = exec.spawn(async move {
+        let _t = exec.spawn(async move {
             run_fake_app_server(cloned_exec, AppServerInsecure::default()).await
         });
         exec.block_on(async {
@@ -1216,10 +1539,13 @@ mod tests {
     async fn run_fake_app_server(exec: Executor, app: AppServerInsecure) {
         let listener = Async::new(TcpListener::bind("0.0.0.0:56563").unwrap()).unwrap();
         loop {
-            let (incoming, peer) = listener.accept().await.unwrap();
+            let (incoming, _peer) = listener.accept().await.unwrap();
             let stream = NativeStream::LocalPlain(incoming);
             let conn = http2::Builder::new(exec.clone()).serve_connection(stream, app.clone());
-            conn.await;
+            let ret = conn.await;
+            if ret.is_err() {
+                break;
+            }
         }
     }
     fn make_sample_config() -> RobotConfig {

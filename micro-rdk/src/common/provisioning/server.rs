@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use std::{
+    cell::RefCell,
     fmt::Debug,
     marker::PhantomData,
     net::{Ipv4Addr, TcpListener, UdpSocket},
@@ -126,7 +127,6 @@ impl<Exec> ProvisioningServiceBuilder<Exec> {
     where
         Exec: ProvisioningExecutor,
     {
-        let p = self.wifi_manager.as_ref().as_ref();
         // Provisioning relies on DNS query to find the IP of the server. Specifically it will
         // make a request for viam.setup. All other queries are answered failed to express the lack of
         // internet
@@ -531,7 +531,7 @@ pub(crate) async fn serve_provisioning_async<S, M>(
     storage: S,
     last_error: Option<Box<dyn std::error::Error>>,
     wifi_manager: Rc<Option<Box<dyn WifiManager>>>,
-    mdns: &mut M,
+    mdns: &RefCell<M>,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
@@ -546,7 +546,6 @@ where
         info.get_manufacturer()
     );
 
-    mdns.set_hostname(&hostname)?;
     let srv = ProvisioningServiceBuilder::<_>::new(exec.clone()).with_provisioning_info(info);
     let srv = srv.with_wifi_manager(wifi_manager);
 
@@ -561,14 +560,17 @@ where
     let listen: Async<TcpListener> = listen.try_into()?;
 
     let port = listen.get_ref().local_addr()?.port();
-
-    mdns.add_service(
-        "provisioning",
-        "_rpc",
-        "_tcp",
-        port,
-        &[("provisioning", "")],
-    )?;
+    {
+        let mut borrowed_mdns = mdns.borrow_mut();
+        borrowed_mdns.set_hostname(&hostname)?;
+        borrowed_mdns.add_service(
+            "provisioning",
+            "_rpc",
+            "_tcp",
+            port,
+            &[("provisioning", "")],
+        )?;
+    }
 
     let credential_ready = srv.get_credential_ready();
 
@@ -582,6 +584,7 @@ where
     credential_ready.await;
 
     provisioning_server_task.cancel().await;
+    let mut mdns = mdns.borrow_mut();
     if let Err(e) = mdns.remove_service("provisioning", "_rpc", "_tcp") {
         log::error!("provisioning couldn't remove mdns record error {:?}", e);
     }
@@ -597,8 +600,8 @@ mod tests {
 
     use async_io::{Async, Timer};
 
-    use crate::common::exec::Executor;
     use crate::native::tcp::NativeStream;
+    use crate::{common::exec::Executor, tests::global_network_test_lock};
     use crate::{
         common::{
             app_client::encode_request,
@@ -742,12 +745,14 @@ mod tests {
             "12"
         );
 
-        let mut req = SetSmartMachineCredentialsRequest::default();
-        req.cloud = Some(CloudConfig {
-            id: "an-id".to_owned(),
-            secret: "a-secret".to_owned(),
-            app_address: "".to_owned(),
-        });
+        let req = SetSmartMachineCredentialsRequest {
+            cloud: Some(CloudConfig {
+                id: "an-id".to_owned(),
+                secret: "a-secret".to_owned(),
+                app_address: "".to_owned(),
+            }),
+            ..Default::default()
+        };
 
         let body = encode_request(req);
         assert!(body.is_ok());
@@ -854,6 +859,7 @@ mod tests {
 
     #[test_log::test]
     fn test_provisioning_server() {
+        let _unused = global_network_test_lock();
         let exec = Executor::default();
 
         let mut provisioning_info = ProvisioningInfo::default();
@@ -920,6 +926,7 @@ mod tests {
 
     #[test_log::test]
     fn test_provisioning_server_with_mdns() {
+        let _unused = global_network_test_lock();
         let ip = local_ip_address::local_ip().unwrap();
         let ip = match ip {
             std::net::IpAddr::V4(v4) => v4,
@@ -964,15 +971,12 @@ mod tests {
 
         let addr = exec.block_on(async {
             while let Ok(event) = server_addr.recv_async().await {
-                match event {
-                    ServiceEvent::ServiceResolved(info) => {
-                        if info.get_properties().get("provisioning").is_some() {
-                            let addr = *info.get_addresses().iter().take(1).next().unwrap();
-                            let port = info.get_port();
-                            return Some(SocketAddr::new(addr, port));
-                        }
+                if let ServiceEvent::ServiceResolved(info) = event {
+                    if info.get_properties().get("provisioning").is_some() {
+                        let addr = *info.get_addresses().iter().take(1).next().unwrap();
+                        let port = info.get_port();
+                        return Some(SocketAddr::new(addr, port));
                     }
-                    _ => {}
                 }
             }
             None

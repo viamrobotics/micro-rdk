@@ -71,6 +71,31 @@ pub enum AppClientError {
     AppClientIoError(#[from] std::io::Error),
 }
 
+impl AppClientError {
+    pub fn is_io_error(&self) -> bool {
+        if let AppClientError::AppClientIoError(_) = self {
+            return true;
+        }
+        false
+    }
+    pub fn is_permission_denied(&self) -> bool {
+        if let AppClientError::AppGrpcClientError(GrpcClientError::GrpcError { code, .. }) = self {
+            if *code == 7 {
+                return true;
+            }
+        }
+        false
+    }
+    pub fn is_unauthenticated(&self) -> bool {
+        if let AppClientError::AppGrpcClientError(GrpcClientError::GrpcError { code, .. }) = self {
+            if *code == 16 {
+                return true;
+            }
+        }
+        false
+    }
+}
+
 pub struct AppClientBuilder {
     grpc_client: Box<GrpcClient>,
     robot_credentials: RobotCredentials,
@@ -376,4 +401,19 @@ pub trait PeriodicAppClientTask {
         &'a self,
         app_client: &'b AppClient,
     ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'b>>;
+}
+
+impl<T: PeriodicAppClientTask + ?Sized> PeriodicAppClientTask for Box<T> {
+    fn get_default_period(&self) -> Duration {
+        (**self).get_default_period()
+    }
+    fn invoke<'b, 'a: 'b>(
+        &'a self,
+        app_client: &'b AppClient,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'b>> {
+        (**self).invoke(app_client)
+    }
+    fn name(&self) -> &str {
+        (**self).name()
+    }
 }

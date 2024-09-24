@@ -422,7 +422,7 @@ mod tests {
                 let split = body.iter().position(|k| *k == b'S');
                 if let Some(idx) = split {
                     let _ = this.body.insert(body.split_off(idx + 1));
-                    let _ = this.timer.insert(Timer::after(Duration::from_millis(150)));
+                    let _a = this.timer.insert(Timer::after(Duration::from_millis(150)));
                 }
                 let frame = Frame::data(body);
                 return Poll::Ready(Some(Ok(frame)));
@@ -460,7 +460,7 @@ mod tests {
             let split = data.iter().position(|k| *k == b'S');
             if let Some(idx) = split {
                 let _ = this.body.insert(data.split_off(idx + 1));
-                let _ = this.timer.insert(Timer::after(Duration::from_millis(150)));
+                let _f = this.timer.insert(Timer::after(Duration::from_millis(150)));
             }
             let frame = Frame::data(data);
             Poll::Ready(Some(Ok(frame)))

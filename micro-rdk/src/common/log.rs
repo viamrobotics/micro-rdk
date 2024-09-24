@@ -100,7 +100,7 @@ pub(crate) fn get_log_buffer() -> &'static AsyncMutex<LogBufferType> {
     LOG_BUFFER.get_or_init(|| AsyncMutex::new(LocalRb::new(150)))
 }
 
-pub(crate) struct LogUploadTask {}
+pub(crate) struct LogUploadTask;
 
 impl PeriodicAppClientTask for LogUploadTask {
     fn get_default_period(&self) -> std::time::Duration {

@@ -3,12 +3,13 @@ mod native {
     const ROBOT_ID: Option<&str> = option_env!("MICRO_RDK_ROBOT_ID");
     const ROBOT_SECRET: Option<&str> = option_env!("MICRO_RDK_ROBOT_SECRET");
 
-    use std::{net::Ipv4Addr, rc::Rc};
+    use std::rc::Rc;
 
     use micro_rdk::{
         common::{
             conn::{
-                network::ExternallyManagedNetwork, server::WebRtcConfiguration2,
+                network::{ExternallyManagedNetwork, Network},
+                server::WebRtcConfiguration2,
                 viam::ViamServerBuilder2,
             },
             credentials_storage::{RAMStorage, RobotConfigurationStorage, RobotCredentials},
@@ -16,7 +17,6 @@ mod native {
             log::initialize_logger,
             provisioning::server::ProvisioningInfo,
             registry::ComponentRegistry,
-            restart_monitor::RestartMonitor,
             webrtc::certificate::Certificate,
         },
         native::{
@@ -64,17 +64,15 @@ mod native {
         let dtls = Box::new(NativeDtls::new(webrtc_certs.clone()));
         let webrtc_config = WebRtcConfiguration2::new(webrtc_certs, dtls);
         let mut builder = ViamServerBuilder2::new(storage);
-        let mdns = NativeMdns::new("".to_string(), Ipv4Addr::UNSPECIFIED).unwrap();
-        let restart_monitor = RestartMonitor::new(|| std::process::exit(0));
+        let mdns = NativeMdns::new("".to_string(), network.get_ip()).unwrap();
         builder
             .with_app_uri("https://app.viam.com:443".try_into().unwrap())
-            .with_http2_server_insecure(false)
             .with_http2_server(NativeH2Connector::default(), 12346)
             .with_webrtc_configuration(webrtc_config)
             .with_max_concurrent_connection(3)
             .with_provisioning_info(info)
             .with_component_registry(registry)
-            .with_app_client_task(Box::new(restart_monitor));
+            .with_default_tasks();
 
         let mut server = builder.build(
             NativeH2Connector::default(),

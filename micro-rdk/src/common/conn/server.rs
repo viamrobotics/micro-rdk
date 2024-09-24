@@ -1,17 +1,14 @@
 use super::errors::ServerError;
-use crate::{
-    common::{
-        grpc::GrpcServer,
-        robot::LocalRobot,
-        webrtc::{
-            api::{WebRtcApi, WebRtcError, WebRtcSdp},
-            certificate::Certificate,
-            dtls::DtlsBuilder,
-            exec::WebRtcExecutor,
-            grpc::{WebRtcGrpcBody, WebRtcGrpcServer},
-        },
+use crate::common::{
+    grpc::GrpcServer,
+    robot::LocalRobot,
+    webrtc::{
+        api::{WebRtcApi, WebRtcError, WebRtcSdp},
+        certificate::Certificate,
+        dtls::DtlsBuilder,
+        exec::WebRtcExecutor,
+        grpc::{WebRtcGrpcBody, WebRtcGrpcServer},
     },
-    proto::{self},
 };
 
 use async_io::Timer;

@@ -24,6 +24,15 @@ pub trait Network {
     fn is_connected(&self) -> Result<bool, NetworkError>;
 }
 
+impl<T: Network + ?Sized> Network for Box<T> {
+    fn get_ip(&self) -> Ipv4Addr {
+        (**self).get_ip()
+    }
+    fn is_connected(&self) -> Result<bool, NetworkError> {
+        (**self).is_connected()
+    }
+}
+
 /// For networks managed outside of micro-rdk (for example, using micro-rdk as an ESP-IDF
 /// component in a separate project), this struct is meant to simply communicate the IP
 /// address statically. It will trivially always appear as connected because connectivity

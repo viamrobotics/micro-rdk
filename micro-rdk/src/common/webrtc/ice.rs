@@ -185,15 +185,15 @@ impl ICEAgent {
                 .await
                 .unwrap();
 
-            match self
+            let response = self
                 .transport
                 .recv_from(&mut buf)
                 .or(async {
                     Timer::after(Duration::from_secs(1)).await;
                     Err(io::Error::new(io::ErrorKind::TimedOut, ""))
                 })
-                .await
-            {
+                .await;
+            match response {
                 Ok(rsp) => break rsp,
                 Err(e) if e.kind() == io::ErrorKind::TimedOut => continue,
                 Err(_) => return Err(IceError::IceIoError),
@@ -294,14 +294,15 @@ impl ICEAgent {
                     .map_err(|_| IceError::IceTransportClosed)
             });
 
-            let event = match futures_lite::future::or(f1, f2)
+            let event = futures_lite::future::or(f1, f2)
                 .or(async {
                     // TODO we should take the min time for next candidate pair check
                     Timer::after(Duration::from_millis(500)).await;
                     Err(IceError::IceTimeout)
                 })
-                .await
-            {
+                .await;
+
+            let event = match event {
                 Ok(r) => r,
                 Err(IceError::IceCandidateChannelClosed) | Err(IceError::IceTimeout) => {
                     continue;

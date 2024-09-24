@@ -96,7 +96,7 @@ reqwest = "0.11.20"
 reqwless = "0.5.0"
 ringbuf = "0.3.3"
 rustls = { version = "0.21", features = ["logging", "tls12"] }
-rustls-pemfile = { version = "1.0.2" }
+rustls-pemfile = { version = "2.0" }
 scopeguard = "1.2.0"
 sctp-proto = "0.1.4"
 sdp = "0.5.1"
