@@ -319,6 +319,9 @@ impl<'a> GrpcServerInner<'a> {
             "/viam.component.movementsensor.v1.MovementSensorService/DoCommand" => {
                 self.movement_sensor_do_command(payload)
             }
+            "/viam.component.movementsensor.v1.MovementSensorService/GetReadings" => {
+                self.movement_sensor_get_readings(payload)
+            }
             "/viam.component.encoder.v1.EncoderService/GetPosition" => {
                 self.encoder_get_position(payload)
             }
@@ -339,6 +342,9 @@ impl<'a> GrpcServerInner<'a> {
             }
             "/viam.component.powersensor.v1.PowerSensorService/GetPower" => {
                 self.power_sensor_get_power(payload)
+            }
+            "/viam.component.powersensor.v1.PowerSensorService/GetReadings" => {
+                self.power_sensor_get_readings(payload)
             }
             "/viam.component.powersensor.v1.PowerSensorService/DoCommand" => {
                 self.power_sensor_do_command(payload)
@@ -995,6 +1001,28 @@ impl<'a> GrpcServerInner<'a> {
         Err(ServerError::from(GrpcError::RpcUnimplemented))
     }
 
+    fn movement_sensor_get_readings(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
+        let req = proto::common::v1::GetReadingsRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let m_sensor = match self
+            .robot
+            .lock()
+            .unwrap()
+            .get_movement_sensor_by_name(req.name)
+        {
+            Some(b) => b,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+
+        let readings = m_sensor
+            .lock()
+            .unwrap()
+            .get_generic_readings()
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
+        let resp = proto::common::v1::GetReadingsResponse { readings };
+        self.encode_message(resp)
+    }
+
     fn movement_sensor_do_command(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
         let req = proto::common::v1::DoCommandRequest::decode(message)
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
@@ -1202,6 +1230,28 @@ impl<'a> GrpcServerInner<'a> {
                 .get_power()
                 .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?,
         };
+        self.encode_message(resp)
+    }
+
+    fn power_sensor_get_readings(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
+        let req = proto::common::v1::GetReadingsRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let power_sensor = match self
+            .robot
+            .lock()
+            .unwrap()
+            .get_power_sensor_by_name(req.name)
+        {
+            Some(s) => s,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+
+        let readings = power_sensor
+            .lock()
+            .unwrap()
+            .get_generic_readings()
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
+        let resp = proto::common::v1::GetReadingsResponse { readings };
         self.encode_message(resp)
     }
 
