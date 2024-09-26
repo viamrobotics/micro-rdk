@@ -422,6 +422,7 @@ where
             if total_messages == 0 {
                 continue;
             }
+            let max_messages_per_chunk = std::cmp::max(10, total_messages.div_ceil(10));
             let mut messages_processed = 0;
 
             let mut current_chunk: Vec<BytesMut> = vec![];
@@ -509,6 +510,7 @@ where
                     let current_chunk_size: usize = current_chunk.iter().map(|c| c.len()).sum();
                     if (messages_processed >= total_messages)
                         || ((next_message.len() + current_chunk_size) > MAX_SENSOR_CONTENTS_SIZE)
+                        || ((current_chunk.len() + 1) > max_messages_per_chunk)
                         || (next_message.is_empty())
                     {
                         let data: Result<Vec<SensorData>, DataSyncError> = current_chunk
