@@ -556,6 +556,54 @@ impl<'a, M> RobotServer<'a, M>
 where
     M: Mdns,
 {
+    async fn serve_incoming_connection(
+        &mut self,
+        incoming: IncomingConnection2,
+    ) -> Result<(), errors::ServerError> {
+        match incoming {
+            IncomingConnection2::HTTP2Connection(conn) => {
+                if let HTTP2Server::HTTP2Connector(h) = self.http2_server {
+                    if self.incommin_connection_manager.get_lowest_prio() < u32::MAX {
+                        let stream = conn?;
+                        let io = h.accept_connection(stream.0)?.await?;
+                        let task = self.server_peer_http2(io);
+                        self.incommin_connection_manager
+                            .insert_new_conn(task, u32::MAX)
+                            .await;
+                    }
+                }
+            }
+            IncomingConnection2::WebRTCConnection(conn) => {
+                let sig = conn.map_err(|e| errors::ServerError::Other(e.into()))?;
+                let ip = self.network.get_ip();
+                if let WebRtcListener::WebRtc(conf) = self.webrtc_config {
+                    let mut api = WebRtcApi::new(
+                        self.executor.clone(),
+                        sig.0,
+                        sig.1,
+                        conf.cert.clone(),
+                        ip,
+                        conf.dtls.make()?,
+                    );
+                    let sdp = api.answer(0).await?;
+                    let mut c = WebRTCConnection {
+                        webrtc_api: api,
+                        sdp: sdp.0,
+                        server: None,
+                        robot: self.robot.clone(),
+                        prio: sdp.1,
+                    };
+                    c.open_data_channel().await?;
+                    let prio = c.prio;
+                    let task = self.executor.spawn(async move { c.run().await });
+                    self.incommin_connection_manager
+                        .insert_new_conn(task, prio)
+                        .await;
+                }
+            }
+        }
+        Ok(())
+    }
     async fn run(&mut self) -> Result<(), errors::ServerError> {
         let http2_listener = if let HTTP2Server::HTTP2Connector(_) = self.http2_server {
             if let Some(cfg) = self.robot_config.cloud.as_ref() {
@@ -614,50 +662,9 @@ where
                     })
                 };
 
-            let r = futures_lite::future::or(h2_conn, webrtc_conn);
-            // TODO consider moving these errors out of the run fn
-            // in practice we may want to recover in case of failure to not disrupt existing connections
-            match r.await {
-                IncomingConnection2::HTTP2Connection(conn) => {
-                    if let HTTP2Server::HTTP2Connector(h) = self.http2_server {
-                        if self.incommin_connection_manager.get_lowest_prio() < u32::MAX {
-                            let stream = conn?;
-                            let io = h.accept_connection(stream.0)?.await?;
-                            let task = self.server_peer_http2(io);
-                            self.incommin_connection_manager
-                                .insert_new_conn(task, u32::MAX)
-                                .await;
-                        }
-                    }
-                }
-                IncomingConnection2::WebRTCConnection(conn) => {
-                    let sig = conn.map_err(|e| errors::ServerError::Other(e.into()))?;
-                    let ip = self.network.get_ip();
-                    if let WebRtcListener::WebRtc(conf) = self.webrtc_config {
-                        let mut api = WebRtcApi::new(
-                            self.executor.clone(),
-                            sig.0,
-                            sig.1,
-                            conf.cert.clone(),
-                            ip,
-                            conf.dtls.make()?,
-                        );
-                        let sdp = api.answer(0).await?;
-                        let mut c = WebRTCConnection {
-                            webrtc_api: api,
-                            sdp: sdp.0,
-                            server: None,
-                            robot: self.robot.clone(),
-                            prio: sdp.1,
-                        };
-                        c.open_data_channel().await?;
-                        let prio = c.prio;
-                        let task = self.executor.spawn(async move { c.run().await });
-                        self.incommin_connection_manager
-                            .insert_new_conn(task, prio)
-                            .await;
-                    }
-                }
+            let incoming = futures_lite::future::or(h2_conn, webrtc_conn).await;
+            if let Err(e) = self.serve_incoming_connection(incoming).await {
+                log::error!("failed to server incoming connection reason {:?}", e)
             }
         }
     }
