@@ -10,7 +10,10 @@ use std::{
 
 use crate::{
     common::{
-        conn::mdns::Mdns,
+        conn::{
+            mdns::Mdns,
+            network::{Network, NetworkError},
+        },
         credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage, WifiCredentials},
         exec::Executor,
         grpc::{GrpcBody, GrpcError, GrpcResponse, ServerError},
@@ -442,6 +445,54 @@ where
     }
 }
 
+pub struct WifiApConfiguration {
+    pub(crate) ap_ip_addr: Ipv4Addr,
+    pub(crate) ssid: String,
+    pub(crate) password: String,
+}
+impl Default for WifiApConfiguration {
+    fn default() -> Self {
+        #[allow(unused_mut)]
+        let mut mac_address = [0_u8; 8];
+        #[cfg(feature = "esp32")]
+        unsafe {
+            esp_idf_svc::sys::esp!(esp_idf_svc::sys::esp_efuse_mac_get_default(
+                mac_address.as_mut_ptr()
+            ))
+            .unwrap();
+        };
+
+        let ssid = format!(
+            "esp32-micrordk-{:02X}{:02X}",
+            mac_address[4], mac_address[5]
+        );
+
+        let password = "viamsetup".to_string();
+
+        log::info!("Provisioning SSID: {} - Password: {}", ssid, password);
+
+        Self {
+            ssid,
+            password,
+            ap_ip_addr: Ipv4Addr::new(10, 42, 0, 1),
+        }
+    }
+}
+impl WifiApConfiguration {
+    pub fn set_ap_ip(mut self, ip: Ipv4Addr) -> Self {
+        self.ap_ip_addr = ip;
+        self
+    }
+    pub fn set_ap_ssid(mut self, ssid: String) -> Self {
+        self.ssid = ssid;
+        self
+    }
+    pub fn set_ap_password(mut self, password: String) -> Self {
+        self.password = password;
+        self
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum WifiManagerError {
     #[error("cannot assign to heapless string")]
@@ -451,43 +502,37 @@ pub enum WifiManagerError {
     EspError(#[from] crate::esp32::esp_idf_svc::sys::EspError),
     #[error(transparent)]
     OtherError(#[from] Box<dyn std::error::Error + Send + Sync + 'static>),
+    #[error(transparent)]
+    NetworError(#[from] NetworkError),
 }
 
-pub trait WifiManager {
+pub trait WifiManager: Network {
     fn scan_networks(
         &self,
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<NetworkInfo>, WifiManagerError>>>>;
-    fn try_connect(
-        &self,
-        ssid: &str,
-        password: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<(), WifiManagerError>>>>;
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<NetworkInfo>, WifiManagerError>> + '_>>;
+    fn try_connect<'a>(
+        &'a self,
+        ssid: &'a str,
+        password: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), WifiManagerError>> + '_>>;
     fn get_ap_ip(&self) -> Ipv4Addr;
+    fn set_ap_sta_mode(
+        &self,
+        conifg_ap: WifiApConfiguration,
+    ) -> Pin<Box<dyn Future<Output = Result<(), WifiManagerError>> + '_>>;
+    fn set_sta_mode(
+        &self,
+        credential: WifiCredentials,
+    ) -> Pin<Box<dyn Future<Output = Result<(), WifiManagerError>> + '_>>;
 }
 
-impl WifiManager for () {
-    fn scan_networks(
-        &self,
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<NetworkInfo>, WifiManagerError>>>> {
-        Box::pin(async {
-            Err(WifiManagerError::OtherError(
-                ServerError::new(GrpcError::RpcUnimplemented, None).into(),
-            ))
-        })
-    }
-    fn try_connect(
-        &self,
-        _: &str,
-        _: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<(), WifiManagerError>>>> {
-        Box::pin(async {
-            Err(WifiManagerError::OtherError(
-                ServerError::new(GrpcError::RpcUnimplemented, None).into(),
-            ))
-        })
-    }
-    fn get_ap_ip(&self) -> Ipv4Addr {
-        Ipv4Addr::UNSPECIFIED
+pub trait AsNetwork {
+    fn as_network(&self) -> &dyn Network;
+}
+
+impl<T: Network> AsNetwork for T {
+    fn as_network(&self) -> &dyn Network {
+        self
     }
 }
 

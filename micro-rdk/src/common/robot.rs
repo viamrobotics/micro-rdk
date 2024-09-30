@@ -19,7 +19,7 @@ use crate::{
     },
     google,
     proto::{
-        app::v1::{ConfigResponse, RobotConfig},
+        app::v1::RobotConfig,
         common::{self, v1::ResourceName},
         robot,
     },
@@ -247,68 +247,6 @@ impl LocalRobot {
     pub fn from_cloud_config(
         exec: Executor,
         part_id: String,
-        config_resp: &ConfigResponse,
-        mut registry: Box<ComponentRegistry>,
-        build_time: Option<DateTime<FixedOffset>>,
-    ) -> Result<Self, RobotError> {
-        let mut robot = LocalRobot {
-            executor: exec,
-            part_id,
-            resources: ResourceMap::new(),
-            // Use date time pulled off gRPC header as the `build_time` returned in the status of
-            // every resource as `last_reconfigured`.
-            build_time,
-
-            #[cfg(feature = "data")]
-            data_collector_configs: vec![],
-            data_manager_sync_task: None,
-            data_manager_collection_task: None,
-            start_time: Instant::now(),
-        };
-
-        if let Some(config) = &config_resp.config {
-            let components: Result<Vec<Option<DynamicComponentConfig>>, AttributeError> = config
-                .components
-                .iter()
-                .map(|x| x.try_into().map(Option::Some))
-                .collect();
-            robot.process_components(
-                components.map_err(RobotError::RobotParseConfigError)?,
-                &mut registry,
-            )?;
-        };
-        // TODO: When cfg's on expressions are valid, remove the outer scope.
-        #[cfg(feature = "data")]
-        {
-            // TODO(RSDK-8125): Support selection of the DataStore trait other than
-            // DefaultDataStore in a way that is configurable
-            match DataManager::<DefaultDataStore>::from_robot_and_config(&robot, config_resp) {
-                Ok(Some(mut data_manager)) => {
-                    if let Some(task) = data_manager.get_sync_task(robot.start_time) {
-                        let _ = robot.data_manager_sync_task.insert(Box::new(task));
-                    }
-                    let _ = robot
-                        .data_manager_collection_task
-                        .replace(robot.executor.spawn(async move {
-                            data_manager.data_collection_task(robot.start_time).await;
-                        }));
-                }
-                Ok(None) => {}
-                Err(err) => {
-                    log::error!("Error configuring data management: {:?}", err);
-                }
-            };
-        }
-
-        Ok(robot)
-    }
-
-    // Creates a robot from the response of a gRPC call to acquire the robot configuration. The individual
-    // component configs within the response are consumed and the corresponding components are generated
-    // and added to the created robot.
-    pub fn from_cloud_config2(
-        exec: Executor,
-        part_id: String,
         config: &RobotConfig,
         registry: &mut Box<ComponentRegistry>,
         build_time: Option<DateTime<FixedOffset>>,
@@ -343,12 +281,11 @@ impl LocalRobot {
         {
             // TODO(RSDK-8125): Support selection of the DataStore trait other than
             // DefaultDataStore in a way that is configurable
-            match DataManager::<DefaultDataStore>::from_robot_and_config2(&robot, config) {
+            match DataManager::<DefaultDataStore>::from_robot_and_config(&robot, config) {
                 Ok(Some(mut data_manager)) => {
-                    let _ = robot
-                        .data_manager_sync_task
-                        .insert(Box::new(data_manager.get_sync_task(robot.start_time)));
-
+                    if let Some(task) = data_manager.get_sync_task(robot.start_time) {
+                        let _ = robot.data_manager_sync_task.insert(Box::new(task));
+                    }
                     let _ = robot
                         .data_manager_collection_task
                         .replace(robot.executor.spawn(async move {
@@ -960,7 +897,7 @@ mod tests {
             sensor::Readings,
         },
         google::{self, protobuf::Struct},
-        proto::app::v1::{ComponentConfig, ConfigResponse, RobotConfig},
+        proto::app::v1::{ComponentConfig, RobotConfig},
     };
 
     #[cfg(feature = "data")]
@@ -1435,18 +1372,16 @@ mod tests {
         };
         component_cfgs.push(comp4);
 
-        let robot_cfg = ConfigResponse {
-            config: Some(RobotConfig {
-                components: component_cfgs,
-                ..Default::default()
-            }),
+        let robot_cfg = RobotConfig {
+            components: component_cfgs,
+            ..Default::default()
         };
 
         let robot = LocalRobot::from_cloud_config(
             Executor::new(),
             "".to_string(),
             &robot_cfg,
-            Box::default(),
+            &mut Box::default(),
             None,
         );
 
@@ -1546,18 +1481,16 @@ mod tests {
         };
         component_cfgs.push(comp4);
 
-        let robot_cfg = ConfigResponse {
-            config: Some(RobotConfig {
-                components: component_cfgs,
-                ..Default::default()
-            }),
+        let robot_cfg = RobotConfig {
+            components: component_cfgs,
+            ..Default::default()
         };
 
         let robot = LocalRobot::from_cloud_config(
             Executor::new(),
             "".to_string(),
             &robot_cfg,
-            Box::default(),
+            &mut Box::default(),
             None,
         );
 

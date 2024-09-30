@@ -129,7 +129,6 @@ impl DtlsConnector for Dtls {
         ssl.set_accept_state();
         let eckey = EcKey::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         ssl.set_tmp_ecdh(&eckey).unwrap();
-        log::error!("accepting");
 
         let transport = self.transport.take().unwrap();
 

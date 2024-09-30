@@ -15,7 +15,7 @@ links = "micro_rdk"
 crate-type = ["lib"]
 
 [features]
-default = ["builtin-components", "data", "native"]
+default = ["builtin-components", "data"]
 binstart = ["esp-idf-svc/binstart"]
 libstart = ["esp-idf-svc/libstart"]
 builtin-components = []
@@ -24,6 +24,7 @@ esp32 = ["dep:esp-idf-svc", "dep:embedded-svc", "dep:embedded-hal", "esp-idf-svc
 native = ["dep:rustls", "dep:webpki-roots", "dep:rustls-pemfile", "dep:mdns-sd", "dep:local-ip-address", "dep:openssl", "dep:rcgen", "dep:async-std-openssl"]
 data-upload-hook-unstable = ["data", "esp32"]
 data = []
+qemu = []
 esp-idf-logs = ["esp32"]
 
 [dev-dependencies]

@@ -9,7 +9,7 @@ use crate::google::protobuf::{Struct, Timestamp};
 use crate::proto::app::data_sync::v1::{
     DataCaptureUploadRequest, DataType, SensorData, UploadMetadata,
 };
-use crate::proto::app::v1::{ConfigResponse, RobotConfig, ServiceConfig};
+use crate::proto::app::v1::{RobotConfig, ServiceConfig};
 
 use super::app_client::{AppClient, AppClientError, PeriodicAppClientTask};
 use super::data_collector::ResourceMethodKey;
@@ -67,9 +67,8 @@ pub enum DataManagerError {
 }
 
 fn get_data_service_config(
-    cfg: &ConfigResponse,
+    robot_config: &RobotConfig,
 ) -> Result<Option<ServiceConfig>, DataManagerError> {
-    let robot_config = cfg.config.clone().ok_or(DataManagerError::ConfigError)?;
     let num_configs_detected = robot_config
         .services
         .iter()
@@ -112,41 +111,6 @@ fn get_data_sync_interval(attrs: &Struct) -> Result<Option<Duration>, DataManage
     )
 }
 
-fn get_data_sync_interval2(cfg: &RobotConfig) -> Result<Option<Duration>, DataManagerError> {
-    let robot_config = cfg;
-    let num_configs_detected = robot_config
-        .services
-        .iter()
-        .filter(|svc_cfg| svc_cfg.r#type == *"data_manager")
-        .count();
-    if num_configs_detected > 1 {
-        return Err(DataManagerError::MultipleConfigError);
-    }
-    Ok(
-        if let Some(data_cfg) = robot_config
-            .services
-            .iter()
-            .find(|svc_cfg| svc_cfg.r#type == *"data_manager")
-        {
-            let attrs = data_cfg
-                .attributes
-                .clone()
-                .ok_or(DataManagerError::ConfigError)?;
-            let sync_interval_mins = attrs
-                .fields
-                .get("sync_interval_mins")
-                .ok_or(DataManagerError::ConfigError)?;
-            if let Some(Kind::NumberValue(sync_interval_mins)) = sync_interval_mins.kind {
-                Some(Duration::from_secs((sync_interval_mins * 60.0) as u64))
-            } else {
-                return Err(DataManagerError::ConfigError);
-            }
-        } else {
-            None
-        },
-    )
-}
-
 pub struct DataManager<StoreType> {
     collectors: Vec<DataCollector>,
     store: Rc<AsyncMutex<StoreType>>,
@@ -178,7 +142,7 @@ where
 
     pub fn from_robot_and_config(
         robot: &LocalRobot,
-        cfg: &ConfigResponse,
+        cfg: &RobotConfig,
     ) -> Result<Option<Self>, DataManagerError> {
         if let Some(cfg) = get_data_service_config(cfg)? {
             let attrs = cfg.attributes.ok_or(DataManagerError::ConfigError)?;
@@ -210,25 +174,6 @@ where
                     DataManager::new(collectors, store, sync_interval, robot.part_id.clone())?;
                 Ok(Some(data_manager_svc))
             }
-        } else {
-            Ok(None)
-        }
-    }
-    pub fn from_robot_and_config2(
-        robot: &LocalRobot,
-        cfg: &RobotConfig,
-    ) -> Result<Option<Self>, DataManagerError> {
-        let sync_interval = get_data_sync_interval2(cfg)?;
-        if let Some(sync_interval) = sync_interval {
-            let collectors = robot.data_collectors()?;
-            let collector_settings: Vec<(ResourceMethodKey, usize)> = collectors
-                .iter()
-                .map(|c| (c.resource_method_key(), c.capacity()))
-                .collect();
-            let store = StoreType::from_resource_method_settings(collector_settings)?;
-            let data_manager_svc =
-                DataManager::new(collectors, store, sync_interval, robot.part_id.clone())?;
-            Ok(Some(data_manager_svc))
         } else {
             Ok(None)
         }

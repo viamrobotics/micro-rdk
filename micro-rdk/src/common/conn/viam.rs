@@ -11,6 +11,10 @@ use hyper::{rt, Uri};
 use std::cell::RefCell;
 use std::future::Future;
 
+use crate::common::app_client::{
+    AppClient, AppClientBuilder, AppClientError, AppSignaling, PeriodicAppClientTask,
+};
+use std::marker::PhantomData;
 use std::net::{SocketAddr, TcpListener};
 use std::pin::Pin;
 use std::rc::Rc;
@@ -19,16 +23,12 @@ use std::task::Poll;
 use std::time::Duration;
 use std::{fmt::Debug, net::TcpStream};
 
-use crate::common::app_client::{
-    AppClient, AppClientBuilder, AppClientError, AppSignaling, PeriodicAppClientTask,
-};
-
 use crate::common::config_monitor::ConfigMonitor;
 use crate::common::grpc::{GrpcBody, GrpcServer, ServerError};
 use crate::common::grpc_client::GrpcClient;
 use crate::common::log::LogUploadTask;
 use crate::common::provisioning::server::{
-    serve_provisioning_async, ProvisioningInfo, WifiManager,
+    serve_provisioning_async, ProvisioningInfo, WifiApConfiguration, WifiManager,
 };
 use crate::common::registry::ComponentRegistry;
 use crate::common::restart_monitor::RestartMonitor;
@@ -46,7 +46,8 @@ use crate::proto::app::v1::RobotConfig;
 use super::errors;
 use super::mdns::Mdns;
 use super::network::Network;
-use super::server::{IncomingConnectionManager, WebRTCConnection, WebRtcConfiguration2};
+use super::server::{IncomingConnectionManager, WebRTCConnection, WebRtcConfiguration};
+use crate::common::provisioning::server::AsNetwork;
 
 pub struct RobotCloudConfig {
     local_fqdn: String,
@@ -100,9 +101,17 @@ pub(crate) enum HTTP2Server {
     HTTP2Connector(Box<dyn ViamH2Connector>),
     Empty,
 }
+impl HTTP2Server {
+    fn has_http2_server(&self) -> bool {
+        if let HTTP2Server::HTTP2Connector(_) = self {
+            return true;
+        }
+        false
+    }
+}
 
 pub(crate) enum WebRtcListener {
-    WebRtc(WebRtcConfiguration2),
+    WebRtc(WebRtcConfiguration),
     Empty,
 }
 
@@ -146,7 +155,9 @@ pub trait IntoHttp2Stream: Future<Output = Result<Box<dyn HTTP2Stream>, std::io:
 
 impl<T> HTTP2Stream for T where T: rt::Read + rt::Write + Unpin {}
 
-pub struct ViamServerBuilder2<Storage> {
+pub struct WantsNetwork;
+pub struct HasNetwork;
+pub struct ViamServerBuilder<Storage, State> {
     storage: Storage,
     http2_server: HTTP2Server,
     webrtc_configuration: WebRtcListener,
@@ -158,16 +169,17 @@ pub struct ViamServerBuilder2<Storage> {
     initial_app_uri: Uri,
     app_client_tasks: Vec<Box<dyn PeriodicAppClientTask>>,
     max_concurrent_connections: u32,
+    _state: PhantomData<State>,
 }
 
-impl<Storage> ViamServerBuilder2<Storage>
+impl<Storage> ViamServerBuilder<Storage, WantsNetwork>
 where
     Storage: ViamServerStorage,
     <Storage as RobotConfigurationStorage>::Error: Debug,
     ServerError: From<<Storage as RobotConfigurationStorage>::Error>,
 {
-    pub fn new(storage: Storage) -> ViamServerBuilder2<Storage> {
-        ViamServerBuilder2 {
+    pub fn new(storage: Storage) -> Self {
+        ViamServerBuilder {
             storage,
             http2_server: HTTP2Server::Empty,
             webrtc_configuration: WebRtcListener::Empty,
@@ -179,16 +191,46 @@ where
             initial_app_uri: "https://app.viam.com:443".try_into().unwrap(),
             app_client_tasks: Default::default(),
             max_concurrent_connections: 1,
+            _state: PhantomData,
         }
     }
+    pub fn with_wifi_manager(
+        self,
+        wifi_manager: Box<dyn WifiManager>,
+    ) -> ViamServerBuilder<Storage, HasNetwork> {
+        ViamServerBuilder {
+            storage: self.storage,
+            http2_server: self.http2_server,
+            webrtc_configuration: self.webrtc_configuration,
+            provisioning_info: self.provisioning_info,
+            component_registry: self.component_registry,
+            http2_server_port: self.http2_server_port,
+            http2_server_insecure: self.http2_server_insecure,
+            initial_app_uri: self.initial_app_uri,
+            app_client_tasks: self.app_client_tasks,
+            max_concurrent_connections: self.max_concurrent_connections,
+            wifi_manager: Some(wifi_manager),
+            _state: PhantomData::<HasNetwork>,
+        }
+    }
+}
+
+impl<Storage, State> ViamServerBuilder<Storage, State>
+where
+    Storage: ViamServerStorage,
+    <Storage as RobotConfigurationStorage>::Error: Debug,
+    ServerError: From<<Storage as RobotConfigurationStorage>::Error>,
+{
     pub fn with_max_concurrent_connection(&mut self, max_concurrent_connections: u32) -> &mut Self {
         self.max_concurrent_connections = max_concurrent_connections;
         self
     }
+
     pub fn with_provisioning_info(&mut self, provisioning_info: ProvisioningInfo) -> &mut Self {
         self.provisioning_info = provisioning_info;
         self
     }
+
     pub fn with_http2_server<H>(&mut self, http2_connector: H, port: u16) -> &mut Self
     where
         H: ViamH2Connector + 'static,
@@ -197,28 +239,25 @@ where
         self.http2_server_port = port;
         self
     }
+
     pub fn with_http2_server_insecure(&mut self, insecure: bool) -> &mut Self {
         self.http2_server_insecure = insecure;
         self
     }
+
     pub fn with_app_uri(&mut self, uri: Uri) -> &mut Self {
         self.initial_app_uri = uri;
         self
     }
+
     pub fn with_webrtc_configuration(
         &mut self,
-        webrtc_configuration: WebRtcConfiguration2,
+        webrtc_configuration: WebRtcConfiguration,
     ) -> &mut Self {
         self.webrtc_configuration = WebRtcListener::WebRtc(webrtc_configuration);
         self
     }
-    pub fn wifi_wifi_manager(
-        &mut self,
-        wifi_manager: impl Into<Option<Box<dyn WifiManager>>>,
-    ) -> &mut Self {
-        self.wifi_manager = wifi_manager.into();
-        self
-    }
+
     pub fn with_component_registry(
         &mut self,
         component_registry: Box<ComponentRegistry>,
@@ -226,10 +265,12 @@ where
         self.component_registry = component_registry;
         self
     }
+
     pub fn with_app_client_task(&mut self, task: Box<dyn PeriodicAppClientTask>) -> &mut Self {
         self.app_client_tasks.push(task);
         self
     }
+
     pub fn with_default_tasks(&mut self) -> &mut Self {
         let restart_monitor = Box::new(RestartMonitor::new(|| std::process::exit(0)));
         let log_upload = Box::new(LogUploadTask);
@@ -237,18 +278,60 @@ where
             .with_app_client_task(log_upload);
         self
     }
+}
+impl<Storage> ViamServerBuilder<Storage, WantsNetwork>
+where
+    Storage: ViamServerStorage,
+    <Storage as RobotConfigurationStorage>::Error: Debug,
+    ServerError: From<<Storage as RobotConfigurationStorage>::Error>,
+{
     pub fn build<C, M>(
         self,
         http2_connector: C,
         executor: Executor,
         mdns: M,
         network: Box<dyn Network>,
-    ) -> ViamServer2<Storage, C, M>
+    ) -> ViamServer<Storage, C, M>
     where
         C: ViamH2Connector + 'static,
         M: Mdns,
     {
-        ViamServer2 {
+        ViamServer {
+            executor,
+            storage: self.storage,
+            http2_server: self.http2_server,
+            webrtc_configuration: self.webrtc_configuration,
+            http2_connector,
+            mdns: RefCell::new(mdns),
+            component_registry: self.component_registry,
+            provisioning_info: self.provisioning_info,
+            http2_server_insecure: self.http2_server_insecure,
+            http2_server_port: self.http2_server_port,
+            app_uri: self.initial_app_uri,
+            wifi_manager: self.wifi_manager.into(),
+            app_client_tasks: self.app_client_tasks,
+            max_concurrent_connections: self.max_concurrent_connections,
+            network: Some(network),
+        }
+    }
+}
+impl<Storage> ViamServerBuilder<Storage, HasNetwork>
+where
+    Storage: ViamServerStorage,
+    <Storage as RobotConfigurationStorage>::Error: Debug,
+    ServerError: From<<Storage as RobotConfigurationStorage>::Error>,
+{
+    pub fn build<C, M>(
+        self,
+        http2_connector: C,
+        executor: Executor,
+        mdns: M,
+    ) -> ViamServer<Storage, C, M>
+    where
+        C: ViamH2Connector + 'static,
+        M: Mdns,
+    {
+        ViamServer {
             executor,
             storage: self.storage,
             http2_server: self.http2_server,
@@ -263,11 +346,11 @@ where
             wifi_manager: Rc::new(self.wifi_manager),
             app_client_tasks: self.app_client_tasks,
             max_concurrent_connections: self.max_concurrent_connections,
-            network,
+            network: None,
         }
     }
 }
-pub struct ViamServer2<Storage, C, M> {
+pub struct ViamServer<Storage, C, M> {
     executor: Executor,
     storage: Storage,
     http2_server: HTTP2Server,
@@ -282,10 +365,9 @@ pub struct ViamServer2<Storage, C, M> {
     wifi_manager: Rc<Option<Box<dyn WifiManager>>>,
     app_client_tasks: Vec<Box<dyn PeriodicAppClientTask>>,
     max_concurrent_connections: u32,
-    network: Box<dyn Network>,
+    network: Option<Box<dyn Network>>,
 }
-
-impl<Storage, C, M> ViamServer2<Storage, C, M>
+impl<Storage, C, M> ViamServer<Storage, C, M>
 where
     Storage: ViamServerStorage,
     <Storage as RobotConfigurationStorage>::Error: Debug,
@@ -293,24 +375,58 @@ where
     C: ViamH2Connector + 'static,
     M: Mdns,
 {
-    pub fn run_forever(&mut self) {
+    pub fn run_forever(&mut self) -> ! {
         let exec = self.executor.clone();
-        exec.block_on(self.run());
+        exec.block_on(Box::pin(self.run()));
     }
-    pub(crate) async fn run(&mut self) {
+
+    pub(crate) async fn run(&mut self) -> ! {
         // The first step is to check whether or not credentials are populated in
         // storage. If not, we should go straight to provisioning.
-        if !self.storage.has_robot_credentials() {
+        //
+        // truth table for 2nd check
+        // +------------------+------------------+------------------+
+        //| Has WifiManager  | Has Credential   | Should provision |
+        //+------------------+------------------+------------------+
+        //| false            | x                | false            |
+        //| true             | false            | true             |
+        //| true             | true             | false            |
+        //+------------------+------------------+------------------+
+        if !self.storage.has_robot_credentials()
+            && self
+                .wifi_manager
+                .as_ref()
+                .as_ref()
+                .is_some_and(|_| !self.storage.has_wifi_credentials())
+        {
             self.provision().await;
         }
 
+        // Since provisioning was run and completed, credentials are properly populated
+        // if wifi manager is configured loop forever until wifi is connected
+        if let Some(wifi) = self.wifi_manager.as_ref().as_ref() {
+            while let Err(err) = wifi
+                .set_sta_mode(self.storage.get_wifi_credentials().unwrap())
+                .await
+            {
+                log::error!("couldn't connect to wifi reason {:?}", err);
+                let _ = Timer::after(Duration::from_secs(2)).await;
+            }
+        }
+
+        let network = self.network.as_ref().map_or_else(
+            || self.wifi_manager.as_ref().as_ref().unwrap().as_network(),
+            |network| network.as_network(),
+        );
+
         let robot_creds = self.storage.get_robot_credentials().unwrap();
-        // assume credentials are valid for now
+
         // attempt to instantiate an app client
         // if we have an unauthenticated or permission denied error, we erase the creds
         // and restart
         // otherwise we assume some network layer error and attempt to start the robot from cached
         // data
+
         let app_client = self
             .connect_to_app()
             .await
@@ -336,7 +452,7 @@ where
         // is_connected only tells us whether or not we are on a network
         let config = match app_client.as_ref() {
             Some(app) => app
-                .get_app_config(Some(self.network.get_ip()))
+                .get_app_config(Some(network.get_ip()))
                 .await
                 .inspect_err(|err| {
                     log::error!(
@@ -347,6 +463,31 @@ where
                 .ok(),
             None => None,
         };
+        #[cfg(feature = "esp32")]
+        {
+            use esp_idf_svc::sys::{settimeofday, timeval};
+            let _ = config.as_ref().is_some_and(|cfg| {
+                cfg.1.is_some_and(|current_dt| {
+                    let tz = chrono_tz::Tz::UTC;
+                    std::env::set_var("TZ", tz.name());
+                    let tv_sec = current_dt.timestamp() as i32;
+                    let tv_usec = current_dt.timestamp_subsec_micros() as i32;
+                    let current_timeval = timeval { tv_sec, tv_usec };
+                    let res = unsafe {
+                        settimeofday(&current_timeval as *const timeval, std::ptr::null())
+                    };
+                    if res != 0 {
+                        log::error!(
+                            "could not set time of day for timezone {:?} and timestamp {:?}",
+                            tz.name(),
+                            current_dt
+                        );
+                    }
+                    true
+                })
+            });
+        }
+
         let (config, build_time) = config.map_or_else(
             || {
                 (
@@ -371,7 +512,7 @@ where
         ));
         self.app_client_tasks.push(config_monitor_task);
 
-        let mut robot = LocalRobot::from_cloud_config2(
+        let mut robot = LocalRobot::from_cloud_config(
             self.executor.clone(),
             robot_creds.robot_id.clone(),
             &config,
@@ -386,19 +527,26 @@ where
 
         let robot = Arc::new(Mutex::new(robot));
 
-        if let HTTP2Server::HTTP2Connector(s) = &mut self.http2_server {
-            if !self.http2_server_insecure {
-                // TODO implement certificate storage
-                let certs = app_client
-                    .as_ref()
-                    .unwrap()
-                    .get_certificates()
-                    .await
-                    .unwrap();
-                s.set_server_certificates(
-                    certs.tls_certificate.into_bytes(),
-                    certs.tls_private_key.into_bytes(),
-                );
+        if self.http2_server.has_http2_server() && !self.http2_server_insecure {
+            // TODO implement certificate storage
+            // in the situation where we are not connected to app or retrieving certs fails AND there are
+            // no certs stored then HTTP2 **should** be disabled.
+            let mut certs = None;
+            if let Some(app) = app_client.as_ref() {
+                certs = app.get_certificates().await.ok();
+            }
+            match certs {
+                None => {
+                    let _ = std::mem::replace(&mut self.http2_server, HTTP2Server::Empty);
+                }
+                Some(certs) => {
+                    if let HTTP2Server::HTTP2Connector(s) = &mut self.http2_server {
+                        s.set_server_certificates(
+                            certs.tls_certificate.into_bytes(),
+                            certs.tls_private_key.into_bytes(),
+                        );
+                    };
+                }
             }
         }
 
@@ -411,8 +559,8 @@ where
             mdns: &self.mdns,
             webrtc_signaling: rx,
             webrtc_config: &self.webrtc_configuration,
-            network: &self.network,
-            incommin_connection_manager: IncomingConnectionManager::new(
+            network,
+            incomming_connection_manager: IncomingConnectionManager::new(
                 self.max_concurrent_connections as usize,
             ),
             robot_config: &config,
@@ -426,12 +574,18 @@ where
         }
 
         let mut tasks: FuturesUnordered<_> = FuturesUnordered::new();
-        tasks.push(Either::Right(self.run_app_client_tasks(app_client)));
-        tasks.push(Either::Left(inner.run()));
+        tasks.push(Either::Right(Box::pin(
+            self.run_app_client_tasks(app_client),
+        )));
+        tasks.push(Either::Left(Box::pin(inner.run())));
+
         while let Some(ret) = tasks.next().await {
             log::error!("task ran returned {:?}", ret);
         }
+        // TODO better define the fact that we should never return from run
+        unreachable!()
     }
+
     async fn connect_to_app(&self) -> Result<AppClient, AppClientError> {
         //ugly hack to remove last /
         //needs to change that but would need to update GrpcClient
@@ -458,9 +612,8 @@ where
     // if a task returns an error, the app client will be dropped
     async fn run_app_client_tasks(
         &self,
-        app_client: Option<AppClient>,
+        mut app_client: Option<AppClient>,
     ) -> Result<(), errors::ServerError> {
-        let mut app_client = app_client;
         let wait = Duration::from_secs(1); // should do exponential back off
         loop {
             if let Some(app_client) = app_client {
@@ -511,7 +664,12 @@ where
     // case.
     async fn provision(&self) {
         let mut last_error = None;
-
+        if let Some(wifi) = self.wifi_manager.as_ref() {
+            while let Err(err) = wifi.set_ap_sta_mode(WifiApConfiguration::default()).await {
+                log::error!("couldn't start AP mode reason {:?}", err);
+                let _ = Timer::after(Duration::from_secs(2)).await;
+            }
+        }
         while let Err(e) = serve_provisioning_async(
             self.executor.clone(),
             Some(self.provisioning_info.clone()),
@@ -543,7 +701,7 @@ struct RobotServer<'a, M> {
     http2_server_port: u16,
     webrtc_signaling: Receiver<AppSignaling>,
     network: &'a dyn Network,
-    incommin_connection_manager: IncomingConnectionManager,
+    incomming_connection_manager: IncomingConnectionManager,
     robot_config: &'a RobotConfig,
 }
 
@@ -563,11 +721,11 @@ where
         match incoming {
             IncomingConnection2::HTTP2Connection(conn) => {
                 if let HTTP2Server::HTTP2Connector(h) = self.http2_server {
-                    if self.incommin_connection_manager.get_lowest_prio() < u32::MAX {
+                    if self.incomming_connection_manager.get_lowest_prio() < u32::MAX {
                         let stream = conn?;
                         let io = h.accept_connection(stream.0)?.await?;
                         let task = self.server_peer_http2(io);
-                        self.incommin_connection_manager
+                        self.incomming_connection_manager
                             .insert_new_conn(task, u32::MAX)
                             .await;
                     }
@@ -596,7 +754,7 @@ where
                     c.open_data_channel().await?;
                     let prio = c.prio;
                     let task = self.executor.spawn(async move { c.run().await });
-                    self.incommin_connection_manager
+                    self.incomming_connection_manager
                         .insert_new_conn(task, prio)
                         .await;
                 }
@@ -604,6 +762,7 @@ where
         }
         Ok(())
     }
+
     async fn run(&mut self) -> Result<(), errors::ServerError> {
         let http2_listener = if let HTTP2Server::HTTP2Connector(_) = self.http2_server {
             if let Some(cfg) = self.robot_config.cloud.as_ref() {
@@ -704,7 +863,7 @@ impl PeriodicAppClientTask for SignalingTask {
     {
         Box::pin(async {
             let sig_pair = app_client.initiate_signaling(self.rpc_host.clone()).await?;
-            let _ = self.sender.send(sig_pair).await; // TODO deal with result, sending on a close channel will never succeed. The limit here is that SignalingTask will be allocated for the lifetime of the ViamServer.
+            let _ret = self.sender.send(sig_pair).await; // TODO deal with result, sending on a close channel will never succeed. The limit here is that SignalingTask will be allocated for the lifetime of the ViamServer.
             Ok(None)
         })
     }
@@ -807,8 +966,8 @@ mod tests {
             app_client::encode_request,
             conn::{
                 network::{ExternallyManagedNetwork, Network},
-                server::WebRtcConfiguration2,
-                viam::ViamServerBuilder2,
+                server::WebRtcConfiguration,
+                viam::ViamServerBuilder,
             },
             credentials_storage::{RAMStorage, RobotConfigurationStorage},
             exec::Executor,
@@ -1025,7 +1184,7 @@ mod tests {
         assert!(mdns.is_ok());
         let mdns = mdns.unwrap();
         let cloned_ram_storage = ram_storage.clone();
-        let mut viam_server = ViamServerBuilder2::new(ram_storage);
+        let mut viam_server = ViamServerBuilder::new(ram_storage);
         viam_server
             .with_app_uri("http://localhost:56563".try_into().unwrap())
             .with_http2_server(NativeH2Connector::default(), 12346)
@@ -1084,7 +1243,7 @@ mod tests {
         assert!(mdns.is_ok());
         let mdns = mdns.unwrap();
 
-        let mut viam_server = ViamServerBuilder2::new(ram_storage);
+        let mut viam_server = ViamServerBuilder::new(ram_storage);
         viam_server
             .with_app_uri("http://localhost:56563".try_into().unwrap())
             .with_http2_server(NativeH2Connector::default(), 12346)
@@ -1193,7 +1352,7 @@ mod tests {
         assert!(mdns.is_ok());
         let mdns = mdns.unwrap();
 
-        let mut viam_server = ViamServerBuilder2::new(ram_storage);
+        let mut viam_server = ViamServerBuilder::new(ram_storage);
         viam_server
             .with_app_uri("http://localhost:56563".try_into().unwrap())
             .with_http2_server(NativeH2Connector::default(), 12346)
@@ -1333,7 +1492,7 @@ mod tests {
             _ => panic!("oops expected ipv4"),
         };
 
-        let mut viam_server = ViamServerBuilder2::new(ram_storage);
+        let mut viam_server = ViamServerBuilder::new(ram_storage);
         let mdns = NativeMdns::new("rust-test-provisioning".to_owned(), network.get_ip());
         assert!(mdns.is_ok());
         let mdns = mdns.unwrap();
@@ -1516,7 +1675,7 @@ mod tests {
 
         ram_storage.store_robot_credentials(creds).unwrap();
 
-        let mut a = ViamServerBuilder2::new(ram_storage);
+        let mut a = ViamServerBuilder::new(ram_storage);
         let mdns = NativeMdns::new("".to_owned(), Ipv4Addr::new(0, 0, 0, 0)).unwrap();
 
         let cc = NativeH2Connector::default();
@@ -1528,7 +1687,7 @@ mod tests {
         let cert = Rc::new(Box::new(WebRtcCertificate::new()) as Box<dyn Certificate>);
         let dtls = Box::new(NativeDtls::new(cert.clone()));
         let exec = Executor::new();
-        let conf = WebRtcConfiguration2::new(cert, dtls);
+        let conf = WebRtcConfiguration::new(cert, dtls);
         a.with_webrtc_configuration(conf);
 
         let cc = NativeH2Connector::default();

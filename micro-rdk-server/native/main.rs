@@ -9,8 +9,8 @@ mod native {
         common::{
             conn::{
                 network::{ExternallyManagedNetwork, Network},
-                server::WebRtcConfiguration2,
-                viam::ViamServerBuilder2,
+                server::WebRtcConfiguration,
+                viam::ViamServerBuilder,
             },
             credentials_storage::{RAMStorage, RobotConfigurationStorage, RobotCredentials},
             exec::Executor,
@@ -62,8 +62,8 @@ mod native {
 
         let webrtc_certs = Rc::new(Box::new(WebRtcCertificate::new()) as Box<dyn Certificate>);
         let dtls = Box::new(NativeDtls::new(webrtc_certs.clone()));
-        let webrtc_config = WebRtcConfiguration2::new(webrtc_certs, dtls);
-        let mut builder = ViamServerBuilder2::new(storage);
+        let webrtc_config = WebRtcConfiguration::new(webrtc_certs, dtls);
+        let mut builder = ViamServerBuilder::new(storage);
         let mdns = NativeMdns::new("".to_string(), network.get_ip()).unwrap();
         builder
             .with_app_uri("https://app.viam.com:443".try_into().unwrap())

@@ -1,4 +1,17 @@
 #![allow(unused)]
+use crate::proto::app::v1::CertificateRequest;
+use crate::proto::app::v1::CertificateResponse;
+use crate::proto::{
+    app::v1::{
+        AgentInfo, ConfigRequest, ConfigResponse, LogRequest, NeedsRestartRequest,
+        NeedsRestartResponse,
+    },
+    common::v1::LogEntry,
+    rpc::{
+        v1::{AuthenticateRequest, AuthenticateResponse, Credentials},
+        webrtc::v1::{AnswerRequest, AnswerResponse, AnswerResponseErrorStage},
+    },
+};
 use bytes::{BufMut, Bytes, BytesMut};
 use chrono::{format::ParseError, DateTime, FixedOffset};
 use futures_lite::{Future, StreamExt};
@@ -14,20 +27,6 @@ use std::{
     time::{Duration, SystemTime},
 };
 use thiserror::Error;
-
-use crate::proto::app::v1::CertificateRequest;
-use crate::proto::app::v1::CertificateResponse;
-use crate::proto::{
-    app::v1::{
-        AgentInfo, ConfigRequest, ConfigResponse, LogRequest, NeedsRestartRequest,
-        NeedsRestartResponse,
-    },
-    common::v1::LogEntry,
-    rpc::{
-        v1::{AuthenticateRequest, AuthenticateResponse, Credentials},
-        webrtc::v1::{AnswerRequest, AnswerResponse, AnswerResponseErrorStage},
-    },
-};
 
 use super::conn::network::Network;
 use super::credentials_storage::RobotCredentials;

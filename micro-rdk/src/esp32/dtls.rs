@@ -9,10 +9,13 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::common::webrtc::{
-    certificate::Certificate,
-    dtls::{DtlsBuilder, DtlsConnector, DtlsError},
-    udp_mux::UdpMux,
+use crate::{
+    common::webrtc::{
+        certificate::Certificate,
+        dtls::{DtlsBuilder, DtlsConnector, DtlsError, IntoDtlsStream},
+        udp_mux::UdpMux,
+    },
+    esp32::tcp::TlsHandshake,
 };
 
 use crate::esp32::esp_idf_svc::sys::{
@@ -34,6 +37,8 @@ use core::ffi::CStr;
 use futures_lite::{AsyncRead, AsyncWrite, Future};
 use log::{log, Level};
 use thiserror::Error;
+
+use super::tcp::Esp32TLSContext;
 
 extern "C" {
     fn mbedtls_debug_set_threshold(level: c_int);
@@ -186,7 +191,7 @@ enum MbedTlsStrpProfile {
 }
 
 #[derive(Default)]
-pub(crate) struct SSLContext {
+pub(crate) struct DtlsSSLContext {
     dtls_entropy: Box<mbedtls_entropy_context>,
     drbg_ctx: Box<mbedtls_ctr_drbg_context>,
     ssl_ctx: Box<mbedtls_ssl_context>,
@@ -197,7 +202,7 @@ pub(crate) struct SSLContext {
     strp_profiles: Box<[MbedTlsStrpProfile]>,
 }
 
-impl Drop for SSLContext {
+impl Drop for DtlsSSLContext {
     fn drop(&mut self) {
         unsafe {
             mbedtls_ctr_drbg_free(self.drbg_ctx.as_mut());
@@ -210,7 +215,7 @@ impl Drop for SSLContext {
     }
 }
 
-impl SSLContext {
+impl DtlsSSLContext {
     fn init<S: Certificate>(&mut self, certificate: Rc<S>) -> Result<(), SSLError> {
         log::debug!("initializing DTLS context");
         unsafe {
@@ -344,7 +349,6 @@ impl SSLContext {
 }
 
 pub struct Esp32Dtls<C> {
-    context: Box<SSLContext>,
     transport: Option<UdpMux>,
     certificate: Rc<C>,
 }
@@ -391,63 +395,60 @@ impl<C: Certificate> Esp32DtlsBuilder<C> {
     }
 }
 
-impl<C: Certificate> DtlsBuilder for Esp32DtlsBuilder<C> {
-    type Output = Esp32Dtls<C>;
-    fn make(&self) -> Result<Self::Output, DtlsError> {
-        Esp32Dtls::new(self.cert.clone()).map_err(|e| DtlsError::DtlsError(Box::new(e)))
+impl<C: Certificate + 'static> DtlsBuilder for Esp32DtlsBuilder<C> {
+    fn make(&self) -> Result<Box<dyn DtlsConnector>, DtlsError> {
+        let dtls = Esp32Dtls::new(self.cert.clone())
+            .map_err(|e| DtlsError::DtlsError(Box::new(e)))
+            .map(Box::new)?;
+        Ok(dtls)
     }
 }
 
-impl<C> Esp32Dtls<C>
-where
-    C: Certificate,
-{
+impl<C: Certificate> Esp32Dtls<C> {
     pub fn new(certificate: Rc<C>) -> Result<Self, SSLError> {
-        let context = Box::<SSLContext>::default();
         Ok(Self {
-            context,
             transport: None,
             certificate,
         })
     }
+}
 
-    fn init(&mut self) -> Result<(), SSLError> {
-        self.context.set_srtp_profiles([
-            MbedTlsStrpProfile::MbedtlsSrtpAes128CmHmacSha180,
-            MbedTlsStrpProfile::MbedtlsSrtpUnsetProfile,
-        ]);
-        self.context.init(self.certificate.clone())?;
-
-        Ok(())
-    }
-
-    pub(crate) fn get_context(self) -> Box<SSLContext> {
-        self.context
+pub(crate) enum SSLContext {
+    DtlsSSLContext(Box<DtlsSSLContext>),
+    Esp32TLSContext(Esp32TLSContext),
+}
+impl SSLContext {
+    fn get_ssl_ctx_ptr(&mut self) -> *mut mbedtls_ssl_context {
+        match self {
+            SSLContext::DtlsSSLContext(context) => context.ssl_ctx.as_mut(),
+            SSLContext::Esp32TLSContext(context) => unsafe { &mut (*(**context)).ssl }, // potentially needs read_unaligned
+        }
     }
 }
 
-pub struct DtlsStream<S> {
-    context: Box<SSLContext>,
+pub struct SSLStream<S> {
+    context: SSLContext,
     bio_ptr: *mut c_void,
     _p: PhantomData<S>,
 }
 
-impl<S> Drop for DtlsStream<S> {
+impl<S> Drop for SSLStream<S> {
     fn drop(&mut self) {
         let _ = unsafe { Box::from_raw(self.bio_ptr as *mut SslStreamState<S>) };
     }
 }
 
-impl<S> DtlsStream<S>
+impl<S> SSLStream<S>
 where
     S: Read + Write,
 {
-    pub(crate) fn new(mut context: Box<SSLContext>, stream: S) -> Result<Self, SSLError> {
+    pub(crate) fn new(mut context: SSLContext, stream: S) -> Result<Self, SSLError> {
         let bio_ptr = Box::new(SslStreamState::new(stream));
         let bio_ptr = Box::into_raw(bio_ptr) as *mut c_void;
+
         unsafe {
             mbedtls_ssl_set_bio(
-                context.ssl_ctx.as_mut(),
+                context.get_ssl_ctx_ptr(),
                 bio_ptr,
                 Some(mbedtls_net_write::<S>),
                 Some(mbedtls_net_read::<S>),
@@ -468,7 +469,7 @@ where
     }
 
     pub(crate) fn handshake(&mut self) -> Result<(), SSLError> {
-        let ret: i32 = unsafe { mbedtls_ssl_handshake(self.context.ssl_ctx.as_mut()) };
+        let ret: i32 = unsafe { mbedtls_ssl_handshake(self.context.get_ssl_ctx_ptr()) };
         if ret == 0 {
             Ok(())
         } else {
@@ -489,7 +490,7 @@ where
         // There might be leftover dtls records mbedtls_ssl_check_pending would tell us if anything is left
         // however subsequent call to ssl_read until WouldBlock is returned by the io should exhaust remaining records
         let ret: i32 =
-            unsafe { mbedtls_ssl_read(self.context.ssl_ctx.as_mut(), buf.as_mut_ptr(), len) };
+            unsafe { mbedtls_ssl_read(self.context.get_ssl_ctx_ptr(), buf.as_mut_ptr(), len) };
 
         if ret >= 0 {
             Ok(ret as usize)
@@ -510,7 +511,7 @@ where
         // the network layer (eg a call returned WouldBlock)
         // partial write are dealt with in an higher level call
         let ret: i32 =
-            unsafe { mbedtls_ssl_write(self.context.ssl_ctx.as_mut(), buf.as_ptr(), len) };
+            unsafe { mbedtls_ssl_write(self.context.get_ssl_ctx_ptr(), buf.as_ptr(), len) };
 
         // if  MBEDTLS_ERR_SSL_BAD_INPUT_DATA is returned, mbedtls_ssl_get_max_out_record_payload() should be used to query
         // the active maximum fragment length
@@ -522,7 +523,7 @@ where
     }
 }
 
-impl<S> Read for DtlsStream<S>
+impl<S> Read for SSLStream<S>
 where
     S: Read + Write,
 {
@@ -545,7 +546,7 @@ where
     }
 }
 
-impl<S> Write for DtlsStream<S>
+impl<S> Write for SSLStream<S>
 where
     S: Read + Write,
 {
@@ -557,13 +558,14 @@ where
                     if n == buf[written..].len() {
                         return Ok(buf.len()); // might be wrong?
                     }
-                    written = n - 1;
+
                     log::error!(
                         "partial write wanted {} did {} remaining {}",
                         &buf[written..].len(),
                         n,
                         written
                     );
+                    written += n;
                 }
                 Err(e) => match e {
                     SSLError::SSLWantsRead | SSLError::SSLWantsWrite => {
@@ -644,19 +646,19 @@ where
     }
 }
 
-pub struct AsyncDtlsStream<S>(DtlsStream<AsyncInnerStreamWrapper<S>>);
+pub struct AsyncSSLStream<S>(SSLStream<AsyncInnerStreamWrapper<S>>);
 
-impl<S> AsyncDtlsStream<S>
+impl<S> AsyncSSLStream<S>
 where
     S: AsyncRead + AsyncWrite,
 {
-    pub(crate) fn new(context: Box<SSLContext>, stream: S) -> Result<Self, SSLError> {
-        DtlsStream::new(context, AsyncInnerStreamWrapper::new(stream)).map(Self)
+    pub(crate) fn new(context: SSLContext, stream: S) -> Result<Self, SSLError> {
+        SSLStream::new(context, AsyncInnerStreamWrapper::new(stream)).map(Self)
     }
 
     fn save_context<F, R>(self: Pin<&mut Self>, ctx: &mut Context<'_>, f: F) -> R
     where
-        F: FnOnce(&mut DtlsStream<AsyncInnerStreamWrapper<S>>) -> R,
+        F: FnOnce(&mut SSLStream<AsyncInnerStreamWrapper<S>>) -> R,
     {
         let this = unsafe { self.get_unchecked_mut() };
 
@@ -688,33 +690,41 @@ where
     }
 }
 
-impl<C> DtlsConnector for Esp32Dtls<C>
-where
-    C: Certificate,
-{
-    type Error = SSLError;
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Stream, Self::Error>>>>;
-    type Stream = AsyncDtlsStream<UdpMux>;
-    fn accept(mut self) -> Result<Self::Future, Self::Error> {
+pub struct DtlsAcceptor(TlsHandshake<UdpMux>);
+impl IntoDtlsStream for DtlsAcceptor {}
+
+impl Future for DtlsAcceptor {
+    type Output = Result<Box<dyn crate::common::webrtc::dtls::DtlsStream>, DtlsError>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.0)
+            .poll(cx)
+            .map_err(DtlsError::DtlsSslError)
+            .map_ok(|s| Box::new(s) as Box<dyn crate::common::webrtc::dtls::DtlsStream>)
+    }
+}
+
+impl<C: Certificate> DtlsConnector for Esp32Dtls<C> {
+    fn accept(&mut self) -> Result<std::pin::Pin<Box<dyn IntoDtlsStream>>, DtlsError> {
         let transport = self.transport.take().unwrap();
-
-        self.init()?;
-
-        let mut stream = AsyncDtlsStream::new(self.get_context(), transport).unwrap();
-
-        Ok(Box::pin(async move {
-            Pin::new(&mut stream).accept().await?;
-            Ok(stream)
-        }))
+        let mut context = Box::<DtlsSSLContext>::default();
+        context.set_srtp_profiles([
+            MbedTlsStrpProfile::MbedtlsSrtpAes128CmHmacSha180,
+            MbedTlsStrpProfile::MbedtlsSrtpUnsetProfile,
+        ]);
+        context.init(self.certificate.clone())?;
+        let accept = DtlsAcceptor(TlsHandshake::Handshake(
+            AsyncSSLStream::new(SSLContext::DtlsSSLContext(context), transport).unwrap(),
+        ));
+        Ok(Box::pin(accept))
     }
     fn set_transport(&mut self, transport: UdpMux) {
         let _ = self.transport.insert(transport);
     }
 }
 
-unsafe impl<S> Send for AsyncDtlsStream<S> {}
+unsafe impl<S> Send for AsyncSSLStream<S> {}
 
-impl<S> AsyncRead for AsyncDtlsStream<S>
+impl<S> AsyncRead for AsyncSSLStream<S>
 where
     S: AsyncRead + AsyncWrite,
 {
@@ -735,7 +745,7 @@ where
     }
 }
 
-impl<S> AsyncWrite for AsyncDtlsStream<S>
+impl<S> AsyncWrite for AsyncSSLStream<S>
 where
     S: AsyncRead + AsyncWrite,
 {

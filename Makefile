@@ -53,7 +53,7 @@ ifndef QEMU_ESP32_XTENSA
 	$(error QEMU_ESP32_XTENSA is not set)
 endif
 	pkill qemu || true
-	$(QEMU_ESP32_XTENSA)/qemu-system-xtensa -nographic -machine esp32 -gdb tcp::3334 -nic user,model=open_eth,hostfwd=udp::-:61205,hostfwd=tcp::12346-:12346 -drive file=target/xtensa-esp32-espidf/debug/debug.bin,if=mtd,format=raw
+	$(QEMU_ESP32_XTENSA)/qemu-system-xtensa -nographic -machine esp32 -gdb tcp::3334 -nic user,model=open_eth,hostfwd=udp::-:61205,hostfwd=tcp::12346-:12346 -drive file=target/xtensa-esp32-espidf/debug/debug.bin,if=mtd,format=raw -m 4m
 
 # debug-local is identical to sim-local, except the `-S` at the end means "wait until a debugger is
 # attached before starting."
@@ -62,7 +62,7 @@ ifndef QEMU_ESP32_XTENSA
 	$(error QEMU_ESP32_XTENSA is not set)
 endif
 	pkill qemu || true
-	$(QEMU_ESP32_XTENSA)/qemu-system-xtensa -nographic -machine esp32 -gdb tcp::3334 -nic user,model=open_eth,hostfwd=udp::-:61205 -drive file=target/xtensa-esp32-espidf/debug/debug.bin,if=mtd,format=raw -S
+	$(QEMU_ESP32_XTENSA)/qemu-system-xtensa -nographic -machine esp32 -gdb tcp::3334 -nic user,model=open_eth,hostfwd=udp::-:61205,hostfwd=tcp::12346-:12346 -drive file=target/xtensa-esp32-espidf/debug/debug.bin,if=mtd,format=raw -S -m 4m
 
 upload: cargo-ver
 	cargo +esp espflash flash --package micro-rdk-server --monitor --partition-table micro-rdk-server/esp32/partitions.csv --baud 460800 -f 80mhz --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort

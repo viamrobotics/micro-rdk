@@ -1,5 +1,7 @@
 use futures_lite::{AsyncRead, AsyncWrite, Future};
 
+#[cfg(feature = "esp32")]
+use crate::esp32::dtls::SSLError;
 use thiserror::Error;
 
 use super::udp_mux::UdpMux;
@@ -8,6 +10,9 @@ use super::udp_mux::UdpMux;
 pub enum DtlsError {
     #[error(transparent)]
     DtlsError(#[from] Box<dyn std::error::Error + Send + Sync>),
+    #[cfg(feature = "esp32")]
+    #[error(transparent)]
+    DtlsSslError(#[from] SSLError),
 }
 
 pub trait DtlsStream: AsyncRead + AsyncWrite + Send + Unpin {}

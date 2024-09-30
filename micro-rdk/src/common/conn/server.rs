@@ -14,40 +14,21 @@ use crate::common::{
 use async_io::Timer;
 
 use futures_lite::prelude::*;
-use hyper::rt;
 
 use async_executor::Task;
 use std::{
-    fmt::Debug,
     pin::Pin,
     rc::Rc,
     sync::{Arc, Mutex},
     time::Duration,
 };
 
-pub trait TlsClientConnector {
-    type Stream: rt::Read + rt::Write + Unpin + 'static;
-
-    fn connect(&mut self) -> impl std::future::Future<Output = Result<Self::Stream, ServerError>>;
-}
-
-pub trait Http2Connector: std::fmt::Debug {
-    type Stream;
-    fn accept(&mut self) -> impl std::future::Future<Output = std::io::Result<Self::Stream>>;
-}
-
-#[derive(Debug)]
-pub enum IncomingConnection<L, U> {
-    Http2Connection(L),
-    WebRtcConnection(U),
-}
-
-pub struct WebRtcConfiguration2 {
+pub struct WebRtcConfiguration {
     pub(crate) dtls: Box<dyn DtlsBuilder>,
     pub(crate) cert: Rc<Box<dyn Certificate>>,
 }
 
-impl WebRtcConfiguration2 {
+impl WebRtcConfiguration {
     pub fn new(cert: Rc<Box<dyn Certificate>>, dtls: Box<dyn DtlsBuilder>) -> Self {
         Self { cert, dtls }
     }

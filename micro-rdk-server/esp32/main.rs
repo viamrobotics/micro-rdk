@@ -5,33 +5,37 @@ mod esp32 {
     const ROBOT_ID: Option<&str> = option_env!("MICRO_RDK_ROBOT_ID");
     const ROBOT_SECRET: Option<&str> = option_env!("MICRO_RDK_ROBOT_SECRET");
 
-    #[cfg(feature = "qemu")]
-    use micro_rdk::esp32::{
-        conn::network::eth_configure,
-        esp_idf_svc::eth::{EspEth, EthDriver},
-    };
+    use std::rc::Rc;
 
+    use micro_rdk::common::conn::server::WebRtcConfiguration;
+    use micro_rdk::common::conn::viam::ViamServerBuilder;
+    #[cfg(feature = "qemu")]
+    use micro_rdk::common::credentials_storage::RAMStorage;
+    use micro_rdk::common::exec::Executor;
+    use micro_rdk::common::webrtc::certificate::Certificate;
+    use micro_rdk::esp32::certificate::GeneratedWebRtcCertificateBuilder;
+    use micro_rdk::esp32::conn::mdns::Esp32Mdns;
+    #[cfg(not(feature = "qemu"))]
+    use micro_rdk::esp32::conn::network::Esp32WifiNetwork;
+    use micro_rdk::esp32::dtls::Esp32DtlsBuilder;
+    #[cfg(not(feature = "qemu"))]
+    use micro_rdk::esp32::nvs_storage::NVSStorage;
+    use micro_rdk::esp32::tcp::Esp32H2Connector;
     use micro_rdk::{
         common::{
             credentials_storage::{
                 RobotConfigurationStorage, RobotCredentials, WifiCredentialStorage, WifiCredentials,
             },
-            entry::RobotRepresentation,
             log::initialize_logger,
             provisioning::server::ProvisioningInfo,
             registry::ComponentRegistry,
         },
-        esp32::{
-            entry::serve,
-            esp_idf_svc::{
-                self,
-                log::EspLogger,
-                sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT},
-            },
-            nvs_storage::NVSStorage,
+        esp32::esp_idf_svc::{
+            self,
+            log::EspLogger,
+            sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT},
         },
     };
-
     extern "C" {
         pub static g_spiram_ok: bool;
     }
@@ -57,23 +61,18 @@ mod esp32 {
         .unwrap();
 
         #[cfg(feature = "qemu")]
-        let _network = {
-            use micro_rdk::esp32::esp_idf_svc::hal::prelude::Peripherals;
+        let network = {
             log::info!("creating eth object");
-            let sys_loop = esp_idf_svc::eventloop::EspEventLoop::take().unwrap();
-            let eth = EspEth::wrap(
-                EthDriver::new_openeth(Peripherals::take().unwrap().mac, sys_loop.clone()).unwrap(),
-            )
-            .unwrap();
-            eth_configure(&sys_loop, eth).unwrap()
+            let eth = micro_rdk::esp32::conn::network::esp_eth_openeth().unwrap();
+            micro_rdk::esp32::conn::network::eth_configure(eth).unwrap()
         };
 
         let mut registry = Box::<ComponentRegistry>::default();
         register_example_modules(&mut registry);
-        let repr = RobotRepresentation::WithRegistry(registry);
-
-        let storage = NVSStorage::new("nvs").unwrap();
-
+        #[cfg(feature = "qemu")]
+        let storage = { RAMStorage::new() }; //NVSStorage::new("nvs").unwrap();
+        #[cfg(not(feature = "qemu"))]
+        let storage = { NVSStorage::new("nvs").unwrap() };
         // At runtime, if the program does not detect credentials or configs in storage,
         // it will try to load statically compiled values.
 
@@ -120,7 +119,36 @@ mod esp32 {
         info.set_manufacturer("viam".to_owned());
         info.set_model("test-esp32".to_owned());
 
-        serve(Some(info), repr, max_connections, storage);
+        let webrtc_certs = GeneratedWebRtcCertificateBuilder::default()
+            .build()
+            .unwrap();
+        let webrtc_certs = Rc::new(Box::new(webrtc_certs) as Box<dyn Certificate>);
+        let dtls = Box::new(Esp32DtlsBuilder::new(webrtc_certs.clone()));
+        let webrtc_config = WebRtcConfiguration::new(webrtc_certs, dtls);
+
+        let mut builder = ViamServerBuilder::new(storage);
+        builder
+            .with_provisioning_info(info)
+            .with_webrtc_configuration(webrtc_config)
+            .with_http2_server(Esp32H2Connector::default(), 12346)
+            .with_max_concurrent_connection(max_connections)
+            .with_default_tasks()
+            .with_component_registry(registry);
+        #[cfg(not(feature = "qemu"))]
+        let builder = { builder.with_wifi_manager(Box::new(Esp32WifiNetwork::new().unwrap())) };
+        let mdns = Esp32Mdns::new("".to_owned()).unwrap();
+        #[cfg(feature = "qemu")]
+        let mut server = {
+            builder.build(
+                Esp32H2Connector::default(),
+                Executor::new(),
+                mdns,
+                Box::new(network),
+            )
+        };
+        #[cfg(not(feature = "qemu"))]
+        let mut server = { builder.build(Esp32H2Connector::default(), Executor::new(), mdns) };
+        server.run_forever();
     }
 }
 
