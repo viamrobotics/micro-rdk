@@ -558,19 +558,20 @@ where
                     if n == buf[written..].len() {
                         return Ok(buf.len()); // might be wrong?
                     }
-
-                    log::error!(
-                        "partial write wanted {} did {} remaining {}",
-                        &buf[written..].len(),
-                        n,
-                        written
-                    );
                     written += n;
                 }
                 Err(e) => match e {
                     SSLError::SSLWantsRead | SSLError::SSLWantsWrite => {
                         if let Some(state) = unsafe { state::<S>(self.bio_ptr) }.error.take() {
-                            return Err(state);
+                            // When mbedtls returns wants read/write it usually implies that the underlying IO would block.
+                            // in this case we need to call ssl_write again with the same arguments a bit later
+                            // We are going to return either that we did a partial write if written > 0, or pending otherwise. In the first case it means that whatever wants to write will call again immediately which then will resolve in this function returning pending.
+                            // storing the current reading pointer would be another solution.
+                            if written > 0 {
+                                return Ok(written);
+                            } else {
+                                return Err(state);
+                            }
                         }
                     }
                     _ => {

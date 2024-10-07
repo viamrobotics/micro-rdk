@@ -242,10 +242,18 @@ where
         }
     }
     async fn set_network_credential_request(&self, body: Bytes) -> Result<Bytes, ServerError> {
-        if let Some(_wifi_manager) = self.wifi_manager.as_ref() {
+        if let Some(wifi_manager) = self.wifi_manager.as_ref() {
             let creds: WifiCredentials = SetNetworkCredentialsRequest::decode(body)
                 .map_err(|e| ServerError::new(GrpcError::RpcInternal, Some(e.into())))?
                 .into();
+
+            // may not be the best place to attempt to validate passed credentials
+            wifi_manager
+                .try_connect(&creds.ssid, &creds.pwd)
+                .await
+                .map_err(|err| {
+                    ServerError::new(GrpcError::RpcInvalidArgument, Some(Box::new(err)))
+                })?;
 
             self.storage
                 .store_wifi_credentials(creds)
@@ -633,6 +641,7 @@ where
     if let Err(e) = mdns.remove_service("provisioning", "_rpc", "_tcp") {
         log::error!("provisioning couldn't remove mdns record error {:?}", e);
     }
+
     Ok(())
 }
 

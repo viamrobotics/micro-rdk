@@ -393,7 +393,7 @@ where
         //| true             | true             | false            |
         //+------------------+------------------+------------------+
         if !self.storage.has_robot_credentials()
-            && self
+            || self
                 .wifi_manager
                 .as_ref()
                 .as_ref()
