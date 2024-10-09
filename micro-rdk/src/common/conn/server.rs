@@ -491,10 +491,10 @@ where
             let sig = if let Some(webrtc_config) = self.webrtc_config.as_ref() {
                 let ip = self.network.get_ip();
                 let rguard = self.app_client.read().await;
-                let signaling = rguard
-                    .as_ref()
-                    .unwrap()
-                    .initiate_signaling(self.rpc_host.clone());
+                let signaling = rguard.as_ref().unwrap().initiate_signaling(
+                    self.rpc_host.clone(),
+                    "true".to_string(), /* heartbeats allowed */
+                );
                 futures_util::future::Either::Left(WebRTCSignalingAnswerer {
                     webrtc_config: Some(webrtc_config),
                     future: signaling,
