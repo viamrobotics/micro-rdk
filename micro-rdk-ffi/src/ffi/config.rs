@@ -135,3 +135,70 @@ pub unsafe extern "C" fn config_get_i32(
     unsafe { *out = val };
     errors::viam_code::VIAM_OK
 }
+
+/// Get a vector of int32s from the attribute section of a sensor configuration,
+/// if found the values will be copied into `out`. The length should be obtained
+/// first, using `config_get_i32_vec_len` in order to allocate the proper amount of memory
+/// pointed to by `out`
+///
+/// # Safety
+/// `ctx`, `key`, `out` must be valid pointers for the duration of the call
+/// `key` must be a null terminated C string. Additionally the external process calling
+/// the function is responsible for managing the memory allocated for `out`
+#[no_mangle]
+pub unsafe extern "C" fn config_get_i32_vec(
+    ctx: *mut config_context,
+    key: *const c_char,
+    out: *mut i32,
+) -> errors::viam_code {
+    if ctx.is_null() || key.is_null() || out.is_null() {
+        return errors::viam_code::VIAM_INVALID_ARG;
+    }
+    let key = if let Ok(s) = unsafe { CStr::from_ptr(key) }.to_str() {
+        s
+    } else {
+        return errors::viam_code::VIAM_KEY_NOT_FOUND;
+    };
+    let ctx = unsafe { &mut *ctx };
+    let val = match ctx.cfg.get_attribute::<Vec<i32>>(key) {
+        Ok(val) => val,
+        Err(AttributeError::KeyNotFound(_)) => return errors::viam_code::VIAM_KEY_NOT_FOUND,
+        Err(_) => return errors::viam_code::VIAM_INVALID_ARG,
+    };
+    let copy_ptr = out;
+    for (i, elem) in val.iter().enumerate() {
+        *copy_ptr.add(i) = *elem;
+    }
+    errors::viam_code::VIAM_OK
+}
+
+/// Get the length of a vector of int32s from the attribute section of a sensor configuration.
+/// If found the value will be copied into `out`.
+///
+/// # Safety
+/// `ctx`, `key`, `out` must be valid pointers for the duration of the call
+/// `key` must be a null terminated C string.
+#[no_mangle]
+pub unsafe extern "C" fn config_get_i32_vec_len(
+    ctx: *mut config_context,
+    key: *const c_char,
+    out: *mut i32,
+) -> errors::viam_code {
+    if ctx.is_null() || key.is_null() || out.is_null() {
+        return errors::viam_code::VIAM_INVALID_ARG;
+    }
+    let key = if let Ok(s) = unsafe { CStr::from_ptr(key) }.to_str() {
+        s
+    } else {
+        return errors::viam_code::VIAM_KEY_NOT_FOUND;
+    };
+    let ctx = unsafe { &mut *ctx };
+    let val = match ctx.cfg.get_attribute::<Vec<i32>>(key) {
+        Ok(val) => val,
+        Err(AttributeError::KeyNotFound(_)) => return errors::viam_code::VIAM_KEY_NOT_FOUND,
+        Err(_) => return errors::viam_code::VIAM_INVALID_ARG,
+    };
+    let len = val.len() as i32;
+    unsafe { *out = len };
+    errors::viam_code::VIAM_OK
+}

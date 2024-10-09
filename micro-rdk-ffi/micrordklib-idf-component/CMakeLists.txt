@@ -32,7 +32,3 @@ else()
     PRIV_REQUIRES "esp32" "pthread" "driver" "vfs" "esp_adc_cal" "esp-tls" "mdns"
   )
 endif()
-
-target_link_libraries(${COMPONENT_LIB}
-    INTERFACE micro_rdk_ffi
-)

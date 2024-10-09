@@ -6,7 +6,8 @@
 
 struct my_generic_sensor_A {
   int32_t an_int;
-  uint8_t *array;
+  int32_t *array;
+  int32_t array_len;
   int32_t an_int_from_config;
 };
 
@@ -24,9 +25,38 @@ int config_my_generic_sensor_A(struct config_context *ctx, void *user_data,
   struct my_generic_sensor_A *sensorA = malloc(sizeof(struct my_generic_sensor_A));
 
   sensorA->an_int = 1234567;
-  sensorA->array =  NULL;
   sensorA->an_int_from_config = my_int;
-  
+  int32_t vec_len = -1;
+  viam_code ret2 = config_get_i32_vec_len(ctx, "my_list", &vec_len);
+  if (ret2 != VIAM_OK) {
+    if (ret2 == VIAM_KEY_NOT_FOUND) {
+      printf("list not found\r\n");
+    }
+    if (ret2 == VIAM_INVALID_ARG) {
+      printf("invalid arg for list\r\n");
+    }
+    printf("defaulting to NULL\r\n");
+  } else {
+    if (vec_len > 0) {
+      int32_t *vec = malloc(sizeof(int32_t) * (size_t)vec_len);
+      viam_code ret3 = config_get_i32_vec(ctx, "my_list", vec);
+      if (ret3 != VIAM_OK) {
+        if (ret3 == VIAM_KEY_NOT_FOUND) {
+          printf("list not found\r\n");
+        }
+        if (ret3 == VIAM_INVALID_ARG) {
+          printf("invalid arg for list\r\n");
+        }
+        printf("defaulting to NULL\r\n");
+      }
+      for (int i = 0; i < vec_len; i++) {
+        printf("element: %d\n", vec[i]);
+      }
+      sensorA->array = vec;
+    }
+  }
+  sensorA->array_len = vec_len;
+
   *out = sensorA;
   
   return VIAM_OK;
