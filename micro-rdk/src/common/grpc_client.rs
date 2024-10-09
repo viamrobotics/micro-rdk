@@ -522,6 +522,7 @@ mod tests {
             "/proto.rpc.examples.echo.v1.EchoService/EchoBiDi",
             None,
             "",
+            None,
             BodyExt::boxed(StreamBody::new(receiver.map(|b| Ok(Frame::data(b))))),
         );
         assert!(r.is_ok());

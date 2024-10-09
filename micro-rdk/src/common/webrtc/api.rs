@@ -329,7 +329,7 @@ impl WebRtcSignalingChannel {
                             }
                         }
                     }
-                    Ok(None)
+                    return Ok(None);
                 }
             }
         }
