@@ -262,13 +262,22 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
     #[cfg(has_robot_config)]
     let storage = {
         use micro_rdk::common::credentials_storage::RAMStorage;
-        log::info!("Robot configuration information was provided at build time - bypassing Viam provisioning flow");
-        RAMStorage::new(
-            "",
-            "",
-            ROBOT_ID.expect("Provided build-time configuration failed to set `ROBOT_ID`"),
-            ROBOT_SECRET.expect("Provided build-time configuration failed to set `ROBOT_SECRET`"),
-        )
+        use micro_rdk::common::credentials_storage::RobotConfigurationStorage;
+        use micro_rdk::proto::provisioning::v1::CloudConfig;
+
+        let mut ram_storage = RAMStorage::new();
+        // TODO: [RSDK-8923] Get app_address from machine credentials
+        let cloud_conf = if ROBOT_ID.is_some() && ROBOT_SECRET.is_some() {
+            Some(CloudConfig {
+                id: ROBOT_ID.unwrap().to_string(),
+                secret: ROBOT_SECRET.unwrap().to_string(),
+                app_address: "https://app.viam.com:443".to_string(),
+            })
+        } else {
+            None
+        }.expect("has_robot_config set in cfg, but build-time configuration failed to set robot credentials");
+        ram_storage.store_robot_credentials(cloud_conf);
+        ram_storage
     };
 
     #[cfg(not(has_robot_config))]
