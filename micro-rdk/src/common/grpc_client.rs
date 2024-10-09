@@ -282,7 +282,7 @@ impl GrpcClient {
             r = r.header("authorization", jwt);
         };
         if let Some(heartbeats_allowed) = heartbeats_allowed {
-            r = r.header("hearbeats_allowed", heartbeats_allowed);
+            r = r.header("heartbeats_allowed", heartbeats_allowed);
         };
 
         r.body(body).map_err(GrpcClientError::HyperHttpError)
