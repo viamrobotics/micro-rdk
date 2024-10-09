@@ -52,10 +52,8 @@ well as to peer project directories. Here is an example layout:
     └── module-consuming-project
 ```
 
-Settings made to the `.cargo/config.toml` file will now apply
-uniformly to both the `micro-rdk` tree, as well as to the projects
-under the `projects` directory. Several of the remaining development
-tips in this document make use of this functionality.
+Several of the remaining development tips in this document make use of
+this functionality.
 
 ### Using `sccache` to improve build times
 
@@ -93,7 +91,9 @@ Then [work around](https://github.com/esp-rs/esp-idf-template/issues/174) this
 issue by setting `CRATE_CC_NO_DEFAULTS=1` in your environment
 (e.g. `make build-esp32-bin CRATE_CC_NO_DEFAULTS=1` or
 `CRATE_CC_NO_DEFAULTS=1 cargo +esp build ...`. Or, you can use the
-tree-level Cargo configuration to just take care of this for you:
+tree-level Cargo configuration (e.g.  `.cargo/config.toml` as above)
+to just take care of this for you:
+
 
 ```
 [env]
