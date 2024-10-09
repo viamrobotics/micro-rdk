@@ -154,6 +154,7 @@ impl AppClientBuilder {
                 "/proto.rpc.v1.AuthService/Authenticate",
                 None,
                 "",
+                None,
                 Full::new(body).map_err(|never| match never {}).boxed(),
             )
             .map_err(AppClientError::AppGrpcClientError)?;
@@ -198,6 +199,7 @@ impl AppClient {
                 "/viam.app.v1.RobotService/Certificate",
                 Some(&self.jwt),
                 "",
+                None,
                 BodyExt::boxed(Full::new(body).map_err(|never| match never {})),
             )
             .map_err(AppClientError::AppGrpcClientError)?;
@@ -213,12 +215,14 @@ impl AppClient {
     pub(crate) fn initiate_signaling(
         &self,
         rpc_host: String,
+        heartbeats_allowed: String,
     ) -> impl Future<Output = Result<AppSignaling, AppClientError>> {
         let (sender, receiver) = async_channel::bounded::<Bytes>(1);
         let r = self.grpc_client.build_request(
             "/proto.rpc.webrtc.v1.SignalingService/Answer",
             Some(&self.jwt),
             &rpc_host,
+            Some(&heartbeats_allowed),
             BodyExt::boxed(StreamBody::new(receiver.map(|b| Ok(Frame::data(b))))),
         );
 
@@ -264,6 +268,7 @@ impl AppClient {
                 "/viam.app.v1.RobotService/Config",
                 Some(&self.jwt),
                 "",
+                None,
                 BodyExt::boxed(Full::new(body).map_err(|never| match never {})),
             )
             .map_err(AppClientError::AppGrpcClientError)?;
@@ -299,6 +304,7 @@ impl AppClient {
                 "/viam.app.v1.RobotService/Log",
                 Some(&self.jwt),
                 "",
+                None,
                 BodyExt::boxed(Full::new(body).map_err(|never| match never {})),
             )
             .map_err(AppClientError::AppGrpcClientError)?;
@@ -319,6 +325,7 @@ impl AppClient {
                 "/viam.app.datasync.v1.DataSyncService/DataCaptureUpload",
                 Some(&self.jwt),
                 "",
+                None,
                 BodyExt::boxed(Full::new(body).map_err(|never| match never {})),
             )
             .map_err(AppClientError::AppGrpcClientError)?;
@@ -341,6 +348,7 @@ impl AppClient {
                 "/viam.app.v1.RobotService/NeedsRestart",
                 Some(&self.jwt),
                 "",
+                None,
                 BodyExt::boxed(Full::new(body).map_err(|never| match never {})),
             )
             .map_err(AppClientError::AppGrpcClientError)?;

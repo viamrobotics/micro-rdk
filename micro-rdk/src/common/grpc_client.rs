@@ -265,6 +265,7 @@ impl GrpcClient {
         path: &str,
         jwt: Option<&str>,
         rpc_host: &str,
+        heartbeats_allowed: Option<&str>,
         body: B,
     ) -> Result<Request<B>, GrpcClientError> {
         let mut uri = self.uri.to_owned();
@@ -279,6 +280,9 @@ impl GrpcClient {
             .header("user-agent", "esp32");
         if let Some(jwt) = jwt {
             r = r.header("authorization", jwt);
+        };
+        if let Some(heartbeats_allowed) = heartbeats_allowed {
+            r = r.header("hearbeats_allowed", heartbeats_allowed);
         };
 
         r.body(body).map_err(GrpcClientError::HyperHttpError)
