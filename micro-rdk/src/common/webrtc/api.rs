@@ -291,7 +291,9 @@ impl WebRtcSignalingChannel {
         // Loop to allow receiving heartbeats without returning the next remote candidate.
         loop {
             match self.signaling_rx.next().await {
-                None => Err(WebRtcError::SignalingDisconnected()),
+                None => {
+                    return Err(WebRtcError::SignalingDisconnected());
+                }
                 Some(req) => {
                     let req = req?;
                     if let Some(stage) = req.stage {
