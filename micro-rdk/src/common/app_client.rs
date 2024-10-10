@@ -18,7 +18,7 @@ use futures_lite::{Future, StreamExt};
 use http_body_util::BodyExt;
 use http_body_util::Full;
 use http_body_util::StreamBody;
-use hyper::body::Frame;
+use hyper::{body::Frame, http::HeaderValue};
 use prost::{DecodeError, EncodeError, Message};
 use std::{
     net::Ipv4Addr,
@@ -154,7 +154,6 @@ impl AppClientBuilder {
                 "/proto.rpc.v1.AuthService/Authenticate",
                 None,
                 "",
-                None,
                 Full::new(body).map_err(|never| match never {}).boxed(),
             )
             .map_err(AppClientError::AppGrpcClientError)?;
@@ -199,7 +198,6 @@ impl AppClient {
                 "/viam.app.v1.RobotService/Certificate",
                 Some(&self.jwt),
                 "",
-                None,
                 BodyExt::boxed(Full::new(body).map_err(|never| match never {})),
             )
             .map_err(AppClientError::AppGrpcClientError)?;
@@ -215,21 +213,25 @@ impl AppClient {
     pub(crate) fn initiate_signaling(
         &self,
         rpc_host: String,
-        heartbeats_allowed: String,
     ) -> impl Future<Output = Result<AppSignaling, AppClientError>> {
         let (sender, receiver) = async_channel::bounded::<Bytes>(1);
         let r = self.grpc_client.build_request(
             "/proto.rpc.webrtc.v1.SignalingService/Answer",
             Some(&self.jwt),
             &rpc_host,
-            Some(&heartbeats_allowed),
             BodyExt::boxed(StreamBody::new(receiver.map(|b| Ok(Frame::data(b))))),
         );
 
         let grpc_client = self.grpc_client.clone();
         async move {
+            // insert a {"heartbeats_allowed": "true"} metadata key-value pair to
+            // indicate to signaling server that we can receive heartbeats.
+            let mut r = r?;
+            r.headers_mut()
+                .insert("heartbeats_allowed", HeaderValue::from_static("true"));
+
             let (tx, rx) = grpc_client
-                .send_request_bidi::<AnswerResponse, AnswerRequest>(r?, sender)
+                .send_request_bidi::<AnswerResponse, AnswerRequest>(r, sender)
                 .await
                 .map_err(AppClientError::AppGrpcClientError)?;
             Ok(AppSignaling(tx, rx))
@@ -268,7 +270,6 @@ impl AppClient {
                 "/viam.app.v1.RobotService/Config",
                 Some(&self.jwt),
                 "",
-                None,
                 BodyExt::boxed(Full::new(body).map_err(|never| match never {})),
             )
             .map_err(AppClientError::AppGrpcClientError)?;
@@ -304,7 +305,6 @@ impl AppClient {
                 "/viam.app.v1.RobotService/Log",
                 Some(&self.jwt),
                 "",
-                None,
                 BodyExt::boxed(Full::new(body).map_err(|never| match never {})),
             )
             .map_err(AppClientError::AppGrpcClientError)?;
@@ -325,7 +325,6 @@ impl AppClient {
                 "/viam.app.datasync.v1.DataSyncService/DataCaptureUpload",
                 Some(&self.jwt),
                 "",
-                None,
                 BodyExt::boxed(Full::new(body).map_err(|never| match never {})),
             )
             .map_err(AppClientError::AppGrpcClientError)?;
@@ -348,7 +347,6 @@ impl AppClient {
                 "/viam.app.v1.RobotService/NeedsRestart",
                 Some(&self.jwt),
                 "",
-                None,
                 BodyExt::boxed(Full::new(body).map_err(|never| match never {})),
             )
             .map_err(AppClientError::AppGrpcClientError)?;
