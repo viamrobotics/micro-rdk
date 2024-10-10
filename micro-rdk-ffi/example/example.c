@@ -26,35 +26,37 @@ int config_my_generic_sensor_A(struct config_context *ctx, void *user_data,
 
   sensorA->an_int = 1234567;
   sensorA->an_int_from_config = my_int;
+
+  // get the length of "my list" attribute first
   int32_t vec_len = -1;
-  viam_code ret2 = config_get_i32_vec_len(ctx, "my_list", &vec_len);
-  if (ret2 != VIAM_OK) {
-    if (ret2 == VIAM_KEY_NOT_FOUND) {
-      printf("list not found\r\n");
+  viam_code len_ret = config_get_i32_vec_len(ctx, "my_list", &vec_len);
+  if (len_ret != VIAM_OK) {
+    if (len_ret == VIAM_KEY_NOT_FOUND) {
+      printf("my_list not found\r\n");
     }
-    if (ret2 == VIAM_INVALID_ARG) {
-      printf("invalid arg for list\r\n");
+    if (len_ret == VIAM_INVALID_ARG) {
+      printf("invalid arg for getting length of my_list\r\n");
     }
     printf("defaulting to NULL\r\n");
-  } else {
-    if (vec_len > 0) {
-      int32_t *vec = malloc(sizeof(int32_t) * (size_t)vec_len);
-      viam_code ret3 = config_get_i32_vec(ctx, "my_list", vec);
-      if (ret3 != VIAM_OK) {
-        if (ret3 == VIAM_KEY_NOT_FOUND) {
-          printf("list not found\r\n");
-        }
-        if (ret3 == VIAM_INVALID_ARG) {
-          printf("invalid arg for list\r\n");
-        }
-        printf("defaulting to NULL\r\n");
-      }
-      for (int i = 0; i < vec_len; i++) {
-        printf("element: %d\n", vec[i]);
-      }
-      sensorA->array = vec;
-    }
   }
+
+  // if we succeed in getting the length, we can proceed to extract
+  // the vector behind the my_list attribute and store it in the sensor
+  if (vec_len > 0) {
+    int32_t *vec = malloc(sizeof(int32_t) * (size_t)vec_len);
+    viam_code vec_ret = config_get_i32_vec(ctx, "my_list", vec);
+    if (vec_ret != VIAM_OK) {
+      if (vec_ret == VIAM_KEY_NOT_FOUND) {
+        printf("my_list not found despite non-zero length\r\n");
+      }
+      if (vec_ret == VIAM_INVALID_ARG) {
+        printf("invalid arg for my_list\r\n");
+      }
+      printf("defaulting to NULL\r\n");
+    }
+    sensorA->array = vec;
+  }
+
   sensorA->array_len = vec_len;
 
   *out = sensorA;
