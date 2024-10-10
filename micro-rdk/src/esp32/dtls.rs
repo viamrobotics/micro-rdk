@@ -674,17 +674,13 @@ where
     }
 
     pub fn poll_accept(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), SSLError>> {
-        let r = self.save_context(cx, |s| match s.handshake() {
+        self.save_context(cx, |s| match s.handshake() {
             Ok(_) => Poll::Ready(Ok(())),
             Err(e) => match e {
                 SSLError::SSLWantsRead | SSLError::SSLWantsWrite => Poll::Pending,
                 _ => Poll::Ready(Err(e)),
             },
-        });
-        if r.is_pending() {
-            cx.waker().wake_by_ref();
-        }
-        r
+        })
     }
     pub async fn accept(mut self: Pin<&mut Self>) -> Result<(), SSLError> {
         futures_lite::future::poll_fn(|cx| self.as_mut().poll_accept(cx)).await
