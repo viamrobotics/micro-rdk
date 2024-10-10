@@ -156,6 +156,13 @@ enum viam_code viam_server_register_c_generic_sensor(struct viam_server_context 
                                                      struct generic_c_sensor_config *sensor);
 
 /*
+ Register a generic sensor in the Registry as a Movement Sensor with only readings implemented
+ */
+enum viam_code viam_server_register_c_generic_sensor_as_movement_sensor(struct viam_server_context *ctx,
+                                                                        const char *model,
+                                                                        struct generic_c_sensor_config *sensor);
+
+/*
  Starts the viam server, the function will take ownership of `ctx` therefore future call
  */
 enum viam_code viam_server_start(struct viam_server_context *ctx);

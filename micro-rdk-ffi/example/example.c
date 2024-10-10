@@ -101,7 +101,7 @@ int main() {
   generic_c_sensor_config_set_config_callback(config_B,
                                               config_my_generic_sensor_B);
   generic_c_sensor_config_set_readings_callback(config_B, get_readings_my_generic_sensorB);
-  ret = viam_server_register_c_generic_sensor(viam_ctx, "sensorB", config_B);
+  ret = viam_server_register_c_generic_sensor_as_movement_sensor(viam_ctx, "sensorB", config_B);
 
   if (ret != VIAM_OK) {
     printf("couldn't register sensorB model cause : %i", ret);

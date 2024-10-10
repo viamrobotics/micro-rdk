@@ -33,6 +33,7 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 // A local struct representation of the supported methods indicated by the
 // GetProperties method of the Movement Sensor API. TODO: add a boolean for
 // orientation when it is supportable.
+#[derive(Default)]
 pub struct MovementSensorSupportedMethods {
     pub position_supported: bool,
     pub linear_velocity_supported: bool,

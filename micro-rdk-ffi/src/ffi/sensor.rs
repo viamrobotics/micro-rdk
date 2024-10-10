@@ -1,6 +1,7 @@
 use micro_rdk::{
     common::{
         config::Kind,
+        movement_sensor::{MovementSensor, MovementSensorSupportedMethods},
         sensor::{GenericReadingsResult, Readings, Sensor, SensorError},
         status::Status,
     },
@@ -143,6 +144,45 @@ impl Status for generic_c_sensor {
         Ok(Some(micro_rdk::google::protobuf::Struct {
             fields: HashMap::new(),
         }))
+    }
+}
+
+impl MovementSensor for generic_c_sensor {
+    fn get_angular_velocity(
+        &mut self,
+    ) -> Result<micro_rdk::common::math_utils::Vector3, SensorError> {
+        Err(SensorError::SensorMethodUnimplemented(
+            "get_angular_velocity not supported for generic_c_sensor",
+        ))
+    }
+    fn get_compass_heading(&mut self) -> Result<f64, SensorError> {
+        Err(SensorError::SensorMethodUnimplemented(
+            "get_compass_heading not supported for generic_c_sensor",
+        ))
+    }
+    fn get_linear_acceleration(
+        &mut self,
+    ) -> Result<micro_rdk::common::math_utils::Vector3, SensorError> {
+        Err(SensorError::SensorMethodUnimplemented(
+            "get_linear_acceleration not supported for generic_c_sensor",
+        ))
+    }
+    fn get_linear_velocity(
+        &mut self,
+    ) -> Result<micro_rdk::common::math_utils::Vector3, SensorError> {
+        Err(SensorError::SensorMethodUnimplemented(
+            "get_linear_velocity not supported for generic_c_sensor",
+        ))
+    }
+    fn get_position(
+        &mut self,
+    ) -> Result<micro_rdk::common::movement_sensor::GeoPosition, SensorError> {
+        Err(SensorError::SensorMethodUnimplemented(
+            "get_position not supported for generic_c_sensor",
+        ))
+    }
+    fn get_properties(&self) -> MovementSensorSupportedMethods {
+        Default::default()
     }
 }
 

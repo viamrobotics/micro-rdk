@@ -8,6 +8,7 @@ use micro_rdk::common::{
     config::ConfigType,
     entry::RobotRepresentation,
     log::initialize_logger,
+    movement_sensor::MovementSensorType,
     provisioning::server::ProvisioningInfo,
     registry::{ComponentRegistry, Dependency},
     sensor::{SensorError, SensorType},
@@ -178,6 +179,70 @@ pub unsafe extern "C" fn viam_server_register_c_generic_sensor(
     });
 
     if let Err(e) = ctx.registry.register_sensor(name, Box::leak(f)) {
+        log::error!("couldn't register sensor {:?}", e);
+        return viam_code::VIAM_REGISTRY_ERROR;
+    }
+
+    viam_code::VIAM_OK
+}
+
+/// Register a generic sensor in the Registry as a Movement Sensor with only readings implemented
+///
+/// `model` is the model name the sensor should be referred to in the Viam config
+/// for example calling `viam_server_register_c_generic_sensor(ctx,"my_sensor", config)` will make the generic sensor
+/// configurable with `{
+///      "name": "sensor1",
+///      "namespace": "rdk",
+///      "type": "movementsensor",
+///      "model": "my_sensor",
+///    }`
+///
+/// Sensor specific data structure to be used in by the readings callback can be written to out
+/// returns VIAM_OK on success
+/// # Safety
+/// `ctx`, `model` must be valid pointers
+#[no_mangle]
+pub unsafe extern "C" fn viam_server_register_c_generic_sensor_as_movement_sensor(
+    ctx: *mut viam_server_context,
+    model: *const c_char,
+    sensor: *mut generic_c_sensor_config,
+) -> viam_code {
+    if ctx.is_null() || model.is_null() {
+        return viam_code::VIAM_INVALID_ARG;
+    }
+
+    let ctx = unsafe { &mut *ctx };
+    let name = if let Ok(s) = unsafe { CStr::from_ptr(model) }.to_str() {
+        s
+    } else {
+        return viam_code::VIAM_INVALID_ARG;
+    };
+
+    // Because registry expects a &'static str for its key, we have to copy the name passed
+    // as an argument and leak it so it remains valid for the duration of the program.
+    let name: &'static str = Box::leak(name.to_owned().into_boxed_str());
+
+    let f = Box::new(move |cfg: ConfigType<'_>, _: Vec<Dependency>| {
+        let sensor_config = unsafe { &mut *sensor };
+        let mut config = config_context { cfg };
+        // obj will hold sensor specific data
+        let mut obj: *mut c_void = std::ptr::null_mut();
+        let ret = (sensor_config.config_callback)(
+            &mut config as *mut _,
+            sensor_config.user_data,
+            &mut obj as *mut *mut _,
+        );
+        if ret != 0 {
+            return Err(SensorError::ConfigError(name));
+        }
+        let s = generic_c_sensor {
+            user_data: obj,
+            get_readings_callback: sensor_config.get_readings_callback,
+        };
+        Ok::<MovementSensorType, SensorError>(Arc::new(Mutex::new(s)))
+    });
+
+    if let Err(e) = ctx.registry.register_movement_sensor(name, Box::leak(f)) {
         log::error!("couldn't register sensor {:?}", e);
         return viam_code::VIAM_REGISTRY_ERROR;
     }
