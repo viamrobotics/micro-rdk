@@ -74,7 +74,7 @@ clippy-native:
 	RUSTFLAGS="-A clippy::blocks_in_conditions" cargo clippy -p micro-rdk --no-deps --features native  -- -Dwarnings
 
 clippy-esp32:
-	RUSTFLAGS="-D clippy::blocks_in_conditions" cargo +esp clippy -p micro-rdk  --features esp32  --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
+	RUSTFLAGS="-A clippy::blocks_in_conditions" cargo +esp clippy -p micro-rdk  --features esp32  --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
 
 clippy-cli:
 	RUSTFLAGS="-A clippy::blocks_in_conditions" cargo clippy -p micro-rdk-installer --no-default-features -- -Dwarnings
