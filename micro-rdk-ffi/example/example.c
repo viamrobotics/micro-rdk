@@ -38,6 +38,7 @@ int config_my_generic_sensor_A(struct config_context *ctx, void *user_data,
       printf("invalid arg for getting length of my_list\r\n");
     }
     printf("defaulting to NULL\r\n");
+    return len_ret;
   }
 
   // if we succeed in getting the length, we can proceed to extract
@@ -53,6 +54,7 @@ int config_my_generic_sensor_A(struct config_context *ctx, void *user_data,
         printf("invalid arg for my_list\r\n");
       }
       printf("defaulting to NULL\r\n");
+      return vec_ret;
     }
     sensorA->array = vec;
   }
