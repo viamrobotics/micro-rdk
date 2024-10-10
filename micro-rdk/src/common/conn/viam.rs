@@ -1429,7 +1429,7 @@ mod tests {
         let conn = conn
             .connect("localhost".try_into().unwrap(), stream)
             .await?;
-        let conn = Box::new(NativeStream::NewTlsStream(conn.into()));
+        let conn = Box::new(NativeStream::TlsStream(conn.into()));
         let host = format!("http://{}", addr);
 
         // bit of an hack here using Incoming as a type

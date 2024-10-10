@@ -107,7 +107,7 @@ impl Future for NativeStreamConnector {
     type Output = Result<Box<dyn HTTP2Stream>, std::io::Error>;
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let result: Self::Output = futures_lite::ready!(self.0.poll(cx))
-            .map(|e| Box::new(NativeStream::NewTlsStream(e.into())) as Box<dyn HTTP2Stream>);
+            .map(|e| Box::new(NativeStream::TlsStream(e.into())) as Box<dyn HTTP2Stream>);
         Poll::Ready(result)
     }
 }
@@ -119,7 +119,7 @@ impl Future for NativeStreamAcceptor {
     type Output = Result<Box<dyn HTTP2Stream>, std::io::Error>;
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let result: Self::Output = futures_lite::ready!(self.0.poll(cx))
-            .map(|e| Box::new(NativeStream::NewTlsStream(e.into())) as Box<dyn HTTP2Stream>);
+            .map(|e| Box::new(NativeStream::TlsStream(e.into())) as Box<dyn HTTP2Stream>);
         Poll::Ready(result)
     }
 }
@@ -139,7 +139,7 @@ impl Future for NativeStreamInsecureAcceptor {
 /// Enum to represent a TCP stream (either plain or encrypted)
 pub enum NativeStream {
     LocalPlain(Async<TcpStream>),
-    NewTlsStream(futures_rustls::TlsStream<Async<TcpStream>>),
+    TlsStream(futures_rustls::TlsStream<Async<TcpStream>>),
 }
 
 use futures_lite::{AsyncRead, AsyncWrite};
@@ -162,7 +162,7 @@ impl rt::Read for NativeStream {
                 }
             }
 
-            NativeStream::NewTlsStream(s) => {
+            NativeStream::TlsStream(s) => {
                 futures_lite::pin!(s);
                 match ready!(s.poll_read(cx, uninit_buf)) {
                     Ok(s) => {
@@ -192,7 +192,7 @@ impl rt::Write for NativeStream {
                 }
             }
 
-            NativeStream::NewTlsStream(s) => {
+            NativeStream::TlsStream(s) => {
                 futures_lite::pin!(s);
                 match ready!(s.poll_write(cx, buf)) {
                     Ok(s) => Poll::Ready(Ok(s)),
@@ -211,7 +211,7 @@ impl rt::Write for NativeStream {
                 s.poll_flush(cx)
             }
 
-            NativeStream::NewTlsStream(s) => {
+            NativeStream::TlsStream(s) => {
                 futures_lite::pin!(s);
                 s.poll_flush(cx)
             }
@@ -227,7 +227,7 @@ impl rt::Write for NativeStream {
                 s.poll_close(cx)
             }
 
-            NativeStream::NewTlsStream(s) => {
+            NativeStream::TlsStream(s) => {
                 futures_lite::pin!(s);
                 s.poll_close(cx)
             }

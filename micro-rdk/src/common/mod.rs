@@ -83,7 +83,6 @@ pub mod conn {
     pub mod mdns;
     pub mod network;
     pub mod server;
-    mod utils;
     pub mod viam;
 }
 #[cfg(feature = "data")]

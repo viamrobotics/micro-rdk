@@ -574,7 +574,6 @@ mod tests {
             ..Default::default()
         };
 
-        let config = config;
         let mut registry = ComponentRegistry::new();
 
         // sensor should not be registered yet

@@ -14,7 +14,7 @@ use std::time::Duration;
 pub struct ConfigMonitor<'a, Storage> {
     curr_config: Box<RobotConfig>, //config for robot gotten from last robot startup, aka inputted from entry
     storage: Storage,
-    restart_hook: Option<Box<dyn Fn() + 'a>>,
+    restart_hook: Box<dyn Fn() + 'a>,
 }
 
 impl<'a, Storage> ConfigMonitor<'a, Storage>
@@ -31,13 +31,13 @@ where
         Self {
             curr_config,
             storage,
-            restart_hook: Some(Box::new(restart_hook)),
+            restart_hook: Box::new(restart_hook),
         }
     }
 
     fn restart(&self) -> ! {
         log::warn!("Robot configuration change detected restarting micro-rdk");
-        (self.restart_hook.as_ref().unwrap())();
+        (self.restart_hook)();
         unreachable!();
     }
 }
