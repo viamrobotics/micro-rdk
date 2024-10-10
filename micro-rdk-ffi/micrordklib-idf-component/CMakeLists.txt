@@ -34,3 +34,5 @@ else()
 endif()
 
 target_link_libraries(${COMPONENT_LIB}
+    INTERFACE micro_rdk_ffi
+)
