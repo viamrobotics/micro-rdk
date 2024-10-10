@@ -1,4 +1,4 @@
-# Viam Micro-RDK Module Template
+# Viam Micro-RDK Development
 
 ## (In)stability Notice
 
