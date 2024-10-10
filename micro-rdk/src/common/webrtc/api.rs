@@ -260,6 +260,7 @@ impl WebRtcSignalingChannel {
             Ok(_) => Ok(()),
         }
     }
+
     pub(crate) async fn send_local_candidate(
         &mut self,
         candidate: &Candidate,
@@ -332,7 +333,7 @@ impl WebRtcSignalingChannel {
     }
 }
 
-pub struct WebRtcApi<S, D, E> {
+pub struct WebRtcApi<S, E> {
     executor: E,
     signaling: Option<WebRtcSignalingChannel>,
     uuid: Option<String>,
@@ -341,12 +342,12 @@ pub struct WebRtcApi<S, D, E> {
     local_creds: ICECredentials,
     remote_creds: Option<ICECredentials>,
     local_ip: Ipv4Addr,
-    dtls: Option<D>,
+    dtls: Option<Box<dyn DtlsConnector>>,
     sctp_handle: Option<SctpHandle>,
     ice_agent: AtomicSync,
 }
 
-impl<C, D, E> Drop for WebRtcApi<C, D, E> {
+impl<C, E> Drop for WebRtcApi<C, E> {
     fn drop(&mut self) {
         if let Some(s) = self.sctp_handle.as_mut() {
             let _ = s.close();
@@ -355,10 +356,9 @@ impl<C, D, E> Drop for WebRtcApi<C, D, E> {
     }
 }
 
-impl<'a, C, D, E> WebRtcApi<C, D, E>
+impl<'a, C, E> WebRtcApi<C, E>
 where
     C: Certificate,
-    D: DtlsConnector,
     E: WebRtcExecutor<Pin<Box<dyn Future<Output = ()>>>> + Clone + 'a,
 {
     pub(crate) fn new(
@@ -367,7 +367,7 @@ where
         rx_half: GrpcMessageStream<AnswerRequest>,
         certificate: Rc<C>,
         local_ip: Ipv4Addr,
-        dtls: D,
+        dtls: Box<dyn DtlsConnector>,
     ) -> Self {
         let udp = Arc::new(async_io::Async::<UdpSocket>::bind(([0, 0, 0, 0], 0)).unwrap());
 

@@ -1,7 +1,7 @@
 #![allow(dead_code)]
-use std::{collections::HashMap, net::Ipv4Addr};
+use std::{collections::HashMap, net::Ipv4Addr, time::Duration};
 
-use mdns_sd::{ServiceDaemon, ServiceInfo};
+use mdns_sd::{ServiceDaemon, ServiceInfo, UnregisterStatus};
 
 use crate::common::conn::mdns::{Mdns, MdnsError};
 
@@ -55,6 +55,29 @@ impl NativeMdns {
 
         Ok(())
     }
+    fn remove_service(
+        &mut self,
+        instance_name: &str,
+        service_type: impl AsRef<str>,
+        protocol: impl AsRef<str>,
+    ) -> Result<(), MdnsError> {
+        let ty_domain = format!("{}.{}.local.", service_type.as_ref(), protocol.as_ref());
+        let fullname = format!("{}.{}", instance_name, ty_domain);
+
+        let recv = self
+            .inner
+            .unregister(&fullname)
+            .map_err(|e| MdnsError::MdnsRemoveServiceError(e.to_string()))?;
+        let ret = recv
+            .recv_timeout(Duration::from_millis(300))
+            .map_err(|_| MdnsError::MdnsRemoveServiceError("timeout".to_string()))?;
+        match ret {
+            UnregisterStatus::OK => Ok(()),
+            UnregisterStatus::NotFound => {
+                Err(MdnsError::MdnsRemoveServiceError("not found".to_owned()))
+            }
+        }
+    }
     fn set_hostname(&mut self, hostname: &str) -> Result<(), MdnsError> {
         self.hostname = hostname.to_owned();
         Ok(())
@@ -80,6 +103,14 @@ impl Mdns for NativeMdns {
     fn set_hostname(&mut self, hostname: &str) -> Result<(), MdnsError> {
         self.set_hostname(hostname)
     }
+    fn remove_service(
+        &mut self,
+        instance_name: &str,
+        service_type: impl AsRef<str>,
+        protocol: impl AsRef<str>,
+    ) -> Result<(), MdnsError> {
+        self.remove_service(instance_name, service_type, protocol)
+    }
 }
 
 impl Mdns for &mut NativeMdns {
@@ -95,5 +126,13 @@ impl Mdns for &mut NativeMdns {
     }
     fn set_hostname(&mut self, hostname: &str) -> Result<(), MdnsError> {
         (*self).set_hostname(hostname)
+    }
+    fn remove_service(
+        &mut self,
+        instance_name: &str,
+        service_type: impl AsRef<str>,
+        protocol: impl AsRef<str>,
+    ) -> Result<(), MdnsError> {
+        (*self).remove_service(instance_name, service_type, protocol)
     }
 }

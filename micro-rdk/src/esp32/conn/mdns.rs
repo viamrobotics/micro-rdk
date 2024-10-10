@@ -29,6 +29,16 @@ impl Esp32Mdns {
             .add_service(Some(instance_name), service_type, protocol, port, txt)
             .map_err(|e| MdnsError::MdnsAddServiceError(e.to_string()))
     }
+    fn remove_service(
+        &mut self,
+        _: &str,
+        service_type: impl AsRef<str>,
+        protocol: impl AsRef<str>,
+    ) -> Result<(), MdnsError> {
+        self.inner
+            .remove_service(service_type, protocol)
+            .map_err(|e| MdnsError::MdnsRemoveServiceError(e.to_string()))
+    }
     fn set_hostname(&mut self, hostname: &str) -> Result<(), MdnsError> {
         self.hostname = hostname.to_owned();
         Ok(())
@@ -49,6 +59,14 @@ impl Mdns for Esp32Mdns {
     fn set_hostname(&mut self, hostname: &str) -> Result<(), MdnsError> {
         self.set_hostname(hostname)
     }
+    fn remove_service(
+        &mut self,
+        instance_name: &str,
+        service_type: impl AsRef<str>,
+        protocol: impl AsRef<str>,
+    ) -> Result<(), MdnsError> {
+        self.remove_service(instance_name, service_type, protocol)
+    }
 }
 
 impl Mdns for &mut Esp32Mdns {
@@ -64,5 +82,13 @@ impl Mdns for &mut Esp32Mdns {
     }
     fn set_hostname(&mut self, hostname: &str) -> Result<(), MdnsError> {
         (*self).set_hostname(hostname)
+    }
+    fn remove_service(
+        &mut self,
+        instance_name: &str,
+        service_type: impl AsRef<str>,
+        protocol: impl AsRef<str>,
+    ) -> Result<(), MdnsError> {
+        (*self).remove_service(instance_name, service_type, protocol)
     }
 }

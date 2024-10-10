@@ -91,7 +91,7 @@ pub trait RobotConfigurationStorage {
     fn reset_robot_credentials(&self) -> Result<(), Self::Error>;
 
     fn has_robot_configuration(&self) -> bool;
-    fn store_robot_configuration(&self, cfg: RobotConfig) -> Result<(), Self::Error>;
+    fn store_robot_configuration(&self, cfg: &RobotConfig) -> Result<(), Self::Error>;
     fn get_robot_configuration(&self) -> Result<RobotConfig, Self::Error>;
     fn reset_robot_configuration(&self) -> Result<(), Self::Error>;
 }
@@ -143,8 +143,8 @@ impl RobotConfigurationStorage for RAMStorage {
     fn has_robot_configuration(&self) -> bool {
         self.0.lock().unwrap().robot_config.is_some()
     }
-    fn store_robot_configuration(&self, cfg: RobotConfig) -> Result<(), Self::Error> {
-        let _ = self.0.lock().unwrap().robot_config.insert(cfg);
+    fn store_robot_configuration(&self, cfg: &RobotConfig) -> Result<(), Self::Error> {
+        let _ = self.0.lock().unwrap().robot_config.insert(cfg.clone());
         Ok(())
     }
     fn get_robot_configuration(&self) -> Result<RobotConfig, Self::Error> {

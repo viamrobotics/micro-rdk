@@ -9,7 +9,7 @@ use crate::google::protobuf::{Struct, Timestamp};
 use crate::proto::app::data_sync::v1::{
     DataCaptureUploadRequest, DataType, SensorData, UploadMetadata,
 };
-use crate::proto::app::v1::{ConfigResponse, ServiceConfig};
+use crate::proto::app::v1::{RobotConfig, ServiceConfig};
 
 use super::app_client::{AppClient, AppClientError, PeriodicAppClientTask};
 use super::data_collector::ResourceMethodKey;
@@ -67,9 +67,8 @@ pub enum DataManagerError {
 }
 
 fn get_data_service_config(
-    cfg: &ConfigResponse,
+    robot_config: &RobotConfig,
 ) -> Result<Option<ServiceConfig>, DataManagerError> {
-    let robot_config = cfg.config.clone().ok_or(DataManagerError::ConfigError)?;
     let num_configs_detected = robot_config
         .services
         .iter()
@@ -143,7 +142,7 @@ where
 
     pub fn from_robot_and_config(
         robot: &LocalRobot,
-        cfg: &ConfigResponse,
+        cfg: &RobotConfig,
     ) -> Result<Option<Self>, DataManagerError> {
         if let Some(cfg) = get_data_service_config(cfg)? {
             let attrs = cfg.attributes.ok_or(DataManagerError::ConfigError)?;
@@ -395,7 +394,7 @@ where
         Ok(msg)
     }
 
-    async fn run<'b>(&mut self, app_client: &'b AppClient) -> Result<(), AppClientError> {
+    async fn run<'b>(&self, app_client: &'b AppClient) -> Result<(), AppClientError> {
         for collector_key in self.resource_method_keys.iter() {
             // Since a write may occur in between uploading consecutive chunks of data, we want to make
             // sure only to process the messages initially present in this region of the store.
@@ -604,7 +603,7 @@ where
         self.sync_interval
     }
     fn invoke<'b, 'a: 'b>(
-        &'a mut self,
+        &'a self,
         app_client: &'b AppClient,
     ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'b>> {
         Box::pin(async move { self.run(app_client).await.map(|_| None) })

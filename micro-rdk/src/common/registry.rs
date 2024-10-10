@@ -549,7 +549,7 @@ mod tests {
 
     #[test_log::test]
     fn test_driver() {
-        use crate::proto::app::v1::{ComponentConfig, ConfigResponse, RobotConfig};
+        use crate::proto::app::v1::{ComponentConfig, RobotConfig};
         let components = vec![
             ComponentConfig {
                 name: "board".to_string(),
@@ -569,12 +569,11 @@ mod tests {
             },
         ];
 
-        let config: Option<RobotConfig> = Some(RobotConfig {
+        let config: RobotConfig = RobotConfig {
             components,
             ..Default::default()
-        });
+        };
 
-        let cfg_resp = ConfigResponse { config };
         let mut registry = ComponentRegistry::new();
 
         // sensor should not be registered yet
@@ -603,8 +602,8 @@ mod tests {
         let robot = LocalRobot::from_cloud_config(
             Executor::new(),
             "".to_string(),
-            &cfg_resp,
-            Box::new(registry),
+            &config,
+            &mut Box::new(registry),
             None,
         );
         assert!(robot.is_ok());

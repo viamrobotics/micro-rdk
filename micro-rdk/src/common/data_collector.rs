@@ -443,7 +443,7 @@ mod tests {
                 };
                 let fake_reading = readings.fields.get("fake_sensor");
                 assert!(fake_reading.is_some());
-                let fake_reading = &fake_reading.clone().unwrap().kind;
+                let fake_reading = &fake_reading.unwrap().kind;
                 assert!(fake_reading.is_some());
                 let fake_reading = fake_reading.clone().unwrap();
                 match fake_reading {

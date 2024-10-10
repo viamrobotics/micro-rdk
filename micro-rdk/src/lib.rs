@@ -202,3 +202,16 @@ impl TryFrom<google::protobuf::Duration> for time::Duration {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Mutex, MutexGuard, OnceLock};
+
+    // some tests will attempt to listen to the same endpoints
+    // so they have to be run in strict order
+    pub fn global_network_test_lock<'a>() -> MutexGuard<'a, ()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        let lock = LOCK.get_or_init(|| Mutex::new(()));
+        lock.lock().unwrap()
+    }
+}

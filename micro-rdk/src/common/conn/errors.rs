@@ -1,7 +1,10 @@
 use std::error::Error;
 use thiserror::Error;
 
-use crate::common::{app_client::AppClientError, webrtc::api::WebRtcError};
+use crate::common::{
+    app_client::AppClientError,
+    webrtc::{api::WebRtcError, dtls::DtlsError},
+};
 #[derive(Error, Debug)]
 pub enum ServerError {
     #[error("couldn't open ssl connection")]
@@ -13,7 +16,11 @@ pub enum ServerError {
     #[error("not configured")]
     ServerConnectionNotConfigured,
     #[error(transparent)]
-    ServerAppClientError(AppClientError),
+    ServerAppClientError(#[from] AppClientError),
     #[error(transparent)]
-    ServerWebRTCError(WebRtcError),
+    ServerWebRTCError(#[from] WebRtcError),
+    #[error(transparent)]
+    ServerIoError(#[from] std::io::Error),
+    #[error(transparent)]
+    ServerDtlsError(#[from] DtlsError),
 }

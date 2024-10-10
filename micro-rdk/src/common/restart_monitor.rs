@@ -4,19 +4,19 @@ use std::pin::Pin;
 use std::time::Duration;
 
 pub struct RestartMonitor<'a> {
-    restart_hook: Option<Box<dyn FnOnce() + 'a>>,
+    restart_hook: Box<dyn Fn() + 'a>,
 }
 
 impl<'a> RestartMonitor<'a> {
-    pub fn new(restart_hook: impl FnOnce() + 'a) -> Self {
+    pub fn new(restart_hook: impl Fn() + 'a) -> Self {
         Self {
-            restart_hook: Some(Box::new(restart_hook)),
+            restart_hook: Box::new(restart_hook),
         }
     }
 
-    fn restart(&mut self) -> ! {
+    fn restart(&self) -> ! {
         log::warn!("Restart request received - restarting or terminating now...");
-        (self.restart_hook.take().unwrap())();
+        (self.restart_hook)();
         unreachable!();
     }
 }
@@ -31,7 +31,7 @@ impl<'a> PeriodicAppClientTask for RestartMonitor<'a> {
     }
 
     fn invoke<'c, 'b: 'c>(
-        &'b mut self,
+        &'b self,
         app_client: &'c AppClient,
     ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'c>> {
         Box::pin(async move {

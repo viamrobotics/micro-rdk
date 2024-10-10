@@ -1,4 +1,6 @@
+use core::ffi::c_void;
 use std::{
+    cell::RefCell,
     ffi::CString,
     fmt::Display,
     net::Ipv4Addr,
@@ -8,17 +10,22 @@ use std::{
         Arc,
     },
 };
-
 use {
-    crate::common::conn::network::{Network, NetworkError},
+    crate::common::{
+        conn::network::{Network, NetworkError},
+        provisioning::server::{NetworkInfo, WifiManager, WifiManagerError},
+    },
     crate::esp32::esp_idf_svc::{
         eventloop::{EspSubscription, EspSystemEventLoop, System},
+        handle::RawHandle,
+        netif::EspNetif,
+        sys,
         sys::esp_wifi_set_ps,
         wifi::{EspWifi, WifiEvent},
     },
     embedded_svc::wifi::{
-        AuthMethod, ClientConfiguration as WifiClientConfiguration,
-        Configuration as WifiConfiguration,
+        AccessPointConfiguration, AccessPointInfo, AuthMethod, ClientConfiguration, Configuration,
+        Protocol,
     },
 };
 
@@ -34,7 +41,10 @@ use esp_idf_svc::{
 use futures_util::lock::Mutex;
 use once_cell::sync::OnceCell;
 
-use crate::{common::credentials_storage::WifiCredentials, esp32::esp_idf_svc::sys::EspError};
+use crate::{
+    common::{credentials_storage::WifiCredentials, provisioning::server::WifiApConfiguration},
+    esp32::esp_idf_svc::sys::EspError,
+};
 
 #[cfg(feature = "qemu")]
 use crate::esp32::esp_idf_svc::eth::{BlockingEth, EspEth, OpenEth};
@@ -62,13 +72,130 @@ pub(crate) fn esp32_get_wifi() -> Result<&'static Mutex<AsyncWifi<EspWifi<'stati
 
 /// A wrapper around the wifi structure available in esp-idf-svc with and adjustment to support
 /// reconnection
+#[derive(Default)]
 pub struct Esp32WifiNetwork {
-    _subscription: Option<EspSubscription<'static, System>>,
+    _subscription: RefCell<Option<EspSubscription<'static, System>>>,
 }
 
 impl Esp32WifiNetwork {
-    pub async fn new(wifi_creds: WifiCredentials) -> Result<Self, NetworkError> {
-        let config = WifiConfiguration::Client(WifiClientConfiguration {
+    pub fn new() -> Result<Self, EspError> {
+        let _ = esp32_get_wifi()?;
+        Ok(Self {
+            ..Default::default()
+        })
+    }
+    /// Sets the wifi in mixed mode (AP+STA), sta is configured to allow
+    /// for scanning nearby networks
+    pub(crate) async fn set_ap_sta_mode(
+        &self,
+        ap_config: WifiApConfiguration,
+    ) -> Result<(), WifiManagerError> {
+        let ap_conf = AccessPointConfiguration {
+            ssid: ap_config
+                .ssid
+                .as_str()
+                .try_into()
+                .map_err(|_| WifiManagerError::HeaplessStringError)?,
+            ssid_hidden: false,
+            channel: 10,
+            secondary_channel: None,
+            protocols: Protocol::P802D11B | Protocol::P802D11BG | Protocol::P802D11BGN,
+            auth_method: esp_idf_svc::wifi::AuthMethod::WPA2Personal,
+            password: ap_config
+                .password
+                .as_str()
+                .try_into()
+                .map_err(|_| WifiManagerError::HeaplessStringError)?,
+            max_connections: 1,
+        };
+        let sta_conf = ClientConfiguration {
+            ssid: "".try_into().unwrap(),
+            bssid: None,
+            auth_method: AuthMethod::None,
+            password: "".try_into().unwrap(),
+            channel: None,
+        };
+
+        // may not want to store the config we can always retrieve it
+        let conf = Configuration::Mixed(sta_conf, ap_conf);
+        let mut wifi = esp32_get_wifi()?.lock().await;
+
+        wifi.set_configuration(&conf)?;
+        self.set_ap_ip_base_address(ap_config.ap_ip_addr, wifi.wifi_mut().ap_netif_mut())?;
+
+        wifi.start().await?;
+        Ok(())
+    }
+    fn set_ap_ip_base_address(
+        &self,
+        addr: Ipv4Addr,
+        netif: &mut EspNetif,
+    ) -> Result<(), WifiManagerError> {
+        let handle = netif.handle();
+        let ip = sys::esp_ip4_addr {
+            addr: u32::from_le_bytes(addr.octets()),
+        };
+        let netmask = sys::esp_ip4_addr {
+            addr: u32::from_le_bytes([255, 255, 255, 0]),
+        };
+        let ip_info = sys::esp_netif_ip_info_t {
+            ip,
+            gw: ip,
+            netmask,
+        };
+
+        let mut octet = addr.octets();
+        octet[3] += 1;
+
+        let start_ip = sys::ip4_addr {
+            addr: u32::from_le_bytes(octet),
+        };
+        octet[3] += 2;
+        let end_ip = sys::ip4_addr {
+            addr: u32::from_le_bytes(octet),
+        };
+
+        let mut dhcps_leases = sys::dhcps_lease_t {
+            enable: true,
+            start_ip,
+            end_ip,
+        };
+
+        unsafe { sys::esp!(sys::esp_netif_dhcps_stop(handle)) }?;
+        unsafe { sys::esp!(sys::esp_netif_set_ip_info(handle, &ip_info as *const _)) }?;
+        unsafe {
+            sys::esp!(sys::esp_netif_dhcps_option(
+                handle,
+                sys::esp_netif_dhcp_option_mode_t_ESP_NETIF_OP_SET,
+                sys::esp_netif_dhcp_option_id_t_ESP_NETIF_REQUESTED_IP_ADDRESS,
+                &mut dhcps_leases as *mut _ as *mut c_void,
+                std::mem::size_of::<sys::dhcps_lease_t>() as u32
+            ))
+        }?;
+
+        let mut dns_config = sys::esp_netif_dns_info_t {
+            ip: sys::esp_ip_addr_t {
+                u_addr: sys::_ip_addr__bindgen_ty_1 { ip4: ip },
+                type_: 0, // Ipv4Type
+            },
+        };
+
+        unsafe {
+            sys::esp!(sys::esp_netif_set_dns_info(
+                handle,
+                sys::esp_netif_dns_type_t_ESP_NETIF_DNS_MAIN,
+                &mut dns_config as *mut _
+            ))
+        }?;
+
+        unsafe { sys::esp!(sys::esp_netif_dhcps_start(handle)) }?;
+        Ok(())
+    }
+    pub async fn set_station_mode(
+        &self,
+        wifi_creds: WifiCredentials,
+    ) -> Result<(), WifiManagerError> {
+        let config = Configuration::Client(ClientConfiguration {
             ssid: wifi_creds
                 .ssid
                 .as_str()
@@ -109,15 +236,13 @@ impl Esp32WifiNetwork {
                 log::warn!("couldn't get wifi station config {:?}", e);
             }
         }
-
-        Ok(Self {
-            _subscription: None,
-        })
+        drop(wifi);
+        self.connect().await?;
+        Ok(())
     }
-}
 
-impl Esp32WifiNetwork {
-    pub async fn connect(&mut self) -> Result<(), NetworkError> {
+    async fn connect(&self) -> Result<(), NetworkError> {
+        // TODO check you are in station mode only
         let mut wifi = esp32_get_wifi()?.lock().await;
         wifi.start().await?;
         wifi.connect().await?;
@@ -148,8 +273,82 @@ impl Esp32WifiNetwork {
                 log::info!("wifi connected event received");
             }
         })?;
-        let _ = self._subscription.replace(subscription);
+        let _ = self._subscription.borrow_mut().replace(subscription);
         Ok(())
+    }
+    async fn scan_networks_inner(&self) -> Result<Vec<AccessPointInfo>, WifiManagerError> {
+        let mut wifi = esp32_get_wifi()?.lock().await;
+        wifi.scan().await.map_err(Into::into)
+    }
+    async fn try_connect_to(&self, ssid: &str, password: &str) -> Result<(), WifiManagerError> {
+        let mut wifi = esp32_get_wifi()?.lock().await;
+        {
+            let mut conf = wifi.get_configuration()?;
+            let (sta, _) = conf.as_mixed_conf_mut();
+            sta.ssid = ssid
+                .try_into()
+                .map_err(|_| WifiManagerError::HeaplessStringError)?;
+            sta.auth_method = AuthMethod::None;
+            sta.password = password
+                .try_into()
+                .map_err(|_| WifiManagerError::HeaplessStringError)?;
+            wifi.set_configuration(&conf)?;
+        }
+        wifi.connect().await?;
+
+        log::info!("connection successful");
+        Ok(())
+    }
+}
+
+impl WifiManager for Esp32WifiNetwork {
+    fn scan_networks(
+        &self,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<Vec<NetworkInfo>, WifiManagerError>> + '_>,
+    > {
+        Box::pin(async {
+            let networks = self.scan_networks_inner().await?;
+            let networks = networks.iter().map(NetworkInfo::from).collect();
+            Ok(networks)
+        })
+    }
+    fn try_connect<'a>(
+        &'a self,
+        ssid: &'a str,
+        password: &'a str,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), WifiManagerError>> + '_>>
+    {
+        Box::pin(async {
+            self.try_connect_to(ssid, password)
+                .await
+                .map_err(Into::into)
+        })
+    }
+    fn get_ap_ip(&self) -> Ipv4Addr {
+        let guard = esp32_get_wifi().map_or(None, |wifi| wifi.try_lock());
+
+        guard.map_or(Ipv4Addr::UNSPECIFIED, |guard| {
+            guard
+                .wifi()
+                .ap_netif()
+                .get_ip_info()
+                .map_or(Ipv4Addr::UNSPECIFIED, |ip_info| ip_info.ip)
+        })
+    }
+    fn set_sta_mode(
+        &self,
+        credential: WifiCredentials,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), WifiManagerError>> + '_>>
+    {
+        Box::pin(async { self.set_station_mode(credential).await })
+    }
+    fn set_ap_sta_mode(
+        &self,
+        conifg_ap: WifiApConfiguration,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), WifiManagerError>> + '_>>
+    {
+        Box::pin(async { self.set_ap_sta_mode(conifg_ap).await })
     }
 }
 
@@ -172,14 +371,21 @@ impl Network for Esp32WifiNetwork {
 }
 
 #[cfg(feature = "qemu")]
-pub fn eth_configure<'d, T>(
-    sl_stack: &EspSystemEventLoop,
-    eth: EspEth<'d, T>,
-) -> Result<Box<BlockingEth<EspEth<'d, T>>>, EspError> {
+pub fn eth_configure<T>(eth: EspEth<'_, T>) -> Result<Box<BlockingEth<EspEth<'_, T>>>, EspError> {
+    let sl_stack = esp32_get_system_event_loop()?;
     let mut eth = BlockingEth::wrap(eth, sl_stack.clone())?;
     eth.start()?;
     eth.wait_netif_up()?;
     Ok(Box::new(eth))
+}
+#[cfg(feature = "qemu")]
+pub fn esp_eth_openeth() -> Result<EspEth<'static, esp_idf_svc::eth::OpenEth>, EspError> {
+    esp_idf_svc::eth::EspEth::wrap(esp_idf_svc::eth::EthDriver::new_openeth(
+        esp_idf_svc::hal::peripherals::Peripherals::take()
+            .unwrap()
+            .mac,
+        esp32_get_system_event_loop()?.clone(),
+    )?)
 }
 
 #[cfg(feature = "qemu")]
@@ -436,5 +642,18 @@ impl Esp32ExternallyManagedNetwork {
         {
             data.connected.store(false, Ordering::Release);
         }
+    }
+}
+
+impl From<&AccessPointInfo> for NetworkInfo {
+    fn from(value: &AccessPointInfo) -> Self {
+        let mut info = NetworkInfo::default();
+        info.0.ssid = value.ssid.to_string();
+        info.0.security = value
+            .auth_method
+            .map_or("none".to_owned(), |auth| auth.to_string());
+        info.0.signal = (2 * (value.signal_strength as i32 + 100)).clamp(0, 100);
+        info.0.r#type = "2.4GhZ".to_owned();
+        info
     }
 }
