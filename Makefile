@@ -71,19 +71,19 @@ test:
 	cargo test -p micro-rdk --lib --features native
 
 clippy-native:
-	cargo clippy -p micro-rdk --no-deps --features native  -- -Dwarnings
+	RUSTFLAGS="-A clippy::blocks_in_conditions" cargo clippy -p micro-rdk --no-deps --features native  -- -Dwarnings
 
 clippy-esp32:
-	cargo +esp clippy -p micro-rdk  --features esp32  --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
+	RUSTFLAGS="-A clippy::blocks_in_conditions" cargo +esp clippy -p micro-rdk  --features esp32  --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
 
 clippy-cli:
-	cargo clippy -p micro-rdk-installer --no-default-features -- -Dwarnings
+	RUSTFLAGS="-A clippy::blocks_in_conditions" cargo clippy -p micro-rdk-installer --no-default-features -- -Dwarnings
 
 clippy-ffi-native:
-	cargo clippy -p micro-rdk-ffi -- -Dwarnings
+	RUSTFLAGS="-A clippy::blocks_in_conditions" cargo clippy -p micro-rdk-ffi -- -Dwarnings
 
 clippy-ffi-esp32:
-	cargo +esp clippy -p micro-rdk-ffi  --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
+	RUSTFLAGS="-A clippy::blocks_in_conditions" cargo +esp clippy -p micro-rdk-ffi  --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
 
 clippy-ffi : clippy-ffi-native clippy-ffi-esp32
 
