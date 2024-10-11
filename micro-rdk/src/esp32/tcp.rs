@@ -253,7 +253,11 @@ where
                 *this = TlsHandshake::Handshake(io);
                 return Poll::Pending;
             }
-            Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
+            Poll::Ready(Err(err)) => {
+                *this = TlsHandshake::HandshakeError(err);
+                cx.waker().wake_by_ref();
+                return Poll::Pending;
+            }
             Poll::Ready(Ok(_)) => (),
         }
         Poll::Ready(Ok(io))

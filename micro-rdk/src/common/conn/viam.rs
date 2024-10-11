@@ -376,6 +376,31 @@ where
     M: Mdns,
 {
     pub fn run_forever(&mut self) -> ! {
+        #[cfg(feature = "esp32")]
+        {
+            // set the TWDT to expire after 3 minutes
+            crate::esp32::esp_idf_svc::sys::esp!(unsafe {
+                crate::esp32::esp_idf_svc::sys::esp_task_wdt_init(180, true)
+            })
+            .unwrap();
+
+            // Register the current task on the TWDT. The TWDT runs in the IDLE Task.
+            crate::esp32::esp_idf_svc::sys::esp!(unsafe {
+                crate::esp32::esp_idf_svc::sys::esp_task_wdt_add(
+                    crate::esp32::esp_idf_svc::sys::xTaskGetCurrentTaskHandle(),
+                )
+            })
+            .unwrap();
+
+            self.executor
+                .spawn(async {
+                    loop {
+                        Timer::after(Duration::from_secs(90)).await;
+                        unsafe { crate::esp32::esp_idf_svc::sys::esp_task_wdt_reset() };
+                    }
+                })
+                .detach();
+        }
         let exec = self.executor.clone();
         exec.block_on(Box::pin(self.run()));
     }
