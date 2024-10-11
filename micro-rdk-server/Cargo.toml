@@ -12,7 +12,7 @@ build = "build.rs"
 publish = false
 
 [features]
-qemu = []
+qemu = ["micro-rdk/qemu"]
 
 [target.'cfg(not(target_os = "espidf"))'.dependencies]
 env_logger.workspace = true

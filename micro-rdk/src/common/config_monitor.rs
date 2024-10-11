@@ -1,53 +1,51 @@
-use super::app_client::{AppClient, AppClientError, PeriodicAppClientTask};
-use crate::common::{
-    credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage},
-    grpc::ServerError,
+use super::{
+    app_client::{AppClient, AppClientError, PeriodicAppClientTask},
+    conn::viam::ViamServerStorage,
 };
-use crate::proto::app::v1::ConfigResponse;
+use crate::{
+    common::{credentials_storage::RobotConfigurationStorage, grpc::ServerError},
+    proto::app::v1::RobotConfig,
+};
 use futures_lite::Future;
 use std::fmt::Debug;
 use std::pin::Pin;
 use std::time::Duration;
 
-pub struct ConfigMonitor<'a, S>
-where
-    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
-    <S as RobotConfigurationStorage>::Error: Debug,
-    ServerError: From<<S as RobotConfigurationStorage>::Error>,
-    <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
-{
-    curr_config: ConfigResponse, //config for robot gotten from last robot startup, aka inputted from entry
-    storage: S,
-    restart_hook: Option<Box<dyn FnOnce() + 'a>>,
+pub struct ConfigMonitor<'a, Storage> {
+    curr_config: Box<RobotConfig>, //config for robot gotten from last robot startup, aka inputted from entry
+    storage: Storage,
+    restart_hook: Box<dyn Fn() + 'a>,
 }
 
-impl<'a, S> ConfigMonitor<'a, S>
+impl<'a, Storage> ConfigMonitor<'a, Storage>
 where
-    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
-    <S as RobotConfigurationStorage>::Error: Debug,
-    ServerError: From<<S as RobotConfigurationStorage>::Error>,
-    <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
+    Storage: ViamServerStorage,
+    <Storage as RobotConfigurationStorage>::Error: Debug,
+    ServerError: From<<Storage as RobotConfigurationStorage>::Error>,
 {
-    pub fn new(curr_config: ConfigResponse, storage: S, restart_hook: impl FnOnce() + 'a) -> Self {
+    pub fn new(
+        curr_config: Box<RobotConfig>,
+        storage: Storage,
+        restart_hook: impl Fn() + 'a,
+    ) -> Self {
         Self {
             curr_config,
             storage,
-            restart_hook: Some(Box::new(restart_hook)),
+            restart_hook: Box::new(restart_hook),
         }
     }
 
-    fn restart(&mut self) -> ! {
+    fn restart(&self) -> ! {
         log::warn!("Robot configuration change detected restarting micro-rdk");
-        (self.restart_hook.take().unwrap())();
+        (self.restart_hook)();
         unreachable!();
     }
 }
-impl<'a, S> PeriodicAppClientTask for ConfigMonitor<'a, S>
+impl<'a, Storage> PeriodicAppClientTask for ConfigMonitor<'a, Storage>
 where
-    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
-    <S as RobotConfigurationStorage>::Error: Debug,
-    ServerError: From<<S as RobotConfigurationStorage>::Error>,
-    <S as WifiCredentialStorage>::Error: Sync + Send + 'static,
+    Storage: ViamServerStorage,
+    <Storage as RobotConfigurationStorage>::Error: Debug,
+    ServerError: From<<Storage as RobotConfigurationStorage>::Error>,
 {
     fn name(&self) -> &str {
         "ConfigMonitor"
@@ -60,13 +58,16 @@ where
     // TODO(RSDK-8160): Update "restart on config" to compare config version instead of deep
     // comparison of config response, which relies on RSDK-8023 adding config version
     fn invoke<'c, 'b: 'c>(
-        &'b mut self,
+        &'b self,
         app_client: &'c AppClient,
     ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'c>> {
         Box::pin(async move {
             if let Ok((new_config, _cfg_received_datetime)) = app_client.get_app_config(None).await
             {
-                if self.curr_config != *new_config {
+                if new_config
+                    .config
+                    .is_some_and(|cfg| cfg != *self.curr_config)
+                {
                     if let Err(e) = self.storage.reset_robot_configuration() {
                         log::warn!(
                             "Failed to reset robot config after new config detected: {}",

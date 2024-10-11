@@ -53,7 +53,7 @@ ifndef QEMU_ESP32_XTENSA
 	$(error QEMU_ESP32_XTENSA is not set)
 endif
 	pkill qemu || true
-	$(QEMU_ESP32_XTENSA)/qemu-system-xtensa -nographic -machine esp32 -gdb tcp::3334 -nic user,model=open_eth,hostfwd=udp::-:61205,hostfwd=tcp::12346-:12346 -drive file=target/xtensa-esp32-espidf/debug/debug.bin,if=mtd,format=raw
+	$(QEMU_ESP32_XTENSA)/qemu-system-xtensa -nographic -machine esp32 -gdb tcp::3334 -nic user,model=open_eth,hostfwd=udp::-:61205,hostfwd=tcp::12346-:12346 -drive file=target/xtensa-esp32-espidf/debug/debug.bin,if=mtd,format=raw -m 4m
 
 # debug-local is identical to sim-local, except the `-S` at the end means "wait until a debugger is
 # attached before starting."
@@ -62,7 +62,7 @@ ifndef QEMU_ESP32_XTENSA
 	$(error QEMU_ESP32_XTENSA is not set)
 endif
 	pkill qemu || true
-	$(QEMU_ESP32_XTENSA)/qemu-system-xtensa -nographic -machine esp32 -gdb tcp::3334 -nic user,model=open_eth,hostfwd=udp::-:61205 -drive file=target/xtensa-esp32-espidf/debug/debug.bin,if=mtd,format=raw -S
+	$(QEMU_ESP32_XTENSA)/qemu-system-xtensa -nographic -machine esp32 -gdb tcp::3334 -nic user,model=open_eth,hostfwd=udp::-:61205,hostfwd=tcp::12346-:12346 -drive file=target/xtensa-esp32-espidf/debug/debug.bin,if=mtd,format=raw -S -m 4m
 
 upload: cargo-ver
 	cargo +esp espflash flash --package micro-rdk-server --monitor --partition-table micro-rdk-server/esp32/partitions.csv --baud 460800 -f 80mhz --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
@@ -71,19 +71,19 @@ test:
 	cargo test -p micro-rdk --lib --features native
 
 clippy-native:
-	RUSTFLAGS="-A clippy::blocks_in_conditions" cargo clippy -p micro-rdk --no-deps --features native  -- -Dwarnings
+	cargo clippy -p micro-rdk --no-deps --features native  -- -Dwarnings
 
 clippy-esp32:
-	RUSTFLAGS="-A clippy::blocks_in_conditions" cargo +esp clippy -p micro-rdk  --features esp32  --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
+	cargo +esp clippy -p micro-rdk  --features esp32  --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
 
 clippy-cli:
-	RUSTFLAGS="-A clippy::blocks_in_conditions" cargo clippy -p micro-rdk-installer --no-default-features -- -Dwarnings
+	cargo clippy -p micro-rdk-installer --no-default-features -- -Dwarnings
 
 clippy-ffi-native:
-	RUSTFLAGS="-A clippy::blocks_in_conditions" cargo clippy -p micro-rdk-ffi -- -Dwarnings
+	cargo clippy -p micro-rdk-ffi -- -Dwarnings
 
 clippy-ffi-esp32:
-	RUSTFLAGS="-A clippy::blocks_in_conditions" cargo +esp clippy -p micro-rdk-ffi  --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
+	cargo +esp clippy -p micro-rdk-ffi  --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
 
 clippy-ffi : clippy-ffi-native clippy-ffi-esp32
 

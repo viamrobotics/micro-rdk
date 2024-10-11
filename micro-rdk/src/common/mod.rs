@@ -40,7 +40,6 @@ pub mod config_monitor;
 pub mod credentials_storage;
 pub mod digital_interrupt;
 pub mod encoder;
-pub mod entry;
 pub mod exec;
 pub mod generic;
 #[cfg(feature = "builtin-components")]
@@ -84,7 +83,7 @@ pub mod conn {
     pub mod mdns;
     pub mod network;
     pub mod server;
-    mod utils;
+    pub mod viam;
 }
 #[cfg(feature = "data")]
 pub mod data_collector;

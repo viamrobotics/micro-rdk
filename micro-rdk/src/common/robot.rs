@@ -13,17 +13,13 @@ use std::{
 use crate::common::camera::{Camera, CameraType};
 
 use crate::{
-    common::actuator::Actuator,
-    common::base::Base,
-    common::board::Board,
-    common::encoder::Encoder,
-    common::motor::Motor,
-    common::movement_sensor::MovementSensor,
-    common::sensor::Sensor,
-    common::status::Status,
+    common::{
+        actuator::Actuator, base::Base, board::Board, encoder::Encoder, motor::Motor,
+        movement_sensor::MovementSensor, sensor::Sensor, status::Status,
+    },
     google,
     proto::{
-        app::v1::ConfigResponse,
+        app::v1::RobotConfig,
         common::{self, v1::ResourceName},
         robot,
     },
@@ -189,7 +185,7 @@ impl LocalRobot {
     pub(crate) fn process_components(
         &mut self,
         mut components: Vec<Option<DynamicComponentConfig>>,
-        mut registry: Box<ComponentRegistry>,
+        registry: &mut Box<ComponentRegistry>,
     ) -> Result<(), RobotError> {
         let config = components
             .iter_mut()
@@ -218,8 +214,7 @@ impl LocalRobot {
             let cfg_outer = &mut components[iter.next().unwrap()];
             if let Some(cfg) = cfg_outer.as_ref() {
                 // capture the error and make it available to LocalRobot so it can be pushed in the logs?
-                if let Err(e) =
-                    self.build_resource(cfg, board.clone(), board_key.clone(), &mut registry)
+                if let Err(e) = self.build_resource(cfg, board.clone(), board_key.clone(), registry)
                 {
                     log::error!(
                         "Failed to build resource `{}` of type `{}`: {:?}",
@@ -252,8 +247,8 @@ impl LocalRobot {
     pub fn from_cloud_config(
         exec: Executor,
         part_id: String,
-        config_resp: &ConfigResponse,
-        registry: Box<ComponentRegistry>,
+        config: &RobotConfig,
+        registry: &mut Box<ComponentRegistry>,
         build_time: Option<DateTime<FixedOffset>>,
     ) -> Result<Self, RobotError> {
         let mut robot = LocalRobot {
@@ -271,23 +266,22 @@ impl LocalRobot {
             start_time: Instant::now(),
         };
 
-        if let Some(config) = &config_resp.config {
-            let components: Result<Vec<Option<DynamicComponentConfig>>, AttributeError> = config
-                .components
-                .iter()
-                .map(|x| x.try_into().map(Option::Some))
-                .collect();
-            robot.process_components(
-                components.map_err(RobotError::RobotParseConfigError)?,
-                registry,
-            )?;
-        };
+        let components: Result<Vec<Option<DynamicComponentConfig>>, AttributeError> = config
+            .components
+            .iter()
+            .map(|x| x.try_into().map(Option::Some))
+            .collect();
+        robot.process_components(
+            components.map_err(RobotError::RobotParseConfigError)?,
+            registry,
+        )?;
+
         // TODO: When cfg's on expressions are valid, remove the outer scope.
         #[cfg(feature = "data")]
         {
             // TODO(RSDK-8125): Support selection of the DataStore trait other than
             // DefaultDataStore in a way that is configurable
-            match DataManager::<DefaultDataStore>::from_robot_and_config(&robot, config_resp) {
+            match DataManager::<DefaultDataStore>::from_robot_and_config(&robot, config) {
                 Ok(Some(mut data_manager)) => {
                     if let Some(task) = data_manager.get_sync_task(robot.start_time) {
                         let _ = robot.data_manager_sync_task.insert(Box::new(task));
@@ -903,7 +897,7 @@ mod tests {
             sensor::Readings,
         },
         google::{self, protobuf::Struct},
-        proto::app::v1::{ComponentConfig, ConfigResponse, RobotConfig},
+        proto::app::v1::{ComponentConfig, RobotConfig},
     };
 
     #[cfg(feature = "data")]
@@ -1097,7 +1091,7 @@ mod tests {
 
         let mut robot = LocalRobot::default();
 
-        let ret = robot.process_components(robot_config, Box::default());
+        let ret = robot.process_components(robot_config, &mut Box::default());
         ret.unwrap();
 
         #[cfg(feature = "data")]
@@ -1378,18 +1372,16 @@ mod tests {
         };
         component_cfgs.push(comp4);
 
-        let robot_cfg = ConfigResponse {
-            config: Some(RobotConfig {
-                components: component_cfgs,
-                ..Default::default()
-            }),
+        let robot_cfg = RobotConfig {
+            components: component_cfgs,
+            ..Default::default()
         };
 
         let robot = LocalRobot::from_cloud_config(
             Executor::new(),
             "".to_string(),
             &robot_cfg,
-            Box::default(),
+            &mut Box::default(),
             None,
         );
 
@@ -1489,18 +1481,16 @@ mod tests {
         };
         component_cfgs.push(comp4);
 
-        let robot_cfg = ConfigResponse {
-            config: Some(RobotConfig {
-                components: component_cfgs,
-                ..Default::default()
-            }),
+        let robot_cfg = RobotConfig {
+            components: component_cfgs,
+            ..Default::default()
         };
 
         let robot = LocalRobot::from_cloud_config(
             Executor::new(),
             "".to_string(),
             &robot_cfg,
-            Box::default(),
+            &mut Box::default(),
             None,
         );
 

@@ -1,4 +1,17 @@
 #![allow(unused)]
+use crate::proto::app::v1::CertificateRequest;
+use crate::proto::app::v1::CertificateResponse;
+use crate::proto::{
+    app::v1::{
+        AgentInfo, ConfigRequest, ConfigResponse, LogRequest, NeedsRestartRequest,
+        NeedsRestartResponse,
+    },
+    common::v1::LogEntry,
+    rpc::{
+        v1::{AuthenticateRequest, AuthenticateResponse, Credentials},
+        webrtc::v1::{AnswerRequest, AnswerResponse, AnswerResponseErrorStage},
+    },
+};
 use bytes::{BufMut, Bytes, BytesMut};
 use chrono::{format::ParseError, DateTime, FixedOffset};
 use futures_lite::{Future, StreamExt};
@@ -14,20 +27,6 @@ use std::{
     time::{Duration, SystemTime},
 };
 use thiserror::Error;
-
-use crate::proto::app::v1::CertificateRequest;
-use crate::proto::app::v1::CertificateResponse;
-use crate::proto::{
-    app::v1::{
-        AgentInfo, ConfigRequest, ConfigResponse, LogRequest, NeedsRestartRequest,
-        NeedsRestartResponse,
-    },
-    common::v1::LogEntry,
-    rpc::{
-        v1::{AuthenticateRequest, AuthenticateResponse, Credentials},
-        webrtc::v1::{AnswerRequest, AnswerResponse, AnswerResponseErrorStage},
-    },
-};
 
 use super::conn::network::Network;
 use super::credentials_storage::RobotCredentials;
@@ -67,6 +66,33 @@ pub enum AppClientError {
     AppClientRequestTimeout,
     #[error("empty body")]
     AppClientEmptyBody,
+    #[error(transparent)]
+    AppClientIoError(#[from] std::io::Error),
+}
+
+impl AppClientError {
+    pub fn is_io_error(&self) -> bool {
+        if let AppClientError::AppClientIoError(_) = self {
+            return true;
+        }
+        false
+    }
+    pub fn is_permission_denied(&self) -> bool {
+        if let AppClientError::AppGrpcClientError(GrpcClientError::GrpcError { code, .. }) = self {
+            if *code == 7 {
+                return true;
+            }
+        }
+        false
+    }
+    pub fn is_unauthenticated(&self) -> bool {
+        if let AppClientError::AppGrpcClientError(GrpcClientError::GrpcError { code, .. }) = self {
+            if *code == 16 {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 pub struct AppClientBuilder {
@@ -371,7 +397,22 @@ pub trait PeriodicAppClientTask {
     /// A desugared `async fn` (so we can declare it in a trait) which will be periodically invoked
     /// by the `ViamServer` per the currently negotiated `Duration`.
     fn invoke<'b, 'a: 'b>(
-        &'a mut self,
+        &'a self,
         app_client: &'b AppClient,
     ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'b>>;
+}
+
+impl<T: PeriodicAppClientTask + ?Sized> PeriodicAppClientTask for Box<T> {
+    fn get_default_period(&self) -> Duration {
+        (**self).get_default_period()
+    }
+    fn invoke<'b, 'a: 'b>(
+        &'a self,
+        app_client: &'b AppClient,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'b>> {
+        (**self).invoke(app_client)
+    }
+    fn name(&self) -> &str {
+        (**self).name()
+    }
 }
