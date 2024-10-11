@@ -21,6 +21,8 @@ typedef enum viam_code {
 
 typedef struct config_context config_context;
 
+typedef struct generic_c_movement_sensor_config generic_c_movement_sensor_config;
+
 typedef struct generic_c_sensor_config generic_c_sensor_config;
 
 typedef struct get_readings_context get_readings_context;
@@ -136,6 +138,29 @@ enum viam_code hashmap_cstring_ptr_retain(struct hashmap_cstring_ptr *ctx,
                                           hashmap_cstring_ptr_retain_callback callback);
 
 /*
+ Creates an new generic movement sensor config to be used for registering a generic C movement sensor with
+ */
+struct generic_c_movement_sensor_config *generic_c_movement_sensor_config_new(void);
+
+/*
+ Set the user data pointer, the value will then be passed to the `config_callback` during the configuration step
+ */
+enum viam_code generic_c_movement_sensor_config_set_user_data(struct generic_c_movement_sensor_config *ctx,
+                                                              void *data);
+
+/*
+ Set the config callback, which will be called when this sensor is configured
+ */
+enum viam_code generic_c_movement_sensor_config_set_config_callback(struct generic_c_movement_sensor_config *ctx,
+                                                                    config_callback cb);
+
+/*
+ Set the get readings callback, which will be called when GetReadings is called on a properly
+ */
+enum viam_code generic_c_movement_sensor_config_set_readings_callback(struct generic_c_movement_sensor_config *ctx,
+                                                                      get_readings_callback cb);
+
+/*
  Creates a new Viam server context
  */
 struct viam_server_context *init_viam_server_context(void);
@@ -164,6 +189,13 @@ enum viam_code viam_server_set_provisioning_fragment(struct viam_server_context 
 enum viam_code viam_server_register_c_generic_sensor(struct viam_server_context *ctx,
                                                      const char *model,
                                                      struct generic_c_sensor_config *sensor);
+
+/*
+ Register a generic movement sensor in the Registry making configurable via Viam config
+ */
+enum viam_code viam_server_register_c_generic_movement_sensor(struct viam_server_context *ctx,
+                                                              const char *model,
+                                                              struct generic_c_movement_sensor_config *sensor);
 
 /*
  Starts the viam server, the function will take ownership of `ctx` therefore future call

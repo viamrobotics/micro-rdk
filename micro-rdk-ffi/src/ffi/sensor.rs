@@ -13,21 +13,25 @@ use std::{
 };
 
 use super::{
-    config::{config_context, raw_attributes},
+    config::{config_callback, config_noop, raw_attributes, GenericCResourceConfig},
     errors::viam_code,
 };
 
 #[allow(non_camel_case_types)]
-type config_callback = extern "C" fn(*mut config_context, *mut c_void, *mut *mut c_void) -> c_int;
-
-#[allow(non_camel_case_types)]
-type get_readings_callback = extern "C" fn(*mut get_readings_context, *mut c_void) -> c_int;
+pub(crate) type get_readings_callback =
+    extern "C" fn(*mut get_readings_context, *mut c_void) -> c_int;
 
 #[allow(non_camel_case_types)]
 pub struct generic_c_sensor_config {
     pub(crate) user_data: *mut c_void,
     pub(crate) config_callback: config_callback,
     pub(crate) get_readings_callback: get_readings_callback,
+}
+
+impl GenericCResourceConfig for generic_c_sensor_config {
+    fn get_user_data_and_config_callback(&mut self) -> (*mut c_void, config_callback) {
+        (self.user_data, self.config_callback)
+    }
 }
 
 #[allow(non_camel_case_types)]
@@ -109,12 +113,7 @@ pub unsafe extern "C" fn generic_c_sensor_config_set_readings_callback(
 }
 
 /// cbindgen:ignore
-extern "C" fn config_noop(_: *mut config_context, _: *mut c_void, _: *mut *mut c_void) -> c_int {
-    -1
-}
-
-/// cbindgen:ignore
-extern "C" fn get_readings_noop(_: *mut get_readings_context, _: *mut c_void) -> c_int {
+pub(crate) extern "C" fn get_readings_noop(_: *mut get_readings_context, _: *mut c_void) -> c_int {
     -1
 }
 
@@ -148,7 +147,7 @@ impl Status for generic_c_sensor {
 
 #[allow(non_camel_case_types)]
 pub struct get_readings_context {
-    readings: GenericReadingsResult,
+    pub(crate) readings: GenericReadingsResult,
 }
 
 /// This function can be use by a sensor during the call to `get_readings_callback` to add binary data to a response

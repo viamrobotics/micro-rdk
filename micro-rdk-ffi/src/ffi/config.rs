@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    ffi::{c_char, c_int, CStr, CString},
+    ffi::{c_char, c_int, c_void, CStr, CString},
 };
 
 use micro_rdk::common::config::{AttributeError, ConfigType, Kind};
@@ -8,8 +8,35 @@ use micro_rdk::common::config::{AttributeError, ConfigType, Kind};
 use super::errors;
 
 #[allow(non_camel_case_types)]
+pub(crate) type config_callback =
+    extern "C" fn(*mut config_context, *mut c_void, *mut *mut c_void) -> c_int;
+
+/// cbindgen:ignore
+pub(crate) extern "C" fn config_noop(
+    _: *mut config_context,
+    _: *mut c_void,
+    _: *mut *mut c_void,
+) -> c_int {
+    -1
+}
+
+#[allow(non_camel_case_types)]
 pub struct config_context<'a> {
     pub(crate) cfg: ConfigType<'a>,
+}
+
+pub(crate) trait GenericCResourceConfig {
+    fn get_user_data_and_config_callback(&mut self) -> (*mut c_void, config_callback);
+    fn configure(&mut self, mut config: config_context) -> Result<*mut c_void, i32> {
+        let mut obj: *mut c_void = std::ptr::null_mut();
+        let (user_data, cfg_callback) = self.get_user_data_and_config_callback();
+        let ret = cfg_callback(&mut config as *mut _, user_data, &mut obj as *mut *mut _);
+        if ret != 0 {
+            Err(ret)
+        } else {
+            Ok(obj)
+        }
+    }
 }
 
 #[allow(non_camel_case_types)]
