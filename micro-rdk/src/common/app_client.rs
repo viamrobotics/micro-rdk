@@ -224,11 +224,11 @@ impl AppClient {
 
         let grpc_client = self.grpc_client.clone();
         async move {
-            // insert a {"heartbeats_allowed": "true"} metadata key-value pair to
+            // insert a {"heartbeats-allowed": "true"} metadata key-value pair to
             // indicate to signaling server that we can receive heartbeats.
             let mut r = r?;
             r.headers_mut()
-                .insert("heartbeats_allowed", HeaderValue::from_static("true"));
+                .insert("heartbeats-allowed", HeaderValue::from_static("true"));
 
             let (tx, rx) = grpc_client
                 .send_request_bidi::<AnswerResponse, AnswerRequest>(r, sender)
