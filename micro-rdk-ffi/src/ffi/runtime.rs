@@ -2,31 +2,25 @@ use std::{
     ffi::{c_char, CStr},
     marker::{PhantomData, PhantomPinned},
     rc::Rc,
-    sync::{Arc, Mutex},
 };
 
 use micro_rdk::common::{
-    config::ConfigType,
     conn::{server::WebRtcConfiguration, viam::ViamServerBuilder},
     exec::Executor,
     log::initialize_logger,
-    movement_sensor::MovementSensorType,
     provisioning::server::ProvisioningInfo,
-    registry::{ComponentRegistry, Dependency},
-    sensor::{SensorError, SensorType},
+    registry::ComponentRegistry,
     webrtc::certificate::Certificate,
 };
 
 use super::{
-    config::{config_context, GenericCResourceConfig},
-    errors::viam_code,
-    movement_sensor::{generic_c_movement_sensor, generic_c_movement_sensor_config},
-    sensor::{generic_c_sensor, generic_c_sensor_config},
+    config::GenericCResourceConfig, errors::viam_code,
+    movement_sensor::generic_c_movement_sensor_config, sensor::generic_c_sensor_config,
 };
 
 #[allow(non_camel_case_types)]
 pub struct viam_server_context {
-    registry: Box<ComponentRegistry>,
+    pub(crate) registry: Box<ComponentRegistry>,
     provisioning_info: ProvisioningInfo,
     _marker: PhantomData<(*mut u8, PhantomPinned)>, // Non Send, Non Sync
 }
@@ -126,102 +120,25 @@ pub unsafe extern "C" fn viam_server_set_provisioning_fragment(
     viam_code::VIAM_OK
 }
 
-type SensorConstructor =
-    Box<dyn Fn(ConfigType, Vec<Dependency>) -> Result<SensorType, SensorError>>;
+pub(crate) fn register_from_config<T>(
+    ctx: &mut viam_server_context,
+    cfg: *mut T,
+    model: *const c_char,
+) -> viam_code
+where
+    T: GenericCResourceConfig,
+{
+    let name = if let Ok(s) = unsafe { CStr::from_ptr(model) }.to_str() {
+        s
+    } else {
+        return viam_code::VIAM_INVALID_ARG;
+    };
 
-type MovementSensorConstructor =
-    Box<dyn Fn(ConfigType, Vec<Dependency>) -> Result<MovementSensorType, SensorError>>;
+    // Because registry expects a &'static str for its key, we have to copy the name passed
+    // as an argument and leak it so it remains valid for the duration of the program.
+    let name: &'static str = Box::leak(name.to_owned().into_boxed_str());
 
-pub(crate) enum ConstructorType {
-    Sensor(&'static str, SensorConstructor),
-    MovementSensor(&'static str, MovementSensorConstructor),
-}
-
-impl ConstructorType {
-    pub(crate) fn register(self, ctx: &mut viam_server_context) -> viam_code {
-        match self {
-            Self::Sensor(name, c) => match ctx.registry.register_sensor(name, Box::leak(c)) {
-                Ok(_) => viam_code::VIAM_OK,
-                Err(e) => {
-                    log::error!("couldn't register sensor {:?}", e);
-                    viam_code::VIAM_REGISTRY_ERROR
-                }
-            },
-            Self::MovementSensor(name, c) => {
-                match ctx.registry.register_movement_sensor(name, Box::leak(c)) {
-                    Ok(_) => viam_code::VIAM_OK,
-                    Err(e) => {
-                        log::error!("couldn't register movement_sensor {:?}", e);
-                        viam_code::VIAM_REGISTRY_ERROR
-                    }
-                }
-            }
-        }
-    }
-    pub(crate) fn from_sensor(
-        sensor: *mut generic_c_sensor_config,
-        model: *const c_char,
-    ) -> Result<Self, viam_code> {
-        let name = if let Ok(s) = unsafe { CStr::from_ptr(model) }.to_str() {
-            s
-        } else {
-            return Err(viam_code::VIAM_INVALID_ARG);
-        };
-
-        // Because registry expects a &'static str for its key, we have to copy the name passed
-        // as an argument and leak it so it remains valid for the duration of the program.
-        let name: &'static str = Box::leak(name.to_owned().into_boxed_str());
-
-        Ok(Self::Sensor(
-            name,
-            Box::new(move |cfg: ConfigType<'_>, _: Vec<Dependency>| {
-                let sensor_config = unsafe { &mut *sensor };
-                let config = config_context { cfg };
-                sensor_config
-                    .configure(config)
-                    .map(|obj| {
-                        let s = generic_c_sensor {
-                            user_data: obj,
-                            get_readings_callback: sensor_config.get_readings_callback,
-                        };
-                        Arc::new(Mutex::new(s)) as SensorType
-                    })
-                    .map_err(|_| SensorError::ConfigError(name))
-            }),
-        ))
-    }
-    pub(crate) fn from_movement_sensor(
-        m_sensor: *mut generic_c_movement_sensor_config,
-        model: *const c_char,
-    ) -> Result<Self, viam_code> {
-        let name = if let Ok(s) = unsafe { CStr::from_ptr(model) }.to_str() {
-            s
-        } else {
-            return Err(viam_code::VIAM_INVALID_ARG);
-        };
-
-        // Because registry expects a &'static str for its key, we have to copy the name passed
-        // as an argument and leak it so it remains valid for the duration of the program.
-        let name: &'static str = Box::leak(name.to_owned().into_boxed_str());
-
-        Ok(Self::MovementSensor(
-            name,
-            Box::new(move |cfg: ConfigType<'_>, _: Vec<Dependency>| {
-                let sensor_config = unsafe { &mut *m_sensor };
-                let config = config_context { cfg };
-                sensor_config
-                    .configure(config)
-                    .map(|obj| {
-                        let s = generic_c_movement_sensor {
-                            user_data: obj,
-                            get_readings_callback: sensor_config.get_readings_callback,
-                        };
-                        Arc::new(Mutex::new(s)) as MovementSensorType
-                    })
-                    .map_err(|_| SensorError::ConfigError(name))
-            }),
-        ))
-    }
+    T::register(cfg, name, ctx)
 }
 
 /// Register a generic sensor in the Registry making configurable via Viam config
@@ -238,7 +155,7 @@ impl ConstructorType {
 /// Sensor specific data structure to be used in by the readings callback can be written to out
 /// returns VIAM_OK on success
 /// # Safety
-/// `ctx`, `model` must be valid pointers
+/// `ctx`, `model`, and `sensor` must be valid pointers
 #[no_mangle]
 pub unsafe extern "C" fn viam_server_register_c_generic_sensor(
     ctx: *mut viam_server_context,
@@ -249,11 +166,7 @@ pub unsafe extern "C" fn viam_server_register_c_generic_sensor(
         return viam_code::VIAM_INVALID_ARG;
     }
     let ctx = unsafe { &mut *ctx };
-
-    match ConstructorType::from_sensor(sensor, model) {
-        Ok(constructor) => constructor.register(ctx),
-        Err(code) => code,
-    }
+    register_from_config(ctx, sensor, model)
 }
 
 /// Register a generic movement sensor in the Registry making configurable via Viam config
@@ -270,7 +183,7 @@ pub unsafe extern "C" fn viam_server_register_c_generic_sensor(
 /// Sensor specific data structure to be used in by the readings callback can be written to out
 /// returns VIAM_OK on success
 /// # Safety
-/// `ctx`, `model` must be valid pointers
+/// `ctx`, `model`, and `sensor` must be valid pointers
 #[no_mangle]
 pub unsafe extern "C" fn viam_server_register_c_generic_movement_sensor(
     ctx: *mut viam_server_context,
@@ -281,11 +194,7 @@ pub unsafe extern "C" fn viam_server_register_c_generic_movement_sensor(
         return viam_code::VIAM_INVALID_ARG;
     }
     let ctx = unsafe { &mut *ctx };
-
-    match ConstructorType::from_movement_sensor(sensor, model) {
-        Ok(constructor) => constructor.register(ctx),
-        Err(code) => code,
-    }
+    register_from_config(ctx, sensor, model)
 }
 
 #[allow(dead_code)]
