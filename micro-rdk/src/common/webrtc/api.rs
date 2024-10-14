@@ -201,6 +201,10 @@ impl WebRtcSignalingChannel {
                                 }
                                 return Err(WebRtcError::SignalingError("unknown".to_owned()));
                             }
+                            answer_request::Stage::Heartbeat(_) => {
+                                log::debug!("received a heartbeat from the signaling server");
+                                continue;
+                            }
                             _ => {
                                 continue;
                             }
@@ -284,40 +288,51 @@ impl WebRtcSignalingChannel {
         }
     }
     pub(crate) async fn next_remote_candidate(&mut self) -> Result<Option<Candidate>, WebRtcError> {
-        match self.signaling_rx.next().await {
-            None => Err(WebRtcError::SignalingDisconnected()),
-            Some(req) => {
-                let req = req?;
-                if let Some(stage) = req.stage {
-                    match stage {
-                        answer_request::Stage::Update(c) => {
-                            if let Some(c) = c.candidate {
-                                log::debug!("received candidate {}", c.candidate);
-                                return c
-                                    .candidate
-                                    .try_into()
-                                    .map_err(|_| WebRtcError::CannotParseCandidate)
-                                    .map(Option::Some);
-                            } else {
-                                log::error!("received no candidates with this update request");
+        // Loop to allow receiving heartbeats without returning the next remote candidate.
+        loop {
+            match self.signaling_rx.next().await {
+                None => {
+                    return Err(WebRtcError::SignalingDisconnected());
+                }
+                Some(req) => {
+                    let req = req?;
+                    if let Some(stage) = req.stage {
+                        match stage {
+                            answer_request::Stage::Update(c) => {
+                                if let Some(c) = c.candidate {
+                                    log::debug!("received candidate {}", c.candidate);
+                                    return c
+                                        .candidate
+                                        .try_into()
+                                        .map_err(|_| WebRtcError::CannotParseCandidate)
+                                        .map(Option::Some);
+                                } else {
+                                    log::error!("received no candidates with this update request");
+                                    return Ok(None);
+                                }
+                            }
+                            answer_request::Stage::Error(s) => {
+                                if let Some(status) = s.status {
+                                    return Err(WebRtcError::SignalingError(status.message));
+                                }
+                                return Err(WebRtcError::SignalingError("unknown".to_owned()));
+                            }
+                            answer_request::Stage::Done(_) => {
                                 return Ok(None);
                             }
-                        }
-                        answer_request::Stage::Error(s) => {
-                            if let Some(status) = s.status {
-                                return Err(WebRtcError::SignalingError(status.message));
+                            answer_request::Stage::Heartbeat(_) => {
+                                log::debug!("received a heartbeat from the signaling server");
+                                continue;
                             }
-                            return Err(WebRtcError::SignalingError("unknown".to_owned()));
-                        }
-                        answer_request::Stage::Done(_) => {
-                            return Ok(None);
-                        }
-                        _ => {
-                            return Err(WebRtcError::SignalingError("unexpected stage".to_owned()))
+                            _ => {
+                                return Err(WebRtcError::SignalingError(
+                                    "unexpected stage".to_owned(),
+                                ))
+                            }
                         }
                     }
+                    return Ok(None);
                 }
-                Ok(None)
             }
         }
     }
