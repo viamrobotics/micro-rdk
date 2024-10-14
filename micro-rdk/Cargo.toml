@@ -24,11 +24,13 @@ esp32 = ["dep:esp-idf-svc", "dep:embedded-svc", "dep:embedded-hal", "esp-idf-svc
 native = ["dep:rustls", "dep:webpki-roots", "dep:rustls-pemfile", "dep:mdns-sd", "dep:local-ip-address", "dep:openssl", "dep:rcgen", "dep:async-std-openssl"]
 data-upload-hook-unstable = ["data", "esp32"]
 data = []
+qemu = []
 esp-idf-logs = ["esp32"]
 
 [dev-dependencies]
 test-log.workspace = true
 env_logger.workspace = true
+rustls = { workspace = true, features = ["dangerous_configuration"] }
 
 [target.'cfg(not(target_os = "espidf"))'.dependencies]
 async-std-openssl = { workspace = true, optional = true }

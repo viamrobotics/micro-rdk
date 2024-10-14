@@ -1,16 +1,19 @@
 use std::{
     ffi::{c_char, c_void, CStr},
     marker::{PhantomData, PhantomPinned},
+    rc::Rc,
     sync::{Arc, Mutex},
 };
 
 use micro_rdk::common::{
     config::ConfigType,
-    entry::RobotRepresentation,
+    conn::{server::WebRtcConfiguration, viam::ViamServerBuilder},
+    exec::Executor,
     log::initialize_logger,
     provisioning::server::ProvisioningInfo,
     registry::{ComponentRegistry, Dependency},
     sensor::{SensorError, SensorType},
+    webrtc::certificate::Certificate,
 };
 
 use super::{
@@ -240,8 +243,6 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
         }
     };
 
-    let repr = RobotRepresentation::WithRegistry(ctx.registry);
-
     let network = {
         #[cfg(not(target_os = "espidf"))]
         {
@@ -258,36 +259,88 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
         }
     };
 
-    use micro_rdk::common::entry::serve_with_network;
-
     #[cfg(has_robot_config)]
-    {
+    let storage = {
         use micro_rdk::common::credentials_storage::RAMStorage;
-        let ram_storage = RAMStorage::new(
-            "",
-            "",
-            ROBOT_ID.expect("Provided build-time configuration failed to set `ROBOT_ID`"),
-            ROBOT_SECRET.expect("Provided build-time configuration failed to set `ROBOT_SECRET`"),
-        );
-        log::info!("Robot configuration information was provided at build time - bypassing Viam provisioning flow");
-        serve_with_network(None, repr, max_connection, ram_storage, network);
-    }
+        use micro_rdk::common::credentials_storage::RobotConfigurationStorage;
+        use micro_rdk::proto::provisioning::v1::CloudConfig;
+
+        let mut ram_storage = RAMStorage::new();
+        // TODO: [RSDK-8923] Get app_address from machine credentials
+        let cloud_conf = if ROBOT_ID.is_some() && ROBOT_SECRET.is_some() {
+            Some(CloudConfig {
+                id: ROBOT_ID.unwrap().to_string(),
+                secret: ROBOT_SECRET.unwrap().to_string(),
+                app_address: "https://app.viam.com:443".to_string(),
+            })
+        } else {
+            None
+        }.expect("has_robot_config set in cfg, but build-time configuration failed to set robot credentials");
+        ram_storage.store_robot_credentials(cloud_conf);
+        ram_storage
+    };
 
     #[cfg(not(has_robot_config))]
-    {
+    let storage = {
         #[cfg(not(target_os = "espidf"))]
         let storage = micro_rdk::common::credentials_storage::RAMStorage::default();
         #[cfg(target_os = "espidf")]
         let storage = micro_rdk::esp32::nvs_storage::NVSStorage::new("nvs").unwrap();
+        storage
+    };
 
-        serve_with_network(
-            Some(ctx.provisioning_info),
-            repr,
-            max_connection,
-            storage,
-            network,
+    let mut builder = ViamServerBuilder::new(storage);
+    builder
+        .with_provisioning_info(ctx.provisioning_info)
+        .with_component_registry(ctx.registry)
+        .with_max_concurrent_connection(max_connection)
+        .with_default_tasks();
+
+    #[cfg(not(target_os = "espidf"))]
+    let mut server = {
+        use micro_rdk::common::conn::network::Network;
+        use micro_rdk::native::{
+            certificate::WebRtcCertificate, conn::mdns::NativeMdns, dtls::NativeDtls,
+            tcp::NativeH2Connector,
+        };
+        let webrtc_certs = WebRtcCertificate::new();
+        let webrtc_certs = Rc::new(Box::new(webrtc_certs) as Box<dyn Certificate>);
+        let dtls = Box::new(NativeDtls::new(webrtc_certs.clone()));
+        let webrtc_config = WebRtcConfiguration::new(webrtc_certs, dtls);
+
+        builder
+            .with_webrtc_configuration(webrtc_config)
+            .with_http2_server(NativeH2Connector::default(), 12346);
+        builder.build(
+            NativeH2Connector::default(),
+            Executor::new(),
+            NativeMdns::new("".to_owned(), network.get_ip()).unwrap(),
+            Box::new(network),
         )
-    }
+    };
 
-    viam_code::VIAM_OK
+    #[cfg(target_os = "espidf")]
+    let mut server = {
+        use micro_rdk::esp32::{
+            certificate::GeneratedWebRtcCertificateBuilder, conn::mdns::Esp32Mdns,
+            dtls::Esp32DtlsBuilder, tcp::Esp32H2Connector,
+        };
+        let webrtc_certs = GeneratedWebRtcCertificateBuilder::default()
+            .build()
+            .unwrap();
+        let webrtc_certs = Rc::new(Box::new(webrtc_certs) as Box<dyn Certificate>);
+        let dtls = Box::new(Esp32DtlsBuilder::new(webrtc_certs.clone()));
+        let webrtc_config = WebRtcConfiguration::new(webrtc_certs, dtls);
+        builder
+            .with_webrtc_configuration(webrtc_config)
+            .with_http2_server(Esp32H2Connector::default(), 12346);
+
+        builder.build(
+            Esp32H2Connector::default(),
+            Executor::new(),
+            Esp32Mdns::new("".to_owned()).unwrap(),
+            Box::new(network),
+        )
+    };
+    server.run_forever();
 }

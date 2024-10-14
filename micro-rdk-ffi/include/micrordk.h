@@ -83,6 +83,16 @@ enum viam_code config_free_string(struct config_context*, char *ptr);
 enum viam_code config_get_i32(struct config_context *ctx, const char *key, int *out);
 
 /*
+ Get a vector of int32s from the attribute section of a sensor configuration,
+ */
+enum viam_code config_get_i32_vec(struct config_context *ctx, const char *key, int32_t *out);
+
+/*
+ Get the length of a vector of int32s from the attribute section of a sensor configuration.
+ */
+enum viam_code config_get_i32_vec_len(struct config_context *ctx, const char *key, int32_t *out);
+
+/*
  Creates an new `hashmap_ctsring_ptr`
  */
 struct hashmap_cstring_ptr *hashmap_cstring_ptr_new(void);

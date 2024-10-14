@@ -22,7 +22,7 @@ description = "Viam RDK for microcontroller"
 edition = "2021"
 license = "AGPL-3.0"
 repository = "https://github.com/viamrobotics/micro-rdk"
-version = "0.2.9"
+version = "0.3.0"
 rust-version = "1.75"
 
 [profile.release]
@@ -96,7 +96,7 @@ reqwest = "0.11.20"
 reqwless = "0.5.0"
 ringbuf = "0.3.3"
 rustls = { version = "0.21", features = ["logging", "tls12"] }
-rustls-pemfile = { version = "1.0.2" }
+rustls-pemfile = { version = "2.0" }
 scopeguard = "1.2.0"
 sctp-proto = "0.1.4"
 sdp = "0.5.1"

@@ -44,8 +44,7 @@ such as module development or usage, please see the [Development Setup Documenta
 For documentation on advanced development configuration, including
 working across multiple projects, sharing local changes, credentials
 management, build performance, and customizing ESP-IDF configuration,
-please see [README.development.md](/README.development.md) in this
-repository.
+please see [DEVELOPMENT.md](DEVELOPMENT.md) in this repository.
 
 ## Debugging
 
