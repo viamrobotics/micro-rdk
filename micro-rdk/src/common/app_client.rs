@@ -18,7 +18,7 @@ use futures_lite::{Future, StreamExt};
 use http_body_util::BodyExt;
 use http_body_util::Full;
 use http_body_util::StreamBody;
-use hyper::{body::Frame, http::HeaderValue};
+use hyper::body::Frame;
 use prost::{DecodeError, EncodeError, Message};
 use std::{
     net::Ipv4Addr,
@@ -224,14 +224,8 @@ impl AppClient {
 
         let grpc_client = self.grpc_client.clone();
         async move {
-            // insert a {"heartbeats-allowed": "true"} metadata key-value pair to
-            // indicate to signaling server that we can receive heartbeats.
-            let mut r = r?;
-            r.headers_mut()
-                .insert("heartbeats-allowed", HeaderValue::from_static("true"));
-
             let (tx, rx) = grpc_client
-                .send_request_bidi::<AnswerResponse, AnswerRequest>(r, sender)
+                .send_request_bidi::<AnswerResponse, AnswerRequest>(r?, sender)
                 .await
                 .map_err(AppClientError::AppGrpcClientError)?;
             Ok(AppSignaling(tx, rx))

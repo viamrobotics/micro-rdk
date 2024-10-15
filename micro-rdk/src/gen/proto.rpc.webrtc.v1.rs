@@ -272,11 +272,6 @@ pub struct AnswerRequestErrorStage {
     #[prost(message, optional, tag="1")]
     pub status: ::core::option::Option<super::super::super::super::google::rpc::Status>,
 }
-/// AnswerRequestHeartbeatStage is sent periodically to verify liveness of answerer.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AnswerRequestHeartbeatStage {
-}
 /// AnswerRequest is the SDP offer that the controlling side is making via the answering
 /// stream.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -284,7 +279,7 @@ pub struct AnswerRequestHeartbeatStage {
 pub struct AnswerRequest {
     #[prost(string, tag="1")]
     pub uuid: ::prost::alloc::string::String,
-    #[prost(oneof="answer_request::Stage", tags="2, 3, 4, 5, 6")]
+    #[prost(oneof="answer_request::Stage", tags="2, 3, 4, 5")]
     pub stage: ::core::option::Option<answer_request::Stage>,
 }
 /// Nested message and enum types in `AnswerRequest`.
@@ -302,9 +297,6 @@ pub mod answer_request {
         /// error is sent any time before done
         #[prost(message, tag="5")]
         Error(super::AnswerRequestErrorStage),
-        /// heartbeat is sent periodically to verify liveness of answerer
-        #[prost(message, tag="6")]
-        Heartbeat(super::AnswerRequestHeartbeatStage),
     }
 }
 /// AnswerResponseInitStage is the first and a one time stage that represents the
