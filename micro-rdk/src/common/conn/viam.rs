@@ -534,6 +534,29 @@ where
         ));
         self.app_client_tasks.push(config_monitor_task);
 
+        #[cfg(feature = "ota")]
+        {
+            log::info!("ota feature enabled");
+            if let Some(service) = config
+                .services
+                .iter()
+                .find(|&service| service.model == "rdk:builtin:ota_service")
+            {
+                log::info!("service config: {:#?}", service);
+                let mut ota = crate::esp32::ota::OtaService::new(&service);
+                log::info!("OtaService: {:?}", ota);
+                if ota.needs_update() {
+                    if let Err(e) = ota.update() {
+                        log::error!("failed to update ota partitions: {:?}", e);
+                    } else {
+                        log::info!("ota update succeeded");
+                    }
+                }
+            } else {
+                log::info!("no service of type `ota_service` found in robot config");
+            }
+        }
+
         let mut robot = LocalRobot::from_cloud_config(
             self.executor.clone(),
             robot_creds.robot_id.clone(),
