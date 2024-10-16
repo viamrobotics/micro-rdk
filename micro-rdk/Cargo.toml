@@ -26,6 +26,7 @@ data-upload-hook-unstable = ["data", "esp32"]
 data = []
 qemu = []
 esp-idf-logs = ["esp32"]
+ota = ["esp32"]
 
 [dev-dependencies]
 test-log.workspace = true
