@@ -3,8 +3,7 @@ use async_io::Async;
 
 use esp_idf_svc::sys::{
     esp, esp_crt_bundle_attach, esp_tls_cfg, esp_tls_cfg_server, esp_tls_conn_destroy,
-    esp_tls_init, esp_tls_role_ESP_TLS_CLIENT, esp_tls_role_ESP_TLS_SERVER, esp_tls_t,
-    mbedtls_ssl_conf_read_timeout, EspError,
+    esp_tls_init, esp_tls_role_ESP_TLS_CLIENT, esp_tls_role_ESP_TLS_SERVER, esp_tls_t, EspError,
 };
 use futures_lite::FutureExt;
 use futures_lite::{ready, AsyncRead, AsyncWrite, Future};
