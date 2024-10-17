@@ -14,6 +14,7 @@ use crate::common::app_client::{
     AppClient, AppClientBuilder, AppClientError, PeriodicAppClientTask,
 };
 use crate::common::credentials_storage::TlsCertificate;
+use crate::common::webrtc::signaling_server::SignalingServer;
 use std::marker::PhantomData;
 use std::net::{SocketAddr, TcpListener};
 use std::pin::Pin;
@@ -622,7 +623,9 @@ where
             }
         }
 
-        let (tx, rx) = async_channel::bounded(1);
+        // One slot for remote signaling, one for local.
+        let (tx, rx) = async_channel::bounded(2);
+
         let mut inner = RobotServer {
             http2_server: &self.http2_server,
             http2_server_port: self.http2_server_port,
@@ -636,6 +639,10 @@ where
                 self.max_concurrent_connections as usize,
             ),
             robot_config: &config,
+            local_signaling_server: Arc::new(SignalingServer::new(
+                self.executor.clone(),
+                tx.clone(),
+            )),
         };
 
         if let Some(cfg) = config.cloud.as_ref() {
@@ -774,9 +781,10 @@ struct RobotServer<'a, M> {
     network: &'a dyn Network,
     incomming_connection_manager: IncomingConnectionManager,
     robot_config: &'a RobotConfig,
+    local_signaling_server: Arc<SignalingServer>,
 }
 
-pub(crate) enum IncomingConnection2 {
+pub(crate) enum IncomingConnection {
     HTTP2Connection(std::io::Result<(Async<TcpStream>, SocketAddr)>),
     WebRTCConnection(Result<Box<WebRtcSignalingChannel>, WebRtcError>),
 }
@@ -791,9 +799,10 @@ where
     ) -> Task<Result<(), errors::ServerError>> {
         let exec = self.executor.clone();
         let robot = self.robot.clone();
+        let ss = self.local_signaling_server.clone();
         self.executor.spawn(async move {
-            let srv = GrpcServer::new(robot, GrpcBody::new());
-
+            let mut srv = GrpcServer::new(robot, GrpcBody::new());
+            srv.register_signaling_server(ss);
             http2::Builder::new(exec)
                 .initial_connection_window_size(2048)
                 .initial_stream_window_size(2048)
@@ -806,10 +815,10 @@ where
     }
     async fn serve_incoming_connection(
         &mut self,
-        incoming: IncomingConnection2,
+        incoming: IncomingConnection,
     ) -> Result<(), errors::ServerError> {
         match incoming {
-            IncomingConnection2::HTTP2Connection(conn) => {
+            IncomingConnection::HTTP2Connection(conn) => {
                 if let HTTP2Server::HTTP2Connector(h) = self.http2_server {
                     if self.incomming_connection_manager.get_lowest_prio() < u32::MAX {
                         let stream = conn?;
@@ -822,7 +831,8 @@ where
                     }
                 }
             }
-            IncomingConnection2::WebRTCConnection(conn) => {
+
+            IncomingConnection::WebRTCConnection(conn) => {
                 let sig = conn.map_err(|e| errors::ServerError::Other(e.into()))?;
                 let ip = self.network.get_ip();
                 if let WebRtcListener::WebRtc(conf) = self.webrtc_config {
@@ -861,7 +871,7 @@ where
                     "_rpc",
                     "_tcp",
                     self.http2_server_port,
-                    &[("grpc", "")],
+                    &[("grpc", ""), ("webrtc", "")],
                 )
                 .map_err(|e| errors::ServerError::Other(e.into()))?;
                 mdns.add_service(
@@ -869,7 +879,7 @@ where
                     "_rpc",
                     "_tcp",
                     self.http2_server_port,
-                    &[("grpc", "")],
+                    &[("grpc", ""), ("webrtc", "")],
                 )
                 .map_err(|e| errors::ServerError::Other(e.into()))?;
             }
@@ -882,28 +892,28 @@ where
         };
 
         loop {
-            let h2_conn: Pin<Box<dyn Future<Output = IncomingConnection2>>> =
+            let h2_conn: Pin<Box<dyn Future<Output = IncomingConnection>>> =
                 if let HTTP2Server::Empty = self.http2_server {
                     Box::pin(async {
-                        IncomingConnection2::HTTP2Connection(futures_lite::future::pending().await)
+                        IncomingConnection::HTTP2Connection(futures_lite::future::pending().await)
                     })
                 } else {
                     // safe to unwrap, always exists
                     Box::pin(async {
-                        IncomingConnection2::HTTP2Connection(
+                        IncomingConnection::HTTP2Connection(
                             http2_listener.as_ref().unwrap().accept().await,
                         )
                     })
                 };
 
-            let webrtc_conn: Pin<Box<dyn Future<Output = IncomingConnection2>>> =
+            let webrtc_conn: Pin<Box<dyn Future<Output = IncomingConnection>>> =
                 if let WebRtcListener::Empty = self.webrtc_config {
                     Box::pin(async {
-                        IncomingConnection2::HTTP2Connection(futures_lite::future::pending().await)
+                        IncomingConnection::HTTP2Connection(futures_lite::future::pending().await)
                     })
                 } else {
                     Box::pin(async {
-                        IncomingConnection2::WebRTCConnection(
+                        IncomingConnection::WebRTCConnection(
                             self.webrtc_signaling
                                 .recv()
                                 .await

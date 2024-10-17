@@ -12,23 +12,27 @@ use std::{
 
 use crate::{
     common::{
-        app_client::{AppClient, AppClientError, PeriodicAppClientTask},
+        app_client::{AppClient, AppClientError, AppSignaling, PeriodicAppClientTask},
         conn::{errors::ServerError, server::WebRTCConnection},
-        grpc::GrpcServer,
-        grpc_client::{GrpcClientError, GrpcMessageSender, GrpcMessageStream},
+        grpc::{GrpcError, GrpcServer},
+        grpc_client::{GrpcClientError, GrpcMessageStream},
         robot::LocalRobot,
     },
     google::rpc::{Code, Status},
     proto::rpc::webrtc::v1::{
-        answer_request, answer_response, AnswerRequest, AnswerResponse, AnswerResponseDoneStage,
-        AnswerResponseErrorStage, AnswerResponseInitStage, AnswerResponseUpdateStage, IceCandidate,
+        answer_request, answer_response, call_response, call_update_request, AnswerRequest,
+        AnswerResponse, AnswerResponseDoneStage, AnswerResponseErrorStage, AnswerResponseInitStage,
+        AnswerResponseUpdateStage, CallResponse, CallResponseInitStage, CallResponseUpdateStage,
+        IceCandidate,
     },
 };
 
+use async_channel::RecvError;
 use async_channel::Sender;
 use async_io::Timer;
 use atomic_waker::AtomicWaker;
 use base64::{engine::general_purpose, Engine};
+use either::Either;
 use futures_lite::{Future, FutureExt, StreamExt};
 use prost::{DecodeError, EncodeError};
 use sdp::{
@@ -50,6 +54,7 @@ use super::{
     ice::{ICEAgent, ICECredentials},
     io::WebRtcTransport,
     sctp::{Channel, SctpConnector, SctpHandle},
+    signaling_server::LocalSignaling,
 };
 
 #[derive(Error, Debug)]
@@ -79,27 +84,23 @@ pub enum WebRtcError {
     #[error("cannot parse candidate")]
     CannotParseCandidate,
     #[error("Operation timeout")]
-    OperationTiemout,
+    OperationTimeout,
     #[error(transparent)]
     GrpcClientError(#[from] GrpcClientError),
 }
 
+pub(crate) type WebRtcSignaling = Either<AppSignaling, LocalSignaling>;
+
 pub(crate) struct WebRtcSignalingChannel {
-    signaling_tx: GrpcMessageSender<AnswerResponse>,
-    signaling_rx: GrpcMessageStream<AnswerRequest>,
+    signaling: WebRtcSignaling,
     engine: Box<general_purpose::GeneralPurpose>,
     sdp: Box<WebRtcSdp>,
 }
 
 impl WebRtcSignalingChannel {
-    pub(crate) fn new(
-        signaling_tx: GrpcMessageSender<AnswerResponse>,
-        signaling_rx: GrpcMessageStream<AnswerRequest>,
-        sdp: Box<WebRtcSdp>,
-    ) -> Self {
+    pub(crate) fn new(signaling: WebRtcSignaling, sdp: Box<WebRtcSdp>) -> Self {
         Self {
-            signaling_tx,
-            signaling_rx,
+            signaling,
             engine: general_purpose::STANDARD.into(),
             sdp,
         }
@@ -277,7 +278,7 @@ impl PeriodicAppClientTask for SignalingTask {
     {
         Box::pin(async {
             let mut sig_pair = app_client.initiate_signaling(self.rpc_host.clone()).await?;
-            let sdp = self.wait_for_sdp(&mut sig_pair.1).await;
+            let sdp = self.wait_for_sdp(&mut sig_pair.rx).await;
             if let Some(WebRtcError::GrpcClientError(GrpcClientError::GrpcError { code, .. })) =
                 sdp.as_ref().err()
             {
@@ -287,7 +288,7 @@ impl PeriodicAppClientTask for SignalingTask {
                 }
             }
             let sdp = sdp?;
-            let sig = Box::new(WebRtcSignalingChannel::new(sig_pair.0, sig_pair.1, sdp));
+            let sig = Box::new(WebRtcSignalingChannel::new(Either::Left(sig_pair), sdp));
             let _ret = self.sender.send(sig).await; // TODO deal with result, sending on a close channel will never succeed. The limit here is that SignalingTask will be allocated for the lifetime of the ViamServer.
             Ok(None)
         })
@@ -299,47 +300,92 @@ impl WebRtcSignalingChannel {
         &mut self,
         uuid: String,
     ) -> Result<(), WebRtcError> {
-        let answer = AnswerResponse {
-            uuid,
-            stage: Some(answer_response::Stage::Error(AnswerResponseErrorStage {
-                status: Some(Status {
-                    code: Code::ResourceExhausted.into(),
-                    message: "too many active connections".to_string(),
-                    ..Default::default()
-                }),
-            })),
-        };
+        match self.signaling.as_mut() {
+            Either::Left(ref mut app_signaling) => {
+                let answer = AnswerResponse {
+                    uuid,
+                    stage: Some(answer_response::Stage::Error(AnswerResponseErrorStage {
+                        status: Some(Status {
+                            code: Code::ResourceExhausted.into(),
+                            message: "too many active connections".to_string(),
+                            ..Default::default()
+                        }),
+                    })),
+                };
 
-        if let Err(e) = self.signaling_tx.send_message(answer).await {
-            log::error!("error sending signaling message: {:?}", e);
-            Err(WebRtcError::SignalingDisconnected())
-        } else {
-            log::warn!("too many active connections");
-            Ok(())
+                if let Err(e) = app_signaling.tx.send_message(answer).await {
+                    log::error!("error sending signaling message: {:?}", e);
+                    Err(WebRtcError::SignalingDisconnected())
+                } else {
+                    log::warn!("too many active connections");
+                    Ok(())
+                }
+            }
+            Either::Right(ref mut local_signaling) => {
+                if let Err(e) = local_signaling
+                    .tx
+                    .send(Err(GrpcError::RpcResourceExhausted.into()))
+                    .await
+                {
+                    log::error!("error sending signaling message: {:?}", e);
+                    Err(WebRtcError::SignalingDisconnected())
+                } else {
+                    log::warn!("too many active connections");
+                    Ok(())
+                }
+            }
         }
     }
 
     pub(crate) async fn send_sdp_answer(&mut self, sdp: &WebRtcSdp) -> Result<(), WebRtcError> {
-        let answer = SdpOffer {
-            sdp_type: "answer".to_owned(),
-            sdp: sdp.sdp.marshal(),
-        };
-        let answer = self
-            .engine
-            .encode(serde_json::to_string(&answer).map_err(WebRtcError::AnswerMarshalError)?);
+        match self.signaling.as_mut() {
+            Either::Left(ref mut app_signaling) => {
+                let answer = SdpOffer {
+                    sdp_type: "answer".to_owned(),
+                    sdp: sdp.sdp.marshal(),
+                };
+                let answer = self.engine.encode(
+                    serde_json::to_string(&answer).map_err(WebRtcError::AnswerMarshalError)?,
+                );
 
-        let answer = AnswerResponse {
-            uuid: sdp.uuid.clone(),
-            stage: Some(answer_response::Stage::Init(AnswerResponseInitStage {
-                sdp: answer,
-            })),
-        };
-        match self.signaling_tx.send_message(answer).await {
-            Err(e) => {
-                log::error!("error sending signaling message: {:?}", e);
-                Err(WebRtcError::SignalingDisconnected())
+                let answer = AnswerResponse {
+                    uuid: sdp.uuid.clone(),
+                    stage: Some(answer_response::Stage::Init(AnswerResponseInitStage {
+                        sdp: answer,
+                    })),
+                };
+                match app_signaling.tx.send_message(answer).await {
+                    Err(e) => {
+                        log::error!("error sending signaling message: {:?}", e);
+                        Err(WebRtcError::SignalingDisconnected())
+                    }
+                    Ok(_) => Ok(()),
+                }
             }
-            Ok(_) => Ok(()),
+            Either::Right(ref mut local_signaling) => {
+                let answer = SdpOffer {
+                    sdp_type: "answer".to_owned(),
+                    sdp: sdp.sdp.marshal(),
+                };
+                let answer = self.engine.encode(
+                    serde_json::to_string(&answer).map_err(WebRtcError::AnswerMarshalError)?,
+                );
+
+                let answer = CallResponse {
+                    uuid: sdp.uuid.clone(),
+                    stage: Some(call_response::Stage::Init(CallResponseInitStage {
+                        sdp: answer,
+                    })),
+                };
+
+                match local_signaling.tx.send(Ok(answer)).await {
+                    Err(e) => {
+                        log::error!("error sending signaling message: {:?}", e);
+                        Err(WebRtcError::SignalingDisconnected())
+                    }
+                    Ok(_) => Ok(()),
+                }
+            }
         }
     }
 
@@ -349,88 +395,145 @@ impl WebRtcSignalingChannel {
         ufrag: String,
         uuid: String,
     ) -> Result<(), WebRtcError> {
-        let answer = AnswerResponse {
-            uuid,
-            stage: Some(answer_response::Stage::Update(AnswerResponseUpdateStage {
-                candidate: Some(IceCandidate {
-                    candidate: candidate.to_string(),
-                    sdp_mid: Some("".to_owned()),
-                    sdpm_line_index: Some(0),
-                    username_fragment: Some(ufrag),
-                }),
-            })),
-        };
-        match self.signaling_tx.send_message(answer).await {
-            Err(_) => Err(WebRtcError::SignalingDisconnected()),
-            Ok(_) => Ok(()),
-        }
-    }
-    pub(crate) async fn next_remote_candidate(&mut self) -> Result<Option<Candidate>, WebRtcError> {
-        // Loop to allow receiving heartbeats without returning the next remote candidate.
-        loop {
-            match self.signaling_rx.next().await {
-                None => {
-                    return Err(WebRtcError::SignalingDisconnected());
+        match self.signaling.as_mut() {
+            Either::Left(ref mut app_signaling) => {
+                let answer = AnswerResponse {
+                    uuid,
+                    stage: Some(answer_response::Stage::Update(AnswerResponseUpdateStage {
+                        candidate: Some(IceCandidate {
+                            candidate: candidate.to_string(),
+                            sdp_mid: Some("".to_owned()),
+                            sdpm_line_index: Some(0),
+                            username_fragment: Some(ufrag),
+                        }),
+                    })),
+                };
+                match app_signaling.tx.send_message(answer).await {
+                    Err(_) => Err(WebRtcError::SignalingDisconnected()),
+                    Ok(_) => Ok(()),
                 }
-                Some(req) => {
-                    let req = req?;
-                    if let Some(stage) = req.stage {
-                        match stage {
-                            answer_request::Stage::Update(c) => {
-                                if let Some(c) = c.candidate {
-                                    log::debug!("received candidate {}", c.candidate);
-                                    return c
-                                        .candidate
-                                        .try_into()
-                                        .map_err(|_| WebRtcError::CannotParseCandidate)
-                                        .map(Option::Some);
-                                } else {
-                                    log::error!("received no candidates with this update request");
-                                    return Ok(None);
-                                }
-                            }
-                            answer_request::Stage::Error(s) => {
-                                if let Some(status) = s.status {
-                                    return Err(WebRtcError::SignalingError(status.message));
-                                }
-                                return Err(WebRtcError::SignalingError("unknown".to_owned()));
-                            }
-                            answer_request::Stage::Done(_) => {
-                                return Ok(None);
-                            }
-                            answer_request::Stage::Heartbeat(_) => {
-                                log::debug!("received a heartbeat from the signaling server");
-                                continue;
-                            }
-                            _ => {
-                                return Err(WebRtcError::SignalingError(
-                                    "unexpected stage".to_owned(),
-                                ))
-                            }
-                        }
-                    }
-                    return Ok(None);
+            }
+            Either::Right(ref mut local_signaling) => {
+                let answer = CallResponse {
+                    uuid,
+                    stage: Some(call_response::Stage::Update(CallResponseUpdateStage {
+                        candidate: Some(IceCandidate {
+                            candidate: candidate.to_string(),
+                            sdp_mid: Some("".to_owned()),
+                            sdpm_line_index: Some(0),
+                            username_fragment: Some(ufrag),
+                        }),
+                    })),
+                };
+                match local_signaling.tx.send(Ok(answer)).await {
+                    Err(_) => Err(WebRtcError::SignalingDisconnected()),
+                    Ok(_) => Ok(()),
                 }
             }
         }
     }
+
+    pub(crate) async fn next_remote_candidate(&mut self) -> Result<Option<Candidate>, WebRtcError> {
+        match self.signaling.as_mut() {
+            Either::Left(ref mut app_signaling) => loop {
+                match app_signaling.rx.next().await {
+                    None => return Err(WebRtcError::SignalingDisconnected()),
+                    Some(req) => {
+                        let req = req?;
+                        if let Some(stage) = req.stage {
+                            match stage {
+                                answer_request::Stage::Update(c) => {
+                                    if let Some(c) = c.candidate {
+                                        log::debug!("received candidate {}", c.candidate);
+                                        return c
+                                            .candidate
+                                            .try_into()
+                                            .map_err(|_| WebRtcError::CannotParseCandidate)
+                                            .map(Option::Some);
+                                    } else {
+                                        log::error!(
+                                            "received no candidates with this update request"
+                                        );
+                                        return Ok(None);
+                                    }
+                                }
+                                answer_request::Stage::Error(s) => {
+                                    if let Some(status) = s.status {
+                                        return Err(WebRtcError::SignalingError(status.message));
+                                    }
+                                    return Err(WebRtcError::SignalingError("unknown".to_owned()));
+                                }
+                                answer_request::Stage::Done(_) => {
+                                    return Ok(None);
+                                }
+                                answer_request::Stage::Heartbeat(_) => {
+                                    log::debug!("received a heartbeat from the signaling server");
+                                    continue;
+                                }
+                                _ => {
+                                    return Err(WebRtcError::SignalingError(
+                                        "unexpected stage".to_owned(),
+                                    ))
+                                }
+                            }
+                        }
+                        return Ok(None);
+                    }
+                }
+            },
+            Either::Right(ref mut local_signaling) => {
+                match local_signaling.rx.recv().await {
+                    Err(RecvError) => Err(WebRtcError::SignalingDisconnected()),
+                    Ok(req) => {
+                        if let Some(update) = req.update {
+                            match update {
+                                call_update_request::Update::Candidate(c) => c
+                                    .candidate
+                                    .try_into()
+                                    .map_err(|_| WebRtcError::CannotParseCandidate)
+                                    .map(Option::Some),
+                                call_update_request::Update::Done(_) => {
+                                    // TODO(acm): Verify that the actual boolean in the `Done` doesn't make any difference
+                                    Ok(None)
+                                }
+                                call_update_request::Update::Error(e) => {
+                                    Err(WebRtcError::SignalingError(e.message))
+                                }
+                            }
+                        } else {
+                            Ok(None)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     pub async fn send_done(&mut self, uuid: String) -> Result<(), WebRtcError> {
-        let answer = AnswerResponse {
-            uuid,
-            stage: Some(answer_response::Stage::Done(AnswerResponseDoneStage {})),
-        };
-        match self.signaling_tx.send_message(answer).await {
-            Err(_) => Err(WebRtcError::SignalingDisconnected()),
-            Ok(_) => Ok(()),
+        match self.signaling.as_mut() {
+            Either::Left(ref mut app_signaling) => {
+                let answer = AnswerResponse {
+                    uuid,
+                    stage: Some(answer_response::Stage::Done(AnswerResponseDoneStage {})),
+                };
+                match app_signaling.tx.send_message(answer).await {
+                    Err(_) => Err(WebRtcError::SignalingDisconnected()),
+                    Ok(_) => Ok(()),
+                }
+            }
+            Either::Right(ref mut local_signaling) => match local_signaling.tx.close() {
+                true => Ok(()),
+                false => Err(WebRtcError::SignalingDisconnected()),
+            },
         }
     }
 }
 
-pub struct WebRtcApi<S, E> {
+pub struct WebRtcApi<C, E> {
     executor: E,
     signaling: Box<WebRtcSignalingChannel>,
     transport: WebRtcTransport,
-    certificate: Rc<S>,
+    certificate: Rc<C>,
     local_creds: ICECredentials,
     remote_creds: Option<ICECredentials>,
     local_ip: Ipv4Addr,
@@ -495,6 +598,7 @@ where
                 )
                 .await?;
         }
+
         self.signaling
             .send_done(self.signaling.offer().uuid.clone())
             .await?;
@@ -577,22 +681,22 @@ where
         self.run_ice_until_connected(&answer)
             .or(async {
                 Timer::after(Duration::from_secs(10)).await;
-                Err(WebRtcError::OperationTiemout)
+                Err(WebRtcError::OperationTimeout)
             })
             .await
             .map_err(|e| match e {
-                WebRtcError::OperationTiemout => ServerError::ServerConnectionTimeout,
+                WebRtcError::OperationTimeout => ServerError::ServerConnectionTimeout,
                 _ => ServerError::Other(e.into()),
             })?;
         let c = self
             .open_data_channel()
             .or(async {
                 Timer::after(Duration::from_secs(10)).await;
-                Err(WebRtcError::OperationTiemout)
+                Err(WebRtcError::OperationTimeout)
             })
             .await
             .map_err(|e| match e {
-                WebRtcError::OperationTiemout => ServerError::ServerConnectionTimeout,
+                WebRtcError::OperationTimeout => ServerError::ServerConnectionTimeout,
                 _ => ServerError::Other(e.into()),
             })?;
         let srv = WebRtcGrpcServer::new(c.0, GrpcServer::new(robot, WebRtcGrpcBody::default()));

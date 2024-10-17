@@ -13,11 +13,11 @@ use crate::{
         webrtc::grpc::WebRtcGrpcService,
     },
     google::rpc::Status,
-    proto::{self, component, robot},
+    proto::{self, component, robot, rpc::webrtc::v1::CallResponse},
 };
 use bytes::{BufMut, BytesMut};
-use futures_lite::{future, Future};
-use http_body_util::BodyExt;
+use futures_lite::{Future, StreamExt};
+use http_body_util::{combinators::BoxBody, BodyExt, StreamBody};
 use hyper::{
     body::{self, Body, Bytes, Frame},
     http::{uri::InvalidUri, HeaderValue},
@@ -27,12 +27,12 @@ use hyper::{
 use log::*;
 use prost::Message;
 use std::{
-    cell::RefCell,
     pin::Pin,
-    rc::Rc,
     task::{Context, Poll},
 };
 use thiserror::Error;
+
+use super::webrtc::signaling_server::SignalingServer;
 
 #[cfg(feature = "camera")]
 static GRPC_BUFFER_SIZE: usize = 1024 * 30; // 30KB
@@ -125,27 +125,15 @@ pub trait GrpcResponse {
 
 #[derive(Clone)]
 pub struct GrpcServer<R> {
-    pub(crate) response: R,
-    pub(crate) buffer: Rc<RefCell<BytesMut>>,
+    pub(crate) _response: R,
     robot: Arc<Mutex<LocalRobot>>,
+    signaling_server: Option<Arc<SignalingServer>>,
 }
 
 pub struct GrpcServerInner<'a> {
-    buffer: &'a Rc<RefCell<BytesMut>>,
+    buffer: Option<BytesMut>,
     robot: &'a Arc<Mutex<LocalRobot>>,
-}
-
-impl<R> Debug for GrpcServer<R>
-where
-    R: Debug,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "GrpcServer {{ response : {:?} }}, {{ buffer : {:?} }}",
-            self.response, self.buffer
-        )
-    }
+    signaling_server: &'a Option<Arc<SignalingServer>>,
 }
 
 impl<R> GrpcServer<R>
@@ -154,32 +142,19 @@ where
 {
     pub fn new(robot: Arc<Mutex<LocalRobot>>, body: R) -> Self {
         GrpcServer {
-            response: body,
-            buffer: Rc::new(RefCell::new(BytesMut::with_capacity(GRPC_BUFFER_SIZE))),
+            _response: body,
             robot,
+            signaling_server: None,
         }
     }
-    fn process_request(&mut self, path: &str, msg: Bytes) {
-        let mut grpc = GrpcServerInner {
-            buffer: &self.buffer,
-            robot: &self.robot,
-        };
-        let payload = grpc.validate_rpc(&msg).map_err(ServerError::from);
-        match payload.and_then(|payload| grpc.handle_request(path, payload)) {
-            Ok(buffer) => {
-                self.response.put_data(buffer);
-            }
-            Err(e) => {
-                let message = Some(e.to_string());
-                self.response.set_status(e.status_code(), message);
-            }
-        }
+
+    pub(crate) fn register_signaling_server(&mut self, signaling_server: Arc<SignalingServer>) {
+        let _ = self.signaling_server.insert(signaling_server);
     }
 }
 
 impl<'a> GrpcServerInner<'a> {
-    fn encode_message<M: Message>(&mut self, m: M) -> Result<Bytes, ServerError> {
-        let mut buffer = RefCell::borrow_mut(self.buffer).split_off(0);
+    fn encode_message_into<M: Message>(m: M, mut buffer: BytesMut) -> Result<Bytes, ServerError> {
         // The buffer will have a null byte, then 4 bytes containing the big-endian length of the
         // data (*not* including this 5-byte header), and then the data from the message itself.
         if 5 + m.encoded_len() > buffer.capacity() {
@@ -193,6 +168,16 @@ impl<'a> GrpcServerInner<'a> {
         buffer.unsplit(msg);
         Ok(buffer.freeze())
     }
+
+    fn encode_message_into_new_buffer<M: Message>(m: M) -> Result<Bytes, ServerError> {
+        let buffer = BytesMut::with_capacity(5 + m.encoded_len());
+        GrpcServerInner::encode_message_into(m, buffer)
+    }
+
+    fn encode_message<M: Message>(&mut self, m: M) -> Result<Bytes, ServerError> {
+        GrpcServerInner::encode_message_into(m, self.buffer.take().unwrap())
+    }
+
     fn validate_rpc<'b>(&'a self, message: &'b Bytes) -> Result<&'b [u8], GrpcError> {
         // Per https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md, we're expecting a
         // 5-byte header followed by the actual protocol buffer data. The 5 bytes in the header are
@@ -225,7 +210,20 @@ impl<'a> GrpcServerInner<'a> {
     }
 
     pub(crate) fn handle_request(
-        &mut self,
+        self,
+        path: &str,
+        payload: &[u8],
+    ) -> Pin<Box<dyn futures_lite::Stream<Item = Result<Bytes, ServerError>> + Sync + Send>> {
+        match path {
+            "/proto.rpc.webrtc.v1.SignalingService/Call" => self.signaling_service_call(payload),
+            _ => Box::pin(futures_lite::stream::once(
+                self.handle_unary_request(path, payload),
+            )),
+        }
+    }
+
+    pub(crate) fn handle_unary_request(
+        mut self,
         path: &str,
         payload: &[u8],
     ) -> Result<Bytes, ServerError> {
@@ -289,6 +287,12 @@ impl<'a> GrpcServerInner<'a> {
             "/viam.robot.v1.RobotService/Shutdown" => self.robot_shutdown(payload),
             "/viam.robot.v1.RobotService/GetCloudMetadata" => self.robot_get_cloud_metadata(),
             "/proto.rpc.v1.AuthService/Authenticate" => self.auth_service_authentificate(payload),
+            "/proto.rpc.webrtc.v1.SignalingService/OptionalWebRTCConfig" => {
+                self.signaling_service_optional_webrtc_config(payload)
+            }
+            "/proto.rpc.webrtc.v1.SignalingService/CallUpdate" => {
+                self.signaling_service_call_update(payload)
+            }
             "/viam.component.sensor.v1.SensorService/GetReadings" => {
                 self.sensor_get_readings(payload)
             }
@@ -1435,6 +1439,74 @@ impl<'a> GrpcServerInner<'a> {
         let rr = robot::v1::ResourceNamesResponse { resources: rr };
         self.encode_message(rr)
     }
+
+    fn signaling_service_optional_webrtc_config(
+        &mut self,
+        message: &[u8],
+    ) -> Result<Bytes, ServerError> {
+        let req = proto::rpc::webrtc::v1::OptionalWebRtcConfigRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let result = match self.signaling_server {
+            Some(ref ss) => ss.optional_webrtc_config(req),
+            None => Err(ServerError::from(GrpcError::RpcUnimplemented)),
+        }?;
+        self.encode_message(result)
+    }
+
+    fn signaling_service_call(
+        self,
+        message: &[u8],
+    ) -> Pin<Box<dyn futures_lite::Stream<Item = Result<Bytes, ServerError>> + Sync + Send>> {
+        let (sender, receiver) = async_channel::bounded::<Result<CallResponse, ServerError>>(1);
+
+        match self.signaling_server {
+            Some(ss) => {
+                let cr = proto::rpc::webrtc::v1::CallRequest::decode(message);
+                let ss = ss.clone();
+                ss.executor
+                    .clone()
+                    .spawn(async move {
+                        match cr {
+                            Ok(cr) => match ss.call(cr, sender.clone()).await {
+                                Ok(()) => {
+                                    sender.close();
+                                }
+                                Err(e) => {
+                                    let _ = sender.send(Err(e)).await;
+                                    sender.close();
+                                }
+                            },
+                            Err(_) => {
+                                let _ = sender
+                                    .send(Err(ServerError::from(GrpcError::RpcInvalidArgument)))
+                                    .await;
+                                sender.close();
+                            }
+                        }
+                    })
+                    .detach();
+            }
+            None => {
+                let _ = sender.send_blocking(Err(ServerError::from(GrpcError::RpcUnimplemented)));
+                sender.close();
+            }
+        }
+
+        Box::pin(receiver.map(move |result| match result {
+            Ok(cr) => GrpcServerInner::encode_message_into_new_buffer(cr),
+            Err(e) => Err(e),
+        }))
+    }
+
+    fn signaling_service_call_update(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
+        let req = proto::rpc::webrtc::v1::CallUpdateRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let result = match self.signaling_server {
+            Some(ref ss) => ss.call_update(req),
+            None => Err(ServerError::from(GrpcError::RpcUnimplemented)),
+        }?;
+        self.encode_message(result)
+    }
 }
 
 impl<R> WebRtcGrpcService for GrpcServer<R>
@@ -1442,14 +1514,12 @@ where
     R: GrpcResponse + 'static,
 {
     fn unary_rpc(&mut self, method: &str, data: &Bytes) -> Result<Bytes, ServerError> {
-        {
-            RefCell::borrow_mut(&self.buffer).reserve(GRPC_BUFFER_SIZE);
-        }
-        let mut grpc = GrpcServerInner {
-            buffer: &self.buffer,
+        let grpc = GrpcServerInner {
+            buffer: Some(BytesMut::with_capacity(GRPC_BUFFER_SIZE)),
             robot: &self.robot,
+            signaling_server: &self.signaling_server,
         };
-        grpc.handle_request(method, data)
+        grpc.handle_unary_request(method, data)
             .map(|mut b| b.split_off(5))
     }
     fn server_stream_rpc(
@@ -1457,13 +1527,11 @@ where
         method: &str,
         data: &Bytes,
     ) -> Result<(Bytes, Instant), ServerError> {
-        {
-            RefCell::borrow_mut(&self.buffer).reserve(GRPC_BUFFER_SIZE);
-        }
         log::debug!("stream req is {:?}, ", method);
         let mut grpc = GrpcServerInner {
-            buffer: &self.buffer,
+            buffer: Some(BytesMut::with_capacity(GRPC_BUFFER_SIZE)),
             robot: &self.robot,
+            signaling_server: &self.signaling_server,
         };
         grpc.handle_rpc_stream(method, data)
             .map(|mut dur| (dur.0.split_off(5), dur.1))
@@ -1474,17 +1542,14 @@ impl<R> Service<Request<body::Incoming>> for GrpcServer<R>
 where
     R: GrpcResponse + Body + Clone + 'static,
 {
-    type Response = Response<R>;
+    type Response = Response<BoxBody<Bytes, GrpcError>>;
     type Error = GrpcError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
 
     fn call(&self, req: Request<body::Incoming>) -> Self::Future {
         #[cfg(debug_assertions)]
         debug!("clone in Servive GRPC");
-        {
-            RefCell::borrow_mut(&self.buffer).reserve(GRPC_BUFFER_SIZE);
-        }
-        let mut svc = self.clone();
+        let svc = self.clone();
         #[cfg(debug_assertions)]
         log::debug!("processing {:?}", req);
         Box::pin(async move {
@@ -1499,11 +1564,68 @@ where
                 Some(path) => path.as_str(),
                 None => return Err(GrpcError::RpcInvalidArgument),
             };
-            svc.process_request(path, msg);
+
+            let grpc = GrpcServerInner {
+                buffer: Some(BytesMut::with_capacity(GRPC_BUFFER_SIZE)),
+                robot: &svc.robot,
+                signaling_server: &svc.signaling_server,
+            };
+
+            let mut trailers = HeaderMap::new();
+            trailers.insert("grpc-status", "0".parse().unwrap());
+            struct UnfoldState {
+                trailers: HeaderMap,
+                #[allow(clippy::type_complexity)]
+                stream: Option<
+                    Pin<
+                        Box<
+                            dyn futures_lite::Stream<Item = Result<Bytes, ServerError>>
+                                + Sync
+                                + Send,
+                        >,
+                    >,
+                >,
+            }
+            let mut state = UnfoldState {
+                trailers: trailers.clone(),
+                stream: None,
+            };
+
+            match grpc.validate_rpc(&msg).map_err(ServerError::from) {
+                Ok(payload) => {
+                    let _ = state.stream.insert(grpc.handle_request(path, payload));
+                }
+                Err(e) => {
+                    state.trailers.insert("grpc-status", e.status_code().into());
+                    state
+                        .trailers
+                        .insert("grpc-message", e.to_string().parse().unwrap());
+                }
+            };
+
+            let stream = futures_lite::stream::unfold(state, |mut state| async move {
+                if let Some(ref mut stream) = state.stream {
+                    match stream.next().await {
+                        Some(Ok(bytes)) => {
+                            return Some((Ok(Frame::<Bytes>::data(bytes)), state));
+                        }
+                        Some(Err(e)) => {
+                            let _ = state.stream.take();
+                            state.trailers.insert("grpc-status", e.status_code().into());
+                            state
+                                .trailers
+                                .insert("grpc-message", e.to_string().parse().unwrap());
+                        }
+                        None => {}
+                    }
+                };
+                Some((Ok(Frame::<Bytes>::trailers(state.trailers.clone())), state))
+            });
+
             Response::builder()
                 .header("content-type", "application/grpc")
                 .status(200)
-                .body(svc.response.clone())
+                .body(BodyExt::boxed(StreamBody::new(stream)))
                 .map_err(|_| GrpcError::RpcFailedPrecondition)
         })
     }
@@ -1610,32 +1732,5 @@ impl fmt::Display for ServerError {
             Some(err) => write!(f, "{}: {}", self.grpc_error, err),
             None => std::fmt::Display::fmt(&self.grpc_error, f),
         }
-    }
-}
-
-pub struct MakeSvcGrpcServer {
-    server: GrpcServer<GrpcBody>,
-}
-
-impl MakeSvcGrpcServer {
-    #[allow(dead_code)]
-    pub fn new(robot: Arc<Mutex<LocalRobot>>) -> Self {
-        MakeSvcGrpcServer {
-            server: GrpcServer::new(robot, GrpcBody::new()),
-        }
-    }
-}
-
-impl<T> Service<T> for MakeSvcGrpcServer {
-    type Response = GrpcServer<GrpcBody>;
-    type Error = GrpcError;
-    type Future = future::Ready<Result<Self::Response, Self::Error>>;
-
-    fn call(&self, _: T) -> Self::Future {
-        {
-            info!("reserve memory");
-            RefCell::borrow_mut(&self.server.buffer).reserve(10240);
-        }
-        future::ready(Ok(self.server.clone()))
     }
 }

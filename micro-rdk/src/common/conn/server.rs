@@ -64,7 +64,7 @@ impl WebRTCConnection {
                 .next_request()
                 .or(async {
                     Timer::after(Duration::from_secs(30)).await;
-                    Err(WebRtcError::OperationTiemout)
+                    Err(WebRtcError::OperationTimeout)
                 })
                 .await;
 
