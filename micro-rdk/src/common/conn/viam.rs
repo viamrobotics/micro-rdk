@@ -37,7 +37,9 @@ use crate::common::webrtc::api::WebRtcApi;
 use crate::common::webrtc::certificate::Certificate;
 use crate::common::webrtc::dtls::DtlsBuilder;
 use crate::common::{
-    credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage},
+    credentials_storage::{
+        RobotConfigurationStorage, TlsCertificateStorage, WifiCredentialStorage,
+    },
     exec::Executor,
 };
 use crate::proto;
@@ -86,11 +88,11 @@ impl From<&proto::app::v1::CloudConfig> for RobotCloudConfig {
 }
 
 pub trait ViamServerStorage:
-    RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static
+    RobotConfigurationStorage + WifiCredentialStorage + TlsCertificateStorage + Clone + 'static
 {
 }
 impl<T> ViamServerStorage for T where
-    T: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static
+    T: RobotConfigurationStorage + WifiCredentialStorage + TlsCertificateStorage + Clone + 'static
 {
 }
 
@@ -553,22 +555,29 @@ where
         let robot = Arc::new(Mutex::new(robot));
 
         if self.http2_server.has_http2_server() && !self.http2_server_insecure {
-            // TODO implement certificate storage
-            // in the situation where we are not connected to app or retrieving certs fails AND there are
-            // no certs stored then HTTP2 **should** be disabled.
-            let mut certs = None;
+            // Try to obtain and store a fresh TLS certificate. If this fails or we cannot reach
+            // app, then we'll end up falling back on whatever TLS certificate was cached
             if let Some(app) = app_client.as_ref() {
-                certs = app.get_certificates().await.ok();
+                if let Ok(cert_resp) = app.get_certificates().await {
+                    match self.storage.store_tls_certificate(cert_resp.into()) {
+                        Ok(_) => log::debug!("storing TLS certificate received by app"),
+                        Err(err) => log::error!("error storing TLS cert: {:?}", err),
+                    };
+                }
             }
+            let certs = self.storage.get_tls_certificate().ok();
+
             match certs {
                 None => {
+                    log::error!("no TLS certificates found in storage or after contacting app");
+                    // At no point were we ever able to obtain a valid TLS certificate, so we disable HTTP2
                     let _ = std::mem::replace(&mut self.http2_server, HTTP2Server::Empty);
                 }
                 Some(certs) => {
                     if let HTTP2Server::HTTP2Connector(s) = &mut self.http2_server {
                         s.set_server_certificates(
-                            certs.tls_certificate.into_bytes(),
-                            certs.tls_private_key.into_bytes(),
+                            certs.certificate.clone(),
+                            certs.private_key.clone(),
                         );
                     };
                 }
