@@ -112,13 +112,11 @@ unsafe extern "C" fn mbedtls_net_read_with_timeout<S: AsyncRead>(
         }
         Err(e) => {
             let _ = state.error.insert(e);
-            if state.error.as_ref().unwrap().kind() == std::io::ErrorKind::WouldBlock {
-                return MBEDTLS_ERR_SSL_WANT_READ;
+            match state.error.as_ref().unwrap().kind() {
+                std::io::ErrorKind::WouldBlock => MBEDTLS_ERR_SSL_WANT_READ,
+                std::io::ErrorKind::TimedOut => MBEDTLS_ERR_SSL_TIMEOUT,
+                _ => MBEDTLS_ERR_NET_RECV_FAILED,
             }
-            if state.error.as_ref().unwrap().kind() == std::io::ErrorKind::TimedOut {
-                return MBEDTLS_ERR_SSL_TIMEOUT;
-            }
-            MBEDTLS_ERR_NET_RECV_FAILED
         }
     }
 }
@@ -254,12 +252,12 @@ extern "C" fn mbedtls_timing_get_delay<S>(data: *mut c_void) -> c_int {
         ctx.poll_delay(cx);
     }
     let now = Instant::now();
-    if now > *ctx.intermediate.as_ref().unwrap() {
-        log::debug!("intermetidate timer expired");
-        return 2;
-    }
     if now > *ctx.fin.as_ref().unwrap() {
         log::debug!("final timer expired");
+        return 2;
+    }
+    if now > *ctx.intermediate.as_ref().unwrap() {
+        log::debug!("intermetidate timer expired");
         return 1;
     }
     0
