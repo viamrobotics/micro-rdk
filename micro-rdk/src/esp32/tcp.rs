@@ -3,7 +3,8 @@ use async_io::Async;
 
 use esp_idf_svc::sys::{
     esp, esp_tls_cfg, esp_tls_cfg_server, esp_tls_conn_destroy, esp_tls_init,
-    esp_tls_role_ESP_TLS_CLIENT, esp_tls_role_ESP_TLS_SERVER, esp_tls_t, EspError,
+    esp_tls_role_ESP_TLS_CLIENT, esp_tls_role_ESP_TLS_SERVER, esp_tls_t,
+    mbedtls_ssl_conf_read_timeout, EspError,
 };
 use futures_lite::FutureExt;
 use futures_lite::{ready, AsyncRead, AsyncWrite, Future};
@@ -345,6 +346,13 @@ where
             ))
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?
         };
+
+        unsafe {
+            mbedtls_ssl_conf_read_timeout(
+                std::ptr::addr_of_mut!((*(*tls_context)).conf),
+                30 * 1000,
+            );
+        }
         let io = AsyncSSLStream::new(SSLContext::Esp32TLSContext(tls_context), stream).unwrap();
         Ok(Self {
             cfg: Arc::new(cfg),
