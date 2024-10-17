@@ -3,7 +3,10 @@ use std::{convert::Infallible, error::Error, fmt::Debug, rc::Rc, sync::Mutex};
 
 use crate::{common::grpc::ServerError, proto::app::v1::RobotConfig};
 
-use crate::proto::provisioning::v1::{CloudConfig, SetNetworkCredentialsRequest};
+use crate::proto::{
+    app::v1::CertificateResponse,
+    provisioning::v1::{CloudConfig, SetNetworkCredentialsRequest},
+};
 
 #[derive(Clone, Default, Debug)]
 pub struct RobotCredentials {
@@ -75,6 +78,29 @@ impl WifiCredentials {
     }
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct TlsCertificate {
+    pub(crate) certificate: Vec<u8>,
+    pub(crate) private_key: Vec<u8>,
+}
+
+impl From<CertificateResponse> for TlsCertificate {
+    fn from(resp: CertificateResponse) -> Self {
+        Self {
+            certificate: resp.tls_certificate.into_bytes(),
+            private_key: resp.tls_private_key.into_bytes(),
+        }
+    }
+}
+
+pub trait TlsCertificateStorage {
+    type Error: Error + Debug + Into<ServerError>;
+    fn has_tls_certificate(&self) -> bool;
+    fn store_tls_certificate(&self, creds: TlsCertificate) -> Result<(), Self::Error>;
+    fn get_tls_certificate(&self) -> Result<TlsCertificate, Self::Error>;
+    fn reset_tls_certificate(&self) -> Result<(), Self::Error>;
+}
+
 pub trait WifiCredentialStorage {
     type Error: Error + Debug + Into<ServerError>;
     fn has_wifi_credentials(&self) -> bool;
@@ -101,6 +127,7 @@ struct RAMCredentialStorageInner {
     robot_creds: Option<RobotCredentials>,
     robot_config: Option<RobotConfig>,
     wifi_creds: Option<WifiCredentials>,
+    tls_cert: Option<TlsCertificate>,
 }
 
 /// Simple CrendentialStorage made for testing purposes
@@ -113,6 +140,7 @@ impl RAMStorage {
             robot_creds: None,
             robot_config: None,
             wifi_creds: None,
+            tls_cert: None,
         })))
     }
 }
@@ -182,6 +210,29 @@ impl WifiCredentialStorage for RAMStorage {
     fn reset_wifi_credentials(&self) -> Result<(), Self::Error> {
         let mut inner_ref = self.0.lock().unwrap();
         let _ = inner_ref.wifi_creds.take();
+        Ok(())
+    }
+}
+
+impl TlsCertificateStorage for RAMStorage {
+    type Error = Infallible;
+    fn get_tls_certificate(&self) -> Result<TlsCertificate, Self::Error> {
+        let inner_ref = self.0.lock().unwrap();
+        let creds = inner_ref.tls_cert.clone().unwrap_or_default();
+        Ok(creds)
+    }
+    fn has_tls_certificate(&self) -> bool {
+        let inner_ref = self.0.lock().unwrap();
+        inner_ref.tls_cert.is_some()
+    }
+    fn store_tls_certificate(&self, creds: TlsCertificate) -> Result<(), Self::Error> {
+        let mut inner_ref = self.0.lock().unwrap();
+        let _ = inner_ref.tls_cert.insert(creds);
+        Ok(())
+    }
+    fn reset_tls_certificate(&self) -> Result<(), Self::Error> {
+        let mut inner_ref = self.0.lock().unwrap();
+        let _ = inner_ref.tls_cert.take();
         Ok(())
     }
 }
