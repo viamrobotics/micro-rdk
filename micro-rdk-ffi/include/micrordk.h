@@ -215,7 +215,7 @@ enum viam_code get_readings_add_raw_attributes(struct get_readings_context *ctx,
                                                const struct raw_attributes *raw_attrs);
 
 #ifdef __cplusplus
-} // extern "C"
-#endif // __cplusplus
+}  // extern "C"
+#endif  // __cplusplus
 
-#endif /* VIAM_MICRORDK_H */
+#endif  /* VIAM_MICRORDK_H */
