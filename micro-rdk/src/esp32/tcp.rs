@@ -2,8 +2,9 @@ use crate::common::conn::viam::{HTTP2Stream, IntoHttp2Stream, ViamH2Connector};
 use async_io::Async;
 
 use esp_idf_svc::sys::{
-    esp, esp_tls_cfg, esp_tls_cfg_server, esp_tls_conn_destroy, esp_tls_init,
-    esp_tls_role_ESP_TLS_CLIENT, esp_tls_role_ESP_TLS_SERVER, esp_tls_t, EspError,
+    esp, esp_crt_bundle_attach, esp_tls_cfg, esp_tls_cfg_server, esp_tls_conn_destroy,
+    esp_tls_init, esp_tls_role_ESP_TLS_CLIENT, esp_tls_role_ESP_TLS_SERVER, esp_tls_t,
+    mbedtls_ssl_conf_read_timeout, EspError,
 };
 use futures_lite::FutureExt;
 use futures_lite::{ready, AsyncRead, AsyncWrite, Future};
@@ -113,16 +114,13 @@ struct Esp32ClientConfig {
 impl Esp32ClientConfig {
     fn new() -> Self {
         let mut alpn_proto = vec![ALPN_PROTOCOLS.as_ptr() as *const i8, std::ptr::null()];
-        // this is a root certificate to validate the server's certificate
-        let cert = include_bytes!("../../certs/google_gts_root_r1.crt");
-
         let cfg = Box::new(esp_tls_cfg {
             alpn_protos: alpn_proto.as_mut_ptr(),
             __bindgen_anon_1: crate::esp32::esp_idf_svc::sys::esp_tls_cfg__bindgen_ty_1 {
-                cacert_buf: cert.as_ptr(),
+                cacert_buf: std::ptr::null(),
             },
             __bindgen_anon_2: crate::esp32::esp_idf_svc::sys::esp_tls_cfg__bindgen_ty_2 {
-                cacert_bytes: cert.len() as u32,
+                cacert_bytes: 0_u32,
             },
             __bindgen_anon_3: crate::esp32::esp_idf_svc::sys::esp_tls_cfg__bindgen_ty_3 {
                 clientcert_buf: std::ptr::null(),
@@ -144,7 +142,7 @@ impl Esp32ClientConfig {
             skip_common_name: false,
             keep_alive_cfg: std::ptr::null_mut(),
             psk_hint_key: std::ptr::null(),
-            crt_bundle_attach: None,
+            crt_bundle_attach: Some(esp_crt_bundle_attach),
             ds_data: std::ptr::null_mut(),
             if_name: std::ptr::null_mut(),
             is_plain_tcp: false,
