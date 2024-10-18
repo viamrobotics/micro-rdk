@@ -30,9 +30,11 @@ use crate::esp32::esp_idf_svc::sys::{
     mbedtls_ssl_init, mbedtls_ssl_read, mbedtls_ssl_set_bio, mbedtls_ssl_set_timer_cb,
     mbedtls_ssl_setup, mbedtls_ssl_write, mbedtls_x509_crt, mbedtls_x509_crt_free,
     mbedtls_x509_crt_init, mbedtls_x509_crt_parse_der, MBEDTLS_ERR_NET_RECV_FAILED,
-    MBEDTLS_ERR_NET_SEND_FAILED, MBEDTLS_ERR_SSL_WANT_READ, MBEDTLS_ERR_SSL_WANT_WRITE,
-    MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_PRESET_DEFAULT, MBEDTLS_SSL_TRANSPORT_DATAGRAM,
+    MBEDTLS_ERR_NET_SEND_FAILED, MBEDTLS_ERR_SSL_TIMEOUT, MBEDTLS_ERR_SSL_WANT_READ,
+    MBEDTLS_ERR_SSL_WANT_WRITE, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_PRESET_DEFAULT,
+    MBEDTLS_SSL_TRANSPORT_DATAGRAM,
 };
+use async_io::Timer;
 use core::ffi::CStr;
 use futures_lite::{AsyncRead, AsyncWrite, Future};
 use log::{log, Level};
@@ -44,37 +46,16 @@ extern "C" {
     fn mbedtls_debug_set_threshold(level: c_int);
 }
 
-pub struct SslStreamState<S> {
-    pub stream: S,
-    pub error: Option<std::io::Error>,
-}
-
-impl<S> SslStreamState<S>
-where
-    S: Read + Write,
-{
-    fn new(stream: S) -> Self {
-        Self {
-            stream,
-            error: None,
-        }
-    }
-}
-
-unsafe fn state<'a, S: 'a>(ctx: *mut c_void) -> &'a mut SslStreamState<S> {
-    &mut *(ctx as *mut _)
-}
-
-unsafe extern "C" fn mbedtls_net_write<S: Write>(
+unsafe extern "C" fn mbedtls_net_write<S: AsyncWrite>(
     ctx: *mut c_void,
     buf: *const c_uchar,
     len: usize,
 ) -> c_int {
-    let state = state::<S>(ctx);
+    let state = SSLStreamInner::<S>::from_raw(ctx);
 
     let buf = std::slice::from_raw_parts(buf as *const _, len);
 
-    match state.stream.write(buf) {
+    match state.write(buf) {
         Ok(len) => len as c_int,
         Err(e) => {
             let _ = state.error.insert(e);
@@ -86,16 +67,19 @@ unsafe extern "C" fn mbedtls_net_write<S: Write>(
     }
 }
 
-unsafe extern "C" fn mbedtls_net_read<S: Read>(
+unsafe extern "C" fn mbedtls_net_read<S: AsyncRead>(
     ctx: *mut c_void,
     buf: *mut c_uchar,
     len: usize,
 ) -> c_int {
-    let state = state::<S>(ctx);
+    let state = SSLStreamInner::<S>::from_raw(ctx);
+    // we would never want to timeout in this scenario so make sure we cancel any
+    // running timers
+    state.reset_read_timeout();
 
     let buf = std::slice::from_raw_parts_mut(buf as *mut _, len);
 
-    match state.stream.read(buf) {
+    match state.read(buf) {
         Ok(len) => len as c_int,
         Err(e) => {
             let _ = state.error.insert(e);
@@ -107,14 +91,34 @@ unsafe extern "C" fn mbedtls_net_read<S: Read>(
     }
 }
 
-unsafe extern "C" fn mbedtls_net_read_with_timeout<S: Read>(
+unsafe extern "C" fn mbedtls_net_read_with_timeout<S: AsyncRead>(
     ctx: *mut c_void,
     buf: *mut c_uchar,
     len: usize,
-    _: c_uint,
+    timeout: c_uint,
 ) -> c_int {
-    // forward to read, we can't handle tiemout for now
-    mbedtls_net_read::<S>(ctx, buf, len)
+    let state = SSLStreamInner::<S>::from_raw(ctx);
+    if timeout > 0 {
+        state.set_read_timeout(timeout);
+    } else {
+        state.reset_read_timeout();
+    }
+    let buf = std::slice::from_raw_parts_mut(buf as *mut _, len);
+    match state.read(buf) {
+        Ok(len) => {
+            // if operation succeed cancel running timeout
+            state.reset_read_timeout();
+            len as c_int
+        }
+        Err(e) => {
+            let _ = state.error.insert(e);
+            match state.error.as_ref().unwrap().kind() {
+                std::io::ErrorKind::WouldBlock => MBEDTLS_ERR_SSL_WANT_READ,
+                std::io::ErrorKind::TimedOut => MBEDTLS_ERR_SSL_TIMEOUT,
+                _ => MBEDTLS_ERR_NET_RECV_FAILED,
+            }
+        }
+    }
 }
 
 extern "C" fn ssl_debug(
@@ -139,44 +143,121 @@ extern "C" fn ssl_debug(
     log!(level, "[mbedtls] {}:{} - {}", file, line, msg);
 }
 
+#[derive(Debug)]
+enum DelayState {
+    Empty,
+    Intermediate,
+    Fin,
+}
+
+impl Default for DelayState {
+    fn default() -> Self {
+        Self::Empty
+    }
+}
+
 #[derive(Debug, Default)]
 struct Esp32DtlsDelay {
     intermediate: Option<Instant>,
     fin: Option<Instant>,
+    ssl_ctx: Option<*mut mbedtls_ssl_context>,
+    timer: Option<Timer>,
+    state: DelayState,
 }
 
-extern "C" fn mbedtls_timing_dtls_set_delay(
+impl Esp32DtlsDelay {
+    fn set_delay(&mut self, intermediate: Instant, fin: Instant) {
+        let _ = self.intermediate.insert(intermediate);
+        let _ = self.fin.insert(fin);
+        self.state = DelayState::Intermediate;
+        let _ = std::mem::replace(&mut self.timer, Some(Timer::at(intermediate)));
+    }
+    fn poll_delay(&mut self, cx: &mut Context<'_>) {
+        let timer = self.timer.take();
+        let state = std::mem::replace(&mut self.state, DelayState::Empty);
+        if let Some(mut timer) = timer {
+            match Pin::new(&mut timer).poll(cx) {
+                Poll::Pending => {
+                    self.timer = Some(timer);
+                    self.state = state;
+                }
+                Poll::Ready(_) => match state {
+                    DelayState::Empty => unreachable!(),
+                    DelayState::Intermediate => {
+                        self.timer = Some(Timer::at(*self.fin.as_ref().unwrap()));
+                        self.state = DelayState::Fin
+                    }
+                    DelayState::Fin => {}
+                },
+            }
+        }
+    }
+    fn reset_delay(&mut self) {
+        let _ = self.intermediate.take();
+        let _ = self.fin.take();
+        let _ = self.timer.take();
+    }
+    fn get_delay(&self) -> i32 {
+        if self.fin.is_none() {
+            return -1;
+        }
+        let now = Instant::now();
+        if now > *self.intermediate.as_ref().unwrap() {
+            log::debug!("intermetidate timer expired");
+            return 2;
+        }
+        if now > *self.fin.as_ref().unwrap() {
+            log::debug!("final timer expired");
+            return 1;
+        }
+        0
+    }
+}
+
+extern "C" fn mbedtls_timing_dtls_set_delay<S>(
     data: *mut c_void,
     intermediate_ms: c_uint,
     fin_ms: c_uint,
 ) {
     let ctx: &mut Esp32DtlsDelay = unsafe { &mut *(data as *mut _) };
-
     if fin_ms == 0 {
-        ctx.intermediate = None;
-        ctx.fin = None
-    } else {
+        ctx.reset_delay();
+    } else if let Some(ssl_ctx) = ctx.ssl_ctx {
+        let (_, cx) = unsafe {
+            let state = SSLStreamInner::<S>::from_raw((*ssl_ctx).p_bio);
+            state.as_parts()
+        };
+
         let now = Instant::now();
-        let _ = ctx
-            .intermediate
-            .insert(now + Duration::from_millis(intermediate_ms as u64));
-        let _ = ctx.fin.insert(now + Duration::from_millis(fin_ms as u64));
+        ctx.set_delay(
+            now + Duration::from_millis(intermediate_ms as u64),
+            now + Duration::from_millis(fin_ms as u64),
+        );
+        ctx.poll_delay(cx);
     }
 }
 
-extern "C" fn mbedtls_timing_get_delay(data: *mut c_void) -> c_int {
+extern "C" fn mbedtls_timing_get_delay<S>(data: *mut c_void) -> c_int {
     let ctx: &mut Esp32DtlsDelay = unsafe { &mut *(data as *mut _) };
 
     if ctx.fin.is_none() {
         return -1;
     }
-    let now = Instant::now();
-    if now > *ctx.intermediate.as_ref().unwrap() {
-        log::debug!("intermetidate timer expired");
-        return 2;
+
+    if let Some(ssl_ctx) = ctx.ssl_ctx {
+        let (_, cx) = unsafe {
+            let state = SSLStreamInner::<S>::from_raw((*ssl_ctx).p_bio);
+            state.as_parts()
+        };
+        ctx.poll_delay(cx);
     }
+    let now = Instant::now();
     if now > *ctx.fin.as_ref().unwrap() {
         log::debug!("final timer expired");
+        return 2;
+    }
+    if now > *ctx.intermediate.as_ref().unwrap() {
+        log::debug!("intermetidate timer expired");
         return 1;
     }
     0
@@ -216,7 +297,7 @@ impl Drop for DtlsSSLContext {
 }
 
 impl DtlsSSLContext {
-    fn init<S: Certificate>(&mut self, certificate: Rc<S>) -> Result<(), SSLError> {
+    fn init<C: Certificate, S>(&mut self, certificate: Rc<C>) -> Result<(), SSLError> {
         log::debug!("initializing DTLS context");
         unsafe {
             mbedtls_ssl_init(self.ssl_ctx.as_mut());
@@ -334,11 +415,12 @@ impl DtlsSSLContext {
         }
 
         unsafe {
+            self.timer_ctx.ssl_ctx = Some(self.ssl_ctx.as_mut());
             mbedtls_ssl_set_timer_cb(
                 self.ssl_ctx.as_mut(),
                 self.timer_ctx.as_mut() as *mut Esp32DtlsDelay as *mut c_void,
-                Some(mbedtls_timing_dtls_set_delay),
-                Some(mbedtls_timing_get_delay),
+                Some(mbedtls_timing_dtls_set_delay::<S>),
+                Some(mbedtls_timing_get_delay::<S>),
             );
         };
         Ok(())
@@ -426,7 +508,7 @@ impl SSLContext {
     }
 }
 
-pub struct SSLStream<S> {
+pub(crate) struct SSLStream<S> {
     context: SSLContext,
     bio_ptr: *mut c_void,
     _p: PhantomData<S>,
@@ -434,16 +516,16 @@ pub struct SSLStream<S> {
 
 impl<S> Drop for SSLStream<S> {
     fn drop(&mut self) {
-        let _ = unsafe { Box::from_raw(self.bio_ptr as *mut SslStreamState<S>) };
+        let _ = unsafe { Box::from_raw(self.bio_ptr as *mut SSLStreamInner<S>) };
     }
 }
 
 impl<S> SSLStream<S>
 where
-    S: Read + Write,
+    S: AsyncRead + AsyncWrite,
 {
-    pub(crate) fn new(mut context: SSLContext, stream: S) -> Result<Self, SSLError> {
-        let bio_ptr = Box::new(SslStreamState::new(stream));
+    fn new(mut context: SSLContext, stream: S) -> Result<Self, SSLError> {
+        let bio_ptr = Box::new(SSLStreamInner::new(stream));
         let bio_ptr = Box::into_raw(bio_ptr) as *mut c_void;
 
         unsafe {
@@ -452,7 +534,6 @@ where
                 bio_ptr,
                 Some(mbedtls_net_write::<S>),
                 Some(mbedtls_net_read::<S>),
-                // we don't set a read  timeout and mbedtls_net_read_with_timeout forward to mbedtls_net_read
                 Some(mbedtls_net_read_with_timeout::<S>),
             )
         }
@@ -463,12 +544,12 @@ where
         })
     }
 
-    pub(crate) fn get_inner_mut(&mut self) -> &mut S {
-        let state = unsafe { state::<S>(self.bio_ptr) };
-        &mut state.stream
+    fn get_inner_mut(&mut self) -> &mut SSLStreamInner<S> {
+        let state = unsafe { SSLStreamInner::<S>::from_raw(self.bio_ptr) };
+        state
     }
 
-    pub(crate) fn handshake(&mut self) -> Result<(), SSLError> {
+    fn handshake(&mut self) -> Result<(), SSLError> {
         let ret: i32 = unsafe { mbedtls_ssl_handshake(self.context.get_ssl_ctx_ptr()) };
         if ret == 0 {
             Ok(())
@@ -525,7 +606,7 @@ where
 
 impl<S> Read for SSLStream<S>
 where
-    S: Read + Write,
+    S: AsyncRead + AsyncWrite,
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         loop {
@@ -533,7 +614,10 @@ where
                 Ok(n) => return Ok(n),
                 Err(e) => match e {
                     SSLError::SSLWantsRead | SSLError::SSLWantsWrite => {
-                        if let Some(state) = unsafe { state::<S>(self.bio_ptr) }.error.take() {
+                        if let Some(state) = unsafe { SSLStreamInner::<S>::from_raw(self.bio_ptr) }
+                            .error
+                            .take()
+                        {
                             return Err(state);
                         }
                     }
@@ -548,7 +632,7 @@ where
 
 impl<S> Write for SSLStream<S>
 where
-    S: Read + Write,
+    S: AsyncRead + AsyncWrite,
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let mut written = 0;
@@ -562,7 +646,10 @@ where
                 }
                 Err(e) => match e {
                     SSLError::SSLWantsRead | SSLError::SSLWantsWrite => {
-                        if let Some(state) = unsafe { state::<S>(self.bio_ptr) }.error.take() {
+                        if let Some(state) = unsafe { SSLStreamInner::<S>::from_raw(self.bio_ptr) }
+                            .error
+                            .take()
+                        {
                             // When mbedtls returns wants read/write it usually implies that the underlying IO would block.
                             // in this case we need to call ssl_write again with the same arguments a bit later
                             // We are going to return either that we did a partial write if written > 0, or pending otherwise. In the first case it means that whatever wants to write will call again immediately which then will resolve in this function returning pending.
@@ -582,17 +669,34 @@ where
         }
     }
     fn flush(&mut self) -> io::Result<()> {
-        let state = unsafe { state::<S>(self.bio_ptr) };
-        state.stream.flush()
+        let state = unsafe { SSLStreamInner::<S>::from_raw(self.bio_ptr) };
+        state.flush()
     }
 }
 
-struct AsyncInnerStreamWrapper<S> {
+struct SSLStreamInner<S> {
     stream: S,
     context: Option<*mut c_void>,
+    timeout: Option<Timer>,
+    error: Option<std::io::Error>,
 }
-
-impl<S> AsyncInnerStreamWrapper<S>
+impl<S> SSLStreamInner<S> {
+    unsafe fn from_raw<'a>(ctx: *mut c_void) -> &'a mut Self {
+        &mut *(ctx as *mut _)
+    }
+    fn set_read_timeout(&mut self, timeout_ms: u32) {
+        if self.timeout.is_none() {
+            let _ = std::mem::replace(
+                &mut self.timeout,
+                Some(Timer::after(Duration::from_millis(timeout_ms.into()))),
+            );
+        }
+    }
+    fn reset_read_timeout(&mut self) {
+        let _ = self.timeout.take();
+    }
+}
+impl<S> SSLStreamInner<S>
 where
     S: AsyncRead + AsyncWrite,
 {
@@ -600,23 +704,24 @@ where
         Self {
             stream,
             context: None,
+            timeout: None,
+            error: None,
         }
     }
 }
 
-impl<S> AsyncInnerStreamWrapper<S> {
+impl<S> SSLStreamInner<S> {
     unsafe fn as_parts(&mut self) -> (Pin<&mut S>, &mut Context<'_>) {
         debug_assert!(self.context.is_some());
         let c = &mut *(self.context.unwrap() as *mut Context);
         let s = Pin::new_unchecked(&mut self.stream);
-
         (s, c)
     }
 }
 
-impl<S> Write for AsyncInnerStreamWrapper<S>
+impl<S> Write for SSLStreamInner<S>
 where
-    S: AsyncRead + AsyncWrite,
+    S: AsyncWrite,
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let (s, c) = unsafe { self.as_parts() };
@@ -634,32 +739,51 @@ where
     }
 }
 
-impl<S> Read for AsyncInnerStreamWrapper<S>
+impl<S> Read for SSLStreamInner<S>
 where
-    S: AsyncRead + AsyncWrite,
+    S: AsyncRead,
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let mut timeout = self.timeout.take();
         let (s, c) = unsafe { self.as_parts() };
+
         match s.poll_read(c, buf) {
             Poll::Ready(ret) => ret,
-            Poll::Pending => Err(io::Error::from(io::ErrorKind::WouldBlock)),
+            Poll::Pending => {
+                // If underlying I/O would block then we want to check if,
+                // a timeout has been registered if so poll it
+
+                if let Some(timer) = timeout.as_mut() {
+                    match Pin::new(timer).poll(c) {
+                        Poll::Pending => {
+                            self.timeout = timeout;
+                            return Err(io::Error::from(io::ErrorKind::WouldBlock));
+                        }
+                        Poll::Ready(_) => {
+                            log::warn!("ssl_read timed out");
+                            return Err(io::Error::from(io::ErrorKind::TimedOut));
+                        }
+                    }
+                }
+                Err(io::Error::from(io::ErrorKind::WouldBlock))
+            }
         }
     }
 }
 
-pub struct AsyncSSLStream<S>(SSLStream<AsyncInnerStreamWrapper<S>>);
+pub struct AsyncSSLStream<S>(SSLStream<S>);
 
 impl<S> AsyncSSLStream<S>
 where
     S: AsyncRead + AsyncWrite,
 {
     pub(crate) fn new(context: SSLContext, stream: S) -> Result<Self, SSLError> {
-        SSLStream::new(context, AsyncInnerStreamWrapper::new(stream)).map(Self)
+        SSLStream::new(context, stream).map(Self)
     }
 
     fn save_context<F, R>(self: Pin<&mut Self>, ctx: &mut Context<'_>, f: F) -> R
     where
-        F: FnOnce(&mut SSLStream<AsyncInnerStreamWrapper<S>>) -> R,
+        F: FnOnce(&mut SSLStream<S>) -> R,
     {
         let this = unsafe { self.get_unchecked_mut() };
 
@@ -708,7 +832,7 @@ impl<C: Certificate> DtlsConnector for Esp32Dtls<C> {
             MbedTlsStrpProfile::MbedtlsSrtpAes128CmHmacSha180,
             MbedTlsStrpProfile::MbedtlsSrtpUnsetProfile,
         ]);
-        context.init(self.certificate.clone())?;
+        context.init::<_, UdpMux>(self.certificate.clone())?;
         let accept = DtlsAcceptor(TlsHandshake::Handshake(
             AsyncSSLStream::new(SSLContext::DtlsSSLContext(context), transport).unwrap(),
         ));
