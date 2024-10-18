@@ -93,14 +93,6 @@ impl From<CertificateResponse> for TlsCertificate {
     }
 }
 
-pub trait TlsCertificateStorage {
-    type Error: Error + Debug + Into<ServerError>;
-    fn has_tls_certificate(&self) -> bool;
-    fn store_tls_certificate(&self, creds: TlsCertificate) -> Result<(), Self::Error>;
-    fn get_tls_certificate(&self) -> Result<TlsCertificate, Self::Error>;
-    fn reset_tls_certificate(&self) -> Result<(), Self::Error>;
-}
-
 pub trait WifiCredentialStorage {
     type Error: Error + Debug + Into<ServerError>;
     fn has_wifi_credentials(&self) -> bool;
@@ -120,6 +112,11 @@ pub trait RobotConfigurationStorage {
     fn store_robot_configuration(&self, cfg: &RobotConfig) -> Result<(), Self::Error>;
     fn get_robot_configuration(&self) -> Result<RobotConfig, Self::Error>;
     fn reset_robot_configuration(&self) -> Result<(), Self::Error>;
+
+    fn has_tls_certificate(&self) -> bool;
+    fn store_tls_certificate(&self, creds: TlsCertificate) -> Result<(), Self::Error>;
+    fn get_tls_certificate(&self) -> Result<TlsCertificate, Self::Error>;
+    fn reset_tls_certificate(&self) -> Result<(), Self::Error>;
 }
 
 #[derive(Default)]
@@ -189,6 +186,25 @@ impl RobotConfigurationStorage for RAMStorage {
         let _ = self.0.lock().unwrap().robot_config.take();
         Ok(())
     }
+    fn get_tls_certificate(&self) -> Result<TlsCertificate, Self::Error> {
+        let inner_ref = self.0.lock().unwrap();
+        let creds = inner_ref.tls_cert.clone().unwrap_or_default();
+        Ok(creds)
+    }
+    fn has_tls_certificate(&self) -> bool {
+        let inner_ref = self.0.lock().unwrap();
+        inner_ref.tls_cert.is_some()
+    }
+    fn store_tls_certificate(&self, creds: TlsCertificate) -> Result<(), Self::Error> {
+        let mut inner_ref = self.0.lock().unwrap();
+        let _ = inner_ref.tls_cert.insert(creds);
+        Ok(())
+    }
+    fn reset_tls_certificate(&self) -> Result<(), Self::Error> {
+        let mut inner_ref = self.0.lock().unwrap();
+        let _ = inner_ref.tls_cert.take();
+        Ok(())
+    }
 }
 
 impl WifiCredentialStorage for RAMStorage {
@@ -210,29 +226,6 @@ impl WifiCredentialStorage for RAMStorage {
     fn reset_wifi_credentials(&self) -> Result<(), Self::Error> {
         let mut inner_ref = self.0.lock().unwrap();
         let _ = inner_ref.wifi_creds.take();
-        Ok(())
-    }
-}
-
-impl TlsCertificateStorage for RAMStorage {
-    type Error = Infallible;
-    fn get_tls_certificate(&self) -> Result<TlsCertificate, Self::Error> {
-        let inner_ref = self.0.lock().unwrap();
-        let creds = inner_ref.tls_cert.clone().unwrap_or_default();
-        Ok(creds)
-    }
-    fn has_tls_certificate(&self) -> bool {
-        let inner_ref = self.0.lock().unwrap();
-        inner_ref.tls_cert.is_some()
-    }
-    fn store_tls_certificate(&self, creds: TlsCertificate) -> Result<(), Self::Error> {
-        let mut inner_ref = self.0.lock().unwrap();
-        let _ = inner_ref.tls_cert.insert(creds);
-        Ok(())
-    }
-    fn reset_tls_certificate(&self) -> Result<(), Self::Error> {
-        let mut inner_ref = self.0.lock().unwrap();
-        let _ = inner_ref.tls_cert.take();
         Ok(())
     }
 }

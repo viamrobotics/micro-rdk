@@ -7,8 +7,8 @@ use thiserror::Error;
 use crate::{
     common::{
         credentials_storage::{
-            RobotConfigurationStorage, RobotCredentials, TlsCertificate, TlsCertificateStorage,
-            WifiCredentialStorage, WifiCredentials,
+            RobotConfigurationStorage, RobotCredentials, TlsCertificate, WifiCredentialStorage,
+            WifiCredentials,
         },
         grpc::{GrpcError, ServerError},
     },
@@ -167,6 +167,32 @@ impl RobotConfigurationStorage for NVSStorage {
         self.erase_key(NVS_ROBOT_CONFIG_KEY)?;
         Ok(())
     }
+
+    fn has_tls_certificate(&self) -> bool {
+        self.has_blob(NVS_TLS_CERTIFICATE_KEY).unwrap_or(false)
+            && self.has_blob(NVS_TLS_PRIVATE_KEY_KEY).unwrap_or(false)
+    }
+
+    fn get_tls_certificate(&self) -> Result<TlsCertificate, Self::Error> {
+        let certificate = self.get_blob(NVS_TLS_CERTIFICATE_KEY)?;
+        let private_key = self.get_blob(NVS_TLS_PRIVATE_KEY_KEY)?;
+        Ok(TlsCertificate {
+            certificate,
+            private_key,
+        })
+    }
+
+    fn store_tls_certificate(&self, creds: TlsCertificate) -> Result<(), Self::Error> {
+        self.set_blob(NVS_TLS_CERTIFICATE_KEY, Bytes::from(creds.certificate))?;
+        self.set_blob(NVS_TLS_PRIVATE_KEY_KEY, Bytes::from(creds.private_key))?;
+        Ok(())
+    }
+
+    fn reset_tls_certificate(&self) -> Result<(), Self::Error> {
+        self.erase_key(NVS_TLS_CERTIFICATE_KEY)?;
+        self.erase_key(NVS_TLS_PRIVATE_KEY_KEY)?;
+        Ok(())
+    }
 }
 
 impl WifiCredentialStorage for NVSStorage {
@@ -191,35 +217,6 @@ impl WifiCredentialStorage for NVSStorage {
     fn reset_wifi_credentials(&self) -> Result<(), Self::Error> {
         self.erase_key(NVS_WIFI_SSID_KEY)?;
         self.erase_key(NVS_WIFI_PASSWORD_KEY)?;
-        Ok(())
-    }
-}
-
-impl TlsCertificateStorage for NVSStorage {
-    type Error = NVSStorageError;
-    fn has_tls_certificate(&self) -> bool {
-        self.has_blob(NVS_TLS_CERTIFICATE_KEY).unwrap_or(false)
-            && self.has_blob(NVS_TLS_PRIVATE_KEY_KEY).unwrap_or(false)
-    }
-    fn get_tls_certificate(&self) -> Result<TlsCertificate, Self::Error> {
-        let certificate = self.get_blob(NVS_TLS_CERTIFICATE_KEY)?;
-        let private_key = self.get_blob(NVS_TLS_PRIVATE_KEY_KEY)?;
-        Ok(TlsCertificate {
-            certificate,
-            private_key,
-        })
-    }
-    fn store_tls_certificate(&self, creds: TlsCertificate) -> Result<(), Self::Error> {
-        self.set_blob(
-            NVS_TLS_CERTIFICATE_KEY,
-            Bytes::from(creds.certificate.clone()),
-        )?;
-        self.set_blob(NVS_TLS_PRIVATE_KEY_KEY, Bytes::from(creds.private_key))?;
-        Ok(())
-    }
-    fn reset_tls_certificate(&self) -> Result<(), Self::Error> {
-        self.erase_key(NVS_TLS_CERTIFICATE_KEY)?;
-        self.erase_key(NVS_TLS_PRIVATE_KEY_KEY)?;
         Ok(())
     }
 }

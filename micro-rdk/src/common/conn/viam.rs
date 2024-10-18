@@ -14,6 +14,7 @@ use std::future::Future;
 use crate::common::app_client::{
     AppClient, AppClientBuilder, AppClientError, AppSignaling, PeriodicAppClientTask,
 };
+use crate::common::credentials_storage::TlsCertificate;
 use std::marker::PhantomData;
 use std::net::{SocketAddr, TcpListener};
 use std::pin::Pin;
@@ -37,9 +38,7 @@ use crate::common::webrtc::api::WebRtcApi;
 use crate::common::webrtc::certificate::Certificate;
 use crate::common::webrtc::dtls::DtlsBuilder;
 use crate::common::{
-    credentials_storage::{
-        RobotConfigurationStorage, TlsCertificateStorage, WifiCredentialStorage,
-    },
+    credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage},
     exec::Executor,
 };
 use crate::proto;
@@ -88,11 +87,11 @@ impl From<&proto::app::v1::CloudConfig> for RobotCloudConfig {
 }
 
 pub trait ViamServerStorage:
-    RobotConfigurationStorage + WifiCredentialStorage + TlsCertificateStorage + Clone + 'static
+    RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static
 {
 }
 impl<T> ViamServerStorage for T where
-    T: RobotConfigurationStorage + WifiCredentialStorage + TlsCertificateStorage + Clone + 'static
+    T: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static
 {
 }
 
@@ -556,20 +555,35 @@ where
 
         if self.http2_server.has_http2_server() && !self.http2_server_insecure {
             // Try to obtain and store a fresh TLS certificate. If this fails or we cannot reach
-            // app, then we'll end up falling back on whatever TLS certificate was cached
-            if let Some(app) = app_client.as_ref() {
-                if let Ok(cert_resp) = app.get_certificates().await {
-                    match self.storage.store_tls_certificate(cert_resp.into()) {
-                        Ok(_) => log::debug!("storing TLS certificate received by app"),
-                        Err(err) => log::error!("error storing TLS cert: {:?}", err),
-                    };
-                }
+            // app, then we'll end up falling back on whatever TLS certificate was cached. Note:
+            // we're using "if let Some(...) = ..." over calling map on option because a
+            // future cannot be awaited inside a closure (and trying to use OptionFuture or block_on felt messier)
+            let certs = if let Some(app) = app_client.as_ref() {
+                app.get_certificates()
+                    .await
+                    .map(|cert_resp| {
+                        let cert: TlsCertificate = cert_resp.into();
+                        match self.storage.store_tls_certificate(cert.clone()) {
+                            Ok(_) => {
+                                log::debug!("stored TLS certificate received by app");
+                            }
+                            Err(err) => {
+                                log::error!("error storing TLS cert: {:?}", err);
+                            }
+                        }
+                        // even if we fail to store the certificate, proceed
+                        // with the valid certificate obtained by app
+                        Some(cert)
+                    })
+                    .ok()
+            } else {
+                Some(self.storage.get_tls_certificate().ok())
             }
-            let certs = self.storage.get_tls_certificate().ok();
+            .flatten();
 
             match certs {
                 None => {
-                    log::error!("no TLS certificates found in storage or after contacting app");
+                    log::error!("no TLS certificates found in storage or after contacting app, disabling HTTP2 server");
                     // At no point were we ever able to obtain a valid TLS certificate, so we disable HTTP2
                     let _ = std::mem::replace(&mut self.http2_server, HTTP2Server::Empty);
                 }
