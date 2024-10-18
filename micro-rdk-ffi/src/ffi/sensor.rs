@@ -1,7 +1,8 @@
 use micro_rdk::{
     common::{
-        config::Kind,
-        sensor::{GenericReadingsResult, Readings, Sensor, SensorError},
+        config::{ConfigType, Kind},
+        registry::Dependency,
+        sensor::{GenericReadingsResult, Readings, Sensor, SensorError, SensorType},
         status::Status,
     },
     google::protobuf::{value, ListValue, Struct, Value},
@@ -10,24 +11,58 @@ use micro_rdk::{
 use std::{
     collections::HashMap,
     ffi::{c_char, c_int, c_uchar, c_uint, c_void, CStr},
+    sync::{Arc, Mutex},
 };
 
 use super::{
-    config::{config_context, raw_attributes},
+    config::{
+        config_callback, config_context, config_noop, configure, raw_attributes,
+        GenericCResourceConfig,
+    },
     errors::viam_code,
 };
 
 #[allow(non_camel_case_types)]
-type config_callback = extern "C" fn(*mut config_context, *mut c_void, *mut *mut c_void) -> c_int;
-
-#[allow(non_camel_case_types)]
-type get_readings_callback = extern "C" fn(*mut get_readings_context, *mut c_void) -> c_int;
+pub(crate) type get_readings_callback =
+    extern "C" fn(*mut get_readings_context, *mut c_void) -> c_int;
 
 #[allow(non_camel_case_types)]
 pub struct generic_c_sensor_config {
     pub(crate) user_data: *mut c_void,
     pub(crate) config_callback: config_callback,
     pub(crate) get_readings_callback: get_readings_callback,
+}
+
+impl GenericCResourceConfig for generic_c_sensor_config {
+    fn get_user_data_and_config_callback(&mut self) -> (*mut c_void, config_callback) {
+        (self.user_data, self.config_callback)
+    }
+    fn register(
+        sensor: *mut Self,
+        name: &'static str,
+        ctx: &mut super::runtime::viam_server_context,
+    ) -> viam_code {
+        let constructor = Box::new(move |cfg: ConfigType<'_>, _: Vec<Dependency>| {
+            let sensor_config = unsafe { &mut *sensor };
+            let config = config_context { cfg };
+            configure(sensor_config, config)
+                .map(|obj| {
+                    let s = generic_c_sensor {
+                        user_data: obj,
+                        get_readings_callback: sensor_config.get_readings_callback,
+                    };
+                    Arc::new(Mutex::new(s)) as SensorType
+                })
+                .map_err(|_| SensorError::ConfigError(name))
+        });
+        match ctx.registry.register_sensor(name, Box::leak(constructor)) {
+            Ok(_) => viam_code::VIAM_OK,
+            Err(e) => {
+                log::error!("couldn't register sensor {:?}", e);
+                viam_code::VIAM_REGISTRY_ERROR
+            }
+        }
+    }
 }
 
 #[allow(non_camel_case_types)]
@@ -109,12 +144,7 @@ pub unsafe extern "C" fn generic_c_sensor_config_set_readings_callback(
 }
 
 /// cbindgen:ignore
-extern "C" fn config_noop(_: *mut config_context, _: *mut c_void, _: *mut *mut c_void) -> c_int {
-    -1
-}
-
-/// cbindgen:ignore
-extern "C" fn get_readings_noop(_: *mut get_readings_context, _: *mut c_void) -> c_int {
+pub(crate) extern "C" fn get_readings_noop(_: *mut get_readings_context, _: *mut c_void) -> c_int {
     -1
 }
 
@@ -148,7 +178,7 @@ impl Status for generic_c_sensor {
 
 #[allow(non_camel_case_types)]
 pub struct get_readings_context {
-    readings: GenericReadingsResult,
+    pub(crate) readings: GenericReadingsResult,
 }
 
 /// This function can be use by a sensor during the call to `get_readings_callback` to add binary data to a response
