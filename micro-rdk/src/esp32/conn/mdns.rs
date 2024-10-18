@@ -1,3 +1,5 @@
+// TODO(RSDK-8993): Obtain this from the esp-idf component registry so
+// we can upgrade `esp-idf-svc`.
 use crate::esp32::esp_idf_svc::mdns::EspMdns;
 
 use crate::common::conn::mdns::{Mdns, MdnsError};
