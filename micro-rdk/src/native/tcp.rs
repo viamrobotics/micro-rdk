@@ -70,6 +70,9 @@ impl ViamH2Connector for NativeH2Connector {
             return Ok(Box::pin(NativeStreamInsecureAcceptor(Some(stream))));
         }
         let mut root_certs = RootCertStore::empty();
+
+        // TODO(RSDK-8995): Stop using deprecated API here.
+        #[allow(deprecated)]
         root_certs.add_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
             OwnedTrustAnchor::from_subject_spki_name_constraints(
                 ta.subject,

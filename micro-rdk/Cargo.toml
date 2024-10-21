@@ -63,7 +63,6 @@ futures-lite.workspace = true
 futures-util.workspace = true
 http-body-util.workspace = true
 hyper.workspace = true
-ignore.workspace = true
 lazy_static.workspace = true
 log.workspace = true
 micro-rdk-macros.workspace = true
