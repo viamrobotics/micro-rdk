@@ -5,7 +5,7 @@ use crate::esp32::esp_idf_svc::hal::gpio::{
 };
 use crate::esp32::esp_idf_svc::sys::{
     esp, gpio_install_isr_service, gpio_isr_handler_add, ESP_INTR_FLAG_IRAM,
-    SOC_GPIO_VALID_DIGITAL_IO_PAD_MASK,
+    SOC_GPIO_VALID_OUTPUT_GPIO_MASK,
 };
 use once_cell::sync::{Lazy, OnceCell};
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -34,15 +34,15 @@ fn install_gpio_isr_service() -> Result<(), BoardError> {
     Ok(())
 }
 
-// Since C macros are not usable in Rust via FFI, we cannot GPIO_IS_VALID_DIGITAL_IO_PAD from
+// Since C macros are not usable in Rust via FFI, we cannot GPIO_IS_VALID_OUTPUT_GPIO from
 // ESP-IDF, so we must replicate the logic from that function here. If we do not validate,
 // PinDriver::input_output will panic because esp-idf-hal does not perform the same check
 fn is_valid_gpio_pin(pin: i32) -> Result<(), BoardError> {
     // Do this masking in 64-bit space because it works for both esp32
     // where the mask is 32 bits and esp32s3 where it is 64.
-    match (1_u64 << (pin as u64)) & (SOC_GPIO_VALID_DIGITAL_IO_PAD_MASK as u64) {
-        0 => Ok(()),
-        _ => Err(BoardError::InvalidGpioNumber(pin as u32)),
+    match (1_u64 << (pin as u64)) & (SOC_GPIO_VALID_OUTPUT_GPIO_MASK as u64) {
+        0 => Err(BoardError::InvalidGpioNumber(pin as u32)),
+        _ => Ok(()),
     }
 }
 
