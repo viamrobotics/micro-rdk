@@ -106,6 +106,9 @@ pub struct LocalRobot {
     // is NOT a valid timestamp. For actual timestamps, the real time should be set on the system
     // at some point using settimeofday (or something equivalent) and referenced thereof.
     pub(crate) start_time: Instant,
+    org_id: String,
+    location_id: String,
+    machine_id: String,
 }
 
 #[derive(Error, Debug)]
@@ -170,6 +173,9 @@ impl LocalRobot {
             start_time: Instant::now(),
             executor: Default::default(),
             part_id: Default::default(),
+            org_id: Default::default(),
+            location_id: Default::default(),
+            machine_id: Default::default(),
             resources: Default::default(),
             build_time: Default::default(),
             data_manager_collection_task: Default::default(),
@@ -254,6 +260,9 @@ impl LocalRobot {
         let mut robot = LocalRobot {
             executor: exec,
             part_id,
+            org_id: Default::default(),
+            location_id: Default::default(),
+            machine_id: Default::default(),
             resources: ResourceMap::new(),
             // Use date time pulled off gRPC header as the `build_time` returned in the status of
             // every resource as `last_reconfigured`.
@@ -265,6 +274,11 @@ impl LocalRobot {
             data_manager_collection_task: None,
             start_time: Instant::now(),
         };
+        if let Some(cloud_cfg) = config.cloud.as_ref() {
+            robot.org_id = cloud_cfg.primary_org_id.clone();
+            robot.location_id = cloud_cfg.location_id.clone();
+            robot.machine_id = cloud_cfg.machine_id.clone();
+        }
 
         let components: Result<Vec<Option<DynamicComponentConfig>>, AttributeError> = config
             .components
@@ -866,6 +880,16 @@ impl LocalRobot {
             return Err(RobotError::RobotActuatorError(stop_errors.pop().unwrap()));
         }
         Ok(())
+    }
+
+    pub fn get_cloud_metadata(&self) -> robot::v1::GetCloudMetadataResponse {
+        robot::v1::GetCloudMetadataResponse {
+            machine_part_id: self.part_id.clone(),
+            primary_org_id: self.org_id.clone(),
+            location_id: self.location_id.clone(),
+            machine_id: self.machine_id.clone(),
+            ..Default::default()
+        }
     }
 }
 
