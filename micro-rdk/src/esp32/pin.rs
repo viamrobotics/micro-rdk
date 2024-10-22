@@ -40,7 +40,7 @@ fn install_gpio_isr_service() -> Result<(), BoardError> {
 fn is_valid_gpio_pin(pin: i32) -> Result<(), BoardError> {
     // Do this masking in 64-bit space because it works for both esp32
     // where the mask is 32 bits and esp32s3 where it is 64.
-    match (1_u64 << (pin as u64)) & (SOC_GPIO_VALID_OUTPUT_GPIO_MASK as u64) {
+    match (1_u64 << (pin as u64)) & SOC_GPIO_VALID_OUTPUT_GPIO_MASK {
         0 => Err(BoardError::InvalidGpioNumber(pin as u32)),
         _ => Ok(()),
     }
