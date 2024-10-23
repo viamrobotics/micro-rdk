@@ -36,8 +36,8 @@ pub enum DataStoreError {
     EncodingError(#[from] EncodeError),
     #[error("Maximum allowed capacity (64 KB) across data collectors exceeded")]
     MaxAllowedCapacity,
-    #[error("SensorDataTooLarge")]
-    DataTooLarge,
+    #[error("Message for collector {0} was {1} bytes, exceeding allowed capacity of {2} bytes")]
+    DataTooLarge(ResourceMethodKey, usize, usize),
     #[error("Data write failure")]
     DataWriteFailure,
     #[error("Buffer full")]
@@ -253,8 +253,13 @@ impl DataStore for DefaultDataStore {
         }
         let encode_len = message.encoded_len();
         let total_encode_len = length_delimiter_len(encode_len) + encode_len;
-        if encode_len > buffer.capacity() {
-            return Err(DataStoreError::DataTooLarge);
+        let buffer_capacity = buffer.capacity();
+        if encode_len > buffer_capacity {
+            return Err(DataStoreError::DataTooLarge(
+                collector_key.clone(),
+                encode_len,
+                buffer_capacity,
+            ));
         }
         while total_encode_len > buffer.vacant_len() {
             if !matches!(write_mode, WriteMode::OverwriteOldest) {
@@ -777,9 +782,11 @@ mod tests {
             data: Some(data),
         };
 
-        assert!(matches!(
-            data_store.write_message(&thing_key, message, WriteMode::OverwriteOldest),
-            Err(DataStoreError::DataTooLarge)
-        ));
+        let encountered_data_too_large_err =
+            match data_store.write_message(&thing_key, message, WriteMode::OverwriteOldest) {
+                Err(DataStoreError::DataTooLarge(_, _, _)) => true,
+                _ => false,
+            };
+        assert!(encountered_data_too_large_err);
     }
 }
