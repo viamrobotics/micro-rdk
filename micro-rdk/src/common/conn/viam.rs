@@ -536,24 +536,28 @@ where
 
         #[cfg(feature = "ota")]
         {
-            log::info!("ota feature enabled");
+            use crate::esp32::ota;
+
+            log::debug!("ota feature enabled");
+
             if let Some(service) = config
                 .services
                 .iter()
-                .find(|&service| service.model == "rdk:builtin:ota_service")
+                .find(|&service| service.model == ota::OTA_MODEL_TRIPLET)
             {
                 log::info!("service config: {:#?}", service);
-                let mut ota = crate::esp32::ota::OtaService::new(&service);
+                let mut ota = ota::OtaService::new(&service);
                 log::info!("OtaService: {:?}", ota);
-                if ota.needs_update() {
-                    if let Err(e) = ota.update() {
-                        log::error!("failed to update ota partitions: {:?}", e);
-                    } else {
-                        log::info!("ota update succeeded");
-                    }
+                if let Err(e) = ota.update().await {
+                    log::error!("ota failed: {:?}", e);
+                } else {
+                    log::info!("ota succeeded");
                 }
             } else {
-                log::info!("no service of type `ota_service` found in robot config");
+                log::info!(
+                    "no service of type `{}` found in robot config",
+                    ota::OTA_MODEL_TYPE
+                );
             }
         }
 
