@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 use std::{convert::Infallible, error::Error, fmt::Debug, rc::Rc, sync::Mutex};
 
+use hyper::Uri;
+
 use crate::{common::grpc::ServerError, proto::app::v1::RobotConfig};
 
 use crate::proto::{
@@ -12,13 +14,15 @@ use crate::proto::{
 pub struct RobotCredentials {
     pub(crate) robot_id: String,
     pub(crate) robot_secret: String,
+    pub(crate) app_address: String,
 }
 
 impl RobotCredentials {
-    pub fn new(robot_id: String, robot_secret: String) -> Self {
+    pub fn new(robot_id: String, robot_secret: String, app_address: String) -> Self {
         Self {
             robot_secret,
             robot_id,
+            app_address,
         }
     }
 
@@ -28,6 +32,10 @@ impl RobotCredentials {
 
     pub(crate) fn robot_secret(&self) -> &str {
         &self.robot_secret
+    }
+
+    pub(crate) fn app_address(&self) -> Uri {
+        self.app_address.parse::<Uri>().unwrap()
     }
 }
 
@@ -46,6 +54,7 @@ impl From<CloudConfig> for RobotCredentials {
         Self {
             robot_id: value.id,
             robot_secret: value.secret,
+            app_address: value.app_address,
         }
     }
 }
@@ -53,7 +62,7 @@ impl From<CloudConfig> for RobotCredentials {
 impl From<RobotCredentials> for CloudConfig {
     fn from(value: RobotCredentials) -> Self {
         Self {
-            app_address: "".to_string(),
+            app_address: value.app_address,
             id: value.robot_id,
             secret: value.robot_secret,
         }

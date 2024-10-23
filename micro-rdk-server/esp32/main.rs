@@ -4,6 +4,7 @@ mod esp32 {
     const PASS: Option<&str> = option_env!("MICRO_RDK_WIFI_PASSWORD");
     const ROBOT_ID: Option<&str> = option_env!("MICRO_RDK_ROBOT_ID");
     const ROBOT_SECRET: Option<&str> = option_env!("MICRO_RDK_ROBOT_SECRET");
+    const ROBOT_APP_ADDRESS: Option<&str> = option_env!("MICRO_RDK_ROBOT_APP_ADDRESS");
 
     use std::rc::Rc;
 
@@ -91,13 +92,14 @@ mod esp32 {
 
         if !storage.has_robot_configuration() {
             // check if any were statically compiled
-            if ROBOT_ID.is_some() && ROBOT_SECRET.is_some() {
+            if ROBOT_ID.is_some() && ROBOT_SECRET.is_some() && ROBOT_APP_ADDRESS.is_some() {
                 log::info!("Storing static values from build time robot configuration to NVS");
                 storage
                     .store_robot_credentials(
                         RobotCredentials::new(
                             ROBOT_ID.unwrap().to_string(),
                             ROBOT_SECRET.unwrap().to_string(),
+                            ROBOT_APP_ADDRESS.unwrap().to_string(),
                         )
                         .into(),
                     )
