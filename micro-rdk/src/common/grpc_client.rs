@@ -8,8 +8,12 @@ use http_body_util::BodyExt;
 use hyper::body::{Body, Incoming};
 use hyper::client::conn::http2::SendRequest;
 use hyper::header::HeaderMap;
+use hyper::http::{
+    status,
+    uri::{InvalidUri, InvalidUriParts, PathAndQuery},
+};
 use hyper::rt::{self, Sleep};
-use hyper::{http::status, Method, Request};
+use hyper::{Method, Request, Uri};
 
 use async_executor::Task;
 use std::pin::Pin;
@@ -37,6 +41,10 @@ pub enum GrpcClientError {
     GrpcError { code: i8, message: String },
     #[error(transparent)]
     ErrorSendingToAStream(#[from] async_channel::SendError<Bytes>),
+    #[error(transparent)]
+    InvalidUriParts(#[from] InvalidUriParts),
+    #[error(transparent)]
+    InvalidUri(#[from] InvalidUri),
     #[error("frame error {0}")]
     FrameError(String),
 }
@@ -188,7 +196,7 @@ pub struct GrpcClient {
     http2_connection: SendRequest<BoxBody<Bytes, hyper::Error>>,
     #[allow(dead_code)]
     http2_task: Option<Task<()>>,
-    uri: String,
+    uri: Uri,
 }
 
 struct AsyncioSleep(Timer);
@@ -232,7 +240,7 @@ impl rt::Timer for H2Timer {
 }
 
 impl GrpcClient {
-    pub async fn new<T>(io: T, executor: Executor, uri: &str) -> Result<GrpcClient, GrpcClientError>
+    pub async fn new<T>(io: T, executor: Executor, uri: Uri) -> Result<GrpcClient, GrpcClientError>
     where
         T: rt::Read + rt::Write + Unpin + 'static,
     {
@@ -256,7 +264,7 @@ impl GrpcClient {
             executor,
             http2_connection,
             http2_task: Some(http2_task),
-            uri: uri.to_string(),
+            uri,
         })
     }
 
@@ -267,8 +275,24 @@ impl GrpcClient {
         rpc_host: &str,
         body: B,
     ) -> Result<Request<B>, GrpcClientError> {
-        let mut uri = self.uri.to_owned();
-        uri.push_str(path);
+        let mut uri_base_parts = self.uri.clone().into_parts();
+        uri_base_parts.path_and_query = match uri_base_parts.path_and_query {
+            Some(p) => {
+                if p.path() == "/" {
+                    Ok::<std::option::Option<PathAndQuery>, InvalidUri>(Some(
+                        path.parse::<PathAndQuery>()?,
+                    ))
+                } else {
+                    Ok::<std::option::Option<PathAndQuery>, InvalidUri>(Some(
+                        format!("{}{}", p.path(), path).parse::<PathAndQuery>()?,
+                    ))
+                }
+            }
+            None => Ok::<std::option::Option<PathAndQuery>, InvalidUri>(Some(
+                path.parse::<PathAndQuery>()?,
+            )),
+        }?;
+        let uri = Uri::from_parts(uri_base_parts)?;
 
         let mut r = Request::builder()
             .method(Method::POST)
@@ -378,7 +402,7 @@ mod tests {
         header::CONTENT_TYPE,
         server::conn::http2,
         service::service_fn,
-        Request, Response,
+        Request, Response, Uri,
     };
     use std::{
         net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream},
@@ -482,7 +506,7 @@ mod tests {
                     })))
                     .unwrap(),
             ),
-            _ => panic!("unimplemented"),
+            x => panic!("unimplemented path {:?}", x),
         };
         r
     }
@@ -508,7 +532,10 @@ mod tests {
         assert!(tcp_client.is_ok());
         let tcp_client = tcp_client.unwrap();
         let tcp_stream = NativeStream::LocalPlain(tcp_client);
-        let client = GrpcClient::new(tcp_stream, exec, "http://localhost").await;
+        let uri = "http://localhost".parse::<Uri>();
+        assert!(uri.is_ok());
+        let uri = uri.unwrap();
+        let client = GrpcClient::new(tcp_stream, exec, uri).await;
         assert!(client.is_ok());
         let client = client.unwrap();
 

@@ -635,12 +635,6 @@ where
     }
 
     async fn connect_to_app(&self) -> Result<AppClient, AppClientError> {
-        //ugly hack to remove last /
-        //needs to change that but would need to update GrpcClient
-        let uri = self.app_uri.to_string();
-        let mut chars = uri.chars();
-        chars.next_back();
-        let uri = chars.as_str();
         let robot_creds = self.storage.get_robot_credentials().unwrap();
         let app_client_io = self
             .http2_connector
@@ -648,14 +642,16 @@ where
             .map_err(AppClientError::AppClientIoError)?
             .await
             .map_err(AppClientError::AppClientIoError)?;
-        let grpc_client = GrpcClient::new(app_client_io, self.executor.clone(), uri)
-            .await
-            .map_err(AppClientError::AppGrpcClientError)?;
+        let grpc_client =
+            GrpcClient::new(app_client_io, self.executor.clone(), self.app_uri.clone())
+                .await
+                .map_err(AppClientError::AppGrpcClientError)?;
 
         AppClientBuilder::new(Box::new(grpc_client), robot_creds.clone())
             .build()
             .await
     }
+    
     // run task forever reconnecting on demand
     // if a task returns an error, the app client will be dropped
     async fn run_app_client_tasks(
