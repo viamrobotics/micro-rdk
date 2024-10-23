@@ -6,3 +6,4 @@ Cargo.lock
 .vscode
 components_esp32*.lock
 .envrc
+/build

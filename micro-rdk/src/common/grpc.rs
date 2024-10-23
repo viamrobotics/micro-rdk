@@ -1333,7 +1333,12 @@ impl<'a> GrpcServerInner<'a> {
     }
 
     fn robot_get_cloud_metadata(&mut self) -> Result<Bytes, ServerError> {
-        let resp = self.robot.lock().unwrap().get_cloud_metadata();
+        let resp = self
+            .robot
+            .lock()
+            .unwrap()
+            .get_cloud_metadata()
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         self.encode_message(resp)
     }
 

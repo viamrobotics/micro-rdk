@@ -93,6 +93,13 @@ impl ResourceType {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct CloudMetadata {
+    org_id: String,
+    location_id: String,
+    machine_id: String,
+}
+
 pub struct LocalRobot {
     pub(crate) part_id: String,
     resources: ResourceMap,
@@ -106,9 +113,7 @@ pub struct LocalRobot {
     // is NOT a valid timestamp. For actual timestamps, the real time should be set on the system
     // at some point using settimeofday (or something equivalent) and referenced thereof.
     pub(crate) start_time: Instant,
-    org_id: String,
-    location_id: String,
-    machine_id: String,
+    cloud_metadata: Option<CloudMetadata>,
 }
 
 #[derive(Error, Debug)]
@@ -133,6 +138,8 @@ pub enum RobotError {
     RobotActuatorError(#[from] ActuatorError),
     #[error("resource not found with name {0} and component_type {1}")]
     ResourceNotFound(String, String),
+    #[error("missing cloud metadata")]
+    RobotMissingCloudMetadata,
     #[cfg(feature = "data")]
     #[error(transparent)]
     DataCollectorInitError(#[from] DataCollectionError),
@@ -173,9 +180,7 @@ impl LocalRobot {
             start_time: Instant::now(),
             executor: Default::default(),
             part_id: Default::default(),
-            org_id: Default::default(),
-            location_id: Default::default(),
-            machine_id: Default::default(),
+            cloud_metadata: None,
             resources: Default::default(),
             build_time: Default::default(),
             data_manager_collection_task: Default::default(),
@@ -260,9 +265,11 @@ impl LocalRobot {
         let mut robot = LocalRobot {
             executor: exec,
             part_id,
-            org_id: Default::default(),
-            location_id: Default::default(),
-            machine_id: Default::default(),
+            cloud_metadata: config.cloud.as_ref().map(|cfg| CloudMetadata {
+                org_id: cfg.primary_org_id.clone(),
+                location_id: cfg.location_id.clone(),
+                machine_id: cfg.machine_id.clone(),
+            }),
             resources: ResourceMap::new(),
             // Use date time pulled off gRPC header as the `build_time` returned in the status of
             // every resource as `last_reconfigured`.
@@ -274,11 +281,6 @@ impl LocalRobot {
             data_manager_collection_task: None,
             start_time: Instant::now(),
         };
-        if let Some(cloud_cfg) = config.cloud.as_ref() {
-            robot.org_id = cloud_cfg.primary_org_id.clone();
-            robot.location_id = cloud_cfg.location_id.clone();
-            robot.machine_id = cloud_cfg.machine_id.clone();
-        }
 
         let components: Result<Vec<Option<DynamicComponentConfig>>, AttributeError> = config
             .components
@@ -882,14 +884,17 @@ impl LocalRobot {
         Ok(())
     }
 
-    pub fn get_cloud_metadata(&self) -> robot::v1::GetCloudMetadataResponse {
-        robot::v1::GetCloudMetadataResponse {
-            machine_part_id: self.part_id.clone(),
-            primary_org_id: self.org_id.clone(),
-            location_id: self.location_id.clone(),
-            machine_id: self.machine_id.clone(),
-            ..Default::default()
-        }
+    pub fn get_cloud_metadata(&self) -> Result<robot::v1::GetCloudMetadataResponse, RobotError> {
+        self.cloud_metadata
+            .as_ref()
+            .ok_or(RobotError::RobotMissingCloudMetadata)
+            .map(|md| robot::v1::GetCloudMetadataResponse {
+                machine_part_id: self.part_id.clone(),
+                primary_org_id: md.org_id.clone(),
+                location_id: md.location_id.clone(),
+                machine_id: md.machine_id.clone(),
+                ..Default::default()
+            })
     }
 }
 
