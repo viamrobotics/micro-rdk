@@ -5,7 +5,7 @@
 use crate::proto::app::data_sync::v1::SensorData;
 use bytes::{Buf, BufMut, BytesMut};
 use prost::{encoding::decode_varint, length_delimiter_len, DecodeError, EncodeError, Message};
-use ringbuf::{ring_buffer::RbBase, Consumer, LocalRb, Producer};
+use ringbuf::{ring_buffer::RbBase, Consumer, LocalRb, Producer, Rb};
 use scopeguard::defer;
 use std::{
     mem::MaybeUninit,
@@ -253,7 +253,9 @@ impl DataStore for DefaultDataStore {
         }
         let encode_len = message.encoded_len();
         let total_encode_len = length_delimiter_len(encode_len) + encode_len;
-
+        if encode_len > buffer.capacity() {
+            return Err(DataStoreError::DataTooLarge);
+        }
         while total_encode_len > buffer.vacant_len() {
             if !matches!(write_mode, WriteMode::OverwriteOldest) {
                 return Err(DataStoreError::DataBufferFull(collector_key.clone()));
@@ -305,6 +307,7 @@ impl DataStore for DefaultDataStore {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::time::Instant;
 
     use crate::common::data_collector::{CollectionMethod, ResourceMethodKey};
     use crate::common::data_store::DataStore;
@@ -316,6 +319,8 @@ mod tests {
     use crate::proto::app::data_sync::v1::sensor_data::Data;
     use crate::proto::app::data_sync::v1::{SensorData, SensorMetadata};
     use prost::{length_delimiter_len, Message};
+    use rand::distributions::Alphanumeric;
+    use rand::Rng;
 
     #[test_log::test]
     fn test_data_store() {
@@ -718,5 +723,63 @@ mod tests {
             );
             assert!(res.is_ok());
         }
+    }
+
+    #[test_log::test]
+    fn test_error_on_message_too_large() {
+        use crate::google::protobuf::value::Kind::{StringValue, StructValue};
+        let thing_key = ResourceMethodKey {
+            r_name: "thing".to_string(),
+            component_type: "rdk::component::sensor".to_string(),
+            method: CollectionMethod::Readings,
+        };
+        let collector_keys = vec![(thing_key.clone(), 8000)];
+        let data_store = super::DefaultDataStore::new(collector_keys);
+        assert!(data_store.is_ok());
+        let mut data_store = data_store.unwrap();
+
+        let time = Instant::now();
+        let mut fields = HashMap::new();
+        for i in 0..100 {
+            let value: String = rand::thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(300)
+                .map(char::from)
+                .collect();
+            fields.insert(
+                format!("thingo-{i}"),
+                Value {
+                    kind: Some(StringValue(value)),
+                },
+            );
+        }
+
+        let inner_data = HashMap::from([(
+            "readings".to_string(),
+            Value {
+                kind: Some(StructValue(Struct { fields })),
+            },
+        )]);
+
+        let reading_received_ts = time.elapsed();
+        let data = Data::Struct(Struct { fields: inner_data });
+        let message = SensorData {
+            metadata: Some(SensorMetadata {
+                time_received: Some(Timestamp {
+                    seconds: reading_received_ts.as_secs() as i64,
+                    nanos: reading_received_ts.subsec_nanos() as i32,
+                }),
+                time_requested: Some(Timestamp {
+                    seconds: reading_received_ts.as_secs() as i64,
+                    nanos: reading_received_ts.subsec_nanos() as i32,
+                }),
+            }),
+            data: Some(data),
+        };
+
+        assert!(matches!(
+            data_store.write_message(&thing_key, message, WriteMode::OverwriteOldest),
+            Err(DataStoreError::DataTooLarge)
+        ));
     }
 }
