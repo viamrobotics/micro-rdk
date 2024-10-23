@@ -276,22 +276,10 @@ impl GrpcClient {
         body: B,
     ) -> Result<Request<B>, GrpcClientError> {
         let mut uri_base_parts = self.uri.clone().into_parts();
-        uri_base_parts.path_and_query = match uri_base_parts.path_and_query {
-            Some(p) => {
-                if p.path() == "/" {
-                    Ok::<std::option::Option<PathAndQuery>, InvalidUri>(Some(
-                        path.parse::<PathAndQuery>()?,
-                    ))
-                } else {
-                    Ok::<std::option::Option<PathAndQuery>, InvalidUri>(Some(
-                        format!("{}{}", p.path(), path).parse::<PathAndQuery>()?,
-                    ))
-                }
-            }
-            None => Ok::<std::option::Option<PathAndQuery>, InvalidUri>(Some(
-                path.parse::<PathAndQuery>()?,
-            )),
-        }?;
+        // we assume here that the API does not support nesting paths
+        // like /SomeOrg/proto.rpc.v1.AuthService/Authenticate and simply
+        // replace whatever existing path is there on the Uri instance with `path`
+        uri_base_parts.path_and_query = Some(path.parse::<PathAndQuery>()?);
         let uri = Uri::from_parts(uri_base_parts)?;
 
         let mut r = Request::builder()

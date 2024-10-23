@@ -651,7 +651,7 @@ where
             .build()
             .await
     }
-    
+
     // run task forever reconnecting on demand
     // if a task returns an error, the app client will be dropped
     async fn run_app_client_tasks(
