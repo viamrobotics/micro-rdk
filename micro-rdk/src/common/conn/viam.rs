@@ -546,18 +546,19 @@ where
                 .find(|&service| service.model == ota::OTA_MODEL_TRIPLET)
             {
                 log::info!("service config: {:#?}", service);
-                let mut ota = ota::OtaService::new(&service);
-                log::info!("OtaService: {:?}", ota);
-                if let Err(e) = ota.update().await {
-                    log::error!("ota failed: {:?}", e);
+                if let Ok(mut ota) = ota::OtaService::from_config(&service) {
+                    log::info!("OtaService: {:?}", ota);
+                    if let Err(e) = ota.update().await {
+                        log::error!("ota failed: {:?}", e);
+                    } else {
+                        log::info!("ota succeeded");
+                    }
                 } else {
-                    log::info!("ota succeeded");
+                    log::info!(
+                        "no service of type `{}` found in robot config",
+                        ota::OTA_MODEL_TYPE
+                    );
                 }
-            } else {
-                log::info!(
-                    "no service of type `{}` found in robot config",
-                    ota::OTA_MODEL_TYPE
-                );
             }
         }
 
