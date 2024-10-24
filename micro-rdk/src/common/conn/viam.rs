@@ -545,9 +545,9 @@ where
                 .iter()
                 .find(|&service| service.model == ota::OTA_MODEL_TRIPLET)
             {
-                log::info!("service config: {:#?}", service);
+                log::debug!("service config: {:#?}", service);
                 if let Ok(mut ota) = ota::OtaService::from_config(&service) {
-                    log::info!("OtaService: {:?}", ota);
+                    log::debug!("OtaService: {:?}", ota);
                     if let Err(e) = ota.update().await {
                         log::error!("ota failed: {:?}", e);
                     } else {
