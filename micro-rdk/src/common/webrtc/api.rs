@@ -5,13 +5,18 @@ use std::{
     net::{Ipv4Addr, UdpSocket},
     pin::Pin,
     rc::Rc,
-    sync::{atomic::AtomicBool, Arc},
+    sync::{atomic::AtomicBool, Arc, Mutex},
     task::Poll,
     time::Duration,
 };
 
 use crate::{
-    common::grpc_client::{GrpcClientError, GrpcMessageSender, GrpcMessageStream},
+    common::{
+        conn::{errors::ServerError, server::WebRTCConnection},
+        grpc::GrpcServer,
+        grpc_client::{GrpcClientError, GrpcMessageSender, GrpcMessageStream},
+        robot::LocalRobot,
+    },
     google::rpc::{Code, Status},
     proto::rpc::webrtc::v1::{
         answer_request, answer_response, AnswerRequest, AnswerResponse, AnswerResponseDoneStage,
@@ -39,6 +44,7 @@ use super::{
     certificate::Certificate,
     dtls::DtlsConnector,
     exec::WebRtcExecutor,
+    grpc::{WebRtcGrpcBody, WebRtcGrpcServer},
     ice::{ICEAgent, ICECredentials},
     io::WebRtcTransport,
     sctp::{Channel, SctpConnector, SctpHandle},
@@ -79,7 +85,23 @@ pub enum WebRtcError {
 pub(crate) struct WebRtcSignalingChannel {
     signaling_tx: GrpcMessageSender<AnswerResponse>,
     signaling_rx: GrpcMessageStream<AnswerRequest>,
-    engine: general_purpose::GeneralPurpose,
+    engine: Box<general_purpose::GeneralPurpose>,
+    _guard: async_lock::SemaphoreGuardArc,
+}
+
+impl WebRtcSignalingChannel {
+    pub(crate) fn new(
+        signaling_tx: GrpcMessageSender<AnswerResponse>,
+        signaling_rx: GrpcMessageStream<AnswerRequest>,
+        guard: async_lock::SemaphoreGuardArc,
+    ) -> Self {
+        Self {
+            signaling_tx,
+            signaling_rx,
+            engine: general_purpose::STANDARD.into(),
+            _guard: guard,
+        }
+    }
 }
 
 impl Drop for WebRtcSignalingChannel {
@@ -162,9 +184,19 @@ impl Future for AtomicSync {
 impl WebRtcSignalingChannel {
     /// The function waits for an Offer to be made, once received a user should poll for candidate using next_remote_candidate
     /// the function will ignore Stage::Update
-    pub(crate) async fn wait_sdp_offer(&mut self) -> Result<WebRtcSdp, WebRtcError> {
+    pub(crate) async fn wait_sdp_offer(&mut self) -> Result<Box<WebRtcSdp>, WebRtcError> {
         loop {
-            match self.signaling_rx.next().await {
+            // Once the headers have been sent by the sever we expect the first messages to show up on the channel rather quickly
+            // if not then we should consider signaling to be disconnected
+            let res = self
+                .signaling_rx
+                .next()
+                .or(async {
+                    let _ = Timer::after(Duration::from_secs(30)).await;
+                    None
+                })
+                .await;
+            match res {
                 None => {
                     return Err(WebRtcError::SignalingDisconnected());
                 }
@@ -193,7 +225,7 @@ impl WebRtcSignalingChannel {
                                 let mut cursor = Cursor::new(sdp_decoded.sdp);
                                 let sdp = sdp::SessionDescription::unmarshal(&mut cursor)
                                     .map_err(|e| WebRtcError::InvalidSDPOffer(e.to_string()))?;
-                                return Ok(WebRtcSdp::new(sdp, req.uuid));
+                                return Ok(Box::new(WebRtcSdp::new(sdp, req.uuid)));
                             }
                             answer_request::Stage::Error(s) => {
                                 if let Some(status) = s.status {
@@ -209,7 +241,7 @@ impl WebRtcSignalingChannel {
                         return Err(WebRtcError::InvalidSignalingRequest);
                     }
                 }
-            }
+            };
         }
     }
 
@@ -335,25 +367,15 @@ impl WebRtcSignalingChannel {
 
 pub struct WebRtcApi<S, E> {
     executor: E,
-    signaling: Option<WebRtcSignalingChannel>,
-    uuid: Option<String>,
+    signaling: Box<WebRtcSignalingChannel>,
     transport: WebRtcTransport,
     certificate: Rc<S>,
     local_creds: ICECredentials,
     remote_creds: Option<ICECredentials>,
     local_ip: Ipv4Addr,
     dtls: Option<Box<dyn DtlsConnector>>,
-    sctp_handle: Option<SctpHandle>,
     ice_agent: AtomicSync,
-}
-
-impl<C, E> Drop for WebRtcApi<C, E> {
-    fn drop(&mut self) {
-        if let Some(s) = self.sctp_handle.as_mut() {
-            let _ = s.close();
-        }
-        self.ice_agent.done();
-    }
+    sdp: Box<WebRtcSdp>,
 }
 
 impl<'a, C, E> WebRtcApi<C, E>
@@ -363,11 +385,11 @@ where
 {
     pub(crate) fn new(
         executor: E,
-        tx_half: GrpcMessageSender<AnswerResponse>,
-        rx_half: GrpcMessageStream<AnswerRequest>,
+        signaling: Box<WebRtcSignalingChannel>,
         certificate: Rc<C>,
         local_ip: Ipv4Addr,
         dtls: Box<dyn DtlsConnector>,
+        sdp: Box<WebRtcSdp>,
     ) -> Self {
         let udp = Arc::new(async_io::Async::<UdpSocket>::bind(([0, 0, 0, 0], 0)).unwrap());
 
@@ -375,24 +397,19 @@ where
 
         Self {
             executor,
-            signaling: Some(WebRtcSignalingChannel {
-                signaling_tx: tx_half,
-                signaling_rx: rx_half,
-                engine: general_purpose::STANDARD,
-            }),
-            uuid: None,
+            signaling,
+            sdp,
             transport,
             certificate,
             remote_creds: None,
             local_creds: Default::default(),
             local_ip,
             dtls: Some(dtls),
-            sctp_handle: None,
             ice_agent: AtomicSync::default(),
         }
     }
 
-    pub async fn run_ice_until_connected(&mut self, answer: &WebRtcSdp) -> Result<(), WebRtcError> {
+    async fn run_ice_until_connected(&mut self, answer: &WebRtcSdp) -> Result<(), WebRtcError> {
         let (tx, rx) = async_channel::bounded(1);
 
         // TODO(NPM) consider returning an error? We should not take the channel more than once....
@@ -405,11 +422,7 @@ where
             self.local_ip,
         );
 
-        self.signaling
-            .as_mut()
-            .ok_or(WebRtcError::SignalingDisconnected())?
-            .send_sdp_answer(answer)
-            .await?;
+        self.signaling.send_sdp_answer(answer).await?;
 
         log::info!("gathering local candidates");
         ice_agent.local_candidates().await.unwrap();
@@ -417,20 +430,10 @@ where
         for c in &ice_agent.local_candidates {
             log::debug!("sending local candidates {:?}", c);
             self.signaling
-                .as_mut()
-                .ok_or(WebRtcError::SignalingDisconnected())?
-                .send_local_candidate(
-                    c,
-                    self.local_creds.u_frag.clone(),
-                    self.uuid.as_ref().unwrap().clone(),
-                )
+                .send_local_candidate(c, self.local_creds.u_frag.clone(), self.sdp.uuid.clone())
                 .await?;
         }
-        self.signaling
-            .as_mut()
-            .ok_or(WebRtcError::SignalingDisconnected())?
-            .send_done(self.uuid.as_ref().unwrap().clone())
-            .await?;
+        self.signaling.send_done(self.sdp.uuid.clone()).await?;
         let sync = AtomicSync::default();
         let sync_clone = sync.clone();
         let die_clone = self.ice_agent.clone();
@@ -441,8 +444,6 @@ where
         while !sync_clone.get() {
             let candidate = self
                 .signaling
-                .as_mut()
-                .ok_or(WebRtcError::SignalingDisconnected())?
                 .next_remote_candidate()
                 .or(async {
                     Timer::after(Duration::from_millis(50)).await;
@@ -467,11 +468,10 @@ where
         }
 
         sync_clone.await;
-        let _ = self.signaling.take();
         Ok(())
     }
 
-    pub async fn open_data_channel(&mut self) -> Result<Channel, WebRtcError> {
+    async fn open_data_channel(&mut self) -> Result<(Channel, SctpHandle), WebRtcError> {
         let mut dtls = self.dtls.take().unwrap();
 
         // TODO(NPM) consider returning an error? We should not take the channel more than once....
@@ -491,31 +491,61 @@ where
                 .listen()
                 .await
                 .map_err(|e| WebRtcError::DtlsError(Box::new(e)))?;
-            let _ = self.sctp_handle.insert(sctp.get_handle());
+            let hnd = sctp.get_handle();
             self.executor.execute(Box::pin(async move {
                 sctp.run().await;
             }));
-            return c_rx
+            let channel = c_rx
                 .recv()
                 .await
-                .map_err(|_| WebRtcError::DataChannelOpenError());
+                .map_err(|_| WebRtcError::DataChannelOpenError())?;
+            return Ok((channel, hnd));
         }
 
         Err(WebRtcError::DataChannelOpenError())
+    }
+
+    pub(crate) async fn connect(
+        mut self,
+        answer: Box<WebRtcSdp>,
+        robot: Arc<Mutex<LocalRobot>>,
+    ) -> Result<WebRTCConnection, ServerError> {
+        self.run_ice_until_connected(&answer)
+            .or(async {
+                Timer::after(Duration::from_secs(10)).await;
+                Err(WebRtcError::OperationTiemout)
+            })
+            .await
+            .map_err(|e| match e {
+                WebRtcError::OperationTiemout => ServerError::ServerConnectionTimeout,
+                _ => ServerError::Other(e.into()),
+            })?;
+        let c = self
+            .open_data_channel()
+            .or(async {
+                Timer::after(Duration::from_secs(10)).await;
+                Err(WebRtcError::OperationTiemout)
+            })
+            .await
+            .map_err(|e| match e {
+                WebRtcError::OperationTiemout => ServerError::ServerConnectionTimeout,
+                _ => ServerError::Other(e.into()),
+            })?;
+        let srv = WebRtcGrpcServer::new(c.0, GrpcServer::new(robot, WebRtcGrpcBody::default()));
+        Ok(WebRTCConnection::new(
+            srv,
+            self.transport,
+            self.ice_agent,
+            c.1,
+        ))
     }
 
     pub async fn answer(
         &mut self,
         current_prio: u32,
     ) -> Result<(Box<WebRtcSdp>, u32), WebRtcError> {
-        let offer = self
-            .signaling
-            .as_mut()
-            .ok_or(WebRtcError::SignalingDisconnected())?
-            .wait_sdp_offer()
-            .await?;
-
-        let attribute = offer
+        let attribute = self
+            .sdp
             .sdp
             .media_descriptions
             .first()
@@ -529,13 +559,8 @@ where
 
         // TODO use is_some_then when rust min version reach 1.70
         if current_prio >= caller_prio {
-            let sig_channel = self
-                .signaling
-                .as_mut()
-                .ok_or(WebRtcError::SignalingDisconnected())?;
-
-            sig_channel
-                .send_sdp_error_too_many_connections(&offer)
+            self.signaling
+                .send_sdp_error_too_many_connections(&self.sdp)
                 .await?;
 
             // TODO(APP-6381): Without this delay, sdks receive a `ContextCancelled` error instead
@@ -562,7 +587,6 @@ where
         );
 
         let _ = self.remote_creds.insert(remote_creds);
-        let _ = self.uuid.insert(offer.uuid);
 
         // rfc8839 section 4.3.2
         let data_track_name = MediaName {
@@ -609,7 +633,7 @@ where
         let answer = answer.with_media(media);
 
         Ok((
-            Box::new(WebRtcSdp::new(answer, self.uuid.as_ref().unwrap().clone())),
+            Box::new(WebRtcSdp::new(answer, self.sdp.uuid.clone())),
             caller_prio,
         ))
     }
