@@ -153,7 +153,9 @@ impl OtaService {
                 log::info!("current firmware: {:?}", running_fw_info);
                 log::info!("new firmware: {:?}", new_fw);
                 if let Some(ref running_fw) = running_fw_info {
-                    if running_fw.version == new_fw.version {
+                    if running_fw.version == new_fw.version
+                        && running_fw.released == new_fw.released
+                    {
                         log::info!("current firmware is up to date");
                         let _ = update_handle.abort();
                         return Ok(());
