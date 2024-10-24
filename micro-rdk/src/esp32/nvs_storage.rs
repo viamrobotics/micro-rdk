@@ -19,12 +19,16 @@ use crate::{
     proto::{app::v1::RobotConfig, provisioning::v1::CloudConfig},
 };
 
+const MAX_NVS_KEY_SIZE: usize = 15;
+
 #[derive(Error, Debug)]
 pub enum NVSStorageError {
     #[error(transparent)]
     EspError(#[from] EspError),
     #[error("nvs key {0} is absent")]
     NVSKeyAbsent(String),
+    #[error("nvs key {0} exceeds {1} characters")]
+    NVSKeyTooLong(String, usize),
     #[error(transparent)]
     NVSValueDecodeError(#[from] DecodeError),
 }
@@ -60,6 +64,9 @@ impl NVSStorage {
     }
 
     fn set_string(&self, key: &str, string: &str) -> Result<(), NVSStorageError> {
+        if key.len() > MAX_NVS_KEY_SIZE {
+            return Err(NVSStorageError::NVSKeyTooLong(key.to_string(), key.len()));
+        }
         if self.has_string(key).unwrap_or_default()
             && self.get_string(key).unwrap_or_default().as_str() == string
         {
@@ -87,6 +94,9 @@ impl NVSStorage {
     }
 
     fn set_blob(&self, key: &str, bytes: Bytes) -> Result<(), NVSStorageError> {
+        if key.len() > MAX_NVS_KEY_SIZE {
+            return Err(NVSStorageError::NVSKeyTooLong(key.to_string(), key.len()));
+        }
         if self.has_blob(key).unwrap_or_default() && self.get_blob(key).unwrap_or_default() == bytes
         {
             log::debug!("no change in write to NVS key {:?} for blob, skipping", key);
@@ -115,6 +125,7 @@ impl NVSStorage {
 
 const NVS_ROBOT_SECRET_KEY: &str = "ROBOT_SECRET";
 const NVS_ROBOT_ID_KEY: &str = "ROBOT_ID";
+const NVS_ROBOT_APP_ADDRESS: &str = "ROBOT_APP_ADDR";
 const NVS_ROBOT_CONFIG_KEY: &str = "ROBOT_CONFIG";
 const NVS_WIFI_SSID_KEY: &str = "WIFI_SSID";
 const NVS_WIFI_PASSWORD_KEY: &str = "WIFI_PASSWORD";
@@ -131,21 +142,25 @@ impl RobotConfigurationStorage for NVSStorage {
     fn get_robot_credentials(&self) -> Result<RobotCredentials, Self::Error> {
         let robot_secret = self.get_string(NVS_ROBOT_SECRET_KEY)?;
         let robot_id = self.get_string(NVS_ROBOT_ID_KEY)?;
+        let app_address = self.get_string(NVS_ROBOT_APP_ADDRESS)?;
         Ok(RobotCredentials {
             robot_secret,
             robot_id,
+            app_address,
         })
     }
 
     fn store_robot_credentials(&self, cfg: CloudConfig) -> Result<(), Self::Error> {
         self.set_string(NVS_ROBOT_SECRET_KEY, &cfg.secret)?;
         self.set_string(NVS_ROBOT_ID_KEY, &cfg.id)?;
+        self.set_string(NVS_ROBOT_APP_ADDRESS, &cfg.app_address)?;
         Ok(())
     }
 
     fn reset_robot_credentials(&self) -> Result<(), Self::Error> {
         self.erase_key(NVS_ROBOT_SECRET_KEY)?;
         self.erase_key(NVS_ROBOT_ID_KEY)?;
+        self.erase_key(NVS_ROBOT_APP_ADDRESS)?;
         Ok(())
     }
 

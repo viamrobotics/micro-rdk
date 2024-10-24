@@ -46,6 +46,10 @@ fn main() {
                 cfg.cloud.secret
             );
             println!("cargo:rustc-env=MICRO_RDK_ROBOT_ID={}", cfg.cloud.id);
+            println!(
+                "cargo:rustc-env=MICRO_RDK_ROBOT_APP_ADDRESS={}",
+                cfg.cloud.app_address
+            );
         }
     }
 }

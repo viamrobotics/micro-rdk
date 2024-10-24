@@ -192,6 +192,8 @@ pub unsafe extern "C" fn viam_server_register_c_generic_sensor(
 const ROBOT_ID: Option<&str> = option_env!("MICRO_RDK_ROBOT_ID");
 #[allow(dead_code)]
 const ROBOT_SECRET: Option<&str> = option_env!("MICRO_RDK_ROBOT_SECRET");
+#[allow(dead_code)]
+const ROBOT_APP_ADDRESS: Option<&str> = option_env!("MICRO_RDK_ROBOT_APP_ADDRESS");
 
 /// Starts the viam server, the function will take ownership of `ctx` therefore future call
 /// to other viam_server_* CAPI will be undefined behavior
@@ -267,11 +269,11 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
 
         let mut ram_storage = RAMStorage::new();
         // TODO: [RSDK-8923] Get app_address from machine credentials
-        let cloud_conf = if ROBOT_ID.is_some() && ROBOT_SECRET.is_some() {
+        let cloud_conf = if ROBOT_ID.is_some() && ROBOT_SECRET.is_some() && ROBOT_APP_ADDRESS.is_some() {
             Some(CloudConfig {
                 id: ROBOT_ID.unwrap().to_string(),
                 secret: ROBOT_SECRET.unwrap().to_string(),
-                app_address: "https://app.viam.com:443".to_string(),
+                app_address: ROBOT_APP_ADDRESS.unwrap().to_string(),
             })
         } else {
             None

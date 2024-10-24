@@ -43,6 +43,7 @@ fn main() -> Result<(), &'static str> {
                 cfg.cloud.secret
             );
             println!("cargo:rustc-env=MICRO_RDK_ROBOT_ID={}", cfg.cloud.id);
+            println!("cargo:rustc-env=MICRO_RDK_ROBOT_APP_ADDRESS={}", cfg.cloud.app_address);
         } else {
             return Err("`viam.json` is empty or it's content are invalid, re download it from app.viam.com");
         }
