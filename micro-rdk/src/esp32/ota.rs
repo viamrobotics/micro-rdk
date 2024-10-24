@@ -1,7 +1,7 @@
 ///
-/// example Config
+///
 /// ```rs
-/// // example config from app.viam
+/// // example config from app.viam as seen by micro-rdk
 /// ServiceConfig {
 ///         name: "OTA",
 ///         namespace: "rdk",
@@ -27,9 +27,8 @@
 /// }
 /// ```
 ///
-/// The sdkconfig options relevant to OTA currently default as of esp-idf v4
+/// The sdkconfig options relevant to OTA, currently default as of esp-idf v4
 /// and should be reviewed when upgrading to esp-idf v5
-///
 /// - CONFIG_BOOTLOADER_FACTORY_RESET=NO
 ///   - clear data partitions and boot from factory partition
 /// - CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=NO
@@ -43,16 +42,15 @@ use crate::{
     },
     proto::app::v1::ServiceConfig,
 };
-use embedded_svc::http::{client::Client, Headers, Method};
+use embedded_svc::http::{client::Client, Headers};
 
-const OTA_CHUNK_SIZE: usize = 1024 * 20; // 20KB
-/// bounded by partition scheme
-const OTA_MAX_SIZE: usize = 1024 * 1024 * 4; // 4MB
+// TODO: set according to running partition scheme
+const OTA_MAX_IMAGE_SIZE: usize = 1024 * 1024 * 4; // 4MB
 /// The actual minimum size of an (app image)[https://github.com/espressif/esp-idf/blob/v4.4.8/components/bootloader_support/include/esp_app_format.h] would be more like:
 /// min_bytes = `sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t) + sizeof(esp_app_desc_t) + sizeof(esp_image_segment_header_t) + sizeof(esp_image application) = 24 + 8 + 265 + 8 + ? `.
-/// However, builds have not been beneath 2MB in a while so the minimum is set as such.
-const OTA_MIN_SIZE: usize = 1024 * 1024 * 2; // 2MB
-/// Determined by partition scheme, currently <4MB to support 8MB devices.
+/// However, builds with micro-rdk are unlikely to be <2MB so the minimum is set as sucha.
+const OTA_MIN_IMAGE_SIZE: usize = 1024 * 1024 * 2; // 2MB
+const OTA_CHUNK_SIZE: usize = 1024 * 20; // 20KB
 const OTA_HTTP_BUFSIZE: usize = 1024 * 4; // 4KB
 pub const OTA_MODEL_TYPE: &str = "ota_service";
 pub const OTA_MODEL_TRIPLET: &str = "rdk:builtin:ota_service";
@@ -60,14 +58,16 @@ pub const OTA_MODEL_TRIPLET: &str = "rdk:builtin:ota_service";
 use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum OtaError {
-    #[error("error downloading new firmware: ")]
+    #[error("{0}")]
+    ConfigError(String),
+    #[error("error downloading new firmware: {0}")]
     DownloadError(String),
     #[error(transparent)]
     EspError(#[from] EspError),
     #[error("failed to initialize ota process")]
     InitError,
-    #[error("new image is invalid")]
-    InvalidImage,
+    #[error("new image size is invalid: {0} bytes")]
+    InvalidImageSize(usize),
     #[error("{0}")]
     Other(String),
 }
@@ -78,26 +78,28 @@ pub(crate) struct OtaService {
 }
 
 impl OtaService {
-    pub(crate) fn new(ota_config: &ServiceConfig) -> Self {
+    pub(crate) fn from_config(ota_config: &ServiceConfig) -> Result<Self, OtaError> {
         let kind = ota_config
             .attributes
             .as_ref()
             .unwrap()
             .fields
             .get("url")
-            .unwrap()
+            .ok_or_else(|| OtaError::ConfigError("`url` not found in config".to_string()))?
             .kind
             .clone()
-            .unwrap();
+            .ok_or_else(|| OtaError::ConfigError("failed to get inner value".to_string()))?;
+
         let url = match kind {
             crate::google::protobuf::value::Kind::StringValue(s) => s,
-            _ => "".to_string(),
+            _ => return Err(OtaError::ConfigError(format!("invalid url value: {:?}", kind))),
         };
-        let uri = url.parse::<hyper::Uri>().unwrap();
 
-        Self {
-            url: uri.to_string(),
-        }
+        let _ = url
+            .parse::<hyper::Uri>()
+            .map_err(|_| OtaError::ConfigError(format!("invalid url: {}", url)))?;
+
+        Ok(Self { url })
     }
 
     pub(crate) async fn update(&mut self) -> Result<(), OtaError> {
@@ -111,49 +113,40 @@ impl OtaService {
         .map_err(|e| OtaError::DownloadError(e.to_string()))?;
 
         let mut client = Client::wrap(connection);
-
-        let headers = [("accept", "application/octet_stream")];
         let request = client
-            .request(Method::Get, &self.url, &headers)
+            .get(&self.url)
             .map_err(|e| OtaError::DownloadError(e.to_string()))?;
-
         let mut response = request
             .submit()
             .map_err(|e| OtaError::DownloadError(e.to_string()))?;
         let status = response.status();
 
-        if status < 200 || status > 299 {
+        if !(200..=299).contains(&status) {
             return Err(OtaError::DownloadError(
                 format!("Bad Request - Status:{}", status).to_string(),
             ));
         }
 
         let file_len = response.content_len().unwrap_or(0) as usize;
-
-        if file_len <= OTA_MIN_SIZE {
-            log::error!("new image too small: {} bytes", file_len);
-            return Err(OtaError::InvalidImage);
-        }
-        if file_len > OTA_MAX_SIZE {
-            log::error!("new image too big: {} bytes", file_len);
-            return Err(OtaError::InvalidImage);
+        if !(OTA_MIN_IMAGE_SIZE..OTA_MAX_IMAGE_SIZE).contains(&file_len) {
+            return Err(OtaError::InvalidImageSize(file_len));
         }
 
         let mut ota = EspOta::new().map_err(OtaError::EspError)?;
         let running_fw_info = ota.get_running_slot().map_err(OtaError::EspError)?.firmware;
         let mut update_handle = ota.initiate_update().map_err(|_| OtaError::InitError)?;
         let mut buff = vec![0; OTA_CHUNK_SIZE];
-        let mut total_read_len: usize = 0;
+        let mut total_read: usize = 0;
         let mut got_info = false;
-        while total_read_len < file_len {
-            let n = response.read(&mut buff).unwrap_or_default();
-            total_read_len += n;
+        while total_read < file_len {
+            let num_read = response.read(&mut buff).unwrap_or_default();
+            total_read += num_read;
             if !got_info {
                 let mut loader = EspFirmwareInfoLoader::new();
                 loader.load(&mut buff).map_err(OtaError::EspError)?;
                 let new_fw = loader.get_info().map_err(OtaError::EspError)?;
-
-                log::info!("Firmware to be downloaded: {new_fw:?}");
+                log::info!("current firmware: {:?}", running_fw_info);
+                log::info!("new firmware: {:?}", new_fw);
                 if let Some(ref running_fw) = running_fw_info {
                     if running_fw.version == new_fw.version {
                         log::info!("current firmware is up to date");
@@ -163,26 +156,26 @@ impl OtaService {
                 }
                 got_info = true;
             }
-            if n == 0 {
+
+            if num_read == 0 {
                 break;
             }
 
-            if let Err(e) = update_handle.write(&buff[..n]) {
-                log::error!("Failed to write to OTA. {e}");
+            if let Err(e) = update_handle.write(&buff[..num_read]) {
+                log::error!("failed to write OTA partition, update aborted: {}", e);
                 let _ = update_handle.abort();
                 return Err(OtaError::EspError(e));
             }
         }
 
-        if total_read_len < file_len {
-            log::error!("{total_read_len} bytes downloaded, needed {file_len} bytes");
+        if total_read < file_len {
+            log::error!("{} bytes downloaded, needed {} bytes", total_read, file_len);
             let _ = update_handle.abort();
             return Err(OtaError::DownloadError(
-                "download incomplete, aborting ota update".to_string(),
+                "download incomplete, update aborted".to_string(),
             ));
         }
-        // flip ota bit
-        update_handle.complete().expect("failed to complete ota");
+        update_handle.complete().map_err(OtaError::EspError)?;
         log::info!("will boot new firmware on reset");
         Ok(())
     }
