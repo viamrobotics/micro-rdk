@@ -183,7 +183,9 @@ impl OtaService {
             ));
         }
         update_handle.complete().map_err(OtaError::EspError)?;
-        log::info!("will boot new firmware on reset");
-        Ok(())
+
+        log::info!("resetting now to boot from new firmware");
+
+        std::process::exit(0);
     }
 }
