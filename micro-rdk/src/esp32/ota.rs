@@ -92,7 +92,12 @@ impl OtaService {
 
         let url = match kind {
             crate::google::protobuf::value::Kind::StringValue(s) => s,
-            _ => return Err(OtaError::ConfigError(format!("invalid url value: {:?}", kind))),
+            _ => {
+                return Err(OtaError::ConfigError(format!(
+                    "invalid url value: {:?}",
+                    kind
+                )))
+            }
         };
 
         let _ = url
