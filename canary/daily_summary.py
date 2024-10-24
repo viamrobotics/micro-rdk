@@ -61,12 +61,14 @@ def get_summary_for_platform(coll: collection.Collection, platform: str) -> Tupl
             connection_failures += 1
     
     if num_results == 0:
-        raise Exception(f"no raw canary results found for {today}, please restart the canary")
+        post_to_slack_critical_error(platform)
 
     avg_connection_latency_ms = latency_sum / successes if successes != 0 else 0
     avg_connection_attempts = connection_attempts / num_results
     
     total_board_calls = board_api_successes + board_api_failures
+    if total_board_calls == 0:
+        post_to_slack_critical_error(platform)
     summary = {
         "date": start_of_day,
         "successes": successes,
@@ -88,21 +90,27 @@ def post_to_slack_on_failure(failure_rate: float, board_failure_rate: float, pla
     version_msg = f"using Viam {platform} SDK {version}"
     if failure_rate > FAILURE_ACCEPTABILITY:
         msg = f"ESP32 connection failure rate for {today} ({failure_rate * 100}%) greater than {FAILURE_ACCEPTABILITY * 100}% ({version_msg})"
-        api_result = client.chat_postMessage(channel=channel_id, text=msg)
-        try:
-            api_result.validate()
-            raise Exception(msg)
-        except slack_sdk.errors.SlackApiError as e:
-            raise Exception(f"failure to post to Slack, error message was '{msg}'") from e
+        post_error_to_slack(msg)
     
     if board_failure_rate > FAILURE_ACCEPTABILITY:
         msg = f"ESP32 board API failure rate for {today} ({board_failure_rate * 100}%) greater than {FAILURE_ACCEPTABILITY * 100}% ({version_msg})"
-        api_result = client.chat_postMessage(channel=channel_id, text=msg)
-        try:
-            api_result.validate()
-            raise Exception(msg)
-        except slack_sdk.errors.SlackApiError as e:
-            raise Exception(f"failure to post to Slack, error message was '{msg}'") from e
+        post_error_to_slack(msg)
+    
+
+def post_to_slack_critical_error(platform: str):
+    msg = f"No daily runs detected indicating a critical error in the ESP32 {platform} Canary, further debugging required"
+    post_error_to_slack(msg)
+    
+def post_error_to_slack(msg: str):
+    slack_token = os.environ["CANARY_SLACKBOT_TOKEN"]
+    channel_id = os.environ["MICRO_RDK_TEAM_CHANNEL_ID"]
+    client = slack_sdk.WebClient(token=slack_token)
+    api_result = client.chat_postMessage(channel=channel_id, text=msg)
+    try:
+        api_result.validate()
+        raise Exception(msg)
+    except Exception as e:
+        raise Exception(f"failure to post to Slack, error message was '{msg}'") from e
 
 if __name__ == '__main__':
     main()
