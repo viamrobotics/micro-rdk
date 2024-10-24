@@ -287,6 +287,7 @@ impl<'a> GrpcServerInner<'a> {
             "/viam.robot.v1.RobotService/GetStatus" => self.robot_status(payload),
             "/viam.robot.v1.RobotService/GetOperations" => self.robot_get_operations(payload),
             "/viam.robot.v1.RobotService/Shutdown" => self.robot_shutdown(payload),
+            "/viam.robot.v1.RobotService/GetCloudMetadata" => self.robot_get_cloud_metadata(),
             "/proto.rpc.v1.AuthService/Authenticate" => self.auth_service_authentificate(payload),
             "/viam.component.sensor.v1.SensorService/GetReadings" => {
                 self.sensor_get_readings(payload)
@@ -1329,6 +1330,16 @@ impl<'a> GrpcServerInner<'a> {
                 .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?,
         };
         self.encode_message(status)
+    }
+
+    fn robot_get_cloud_metadata(&mut self) -> Result<Bytes, ServerError> {
+        let resp = self
+            .robot
+            .lock()
+            .unwrap()
+            .get_cloud_metadata()
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
+        self.encode_message(resp)
     }
 
     #[cfg(feature = "camera")]
