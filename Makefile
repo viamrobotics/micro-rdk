@@ -22,7 +22,7 @@ buf: buf-clean
 	buf generate buf.build/googleapis/googleapis --template micro-rdk/buf.gen.yaml --path google/rpc --path google/api
 	buf generate buf.build/viamrobotics/api:${VIAM_API_VERSION} --template micro-rdk/buf.gen.yaml
 	printf "// AUTO-GENERATED CODE; DO NOT DELETE OR EDIT\npub const VIAM_API_VERSION: &str = \"${VIAM_API_VERSION}\";\n" > micro-rdk/src/gen/api_version.rs
-	buf generate buf.build/protocolbuffers/wellknowntypes --template micro-rdk/buf.gen.yaml
+	buf generate buf.build/protocolbuffers/wellknowntypes --template micro-rdk/buf.gen.yaml 
 
 license-finder:
 	license_finder
@@ -32,7 +32,7 @@ ifneq ($(ESPFLASHVERSION),true)
 		$(error Update espfash to version >=3.0. Update with cargo install cargo-espflash)
 endif
 
-abuild:
+build:
 	cargo +esp build  -p micro-rdk-server --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort
 
 build-native:
@@ -103,7 +103,7 @@ build-esp32-bin:
 	cargo +esp espflash save-image --package micro-rdk-server --merge --chip esp32 target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin -T micro-rdk-server/esp32/partitions.csv -s 4mb  --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort --release
 
 build-esp32-ota:
-	cargo +esp espflash save-image --package micro-rdk-server --chip=esp32 ./target/xtensa-esp32-espidf/micro-rdk-server-esp32-ota.bin --bin=micro-rdk-server-esp32 --partition-table=micro-rdk-server/esp32/partitions.csv --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --release
+	cargo +esp espflash save-image --package micro-rdk-server --chip=esp32 ./target/xtensa-esp32-espidf/micro-rdk-server-esp32-ota.bin --bin=micro-rdk-server-esp32 --partition-table=micro-rdk-server/esp32/ota_8mb_partitions.csv --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --release
 
 flash-esp32-bin:
 ifneq (,$(wildcard ./target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin))
