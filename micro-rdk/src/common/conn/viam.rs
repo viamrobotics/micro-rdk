@@ -636,10 +636,9 @@ where
             .map_err(AppClientError::AppClientIoError)?
             .await
             .map_err(AppClientError::AppClientIoError)?;
-        let grpc_client =
-            GrpcClient::new(app_client_io, self.executor.clone(), app_uri)
-                .await
-                .map_err(AppClientError::AppGrpcClientError)?;
+        let grpc_client = GrpcClient::new(app_client_io, self.executor.clone(), app_uri)
+            .await
+            .map_err(AppClientError::AppGrpcClientError)?;
 
         AppClientBuilder::new(Box::new(grpc_client), robot_creds.clone())
             .build()
