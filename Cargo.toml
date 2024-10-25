@@ -107,7 +107,7 @@ rustls-pemfile = { version = "2.2" }
 scopeguard = "1.2.0"
 sctp-proto = "0.3.0"
 sdp = "0.6.2"
-secrecy = { version = "0.10.3", features = ["serde"] }
+secrecy = { version = "0.8.0", features = ["serde"] }
 serde = { version = "1.0.210", features = ["derive"] }
 serde_json = "1.0.128"
 sha2 = "0.10.8"

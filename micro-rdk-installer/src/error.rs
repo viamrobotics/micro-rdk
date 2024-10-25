@@ -21,7 +21,7 @@ pub enum Error {
     #[error("{0}")]
     WifiPasswordTooLongError(String),
     #[error("Wifi Credentials Error: {0}")]
-    WifiCredentialsError(std::io::Error),
+    WifiCredentialsError(dialoguer::Error),
     #[error("Config Parsing Error: {0}")]
     ConfigParseError(serde_json::Error),
     #[error("Async Runtime Error: {0}")]
