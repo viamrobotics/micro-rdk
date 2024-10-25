@@ -322,10 +322,10 @@ fn init_logger() {
         .filter_level(LevelFilter::Off)
         .filter_module("micro_rdk_installer", LevelFilter::Info)
         .format(|buf, record| {
-            let style = buf.style();
-
             // just the message, no timestamp or log level
-            writeln!(buf, "{}", style.value(record.args()))
+            let style = buf.default_level_style(record.level());
+            let full_str = format!("{}", record.args());
+            writeln!(buf, "{style}{full_str}{style:#}")
         })
         .init();
 }
