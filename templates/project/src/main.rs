@@ -3,24 +3,31 @@ const PASS: Option<&str> = option_env!("MICRO_RDK_WIFI_PASSWORD");
 const ROBOT_ID: Option<&str> = option_env!("MICRO_RDK_ROBOT_ID");
 const ROBOT_SECRET: Option<&str> = option_env!("MICRO_RDK_ROBOT_SECRET");
 
+use std::rc::Rc;
+
 use micro_rdk::{
     common::{
+        conn::{server::WebRtcConfiguration, viam::ViamServerBuilder},
         credentials_storage::{
             RobotConfigurationStorage, RobotCredentials, WifiCredentialStorage, WifiCredentials,
         },
+        exec::Executor,
         log::initialize_logger,
-        entry::RobotRepresentation,
         provisioning::server::ProvisioningInfo,
         registry::{ComponentRegistry, RegistryError},
+        webrtc::certificate::Certificate,
     },
     esp32::{
-        entry::serve,
+        certificate::GeneratedWebRtcCertificateBuilder,
+        conn::{mdns::Esp32Mdns, network::Esp32WifiNetwork},
+        dtls::Esp32DtlsBuilder,
         esp_idf_svc::{
             self,
             log::EspLogger,
             sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT},
         },
         nvs_storage::NVSStorage,
+        tcp::Esp32H2Connector,
     },
 };
 
@@ -53,12 +60,6 @@ fn main() {
         })
     })
     .unwrap();
-
-    let mut registry = Box::<ComponentRegistry>::default();
-    if let Err(e) = register_modules(&mut registry) {
-        log::error!("couldn't register modules {:?}", e);
-    }
-    let repr = RobotRepresentation::WithRegistry(registry);
 
     let storage = NVSStorage::new("nvs").unwrap();
 
@@ -108,5 +109,29 @@ fn main() {
     info.set_manufacturer("viam".to_owned());
     info.set_model("esp32".to_owned());
 
-    serve(Some(info), repr, max_connections, storage);
+    let mut registry = Box::<ComponentRegistry>::default();
+    if let Err(e) = register_modules(&mut registry) {
+        log::error!("couldn't register modules {:?}", e);
+    }
+    let webrtc_certs = GeneratedWebRtcCertificateBuilder::default()
+        .build()
+        .unwrap();
+    let webrtc_certs = Rc::new(Box::new(webrtc_certs) as Box<dyn Certificate>);
+    let dtls = Box::new(Esp32DtlsBuilder::new(webrtc_certs.clone()));
+    let webrtc_config = WebRtcConfiguration::new(webrtc_certs, dtls);
+
+    let mut builder = ViamServerBuilder::new(storage);
+    builder
+        .with_provisioning_info(info)
+        .with_webrtc_configuration(webrtc_config)
+        .with_http2_server(Esp32H2Connector::default(), 12346)
+        .with_max_concurrent_connection(max_connections)
+        .with_default_tasks()
+        .with_component_registry(registry);
+
+    let builder = { builder.with_wifi_manager(Box::new(Esp32WifiNetwork::new().unwrap())) };
+    let mdns = Esp32Mdns::new("".to_owned()).unwrap();
+
+    let mut server = { builder.build(Esp32H2Connector::default(), Executor::new(), mdns) };
+    server.run_forever();
 }
