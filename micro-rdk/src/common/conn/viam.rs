@@ -1066,6 +1066,8 @@ mod tests {
     use prost::Message;
     use rustls::client::ServerCertVerifier;
 
+    const LOCALHOST_URI: &str = "http://localhost:56563";
+
     #[derive(Clone, Default)]
     struct AppServerInsecure {
         config_fn: Option<Rc<Box<dyn Fn() -> RobotConfig>>>,
@@ -1229,7 +1231,7 @@ mod tests {
         let creds = CloudConfig {
             id: "test-denied".to_string(),
             secret: "".to_string(),
-            app_address: "http://localhost:56563".to_owned(),
+            app_address: LOCALHOST_URI.to_owned(),
         };
         assert!(ram_storage.store_robot_credentials(creds).is_ok());
 
@@ -1287,7 +1289,7 @@ mod tests {
         let creds = CloudConfig {
             id: "test-transient".to_string(),
             secret: "".to_string(),
-            app_address: "http://localhost:56563".to_owned(),
+            app_address: LOCALHOST_URI.to_owned(),
         };
         assert!(ram_storage.store_robot_credentials(creds).is_ok());
 
@@ -1394,7 +1396,7 @@ mod tests {
         let creds = CloudConfig {
             id: "".to_string(),
             secret: "".to_string(),
-            app_address: "http://localhost:56563".to_owned(),
+            app_address: LOCALHOST_URI.to_owned(),
         };
 
         assert!(ram_storage.store_robot_credentials(creds).is_ok());
@@ -1670,7 +1672,7 @@ mod tests {
         req.cloud = Some(CloudConfig {
             id: "an-id-test".to_owned(),
             secret: "a-secret-test".to_owned(),
-            app_address: "http://localhost:56563".to_owned(),
+            app_address: LOCALHOST_URI.to_owned(),
         });
 
         let body = encode_request(req);
@@ -1713,7 +1715,7 @@ mod tests {
         let creds = CloudConfig {
             id: "".to_string(),
             secret: "".to_string(),
-            app_address: "http://localhost:56563".to_owned(),
+            app_address: LOCALHOST_URI.to_owned(),
         };
 
         let network = match local_ip_address::local_ip().expect("error parsing local IP") {

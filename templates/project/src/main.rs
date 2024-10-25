@@ -81,7 +81,7 @@ fn main() {
 
     if !storage.has_robot_configuration() {
         // check if any were statically compiled
-        // TODO: update with app address storage logic when version is incremented
+        // TODO(RSDK-9148): update with app address storage logic when version is incremented
         if ROBOT_ID.is_some() && ROBOT_SECRET.is_some() {
             log::info!("Storing static values from build time robot configuration to NVS");
             storage

@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use bytes::Bytes;
+use hyper::{http::uri::InvalidUri, Uri};
 use prost::{DecodeError, Message};
 use std::{cell::RefCell, rc::Rc};
 use thiserror::Error;
@@ -31,6 +32,8 @@ pub enum NVSStorageError {
     NVSKeyTooLong(String, usize),
     #[error(transparent)]
     NVSValueDecodeError(#[from] DecodeError),
+    #[error(transparent)]
+    NVSUriParseError(#[from] InvalidUri),
 }
 
 #[derive(Clone)]
@@ -146,7 +149,7 @@ impl RobotConfigurationStorage for NVSStorage {
         Ok(RobotCredentials {
             robot_secret,
             robot_id,
-            app_address,
+            app_address: app_address.parse::<Uri>()?,
         })
     }
 

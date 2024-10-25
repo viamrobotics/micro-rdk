@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+use std::str::FromStr;
 use std::{convert::Infallible, error::Error, fmt::Debug, rc::Rc, sync::Mutex};
 
 use hyper::Uri;
@@ -14,11 +15,11 @@ use crate::proto::{
 pub struct RobotCredentials {
     pub(crate) robot_id: String,
     pub(crate) robot_secret: String,
-    pub(crate) app_address: String,
+    pub(crate) app_address: Uri,
 }
 
 impl RobotCredentials {
-    pub fn new(robot_id: String, robot_secret: String, app_address: String) -> Self {
+    pub fn new(robot_id: String, robot_secret: String, app_address: Uri) -> Self {
         Self {
             robot_secret,
             robot_id,
@@ -35,7 +36,7 @@ impl RobotCredentials {
     }
 
     pub(crate) fn app_address(&self) -> Uri {
-        self.app_address.parse::<Uri>().unwrap()
+        self.app_address.clone()
     }
 }
 
@@ -48,21 +49,21 @@ impl From<SetNetworkCredentialsRequest> for WifiCredentials {
     }
 }
 
-impl From<CloudConfig> for RobotCredentials {
-    fn from(value: CloudConfig) -> Self {
-        // TODO: make ticket : ignore app_address for now but need to add it later
-        Self {
+impl TryFrom<CloudConfig> for RobotCredentials {
+    type Error = <Uri as FromStr>::Err;
+    fn try_from(value: CloudConfig) -> Result<Self, Self::Error> {
+        Ok(Self {
             robot_id: value.id,
             robot_secret: value.secret,
-            app_address: value.app_address,
-        }
+            app_address: value.app_address.parse::<Uri>()?,
+        })
     }
 }
 
 impl From<RobotCredentials> for CloudConfig {
     fn from(value: RobotCredentials) -> Self {
         Self {
-            app_address: value.app_address,
+            app_address: value.app_address.to_string(),
             id: value.robot_id,
             secret: value.robot_secret,
         }
@@ -152,13 +153,13 @@ impl RAMStorage {
 }
 
 impl RobotConfigurationStorage for RAMStorage {
-    type Error = Infallible;
+    type Error = <RobotCredentials as TryFrom<CloudConfig>>::Error;
     fn has_robot_credentials(&self) -> bool {
         let inner_ref = self.0.lock().unwrap();
         inner_ref.robot_creds.is_some()
     }
     fn store_robot_credentials(&self, cfg: CloudConfig) -> Result<(), Self::Error> {
-        let creds: RobotCredentials = cfg.into();
+        let creds: RobotCredentials = cfg.try_into()?;
         let mut inner_ref = self.0.lock().unwrap();
         let _ = inner_ref.robot_creds.insert(creds);
         Ok(())
