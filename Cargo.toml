@@ -22,7 +22,7 @@ description = "Viam RDK for microcontroller"
 edition = "2021"
 license = "AGPL-3.0"
 repository = "https://github.com/viamrobotics/micro-rdk"
-version = "0.3.0"
+version = "0.3.1"
 # TODO(RSDK-8992): Upgrade rust to latest esp-rs version
 rust-version = "1.76"
 
@@ -107,7 +107,8 @@ rustls-pemfile = { version = "2.2" }
 scopeguard = "1.2.0"
 sctp-proto = "0.3.0"
 sdp = "0.6.2"
-secrecy = { version = "0.10.3", features = ["serde"] }
+# TODO(RSDK-9138): Upgrade to latest secrecy crate
+secrecy = { version = "~0.8.0", features = ["serde"] }
 serde = { version = "1.0.210", features = ["derive"] }
 serde_json = "1.0.128"
 sha2 = "0.10.8"

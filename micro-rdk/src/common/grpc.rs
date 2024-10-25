@@ -20,7 +20,7 @@ use futures_lite::{future, Future};
 use http_body_util::BodyExt;
 use hyper::{
     body::{self, Body, Bytes, Frame},
-    http::HeaderValue,
+    http::{uri::InvalidUri, HeaderValue},
     service::Service,
     HeaderMap, Request, Response,
 };
@@ -1586,6 +1586,12 @@ impl ServerError {
 
     pub fn status_code(&self) -> i32 {
         self.grpc_error as i32
+    }
+}
+
+impl From<InvalidUri> for ServerError {
+    fn from(value: InvalidUri) -> Self {
+        Self::new(GrpcError::RpcUnavailable, Some(value.into()))
     }
 }
 

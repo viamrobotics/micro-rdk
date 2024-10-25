@@ -166,7 +166,6 @@ pub struct ViamServerBuilder<Storage, State> {
     component_registry: Box<ComponentRegistry>,
     http2_server_port: u16,
     http2_server_insecure: bool,
-    initial_app_uri: Uri,
     app_client_tasks: Vec<Box<dyn PeriodicAppClientTask>>,
     max_concurrent_connections: u32,
     _state: PhantomData<State>,
@@ -188,7 +187,6 @@ where
             component_registry: Default::default(),
             http2_server_port: 12346,
             http2_server_insecure: false,
-            initial_app_uri: "https://app.viam.com:443".try_into().unwrap(),
             app_client_tasks: Default::default(),
             max_concurrent_connections: 1,
             _state: PhantomData,
@@ -206,7 +204,6 @@ where
             component_registry: self.component_registry,
             http2_server_port: self.http2_server_port,
             http2_server_insecure: self.http2_server_insecure,
-            initial_app_uri: self.initial_app_uri,
             app_client_tasks: self.app_client_tasks,
             max_concurrent_connections: self.max_concurrent_connections,
             wifi_manager: Some(wifi_manager),
@@ -242,11 +239,6 @@ where
 
     pub fn with_http2_server_insecure(&mut self, insecure: bool) -> &mut Self {
         self.http2_server_insecure = insecure;
-        self
-    }
-
-    pub fn with_app_uri(&mut self, uri: Uri) -> &mut Self {
-        self.initial_app_uri = uri;
         self
     }
 
@@ -307,7 +299,6 @@ where
             provisioning_info: self.provisioning_info,
             http2_server_insecure: self.http2_server_insecure,
             http2_server_port: self.http2_server_port,
-            app_uri: self.initial_app_uri,
             wifi_manager: self.wifi_manager.into(),
             app_client_tasks: self.app_client_tasks,
             max_concurrent_connections: self.max_concurrent_connections,
@@ -342,7 +333,6 @@ where
             provisioning_info: self.provisioning_info,
             http2_server_insecure: self.http2_server_insecure,
             http2_server_port: self.http2_server_port,
-            app_uri: self.initial_app_uri,
             wifi_manager: Rc::new(self.wifi_manager),
             app_client_tasks: self.app_client_tasks,
             max_concurrent_connections: self.max_concurrent_connections,
@@ -361,7 +351,6 @@ pub struct ViamServer<Storage, C, M> {
     component_registry: Box<ComponentRegistry>,
     http2_server_insecure: bool,
     http2_server_port: u16,
-    app_uri: Uri,
     wifi_manager: Rc<Option<Box<dyn WifiManager>>>,
     app_client_tasks: Vec<Box<dyn PeriodicAppClientTask>>,
     max_concurrent_connections: u32,
@@ -466,7 +455,11 @@ where
                     #[cfg(not(test))]
                     panic!("erased credentials restart robot"); // TODO bubble up error and go back in provisioning
                 }
-                log::error!("couldn't connect to {} reason {:?}", self.app_uri, error);
+                log::error!(
+                    "couldn't connect to {} reason {:?}",
+                    robot_creds.app_address(),
+                    error
+                );
             })
             .ok();
 
@@ -636,16 +629,16 @@ where
 
     async fn connect_to_app(&self) -> Result<AppClient, AppClientError> {
         let robot_creds = self.storage.get_robot_credentials().unwrap();
+        let app_uri = robot_creds.app_address();
         let app_client_io = self
             .http2_connector
-            .connect_to(&self.app_uri)
+            .connect_to(&app_uri)
             .map_err(AppClientError::AppClientIoError)?
             .await
             .map_err(AppClientError::AppClientIoError)?;
-        let grpc_client =
-            GrpcClient::new(app_client_io, self.executor.clone(), self.app_uri.clone())
-                .await
-                .map_err(AppClientError::AppGrpcClientError)?;
+        let grpc_client = GrpcClient::new(app_client_io, self.executor.clone(), app_uri)
+            .await
+            .map_err(AppClientError::AppGrpcClientError)?;
 
         AppClientBuilder::new(Box::new(grpc_client), robot_creds.clone())
             .build()
@@ -697,7 +690,7 @@ where
                         #[cfg(not(test))]
                         panic!("erased credentials restart robot"); // TODO bubble up error and go back in provisioning
                     }
-                    log::error!("couldn't connect to {} reason {:?}", self.app_uri, error);
+                    log::error!("couldn't connect to signaling server, reason {:?}", error);
                 })
                 .ok();
         }
@@ -1073,6 +1066,8 @@ mod tests {
     use prost::Message;
     use rustls::client::ServerCertVerifier;
 
+    const LOCALHOST_URI: &str = "http://localhost:56563";
+
     #[derive(Clone, Default)]
     struct AppServerInsecure {
         config_fn: Option<Rc<Box<dyn Fn() -> RobotConfig>>>,
@@ -1236,7 +1231,7 @@ mod tests {
         let creds = CloudConfig {
             id: "test-denied".to_string(),
             secret: "".to_string(),
-            app_address: "".to_owned(),
+            app_address: LOCALHOST_URI.to_owned(),
         };
         assert!(ram_storage.store_robot_credentials(creds).is_ok());
 
@@ -1246,7 +1241,6 @@ mod tests {
         let cloned_ram_storage = ram_storage.clone();
         let mut viam_server = ViamServerBuilder::new(ram_storage);
         viam_server
-            .with_app_uri("http://localhost:56563".try_into().unwrap())
             .with_http2_server(NativeH2Connector::default(), 12346)
             .with_max_concurrent_connection(2)
             .with_http2_server_insecure(true)
@@ -1295,7 +1289,7 @@ mod tests {
         let creds = CloudConfig {
             id: "test-transient".to_string(),
             secret: "".to_string(),
-            app_address: "".to_owned(),
+            app_address: LOCALHOST_URI.to_owned(),
         };
         assert!(ram_storage.store_robot_credentials(creds).is_ok());
 
@@ -1305,7 +1299,6 @@ mod tests {
 
         let mut viam_server = ViamServerBuilder::new(ram_storage);
         viam_server
-            .with_app_uri("http://localhost:56563".try_into().unwrap())
             .with_http2_server(NativeH2Connector::default(), 12346)
             .with_max_concurrent_connection(2)
             .with_default_tasks();
@@ -1403,7 +1396,7 @@ mod tests {
         let creds = CloudConfig {
             id: "".to_string(),
             secret: "".to_string(),
-            app_address: "".to_owned(),
+            app_address: LOCALHOST_URI.to_owned(),
         };
 
         assert!(ram_storage.store_robot_credentials(creds).is_ok());
@@ -1414,7 +1407,6 @@ mod tests {
 
         let mut viam_server = ViamServerBuilder::new(ram_storage);
         viam_server
-            .with_app_uri("http://localhost:56563".try_into().unwrap())
             .with_http2_server(NativeH2Connector::default(), 12346)
             .with_max_concurrent_connection(3);
 
@@ -1559,9 +1551,7 @@ mod tests {
         let mut provisioning_info = ProvisioningInfo::default();
         provisioning_info.set_manufacturer("viam".to_owned());
         provisioning_info.set_model("provisioning-test".to_owned());
-        viam_server
-            .with_provisioning_info(provisioning_info)
-            .with_app_uri("http://localhost:56563".try_into().unwrap());
+        viam_server.with_provisioning_info(provisioning_info);
 
         let exec = Executor::new();
 
@@ -1682,7 +1672,7 @@ mod tests {
         req.cloud = Some(CloudConfig {
             id: "an-id-test".to_owned(),
             secret: "a-secret-test".to_owned(),
-            app_address: "".to_owned(),
+            app_address: LOCALHOST_URI.to_owned(),
         });
 
         let body = encode_request(req);
@@ -1725,7 +1715,7 @@ mod tests {
         let creds = CloudConfig {
             id: "".to_string(),
             secret: "".to_string(),
-            app_address: "".to_owned(),
+            app_address: LOCALHOST_URI.to_owned(),
         };
 
         let network = match local_ip_address::local_ip().expect("error parsing local IP") {
@@ -1740,7 +1730,6 @@ mod tests {
 
         let cc = NativeH2Connector::default();
         a.with_http2_server(cc, 12346);
-        a.with_app_uri("http://localhost:56563".try_into().unwrap());
         a.with_app_client_task(Box::new(RestartMonitor::new(|| {})));
         a.with_app_client_task(Box::new(LogUploadTask {}));
 

@@ -2405,7 +2405,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "async-channel 2.3.1",
  "async-executor",
@@ -2464,7 +2464,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-ffi"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "async-channel 2.3.1",
  "base64 0.22.1",
@@ -2487,7 +2487,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-installer"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -2509,7 +2509,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-macros"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "micro-rdk",
  "proc-macro-crate 3.2.0",
@@ -2520,7 +2520,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-modular-driver-example"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "log",
  "micro-rdk",
@@ -2528,7 +2528,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-server"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "async-channel 2.3.1",
  "embedded-hal 0.2.7",
@@ -2770,7 +2770,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af1844ef2428cc3e1cb900be36181049ef3d3193c63e43026cfe202983b27a56"
 dependencies = [
- "proc-macro-crate 3.2.0",
+ "proc-macro-crate 1.3.1",
  "proc-macro2",
  "quote",
  "syn 2.0.79",
@@ -3591,9 +3591,9 @@ dependencies = [
 
 [[package]]
 name = "secrecy"
-version = "0.10.3"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e891af845473308773346dc847b2c23ee78fe442e0472ac50e22a18a93d3ae5a"
+checksum = "9bd1c54ea06cfd2f6b63219704de0b9b4f72dcc2b8fdef820be6cd799780e91e"
 dependencies = [
  "serde",
  "zeroize",
