@@ -2,6 +2,7 @@
 mod native {
     const ROBOT_ID: Option<&str> = option_env!("MICRO_RDK_ROBOT_ID");
     const ROBOT_SECRET: Option<&str> = option_env!("MICRO_RDK_ROBOT_SECRET");
+    const ROBOT_APP_ADDRESS: Option<&str> = option_env!("MICRO_RDK_ROBOT_APP_ADDRESS");
 
     use std::rc::Rc;
 
@@ -42,14 +43,16 @@ mod native {
 
         if !storage.has_robot_configuration() {
             // check if any were statically compiled
-            if ROBOT_ID.is_some() && ROBOT_SECRET.is_some() {
+            if ROBOT_ID.is_some() && ROBOT_SECRET.is_some() && ROBOT_APP_ADDRESS.is_some() {
                 log::info!("Storing static values from build time robot configuration");
                 storage
                     .store_robot_credentials(
                         RobotCredentials::new(
                             ROBOT_ID.unwrap().to_string(),
                             ROBOT_SECRET.unwrap().to_string(),
+                            ROBOT_APP_ADDRESS.unwrap().to_string(),
                         )
+                        .expect("Failed to parse app address")
                         .into(),
                     )
                     .expect("Failed to store robot credentials");
@@ -66,7 +69,6 @@ mod native {
         let mut builder = ViamServerBuilder::new(storage);
         let mdns = NativeMdns::new("".to_string(), network.get_ip()).unwrap();
         builder
-            .with_app_uri("https://app.viam.com:443".try_into().unwrap())
             .with_http2_server(NativeH2Connector::default(), 12346)
             .with_webrtc_configuration(webrtc_config)
             .with_max_concurrent_connection(3)
