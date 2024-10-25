@@ -19,12 +19,16 @@ pub struct RobotCredentials {
 }
 
 impl RobotCredentials {
-    pub fn new(robot_id: String, robot_secret: String, app_address: Uri) -> Self {
-        Self {
+    pub fn new(
+        robot_id: String,
+        robot_secret: String,
+        app_address: String,
+    ) -> Result<Self, <Uri as FromStr>::Err> {
+        Ok(Self {
             robot_secret,
             robot_id,
-            app_address,
-        }
+            app_address: app_address.parse::<Uri>()?,
+        })
     }
 
     pub(crate) fn robot_id(&self) -> &str {
