@@ -1,13 +1,13 @@
 use super::errors::ServerError;
 use crate::common::{
     grpc::GrpcServer,
-    robot::LocalRobot,
     webrtc::{
-        api::{WebRtcApi, WebRtcError, WebRtcSdp},
+        api::{AtomicSync, WebRtcError},
         certificate::Certificate,
         dtls::DtlsBuilder,
-        exec::WebRtcExecutor,
         grpc::{WebRtcGrpcBody, WebRtcGrpcServer},
+        io::WebRtcTransport,
+        sctp::SctpHandle,
     },
 };
 
@@ -16,12 +16,7 @@ use async_io::Timer;
 use futures_lite::prelude::*;
 
 use async_executor::Task;
-use std::{
-    pin::Pin,
-    rc::Rc,
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::{rc::Rc, time::Duration};
 
 pub struct WebRtcConfiguration {
     pub(crate) dtls: Box<dyn DtlsBuilder>,
@@ -34,58 +29,38 @@ impl WebRtcConfiguration {
     }
 }
 
-pub(crate) struct WebRTCConnection<C, E> {
-    pub(crate) webrtc_api: WebRtcApi<C, E>,
-    pub(crate) sdp: Box<WebRtcSdp>,
-    pub(crate) server: Option<WebRtcGrpcServer<GrpcServer<WebRtcGrpcBody>>>,
-    pub(crate) robot: Arc<Mutex<LocalRobot>>,
-    pub(crate) prio: u32,
+pub(crate) struct WebRTCConnection {
+    server: WebRtcGrpcServer<GrpcServer<WebRtcGrpcBody>>,
+    _transport: WebRtcTransport,
+    ice_agent: AtomicSync,
+    sctp_handle: SctpHandle,
 }
 
-impl<C, E> WebRTCConnection<C, E>
-where
-    C: Certificate,
-    E: WebRtcExecutor<Pin<Box<dyn Future<Output = ()>>>> + Clone,
-{
-    pub(crate) async fn open_data_channel(&mut self) -> Result<(), ServerError> {
-        self.webrtc_api
-            .run_ice_until_connected(&self.sdp)
-            .or(async {
-                Timer::after(Duration::from_secs(10)).await;
-                Err(WebRtcError::OperationTiemout)
-            })
-            .await
-            .map_err(|e| match e {
-                WebRtcError::OperationTiemout => ServerError::ServerConnectionTimeout,
-                _ => ServerError::Other(e.into()),
-            })?;
+impl Drop for WebRTCConnection {
+    fn drop(&mut self) {
+        let _ = self.sctp_handle.close();
+        self.ice_agent.done();
+    }
+}
 
-        let c = self
-            .webrtc_api
-            .open_data_channel()
-            .or(async {
-                Timer::after(Duration::from_secs(10)).await;
-                Err(WebRtcError::OperationTiemout)
-            })
-            .await
-            .map_err(|e| match e {
-                WebRtcError::OperationTiemout => ServerError::ServerConnectionTimeout,
-                _ => ServerError::Other(e.into()),
-            })?;
-        let srv = WebRtcGrpcServer::new(
-            c,
-            GrpcServer::new(self.robot.clone(), WebRtcGrpcBody::default()),
-        );
-        let _ = self.server.insert(srv);
-        Ok(())
+impl WebRTCConnection {
+    pub(crate) fn new(
+        server: WebRtcGrpcServer<GrpcServer<WebRtcGrpcBody>>,
+        transport: WebRtcTransport,
+        ice_agent: AtomicSync,
+        sctp_handle: SctpHandle,
+    ) -> Self {
+        Self {
+            server,
+            _transport: transport,
+            ice_agent,
+            sctp_handle,
+        }
     }
     pub(crate) async fn run(&mut self) -> Result<(), ServerError> {
-        if self.server.is_none() {
-            return Err(ServerError::ServerConnectionNotConfigured);
-        }
-        let srv = self.server.as_mut().unwrap();
         loop {
-            let req = srv
+            let req = self
+                .server
                 .next_request()
                 .or(async {
                     Timer::after(Duration::from_secs(30)).await;
