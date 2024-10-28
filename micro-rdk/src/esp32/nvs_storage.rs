@@ -145,12 +145,25 @@ impl RobotConfigurationStorage for NVSStorage {
     fn get_robot_credentials(&self) -> Result<RobotCredentials, Self::Error> {
         let robot_secret = self.get_string(NVS_ROBOT_SECRET_KEY)?;
         let robot_id = self.get_string(NVS_ROBOT_ID_KEY)?;
-        let app_address = self.get_string(NVS_ROBOT_APP_ADDRESS)?;
         Ok(RobotCredentials {
             robot_secret,
             robot_id,
-            app_address: app_address.parse::<Uri>()?,
         })
+    }
+
+    fn get_app_address(&self) -> Result<Uri, Self::Error> {
+        Ok(self.get_string(NVS_ROBOT_APP_ADDRESS)?.parse::<Uri>()?)
+    }
+
+    fn has_app_address(&self) -> bool {
+        self.has_string(NVS_ROBOT_APP_ADDRESS).unwrap_or(false)
+    }
+
+    fn store_app_address(&self, uri: &str) -> Result<(), Self::Error> {
+        self.set_string(NVS_ROBOT_APP_ADDRESS, uri)
+    }
+    fn reset_app_address(&self) -> Result<(), Self::Error> {
+        self.erase_key(NVS_ROBOT_APP_ADDRESS)
     }
 
     fn store_robot_credentials(&self, cfg: CloudConfig) -> Result<(), Self::Error> {
@@ -163,7 +176,6 @@ impl RobotConfigurationStorage for NVSStorage {
     fn reset_robot_credentials(&self) -> Result<(), Self::Error> {
         self.erase_key(NVS_ROBOT_SECRET_KEY)?;
         self.erase_key(NVS_ROBOT_ID_KEY)?;
-        self.erase_key(NVS_ROBOT_APP_ADDRESS)?;
         Ok(())
     }
 

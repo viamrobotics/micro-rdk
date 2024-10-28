@@ -50,12 +50,13 @@ mod native {
                         RobotCredentials::new(
                             ROBOT_ID.unwrap().to_string(),
                             ROBOT_SECRET.unwrap().to_string(),
-                            ROBOT_APP_ADDRESS.unwrap().to_string(),
                         )
-                        .expect("Failed to parse app address")
                         .into(),
                     )
                     .expect("Failed to store robot credentials");
+                storage
+                    .store_app_address(ROBOT_APP_ADDRESS.unwrap())
+                    .expect("Failed to store app address")
             }
         }
 

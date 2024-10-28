@@ -434,6 +434,14 @@ where
         );
 
         let robot_creds = self.storage.get_robot_credentials().unwrap();
+        let app_address = self
+            .storage
+            .get_app_address()
+            .or_else(|_| {
+                let _ = self.storage.store_app_address("https://app.viam.com:443");
+                self.storage.get_app_address()
+            })
+            .unwrap();
 
         // attempt to instantiate an app client
         // if we have an unauthenticated or permission denied error, we erase the creds
@@ -455,11 +463,7 @@ where
                     #[cfg(not(test))]
                     panic!("erased credentials restart robot"); // TODO bubble up error and go back in provisioning
                 }
-                log::error!(
-                    "couldn't connect to {} reason {:?}",
-                    robot_creds.app_address(),
-                    error
-                );
+                log::error!("couldn't connect to {} reason {:?}", app_address, error);
             })
             .ok();
 
@@ -629,7 +633,10 @@ where
 
     async fn connect_to_app(&self) -> Result<AppClient, AppClientError> {
         let robot_creds = self.storage.get_robot_credentials().unwrap();
-        let app_uri = robot_creds.app_address();
+        let app_uri = self
+            .storage
+            .get_app_address()
+            .unwrap_or("https://app.viam.com:443".parse::<Uri>().unwrap());
         let app_client_io = self
             .http2_connector
             .connect_to(&app_uri)
@@ -1223,6 +1230,7 @@ mod tests {
     fn test_app_permission_denied() {
         let _unused = global_network_test_lock();
         let ram_storage = RAMStorage::new();
+        let _ = ram_storage.store_app_address(LOCALHOST_URI);
         let network = match local_ip_address::local_ip().expect("error parsing local IP") {
             std::net::IpAddr::V4(ip) => ExternallyManagedNetwork::new(ip),
             _ => panic!("oops expected ipv4"),
@@ -1281,6 +1289,8 @@ mod tests {
     fn test_app_client_transient_failure() {
         let _unused = global_network_test_lock();
         let ram_storage = RAMStorage::new();
+        let _ = ram_storage.store_app_address(LOCALHOST_URI);
+
         let network = match local_ip_address::local_ip().expect("error parsing local IP") {
             std::net::IpAddr::V4(ip) => ExternallyManagedNetwork::new(ip),
             _ => panic!("oops expected ipv4"),
@@ -1388,6 +1398,8 @@ mod tests {
     fn test_multiple_connection_http2() {
         let _unused = global_network_test_lock();
         let ram_storage = RAMStorage::new();
+        let _ = ram_storage.store_app_address(LOCALHOST_URI);
+
         let network = match local_ip_address::local_ip().expect("error parsing local IP") {
             std::net::IpAddr::V4(ip) => ExternallyManagedNetwork::new(ip),
             _ => panic!("oops expected ipv4"),
@@ -1539,6 +1551,8 @@ mod tests {
     fn test_provisioning() {
         let _unused = global_network_test_lock();
         let ram_storage = RAMStorage::new();
+        let _ = ram_storage.store_app_address(LOCALHOST_URI);
+
         let network = match local_ip_address::local_ip().expect("error parsing local IP") {
             std::net::IpAddr::V4(ip) => ExternallyManagedNetwork::new(ip),
             _ => panic!("oops expected ipv4"),
@@ -1717,6 +1731,7 @@ mod tests {
             secret: "".to_string(),
             app_address: LOCALHOST_URI.to_owned(),
         };
+        let _ = ram_storage.store_app_address(LOCALHOST_URI);
 
         let network = match local_ip_address::local_ip().expect("error parsing local IP") {
             std::net::IpAddr::V4(ip) => ExternallyManagedNetwork::new(ip),
