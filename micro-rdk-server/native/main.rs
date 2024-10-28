@@ -51,7 +51,6 @@ mod native {
                             ROBOT_ID.unwrap().to_string(),
                             ROBOT_SECRET.unwrap().to_string(),
                         )
-                        .expect("Failed to parse app address")
                         .into(),
                     )
                     .expect("Failed to store robot credentials");

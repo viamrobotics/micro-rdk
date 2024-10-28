@@ -176,7 +176,6 @@ impl RobotConfigurationStorage for NVSStorage {
     fn reset_robot_credentials(&self) -> Result<(), Self::Error> {
         self.erase_key(NVS_ROBOT_SECRET_KEY)?;
         self.erase_key(NVS_ROBOT_ID_KEY)?;
-        self.erase_key(NVS_ROBOT_APP_ADDRESS)?;
         Ok(())
     }
 
