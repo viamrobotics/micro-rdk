@@ -71,7 +71,7 @@ impl ViamFlashStorageData {
                 namespace_idx,
             },
             NVSKeyValuePair {
-                key: "APP_ADDRESS".to_string(),
+                key: "ROBOT_APP_ADDR".to_string(),
                 value: NVSValue::String(self.robot_credentials.app_address.clone().ok_or(
                     Error::NVSDataProcessingError("app_address missing".to_string()),
                 )?),
