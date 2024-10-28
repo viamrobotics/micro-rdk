@@ -434,6 +434,14 @@ where
         );
 
         let robot_creds = self.storage.get_robot_credentials().unwrap();
+        let app_address = self
+            .storage
+            .get_app_address()
+            .or_else(|_| {
+                let _ = self.storage.store_app_address("https://app.viam.com:443");
+                self.storage.get_app_address()
+            })
+            .unwrap();
 
         // attempt to instantiate an app client
         // if we have an unauthenticated or permission denied error, we erase the creds
@@ -455,11 +463,7 @@ where
                     #[cfg(not(test))]
                     panic!("erased credentials restart robot"); // TODO bubble up error and go back in provisioning
                 }
-                log::error!(
-                    "couldn't connect to {} reason {:?}",
-                    robot_creds.app_address(),
-                    error
-                );
+                log::error!("couldn't connect to {} reason {:?}", app_address, error);
             })
             .ok();
 
@@ -629,7 +633,10 @@ where
 
     async fn connect_to_app(&self) -> Result<AppClient, AppClientError> {
         let robot_creds = self.storage.get_robot_credentials().unwrap();
-        let app_uri = robot_creds.app_address();
+        let app_uri = self
+            .storage
+            .get_app_address()
+            .unwrap_or("https://app.viam.com:443".parse::<Uri>().unwrap());
         let app_client_io = self
             .http2_connector
             .connect_to(&app_uri)
