@@ -1230,6 +1230,7 @@ mod tests {
     fn test_app_permission_denied() {
         let _unused = global_network_test_lock();
         let ram_storage = RAMStorage::new();
+        let _ = ram_storage.store_app_address(LOCALHOST_URI);
         let network = match local_ip_address::local_ip().expect("error parsing local IP") {
             std::net::IpAddr::V4(ip) => ExternallyManagedNetwork::new(ip),
             _ => panic!("oops expected ipv4"),
@@ -1288,6 +1289,8 @@ mod tests {
     fn test_app_client_transient_failure() {
         let _unused = global_network_test_lock();
         let ram_storage = RAMStorage::new();
+        let _ = ram_storage.store_app_address(LOCALHOST_URI);
+
         let network = match local_ip_address::local_ip().expect("error parsing local IP") {
             std::net::IpAddr::V4(ip) => ExternallyManagedNetwork::new(ip),
             _ => panic!("oops expected ipv4"),
@@ -1395,6 +1398,8 @@ mod tests {
     fn test_multiple_connection_http2() {
         let _unused = global_network_test_lock();
         let ram_storage = RAMStorage::new();
+        let _ = ram_storage.store_app_address(LOCALHOST_URI);
+
         let network = match local_ip_address::local_ip().expect("error parsing local IP") {
             std::net::IpAddr::V4(ip) => ExternallyManagedNetwork::new(ip),
             _ => panic!("oops expected ipv4"),
@@ -1546,6 +1551,8 @@ mod tests {
     fn test_provisioning() {
         let _unused = global_network_test_lock();
         let ram_storage = RAMStorage::new();
+        let _ = ram_storage.store_app_address(LOCALHOST_URI);
+
         let network = match local_ip_address::local_ip().expect("error parsing local IP") {
             std::net::IpAddr::V4(ip) => ExternallyManagedNetwork::new(ip),
             _ => panic!("oops expected ipv4"),
@@ -1724,6 +1731,7 @@ mod tests {
             secret: "".to_string(),
             app_address: LOCALHOST_URI.to_owned(),
         };
+        let _ = ram_storage.store_app_address(LOCALHOST_URI);
 
         let network = match local_ip_address::local_ip().expect("error parsing local IP") {
             std::net::IpAddr::V4(ip) => ExternallyManagedNetwork::new(ip),
