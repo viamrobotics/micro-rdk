@@ -2405,7 +2405,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "async-channel 2.3.1",
  "async-executor",
@@ -2464,7 +2464,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-ffi"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "async-channel 2.3.1",
  "base64 0.22.1",
@@ -2487,7 +2487,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-installer"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -2509,7 +2509,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-macros"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "micro-rdk",
  "proc-macro-crate 3.2.0",
@@ -2520,7 +2520,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-modular-driver-example"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "log",
  "micro-rdk",
@@ -2528,7 +2528,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-server"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "async-channel 2.3.1",
  "embedded-hal 0.2.7",
