@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 ESPFLASHVERSION_MAJ := $(shell expr `cargo espflash -V | grep ^cargo-espflash | sed 's/^.* //g' | cut -f1 -d. `)
 ESPFLASHVERSION_MIN := $(shell expr `cargo espflash -V | grep ^cargo-espflash | sed 's/^.* //g' | cut -f2 -d. `)
-ESPFLASHVERSION := $(shell [ $(ESPFLASHVERSION_MAJ) -gt 2 -a $(ESPFLASHVERSION_MIN) -ge 0 ] && echo true)
+ESPFLASHVERSION := $(shell [ $(ESPFLASHVERSION_MAJ) -gt 2 -a $(ESPFLASHVERSION_MIN) -ge 2 ] && echo true)
 VIAM_API_VERSION := v0.1.336
 
 DATE := $(shell date +%F)
