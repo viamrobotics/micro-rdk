@@ -6,7 +6,8 @@ use crate::{
     common::{credentials_storage::RobotConfigurationStorage, grpc::ServerError},
     proto::app::v1::RobotConfig,
 };
-use futures_lite::Future;
+use async_io::Timer;
+use futures_lite::{Future, FutureExt};
 use std::fmt::Debug;
 use std::pin::Pin;
 use std::time::Duration;
@@ -62,22 +63,28 @@ where
         app_client: &'c AppClient,
     ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'c>> {
         Box::pin(async move {
-            if let Ok((new_config, _cfg_received_datetime)) = app_client.get_app_config(None).await
+            let (new_config, _cfg_received_datetime) = app_client
+                .get_app_config(None)
+                .or(async {
+                    let _ = Timer::after(Duration::from_secs(60)).await;
+                    Err(AppClientError::AppClientRequestTimeout)
+                })
+                .await?;
+
+            if new_config
+                .config
+                .is_some_and(|cfg| cfg != *self.curr_config)
             {
-                if new_config
-                    .config
-                    .is_some_and(|cfg| cfg != *self.curr_config)
-                {
-                    if let Err(e) = self.storage.reset_robot_configuration() {
-                        log::warn!(
-                            "Failed to reset robot config after new config detected: {}",
-                            e
-                        );
-                    } else {
-                        self.restart();
-                    }
+                if let Err(e) = self.storage.reset_robot_configuration() {
+                    log::warn!(
+                        "Failed to reset robot config after new config detected: {}",
+                        e
+                    );
+                } else {
+                    self.restart();
                 }
             }
+
             Ok(Some(self.get_default_period()))
         })
     }

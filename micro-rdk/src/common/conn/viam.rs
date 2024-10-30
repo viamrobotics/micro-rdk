@@ -1,4 +1,4 @@
-use async_channel::{Receiver, Sender};
+use async_channel::{Receiver};
 use async_executor::Task;
 use async_io::{Async, Timer};
 use either::Either;
@@ -33,7 +33,9 @@ use crate::common::provisioning::server::{
 use crate::common::registry::ComponentRegistry;
 use crate::common::restart_monitor::RestartMonitor;
 use crate::common::robot::LocalRobot;
-use crate::common::webrtc::api::{WebRtcApi, WebRtcError, WebRtcSdp, WebRtcSignalingChannel};
+use crate::common::webrtc::api::{
+    SignalingTask, WebRtcApi, WebRtcError, WebRtcSignalingChannel,
+};
 use crate::common::webrtc::certificate::Certificate;
 use crate::common::webrtc::dtls::DtlsBuilder;
 use crate::common::{
@@ -611,11 +613,8 @@ where
         };
 
         if let Some(cfg) = config.cloud.as_ref() {
-            self.app_client_tasks.push(Box::new(SignalingTask {
-                sender: tx,
-                rpc_host: cfg.fqdn.clone(),
-                max_answerer: Arc::new(async_lock::Semaphore::new(1)),
-            }));
+            self.app_client_tasks
+                .push(Box::new(SignalingTask::new(tx, cfg.fqdn.clone())));
         }
 
         let mut tasks: FuturesUnordered<_> = FuturesUnordered::new();
@@ -751,7 +750,7 @@ struct RobotServer<'a, M> {
 
 pub(crate) enum IncomingConnection2 {
     HTTP2Connection(std::io::Result<(Async<TcpStream>, SocketAddr)>),
-    WebRTCConnection(Result<(Box<WebRtcSignalingChannel>, Box<WebRtcSdp>), WebRtcError>),
+    WebRTCConnection(Result<Box<WebRtcSignalingChannel>, WebRtcError>),
 }
 
 impl<'a, M> RobotServer<'a, M>
@@ -796,7 +795,7 @@ where
                 }
             }
             IncomingConnection2::WebRTCConnection(conn) => {
-                let (sig, sdp) = conn.map_err(|e| errors::ServerError::Other(e.into()))?;
+                let sig = conn.map_err(|e| errors::ServerError::Other(e.into()))?;
                 let ip = self.network.get_ip();
                 if let WebRtcListener::WebRtc(conf) = self.webrtc_config {
                     let mut api = WebRtcApi::new(
@@ -805,7 +804,6 @@ where
                         conf.cert.clone(),
                         ip,
                         conf.dtls.make()?,
-                        sdp,
                     );
                     let (answer, prio) = api.answer(0).await?;
                     let robot = self.robot.clone();
@@ -877,7 +875,12 @@ where
                     })
                 } else {
                     Box::pin(async {
-                        IncomingConnection2::WebRTCConnection(self.answer_webrtc().await)
+                        IncomingConnection2::WebRTCConnection(
+                            self.webrtc_signaling
+                                .recv()
+                                .await
+                                .map_err(|e| WebRtcError::SignalingError(e.to_string())),
+                        )
                     })
                 };
 
@@ -886,46 +889,6 @@ where
                 log::error!("failed to server incoming connection reason {:?}", e)
             }
         }
-    }
-    async fn answer_webrtc(
-        &self,
-    ) -> Result<(Box<WebRtcSignalingChannel>, Box<WebRtcSdp>), WebRtcError> {
-        let mut sig = self
-            .webrtc_signaling
-            .recv()
-            .await
-            .map_err(|e| WebRtcError::SignalingError(e.to_string()))?;
-
-        let sdp = sig.wait_sdp_offer().await?;
-        Ok((sig, sdp))
-    }
-}
-
-struct SignalingTask {
-    sender: Sender<Box<WebRtcSignalingChannel>>,
-    rpc_host: String,
-    max_answerer: Arc<async_lock::Semaphore>,
-}
-
-impl PeriodicAppClientTask for SignalingTask {
-    fn get_default_period(&self) -> Duration {
-        Duration::from_secs(0)
-    }
-    fn name(&self) -> &str {
-        "SignalingTask"
-    }
-    fn invoke<'b, 'a: 'b>(
-        &'a self,
-        app_client: &'b AppClient,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'b>>
-    {
-        Box::pin(async {
-            let guard = self.max_answerer.acquire_arc().await;
-            let sig_pair = app_client.initiate_signaling(self.rpc_host.clone()).await?;
-            let sig = Box::new(WebRtcSignalingChannel::new(sig_pair.0, sig_pair.1, guard));
-            let _ret = self.sender.send(sig).await; // TODO deal with result, sending on a close channel will never succeed. The limit here is that SignalingTask will be allocated for the lifetime of the ViamServer.
-            Ok(None)
-        })
     }
 }
 
