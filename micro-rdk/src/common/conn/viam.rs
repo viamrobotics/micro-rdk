@@ -1,4 +1,4 @@
-use async_channel::{Receiver};
+use async_channel::Receiver;
 use async_executor::Task;
 use async_io::{Async, Timer};
 use either::Either;
@@ -33,9 +33,7 @@ use crate::common::provisioning::server::{
 use crate::common::registry::ComponentRegistry;
 use crate::common::restart_monitor::RestartMonitor;
 use crate::common::robot::LocalRobot;
-use crate::common::webrtc::api::{
-    SignalingTask, WebRtcApi, WebRtcError, WebRtcSignalingChannel,
-};
+use crate::common::webrtc::api::{SignalingTask, WebRtcApi, WebRtcError, WebRtcSignalingChannel};
 use crate::common::webrtc::certificate::Certificate;
 use crate::common::webrtc::dtls::DtlsBuilder;
 use crate::common::{
@@ -614,7 +612,9 @@ where
 
         if let Some(cfg) = config.cloud.as_ref() {
             self.app_client_tasks
-                .push(Box::new(SignalingTask::new(tx, cfg.fqdn.clone())));
+                .push(Box::new(SignalingTask::new(tx.clone(), cfg.fqdn.clone())));
+            self.app_client_tasks
+                .push(Box::new(SignalingTask::new(tx.clone(), cfg.fqdn.clone())));
         }
 
         let mut tasks: FuturesUnordered<_> = FuturesUnordered::new();
