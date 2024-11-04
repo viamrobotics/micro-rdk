@@ -35,11 +35,12 @@
 ///   - after updating the app, bootloader runs a new app with the "ESP_OTA_IMG_PENDING_VERIFY" state set. If the image is not marked as verified, will boot to previous ota slot
 ///
 use crate::{
+    common::config::Kind,
     esp32::esp_idf_svc::{
+        hal::io::EspIOError,
         http::client::{Configuration, EspHttpConnection},
         ota::{EspFirmwareInfoLoader, EspOta},
         sys::EspError,
-        hal::io::EspIOError,
     },
     proto::app::v1::ServiceConfig,
 };
@@ -76,19 +77,24 @@ pub(crate) struct OtaService {
 
 impl OtaService {
     pub(crate) fn from_config(ota_config: &ServiceConfig) -> Result<Self, OtaError> {
-        let kind = ota_config
+        // TODO(RSDK-9205)
+        let kind: Kind = ota_config
             .attributes
             .as_ref()
-            .unwrap()
+            .ok_or_else(|| OtaError::ConfigError("config missing `attributes`".to_string()))?
             .fields
             .get("url")
-            .ok_or_else(|| OtaError::ConfigError("`url` not found in config".to_string()))?
+            .ok_or_else(|| OtaError::ConfigError("config missing `url` field".to_string()))?
             .kind
-            .clone()
-            .ok_or_else(|| OtaError::ConfigError("failed to get inner value".to_string()))?;
+            .as_ref()
+            .ok_or_else(|| OtaError::ConfigError("failed to get inner `Value`".to_string()))?
+            .try_into()
+            .map_err(|_| {
+                OtaError::ConfigError("failed to convert `Value` to `Kind`".to_string())
+            })?;
 
         let url = match kind {
-            crate::google::protobuf::value::Kind::StringValue(s) => s,
+            Kind::StringValue(s) => s,
             _ => {
                 return Err(OtaError::ConfigError(format!(
                     "invalid url value: {:?}",
@@ -112,24 +118,24 @@ impl OtaService {
             crt_bundle_attach: Some(esp_idf_svc::sys::esp_crt_bundle_attach),
             ..Default::default()
         })
-            .map_err(OtaError::EspError)?;
+        .map_err(OtaError::EspError)?;
 
         let mut client = Client::wrap(connection);
-        let request = client
-            .get(&self.url)
-            .map_err(OtaError::DownloadError)?;
-        let mut response = request
-            .submit()
-            .map_err(OtaError::DownloadError)?;
+        let request = client.get(&self.url).map_err(OtaError::DownloadError)?;
+        let mut response = request.submit().map_err(OtaError::DownloadError)?;
         let status = response.status();
 
-        if status!= 200 {
+        if status != 200 {
             return Err(OtaError::Other(
                 format!("Bad Request - Status:{}", status).to_string(),
             ));
         }
 
-        let file_len = response.content_len().unwrap_or(0) as usize;
+        let file_len = match response.content_len() {
+            Some(v) => v as usize,
+            None => return Err(OtaError::Other("request has no content length".to_string())),
+        };
+
         if file_len > OTA_MAX_IMAGE_SIZE {
             return Err(OtaError::InvalidImageSize(file_len));
         }
@@ -145,7 +151,7 @@ impl OtaService {
             total_read += num_read;
             if !got_info {
                 let mut loader = EspFirmwareInfoLoader::new();
-                loader.load(&mut buff).map_err(OtaError::EspError)?;
+                loader.load(&buff).map_err(OtaError::EspError)?;
                 let new_fw = loader.get_info().map_err(OtaError::EspError)?;
                 log::info!("current firmware: {:?}", running_fw_info);
                 log::info!("new firmware: {:?}", new_fw);
@@ -154,7 +160,7 @@ impl OtaService {
                         && running_fw.released == new_fw.released
                     {
                         log::info!("current firmware is up to date");
-                        let _ = update_handle.abort();
+                        update_handle.abort()?;
                         return Ok(());
                     }
                 }
@@ -167,14 +173,14 @@ impl OtaService {
 
             if let Err(e) = update_handle.write(&buff[..num_read]) {
                 log::error!("failed to write OTA partition, update aborted: {}", e);
-                let _ = update_handle.abort();
+                update_handle.abort()?;
                 return Err(OtaError::EspError(e));
             }
         }
 
         if total_read < file_len {
             log::error!("{} bytes downloaded, needed {} bytes", total_read, file_len);
-            let _ = update_handle.abort();
+            update_handle.abort()?;
             return Err(OtaError::Other(
                 "download incomplete, update aborted".to_string(),
             ));

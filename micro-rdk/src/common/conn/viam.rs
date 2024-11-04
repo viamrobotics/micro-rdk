@@ -546,7 +546,7 @@ where
                 .find(|&service| service.model == ota::OTA_MODEL_TRIPLET)
             {
                 log::debug!("service config: {:#?}", service);
-                if let Ok(mut ota) = ota::OtaService::from_config(&service) {
+                if let Ok(mut ota) = ota::OtaService::from_config(service) {
                     log::debug!("OtaService: {:?}", ota);
                     if let Err(e) = ota.update() {
                         log::error!("ota failed: {:?}", e);
