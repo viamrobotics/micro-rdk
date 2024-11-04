@@ -554,8 +554,8 @@ where
                         log::info!("ota succeeded");
                     }
                 } else {
-                    log::info!(
-                        "no service of type `{}` found in robot config",
+                    log::error!(
+                        "ota enabled, but no service of type `{}` found in robot config",
                         ota::OTA_MODEL_TYPE
                     );
                 }

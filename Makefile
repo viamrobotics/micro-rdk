@@ -74,7 +74,7 @@ clippy-native:
 	cargo clippy -p micro-rdk --no-deps --features native  -- -Dwarnings
 
 clippy-esp32:
-	cargo +esp clippy -p micro-rdk  --features esp32  --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
+	cargo +esp clippy -p micro-rdk  --features esp32,ota  --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
 
 clippy-cli:
 	cargo clippy -p micro-rdk-installer --no-default-features -- -Dwarnings
