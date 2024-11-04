@@ -130,7 +130,7 @@ editing the `Cargo.toml` file to point to a path instead:
 [dependencies]
 ...
 micro-rdk = { path = "../micro-rdk/micro-rdk, features = ["esp32", "binstart","provisioning"] }
-micro-rdk-modular-driver-example = { path = "../micro-rdk/examples/modular-drives" }
+micro-rdk-modular-driver-example = { path = "../micro-rdk/examples/modular-drivers" }
 ```
 
 It is a nuisance to maintain these edits: avoiding checking them in,

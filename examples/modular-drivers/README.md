@@ -35,7 +35,7 @@ index 79fbc5c..949b5ab 100644
  smol = "1.2"
  futures-lite = "1.12.0"
  micro-rdk = {version = "0.0.3", git = "https://github.com/viamrobotics/micro-rdk.git", features = ["esp32"]}
-+micro-rdk-modular-driver-example = { git = "https://github.com/viamrobotics/micro-rdk/tree/main/examples/modular-drivers" }
++micro-rdk-modular-driver-example = { git = "https://github.com/viamrobotics/micro-rdk/.git", package = "micro-rdk-modular-driver-example" }
 ```
 
 Rebuild the project per the above Micro-RDK Development Setup
