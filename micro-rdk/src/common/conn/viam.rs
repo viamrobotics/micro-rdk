@@ -548,7 +548,7 @@ where
                 log::debug!("service config: {:#?}", service);
                 if let Ok(mut ota) = ota::OtaService::from_config(&service) {
                     log::debug!("OtaService: {:?}", ota);
-                    if let Err(e) = ota.update().await {
+                    if let Err(e) = ota.update() {
                         log::error!("ota failed: {:?}", e);
                     } else {
                         log::info!("ota succeeded");

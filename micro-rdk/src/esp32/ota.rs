@@ -39,19 +39,16 @@ use crate::{
         http::client::{Configuration, EspHttpConnection},
         ota::{EspFirmwareInfoLoader, EspOta},
         sys::EspError,
+        hal::io::EspIOError,
     },
     proto::app::v1::ServiceConfig,
 };
 use embedded_svc::http::{client::Client, Headers};
 
-// TODO: set according to running partition scheme
+// TODO(RSDK-9200): set according to active partition scheme
 const OTA_MAX_IMAGE_SIZE: usize = 1024 * 1024 * 4; // 4MB
-/// The actual minimum size of an (app image)[https://github.com/espressif/esp-idf/blob/v4.4.8/components/bootloader_support/include/esp_app_format.h] would be more like:
-/// min_bytes = `sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t) + sizeof(esp_app_desc_t) + sizeof(esp_image_segment_header_t) + sizeof(esp_image application) = 24 + 8 + 265 + 8 + ? `.
-/// However, builds with micro-rdk are unlikely to be <2MB so the minimum is set as sucha.
-const OTA_MIN_IMAGE_SIZE: usize = 1024 * 1024 * 2; // 2MB
-const OTA_CHUNK_SIZE: usize = 1024 * 20; // 20KB
-const OTA_HTTP_BUFSIZE: usize = 1024 * 4; // 4KB
+const OTA_CHUNK_SIZE: usize = 1024 * 16; // 16KB
+const OTA_HTTP_BUFSIZE: usize = 1024 * 16; // 16KB
 pub const OTA_MODEL_TYPE: &str = "ota_service";
 pub const OTA_MODEL_TRIPLET: &str = "rdk:builtin:ota_service";
 
@@ -60,8 +57,8 @@ use thiserror::Error;
 pub enum OtaError {
     #[error("{0}")]
     ConfigError(String),
-    #[error("error downloading new firmware: {0}")]
-    DownloadError(String),
+    #[error(transparent)]
+    DownloadError(#[from] EspIOError),
     #[error(transparent)]
     EspError(#[from] EspError),
     #[error("failed to initialize ota process")]
@@ -107,7 +104,7 @@ impl OtaService {
         Ok(Self { url })
     }
 
-    pub(crate) async fn update(&mut self) -> Result<(), OtaError> {
+    pub(crate) fn update(&mut self) -> Result<(), OtaError> {
         let connection = EspHttpConnection::new(&Configuration {
             buffer_size: Some(OTA_HTTP_BUFSIZE),
             buffer_size_tx: Some(OTA_HTTP_BUFSIZE),
@@ -115,25 +112,25 @@ impl OtaService {
             crt_bundle_attach: Some(esp_idf_svc::sys::esp_crt_bundle_attach),
             ..Default::default()
         })
-        .map_err(|e| OtaError::DownloadError(e.to_string()))?;
+            .map_err(OtaError::EspError)?;
 
         let mut client = Client::wrap(connection);
         let request = client
             .get(&self.url)
-            .map_err(|e| OtaError::DownloadError(e.to_string()))?;
+            .map_err(OtaError::DownloadError)?;
         let mut response = request
             .submit()
-            .map_err(|e| OtaError::DownloadError(e.to_string()))?;
+            .map_err(OtaError::DownloadError)?;
         let status = response.status();
 
-        if !(200..=299).contains(&status) {
-            return Err(OtaError::DownloadError(
+        if status!= 200 {
+            return Err(OtaError::Other(
                 format!("Bad Request - Status:{}", status).to_string(),
             ));
         }
 
         let file_len = response.content_len().unwrap_or(0) as usize;
-        if !(OTA_MIN_IMAGE_SIZE..OTA_MAX_IMAGE_SIZE).contains(&file_len) {
+        if file_len > OTA_MAX_IMAGE_SIZE {
             return Err(OtaError::InvalidImageSize(file_len));
         }
 
@@ -178,7 +175,7 @@ impl OtaService {
         if total_read < file_len {
             log::error!("{} bytes downloaded, needed {} bytes", total_read, file_len);
             let _ = update_handle.abort();
-            return Err(OtaError::DownloadError(
+            return Err(OtaError::Other(
                 "download incomplete, update aborted".to_string(),
             ));
         }
@@ -186,6 +183,7 @@ impl OtaService {
 
         log::info!("resetting now to boot from new firmware");
 
-        std::process::exit(0);
+        esp_idf_svc::hal::reset::restart();
+        unreachable!();
     }
 }
