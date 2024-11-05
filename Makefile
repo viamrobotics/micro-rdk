@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 ESPFLASHVERSION_MAJ := $(shell expr `cargo espflash -V | grep ^cargo-espflash | sed 's/^.* //g' | cut -f1 -d. `)
 ESPFLASHVERSION_MIN := $(shell expr `cargo espflash -V | grep ^cargo-espflash | sed 's/^.* //g' | cut -f2 -d. `)
-ESPFLASHVERSION := $(shell [ $(ESPFLASHVERSION_MAJ) -gt 2 -a $(ESPFLASHVERSION_MIN) -ge 0 ] && echo true)
+ESPFLASHVERSION := $(shell [ $(ESPFLASHVERSION_MAJ) -gt 2 -a $(ESPFLASHVERSION_MIN) -ge 2 ] && echo true)
 VIAM_API_VERSION := v0.1.336
 
 DATE := $(shell date +%F)
@@ -74,7 +74,7 @@ clippy-native:
 	cargo clippy -p micro-rdk --no-deps --features native  -- -Dwarnings
 
 clippy-esp32:
-	cargo +esp clippy -p micro-rdk  --features esp32  --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
+	cargo +esp clippy -p micro-rdk  --features esp32,ota  --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
 
 clippy-cli:
 	cargo clippy -p micro-rdk-installer --no-default-features -- -Dwarnings
@@ -101,6 +101,9 @@ size:
 
 build-esp32-bin:
 	cargo +esp espflash save-image --package micro-rdk-server --merge --chip esp32 target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin -T micro-rdk-server/esp32/partitions.csv -s 4mb  --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort --release
+
+build-esp32-ota:
+	cargo +esp espflash save-image --package micro-rdk-server --features=ota --chip=esp32 ./target/xtensa-esp32-espidf/micro-rdk-server-esp32-ota.bin --bin=micro-rdk-server-esp32 --partition-table=micro-rdk-server/esp32/ota_8mb_partitions.csv --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --release
 
 flash-esp32-bin:
 ifneq (,$(wildcard ./target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin))

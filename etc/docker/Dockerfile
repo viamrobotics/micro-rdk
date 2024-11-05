@@ -4,7 +4,7 @@ RUN apt update && apt-get install -y --no-install-recommends git libudev-dev mak
 
 RUN export TARGET=$(rustc -vV | sed -En 's/^host: //p') && \
     curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash && \
-    cargo binstall --pkg-url='https://github.com/esp-rs/espflash/releases/download/v{ version }/{ name }-{ target }{ archive-suffix }' --pkg-fmt='zip' cargo-espflash@3.0.0 --install-path /usr -y --target $TARGET && \
+    cargo binstall --pkg-url='https://github.com/esp-rs/espflash/releases/download/v{ version }/{ name }-{ target }{ archive-suffix }' --pkg-fmt='zip' cargo-espflash@3.2.0 --install-path /usr -y --target $TARGET && \
     cargo binstall --pkg-url='https://github.com/esp-rs/espup/releases/download/v{ version }/{ name }-{ target }{ archive-suffix }' --pkg-fmt='zip' espup@0.11 --install-path /usr -y --target $TARGET && \
     cargo binstall --pkg-url='https://github.com/esp-rs/embuild/releases/download/{ name }-v{ version }/{ name }-{ target }{ archive-suffix }' --pkg-fmt='zip' ldproxy@0.3.2 --install-path /usr -y --target $TARGET && \
     cargo binstall --pkg-url='https://github.com/mozilla/sccache/releases/download/v{ version }/{ name }-v{ version }-{ target }{ archive-suffix }' --pkg-fmt='tgz' sccache@0.7.7 --install-path /usr -y --target $TARGET

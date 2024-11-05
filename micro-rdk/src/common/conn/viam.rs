@@ -534,6 +534,34 @@ where
         ));
         self.app_client_tasks.push(config_monitor_task);
 
+        #[cfg(feature = "ota")]
+        {
+            use crate::esp32::ota;
+
+            log::debug!("ota feature enabled");
+
+            if let Some(service) = config
+                .services
+                .iter()
+                .find(|&service| service.model == ota::OTA_MODEL_TRIPLET)
+            {
+                log::debug!("service config: {:#?}", service);
+                if let Ok(mut ota) = ota::OtaService::from_config(service) {
+                    log::debug!("OtaService: {:?}", ota);
+                    if let Err(e) = ota.update() {
+                        log::error!("ota failed: {:?}", e);
+                    } else {
+                        log::info!("ota succeeded");
+                    }
+                } else {
+                    log::error!(
+                        "ota enabled, but no service of type `{}` found in robot config",
+                        ota::OTA_MODEL_TYPE
+                    );
+                }
+            }
+        }
+
         let mut robot = LocalRobot::from_cloud_config(
             self.executor.clone(),
             robot_creds.robot_id.clone(),
