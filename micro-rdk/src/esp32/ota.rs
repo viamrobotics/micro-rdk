@@ -35,7 +35,7 @@
 ///   - after updating the app, bootloader runs a new app with the "ESP_OTA_IMG_PENDING_VERIFY" state set. If the image is not marked as verified, will boot to previous ota slot
 ///
 use crate::{
-    common::config::Kind,
+    common::config::{AttributeError, Kind},
     esp32::esp_idf_svc::{
         hal::io::EspIOError,
         http::client::{Configuration, EspHttpConnection},
@@ -84,14 +84,14 @@ impl OtaService {
             .ok_or_else(|| OtaError::ConfigError("config missing `attributes`".to_string()))?
             .fields
             .get("url")
-            .ok_or_else(|| OtaError::ConfigError("config missing `url` field".to_string()))?
+            .ok_or(OtaError::ConfigError(
+                "config missing `url` field".to_string(),
+            ))?
             .kind
             .as_ref()
             .ok_or_else(|| OtaError::ConfigError("failed to get inner `Value`".to_string()))?
             .try_into()
-            .map_err(|_| {
-                OtaError::ConfigError("failed to convert `Value` to `Kind`".to_string())
-            })?;
+            .map_err(|e: AttributeError| OtaError::ConfigError(e.to_string()))?;
 
         let url = match kind {
             Kind::StringValue(s) => s,
