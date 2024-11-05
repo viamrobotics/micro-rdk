@@ -90,7 +90,7 @@ impl OtaService {
             ))?
             .kind
             .as_ref()
-            .ok_or_else(|| OtaError::ConfigError("failed to get inner `Value`".to_string()))?
+            .ok_or(OtaError::ConfigError("failed to get inner `Value`".to_string()))?
             .try_into()
             .map_err(|e: AttributeError| OtaError::ConfigError(e.to_string()))?;
 
