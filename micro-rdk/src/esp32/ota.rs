@@ -45,6 +45,7 @@ use crate::{
     proto::app::v1::ServiceConfig,
 };
 use embedded_svc::http::{client::Client, Headers};
+use thiserror::Error;
 
 // TODO(RSDK-9200): set according to active partition scheme
 const OTA_MAX_IMAGE_SIZE: usize = 1024 * 1024 * 4; // 4MB
@@ -53,7 +54,7 @@ const OTA_HTTP_BUFSIZE: usize = 1024 * 16; // 16KB
 pub const OTA_MODEL_TYPE: &str = "ota_service";
 pub const OTA_MODEL_TRIPLET: &str = "rdk:builtin:ota_service";
 
-use thiserror::Error;
+// TODO(RSDK-9214)
 #[derive(Error, Debug)]
 pub enum OtaError {
     #[error("{0}")]
