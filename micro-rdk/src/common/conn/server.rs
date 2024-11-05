@@ -1,6 +1,6 @@
 use super::errors::ServerError;
 use crate::common::{
-    grpc::GrpcServer,
+    grpc::{GrpcServer, RpcAllocation},
     webrtc::{
         api::{AtomicSync, WebRtcError},
         certificate::Certificate,
@@ -29,23 +29,26 @@ impl WebRtcConfiguration {
     }
 }
 
-pub(crate) struct WebRTCConnection {
-    server: WebRtcGrpcServer<GrpcServer<WebRtcGrpcBody>>,
+pub(crate) struct WebRTCConnection<RpcAllocationType> {
+    server: WebRtcGrpcServer<GrpcServer<WebRtcGrpcBody, RpcAllocationType>>,
     _transport: WebRtcTransport,
     ice_agent: AtomicSync,
     sctp_handle: SctpHandle,
 }
 
-impl Drop for WebRTCConnection {
+impl<RpcAllocationType> Drop for WebRTCConnection<RpcAllocationType> {
     fn drop(&mut self) {
         let _ = self.sctp_handle.close();
         self.ice_agent.done();
     }
 }
 
-impl WebRTCConnection {
+impl<RpcAllocationType> WebRTCConnection<RpcAllocationType>
+where
+    RpcAllocationType: RpcAllocation,
+{
     pub(crate) fn new(
-        server: WebRtcGrpcServer<GrpcServer<WebRtcGrpcBody>>,
+        server: WebRtcGrpcServer<GrpcServer<WebRtcGrpcBody, RpcAllocationType>>,
         transport: WebRtcTransport,
         ice_agent: AtomicSync,
         sctp_handle: SctpHandle,

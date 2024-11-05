@@ -149,7 +149,7 @@ mod tests {
             let incoming = listener.accept().await;
             assert!(incoming.is_ok());
             let stream = incoming.unwrap();
-            let srv = GrpcServer::new(robot.clone(), GrpcBody::new());
+            let srv = GrpcServer::<_, Vec<u8>>::new(robot.clone(), GrpcBody::new());
             Box::new(http2::Builder::new(exec.clone()).serve_connection(stream, srv))
                 .await
                 .unwrap();

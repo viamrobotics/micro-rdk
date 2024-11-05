@@ -19,6 +19,7 @@ pub mod pin;
 #[cfg(feature = "builtin-components")]
 pub mod pulse_counter;
 pub mod pwm;
+pub mod rpc_heap;
 #[cfg(feature = "builtin-components")]
 pub mod single_encoded_motor;
 #[cfg(feature = "builtin-components")]

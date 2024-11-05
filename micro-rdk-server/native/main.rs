@@ -83,7 +83,7 @@ mod native {
             mdns,
             Box::new(network),
         );
-        server.run_forever();
+        server.run_forever::<bytes::BytesMut>();
     }
 }
 

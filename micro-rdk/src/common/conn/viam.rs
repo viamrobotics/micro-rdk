@@ -24,7 +24,7 @@ use std::time::Duration;
 use std::{fmt::Debug, net::TcpStream};
 
 use crate::common::config_monitor::ConfigMonitor;
-use crate::common::grpc::{GrpcBody, GrpcServer, ServerError};
+use crate::common::grpc::{GrpcBody, GrpcServer, RpcAllocation, ServerError};
 use crate::common::grpc_client::GrpcClient;
 use crate::common::log::LogUploadTask;
 use crate::common::provisioning::server::{
@@ -364,7 +364,7 @@ where
     C: ViamH2Connector + 'static,
     M: Mdns,
 {
-    pub fn run_forever(&mut self) -> ! {
+    pub fn run_forever<A: RpcAllocation + Clone + 'static>(&mut self) -> ! {
         #[cfg(feature = "esp32")]
         {
             // set the TWDT to expire after 3 minutes
@@ -391,10 +391,10 @@ where
                 .detach();
         }
         let exec = self.executor.clone();
-        exec.block_on(Box::pin(self.run()));
+        exec.block_on(Box::pin(self.run::<A>()));
     }
 
-    pub(crate) async fn run(&mut self) -> ! {
+    pub(crate) async fn run<A: RpcAllocation + Clone + 'static>(&mut self) -> ! {
         // The first step is to check whether or not credentials are populated in
         // storage. If not, we should go straight to provisioning.
         //
@@ -649,7 +649,7 @@ where
         tasks.push(Either::Right(Box::pin(
             self.run_app_client_tasks(app_client),
         )));
-        tasks.push(Either::Left(Box::pin(inner.run())));
+        tasks.push(Either::Left(Box::pin(inner.run::<A>())));
 
         while let Some(ret) = tasks.next().await {
             log::error!("task ran returned {:?}", ret);
@@ -785,14 +785,14 @@ impl<'a, M> RobotServer<'a, M>
 where
     M: Mdns,
 {
-    fn serve_http2_connection(
+    fn serve_http2_connection<A: RpcAllocation + Clone + 'static>(
         &self,
         io: Box<dyn HTTP2Stream>,
     ) -> Task<Result<(), errors::ServerError>> {
         let exec = self.executor.clone();
         let robot = self.robot.clone();
         self.executor.spawn(async move {
-            let srv = GrpcServer::new(robot, GrpcBody::new());
+            let srv = GrpcServer::<GrpcBody, A>::new(robot, GrpcBody::new());
 
             http2::Builder::new(exec)
                 .initial_connection_window_size(2048)
@@ -804,7 +804,7 @@ where
                 .map_err(|e| errors::ServerError::Other(e.into()))
         })
     }
-    async fn serve_incoming_connection(
+    async fn serve_incoming_connection<A: RpcAllocation + Clone + 'static>(
         &mut self,
         incoming: IncomingConnection2,
     ) -> Result<(), errors::ServerError> {
@@ -815,7 +815,7 @@ where
                         let stream = conn?;
                         // we will have to wait for the tls context to be established before moving forward
                         let io = h.accept_connection(stream.0)?.await?;
-                        let task = self.serve_http2_connection(io);
+                        let task = self.serve_http2_connection::<A>(io);
                         self.incomming_connection_manager
                             .insert_new_conn(task, u32::MAX)
                             .await;
@@ -837,7 +837,7 @@ where
                     let robot = self.robot.clone();
 
                     let task = self.executor.spawn(async move {
-                        let mut conn = api.connect(answer, robot).await?;
+                        let mut conn = api.connect::<A>(answer, robot).await?;
                         conn.run().await
                     });
                     self.incomming_connection_manager
@@ -849,7 +849,7 @@ where
         Ok(())
     }
 
-    async fn run(&mut self) -> Result<(), errors::ServerError> {
+    async fn run<A: RpcAllocation + Clone + 'static>(&mut self) -> Result<(), errors::ServerError> {
         let http2_listener = if let HTTP2Server::HTTP2Connector(_) = self.http2_server {
             if let Some(cfg) = self.robot_config.cloud.as_ref() {
                 let mut mdns = self.mdns.borrow_mut();
@@ -913,7 +913,7 @@ where
                 };
 
             let incoming = Box::pin(futures_lite::future::or(h2_conn, webrtc_conn)).await;
-            if let Err(e) = self.serve_incoming_connection(incoming).await {
+            if let Err(e) = self.serve_incoming_connection::<A>(incoming).await {
                 log::error!("failed to server incoming connection reason {:?}", e)
             }
         }
@@ -1266,7 +1266,7 @@ mod tests {
             let _fake_server_task =
                 cloned_exec.spawn(async move { run_fake_app_server(other_clone, app).await });
             let _task = cloned_exec.spawn(async move {
-                viam_server.run().await;
+                viam_server.run::<BytesMut>().await;
             });
             let _ = Timer::after(Duration::from_millis(500)).await;
             assert!(!cloned_ram_storage.has_robot_credentials())
@@ -1338,7 +1338,7 @@ mod tests {
             let fake_server_task =
                 cloned_exec.spawn(async move { run_fake_app_server(other_clone, app).await });
             let _task = cloned_exec.spawn(async move {
-                viam_server.run().await;
+                viam_server.run::<BytesMut>().await;
             });
             let record = look_for_an_mdns_record("_rpc._tcp.local.", "grpc", "test-bot")
                 .or(async {
@@ -1439,7 +1439,7 @@ mod tests {
         let cloned_exec = exec.clone();
         exec.block_on(async move {
             let _task = cloned_exec.spawn(async move {
-                viam_server.run().await;
+                viam_server.run::<BytesMut>().await;
             });
             let record = look_for_an_mdns_record("_rpc._tcp.local.", "grpc", "test-bot")
                 .or(async {
@@ -1585,7 +1585,7 @@ mod tests {
         let cloned_exec = exec.clone();
         exec.block_on(async move {
             let _task = cloned_exec.spawn(async move {
-                viam_server.run().await;
+                viam_server.run::<BytesMut>().await;
             });
             let record = look_for_an_mdns_record(
                 "_rpc._tcp.local.",
@@ -1754,7 +1754,7 @@ mod tests {
         exec.block_on(async {
             Timer::after(Duration::from_millis(200)).await;
         });
-        b.run_forever();
+        b.run_forever::<BytesMut>();
     }
 
     async fn run_fake_app_server(exec: Executor, app: AppServerInsecure) {

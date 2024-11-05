@@ -14,7 +14,7 @@ use crate::{
     common::{
         app_client::{AppClient, AppClientError, PeriodicAppClientTask},
         conn::{errors::ServerError, server::WebRTCConnection},
-        grpc::GrpcServer,
+        grpc::{GrpcServer, RpcAllocation},
         grpc_client::{GrpcClientError, GrpcMessageSender, GrpcMessageStream},
         robot::LocalRobot,
     },
@@ -569,11 +569,11 @@ where
         Err(WebRtcError::DataChannelOpenError())
     }
 
-    pub(crate) async fn connect(
+    pub(crate) async fn connect<A: RpcAllocation>(
         mut self,
         answer: Box<WebRtcSdp>,
         robot: Arc<Mutex<LocalRobot>>,
-    ) -> Result<WebRTCConnection, ServerError> {
+    ) -> Result<WebRTCConnection<A>, ServerError> {
         self.run_ice_until_connected(&answer)
             .or(async {
                 Timer::after(Duration::from_secs(10)).await;
@@ -595,7 +595,10 @@ where
                 WebRtcError::OperationTiemout => ServerError::ServerConnectionTimeout,
                 _ => ServerError::Other(e.into()),
             })?;
-        let srv = WebRtcGrpcServer::new(c.0, GrpcServer::new(robot, WebRtcGrpcBody::default()));
+        let srv = WebRtcGrpcServer::new(
+            c.0,
+            GrpcServer::<WebRtcGrpcBody, A>::new(robot, WebRtcGrpcBody::default()),
+        );
         Ok(WebRTCConnection::new(
             srv,
             self.transport,

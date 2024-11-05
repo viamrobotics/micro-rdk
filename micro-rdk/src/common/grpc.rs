@@ -16,7 +16,7 @@ use crate::{
     proto::{self, component, robot},
 };
 use bytes::{BufMut, BytesMut};
-use futures_lite::{future, Future};
+use futures_lite::Future;
 use http_body_util::BodyExt;
 use hyper::{
     body::{self, Body, Bytes, Frame},
@@ -27,17 +27,13 @@ use hyper::{
 use log::*;
 use prost::Message;
 use std::{
-    cell::RefCell,
     pin::Pin,
-    rc::Rc,
     task::{Context, Poll},
 };
 use thiserror::Error;
 
 #[cfg(feature = "camera")]
-static GRPC_BUFFER_SIZE: usize = 1024 * 30; // 30KB
-#[cfg(not(feature = "camera"))]
-static GRPC_BUFFER_SIZE: usize = 9216;
+static CAMERA_BUFFER_SIZE: usize = 1024 * 30; // 30KB
 
 #[derive(Clone, Debug)]
 pub struct GrpcBody {
@@ -124,46 +120,41 @@ pub trait GrpcResponse {
 }
 
 #[derive(Clone)]
-pub struct GrpcServer<R> {
+pub struct GrpcServer<R, AllocatorType> {
     pub(crate) response: R,
-    pub(crate) buffer: Rc<RefCell<BytesMut>>,
+    _allocator_marker: PhantomData<AllocatorType>,
     robot: Arc<Mutex<LocalRobot>>,
 }
 
-pub struct GrpcServerInner<'a> {
-    buffer: &'a Rc<RefCell<BytesMut>>,
+pub struct GrpcServerInner<'a, AllocatorType> {
     robot: &'a Arc<Mutex<LocalRobot>>,
+    _allocator_marker: PhantomData<AllocatorType>,
 }
 
-impl<R> Debug for GrpcServer<R>
+impl<R, A> Debug for GrpcServer<R, A>
 where
     R: Debug,
+    A: RpcAllocation,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "GrpcServer {{ response : {:?} }}, {{ buffer : {:?} }}",
-            self.response, self.buffer
-        )
+        write!(f, "GrpcServer {{ response : {:?} }}", self.response)
     }
 }
 
-impl<R> GrpcServer<R>
+impl<R, A> GrpcServer<R, A>
 where
     R: GrpcResponse,
+    A: RpcAllocation,
 {
     pub fn new(robot: Arc<Mutex<LocalRobot>>, body: R) -> Self {
         GrpcServer {
             response: body,
-            buffer: Rc::new(RefCell::new(BytesMut::with_capacity(GRPC_BUFFER_SIZE))),
             robot,
+            _allocator_marker: PhantomData,
         }
     }
     fn process_request(&mut self, path: &str, msg: Bytes) {
-        let mut grpc = GrpcServerInner {
-            buffer: &self.buffer,
-            robot: &self.robot,
-        };
+        let mut grpc = GrpcServerInner::<A>::new(&self.robot);
         let payload = grpc.validate_rpc(&msg).map_err(ServerError::from);
         match payload.and_then(|payload| grpc.handle_request(path, payload)) {
             Ok(buffer) => {
@@ -177,21 +168,29 @@ where
     }
 }
 
-impl<'a> GrpcServerInner<'a> {
+impl<'a, A> GrpcServerInner<'a, A>
+where
+    A: RpcAllocation,
+{
+    fn new(robot: &'a Arc<Mutex<LocalRobot>>) -> Self {
+        GrpcServerInner {
+            robot,
+            _allocator_marker: PhantomData,
+        }
+    }
+
     fn encode_message<M: Message>(&mut self, m: M) -> Result<Bytes, ServerError> {
-        let mut buffer = RefCell::borrow_mut(self.buffer).split_off(0);
         // The buffer will have a null byte, then 4 bytes containing the big-endian length of the
         // data (*not* including this 5-byte header), and then the data from the message itself.
-        if 5 + m.encoded_len() > buffer.capacity() {
-            return Err(GrpcError::RpcResourceExhausted.into());
-        }
-        buffer.put_u8(0);
-        buffer.put_u32(m.encoded_len().try_into().unwrap());
-        let mut msg = buffer.split_off(5);
-        m.encode(&mut msg)
-            .map_err(|_| ServerError::from(GrpcError::RpcInternal))?;
-        buffer.unsplit(msg);
-        Ok(buffer.freeze())
+        let buffer = match A::get_allocation(5 + m.encoded_len()) {
+            Ok(buf) => buf,
+            Err(err) => {
+                log::error!("error allocating RPC response buffer: {:?}", err);
+                return Err(GrpcError::RpcResourceExhausted.into());
+            }
+        };
+
+        Ok(buffer.to_encoded_message(m)?)
     }
     fn validate_rpc<'b>(&'a self, message: &'b Bytes) -> Result<&'b [u8], GrpcError> {
         // Per https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md, we're expecting a
@@ -1357,7 +1356,7 @@ impl<'a> GrpcServerInner<'a> {
             .get_camera_by_name(req.name)
             .ok_or(GrpcError::RpcUnavailable)?;
 
-        let mut buffer = RefCell::borrow_mut(&self.buffer).split_off(0);
+        let mut buffer = BytesMut::with_capacity(CAMERA_BUFFER_SIZE);
         let msg_buf = buffer.split_off(5);
 
         let msg_buf = camera
@@ -1384,7 +1383,8 @@ impl<'a> GrpcServerInner<'a> {
             .get_camera_by_name(req.name)
             .ok_or(GrpcError::RpcUnavailable)?;
 
-        let mut buffer = RefCell::borrow_mut(&self.buffer).split_off(0);
+        let mut buffer = BytesMut::with_capacity(CAMERA_BUFFER_SIZE);
+
         let msg_buf = buffer.split_off(5);
 
         let msg_buf = camera
@@ -1437,18 +1437,13 @@ impl<'a> GrpcServerInner<'a> {
     }
 }
 
-impl<R> WebRtcGrpcService for GrpcServer<R>
+impl<R, A> WebRtcGrpcService for GrpcServer<R, A>
 where
     R: GrpcResponse + 'static,
+    A: RpcAllocation,
 {
     fn unary_rpc(&mut self, method: &str, data: &Bytes) -> Result<Bytes, ServerError> {
-        {
-            RefCell::borrow_mut(&self.buffer).reserve(GRPC_BUFFER_SIZE);
-        }
-        let mut grpc = GrpcServerInner {
-            buffer: &self.buffer,
-            robot: &self.robot,
-        };
+        let mut grpc = GrpcServerInner::<A>::new(&self.robot);
         grpc.handle_request(method, data)
             .map(|mut b| b.split_off(5))
     }
@@ -1457,22 +1452,17 @@ where
         method: &str,
         data: &Bytes,
     ) -> Result<(Bytes, Instant), ServerError> {
-        {
-            RefCell::borrow_mut(&self.buffer).reserve(GRPC_BUFFER_SIZE);
-        }
         log::debug!("stream req is {:?}, ", method);
-        let mut grpc = GrpcServerInner {
-            buffer: &self.buffer,
-            robot: &self.robot,
-        };
+        let mut grpc = GrpcServerInner::<A>::new(&self.robot);
         grpc.handle_rpc_stream(method, data)
             .map(|mut dur| (dur.0.split_off(5), dur.1))
     }
 }
 
-impl<R> Service<Request<body::Incoming>> for GrpcServer<R>
+impl<R, A> Service<Request<body::Incoming>> for GrpcServer<R, A>
 where
     R: GrpcResponse + Body + Clone + 'static,
+    A: RpcAllocation + Clone + 'static,
 {
     type Response = Response<R>;
     type Error = GrpcError;
@@ -1481,9 +1471,6 @@ where
     fn call(&self, req: Request<body::Incoming>) -> Self::Future {
         #[cfg(debug_assertions)]
         debug!("clone in Servive GRPC");
-        {
-            RefCell::borrow_mut(&self.buffer).reserve(GRPC_BUFFER_SIZE);
-        }
         let mut svc = self.clone();
         #[cfg(debug_assertions)]
         log::debug!("processing {:?}", req);
@@ -1508,7 +1495,7 @@ where
         })
     }
 }
-impl<R> Drop for GrpcServer<R> {
+impl<R, A> Drop for GrpcServer<R, A> {
     fn drop(&mut self) {
         debug!("Server dropped");
     }
@@ -1613,29 +1600,29 @@ impl fmt::Display for ServerError {
     }
 }
 
-pub struct MakeSvcGrpcServer {
-    server: GrpcServer<GrpcBody>,
+/// RpcAllocation represents a heap allocated container that can consume a gRPC
+/// message and convert itself into an immutable Bytes object. Rust's allocator API
+/// does not yet allow for the allocation of space to fail if the requisite amount
+/// is unavailable so we create this trait for memory allocators that could do so.
+/// We implement the trait trivially for BytesMut for when such an allocator is unavailable
+pub trait RpcAllocation: Sized {
+    fn get_allocation(size: usize) -> Result<Self, GrpcError>;
+    fn to_encoded_message<M: Message>(self, msg: M) -> Result<Bytes, GrpcError>;
 }
 
-impl MakeSvcGrpcServer {
-    #[allow(dead_code)]
-    pub fn new(robot: Arc<Mutex<LocalRobot>>) -> Self {
-        MakeSvcGrpcServer {
-            server: GrpcServer::new(robot, GrpcBody::new()),
-        }
+impl RpcAllocation for BytesMut {
+    fn get_allocation(size: usize) -> Result<Self, GrpcError> {
+        Ok(Self::with_capacity(size))
     }
-}
-
-impl<T> Service<T> for MakeSvcGrpcServer {
-    type Response = GrpcServer<GrpcBody>;
-    type Error = GrpcError;
-    type Future = future::Ready<Result<Self::Response, Self::Error>>;
-
-    fn call(&self, _: T) -> Self::Future {
-        {
-            info!("reserve memory");
-            RefCell::borrow_mut(&self.server.buffer).reserve(10240);
+    fn to_encoded_message<M: Message>(mut self, m: M) -> Result<Bytes, GrpcError> {
+        if 5 + m.encoded_len() > self.capacity() {
+            return Err(GrpcError::RpcResourceExhausted);
         }
-        future::ready(Ok(self.server.clone()))
+        self.put_u8(0);
+        self.put_u32(m.encoded_len().try_into().unwrap());
+        let mut msg = self.split_off(5);
+        m.encode(&mut msg).map_err(|_| GrpcError::RpcInternal)?;
+        self.unsplit(msg);
+        Ok(self.freeze())
     }
 }
