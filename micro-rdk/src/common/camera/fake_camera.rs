@@ -93,16 +93,16 @@ mod tests {
         common::{
             app_client::encode_request,
             config::DynamicComponentConfig,
-            conn::server::{AsyncableTcpListener, Http2Connector},
             exec::Executor,
-            grpc::GrpcError,
-            grpc::{GrpcBody, GrpcServer},
+            grpc::{GrpcBody, GrpcError, GrpcServer},
+            registry::ComponentRegistry,
             robot::{LocalRobot, RobotError},
         },
         google::api::HttpBody,
-        native::tcp::{NativeListener, NativeStream},
+        native::tcp::NativeStream,
         proto::component::camera::v1::{GetImageRequest, GetImageResponse, RenderFrameRequest},
     };
+    use bytes::BytesMut;
 
     use http_body_util::{combinators::BoxBody, BodyExt, Collected, Full};
     use hyper::{
@@ -130,26 +130,27 @@ mod tests {
             attributes: None,
             ..Default::default()
         }));
+        let mut reg: Box<ComponentRegistry> = Box::default();
 
-        robot.process_components(conf, Box::default())?;
+        robot.process_components(conf, &mut reg)?;
 
         Ok(robot)
     }
 
     async fn setup_grpc_server(exec: Executor, addr: SocketAddr) {
-        let mut listener = NativeListener::new((addr).into(), None)
-            .unwrap()
-            .as_async_listener()
-            .await
-            .unwrap();
+        let tcp_server = TcpListener::bind(addr);
+        assert!(tcp_server.is_ok());
+        let tcp_server = tcp_server.unwrap();
+        let listener: async_io::Async<TcpListener> = tcp_server.try_into().unwrap();
 
         let robot = Arc::new(Mutex::new(setup_robot().unwrap()));
 
         loop {
             let incoming = listener.accept().await;
             assert!(incoming.is_ok());
-            let stream = incoming.unwrap();
-            let srv = GrpcServer::<_, Vec<u8>>::new(robot.clone(), GrpcBody::new());
+            let incoming = incoming.unwrap();
+            let stream: NativeStream = NativeStream::LocalPlain(incoming.0);
+            let srv = GrpcServer::<_, BytesMut>::new(robot.clone(), GrpcBody::new());
             Box::new(http2::Builder::new(exec.clone()).serve_connection(stream, srv))
                 .await
                 .unwrap();
