@@ -481,33 +481,30 @@ impl WebRtcSignalingChannel {
                     }
                 }
             },
-            Either::Right(ref mut local_signaling) => {
-                match local_signaling.rx.recv().await {
-                    Err(RecvError) => Err(WebRtcError::SignalingDisconnected()),
-                    Ok(req) => {
-                        if let Some(update) = req.update {
-                            match update {
-                                call_update_request::Update::Candidate(c) => c
-                                    .candidate
-                                    .try_into()
-                                    .map_err(|_| WebRtcError::CannotParseCandidate)
-                                    .map(Option::Some),
-                                call_update_request::Update::Done(_) => {
-                                    local_signaling.tx.close();
-                                    Ok(None)
-
-                                }
-                                call_update_request::Update::Error(e) => {
-                                    local_signaling.tx.close();
-                                    Err(WebRtcError::SignalingError(e.message))
-                                }
+            Either::Right(ref mut local_signaling) => match local_signaling.rx.recv().await {
+                Err(RecvError) => Err(WebRtcError::SignalingDisconnected()),
+                Ok(req) => {
+                    if let Some(update) = req.update {
+                        match update {
+                            call_update_request::Update::Candidate(c) => c
+                                .candidate
+                                .try_into()
+                                .map_err(|_| WebRtcError::CannotParseCandidate)
+                                .map(Option::Some),
+                            call_update_request::Update::Done(_) => {
+                                local_signaling.tx.close();
+                                Ok(None)
                             }
-                        } else {
-                            Ok(None)
+                            call_update_request::Update::Error(e) => {
+                                local_signaling.tx.close();
+                                Err(WebRtcError::SignalingError(e.message))
+                            }
                         }
+                    } else {
+                        Ok(None)
                     }
                 }
-            }
+            },
         }
     }
 
@@ -522,10 +519,8 @@ impl WebRtcSignalingChannel {
                     Err(_) => Err(WebRtcError::SignalingDisconnected()),
                     Ok(_) => Ok(()),
                 }
-            },
-            Either::Right(_) => {
-                Ok(())
-            },
+            }
+            Either::Right(_) => Ok(()),
         }
     }
 }

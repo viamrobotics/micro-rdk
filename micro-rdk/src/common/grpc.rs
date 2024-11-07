@@ -1596,23 +1596,19 @@ where
 
             let stream = futures_lite::stream::unfold(state, |mut state| async move {
                 match state.stream {
-                    Some(ref mut stream) => {
-                        match stream.next().await {
-                            Some(Ok(bytes)) => {
-                                Some((Ok(Frame::<Bytes>::data(bytes)), state))
-                            }
-                            Some(Err(e)) => {
-                                state.trailers.insert("grpc-status", e.status_code().into());
-                                state
-                                    .trailers
-                                    .insert("grpc-message", e.to_string().parse().unwrap());
-                                let _ = state.stream.take();
-                                Some((Ok(Frame::<Bytes>::trailers(state.trailers.clone())), state))
-                            }
-                            None => {
-                                let _ = state.stream.take();
-                                Some((Ok(Frame::<Bytes>::trailers(state.trailers.clone())), state))
-                            }
+                    Some(ref mut stream) => match stream.next().await {
+                        Some(Ok(bytes)) => Some((Ok(Frame::<Bytes>::data(bytes)), state)),
+                        Some(Err(e)) => {
+                            state.trailers.insert("grpc-status", e.status_code().into());
+                            state
+                                .trailers
+                                .insert("grpc-message", e.to_string().parse().unwrap());
+                            let _ = state.stream.take();
+                            Some((Ok(Frame::<Bytes>::trailers(state.trailers.clone())), state))
+                        }
+                        None => {
+                            let _ = state.stream.take();
+                            Some((Ok(Frame::<Bytes>::trailers(state.trailers.clone())), state))
                         }
                     },
                     None => None,
