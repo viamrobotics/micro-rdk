@@ -1022,7 +1022,7 @@ mod tests {
             },
             credentials_storage::{RAMStorage, RobotConfigurationStorage},
             exec::Executor,
-            grpc::{GrpcBody, GrpcError, GrpcResponse, ServerError},
+            grpc::{GrpcBody, GrpcError, GrpcResponse, NativeRpcAllocation, ServerError},
             log::LogUploadTask,
             provisioning::server::ProvisioningInfo,
             restart_monitor::RestartMonitor,
@@ -1266,7 +1266,7 @@ mod tests {
             let _fake_server_task =
                 cloned_exec.spawn(async move { run_fake_app_server(other_clone, app).await });
             let _task = cloned_exec.spawn(async move {
-                viam_server.run::<BytesMut>().await;
+                viam_server.run::<NativeRpcAllocation>().await;
             });
             let _ = Timer::after(Duration::from_millis(500)).await;
             assert!(!cloned_ram_storage.has_robot_credentials())
@@ -1338,7 +1338,7 @@ mod tests {
             let fake_server_task =
                 cloned_exec.spawn(async move { run_fake_app_server(other_clone, app).await });
             let _task = cloned_exec.spawn(async move {
-                viam_server.run::<BytesMut>().await;
+                viam_server.run::<NativeRpcAllocation>().await;
             });
             let record = look_for_an_mdns_record("_rpc._tcp.local.", "grpc", "test-bot")
                 .or(async {
@@ -1439,7 +1439,7 @@ mod tests {
         let cloned_exec = exec.clone();
         exec.block_on(async move {
             let _task = cloned_exec.spawn(async move {
-                viam_server.run::<BytesMut>().await;
+                viam_server.run::<NativeRpcAllocation>().await;
             });
             let record = look_for_an_mdns_record("_rpc._tcp.local.", "grpc", "test-bot")
                 .or(async {
@@ -1585,7 +1585,7 @@ mod tests {
         let cloned_exec = exec.clone();
         exec.block_on(async move {
             let _task = cloned_exec.spawn(async move {
-                viam_server.run::<BytesMut>().await;
+                viam_server.run::<NativeRpcAllocation>().await;
             });
             let record = look_for_an_mdns_record(
                 "_rpc._tcp.local.",
@@ -1754,7 +1754,7 @@ mod tests {
         exec.block_on(async {
             Timer::after(Duration::from_millis(200)).await;
         });
-        b.run_forever::<BytesMut>();
+        b.run_forever::<NativeRpcAllocation>();
     }
 
     async fn run_fake_app_server(exec: Executor, app: AppServerInsecure) {

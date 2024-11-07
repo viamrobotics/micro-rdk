@@ -15,6 +15,7 @@ mod native {
             },
             credentials_storage::{RAMStorage, RobotConfigurationStorage, RobotCredentials},
             exec::Executor,
+            grpc::NativeRpcAllocation,
             log::initialize_logger,
             provisioning::server::ProvisioningInfo,
             registry::ComponentRegistry,
@@ -83,7 +84,7 @@ mod native {
             mdns,
             Box::new(network),
         );
-        server.run_forever::<bytes::BytesMut>();
+        server.run_forever::<NativeRpcAllocation>();
     }
 }
 

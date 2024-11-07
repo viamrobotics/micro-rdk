@@ -1610,19 +1610,26 @@ pub trait RpcAllocation: Sized {
     fn to_encoded_message<M: Message>(self, msg: M) -> Result<Bytes, GrpcError>;
 }
 
-impl RpcAllocation for BytesMut {
+#[derive(Clone)]
+pub struct NativeRpcAllocation {
+    inner: BytesMut,
+}
+
+impl RpcAllocation for NativeRpcAllocation {
     fn get_allocation(size: usize) -> Result<Self, GrpcError> {
-        Ok(Self::with_capacity(size))
+        Ok(Self {
+            inner: BytesMut::with_capacity(size),
+        })
     }
     fn to_encoded_message<M: Message>(mut self, m: M) -> Result<Bytes, GrpcError> {
-        if 5 + m.encoded_len() > self.capacity() {
+        if 5 + m.encoded_len() > self.inner.capacity() {
             return Err(GrpcError::RpcResourceExhausted);
         }
-        self.put_u8(0);
-        self.put_u32(m.encoded_len().try_into().unwrap());
-        let mut msg = self.split_off(5);
+        self.inner.put_u8(0);
+        self.inner.put_u32(m.encoded_len().try_into().unwrap());
+        let mut msg = self.inner.split_off(5);
         m.encode(&mut msg).map_err(|_| GrpcError::RpcInternal)?;
-        self.unsplit(msg);
-        Ok(self.freeze())
+        self.inner.unsplit(msg);
+        Ok(self.inner.freeze())
     }
 }

@@ -94,7 +94,7 @@ mod tests {
             app_client::encode_request,
             config::DynamicComponentConfig,
             exec::Executor,
-            grpc::{GrpcBody, GrpcError, GrpcServer},
+            grpc::{GrpcBody, GrpcError, GrpcServer, NativeRpcAllocation},
             registry::ComponentRegistry,
             robot::{LocalRobot, RobotError},
         },
@@ -102,7 +102,6 @@ mod tests {
         native::tcp::NativeStream,
         proto::component::camera::v1::{GetImageRequest, GetImageResponse, RenderFrameRequest},
     };
-    use bytes::BytesMut;
 
     use http_body_util::{combinators::BoxBody, BodyExt, Collected, Full};
     use hyper::{
@@ -150,7 +149,7 @@ mod tests {
             assert!(incoming.is_ok());
             let incoming = incoming.unwrap();
             let stream: NativeStream = NativeStream::LocalPlain(incoming.0);
-            let srv = GrpcServer::<_, BytesMut>::new(robot.clone(), GrpcBody::new());
+            let srv = GrpcServer::<_, NativeRpcAllocation>::new(robot.clone(), GrpcBody::new());
             Box::new(http2::Builder::new(exec.clone()).serve_connection(stream, srv))
                 .await
                 .unwrap();

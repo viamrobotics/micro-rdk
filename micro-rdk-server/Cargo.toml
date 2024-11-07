@@ -16,7 +16,6 @@ qemu = ["micro-rdk/qemu"]
 ota = ["micro-rdk/ota"]
 
 [target.'cfg(not(target_os = "espidf"))'.dependencies]
-bytes.workspace = true
 env_logger.workspace = true
 local-ip-address.workspace = true
 micro-rdk = { workspace = true, features = ["native"], default-features = true }
