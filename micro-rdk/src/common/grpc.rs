@@ -125,7 +125,7 @@ pub trait GrpcResponse {
 
 #[derive(Clone)]
 pub struct GrpcServer<R> {
-    pub(crate) _response: R,
+    _response: PhantomData<R>,
     robot: Arc<Mutex<LocalRobot>>,
     signaling_server: Option<Arc<SignalingServer>>,
 }
@@ -140,9 +140,9 @@ impl<R> GrpcServer<R>
 where
     R: GrpcResponse,
 {
-    pub fn new(robot: Arc<Mutex<LocalRobot>>, body: R) -> Self {
+    pub fn new(robot: Arc<Mutex<LocalRobot>>, _body: R) -> Self {
         GrpcServer {
-            _response: body,
+            _response: PhantomData,
             robot,
             signaling_server: None,
         }
@@ -1586,40 +1586,37 @@ where
                     >,
                 >,
             }
-            let mut state = UnfoldState {
+            let state = UnfoldState {
                 trailers: trailers.clone(),
-                stream: None,
-            };
-
-            match grpc.validate_rpc(&msg).map_err(ServerError::from) {
-                Ok(payload) => {
-                    let _ = state.stream.insert(grpc.handle_request(path, payload));
-                }
-                Err(e) => {
-                    state.trailers.insert("grpc-status", e.status_code().into());
-                    state
-                        .trailers
-                        .insert("grpc-message", e.to_string().parse().unwrap());
-                }
+                stream: Some(match grpc.validate_rpc(&msg).map_err(ServerError::from) {
+                    Ok(payload) => grpc.handle_request(path, payload),
+                    Err(e) => Box::pin(futures_lite::stream::once(Err(e))),
+                }),
             };
 
             let stream = futures_lite::stream::unfold(state, |mut state| async move {
-                if let Some(ref mut stream) = state.stream {
-                    match stream.next().await {
-                        Some(Ok(bytes)) => {
-                            return Some((Ok(Frame::<Bytes>::data(bytes)), state));
+                match state.stream {
+                    Some(ref mut stream) => {
+                        match stream.next().await {
+                            Some(Ok(bytes)) => {
+                                Some((Ok(Frame::<Bytes>::data(bytes)), state))
+                            }
+                            Some(Err(e)) => {
+                                state.trailers.insert("grpc-status", e.status_code().into());
+                                state
+                                    .trailers
+                                    .insert("grpc-message", e.to_string().parse().unwrap());
+                                let _ = state.stream.take();
+                                Some((Ok(Frame::<Bytes>::trailers(state.trailers.clone())), state))
+                            }
+                            None => {
+                                let _ = state.stream.take();
+                                Some((Ok(Frame::<Bytes>::trailers(state.trailers.clone())), state))
+                            }
                         }
-                        Some(Err(e)) => {
-                            let _ = state.stream.take();
-                            state.trailers.insert("grpc-status", e.status_code().into());
-                            state
-                                .trailers
-                                .insert("grpc-message", e.to_string().parse().unwrap());
-                        }
-                        None => {}
-                    }
-                };
-                Some((Ok(Frame::<Bytes>::trailers(state.trailers.clone())), state))
+                    },
+                    None => None,
+                }
             });
 
             Response::builder()

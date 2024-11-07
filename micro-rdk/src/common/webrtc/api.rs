@@ -493,10 +493,12 @@ impl WebRtcSignalingChannel {
                                     .map_err(|_| WebRtcError::CannotParseCandidate)
                                     .map(Option::Some),
                                 call_update_request::Update::Done(_) => {
-                                    // TODO(acm): Verify that the actual boolean in the `Done` doesn't make any difference
+                                    local_signaling.tx.close();
                                     Ok(None)
+
                                 }
                                 call_update_request::Update::Error(e) => {
+                                    local_signaling.tx.close();
                                     Err(WebRtcError::SignalingError(e.message))
                                 }
                             }
@@ -520,10 +522,9 @@ impl WebRtcSignalingChannel {
                     Err(_) => Err(WebRtcError::SignalingDisconnected()),
                     Ok(_) => Ok(()),
                 }
-            }
-            Either::Right(ref mut local_signaling) => match local_signaling.tx.close() {
-                true => Ok(()),
-                false => Err(WebRtcError::SignalingDisconnected()),
+            },
+            Either::Right(_) => {
+                Ok(())
             },
         }
     }
