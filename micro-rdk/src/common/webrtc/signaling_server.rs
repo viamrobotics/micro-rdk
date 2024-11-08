@@ -86,7 +86,7 @@ impl SignalingServer {
         let sdp = Box::new(WebRtcSdp::new(sdp, Uuid::new_v4().into()));
 
         // TODO: Should the channels be bounded?
-        let (update_tx, update_rx) = async_channel::bounded::<CallUpdateRequest>(1);
+        let (update_tx, update_rx) = async_channel::unbounded::<CallUpdateRequest>();
         let (response_tx, response_rx) =
             async_channel::bounded::<Result<CallResponse, ServerError>>(1);
 
@@ -163,14 +163,17 @@ impl SignalingServer {
             .and_then(|v| v.clone().into());
         match update_tx {
             Some(update_tx) => {
-                self.executor
-                    .spawn(async move {
-                        let _ = update_tx.send(request).await;
-                    })
-                    .detach();
+                let _ = update_tx.send_blocking(request);
                 Ok(CallUpdateResponse {})
             }
-            None => Err(GrpcError::RpcInvalidArgument.into()),
+            None => {
+                // It is tempting to reply with `GrpcError::RpcInvalidArgument` here, but resist!
+                // Clients (at least goutils) appear to interpret the failed `CallUpdate` RPC as
+                // failing the entire WebRTC conversation, when really we have just raced between
+                // deciding that we are complete in the `Call` RPC on the server side, and the
+                // client deciding to send us another `CallUpdateRequest`.
+                Ok(CallUpdateResponse {})
+            }
         }
     }
 }
