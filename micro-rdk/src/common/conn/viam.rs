@@ -302,6 +302,8 @@ where
             http2_server_port: self.http2_server_port,
             wifi_manager: self.wifi_manager.into(),
             app_client_tasks: self.app_client_tasks,
+            #[cfg(feature = "ota")]
+            ota_service_task: Default::default(),
             max_concurrent_connections: self.max_concurrent_connections,
             network: Some(network),
         }
@@ -336,6 +338,8 @@ where
             http2_server_port: self.http2_server_port,
             wifi_manager: Rc::new(self.wifi_manager),
             app_client_tasks: self.app_client_tasks,
+            #[cfg(feature = "ota")]
+            ota_service_task: None,
             max_concurrent_connections: self.max_concurrent_connections,
             network: None,
         }
@@ -354,6 +358,8 @@ pub struct ViamServer<Storage, C, M> {
     http2_server_port: u16,
     wifi_manager: Rc<Option<Box<dyn WifiManager>>>,
     app_client_tasks: Vec<Box<dyn PeriodicAppClientTask>>,
+    #[cfg(feature = "ota")]
+    ota_service_task: Option<Task<()>>,
     max_concurrent_connections: u32,
     network: Option<Box<dyn Network>>,
 }
@@ -535,34 +541,6 @@ where
         ));
         self.app_client_tasks.push(config_monitor_task);
 
-        #[cfg(feature = "ota")]
-        {
-            use crate::esp32::ota;
-
-            log::debug!("ota feature enabled");
-
-            if let Some(service) = config
-                .services
-                .iter()
-                .find(|&service| service.model == ota::OTA_MODEL_TRIPLET)
-            {
-                log::debug!("service config: {:#?}", service);
-                if let Ok(mut ota) = ota::OtaService::from_config(service) {
-                    log::debug!("OtaService: {:?}", ota);
-                    if let Err(e) = ota.update() {
-                        log::error!("ota failed: {:?}", e);
-                    } else {
-                        log::info!("ota succeeded");
-                    }
-                } else {
-                    log::error!(
-                        "ota enabled, but no service of type `{}` found in robot config",
-                        ota::OTA_MODEL_TYPE
-                    );
-                }
-            }
-        }
-
         let mut robot = LocalRobot::from_cloud_config(
             self.executor.clone(),
             robot_creds.robot_id.clone(),
@@ -620,6 +598,42 @@ where
                         );
                     };
                 }
+            }
+        }
+
+        #[cfg(feature = "ota")]
+        {
+            use crate::esp32::ota;
+            log::debug!("ota feature enabled");
+
+            let certs = self.storage.get_tls_certificate().ok();
+
+            if let Some(certs) = certs {
+                if let Some(service) = config
+                    .services
+                    .iter()
+                    .find(|&service| service.model == ota::OTA_MODEL_TRIPLET)
+                {
+                    if let Ok(mut ota) =
+                        ota::OtaService::from_config(service, certs, self.executor.clone())
+                    {
+                        self.ota_service_task
+                            .replace(self.executor.spawn(async move {
+                                if let Err(e) = ota.update().await {
+                                    log::error!("{}", e);
+                                }
+                            }));
+                    } else {
+                        log::error!("failed to build ota service from config: {:?}", service);
+                    }
+                } else {
+                    log::error!(
+                        "ota enabled, but no service of type `{}` found in robot config",
+                        ota::OTA_MODEL_TYPE
+                    );
+                }
+            } else {
+                log::error!("ota not possible without tls certificates");
             }
         }
 

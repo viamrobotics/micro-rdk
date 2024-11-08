@@ -35,16 +35,26 @@
 ///   - after updating the app, bootloader runs a new app with the "ESP_OTA_IMG_PENDING_VERIFY" state set. If the image is not marked as verified, will boot to previous ota slot
 ///
 use crate::{
-    common::config::{AttributeError, Kind},
-    esp32::esp_idf_svc::{
-        hal::io::EspIOError,
-        http::client::{Configuration, EspHttpConnection},
-        ota::{EspFirmwareInfoLoader, EspOta},
-        sys::EspError,
+    common::{
+        config::{AttributeError, Kind},
+        conn::viam::ViamH2Connector,
+        credentials_storage::TlsCertificate,
+        exec::Executor,
+        grpc_client::H2Timer,
+    },
+    esp32::{
+        esp_idf_svc::{
+            hal::io::EspIOError,
+            // http::client::{Configuration, EspHttpConnection},
+            ota::{EspFirmwareInfoLoader, EspOta},
+            sys::EspError,
+        },
+        tcp::Esp32H2Connector,
     },
     proto::app::v1::ServiceConfig,
 };
-use embedded_svc::http::{client::Client, Headers};
+use http_body_util::{BodyExt, Empty};
+use hyper::{body::Bytes, client::conn::http2::SendRequest, Request};
 use thiserror::Error;
 
 // TODO(RSDK-9200): set according to active partition scheme
@@ -71,13 +81,18 @@ pub enum OtaError {
     Other(String),
 }
 
-#[derive(Debug)]
 pub(crate) struct OtaService {
+    exec: Executor,
+    connector: Esp32H2Connector,
     url: String,
 }
 
 impl OtaService {
-    pub(crate) fn from_config(ota_config: &ServiceConfig) -> Result<Self, OtaError> {
+    pub(crate) fn from_config(
+        ota_config: &ServiceConfig,
+        cert: TlsCertificate,
+        exec: Executor,
+    ) -> Result<Self, OtaError> {
         // TODO(RSDK-9205)
         let kind: Kind = ota_config
             .attributes
@@ -106,38 +121,48 @@ impl OtaService {
             }
         };
 
-        let _ = url
-            .parse::<hyper::Uri>()
-            .map_err(|_| OtaError::ConfigError(format!("invalid url: {}", url)))?;
+        let mut connector = Esp32H2Connector::default();
+        connector.set_server_certificates(cert.certificate.clone(), cert.private_key.clone());
 
-        Ok(Self { url })
+        Ok(Self {
+            url,
+            connector,
+            exec,
+        })
     }
 
-    pub(crate) fn update(&mut self) -> Result<(), OtaError> {
-        let connection = EspHttpConnection::new(&Configuration {
-            buffer_size: Some(OTA_HTTP_BUFSIZE),
-            buffer_size_tx: Some(OTA_HTTP_BUFSIZE),
-            use_global_ca_store: true,
-            crt_bundle_attach: Some(esp_idf_svc::sys::esp_crt_bundle_attach),
-            ..Default::default()
-        })
-        .map_err(OtaError::EspError)?;
+    async fn update_inner(
+        &self,
+        mut sender: SendRequest<http_body_util::Empty<Bytes>>,
+        uri: &hyper::Uri,
+    ) -> Result<(), OtaError> {
+        let request = Request::builder()
+            .uri(uri)
+            .header(
+                hyper::header::HOST,
+                uri.authority().expect("no authority").as_str(),
+            )
+            .body(Empty::<Bytes>::new())
+            .expect("rsterntieos");
+        let mut response = sender.send_request(request).await.unwrap();
 
-        let mut client = Client::wrap(connection);
-        let request = client.get(&self.url).map_err(OtaError::DownloadError)?;
-        let mut response = request.submit().map_err(OtaError::DownloadError)?;
-        let status = response.status();
-
-        if status != 200 {
+        if response.status() != 200 {
             return Err(OtaError::Other(
-                format!("Bad Request - Status:{}", status).to_string(),
+                format!("Bad Request - Status:{}", response.status()).to_string(),
             ));
         }
+        let headers = response.headers();
+        log::debug!("headers: {:?}", headers);
 
-        let file_len = match response.content_len() {
-            Some(v) => v as usize,
-            None => return Err(OtaError::Other("request has no content length".to_string())),
-        };
+        if !headers.contains_key(hyper::header::CONTENT_LENGTH) {
+            log::error!("rsetnrien");
+            return Ok(());
+        }
+        let file_len = headers[hyper::header::CONTENT_LENGTH]
+            .to_str()
+            .unwrap()
+            .parse::<usize>()
+            .unwrap();
 
         if file_len > OTA_MAX_IMAGE_SIZE {
             return Err(OtaError::InvalidImageSize(file_len));
@@ -148,51 +173,112 @@ impl OtaService {
         let mut update_handle = ota.initiate_update().map_err(|_| OtaError::InitError)?;
         let mut buff = vec![0; OTA_CHUNK_SIZE];
         let mut total_read: usize = 0;
-        let mut got_info = false;
-        while total_read < file_len {
-            let num_read = response.read(&mut buff).unwrap_or_default();
-            total_read += num_read;
-            if !got_info {
-                let mut loader = EspFirmwareInfoLoader::new();
-                loader.load(&buff).map_err(OtaError::EspError)?;
-                let new_fw = loader.get_info().map_err(OtaError::EspError)?;
-                log::info!("current firmware: {:?}", running_fw_info);
-                log::info!("new firmware: {:?}", new_fw);
-                if let Some(ref running_fw) = running_fw_info {
-                    if running_fw.version == new_fw.version
-                        && running_fw.released == new_fw.released
-                    {
-                        log::info!("current firmware is up to date");
+
+        while let Some(next) = response.frame().await {
+            let frame = next.unwrap();
+            if let Ok(chunk) = frame.into_data() {
+                // write chunk to ota
+                // let nread = buff.read(bytes).unwrap();
+                // log::debug!("{} bytes read", nread);
+                //std::io::stdout().write_all(&chunk).await.unwrap();
+            }
+        }
+
+        Ok(())
+        /*
+                //let mut got_info = false;
+                while total_read < file_len {
+                    let num_read = response.read(&mut buff).unwrap_or_default();
+                    total_read += num_read;
+                    if !got_info {
+                        let mut loader = EspFirmwareInfoLoader::new();
+                        loader.load(&buff).map_err(OtaError::EspError)?;
+                        let new_fw = loader.get_info().map_err(OtaError::EspError)?;
+                        log::info!("current firmware: {:?}", running_fw_info);
+                        log::info!("new firmware: {:?}", new_fw);
+                        if let Some(ref running_fw) = running_fw_info {
+                            if running_fw.version == new_fw.version
+                                && running_fw.released == new_fw.released
+                            {
+                                log::info!("current firmware is up to date");
+                                update_handle.abort()?;
+                                return Ok(());
+                            }
+                        }
+                        got_info = true;
+                    }
+
+                    if num_read == 0 {
+                        break;
+                    }
+
+                    if let Err(e) = update_handle.write(&buff[..num_read]) {
+                        log::error!("failed to write OTA partition, update aborted: {}", e);
                         update_handle.abort()?;
-                        return Ok(());
+                        return Err(OtaError::EspError(e));
                     }
                 }
-                got_info = true;
+
+                if total_read < file_len {
+                    log::error!("{} bytes downloaded, needed {} bytes", total_read, file_len);
+                    update_handle.abort()?;
+                    return Err(OtaError::Other(
+                        "download incomplete, update aborted".to_string(),
+                    ));
+                }
+                update_handle.complete().map_err(OtaError::EspError)?;
+
+                log::info!("resetting now to boot from new firmware");
+
+                esp_idf_svc::hal::reset::restart();
+                unreachable!();
+        */
+    }
+
+    pub(crate) async fn update(&mut self) -> Result<(), OtaError> {
+        let uri = self
+            .url
+            .parse::<hyper::Uri>()
+            .map_err(|_| OtaError::ConfigError(format!("invalid url: {}", self.url)))?;
+
+        let io = self.connector.connect_to(&uri).unwrap().await.unwrap();
+
+        let (mut sender, conn) = {
+            hyper::client::conn::http2::Builder::new(self.exec.clone())
+                // .keep_alive_interval(Some(std::time::Duration::from_secs(120)))
+                // .keep_alive_timeout(std::time::Duration::from_secs(300))
+                .timer(H2Timer)
+                .handshake(io)
+                .await
+                .unwrap()
+        };
+
+        let _ = self.exec.spawn(async move {
+            if let Err(err) = conn.await {
+                log::error!("connection failed: {:?}", err);
             }
+        });
 
-            if num_read == 0 {
-                break;
-            }
+        /*
+        let _sender = self.executor.spawn(async move {
+            let _ = conn.await;
+        });
+        let req = Request::builder().uri(self.url).header("").build();
+        let mut req = send_request.send_request(req);
 
-            if let Err(e) = update_handle.write(&buff[..num_read]) {
-                log::error!("failed to write OTA partition, update aborted: {}", e);
-                update_handle.abort()?;
-                return Err(OtaError::EspError(e));
-            }
-        }
+        let (mut sender, conn) = hyper::client::conn::http1::handshake(io).await?;
+        let connection = EspHttpConnection::new(&Configuration {
+            buffer_size: Some(OTA_HTTP_BUFSIZE),
+            buffer_size_tx: Some(OTA_HTTP_BUFSIZE),
+            use_global_ca_store: true,
+            crt_bundle_attach: Some(esp_idf_svc::sys::esp_crt_bundle_attach),
+            ..Default::default()
+        })
+        .map_err(OtaError::EspError)?;
 
-        if total_read < file_len {
-            log::error!("{} bytes downloaded, needed {} bytes", total_read, file_len);
-            update_handle.abort()?;
-            return Err(OtaError::Other(
-                "download incomplete, update aborted".to_string(),
-            ));
-        }
-        update_handle.complete().map_err(OtaError::EspError)?;
+        let client = Client::wrap(connection);
+        */
 
-        log::info!("resetting now to boot from new firmware");
-
-        esp_idf_svc::hal::reset::restart();
-        unreachable!();
+        self.update_inner(sender, &uri).await
     }
 }
