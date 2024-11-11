@@ -54,7 +54,8 @@ use crate::{
     proto::app::v1::ServiceConfig,
 };
 use http_body_util::{BodyExt, Empty};
-use hyper::{body::Bytes, client::conn::http2::SendRequest, Request};
+//use hyper::{body::Bytes, client::conn::http2::SendRequest, Request};
+use hyper::{body::Bytes, client::conn::http1::SendRequest, Request};
 use thiserror::Error;
 
 // TODO(RSDK-9200): set according to active partition scheme
@@ -244,6 +245,7 @@ impl OtaService {
         let io = self.connector.connect_to(&uri).unwrap().await.unwrap();
 
         let (mut sender, conn) = {
+            /*
             hyper::client::conn::http2::Builder::new(self.exec.clone())
                 // .keep_alive_interval(Some(std::time::Duration::from_secs(120)))
                 // .keep_alive_timeout(std::time::Duration::from_secs(300))
@@ -251,6 +253,8 @@ impl OtaService {
                 .handshake(io)
                 .await
                 .unwrap()
+*/
+            hyper::client::conn::http1::Builder::new().handshake(io).await.unwrap()
         };
 
         let _ = self.exec.spawn(async move {
