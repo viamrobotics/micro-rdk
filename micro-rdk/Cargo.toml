@@ -49,13 +49,15 @@ webpki-roots = { workspace = true, optional = true }
 async-channel.workspace = true
 async-executor.workspace = true
 async-io.workspace = true
+async-lock.workspace = true
 atomic-waker.workspace = true
 base64.workspace = true
 bitfield.workspace = true
 bytecodec.workspace = true
 bytes.workspace = true
-chrono.workspace = true
 chrono-tz.workspace = true
+chrono.workspace = true
+dns-message-parser.workspace = true
 either.workspace = true
 embedded-hal = { workspace = true, optional = true }
 embedded-svc = { workspace = true, optional = true }
@@ -69,8 +71,11 @@ log.workspace = true
 micro-rdk-macros.workspace = true
 once_cell.workspace = true
 pin-project-lite.workspace = true
+pin-project.workspace = true
+printf-compat = { workspace = true, optional = true }
 prost.workspace = true
 rand.workspace = true
+ringbuf.workspace = true
 scopeguard.workspace = true
 sctp-proto.workspace = true
 sdp.workspace = true
@@ -81,11 +86,7 @@ socket2.workspace = true
 stun_codec.workspace = true
 thiserror.workspace = true
 trackable.workspace = true
-ringbuf.workspace = true
-pin-project.workspace = true
-async-lock.workspace = true
-dns-message-parser.workspace = true
-printf-compat = { workspace = true, optional = true }
+uuid = { workspace = true, features = ["v4"]}
 
 [build-dependencies]
 embuild.workspace = true

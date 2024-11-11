@@ -184,7 +184,6 @@ impl ICEAgent {
                 .send_to(&bytes, stun_ip.into())
                 .await
                 .unwrap();
-
             let response = self
                 .transport
                 .recv_from(&mut buf)
@@ -193,6 +192,7 @@ impl ICEAgent {
                     Err(io::Error::new(io::ErrorKind::TimedOut, ""))
                 })
                 .await;
+
             match response {
                 Ok(rsp) => break rsp,
                 Err(e) if e.kind() == io::ErrorKind::TimedOut => continue,

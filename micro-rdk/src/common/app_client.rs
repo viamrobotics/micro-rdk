@@ -181,10 +181,10 @@ pub struct AppClient {
     grpc_client: Rc<GrpcClient>,
 }
 
-pub(crate) struct AppSignaling(
-    pub(crate) GrpcMessageSender<AnswerResponse>,
-    pub(crate) GrpcMessageStream<AnswerRequest>,
-);
+pub(crate) struct AppSignaling {
+    pub(crate) tx: GrpcMessageSender<AnswerResponse>,
+    pub(crate) rx: GrpcMessageStream<AnswerRequest>,
+}
 
 impl AppClient {
     pub async fn get_certificates(&self) -> Result<CertificateResponse, AppClientError> {
@@ -234,7 +234,7 @@ impl AppClient {
                 .send_request_bidi::<AnswerResponse, AnswerRequest>(r, sender)
                 .await
                 .map_err(AppClientError::AppGrpcClientError)?;
-            Ok(AppSignaling(tx, rx))
+            Ok(AppSignaling { tx, rx })
         }
     }
 

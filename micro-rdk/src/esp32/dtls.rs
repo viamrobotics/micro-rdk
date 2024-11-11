@@ -30,9 +30,9 @@ use crate::esp32::esp_idf_svc::sys::{
     mbedtls_ssl_init, mbedtls_ssl_read, mbedtls_ssl_set_bio, mbedtls_ssl_set_timer_cb,
     mbedtls_ssl_setup, mbedtls_ssl_write, mbedtls_x509_crt, mbedtls_x509_crt_free,
     mbedtls_x509_crt_init, mbedtls_x509_crt_parse_der, MBEDTLS_ERR_NET_RECV_FAILED,
-    MBEDTLS_ERR_NET_SEND_FAILED, MBEDTLS_ERR_SSL_TIMEOUT, MBEDTLS_ERR_SSL_WANT_READ,
-    MBEDTLS_ERR_SSL_WANT_WRITE, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_PRESET_DEFAULT,
-    MBEDTLS_SSL_TRANSPORT_DATAGRAM,
+    MBEDTLS_ERR_NET_SEND_FAILED, MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY, MBEDTLS_ERR_SSL_TIMEOUT,
+    MBEDTLS_ERR_SSL_WANT_READ, MBEDTLS_ERR_SSL_WANT_WRITE, MBEDTLS_SSL_IS_SERVER,
+    MBEDTLS_SSL_PRESET_DEFAULT, MBEDTLS_SSL_TRANSPORT_DATAGRAM,
 };
 use async_io::Timer;
 use core::ffi::CStr;
@@ -575,6 +575,8 @@ where
 
         if ret >= 0 {
             Ok(ret as usize)
+        } else if ret == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY {
+            Ok(0)
         } else {
             Err(ret.into())
         }
