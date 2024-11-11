@@ -4,10 +4,8 @@ use crate::{
         status::{Status, StatusError},
     },
     google,
-    proto::component::camera::v1::GetImageResponse,
 };
-use bytes::BytesMut;
-use prost::Message;
+use bytes::Bytes;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -48,24 +46,8 @@ impl Default for FakeCamera {
 }
 
 impl Camera for FakeCamera {
-    fn get_image(&mut self, mut buffer: BytesMut) -> Result<BytesMut, CameraError> {
-        let msg = GetImageResponse {
-            mime_type: "image/jpeg".to_string(),
-            image: FAKE_JPEG.into(),
-        };
-        msg.encode(&mut buffer)
-            .map_err(|_| CameraError::CameraGenericError("failed to encode GetImageResponse"))?;
-        Ok(buffer)
-    }
-    fn render_frame(&mut self, mut buffer: BytesMut) -> Result<BytesMut, CameraError> {
-        let msg = google::api::HttpBody {
-            content_type: "image/jpeg".to_string(),
-            data: FAKE_JPEG.to_vec(),
-            ..Default::default()
-        };
-        msg.encode(&mut buffer)
-            .map_err(|_| CameraError::CameraGenericError("failed to encode RenderFrameResponse"))?;
-        Ok(buffer)
+    fn get_image(&mut self) -> Result<Bytes, CameraError> {
+        Ok(FAKE_JPEG.into())
     }
 }
 
@@ -93,14 +75,13 @@ mod tests {
         common::{
             app_client::encode_request,
             config::DynamicComponentConfig,
-            conn::server::{AsyncableTcpListener, Http2Connector},
             exec::Executor,
-            grpc::GrpcError,
-            grpc::{GrpcBody, GrpcServer},
+            grpc::{GrpcBody, GrpcError, GrpcServer},
+            registry::ComponentRegistry,
             robot::{LocalRobot, RobotError},
         },
         google::api::HttpBody,
-        native::tcp::{NativeListener, NativeStream},
+        native::tcp::NativeStream,
         proto::component::camera::v1::{GetImageRequest, GetImageResponse, RenderFrameRequest},
     };
 
@@ -130,25 +111,26 @@ mod tests {
             attributes: None,
             ..Default::default()
         }));
+        let mut registry: Box<ComponentRegistry> = Box::default();
 
-        robot.process_components(conf, Box::default())?;
+        robot.process_components(conf, &mut registry)?;
 
         Ok(robot)
     }
 
     async fn setup_grpc_server(exec: Executor, addr: SocketAddr) {
-        let mut listener = NativeListener::new((addr).into(), None)
-            .unwrap()
-            .as_async_listener()
-            .await
-            .unwrap();
+        let tcp_server = TcpListener::bind(addr);
+        assert!(tcp_server.is_ok());
+        let tcp_server = tcp_server.unwrap();
+        let listener: async_io::Async<TcpListener> = tcp_server.try_into().unwrap();
 
         let robot = Arc::new(Mutex::new(setup_robot().unwrap()));
 
         loop {
             let incoming = listener.accept().await;
             assert!(incoming.is_ok());
-            let stream = incoming.unwrap();
+            let incoming = incoming.unwrap();
+            let stream: NativeStream = NativeStream::LocalPlain(incoming.0);
             let srv = GrpcServer::new(robot.clone(), GrpcBody::new());
             Box::new(http2::Builder::new(exec.clone()).serve_connection(stream, srv))
                 .await
