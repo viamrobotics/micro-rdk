@@ -49,10 +49,15 @@ impl SignalingServer {
         responses: Sender<Result<CallResponse, ServerError>>,
     ) -> Result<(), ServerError> {
         if request.disable_trickle {
-            return Err(ServerError::new(GrpcError::RpcUnimplemented, None));
+            return Err(ServerError::new(
+                GrpcError::RpcInvalidArgument,
+                Some(Box::new(WebRtcError::InvalidSDPOffer(
+                    "micro-rdk only supports trickle ICE".into(),
+                ))),
+            ));
         }
 
-        // TODO: Can we re-use this engine?
+        // TODO(RSDK-9247): Make this a lazy global.
         let engine: Box<general_purpose::GeneralPurpose> = general_purpose::STANDARD.into();
         let sdp_decoded = engine.decode(request.sdp.as_str()).map_err(|e| {
             ServerError::new(
@@ -115,7 +120,10 @@ impl SignalingServer {
                             match uuid_guard.as_ref() {
                                 Some(uuid) => {
                                     if uuid != &response.uuid {
-                                        break Err(ServerError::new(GrpcError::RpcInternal, None));
+                                        break Err(ServerError::new(
+                                            GrpcError::RpcInternal,
+                                            Some(format!("WebRtcSignalingChannel returned an inconsistent SDP UUID: expected {}, observed {}", uuid, response.uuid).into())
+                                        ));
                                     }
                                 }
                                 None => {
@@ -146,7 +154,10 @@ impl SignalingServer {
                     }
                 }
             }
-            Err(_) => Err(ServerError::new(GrpcError::RpcInternal, None)),
+            Err(_) => Err(ServerError::new(
+                GrpcError::RpcInternal,
+                Some("Failed sending inbound call request to signaling channel".into()),
+            )),
         }
     }
 

@@ -623,8 +623,7 @@ where
             }
         }
 
-        // One slot for remote signaling, one for local.
-        let (tx, rx) = async_channel::bounded(2);
+        let (tx, rx) = async_channel::bounded(1);
 
         let mut inner = RobotServer {
             http2_server: &self.http2_server,
