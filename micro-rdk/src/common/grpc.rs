@@ -148,7 +148,7 @@ where
 }
 
 impl<'a> GrpcServerInner<'a> {
-    fn get_encoded_message<M: Message>(m: M) -> Result<Bytes, ServerError> {
+    fn encode_message<M: Message>(m: M) -> Result<Bytes, ServerError> {
         let mut buffer: Vec<u8> = vec![];
         // The buffer will have a null byte, then 4 bytes containing the big-endian length of the
         // data (*not* including this 5-byte header), and then the data from the message itself.
@@ -364,7 +364,7 @@ impl<'a> GrpcServerInner<'a> {
         let resp = component::motor::v1::GetPositionResponse {
             position: pos as f64,
         };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn motor_get_properties(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -376,7 +376,7 @@ impl<'a> GrpcServerInner<'a> {
         };
         let props: component::motor::v1::GetPropertiesResponse =
             motor.lock().unwrap().get_properties().into();
-        GrpcServerInner::get_encoded_message(props)
+        GrpcServerInner::encode_message(props)
     }
 
     fn motor_go_for(&mut self, _message: &[u8]) -> Result<Bytes, ServerError> {
@@ -397,7 +397,7 @@ impl<'a> GrpcServerInner<'a> {
         motor.lock().unwrap();
 
         let resp = component::motor::v1::GoForResponse {};
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
         */
         Err(ServerError::from(GrpcError::RpcUnimplemented))
     }
@@ -424,7 +424,7 @@ impl<'a> GrpcServerInner<'a> {
                 .is_moving()
                 .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?,
         };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn motor_reset_zero_position(&mut self, _message: &[u8]) -> Result<Bytes, ServerError> {
@@ -444,7 +444,7 @@ impl<'a> GrpcServerInner<'a> {
             .do_command(req.command)
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let resp = proto::common::v1::DoCommandResponse { result: res };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn auth_service_authentificate(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -453,7 +453,7 @@ impl<'a> GrpcServerInner<'a> {
         let resp = proto::rpc::v1::AuthenticateResponse {
             access_token: "esp32".to_string(),
         };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn motor_set_power(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -469,7 +469,7 @@ impl<'a> GrpcServerInner<'a> {
             .set_power(req.power_pct)
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::motor::v1::SetPowerResponse {};
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn motor_set_rpm(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -483,7 +483,7 @@ impl<'a> GrpcServerInner<'a> {
             .set_rpm(req.rpm)
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::motor::v1::SetRpmResponse {};
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn motor_stop(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -499,7 +499,7 @@ impl<'a> GrpcServerInner<'a> {
             .stop()
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::motor::v1::StopResponse {};
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn servo_move(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -515,7 +515,7 @@ impl<'a> GrpcServerInner<'a> {
             .move_to(req.angle_deg)
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::servo::v1::MoveResponse {};
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn servo_get_position(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -531,7 +531,7 @@ impl<'a> GrpcServerInner<'a> {
             .get_position()
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::servo::v1::GetPositionResponse { position_deg: pos };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn servo_is_moving(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -548,7 +548,7 @@ impl<'a> GrpcServerInner<'a> {
                 .is_moving()
                 .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?,
         };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn servo_stop(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -564,7 +564,7 @@ impl<'a> GrpcServerInner<'a> {
             .stop()
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::servo::v1::StopResponse {};
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn servo_do_command(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -580,7 +580,7 @@ impl<'a> GrpcServerInner<'a> {
             .do_command(req.command)
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let resp = proto::common::v1::DoCommandResponse { result: res };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn board_get_digital_interrupt_value(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -599,7 +599,7 @@ impl<'a> GrpcServerInner<'a> {
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?
             .into();
         let resp = component::board::v1::GetDigitalInterruptValueResponse { value };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn board_pwm(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -615,7 +615,7 @@ impl<'a> GrpcServerInner<'a> {
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let duty_cycle_pct = board.get_pwm_duty(pin);
         let resp = component::board::v1::PwmResponse { duty_cycle_pct };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn board_pwm_frequency(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -633,7 +633,7 @@ impl<'a> GrpcServerInner<'a> {
             .get_pwm_frequency(pin)
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::board::v1::PwmFrequencyResponse { frequency_hz };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn board_read_analog_reader(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -656,7 +656,7 @@ impl<'a> GrpcServerInner<'a> {
             max_range: resolution.max_range,
             step_size: resolution.step_size,
         };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn board_set_pin(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -678,7 +678,7 @@ impl<'a> GrpcServerInner<'a> {
             .set_gpio_pin_level(pin, is_high)
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::board::v1::SetGpioResponse {};
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn board_set_pwm(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -697,7 +697,7 @@ impl<'a> GrpcServerInner<'a> {
         let _ = board.set_pwm_duty(pin, req.duty_cycle_pct);
 
         let resp = component::board::v1::SetPwmResponse {};
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn board_set_pwm_frequency(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -715,7 +715,7 @@ impl<'a> GrpcServerInner<'a> {
         // ignore error to match behavior on RDK
         let _ = board.set_pwm_frequency(pin, req.frequency_hz);
         let resp = component::board::v1::SetPwmFrequencyResponse {};
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn board_set_power_mode(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -747,7 +747,7 @@ impl<'a> GrpcServerInner<'a> {
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
 
         let resp = component::board::v1::SetPowerModeResponse {};
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn board_get_pin(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -768,7 +768,7 @@ impl<'a> GrpcServerInner<'a> {
             .get_gpio_level(pin)
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::board::v1::GetGpioResponse { high: level };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn board_do_command(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -784,7 +784,7 @@ impl<'a> GrpcServerInner<'a> {
             .do_command(req.command)
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let resp = proto::common::v1::DoCommandResponse { result: res };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn generic_component_do_command(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -805,7 +805,7 @@ impl<'a> GrpcServerInner<'a> {
             .do_command(req.command)
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = proto::common::v1::DoCommandResponse { result: res };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn sensor_get_readings(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -822,9 +822,7 @@ impl<'a> GrpcServerInner<'a> {
             .get_generic_readings()
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = proto::common::v1::GetReadingsResponse { readings };
-        let res = GrpcServerInner::get_encoded_message(resp);
-        println!("res: {:?}", res);
-        res
+        GrpcServerInner::encode_message(resp)
     }
 
     fn sensor_do_command(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -840,7 +838,7 @@ impl<'a> GrpcServerInner<'a> {
             .do_command(req.command)
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let resp = proto::common::v1::DoCommandResponse { result: res };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn movement_sensor_get_position(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -861,7 +859,7 @@ impl<'a> GrpcServerInner<'a> {
             .get_position()
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::movement_sensor::v1::GetPositionResponse::from(position);
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn movement_sensor_get_linear_velocity(
@@ -888,7 +886,7 @@ impl<'a> GrpcServerInner<'a> {
         let resp = component::movement_sensor::v1::GetLinearVelocityResponse {
             linear_velocity: Some(l_vel_msg),
         };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn movement_sensor_get_angular_velocity(
@@ -915,7 +913,7 @@ impl<'a> GrpcServerInner<'a> {
         let resp = component::movement_sensor::v1::GetAngularVelocityResponse {
             angular_velocity: Some(a_vel_msg),
         };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn movement_sensor_get_linear_acceleration(
@@ -942,7 +940,7 @@ impl<'a> GrpcServerInner<'a> {
         let resp = component::movement_sensor::v1::GetLinearAccelerationResponse {
             linear_acceleration: Some(l_acc_msg),
         };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn movement_sensor_get_compass_heading(
@@ -966,7 +964,7 @@ impl<'a> GrpcServerInner<'a> {
             .get_compass_heading()
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::movement_sensor::v1::GetCompassHeadingResponse { value: heading };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn movement_sensor_get_properties(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -983,7 +981,7 @@ impl<'a> GrpcServerInner<'a> {
         };
         let props = m_sensor.lock().unwrap().get_properties();
         let resp = component::movement_sensor::v1::GetPropertiesResponse::from(props);
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn movement_sensor_get_accuracy(&mut self, _message: &[u8]) -> Result<Bytes, ServerError> {
@@ -1013,7 +1011,7 @@ impl<'a> GrpcServerInner<'a> {
             .get_generic_readings()
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = proto::common::v1::GetReadingsResponse { readings };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn movement_sensor_do_command(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -1034,7 +1032,7 @@ impl<'a> GrpcServerInner<'a> {
             .do_command(req.command)
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let resp = proto::common::v1::DoCommandResponse { result: res };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn base_move_straight(&mut self, _message: &[u8]) -> Result<Bytes, ServerError> {
@@ -1063,7 +1061,7 @@ impl<'a> GrpcServerInner<'a> {
                 .is_moving()
                 .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?,
         };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn base_set_power(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -1081,7 +1079,7 @@ impl<'a> GrpcServerInner<'a> {
             )
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::base::v1::SetPowerResponse {};
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn base_stop(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -1097,7 +1095,7 @@ impl<'a> GrpcServerInner<'a> {
             .stop()
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::base::v1::StopResponse {};
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn encoder_get_properties(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -1110,7 +1108,7 @@ impl<'a> GrpcServerInner<'a> {
 
         let props = enc.lock().unwrap().get_properties();
         let resp = component::encoder::v1::GetPropertiesResponse::from(props);
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn encoder_get_position(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -1128,7 +1126,7 @@ impl<'a> GrpcServerInner<'a> {
             .get_position(pos_type.into())
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::encoder::v1::GetPositionResponse::from(pos);
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn encoder_reset_position(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -1143,7 +1141,7 @@ impl<'a> GrpcServerInner<'a> {
             .reset_position()
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::encoder::v1::ResetPositionResponse {};
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn encoder_do_command(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -1159,7 +1157,7 @@ impl<'a> GrpcServerInner<'a> {
             .do_command(req.command)
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let resp = proto::common::v1::DoCommandResponse { result: res };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn power_sensor_get_voltage(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -1180,7 +1178,7 @@ impl<'a> GrpcServerInner<'a> {
             .get_voltage()
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?
             .into();
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn power_sensor_get_current(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -1201,7 +1199,7 @@ impl<'a> GrpcServerInner<'a> {
             .get_current()
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?
             .into();
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn power_sensor_get_power(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -1223,7 +1221,7 @@ impl<'a> GrpcServerInner<'a> {
                 .get_power()
                 .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?,
         };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn power_sensor_get_readings(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -1245,7 +1243,7 @@ impl<'a> GrpcServerInner<'a> {
             .get_generic_readings()
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = proto::common::v1::GetReadingsResponse { readings };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn power_sensor_do_command(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
@@ -1266,7 +1264,7 @@ impl<'a> GrpcServerInner<'a> {
             .do_command(req.command)
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let resp = proto::common::v1::DoCommandResponse { result: res };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn robot_status_stream(
@@ -1290,14 +1288,14 @@ impl<'a> GrpcServerInner<'a> {
                 .get_status(req)
                 .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?,
         };
-        GrpcServerInner::get_encoded_message(status).map(|b| (b, duration))
+        GrpcServerInner::encode_message(status).map(|b| (b, duration))
     }
 
     // robot_get_operations returns an empty response since operations are not yet
     // supported on micro-rdk
     fn robot_get_operations(&mut self, _: &[u8]) -> Result<Bytes, ServerError> {
         let operation = robot::v1::GetOperationsResponse::default();
-        GrpcServerInner::get_encoded_message(operation)
+        GrpcServerInner::encode_message(operation)
     }
 
     // robot_shutdown will not return anything because will restart
@@ -1321,7 +1319,7 @@ impl<'a> GrpcServerInner<'a> {
                 .get_status(req)
                 .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?,
         };
-        GrpcServerInner::get_encoded_message(status)
+        GrpcServerInner::encode_message(status)
     }
 
     fn robot_get_cloud_metadata(&mut self) -> Result<Bytes, ServerError> {
@@ -1331,7 +1329,7 @@ impl<'a> GrpcServerInner<'a> {
             .unwrap()
             .get_cloud_metadata()
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     #[cfg(feature = "camera")]
@@ -1359,7 +1357,7 @@ impl<'a> GrpcServerInner<'a> {
             mime_type: "image/jpeg".to_string(),
             image,
         };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     #[cfg(feature = "camera")]
@@ -1385,7 +1383,7 @@ impl<'a> GrpcServerInner<'a> {
             data: image.to_vec(),
             ..Default::default()
         };
-        GrpcServerInner::get_encoded_message(msg)
+        GrpcServerInner::encode_message(msg)
     }
 
     #[cfg(feature = "camera")]
@@ -1402,7 +1400,7 @@ impl<'a> GrpcServerInner<'a> {
             .do_command(req.command)
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let resp = proto::common::v1::DoCommandResponse { result: res };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn get_version(&mut self) -> Result<Bytes, ServerError> {
@@ -1411,7 +1409,7 @@ impl<'a> GrpcServerInner<'a> {
             version: env!("CARGO_PKG_VERSION").to_string(),
             api_version: proto::api_version::VIAM_API_VERSION.to_string(),
         };
-        GrpcServerInner::get_encoded_message(resp)
+        GrpcServerInner::encode_message(resp)
     }
 
     fn resource_names(&mut self, _unused_message: &[u8]) -> Result<Bytes, ServerError> {
@@ -1422,7 +1420,7 @@ impl<'a> GrpcServerInner<'a> {
             .get_resource_names()
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let rr = robot::v1::ResourceNamesResponse { resources: rr };
-        GrpcServerInner::get_encoded_message(rr)
+        GrpcServerInner::encode_message(rr)
     }
 
     fn signaling_service_optional_webrtc_config(
@@ -1435,7 +1433,7 @@ impl<'a> GrpcServerInner<'a> {
             Some(ref ss) => ss.optional_webrtc_config(req),
             None => Err(ServerError::from(GrpcError::RpcUnimplemented)),
         }?;
-        GrpcServerInner::get_encoded_message(result)
+        GrpcServerInner::encode_message(result)
     }
 
     fn signaling_service_call(
@@ -1478,7 +1476,7 @@ impl<'a> GrpcServerInner<'a> {
         }
 
         Box::pin(receiver.map(move |result| match result {
-            Ok(cr) => GrpcServerInner::get_encoded_message(cr),
+            Ok(cr) => GrpcServerInner::encode_message(cr),
             Err(e) => Err(e),
         }))
     }
@@ -1490,7 +1488,7 @@ impl<'a> GrpcServerInner<'a> {
             Some(ref ss) => ss.call_update(req),
             None => Err(ServerError::from(GrpcError::RpcUnimplemented)),
         }?;
-        GrpcServerInner::get_encoded_message(result)
+        GrpcServerInner::encode_message(result)
     }
 }
 
