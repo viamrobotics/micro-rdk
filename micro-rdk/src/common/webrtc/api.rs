@@ -203,6 +203,8 @@ impl SignalingTask {
         loop {
             // Once the headers have been sent by the sever we expect the first messages to show up on the channel rather quickly
             // if not then we should consider signaling to be disconnected
+            //
+            // TODO(RSDK-9247): Make this a lazy global.
             let engine: Box<general_purpose::GeneralPurpose> = general_purpose::STANDARD.into();
             let res = signaling_rx
                 .next()
@@ -300,8 +302,11 @@ impl WebRtcSignalingChannel {
         &mut self,
         uuid: String,
     ) -> Result<(), WebRtcError> {
-        match self.signaling.as_mut() {
-            Either::Left(ref mut app_signaling) => {
+        // TODO(RSDK-9241): In the methods of `WebRtcSignalingChannel` that have the `Left`/`Right`
+        // distinction, there is often considerable code duplication between the match arms, which
+        // should be reduced by DRY'ing the code.
+        match &mut self.signaling {
+            Either::Left(app_signaling) => {
                 let answer = AnswerResponse {
                     uuid,
                     stage: Some(answer_response::Stage::Error(AnswerResponseErrorStage {
@@ -321,7 +326,7 @@ impl WebRtcSignalingChannel {
                     Ok(())
                 }
             }
-            Either::Right(ref mut local_signaling) => {
+            Either::Right(local_signaling) => {
                 if let Err(e) = local_signaling
                     .tx
                     .send(Err(GrpcError::RpcResourceExhausted.into()))
@@ -338,8 +343,8 @@ impl WebRtcSignalingChannel {
     }
 
     pub(crate) async fn send_sdp_answer(&mut self, sdp: &WebRtcSdp) -> Result<(), WebRtcError> {
-        match self.signaling.as_mut() {
-            Either::Left(ref mut app_signaling) => {
+        match &mut self.signaling {
+            Either::Left(app_signaling) => {
                 let answer = SdpOffer {
                     sdp_type: "answer".to_owned(),
                     sdp: sdp.sdp.marshal(),
@@ -362,7 +367,7 @@ impl WebRtcSignalingChannel {
                     Ok(_) => Ok(()),
                 }
             }
-            Either::Right(ref mut local_signaling) => {
+            Either::Right(local_signaling) => {
                 let answer = SdpOffer {
                     sdp_type: "answer".to_owned(),
                     sdp: sdp.sdp.marshal(),
@@ -395,8 +400,8 @@ impl WebRtcSignalingChannel {
         ufrag: String,
         uuid: String,
     ) -> Result<(), WebRtcError> {
-        match self.signaling.as_mut() {
-            Either::Left(ref mut app_signaling) => {
+        match &mut self.signaling {
+            Either::Left(app_signaling) => {
                 let answer = AnswerResponse {
                     uuid,
                     stage: Some(answer_response::Stage::Update(AnswerResponseUpdateStage {
@@ -413,7 +418,7 @@ impl WebRtcSignalingChannel {
                     Ok(_) => Ok(()),
                 }
             }
-            Either::Right(ref mut local_signaling) => {
+            Either::Right(local_signaling) => {
                 let answer = CallResponse {
                     uuid,
                     stage: Some(call_response::Stage::Update(CallResponseUpdateStage {
@@ -434,8 +439,8 @@ impl WebRtcSignalingChannel {
     }
 
     pub(crate) async fn next_remote_candidate(&mut self) -> Result<Option<Candidate>, WebRtcError> {
-        match self.signaling.as_mut() {
-            Either::Left(ref mut app_signaling) => loop {
+        match &mut self.signaling {
+            Either::Left(app_signaling) => loop {
                 match app_signaling.rx.next().await {
                     None => return Err(WebRtcError::SignalingDisconnected()),
                     Some(req) => {
@@ -481,7 +486,7 @@ impl WebRtcSignalingChannel {
                     }
                 }
             },
-            Either::Right(ref mut local_signaling) => match local_signaling.rx.recv().await {
+            Either::Right(local_signaling) => match local_signaling.rx.recv().await {
                 Err(RecvError) => Err(WebRtcError::SignalingDisconnected()),
                 Ok(req) => {
                     if let Some(update) = req.update {
@@ -509,8 +514,8 @@ impl WebRtcSignalingChannel {
     }
 
     pub async fn send_done(&mut self, uuid: String) -> Result<(), WebRtcError> {
-        match self.signaling.as_mut() {
-            Either::Left(ref mut app_signaling) => {
+        match &mut self.signaling {
+            Either::Left(app_signaling) => {
                 let answer = AnswerResponse {
                     uuid,
                     stage: Some(answer_response::Stage::Done(AnswerResponseDoneStage {})),

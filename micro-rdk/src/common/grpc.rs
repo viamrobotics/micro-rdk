@@ -136,6 +136,8 @@ pub struct GrpcServerInner<'a> {
     signaling_server: &'a Option<Arc<SignalingServer>>,
 }
 
+// TODO(RSDK-9243): The generic parameter R isn't really used here and can probably be removed,
+// although some thought will need to be given to how to handle it for the WebRTC side of things.
 impl<R> GrpcServer<R>
 where
     R: GrpcResponse,
@@ -148,6 +150,7 @@ where
         }
     }
 
+    // TODO(RSDK-9242): Use the builder pattern instead.
     pub(crate) fn register_signaling_server(&mut self, signaling_server: Arc<SignalingServer>) {
         let _ = self.signaling_server.insert(signaling_server);
     }
@@ -214,6 +217,11 @@ impl<'a> GrpcServerInner<'a> {
         path: &str,
         payload: &[u8],
     ) -> Pin<Box<dyn futures_lite::Stream<Item = Result<Bytes, ServerError>> + Sync + Send>> {
+        // TODO(RSDK-8785): This is currently the only bidi call that Micro-RDK supports in HTTP2
+        // mode, so this is a lazy hack to redirect that call and allow all the other existing unary
+        // calls to filter through to the existing match in `handle_unary_request`, which is also
+        // where WebRTC based RPCs are routed. Implementing full bidi for both HTTP2 and WebRTC will
+        // demand a better system.
         match path {
             "/proto.rpc.webrtc.v1.SignalingService/Call" => self.signaling_service_call(payload),
             _ => Box::pin(futures_lite::stream::once(
@@ -1467,6 +1475,9 @@ impl<'a> GrpcServerInner<'a> {
                     .clone()
                     .spawn(async move {
                         match cr {
+                            // TODO(RSDK-9246): Build a combinator to make it easier to call a
+                            // function shaped like SignalingServer::call where we might get a
+                            // non-streamed Result or a streamed Result.
                             Ok(cr) => match ss.call(cr, sender.clone()).await {
                                 Ok(()) => {
                                     sender.close();
@@ -1571,23 +1582,16 @@ where
                 signaling_server: &svc.signaling_server,
             };
 
-            let mut trailers = HeaderMap::new();
-            trailers.insert("grpc-status", "0".parse().unwrap());
+            type Stream = dyn futures_lite::Stream<Item = Result<Bytes, ServerError>> + Send + Sync;
             struct UnfoldState {
                 trailers: HeaderMap,
-                #[allow(clippy::type_complexity)]
-                stream: Option<
-                    Pin<
-                        Box<
-                            dyn futures_lite::Stream<Item = Result<Bytes, ServerError>>
-                                + Sync
-                                + Send,
-                        >,
-                    >,
-                >,
+                stream: Option<Pin<Box<Stream>>>,
             }
+
+            let mut trailers = HeaderMap::new();
+            trailers.insert("grpc-status", "0".parse().unwrap());
             let state = UnfoldState {
-                trailers: trailers.clone(),
+                trailers,
                 stream: Some(match grpc.validate_rpc(&msg).map_err(ServerError::from) {
                     Ok(payload) => grpc.handle_request(path, payload),
                     Err(e) => Box::pin(futures_lite::stream::once(Err(e))),
