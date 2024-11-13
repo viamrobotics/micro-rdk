@@ -85,7 +85,7 @@ pub const OTA_MODEL_TRIPLET: &str = "rdk:builtin:ota_service";
 /// should be 256 bytes in size
 #[repr(C)]
 #[derive(Decode, Debug, PartialEq)]
-struct EspAppDesc {
+struct EspAppDesc { //TODO verify this is doing what I think it's doing, validate results
     /// ESP_APP_DESC_MAGIC_WORD (0xABCD5432)
     magic_word: u32,
     secure_version: u32,
@@ -165,6 +165,7 @@ impl OtaService {
             }
         };
 
+        // TODO write wrapper around these two or use global alias
         #[cfg(feature = "esp32")]
         let mut connector = Esp32H2Connector::default();
         #[cfg(not(feature = "esp32"))]
@@ -244,7 +245,7 @@ impl OtaService {
 
         #[cfg(feature = "esp32")]
         let (mut ota, running_fw_info) = {
-            let mut ota = EspOta::new().map_err(OtaError::EspError)?;
+            let ota = EspOta::new().map_err(OtaError::EspError)?;
             let fw_info = ota.get_running_slot().map_err(OtaError::EspError)?.firmware;
             (ota, fw_info)
         };
@@ -258,11 +259,9 @@ impl OtaService {
 
         while let Some(next) = response.frame().await {
             let frame = next.unwrap();
-            //log::info!("frame!");
             let data = frame.into_data().unwrap();
             total_downloaded += data.len();
 
-            //log::info!("frame!");
             if !got_info {
                 if total_downloaded < core::mem::size_of::<EspAppDesc>() {
                     log::error!("initial frame too small to retrieve esp_app_desc_t");
@@ -287,7 +286,11 @@ impl OtaService {
                     }
                     #[cfg(not(feature = "esp32"))]
                     {
-                        let decoded: EspAppDesc = bincode::decode_from_slice(&data[..256], bincode::config::standard().with_big_endian()).unwrap().0;
+                        let decoded: EspAppDesc = bincode::decode_from_slice(
+                            &data[..256],
+                            bincode::config::standard()
+                                .with_big_endian()
+                        ).unwrap().0;
                         log::info!("{:?}", decoded);
                     }
                     got_info = true;
@@ -295,17 +298,18 @@ impl OtaService {
             }
 
             if data.len() + nwritten <= OTA_MAX_IMAGE_SIZE {
+                // TODO add async write wrapper around raw pointer to target app_desc_t
                 #[cfg(feature = "esp32")]
-                let n = update_handle.write(&data).unwrap();
+                update_handle.write(&data).unwrap();
                 #[cfg(not(feature = "esp32"))]
                 let n = update_handle.write(&data).await.unwrap();
-                nwritten += n;
-                // flush buffer to ota partition, clearing it
-                // write frame to buffer
+                // TODO change back to 'n' after impl async write wrapper
+                nwritten += data.len();
             } else {
                 log::error!("file is larger than expected, aborting");
                 #[cfg(feature = "esp32")]
                 update_handle.abort()?;
+                return Err(OtaError::Other("download be weird".to_string()));
             }
         }
 
