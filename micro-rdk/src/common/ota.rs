@@ -1,3 +1,11 @@
+#[cfg(feature = "esp32")]
+use crate::esp32::{
+    esp_idf_svc::{
+        ota::{EspFirmwareInfoLoader, EspOta},
+        sys::EspError,
+    },
+    tcp::Esp32H2Connector,
+};
 ///
 ///
 /// ```rs
@@ -42,35 +50,68 @@ use crate::{
         exec::Executor,
         grpc_client::H2Timer,
     },
-    esp32::{
-        esp_idf_svc::{
-            hal::io::EspIOError,
-            // http::client::{Configuration, EspHttpConnection},
-            ota::{EspFirmwareInfoLoader, EspOta},
-            sys::EspError,
-        },
-        tcp::Esp32H2Connector,
-    },
     proto::app::v1::ServiceConfig,
 };
+
+#[cfg(not(feature = "esp32"))]
+use crate::native::tcp::NativeH2Connector;
+use bincode::Decode;
+use futures_lite::AsyncWriteExt;
 use http_body_util::{BodyExt, Empty};
 use hyper::{body::Bytes, client::conn::http2, Request};
 use thiserror::Error;
 
 // TODO(RSDK-9200): set according to active partition scheme
 const OTA_MAX_IMAGE_SIZE: usize = 1024 * 1024 * 4; // 4MB
-const OTA_CHUNK_SIZE: usize = 1024 * 16; // 16KB
-const OTA_HTTP_BUFSIZE: usize = 1024 * 16; // 16KB
 pub const OTA_MODEL_TYPE: &str = "ota_service";
 pub const OTA_MODEL_TRIPLET: &str = "rdk:builtin:ota_service";
+
+/// https://github.com/espressif/esp-idf/blob/ce6085349f8d5a95fc857e28e2d73d73dd3629b5/components/esp_app_format/include/esp_app_desc.h#L42
+/// typedef struct {
+///     uint32_t magic_word;        /*!< Magic word ESP_APP_DESC_MAGIC_WORD */
+///     uint32_t secure_version;    /*!< Secure version */
+///     uint32_t reserv1[2];        /*!< reserv1 */
+///     char version[32];           /*!< Application version */
+///     char project_name[32];      /*!< Project name */
+///     char time[16];              /*!< Compile time */
+///     char date[16];              /*!< Compile date*/
+///     char idf_ver[32];           /*!< Version IDF */
+///     uint8_t app_elf_sha256[32]; /*!< sha256 of elf file */
+///     uint16_t min_efuse_blk_rev_full; /*!< Minimal eFuse block revision supported by image, in format: major * 100 + minor */
+///     uint16_t max_efuse_blk_rev_full; /*!< Maximal eFuse block revision supported by image, in format: major * 100 + minor */
+///     uint32_t reserv2[19];       /*!< reserv2 */
+/// } esp_app_desc_t;
+///
+/// should be 256 bytes in size
+#[repr(C)]
+#[derive(Decode, Debug, PartialEq)]
+struct EspAppDesc {
+    /// ESP_APP_DESC_MAGIC_WORD (0xABCD5432)
+    magic_word: u32,
+    secure_version: u32,
+    reserv1: [u32; 2],
+    /// application version
+    version: [u8; 32],
+    project_name: [u8; 32],
+    /// compile time
+    time: [u8; 16],
+    /// compile date
+    date: [u8; 16],
+    idf_ver: [u8; 32],
+    app_elf_sha256: [u8; 32],
+    /// minimal eFuse block revision supported by image, in format: major * 100 + minor
+    min_efuse_blk_rev_full: u16,
+    /// maximal eFuse block revision supported by image, in format: major * 100 + minor
+    max_efuse_blk_rev_full: u16,
+    reserv2: [u32; 19],
+}
 
 // TODO(RSDK-9214)
 #[derive(Error, Debug)]
 pub enum OtaError {
     #[error("{0}")]
     ConfigError(String),
-    #[error(transparent)]
-    DownloadError(#[from] EspIOError),
+    #[cfg(feature = "esp32")]
     #[error(transparent)]
     EspError(#[from] EspError),
     #[error("failed to initialize ota process")]
@@ -83,7 +124,10 @@ pub enum OtaError {
 
 pub(crate) struct OtaService {
     exec: Executor,
+    #[cfg(feature = "esp32")]
     connector: Esp32H2Connector,
+    #[cfg(not(feature = "esp32"))]
+    connector: NativeH2Connector,
     url: String,
 }
 
@@ -121,7 +165,11 @@ impl OtaService {
             }
         };
 
+        #[cfg(feature = "esp32")]
         let mut connector = Esp32H2Connector::default();
+        #[cfg(not(feature = "esp32"))]
+        let mut connector = NativeH2Connector::default();
+
         connector.set_server_certificates(cert.certificate.clone(), cert.private_key.clone());
 
         Ok(Self {
@@ -153,7 +201,7 @@ impl OtaService {
         let (mut sender, conn) = {
             http2::Builder::new(self.exec.clone())
                 .keep_alive_interval(Some(std::time::Duration::from_secs(120)))
-                .keep_alive_timeout(std::time::Duration::from_secs(300))
+                .keep_alive_timeout(std::time::Duration::from_secs(10))
                 .timer(H2Timer)
                 .handshake(io)
                 .await
@@ -168,10 +216,6 @@ impl OtaService {
         let request = Request::builder()
             .method("GET")
             .uri(uri)
-            //.header(
-            //    hyper::header::HOST,
-            //    uri.authority().expect("no authoritayyy").host(),
-            // )
             .body(Empty::<Bytes>::new())
             .expect("rsterntieos");
         let mut response = sender.send_request(request).await.unwrap();
@@ -198,32 +242,36 @@ impl OtaService {
             return Err(OtaError::InvalidImageSize(file_len));
         }
 
-        let mut ota = EspOta::new().map_err(OtaError::EspError)?;
-        let running_fw_info = ota.get_running_slot().map_err(OtaError::EspError)?.firmware;
+        #[cfg(feature = "esp32")]
+        let (mut ota, running_fw_info) = {
+            let mut ota = EspOta::new().map_err(OtaError::EspError)?;
+            let fw_info = ota.get_running_slot().map_err(OtaError::EspError)?.firmware;
+            (ota, fw_info)
+        };
+        #[cfg(feature = "esp32")]
         let mut update_handle = ota.initiate_update().map_err(|_| OtaError::InitError)?;
-        let mut buff = vec![0; OTA_CHUNK_SIZE];
-        let mut total_read: usize = 0;
+        #[cfg(not(feature = "esp32"))]
+        let mut update_handle = Vec::new();
+        let mut nwritten: usize = 0;
+        let mut total_downloaded: usize = 0;
+        let mut got_info = false;
 
         while let Some(next) = response.frame().await {
             let frame = next.unwrap();
-            log::info!("{:?}", frame);
-            //if let Ok(chunk) = frame.data() {
-            //   buff.read(&chunk).await.unwrap();
-            // write chunk to ota
-            // let nread = buff.read(bytes).unwrap();
-            // log::debug!("{} bytes read", nread);
-            //std::io::stdout().write_all(&chunk).await.unwrap();
-            //}
-        }
+            //log::info!("frame!");
+            let data = frame.into_data().unwrap();
+            total_downloaded += data.len();
 
-        /*
-                //let mut got_info = false;
-                while total_read < file_len {
-                    let num_read = response.read(&mut buff).unwrap_or_default();
-                    total_read += num_read;
-                    if !got_info {
+            //log::info!("frame!");
+            if !got_info {
+                if total_downloaded < core::mem::size_of::<EspAppDesc>() {
+                    log::error!("initial frame too small to retrieve esp_app_desc_t");
+                } else {
+                    log::info!("data length {}", data.len());
+                    #[cfg(feature = "esp32")]
+                    {
                         let mut loader = EspFirmwareInfoLoader::new();
-                        loader.load(&buff).map_err(OtaError::EspError)?;
+                        loader.load(&data).map_err(OtaError::EspError)?;
                         let new_fw = loader.get_info().map_err(OtaError::EspError)?;
                         log::info!("current firmware: {:?}", running_fw_info);
                         log::info!("new firmware: {:?}", new_fw);
@@ -236,36 +284,52 @@ impl OtaService {
                                 return Ok(());
                             }
                         }
-                        got_info = true;
                     }
-
-                    if num_read == 0 {
-                        break;
+                    #[cfg(not(feature = "esp32"))]
+                    {
+                        let decoded: EspAppDesc = bincode::decode_from_slice(&data[..256], bincode::config::standard().with_big_endian()).unwrap().0;
+                        log::info!("{:?}", decoded);
                     }
-
-                    if let Err(e) = update_handle.write(&buff[..num_read]) {
-                        log::error!("failed to write OTA partition, update aborted: {}", e);
-                        update_handle.abort()?;
-                        return Err(OtaError::EspError(e));
-                    }
+                    got_info = true;
                 }
+            }
 
-                if total_read < file_len {
-                    log::error!("{} bytes downloaded, needed {} bytes", total_read, file_len);
-                    update_handle.abort()?;
-                    return Err(OtaError::Other(
-                        "download incomplete, update aborted".to_string(),
-                    ));
-                }
-                update_handle.complete().map_err(OtaError::EspError)?;
+            if data.len() + nwritten <= OTA_MAX_IMAGE_SIZE {
+                #[cfg(feature = "esp32")]
+                let n = update_handle.write(&data).unwrap();
+                #[cfg(not(feature = "esp32"))]
+                let n = update_handle.write(&data).await.unwrap();
+                nwritten += n;
+                // flush buffer to ota partition, clearing it
+                // write frame to buffer
+            } else {
+                log::error!("file is larger than expected, aborting");
+                #[cfg(feature = "esp32")]
+                update_handle.abort()?;
+            }
+        }
 
-                log::info!("resetting now to boot from new firmware");
+        log::info!("download complete");
 
-                esp_idf_svc::hal::reset::restart();
-                unreachable!();
-        */
+        if nwritten != file_len {
+            log::error!("wrote {} bytes, expected to write {}", nwritten, file_len);
+            log::error!("aborting ota");
+            #[cfg(feature = "esp32")]
+            update_handle.abort()?;
+
+            return Err(OtaError::Other("download was weird".to_string()));
+        }
 
         drop(conn);
+
+        #[cfg(feature = "esp32")]
+        {
+            update_handle.complete().map_err(OtaError::EspError)?;
+            log::info!("resetting now to boot from new firmware");
+            esp_idf_svc::hal::reset::restart();
+            unreachable!();
+        }
+        log::info!("ota complete");
         Ok(())
     }
 }

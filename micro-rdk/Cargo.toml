@@ -26,7 +26,7 @@ data-upload-hook-unstable = ["data", "esp32"]
 data = []
 qemu = []
 esp-idf-logs = ["esp32"]
-ota = ["esp32"]
+ota = []
 
 [dev-dependencies]
 test-log.workspace = true
@@ -87,6 +87,12 @@ stun_codec.workspace = true
 thiserror.workspace = true
 trackable.workspace = true
 uuid = { workspace = true, features = ["v4"]}
+ringbuf.workspace = true
+pin-project.workspace = true
+async-lock.workspace = true
+dns-message-parser.workspace = true
+printf-compat = { workspace = true, optional = true }
+bincode = "2.0.0-rc.3"
 
 [build-dependencies]
 embuild.workspace = true

@@ -603,7 +603,7 @@ where
 
         #[cfg(feature = "ota")]
         {
-            use crate::esp32::ota;
+            use crate::common::ota;
             log::debug!("ota feature enabled");
 
             let certs = self.storage.get_tls_certificate().ok();
