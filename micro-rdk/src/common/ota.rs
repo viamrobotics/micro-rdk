@@ -1,11 +1,3 @@
-#[cfg(feature = "esp32")]
-use crate::esp32::{
-    esp_idf_svc::{
-        ota::{EspFirmwareInfoLoader, EspOta},
-        sys::EspError,
-    },
-    tcp::Esp32H2Connector,
-};
 ///
 ///
 /// ```rs
@@ -53,8 +45,11 @@ use crate::{
     proto::app::v1::ServiceConfig,
 };
 
-#[cfg(not(feature = "esp32"))]
-use crate::native::tcp::NativeH2Connector;
+#[cfg(feature = "esp32")]
+use crate::esp32::esp_idf_svc::{
+    ota::{EspFirmwareInfoLoader, EspOta},
+    sys::EspError,
+};
 use bincode::Decode;
 use futures_lite::AsyncWriteExt;
 use http_body_util::{BodyExt, Empty};
@@ -85,7 +80,8 @@ pub const OTA_MODEL_TRIPLET: &str = "rdk:builtin:ota_service";
 /// should be 256 bytes in size
 #[repr(C)]
 #[derive(Decode, Debug, PartialEq)]
-struct EspAppDesc { //TODO verify this is doing what I think it's doing, validate results
+struct EspAppDesc {
+    //TODO verify this is doing what I think it's doing, validate results
     /// ESP_APP_DESC_MAGIC_WORD (0xABCD5432)
     magic_word: u32,
     secure_version: u32,
@@ -122,12 +118,14 @@ pub enum OtaError {
     Other(String),
 }
 
+#[cfg(feature = "esp32")]
+type OtaConnector = crate::esp32::tcp::Esp32H2Connector;
+#[cfg(not(feature = "esp32"))]
+type OtaConnector = crate::native::tcp::NativeH2Connector;
+
 pub(crate) struct OtaService {
     exec: Executor,
-    #[cfg(feature = "esp32")]
-    connector: Esp32H2Connector,
-    #[cfg(not(feature = "esp32"))]
-    connector: NativeH2Connector,
+    connector: OtaConnector,
     url: String,
 }
 
@@ -165,11 +163,7 @@ impl OtaService {
             }
         };
 
-        // TODO write wrapper around these two or use global alias
-        #[cfg(feature = "esp32")]
-        let mut connector = Esp32H2Connector::default();
-        #[cfg(not(feature = "esp32"))]
-        let mut connector = NativeH2Connector::default();
+        let mut connector = OtaConnector::default();
 
         connector.set_server_certificates(cert.certificate.clone(), cert.private_key.clone());
 
@@ -193,11 +187,18 @@ impl OtaService {
             let mut auth = uri.authority().expect("str").to_string();
             auth.push_str(":443");
             let mut parts = uri.into_parts();
-            parts.authority = Some(auth.parse().unwrap());
-            uri = hyper::Uri::from_parts(parts).unwrap();
+            parts.authority = Some(
+                auth.parse()
+                    .map_err(|_| OtaError::Other("failed to parse authority".to_string()))?,
+            );
+            uri = hyper::Uri::from_parts(parts).map_err(|e| OtaError::Other(e.to_string()))?;
         };
-        log::info!("URI: {:?}", uri);
-        let io = self.connector.connect_to(&uri).unwrap().await.unwrap();
+        let io = self
+            .connector
+            .connect_to(&uri)
+            .unwrap()
+            .await
+            .map_err(|e| OtaError::Other(e.to_string()))?;
 
         let (mut sender, conn) = {
             http2::Builder::new(self.exec.clone())
@@ -206,7 +207,7 @@ impl OtaService {
                 .timer(H2Timer)
                 .handshake(io)
                 .await
-                .unwrap()
+                .map_err(|e| OtaError::Other(e.to_string()))?
         };
 
         let conn = self.exec.spawn(async move {
@@ -218,8 +219,11 @@ impl OtaService {
             .method("GET")
             .uri(uri)
             .body(Empty::<Bytes>::new())
-            .expect("rsterntieos");
-        let mut response = sender.send_request(request).await.unwrap();
+            .map_err(|e| OtaError::Other(e.to_string()))?;
+        let mut response = sender
+            .send_request(request)
+            .await
+            .map_err(|e| OtaError::Other(e.to_string()))?;
 
         if response.status() != 200 {
             return Err(OtaError::Other(
@@ -230,14 +234,16 @@ impl OtaService {
         log::debug!("headers: {:?}", headers);
 
         if !headers.contains_key(hyper::header::CONTENT_LENGTH) {
-            log::error!("rsetnrien");
-            return Ok(());
+            log::error!("header");
+            return Err(OtaError::Other(
+                "response header missing content length".to_string(),
+            ));
         }
         let file_len = headers[hyper::header::CONTENT_LENGTH]
             .to_str()
             .expect("failed to get reference to content length")
             .parse::<usize>()
-            .expect("failed to parse content length");
+            .map_err(|e| OtaError::Other(e.to_string()))?;
 
         if file_len > OTA_MAX_IMAGE_SIZE {
             return Err(OtaError::InvalidImageSize(file_len));
@@ -259,6 +265,11 @@ impl OtaService {
 
         while let Some(next) = response.frame().await {
             let frame = next.unwrap();
+            if !frame.is_data() {
+                return Err(OtaError::Other(
+                    "download contained non-data frame".to_string(),
+                ));
+            }
             let data = frame.into_data().unwrap();
             total_downloaded += data.len();
 
@@ -286,24 +297,31 @@ impl OtaService {
                     }
                     #[cfg(not(feature = "esp32"))]
                     {
-                        let decoded: EspAppDesc = bincode::decode_from_slice(
-                            &data[..256],
-                            bincode::config::standard()
-                                .with_big_endian()
-                        ).unwrap().0;
-                        log::info!("{:?}", decoded);
+                        if let Ok(decoded) = bincode::decode_from_slice::<
+                            EspAppDesc,
+                            bincode::config::Configuration,
+                        >(
+                            &data[..256], bincode::config::standard()
+                        ) {
+                            log::info!("{:?}", decoded.0);
+                        }
                     }
                     got_info = true;
                 }
             }
 
             if data.len() + nwritten <= OTA_MAX_IMAGE_SIZE {
-                // TODO add async write wrapper around raw pointer to target app_desc_t
+                // TODO(RSDK-9271) add async writer for ota
                 #[cfg(feature = "esp32")]
-                update_handle.write(&data).unwrap();
+                update_handle
+                    .write(&data)
+                    .map_err(|e| OtaError::Other(e.to_string()))?;
                 #[cfg(not(feature = "esp32"))]
-                let n = update_handle.write(&data).await.unwrap();
-                // TODO change back to 'n' after impl async write wrapper
+                let _n = update_handle
+                    .write(&data)
+                    .await
+                    .map_err("failed to write data to partition".to_string())?;
+                // TODO change back to 'n' after impl async writer
                 nwritten += data.len();
             } else {
                 log::error!("file is larger than expected, aborting");
@@ -313,7 +331,7 @@ impl OtaService {
             }
         }
 
-        log::info!("download complete");
+        log::info!("ota download complete");
 
         if nwritten != file_len {
             log::error!("wrote {} bytes, expected to write {}", nwritten, file_len);
@@ -321,7 +339,9 @@ impl OtaService {
             #[cfg(feature = "esp32")]
             update_handle.abort()?;
 
-            return Err(OtaError::Other("download was weird".to_string()));
+            return Err(OtaError::Other(
+                "nbytes written did not match file size".to_string(),
+            ));
         }
 
         drop(conn);
