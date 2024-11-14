@@ -729,6 +729,9 @@ where
                         });
                         #[cfg(not(test))]
                         panic!("erased credentials restart robot"); // TODO bubble up error and go back in provisioning
+                    } else if error.is_fs_error() {
+                        log::error!("no available file descriptors, restarting");
+                        esp_idf_svc::hal::reset::restart();
                     }
                     log::error!("couldn't connect to signaling server, reason {:?}", error);
                 })

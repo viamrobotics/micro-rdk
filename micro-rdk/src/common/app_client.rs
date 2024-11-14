@@ -93,6 +93,15 @@ impl AppClientError {
         }
         false
     }
+    // TODO(RSDK-9276)
+    pub fn is_fs_error(&self) -> bool {
+        if let AppClientError::AppGrpcClientError(GrpcClientError::GrpcError { code, message }) = self {
+            if *code == 23 && message.contains("many open files") {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 pub struct AppClientBuilder {
