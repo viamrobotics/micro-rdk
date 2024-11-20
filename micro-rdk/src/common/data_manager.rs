@@ -520,7 +520,7 @@ where
                             Ok(data) => data,
                             Err(DataSyncError::NoCurrentTime) => {
                                 log::error!("Could not calculate data timestamps, returning without flushing store");
-                                return Ok(());
+                                continue;
                             }
                             Err(err) => {
                                 log::error!(
