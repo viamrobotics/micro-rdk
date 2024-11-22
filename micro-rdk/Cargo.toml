@@ -44,6 +44,7 @@ rcgen = { workspace = true, optional = true }
 rustls = { workspace = true, optional = true }
 rustls-pemfile = { workspace = true, optional = true }
 webpki-roots = { workspace = true, optional = true }
+bincode = "2.0.0-rc.3"
 
 [dependencies]
 async-channel.workspace = true
@@ -87,12 +88,6 @@ stun_codec.workspace = true
 thiserror.workspace = true
 trackable.workspace = true
 uuid = { workspace = true, features = ["v4"]}
-ringbuf.workspace = true
-pin-project.workspace = true
-async-lock.workspace = true
-dns-message-parser.workspace = true
-printf-compat = { workspace = true, optional = true }
-bincode = "2.0.0-rc.3"
 
 [build-dependencies]
 embuild.workspace = true
