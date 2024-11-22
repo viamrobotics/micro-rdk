@@ -301,7 +301,7 @@ impl OtaService {
                             EspAppDesc,
                             bincode::config::Configuration,
                         >(
-                            &data[..256], bincode::config::standard()
+                            &data[..SIZEOF_APPDESC], bincode::config::standard()
                         ) {
                             log::debug!("{:?}", decoded.0);
                         }
