@@ -49,21 +49,19 @@ use crate::esp32::esp_idf_svc::{
     ota::{EspFirmwareInfoLoader, EspOta},
     sys::EspError,
 };
-#[cfg(not(feature = "esp32"))]
-use {
-    bincode::Decode,
-    futures_lite::AsyncWriteExt,
-};
-use once_cell::sync::Lazy;
 use http_body_util::{BodyExt, Empty};
 use hyper::{body::Bytes, client::conn::http2, Request};
+use once_cell::sync::Lazy;
 use thiserror::Error;
+#[cfg(not(feature = "esp32"))]
+use {bincode::Decode, futures_lite::AsyncWriteExt};
 
 // TODO(RSDK-9200): set according to active partition scheme
 const OTA_MAX_IMAGE_SIZE: usize = 1024 * 1024 * 4; // 4MB
 const SIZEOF_APPDESC: usize = 256;
 pub const OTA_MODEL_TYPE: &str = "ota_service";
-pub static OTA_MODEL_TRIPLET: Lazy<String> = Lazy::new(||format!("rdk:builtin:{}", OTA_MODEL_TYPE));
+pub static OTA_MODEL_TRIPLET: Lazy<String> =
+    Lazy::new(|| format!("rdk:builtin:{}", OTA_MODEL_TYPE));
 
 /// https://github.com/espressif/esp-idf/blob/ce6085349f8d5a95fc857e28e2d73d73dd3629b5/components/esp_app_format/include/esp_app_desc.h#L42
 /// https://docs.esp-rs.org/esp-idf-sys/esp_idf_sys/struct.esp_app_desc_t.html
@@ -179,7 +177,10 @@ impl OtaService {
                 log::error!("no port found and not https");
             }
 
-            let mut auth = uri.authority().ok_or(OtaError::Other("no authority present in uri".to_string()))?.to_string();
+            let mut auth = uri
+                .authority()
+                .ok_or(OtaError::Other("no authority present in uri".to_string()))?
+                .to_string();
             auth.push_str(":443");
             let mut parts = uri.into_parts();
             parts.authority = Some(
@@ -237,7 +238,8 @@ impl OtaService {
             ));
         }
         let file_len = headers[hyper::header::CONTENT_LENGTH]
-            .to_str().map_err(|e| OtaError::Other(e.to_string()))?
+            .to_str()
+            .map_err(|e| OtaError::Other(e.to_string()))?
             .parse::<usize>()
             .map_err(|e| OtaError::Other(e.to_string()))?;
 

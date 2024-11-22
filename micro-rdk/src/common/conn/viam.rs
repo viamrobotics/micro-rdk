@@ -541,6 +541,34 @@ where
         ));
         self.app_client_tasks.push(config_monitor_task);
 
+        #[cfg(feature = "ota")]
+        {
+            use crate::common::ota;
+            log::debug!("ota feature enabled");
+
+            if let Some(service) = config
+                .services
+                .iter()
+                .find(|&service| service.model == *ota::OTA_MODEL_TRIPLET)
+            {
+                if let Ok(mut ota) = ota::OtaService::from_config(service, self.executor.clone()) {
+                    self.ota_service_task
+                        .replace(self.executor.spawn(async move {
+                            if let Err(e) = ota.update().await {
+                                log::error!("{}", e);
+                            }
+                        }));
+                } else {
+                    log::error!("failed to build ota service from config: {:?}", service);
+                }
+            } else {
+                log::error!(
+                    "ota enabled, but no service of type `{}` found in robot config",
+                    ota::OTA_MODEL_TYPE
+                );
+            }
+        }
+
         let mut robot = LocalRobot::from_cloud_config(
             self.executor.clone(),
             robot_creds.robot_id.clone(),
@@ -598,34 +626,6 @@ where
                         );
                     };
                 }
-            }
-        }
-
-        #[cfg(feature = "ota")]
-        {
-            use crate::common::ota;
-            log::debug!("ota feature enabled");
-
-            if let Some(service) = config
-                .services
-                .iter()
-                .find(|&service| service.model == *ota::OTA_MODEL_TRIPLET)
-            {
-                if let Ok(mut ota) = ota::OtaService::from_config(service, self.executor.clone()) {
-                    self.ota_service_task
-                        .replace(self.executor.spawn(async move {
-                            if let Err(e) = ota.update().await {
-                                log::error!("{}", e);
-                            }
-                        }));
-                } else {
-                    log::error!("failed to build ota service from config: {:?}", service);
-                }
-            } else {
-                log::error!(
-                    "ota enabled, but no service of type `{}` found in robot config",
-                    ota::OTA_MODEL_TYPE
-                );
             }
         }
 
