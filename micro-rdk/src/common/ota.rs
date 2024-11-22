@@ -50,6 +50,8 @@ use crate::esp32::esp_idf_svc::{
     ota::{EspFirmwareInfoLoader, EspOta},
     sys::EspError,
 };
+
+#[cfg(not(feature = "esp32"))]
 use bincode::Decode;
 use futures_lite::AsyncWriteExt;
 use http_body_util::{BodyExt, Empty};
@@ -58,10 +60,12 @@ use thiserror::Error;
 
 // TODO(RSDK-9200): set according to active partition scheme
 const OTA_MAX_IMAGE_SIZE: usize = 1024 * 1024 * 4; // 4MB
+const SIZEOF_APPDESC: usize = 256;
 pub const OTA_MODEL_TYPE: &str = "ota_service";
 pub const OTA_MODEL_TRIPLET: &str = "rdk:builtin:ota_service";
 
 /// https://github.com/espressif/esp-idf/blob/ce6085349f8d5a95fc857e28e2d73d73dd3629b5/components/esp_app_format/include/esp_app_desc.h#L42
+/// https://docs.esp-rs.org/esp-idf-sys/esp_idf_sys/struct.esp_app_desc_t.html
 /// typedef struct {
 ///     uint32_t magic_word;        /*!< Magic word ESP_APP_DESC_MAGIC_WORD */
 ///     uint32_t secure_version;    /*!< Secure version */
@@ -72,16 +76,15 @@ pub const OTA_MODEL_TRIPLET: &str = "rdk:builtin:ota_service";
 ///     char date[16];              /*!< Compile date*/
 ///     char idf_ver[32];           /*!< Version IDF */
 ///     uint8_t app_elf_sha256[32]; /*!< sha256 of elf file */
-///     uint16_t min_efuse_blk_rev_full; /*!< Minimal eFuse block revision supported by image, in format: major * 100 + minor */
-///     uint16_t max_efuse_blk_rev_full; /*!< Maximal eFuse block revision supported by image, in format: major * 100 + minor */
 ///     uint32_t reserv2[19];       /*!< reserv2 */
 /// } esp_app_desc_t;
 ///
 /// should be 256 bytes in size
+#[cfg(not(feature = "esp32"))]
 #[repr(C)]
 #[derive(Decode, Debug, PartialEq)]
 struct EspAppDesc {
-    //TODO verify this is doing what I think it's doing, validate results
+    //TODO(RSDK-9342): add verified, native impl of esp_app_desc_t for debugging
     /// ESP_APP_DESC_MAGIC_WORD (0xABCD5432)
     magic_word: u32,
     secure_version: u32,
@@ -95,14 +98,10 @@ struct EspAppDesc {
     date: [u8; 16],
     idf_ver: [u8; 32],
     app_elf_sha256: [u8; 32],
-    /// minimal eFuse block revision supported by image, in format: major * 100 + minor
-    min_efuse_blk_rev_full: u16,
-    /// maximal eFuse block revision supported by image, in format: major * 100 + minor
-    max_efuse_blk_rev_full: u16,
-    reserv2: [u32; 19],
+    reserv2: [u32; 20],
 }
 
-// TODO(RSDK-9214)
+// TODO(RSDK-9214): surface (and use) underlying errors properly, use transparent where possible
 #[derive(Error, Debug)]
 pub enum OtaError {
     #[error("{0}")]
@@ -135,7 +134,7 @@ impl OtaService {
         cert: TlsCertificate,
         exec: Executor,
     ) -> Result<Self, OtaError> {
-        // TODO(RSDK-9205)
+        // TODO(RSDK-9205): impl From<ServiceConfig> for DynamicComponentConfig, use here
         let kind: Kind = ota_config
             .attributes
             .as_ref()
@@ -184,7 +183,7 @@ impl OtaService {
                 log::error!("no port found and not https");
             }
 
-            let mut auth = uri.authority().expect("str").to_string();
+            let mut auth = uri.authority().ok_or(OtaError::Other("no authority present in uri".to_string()))?.to_string();
             auth.push_str(":443");
             let mut parts = uri.into_parts();
             parts.authority = Some(
@@ -196,14 +195,13 @@ impl OtaService {
         let io = self
             .connector
             .connect_to(&uri)
-            .unwrap()
+            .map_err(|e| OtaError::Other(e.to_string()))?
             .await
             .map_err(|e| OtaError::Other(e.to_string()))?;
 
         let (mut sender, conn) = {
             http2::Builder::new(self.exec.clone())
-                .keep_alive_interval(Some(std::time::Duration::from_secs(120)))
-                .keep_alive_timeout(std::time::Duration::from_secs(10))
+                .max_frame_size(16_384) // lowest configurable value
                 .timer(H2Timer)
                 .handshake(io)
                 .await
@@ -240,8 +238,7 @@ impl OtaService {
             ));
         }
         let file_len = headers[hyper::header::CONTENT_LENGTH]
-            .to_str()
-            .expect("failed to get reference to content length")
+            .to_str().map_err(|e| OtaError::Other(e.to_string()))?
             .parse::<usize>()
             .map_err(|e| OtaError::Other(e.to_string()))?;
 
@@ -274,7 +271,7 @@ impl OtaService {
             total_downloaded += data.len();
 
             if !got_info {
-                if total_downloaded < core::mem::size_of::<EspAppDesc>() {
+                if total_downloaded < SIZEOF_APPDESC {
                     log::error!("initial frame too small to retrieve esp_app_desc_t");
                 } else {
                     log::info!("data length {}", data.len());
@@ -320,7 +317,7 @@ impl OtaService {
                 let _n = update_handle
                     .write(&data)
                     .await
-                    .map_err("failed to write data to partition".to_string())?;
+                    .map_err(|e| OtaError::Other(e.to_string()))?;
                 // TODO change back to 'n' after impl async writer
                 nwritten += data.len();
             } else {
@@ -332,6 +329,7 @@ impl OtaService {
         }
 
         log::info!("ota download complete");
+        drop(conn);
 
         if nwritten != file_len {
             log::error!("wrote {} bytes, expected to write {}", nwritten, file_len);
@@ -343,8 +341,6 @@ impl OtaService {
                 "nbytes written did not match file size".to_string(),
             ));
         }
-
-        drop(conn);
 
         #[cfg(feature = "esp32")]
         {
