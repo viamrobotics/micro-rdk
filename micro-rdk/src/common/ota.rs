@@ -38,7 +38,6 @@ use crate::{
     common::{
         config::{AttributeError, Kind},
         conn::viam::ViamH2Connector,
-        credentials_storage::TlsCertificate,
         exec::Executor,
         grpc_client::H2Timer,
     },
@@ -50,10 +49,12 @@ use crate::esp32::esp_idf_svc::{
     ota::{EspFirmwareInfoLoader, EspOta},
     sys::EspError,
 };
-
 #[cfg(not(feature = "esp32"))]
-use bincode::Decode;
-use futures_lite::AsyncWriteExt;
+use {
+    bincode::Decode,
+    futures_lite::AsyncWriteExt,
+};
+use once_cell::sync::Lazy;
 use http_body_util::{BodyExt, Empty};
 use hyper::{body::Bytes, client::conn::http2, Request};
 use thiserror::Error;
@@ -62,7 +63,7 @@ use thiserror::Error;
 const OTA_MAX_IMAGE_SIZE: usize = 1024 * 1024 * 4; // 4MB
 const SIZEOF_APPDESC: usize = 256;
 pub const OTA_MODEL_TYPE: &str = "ota_service";
-pub const OTA_MODEL_TRIPLET: &str = "rdk:builtin:ota_service";
+pub static OTA_MODEL_TRIPLET: Lazy<String> = Lazy::new(||format!("rdk:builtin:{}", OTA_MODEL_TYPE));
 
 /// https://github.com/espressif/esp-idf/blob/ce6085349f8d5a95fc857e28e2d73d73dd3629b5/components/esp_app_format/include/esp_app_desc.h#L42
 /// https://docs.esp-rs.org/esp-idf-sys/esp_idf_sys/struct.esp_app_desc_t.html
@@ -131,7 +132,6 @@ pub(crate) struct OtaService {
 impl OtaService {
     pub(crate) fn from_config(
         ota_config: &ServiceConfig,
-        cert: TlsCertificate,
         exec: Executor,
     ) -> Result<Self, OtaError> {
         // TODO(RSDK-9205): impl From<ServiceConfig> for DynamicComponentConfig, use here
@@ -161,11 +161,7 @@ impl OtaService {
                 )))
             }
         };
-
-        let mut connector = OtaConnector::default();
-
-        connector.set_server_certificates(cert.certificate.clone(), cert.private_key.clone());
-
+        let connector = OtaConnector::default();
         Ok(Self {
             url,
             connector,
@@ -213,6 +209,9 @@ impl OtaService {
                 log::error!("connection failed: {:?}", err);
             }
         });
+
+        log::info!("ota connected, beginning download");
+
         let request = Request::builder()
             .method("GET")
             .uri(uri)
@@ -229,7 +228,7 @@ impl OtaService {
             ));
         }
         let headers = response.headers();
-        log::debug!("headers: {:?}", headers);
+        log::debug!("ota response headers: {:?}", headers);
 
         if !headers.contains_key(hyper::header::CONTENT_LENGTH) {
             log::error!("header");
@@ -274,14 +273,14 @@ impl OtaService {
                 if total_downloaded < SIZEOF_APPDESC {
                     log::error!("initial frame too small to retrieve esp_app_desc_t");
                 } else {
-                    log::info!("data length {}", data.len());
                     #[cfg(feature = "esp32")]
                     {
+                        log::info!("verifying new ota firmware");
                         let mut loader = EspFirmwareInfoLoader::new();
                         loader.load(&data).map_err(OtaError::EspError)?;
                         let new_fw = loader.get_info().map_err(OtaError::EspError)?;
-                        log::info!("current firmware: {:?}", running_fw_info);
-                        log::info!("new firmware: {:?}", new_fw);
+                        log::debug!("current firmware: {:?}", running_fw_info);
+                        log::debug!("new firmware: {:?}", new_fw);
                         if let Some(ref running_fw) = running_fw_info {
                             if running_fw.version == new_fw.version
                                 && running_fw.released == new_fw.released
@@ -291,16 +290,18 @@ impl OtaService {
                                 return Ok(());
                             }
                         }
+                        log::info!("applying new ota firmware");
                     }
                     #[cfg(not(feature = "esp32"))]
                     {
+                        log::debug!("deserializing app header");
                         if let Ok(decoded) = bincode::decode_from_slice::<
                             EspAppDesc,
                             bincode::config::Configuration,
                         >(
                             &data[..256], bincode::config::standard()
                         ) {
-                            log::info!("{:?}", decoded.0);
+                            log::debug!("{:?}", decoded.0);
                         }
                     }
                     got_info = true;
@@ -328,8 +329,8 @@ impl OtaService {
             }
         }
 
-        log::info!("ota download complete");
         drop(conn);
+        log::info!("ota download complete");
 
         if nwritten != file_len {
             log::error!("wrote {} bytes, expected to write {}", nwritten, file_len);

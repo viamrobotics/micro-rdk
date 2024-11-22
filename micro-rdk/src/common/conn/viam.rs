@@ -606,34 +606,26 @@ where
             use crate::common::ota;
             log::debug!("ota feature enabled");
 
-            let certs = self.storage.get_tls_certificate().ok();
-
-            if let Some(certs) = certs {
-                if let Some(service) = config
-                    .services
-                    .iter()
-                    .find(|&service| service.model == ota::OTA_MODEL_TRIPLET)
-                {
-                    if let Ok(mut ota) =
-                        ota::OtaService::from_config(service, certs, self.executor.clone())
-                    {
-                        self.ota_service_task
-                            .replace(self.executor.spawn(async move {
-                                if let Err(e) = ota.update().await {
-                                    log::error!("{}", e);
-                                }
-                            }));
-                    } else {
-                        log::error!("failed to build ota service from config: {:?}", service);
-                    }
+            if let Some(service) = config
+                .services
+                .iter()
+                .find(|&service| service.model == *ota::OTA_MODEL_TRIPLET)
+            {
+                if let Ok(mut ota) = ota::OtaService::from_config(service, self.executor.clone()) {
+                    self.ota_service_task
+                        .replace(self.executor.spawn(async move {
+                            if let Err(e) = ota.update().await {
+                                log::error!("{}", e);
+                            }
+                        }));
                 } else {
-                    log::error!(
-                        "ota enabled, but no service of type `{}` found in robot config",
-                        ota::OTA_MODEL_TYPE
-                    );
+                    log::error!("failed to build ota service from config: {:?}", service);
                 }
             } else {
-                log::error!("ota not possible without tls certificates");
+                log::error!(
+                    "ota enabled, but no service of type `{}` found in robot config",
+                    ota::OTA_MODEL_TYPE
+                );
             }
         }
 
