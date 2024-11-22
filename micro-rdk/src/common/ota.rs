@@ -350,7 +350,6 @@ impl OtaService {
             update_handle.complete().map_err(OtaError::EspError)?;
             log::info!("resetting now to boot from new firmware");
             esp_idf_svc::hal::reset::restart();
-            unreachable!();
         }
         log::info!("ota complete");
         Ok(())
