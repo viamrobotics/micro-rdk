@@ -12,6 +12,9 @@ use crate::common::{provisioning::server::ProvisioningExecutor, webrtc::exec::We
 pub struct Executor {}
 
 std::thread_local! {
+    // Clippy false positive with rust 1.82.0 here, see also
+    // https://github.com/rust-lang/rust-clippy/issues/13422.
+    #[allow(clippy::missing_const_for_thread_local)]
     static EX: LocalExecutor<'static> = const { LocalExecutor::new() };
 }
 

@@ -1,6 +1,7 @@
 use regex::Regex;
 
 fn main() {
+    println!("cargo::rustc-check-cfg=cfg(esp32)");
     if Regex::new(r"\w+-esp3?2?s?\d?-espidf")
         .unwrap()
         .is_match(&std::env::var("TARGET").unwrap())
