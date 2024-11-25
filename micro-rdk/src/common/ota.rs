@@ -223,6 +223,7 @@ impl OtaService {
             .await
             .map_err(|e| OtaError::Other(e.to_string()))?;
 
+        // TODO(RSDK-9346): handle other success codes
         if response.status() != 200 {
             return Err(OtaError::Other(
                 format!("Bad Request - Status:{}", response.status()).to_string(),
@@ -232,7 +233,6 @@ impl OtaService {
         log::debug!("ota response headers: {:?}", headers);
 
         if !headers.contains_key(hyper::header::CONTENT_LENGTH) {
-            log::error!("header");
             return Err(OtaError::Other(
                 "response header missing content length".to_string(),
             ));
