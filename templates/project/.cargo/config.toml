@@ -24,7 +24,7 @@ runner = "espflash --monitor"
 # Future - necessary for the experimental "native build" of esp-idf-sys with ESP32C3
 # See also https://github.com/ivmarkov/embuild/issues/16 [build]
 
-rustflags = ["-C", "default-linker-libraries"]
+rustflags = ["-C", "default-linker-libraries", "--cfg", "espidf_time32"]
 
 [unstable]
 
