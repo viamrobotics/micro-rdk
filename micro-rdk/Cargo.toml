@@ -26,7 +26,7 @@ data-upload-hook-unstable = ["data", "esp32"]
 data = []
 qemu = []
 esp-idf-logs = ["esp32"]
-ota = ["esp32"]
+ota = []
 
 [dev-dependencies]
 test-log.workspace = true
@@ -44,6 +44,7 @@ rcgen = { workspace = true, optional = true }
 rustls = { workspace = true, optional = true }
 rustls-pemfile = { workspace = true, optional = true }
 webpki-roots = { workspace = true, optional = true }
+bincode = "2.0.0-rc.3"
 
 [dependencies]
 async-channel.workspace = true

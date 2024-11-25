@@ -13,8 +13,6 @@ pub mod esp_idf_svc;
 pub mod hcsr04;
 pub mod i2c;
 pub mod log;
-#[cfg(feature = "ota")]
-pub mod ota;
 pub mod pin;
 #[cfg(feature = "builtin-components")]
 pub mod pulse_counter;

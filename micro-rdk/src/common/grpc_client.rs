@@ -219,7 +219,7 @@ impl Future for AsyncioSleep {
 }
 
 #[derive(Default, Clone, Debug)]
-struct H2Timer;
+pub(crate) struct H2Timer;
 
 impl rt::Timer for H2Timer {
     fn sleep(&self, duration: std::time::Duration) -> std::pin::Pin<Box<dyn rt::Sleep>> {

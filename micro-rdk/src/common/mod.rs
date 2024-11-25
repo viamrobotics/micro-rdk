@@ -57,6 +57,8 @@ pub mod motor;
 pub mod movement_sensor;
 #[cfg(feature = "builtin-components")]
 pub mod mpu6050;
+#[cfg(feature = "ota")]
+pub mod ota;
 pub mod power_sensor;
 pub mod registry;
 pub mod restart_monitor;
