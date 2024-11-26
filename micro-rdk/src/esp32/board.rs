@@ -216,7 +216,9 @@ impl EspBoard {
                 vec![]
             };
 
-            let i2c_confs = cfg.get_attribute::<Vec<Esp32I2cConfig>>("i2cs").unwrap_or_default();
+            let i2c_confs = cfg
+                .get_attribute::<Vec<Esp32I2cConfig>>("i2cs")
+                .unwrap_or_default();
             (analogs, pins, i2c_confs)
         };
         let mut i2cs = HashMap::new();
