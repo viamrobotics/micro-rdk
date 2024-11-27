@@ -125,18 +125,22 @@ pub(crate) struct OtaService {
     exec: Executor,
     connector: OtaConnector,
     url: String,
+    pending_version: String,
+    current_version: String,
 }
 
 impl OtaService {
     pub(crate) fn from_config(
-        ota_config: &ServiceConfig,
+        new_config: &ServiceConfig,
+        current_config: Option<ServiceConfig>,
         exec: Executor,
     ) -> Result<Self, OtaError> {
-        // TODO(RSDK-9205): impl From<ServiceConfig> for DynamicComponentConfig, use here
-        let kind: Kind = ota_config
+        let kind = new_config
             .attributes
             .as_ref()
-            .ok_or_else(|| OtaError::ConfigError("config missing `attributes`".to_string()))?
+            .ok_or_else(|| OtaError::ConfigError("config missing `attributes`".to_string()))?;
+
+        let url = kind
             .fields
             .get("url")
             .ok_or(OtaError::ConfigError(
@@ -145,12 +149,12 @@ impl OtaService {
             .kind
             .as_ref()
             .ok_or(OtaError::ConfigError(
-                "failed to get inner `Value`".to_string(),
+                "failed to get inner `Value` for url".to_string(),
             ))?
             .try_into()
             .map_err(|e: AttributeError| OtaError::ConfigError(e.to_string()))?;
 
-        let url = match kind {
+        let url = match url {
             Kind::StringValue(s) => s,
             _ => {
                 return Err(OtaError::ConfigError(format!(
@@ -159,15 +163,79 @@ impl OtaService {
                 )))
             }
         };
+
+        let pending_version = kind
+            .fields
+            .get("version")
+            .ok_or(OtaError::ConfigError(
+                "config missing `version` field".to_string(),
+            ))?
+            .kind
+            .as_ref()
+            .ok_or(OtaError::ConfigError(
+                "failed to get inner `Value` for version".to_string(),
+            ))?
+            .try_into()
+            .map_err(|e: AttributeError| OtaError::ConfigError(e.to_string()))?;
+        let pending_version = match pending_version {
+            Kind::StringValue(s) => s,
+            _ => {
+                return Err(OtaError::ConfigError(format!(
+                    "invalid url value: {:?}",
+                    pending_version
+                )))
+            }
+        };
+
+        let curr_version = match curr_config {
+            Some(curr_config) => {
+                let kind = new_config.attributes.as_ref().ok_or_else(|| {
+                    OtaError::ConfigError("config missing `attributes`".to_string())
+                })?;
+
+                let curr_version = kind
+                    .fields
+                    .get("version")
+                    .ok_or(OtaError::ConfigError(
+                        "config missing `version` field".to_string(),
+                    ))?
+                    .kind
+                    .as_ref()
+                    .ok_or(OtaError::ConfigError(
+                        "failed to get inner `Value` for version".to_string(),
+                    ))?
+                    .try_into()
+                    .map_err(|e: AttributeError| OtaError::ConfigError(e.to_string()))?;
+                match pending_version {
+                    Kind::StringValue(s) => s,
+                    _ => {
+                        return Err(OtaError::ConfigError(format!(
+                            "invalid url value: {:?}",
+                            pending_version
+                        )))
+                    }
+                }
+            }
+            None => String::default(),
+        };
+
         let connector = OtaConnector::default();
         Ok(Self {
             url,
             connector,
             exec,
+            url,
+            pending_version,
+            curr_version,
         })
     }
 
     pub(crate) async fn update(&mut self) -> Result<(), OtaError> {
+        if self.pending_version == self.curr_version {
+            log::info!("firmware is up-to-date: {}", self.curr_version);
+            return Ok(());
+        }
+
         let mut uri = self
             .url
             .parse::<hyper::Uri>()
@@ -281,18 +349,8 @@ impl OtaService {
                         let mut loader = EspFirmwareInfoLoader::new();
                         loader.load(&data).map_err(OtaError::EspError)?;
                         let new_fw = loader.get_info().map_err(OtaError::EspError)?;
-                        log::debug!("current firmware: {:?}", running_fw_info);
-                        log::debug!("new firmware: {:?}", new_fw);
-                        if let Some(ref running_fw) = running_fw_info {
-                            if running_fw.version == new_fw.version
-                                && running_fw.released == new_fw.released
-                            {
-                                log::info!("current firmware is up to date");
-                                update_handle.abort()?;
-                                return Ok(());
-                            }
-                        }
-                        log::info!("applying new ota firmware");
+                        log::debug!("current firmware app description: {:?}", running_fw_info);
+                        log::debug!("new firmware app description: {:?}", new_fw);
                     }
                     #[cfg(not(feature = "esp32"))]
                     {
@@ -323,6 +381,7 @@ impl OtaService {
                     .map_err(|e| OtaError::Other(e.to_string()))?;
                 // TODO change back to 'n' after impl async writer
                 nwritten += data.len();
+                log::info!("updating: {}/{} bytes written", nwritten, file_len);
             } else {
                 log::error!("file is larger than expected, aborting");
                 #[cfg(feature = "esp32")]
@@ -332,7 +391,7 @@ impl OtaService {
         }
 
         drop(conn);
-        log::info!("ota download complete");
+        log::info!("download complete");
 
         if nwritten != file_len {
             log::error!("wrote {} bytes, expected to write {}", nwritten, file_len);
@@ -347,11 +406,18 @@ impl OtaService {
 
         #[cfg(feature = "esp32")]
         {
+            log::info!("setting device to use new firmware on reboot");
             update_handle.complete().map_err(OtaError::EspError)?;
-            log::info!("resetting now to boot from new firmware");
+        }
+
+        log::info!("firmware update complete");
+
+        #[cfg(feature = "esp32")]
+        {
+            log::info!("rebooting...");
             esp_idf_svc::hal::reset::restart();
         }
-        log::info!("ota complete");
+
         Ok(())
     }
 }

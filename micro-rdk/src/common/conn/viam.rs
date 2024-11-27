@@ -527,7 +527,9 @@ where
                 .iter()
                 .find(|&service| service.model == *ota::OTA_MODEL_TRIPLET)
             {
-                if let Ok(mut ota) = ota::OtaService::from_config(service, self.executor.clone()) {
+                // TODO, get cached robot config and pass through to ota init
+                //let curr_conf = self.sto
+                if let Ok(mut ota) = ota::OtaService::from_config(service, None, self.executor.clone()) {
                     self.ota_service_task
                         .replace(self.executor.spawn(async move {
                             if let Err(e) = ota.update().await {
