@@ -50,6 +50,9 @@ use super::network::Network;
 use super::server::{IncomingConnectionManager, WebRtcConfiguration};
 use crate::common::provisioning::server::AsNetwork;
 
+#[cfg(feature = "ota")]
+use crate::{common::ota, proto::app::v1::ServiceConfig};
+
 pub struct RobotCloudConfig {
     local_fqdn: String,
     name: String,
@@ -507,8 +510,21 @@ where
         );
 
         #[cfg(feature = "ota")]
+        let curr_ota_conf: Option<ServiceConfig> = self
+            .storage
+            .get_robot_configuration()
+            .unwrap_or_default()
+            .services
+            .iter()
+            .find(|&service| service.model == *ota::OTA_MODEL_TRIPLET)
+            .cloned();
+
+        if let Err(err) = self.storage.store_robot_configuration(&config) {
+            log::error!("couldn't store the robot configuration reason {:?}", err);
+        }
+
+        #[cfg(feature = "ota")]
         {
-            use crate::{common::ota, proto::app::v1::ServiceConfig};
             log::debug!("ota feature enabled");
 
             if let Some(service) = config
@@ -516,17 +532,8 @@ where
                 .iter()
                 .find(|&service| service.model == *ota::OTA_MODEL_TRIPLET)
             {
-                // this step must happen *before* the cached robot config gets updated
-                let curr_conf: Option<ServiceConfig> = self
-                    .storage
-                    .get_robot_configuration()
-                    .unwrap_or_default()
-                    .services
-                    .iter()
-                    .find(|&service| service.model == *ota::OTA_MODEL_TRIPLET)
-                    .cloned();
                 if let Ok(mut ota) =
-                    ota::OtaService::from_config(service, curr_conf, self.executor.clone())
+                    ota::OtaService::from_config(service, curr_ota_conf, self.executor.clone())
                 {
                     self.ota_service_task
                         .replace(self.executor.spawn(async move {
@@ -543,10 +550,6 @@ where
                     ota::OTA_MODEL_TYPE
                 );
             }
-        }
-
-        if let Err(err) = self.storage.store_robot_configuration(&config) {
-            log::error!("couldn't store the robot configuration reason {:?}", err);
         }
 
         let config_monitor_task = Box::new(ConfigMonitor::new(
