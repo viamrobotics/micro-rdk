@@ -11,7 +11,7 @@ use crate::proto::app::data_sync::v1::{
 };
 use crate::proto::app::v1::{RobotConfig, ServiceConfig};
 
-use super::app_client::{AppClient, AppClientError, PeriodicAppClientTask};
+use super::app_client::{AppClient, AppClientError, PeriodicAppClientTask, VIAM_FOUNDING_YEAR};
 use super::data_collector::ResourceMethodKey;
 use super::data_store::{DataStoreError, DataStoreReader, WriteMode};
 use super::robot::{LocalRobot, RobotError};
@@ -371,7 +371,7 @@ where
             let current_dt = Local::now().fixed_offset();
             // Viam was founded in 2020, so if the current time is set to any time before that
             // we know that settimeofday was never called, or called with an improper datetime
-            if current_dt.year() < 2020 {
+            if current_dt.year() < VIAM_FOUNDING_YEAR {
                 return Err(DataSyncError::NoCurrentTime);
             }
             if let Some(time_received) = metadata.time_received.clone() {
@@ -395,6 +395,7 @@ where
     }
 
     async fn run<'b>(&self, app_client: &'b AppClient) -> Result<(), AppClientError> {
+        let current_dt = Local::now().fixed_offset();
         for collector_key in self.resource_method_keys.iter() {
             // Since a write may occur in between uploading consecutive chunks of data, we want to make
             // sure only to process the messages initially present in this region of the store.
@@ -520,7 +521,7 @@ where
                             Ok(data) => data,
                             Err(DataSyncError::NoCurrentTime) => {
                                 log::error!("Could not calculate data timestamps, returning without flushing store");
-                                continue;
+                                return Ok(());
                             }
                             Err(err) => {
                                 log::error!(

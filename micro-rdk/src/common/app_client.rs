@@ -13,9 +13,7 @@ use crate::proto::{
     },
 };
 use bytes::{BufMut, Bytes, BytesMut};
-use chrono::Datelike;
-use chrono::Local;
-use chrono::{format::ParseError, DateTime, FixedOffset};
+use chrono::{format::ParseError, DateTime, Datelike, FixedOffset, Local};
 use futures_lite::{Future, StreamExt};
 use http_body_util::BodyExt;
 use http_body_util::Full;
@@ -44,6 +42,8 @@ use super::{
 
 #[cfg(feature = "data")]
 use crate::proto::app::data_sync::v1::DataCaptureUploadRequest;
+
+pub const VIAM_FOUNDING_YEAR: i32 = 2020;
 
 #[derive(Error, Debug)]
 pub enum AppClientError {
@@ -295,24 +295,24 @@ impl AppClient {
             let local_dt = Local::now().fixed_offset();
             // Viam does not pre-exist the year 2020, so if the year is before that
             // at the very least the current time is wrong and needs to be corrected
-            if local_dt.year() < 2020 {
+            if local_dt.year() < VIAM_FOUNDING_YEAR {
                 if let Some(current_dt) = datetime {
                     use esp_idf_svc::sys::{settimeofday, timeval};
-                    let tz = chrono_tz::Tz::UTC;
-                    std::env::set_var("TZ", tz.name());
                     let tv_sec = current_dt.timestamp() as i32;
                     let tv_usec = current_dt.timestamp_subsec_micros() as i32;
                     let current_timeval = timeval { tv_sec, tv_usec };
-                    let res = unsafe {
+                    if crate::esp32::esp_idf_svc::sys::esp!(unsafe {
                         settimeofday(&current_timeval as *const timeval, std::ptr::null())
-                    };
-                    if res != 0 {
+                    })
+                    .is_err()
+                    {
+                        let tz = chrono_tz::Tz::UTC;
                         log::error!(
                             "could not set time of day for timezone {:?} and timestamp {:?}",
                             tz.name(),
                             current_dt
                         );
-                    }
+                    };
                 }
             }
         }
