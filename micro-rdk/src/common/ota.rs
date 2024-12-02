@@ -187,13 +187,13 @@ impl OtaService {
             }
         };
 
-        let curr_version = match curr_config {
-            Some(curr_config) => {
-                let kind = new_config.attributes.as_ref().ok_or_else(|| {
+        let current_version: String = match current_config {
+            Some(current_config) => {
+                let kind = current_config.attributes.as_ref().ok_or_else(|| {
                     OtaError::ConfigError("config missing `attributes`".to_string())
                 })?;
 
-                let curr_version = kind
+                let current_version = kind
                     .fields
                     .get("version")
                     .ok_or(OtaError::ConfigError(
@@ -206,12 +206,12 @@ impl OtaService {
                     ))?
                     .try_into()
                     .map_err(|e: AttributeError| OtaError::ConfigError(e.to_string()))?;
-                match pending_version {
+                match current_version {
                     Kind::StringValue(s) => s,
                     _ => {
                         return Err(OtaError::ConfigError(format!(
-                            "invalid url value: {:?}",
-                            pending_version
+                            "invalid format: {:?}",
+                            current_version
                         )))
                     }
                 }
@@ -224,15 +224,14 @@ impl OtaService {
             url,
             connector,
             exec,
-            url,
             pending_version,
-            curr_version,
+            current_version,
         })
     }
 
     pub(crate) async fn update(&mut self) -> Result<(), OtaError> {
-        if self.pending_version == self.curr_version {
-            log::info!("firmware is up-to-date: {}", self.curr_version);
+        if self.pending_version == self.current_version {
+            log::info!("firmware is up-to-date: {}", self.current_version);
             return Ok(());
         }
 

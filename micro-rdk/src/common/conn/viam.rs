@@ -506,20 +506,9 @@ where
             |resp| (resp.0.config.map_or(Box::default(), Box::new), resp.1),
         );
 
-        if let Err(err) = self.storage.store_robot_configuration(&config) {
-            log::error!("couldn't store the robot configuration reason {:?}", err);
-        }
-
-        let config_monitor_task = Box::new(ConfigMonitor::new(
-            config.clone(),
-            self.storage.clone(),
-            || std::process::exit(0),
-        ));
-        self.app_client_tasks.push(config_monitor_task);
-
         #[cfg(feature = "ota")]
         {
-            use crate::common::ota;
+            use crate::{common::ota, proto::app::v1::ServiceConfig};
             log::debug!("ota feature enabled");
 
             if let Some(service) = config
@@ -527,9 +516,18 @@ where
                 .iter()
                 .find(|&service| service.model == *ota::OTA_MODEL_TRIPLET)
             {
-                // TODO, get cached robot config and pass through to ota init
-                //let curr_conf = self.sto
-                if let Ok(mut ota) = ota::OtaService::from_config(service, None, self.executor.clone()) {
+                // this step must happen *before* the cached robot config gets updated
+                let curr_conf: Option<ServiceConfig> = self
+                    .storage
+                    .get_robot_configuration()
+                    .unwrap_or_default()
+                    .services
+                    .iter()
+                    .find(|&service| service.model == *ota::OTA_MODEL_TRIPLET)
+                    .cloned();
+                if let Ok(mut ota) =
+                    ota::OtaService::from_config(service, curr_conf, self.executor.clone())
+                {
                     self.ota_service_task
                         .replace(self.executor.spawn(async move {
                             if let Err(e) = ota.update().await {
@@ -546,6 +544,17 @@ where
                 );
             }
         }
+
+        if let Err(err) = self.storage.store_robot_configuration(&config) {
+            log::error!("couldn't store the robot configuration reason {:?}", err);
+        }
+
+        let config_monitor_task = Box::new(ConfigMonitor::new(
+            config.clone(),
+            self.storage.clone(),
+            || std::process::exit(0),
+        ));
+        self.app_client_tasks.push(config_monitor_task);
 
         let mut robot = LocalRobot::from_cloud_config(
             self.executor.clone(),
