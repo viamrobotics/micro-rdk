@@ -38,9 +38,9 @@ use crate::{
     common::{
         config::{AttributeError, Kind},
         conn::viam::ViamH2Connector,
+        credentials_storage::OtaMetadataStorage,
         exec::Executor,
         grpc_client::H2Timer,
-        credentials_storage::OtaMetadataStorage,
     },
     proto::app::v1::ServiceConfig,
 };
@@ -142,7 +142,6 @@ pub(crate) struct OtaService<S: OtaMetadataStorage> {
     storage: S,
     url: String,
     pending_version: String,
-    current_version: String,
 }
 
 impl<S: OtaMetadataStorage> OtaService<S> {
@@ -203,8 +202,6 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             }
         };
 
-        let stored_metadata = storage.get_ota_metadata().unwrap();
-
         let connector = OtaConnector::default();
         Ok(Self {
             connector,
@@ -212,12 +209,16 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             storage,
             url,
             pending_version,
-            current_version: stored_metadata.version,
         })
     }
 
     pub(crate) async fn update(&mut self) -> Result<(), OtaError> {
-        if self.pending_version == self.current_version {
+        let stored_metadata = self
+            .storage
+            .get_ota_metadata()
+            .map_err(|e| OtaError::Other(e.to_string()))?;
+
+        if self.pending_version == stored_metadata.version {
             log::info!("firmware is up-to-date: {}", self.current_version);
             return Ok(());
         }
@@ -226,6 +227,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             .url
             .parse::<hyper::Uri>()
             .map_err(|_| OtaError::ConfigError(format!("invalid url: {}", self.url)))?;
+
         if uri.port().is_none() {
             if uri.scheme_str() != Some("https") {
                 log::error!("no port found and not https");
@@ -243,6 +245,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             );
             uri = hyper::Uri::from_parts(parts).map_err(|e| OtaError::Other(e.to_string()))?;
         };
+
         let io = self
             .connector
             .connect_to(&uri)
@@ -266,7 +269,6 @@ impl<S: OtaMetadataStorage> OtaService<S> {
         });
 
         log::info!("ota connected, beginning download");
-
         let request = Request::builder()
             .method("GET")
             .uri(uri)
@@ -395,6 +397,13 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             log::info!("setting device to use new firmware on reboot");
             update_handle.complete().map_err(OtaError::EspError)?;
         }
+
+        log::info!("updating metadata in NVS");
+        self.storage
+            .set_ota_metadata(OtaMetadata {
+                self.pending_version.clone()
+            })
+            .map_err(|e| OtaError::Other(e.to_string()))?;
 
         log::info!("firmware update complete");
 
