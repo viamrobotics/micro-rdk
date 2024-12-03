@@ -529,6 +529,13 @@ where
             log::error!("couldn't store the robot configuration reason {:?}", err);
         }
 
+        let config_monitor_task = Box::new(ConfigMonitor::new(
+            config.clone(),
+            self.storage.clone(),
+            || std::process::exit(0),
+        ));
+        self.app_client_tasks.push(config_monitor_task);
+
         #[cfg(feature = "ota")]
         {
             log::debug!("ota feature enabled");
@@ -559,13 +566,6 @@ where
                 );
             }
         }
-
-        let config_monitor_task = Box::new(ConfigMonitor::new(
-            config.clone(),
-            self.storage.clone(),
-            || std::process::exit(0),
-        ));
-        self.app_client_tasks.push(config_monitor_task);
 
         let mut robot = LocalRobot::from_cloud_config(
             self.executor.clone(),
