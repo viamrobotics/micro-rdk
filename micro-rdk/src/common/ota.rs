@@ -219,7 +219,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             .map_err(|e| OtaError::Other(e.to_string()))?;
 
         if self.pending_version == stored_metadata.version {
-            log::info!("firmware is up-to-date: {}", self.current_version);
+            log::info!("firmware is up-to-date: {}", stored_metadata.version);
             return Ok(());
         }
 
@@ -400,8 +400,8 @@ impl<S: OtaMetadataStorage> OtaService<S> {
 
         log::info!("updating metadata in NVS");
         self.storage
-            .set_ota_metadata(OtaMetadata {
-                self.pending_version.clone()
+            .store_ota_metadata(OtaMetadata {
+                version: self.pending_version.clone()
             })
             .map_err(|e| OtaError::Other(e.to_string()))?;
 
