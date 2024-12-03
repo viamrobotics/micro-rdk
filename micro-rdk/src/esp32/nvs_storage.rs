@@ -135,6 +135,32 @@ const NVS_WIFI_PASSWORD_KEY: &str = "WIFI_PASSWORD";
 const NVS_TLS_CERTIFICATE_KEY: &str = "TLS_CERT";
 const NVS_TLS_PRIVATE_KEY_KEY: &str = "TLS_PRIV_KEY";
 
+#[cfg(feature = "ota")]
+const NVS_OTA_VERSION_KEY: &str = "OTA_VERSION";
+#[cfg(feature = "ota")]
+use crate::common::{credentials_storage::OtaMetadataStorage, ota::OtaMetadata};
+
+#[cfg(feature = "ota")]
+impl OtaMetadataStorage for NVSStorage {
+    type Error = NVSStorageError;
+    fn has_ota_metadata(&self) -> bool {
+        self.has_string(NVS_OTA_VERSION_KEY).unwrap_or(false)
+    }
+    fn get_ota_metadata(&self) -> Result<OtaMetadata, Self::Error> {
+        let version = self.get_string(NVS_OTA_VERSION_KEY)?;
+        Ok(
+        OtaMetadata {
+            version
+        })
+    }
+    fn store_ota_metadata(&self, ota_metadata: OtaMetadata) -> Result<(), Self::Error>{
+        self.set_string(NVS_OTA_VERSION_KEY, &ota_metadata.version)
+    }
+    fn reset_ota_metadata(&self) -> Result<(), Self::Error> {
+        self.erase_key(NVS_OTA_VERSION_KEY)
+    }
+}
+
 impl RobotConfigurationStorage for NVSStorage {
     type Error = NVSStorageError;
     fn has_robot_credentials(&self) -> bool {

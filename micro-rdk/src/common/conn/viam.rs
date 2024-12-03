@@ -51,7 +51,7 @@ use super::server::{IncomingConnectionManager, WebRtcConfiguration};
 use crate::common::provisioning::server::AsNetwork;
 
 #[cfg(feature = "ota")]
-use crate::{common::ota, proto::app::v1::ServiceConfig};
+use crate::{common::{credentials_storage::OtaMetadataStorage, ota}, proto::app::v1::ServiceConfig};
 
 pub struct RobotCloudConfig {
     local_fqdn: String,
@@ -89,12 +89,25 @@ impl From<&proto::app::v1::CloudConfig> for RobotCloudConfig {
     }
 }
 
+#[cfg(not(feature = "ota"))]
 pub trait ViamServerStorage:
     RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static
 {
 }
+#[cfg(not(feature = "ota"))]
 impl<T> ViamServerStorage for T where
     T: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static
+{
+}
+
+#[cfg(feature = "ota")]
+pub trait ViamServerStorage:
+    RobotConfigurationStorage + WifiCredentialStorage + OtaMetadataStorage + Clone + 'static
+{
+}
+#[cfg(feature = "ota")]
+impl<T> ViamServerStorage for T where
+    T: RobotConfigurationStorage + WifiCredentialStorage + OtaMetadataStorage + Clone + 'static
 {
 }
 
@@ -509,16 +522,6 @@ where
             |resp| (resp.0.config.map_or(Box::default(), Box::new), resp.1),
         );
 
-        #[cfg(feature = "ota")]
-        let curr_ota_conf: Option<ServiceConfig> = self
-            .storage
-            .get_robot_configuration()
-            .unwrap_or_default()
-            .services
-            .iter()
-            .find(|&service| service.model == *ota::OTA_MODEL_TRIPLET)
-            .cloned();
-
         if let Err(err) = self.storage.store_robot_configuration(&config) {
             log::error!("couldn't store the robot configuration reason {:?}", err);
         }
@@ -533,7 +536,7 @@ where
                 .find(|&service| service.model == *ota::OTA_MODEL_TRIPLET)
             {
                 if let Ok(mut ota) =
-                    ota::OtaService::from_config(service, curr_ota_conf, self.executor.clone())
+                    ota::OtaService::from_config(service, self.storage.clone(), self.executor.clone())
                 {
                     self.ota_service_task
                         .replace(self.executor.spawn(async move {

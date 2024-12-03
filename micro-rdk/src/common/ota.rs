@@ -40,6 +40,7 @@ use crate::{
         conn::viam::ViamH2Connector,
         exec::Executor,
         grpc_client::H2Timer,
+        credentials_storage::OtaMetadataStorage,
     },
     proto::app::v1::ServiceConfig,
 };
@@ -121,18 +122,33 @@ type OtaConnector = crate::esp32::tcp::Esp32H2Connector;
 #[cfg(not(feature = "esp32"))]
 type OtaConnector = crate::native::tcp::NativeH2Connector;
 
-pub(crate) struct OtaService {
+#[derive(Clone, Default, Debug)]
+pub struct OtaMetadata {
+    pub(crate) version: String,
+}
+
+impl OtaMetadata {
+    pub fn new(version: String) -> Self {
+        Self { version }
+    }
+    pub(crate) fn version(&self) -> &str {
+        &self.version
+    }
+}
+
+pub(crate) struct OtaService<S: OtaMetadataStorage> {
     exec: Executor,
     connector: OtaConnector,
+    storage: S,
     url: String,
     pending_version: String,
     current_version: String,
 }
 
-impl OtaService {
+impl<S: OtaMetadataStorage> OtaService<S> {
     pub(crate) fn from_config(
         new_config: &ServiceConfig,
-        current_config: Option<ServiceConfig>,
+        storage: S,
         exec: Executor,
     ) -> Result<Self, OtaError> {
         let kind = new_config
@@ -187,45 +203,16 @@ impl OtaService {
             }
         };
 
-        let current_version: String = match current_config {
-            Some(current_config) => {
-                let kind = current_config.attributes.as_ref().ok_or_else(|| {
-                    OtaError::ConfigError("config missing `attributes`".to_string())
-                })?;
-
-                let current_version = kind
-                    .fields
-                    .get("version")
-                    .ok_or(OtaError::ConfigError(
-                        "config missing `version` field".to_string(),
-                    ))?
-                    .kind
-                    .as_ref()
-                    .ok_or(OtaError::ConfigError(
-                        "failed to get inner `Value` for version".to_string(),
-                    ))?
-                    .try_into()
-                    .map_err(|e: AttributeError| OtaError::ConfigError(e.to_string()))?;
-                match current_version {
-                    Kind::StringValue(s) => s,
-                    _ => {
-                        return Err(OtaError::ConfigError(format!(
-                            "invalid format: {:?}",
-                            current_version
-                        )))
-                    }
-                }
-            }
-            None => String::default(),
-        };
+        let stored_metadata = storage.get_ota_metadata().unwrap();
 
         let connector = OtaConnector::default();
         Ok(Self {
-            url,
             connector,
             exec,
+            storage,
+            url,
             pending_version,
-            current_version,
+            current_version: stored_metadata.version,
         })
     }
 
