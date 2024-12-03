@@ -218,7 +218,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             .get_ota_metadata()
             .map_err(|e| OtaError::Other(e.to_string()))?;
 
-        if self.pending_version == stored_metadata.version {
+        if self.pending_version == stored_metadata.version() {
             log::info!("firmware is up-to-date: {}", stored_metadata.version);
             return Ok(());
         }

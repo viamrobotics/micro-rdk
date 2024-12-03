@@ -51,10 +51,7 @@ use super::server::{IncomingConnectionManager, WebRtcConfiguration};
 use crate::common::provisioning::server::AsNetwork;
 
 #[cfg(feature = "ota")]
-use crate::{
-    common::{credentials_storage::OtaMetadataStorage, ota},
-    proto::app::v1::ServiceConfig,
-};
+use crate::common::{credentials_storage::OtaMetadataStorage, ota};
 
 pub struct RobotCloudConfig {
     local_fqdn: String,
