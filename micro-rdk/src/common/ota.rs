@@ -401,7 +401,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
         log::info!("updating metadata in NVS");
         self.storage
             .store_ota_metadata(OtaMetadata {
-                version: self.pending_version.clone()
+                version: self.pending_version.clone(),
             })
             .map_err(|e| OtaError::Other(e.to_string()))?;
 

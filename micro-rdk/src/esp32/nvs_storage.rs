@@ -148,12 +148,9 @@ impl OtaMetadataStorage for NVSStorage {
     }
     fn get_ota_metadata(&self) -> Result<OtaMetadata, Self::Error> {
         let version = self.get_string(NVS_OTA_VERSION_KEY)?;
-        Ok(
-        OtaMetadata {
-            version
-        })
+        Ok(OtaMetadata { version })
     }
-    fn store_ota_metadata(&self, ota_metadata: OtaMetadata) -> Result<(), Self::Error>{
+    fn store_ota_metadata(&self, ota_metadata: OtaMetadata) -> Result<(), Self::Error> {
         self.set_string(NVS_OTA_VERSION_KEY, &ota_metadata.version)
     }
     fn reset_ota_metadata(&self) -> Result<(), Self::Error> {

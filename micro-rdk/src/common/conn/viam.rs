@@ -51,7 +51,10 @@ use super::server::{IncomingConnectionManager, WebRtcConfiguration};
 use crate::common::provisioning::server::AsNetwork;
 
 #[cfg(feature = "ota")]
-use crate::{common::{credentials_storage::OtaMetadataStorage, ota}, proto::app::v1::ServiceConfig};
+use crate::{
+    common::{credentials_storage::OtaMetadataStorage, ota},
+    proto::app::v1::ServiceConfig,
+};
 
 pub struct RobotCloudConfig {
     local_fqdn: String,
@@ -535,9 +538,11 @@ where
                 .iter()
                 .find(|&service| service.model == *ota::OTA_MODEL_TRIPLET)
             {
-                if let Ok(mut ota) =
-                    ota::OtaService::from_config(service, self.storage.clone(), self.executor.clone())
-                {
+                if let Ok(mut ota) = ota::OtaService::from_config(
+                    service,
+                    self.storage.clone(),
+                    self.executor.clone(),
+                ) {
                     self.ota_service_task
                         .replace(self.executor.spawn(async move {
                             if let Err(e) = ota.update().await {
