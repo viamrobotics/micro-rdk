@@ -683,9 +683,7 @@ where
         // Make sure that if we leave this scope without passing
         // ownership of the `ice_agent` notifier to a new
         // WebRTCConnection that the ICEAgent is terminated.
-        let ice_done_guard = scopeguard::guard(
-            self.ice_agent.clone(), |ia| ia.done(),
-        );
+        let ice_done_guard = scopeguard::guard(self.ice_agent.clone(), |ia| ia.done());
 
         self.run_ice_until_connected(&answer)
             .or(async {
