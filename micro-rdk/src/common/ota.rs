@@ -47,7 +47,7 @@ use crate::{
 #[cfg(feature = "esp32")]
 use crate::esp32::esp_idf_svc::{
     ota::{EspFirmwareInfoLoader, EspOta},
-    sys::EspError,
+    sys::{esp_ota_get_next_update_partition, esp_partition_t, EspError},
 };
 use http_body_util::{BodyExt, Empty};
 use hyper::{body::Bytes, client::conn::http2, Request};
@@ -56,8 +56,6 @@ use thiserror::Error;
 #[cfg(not(feature = "esp32"))]
 use {bincode::Decode, futures_lite::AsyncWriteExt};
 
-// TODO(RSDK-9200): set according to active partition scheme
-const OTA_MAX_IMAGE_SIZE: usize = 1024 * 1024 * 4; // 4MB
 const SIZEOF_APPDESC: usize = 256;
 pub const OTA_MODEL_TYPE: &str = "ota_service";
 pub static OTA_MODEL_TRIPLET: Lazy<String> =
@@ -125,6 +123,7 @@ pub(crate) struct OtaService {
     exec: Executor,
     connector: OtaConnector,
     url: String,
+    max_size: u32,
 }
 
 impl OtaService {
@@ -159,11 +158,30 @@ impl OtaService {
                 )))
             }
         };
+
+        #[cfg(not(feature = "esp32"))]
+        let max_size = 1024 * 1024 * 4; // 4MB
+        #[cfg(feature = "esp32")]
+        let max_size = {
+            log::debug!("getting size of dst partition...");
+            let ptr: *const esp_partition_t =
+                unsafe { esp_ota_get_next_update_partition(std::ptr::null()) };
+            if ptr.is_null() {
+                return Err(OtaError::Other(
+                    "failed to get dst partition info - may not exist".to_string(),
+                ));
+            }
+            let size = unsafe { (*ptr).size };
+            log::debug!("dst partition size: {}", size);
+            size
+        };
+
         let connector = OtaConnector::default();
         Ok(Self {
             url,
             connector,
             exec,
+            max_size,
         })
     }
 
@@ -243,7 +261,7 @@ impl OtaService {
             .parse::<usize>()
             .map_err(|e| OtaError::Other(e.to_string()))?;
 
-        if file_len > OTA_MAX_IMAGE_SIZE {
+        if file_len > self.max_size as usize {
             return Err(OtaError::InvalidImageSize(file_len));
         }
 
@@ -292,7 +310,7 @@ impl OtaService {
                                 return Ok(());
                             }
                         }
-                        log::info!("applying new ota firmware");
+                        log::info!("applying new firmware");
                     }
                     #[cfg(not(feature = "esp32"))]
                     {
@@ -310,7 +328,7 @@ impl OtaService {
                 }
             }
 
-            if data.len() + nwritten <= OTA_MAX_IMAGE_SIZE {
+            if data.len() + nwritten <= self.max_size as usize {
                 // TODO(RSDK-9271) add async writer for ota
                 #[cfg(feature = "esp32")]
                 update_handle
@@ -324,7 +342,7 @@ impl OtaService {
                 // TODO change back to 'n' after impl async writer
                 nwritten += data.len();
             } else {
-                log::error!("file is larger than expected, aborting");
+                log::error!("new firmware is larger than expected, aborting");
                 #[cfg(feature = "esp32")]
                 update_handle.abort()?;
                 return Err(OtaError::Other("download be weird".to_string()));
@@ -332,7 +350,7 @@ impl OtaService {
         }
 
         drop(conn);
-        log::info!("ota download complete");
+        log::info!("firmware download complete");
 
         if nwritten != file_len {
             log::error!("wrote {} bytes, expected to write {}", nwritten, file_len);
@@ -351,7 +369,7 @@ impl OtaService {
             log::info!("resetting now to boot from new firmware");
             esp_idf_svc::hal::reset::restart();
         }
-        log::info!("ota complete");
+        log::info!("update completed");
         Ok(())
     }
 }
