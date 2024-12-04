@@ -50,15 +50,18 @@ use crate::esp32::esp_idf_svc::{
     ota::{EspFirmwareInfoLoader, EspOta},
     sys::EspError,
 };
+use async_io::Timer;
 use http_body_util::{BodyExt, Empty};
 use hyper::{body::Bytes, client::conn::http2, Request};
 use once_cell::sync::Lazy;
+use std::time::Duration;
 use thiserror::Error;
 #[cfg(not(feature = "esp32"))]
 use {bincode::Decode, futures_lite::AsyncWriteExt};
 
 // TODO(RSDK-9200): set according to active partition scheme
 const OTA_MAX_IMAGE_SIZE: usize = 1024 * 1024 * 4; // 4MB
+const CONN_RETRY_SECS: u64 = 60;
 const SIZEOF_APPDESC: usize = 256;
 const MAX_VER_LEN: usize = 128;
 pub const OTA_MODEL_TYPE: &str = "ota_service";
@@ -278,13 +281,37 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             .await
             .map_err(|e| OtaError::Other(e.to_string()))?;
 
-        let (mut sender, conn) = {
-            http2::Builder::new(self.exec.clone())
-                .max_frame_size(16_384) // lowest configurable value
-                .timer(H2Timer)
-                .handshake(io)
-                .await
-                .map_err(|e| OtaError::Other(e.to_string()))?
+        let (mut sender, conn) = loop {
+            match self.connector.connect_to(&uri) {
+                Ok(acceptor) => {
+                    // failed to initialize the acceptor for some reason
+                    match acceptor.await {
+                        Ok(io) => {
+                            match http2::Builder::new(self.exec.clone())
+                                .max_frame_size(16_384) // lowest configurable
+                                .timer(H2Timer)
+                                .handshake(io)
+                                .await
+                            {
+                                Ok(pair) => break pair,
+                                Err(e) => {
+                                    log::error!("failed to build request: {}", e);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("failed to create tcp stream: {}", e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    // log and continue
+                    log::error!("failed to initiate connection: {}", e);
+                }
+            };
+
+            log::debug!("retrying connection in {} seconds", CONN_RETRY_SECS);
+            Timer::after(Duration::from_secs(CONN_RETRY_SECS)).await;
         };
 
         let conn = Box::new(self.exec.spawn(async move {
