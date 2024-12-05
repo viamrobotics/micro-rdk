@@ -310,7 +310,7 @@ impl AppClient {
                             current_dt,
                             err
                         );
-                    })
+                    });
                 }
             }
         }
