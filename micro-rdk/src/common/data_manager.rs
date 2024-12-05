@@ -11,7 +11,7 @@ use crate::proto::app::data_sync::v1::{
 };
 use crate::proto::app::v1::{RobotConfig, ServiceConfig};
 
-use super::app_client::{AppClient, AppClientError, PeriodicAppClientTask};
+use super::app_client::{AppClient, AppClientError, PeriodicAppClientTask, VIAM_FOUNDING_YEAR};
 use super::data_collector::ResourceMethodKey;
 use super::data_store::{DataStoreError, DataStoreReader, WriteMode};
 use super::robot::{LocalRobot, RobotError};
@@ -371,7 +371,7 @@ where
             let current_dt = Local::now().fixed_offset();
             // Viam was founded in 2020, so if the current time is set to any time before that
             // we know that settimeofday was never called, or called with an improper datetime
-            if current_dt.year() < 2020 {
+            if current_dt.year() < VIAM_FOUNDING_YEAR {
                 return Err(DataSyncError::NoCurrentTime);
             }
             if let Some(time_received) = metadata.time_received.clone() {

@@ -492,30 +492,6 @@ where
                 .ok(),
             None => None,
         };
-        #[cfg(feature = "esp32")]
-        {
-            use esp_idf_svc::sys::{settimeofday, timeval};
-            let _ = config.as_ref().is_some_and(|cfg| {
-                cfg.1.is_some_and(|current_dt| {
-                    let tz = chrono_tz::Tz::UTC;
-                    std::env::set_var("TZ", tz.name());
-                    let tv_sec = current_dt.timestamp() as i32;
-                    let tv_usec = current_dt.timestamp_subsec_micros() as i32;
-                    let current_timeval = timeval { tv_sec, tv_usec };
-                    let res = unsafe {
-                        settimeofday(&current_timeval as *const timeval, std::ptr::null())
-                    };
-                    if res != 0 {
-                        log::error!(
-                            "could not set time of day for timezone {:?} and timestamp {:?}",
-                            tz.name(),
-                            current_dt
-                        );
-                    }
-                    true
-                })
-            });
-        }
 
         let (config, build_time) = config.map_or_else(
             || {
