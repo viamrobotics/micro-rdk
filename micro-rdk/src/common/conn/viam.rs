@@ -456,12 +456,6 @@ where
         // otherwise we assume some network layer error and attempt to start the robot from cached
         // data
 
-        #[cfg(feature = "esp32")]
-        {
-            let tz = chrono_tz::Tz::UTC;
-            std::env::set_var("TZ", tz.name());
-        }
-
         let app_client = self
             .connect_to_app()
             .await

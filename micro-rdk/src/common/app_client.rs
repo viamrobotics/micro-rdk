@@ -301,18 +301,16 @@ impl AppClient {
                     let tv_sec = current_dt.timestamp() as i32;
                     let tv_usec = current_dt.timestamp_subsec_micros() as i32;
                     let current_timeval = timeval { tv_sec, tv_usec };
-                    if crate::esp32::esp_idf_svc::sys::esp!(unsafe {
+                    crate::esp32::esp_idf_svc::sys::esp!(unsafe {
                         settimeofday(&current_timeval as *const timeval, std::ptr::null())
                     })
-                    .is_err()
-                    {
-                        let tz = chrono_tz::Tz::UTC;
+                    .inspect_err(|err| {
                         log::error!(
-                            "could not set time of day for timezone {:?} and timestamp {:?}",
-                            tz.name(),
-                            current_dt
+                            "could not set time of day for timestamp {:?}: {:?}",
+                            current_dt,
+                            err
                         );
-                    };
+                    })
                 }
             }
         }
