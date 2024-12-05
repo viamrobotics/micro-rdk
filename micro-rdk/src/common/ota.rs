@@ -283,9 +283,8 @@ impl<S: OtaMetadataStorage> OtaService<S> {
 
         let (mut sender, conn) = loop {
             match self.connector.connect_to(&uri) {
-                Ok(acceptor) => {
-                    // failed to initialize the acceptor for some reason
-                    match acceptor.await {
+                Ok(connection) => {
+                    match connection.await {
                         Ok(io) => {
                             match http2::Builder::new(self.exec.clone())
                                 .max_frame_size(16_384) // lowest configurable
@@ -295,7 +294,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                             {
                                 Ok(pair) => break pair,
                                 Err(e) => {
-                                    log::error!("failed to build request: {}", e);
+                                    log::error!("failed to build http request: {}", e);
                                 }
                             }
                         }
@@ -305,12 +304,15 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                     }
                 }
                 Err(e) => {
-                    // log and continue
-                    log::error!("failed to initiate connection: {}", e);
+                    log::error!("failed to create http connection: {}", e);
                 }
             };
 
-            log::debug!("retrying connection in {} seconds", CONN_RETRY_SECS);
+            log::debug!(
+                "retry establishing http connection to {} in {} seconds",
+                &uri,
+                CONN_RETRY_SECS
+            );
             Timer::after(Duration::from_secs(CONN_RETRY_SECS)).await;
         };
 
