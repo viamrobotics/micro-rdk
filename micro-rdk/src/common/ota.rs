@@ -148,6 +148,13 @@ pub(crate) struct OtaService<S: OtaMetadataStorage> {
 }
 
 impl<S: OtaMetadataStorage> OtaService<S> {
+    pub(crate) fn from_config_boxed(
+        new_config: &ServiceConfig,
+        storage: S,
+        exec: Executor,
+    ) -> Result<Box<Self>, OtaError> {
+        Ok(Box::new(Self::from_config(new_config, storage, exec)?))
+    }
     pub(crate) fn from_config(
         new_config: &ServiceConfig,
         storage: S,
@@ -248,11 +255,10 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             self.pending_version
         );
 
-        let mut uri = Box::new(
-            self.url
-                .parse::<hyper::Uri>()
-                .map_err(|_| OtaError::ConfigError(format!("invalid url: {}", self.url)))?,
-        );
+        let mut uri = self
+            .url
+            .parse::<hyper::Uri>()
+            .map_err(|_| OtaError::ConfigError(format!("invalid url: {}", self.url)))?;
 
         if uri.port().is_none() {
             if uri.scheme_str() != Some("https") {
@@ -269,9 +275,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 auth.parse()
                     .map_err(|_| OtaError::Other("failed to parse authority".to_string()))?,
             );
-            uri = Box::new(
-                hyper::Uri::from_parts(parts).map_err(|e| OtaError::Other(e.to_string()))?,
-            );
+            uri = hyper::Uri::from_parts(parts).map_err(|e| OtaError::Other(e.to_string()))?;
         };
 
         let io = self
@@ -290,16 +294,16 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 .map_err(|e| OtaError::Other(e.to_string()))?
         };
 
-        let conn = Box::new(self.exec.spawn(async move {
+        let conn = self.exec.spawn(async move {
             if let Err(err) = conn.await {
                 log::error!("connection failed: {:?}", err);
             }
-        }));
+        });
 
         log::info!("ota connected, beginning download");
         let request = Request::builder()
             .method("GET")
-            .uri(*uri)
+            .uri(uri)
             .body(Empty::<Bytes>::new())
             .map_err(|e| OtaError::Other(e.to_string()))?;
         let mut response = sender
@@ -313,7 +317,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 format!("Bad Request - Status:{}", response.status()).to_string(),
             ));
         }
-        let headers = Box::new(response.headers());
+        let headers = response.headers();
         log::debug!("ota response headers: {:?}", headers);
 
         if !headers.contains_key(hyper::header::CONTENT_LENGTH) {
