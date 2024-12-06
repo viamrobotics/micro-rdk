@@ -34,7 +34,7 @@ impl<'a, const A: u32, T: ADCPin> Esp32AnalogReader<'a, A, T> {
     }
 }
 
-impl<'a, const A: u32, T: ADCPin> AnalogReader<u16> for Esp32AnalogReader<'a, A, T> {
+impl<const A: u32, T: ADCPin> AnalogReader<u16> for Esp32AnalogReader<'_, A, T> {
     type Error = AnalogError;
     fn read(&mut self) -> Result<u16, Self::Error> {
         self.inner_read()

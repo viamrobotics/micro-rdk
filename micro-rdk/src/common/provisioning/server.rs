@@ -522,7 +522,7 @@ pub trait WifiManager: Network {
         &'a self,
         ssid: &'a str,
         password: &'a str,
-    ) -> Pin<Box<dyn Future<Output = Result<(), WifiManagerError>> + '_>>;
+    ) -> Pin<Box<dyn Future<Output = Result<(), WifiManagerError>> + 'a>>;
     fn get_ap_ip(&self) -> Ipv4Addr;
     fn set_ap_sta_mode(
         &self,

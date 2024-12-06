@@ -115,7 +115,7 @@ impl DoCommand for Coredump {
         command_struct: Option<protobuf::Struct>,
     ) -> Result<Option<protobuf::Struct>, crate::common::generic::GenericError> {
         if let Some(cmd) = command_struct {
-            if cmd.fields.get("sizes").is_some() {
+            if cmd.fields.contains_key("sizes") {
                 return Ok(Some(Struct {
                     fields: HashMap::from([
                         (
@@ -135,7 +135,7 @@ impl DoCommand for Coredump {
                     ]),
                 }));
             }
-            if cmd.fields.get("erase_coredump").is_some() {
+            if cmd.fields.contains_key("erase_coredump") {
                 esp_idf_svc::sys::esp!(unsafe {
                     esp_partition_erase_range(
                         self.coredump_partition_ptr,

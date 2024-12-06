@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["{{authors}}"]
 resolver = "2"
 # TODO(RSDK-8992): Upgrade rust to latest esp-rs version
-rust-version = "1.76"
+rust-version = "1.83"
 
 [profile.release]
 opt-level = "s"

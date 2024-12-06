@@ -74,7 +74,7 @@ pub struct Esp32I2C<'a> {
     timeout_ns: u32,
 }
 
-impl<'a> Esp32I2C<'a> {
+impl Esp32I2C<'_> {
     pub fn new_from_config(conf: &Esp32I2cConfig) -> Result<Self, I2CErrors> {
         let name = conf.name.to_string();
         let timeout_ns = conf.timeout_ns;
@@ -108,7 +108,7 @@ impl<'a> Esp32I2C<'a> {
     }
 }
 
-impl<'a> I2CHandle for Esp32I2C<'a> {
+impl I2CHandle for Esp32I2C<'_> {
     fn name(&self) -> String {
         self.name.clone()
     }

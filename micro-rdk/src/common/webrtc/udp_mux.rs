@@ -63,7 +63,7 @@ struct UdpMuxReadable<'a> {
     ran_once: bool,
 }
 
-impl<'a> Future for UdpMuxReadable<'a> {
+impl Future for UdpMuxReadable<'_> {
     type Output = Result<()>;
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let Self {
@@ -83,7 +83,7 @@ impl<'a> Future for UdpMuxReadable<'a> {
     }
 }
 
-impl<'a> Drop for UdpMuxReadable<'a> {
+impl Drop for UdpMuxReadable<'_> {
     fn drop(&mut self) {
         let state = &mut self.muxer.mux.lock().unwrap()[self.dir];
         let _ = state.waker.take();

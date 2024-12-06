@@ -1,3 +1,15 @@
+//! This module represents code for generating an Non-Volatile Storage Partition binary tailored
+//! to storing wifi credentials and security credentials for a robot configured through Viam.
+//! The code was heavily inspired by the ESP-IDF's partition generator utility (nvs_partition_gen.py)
+//!
+//! An NVS Partition is sectioned into Pages and each Page has 32-byte entries. Every key-value pair
+//! stored in NVS consists of a 32-byte header entry (which contains the key and other metadata) followed
+//! by data split into however many entries are required based on length. Since the above credentials data
+//! consists only of string or binary values, only those two entry formats have been implemented
+//!
+//! More information on the structure of NVS and its API can be found in Espressif's online documentation
+//! (https://docs.espressif.com/projects/esp-idf/en/release-v4.4/esp32/api-reference/storage/nvs_flash.html)
+
 use super::super::error::Error;
 use std::collections::VecDeque;
 
@@ -14,18 +26,6 @@ const BLOB_IDX_FORMAT: u8 = 0x48;
 const PAGE_VERSION: u8 = 0xFE; // Version 2
 
 const DEFAULT_BLOB_CHUNK_IDX: u8 = 0xFF;
-
-/// This module represents code for generating an Non-Volatile Storage Partition binary tailored
-/// to storing wifi credentials and security credentials for a robot configured through Viam.
-/// The code was heavily inspired by the ESP-IDF's partition generator utility (nvs_partition_gen.py)
-///
-/// An NVS Partition is sectioned into Pages and each Page has 32-byte entries. Every key-value pair
-/// stored in NVS consists of a 32-byte header entry (which contains the key and other metadata) followed
-/// by data split into however many entries are required based on length. Since the above credentials data
-/// consists only of string or binary values, only those two entry formats have been implemented
-///
-/// More information on the structure of NVS and its API can be found in Espressif's online documentation
-/// (https://docs.espressif.com/projects/esp-idf/en/release-v4.4/esp32/api-reference/storage/nvs_flash.html)
 
 // computes the checksum of the contents of the header and stores it at index 4
 // as a 32-bit integer (see the link above for more information)

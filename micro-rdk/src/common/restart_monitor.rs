@@ -21,7 +21,7 @@ impl<'a> RestartMonitor<'a> {
     }
 }
 
-impl<'a> PeriodicAppClientTask for RestartMonitor<'a> {
+impl PeriodicAppClientTask for RestartMonitor<'_> {
     fn name(&self) -> &str {
         "RestartMonitor"
     }

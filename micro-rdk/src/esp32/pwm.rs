@@ -121,7 +121,7 @@ impl<'a> PwmDriver<'a> {
     }
 }
 
-impl<'a> Drop for PwmDriver<'a> {
+impl Drop for PwmDriver<'_> {
     fn drop(&mut self) {
         let mut ledc_manager = LEDC_MANAGER.lock().unwrap();
         ledc_manager.release_channel_and_timer(self.channel, self.timer_number);
@@ -201,7 +201,7 @@ fn create_timer_driver<'a>(
     }
 }
 
-impl<'a> LedcTimerWrapper<'a> {
+impl LedcTimerWrapper<'_> {
     fn new(id: u8, frequency_hz: u32) -> Result<Self, Esp32PwmError> {
         let timer_config = TimerConfig::default().frequency(frequency_hz.Hz());
         let timer = OnceCell::new();

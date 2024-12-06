@@ -42,7 +42,7 @@ where
         unreachable!();
     }
 }
-impl<'a, Storage> PeriodicAppClientTask for ConfigMonitor<'a, Storage>
+impl<Storage> PeriodicAppClientTask for ConfigMonitor<'_, Storage>
 where
     Storage: ViamServerStorage,
     <Storage as RobotConfigurationStorage>::Error: Debug,

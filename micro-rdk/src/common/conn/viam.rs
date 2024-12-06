@@ -919,7 +919,7 @@ pin_project_lite::pin_project! {
     }
 }
 
-impl<'a> Future for TaskRunnerState<'a> {
+impl Future for TaskRunnerState<'_> {
     type Output = Result<Option<Duration>, AppClientError>;
     fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         match self.project() {
@@ -944,7 +944,7 @@ pin_project_lite::pin_project! {
     }
 }
 
-impl<'a> Future for AppClientTaskRunner<'a> {
+impl Future for AppClientTaskRunner<'_> {
     type Output = Result<(), AppClientError>;
     fn poll(
         mut self: std::pin::Pin<&mut Self>,
