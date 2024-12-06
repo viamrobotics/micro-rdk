@@ -542,20 +542,24 @@ where
                 .iter()
                 .find(|&service| service.model == *ota::OTA_MODEL_TRIPLET)
             {
-                if let Ok(mut ota) = ota::OtaService::from_config(
+                match ota::OtaService::from_config(
                     service,
                     self.storage.clone(),
                     self.executor.clone(),
                 ) {
-                    self.ota_service_task
-                        .replace(self.executor.spawn(async move {
-                            if let Err(e) = ota.update().await {
-                                log::error!("{}", e);
-                            }
-                        }));
-                } else {
-                    log::error!("failed to build ota service from config: {:?}", service);
-                }
+                    Ok(mut ota) => {
+                        self.ota_service_task
+                            .replace(self.executor.spawn(async move {
+                                if let Err(e) = ota.update().await {
+                                    log::error!("failed to complete ota update {}", e);
+                                }
+                            }));
+                    }
+                    Err(e) => {
+                        log::error!("failed to build ota service: {}", e.to_string());
+                        log::error!("ota service config: {:?}", service);
+                    }
+                };
             } else {
                 log::error!(
                     "ota enabled, but no service of type `{}` found in robot config",

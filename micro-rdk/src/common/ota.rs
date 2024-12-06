@@ -60,6 +60,7 @@ use {bincode::Decode, futures_lite::AsyncWriteExt};
 // TODO(RSDK-9200): set according to active partition scheme
 const OTA_MAX_IMAGE_SIZE: usize = 1024 * 1024 * 4; // 4MB
 const SIZEOF_APPDESC: usize = 256;
+const MAX_VER_LEN: usize = 128;
 pub const OTA_MODEL_TYPE: &str = "ota_service";
 pub static OTA_MODEL_TRIPLET: Lazy<String> =
     Lazy::new(|| format!("rdk:builtin:{}", OTA_MODEL_TYPE));
@@ -113,6 +114,8 @@ pub enum OtaError {
     InitError,
     #[error("new image size is invalid: {0} bytes")]
     InvalidImageSize(usize),
+    #[error("version {0} has length {1}, maximum allowed characters is {2}")]
+    InvalidVersionLen(String, usize, usize),
     #[error("{0}")]
     Other(String),
 }
@@ -192,6 +195,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             ))?
             .try_into()
             .map_err(|e: AttributeError| OtaError::ConfigError(e.to_string()))?;
+
         let pending_version = match pending_version {
             Kind::StringValue(s) => s,
             _ => {
@@ -202,7 +206,17 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             }
         };
 
+        if pending_version.len() > MAX_VER_LEN {
+            let len = pending_version.len();
+            return Err(OtaError::InvalidVersionLen(
+                pending_version,
+                len,
+                MAX_VER_LEN,
+            ));
+        }
+
         let connector = OtaConnector::default();
+
         Ok(Self {
             connector,
             exec,
@@ -213,15 +227,26 @@ impl<S: OtaMetadataStorage> OtaService<S> {
     }
 
     pub(crate) async fn update(&mut self) -> Result<(), OtaError> {
-        let stored_metadata = self
-            .storage
-            .get_ota_metadata()
-            .map_err(|e| OtaError::Other(e.to_string()))?;
+        let stored_metadata = if self.storage.has_ota_metadata() {
+            log::info!("no ota metadata currently stored in NVS");
+            OtaMetadata::default()
+        } else {
+            self.storage
+                .get_ota_metadata()
+                .inspect_err(|e| log::warn!("failed to get ota metadata from nvs: {}", e))
+                .unwrap_or_default()
+        };
 
         if self.pending_version == stored_metadata.version() {
             log::info!("firmware is up-to-date: {}", stored_metadata.version);
             return Ok(());
         }
+
+        log::info!(
+            "proceeding with update from version `{}` to version `{}`",
+            stored_metadata.version,
+            self.pending_version
+        );
 
         let mut uri = self
             .url
