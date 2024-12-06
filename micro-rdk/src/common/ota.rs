@@ -180,12 +180,15 @@ impl OtaService {
             let size = unsafe { (*ptr).size };
             let address = unsafe { (*ptr).address };
             let label = {
+                // char[17] zero-terminated ascii string
                 let label_ptr = unsafe { (*ptr).address as *const std::ffi::c_char };
                 let cstr = unsafe { std::ffi::CStr::from_ptr(label_ptr) };
-                cstr.to_str().unwrap().to_owned()
+                cstr.to_str()
+                    .inspect_err(|e| log::error!("failed to get label information: {}", e))
+                    .unwrap_or_default()
+                    .to_owned()
             };
             (size, address, label)
-            // label char[17] zero-terminated ascii string
         };
 
         let connector = OtaConnector::default();
