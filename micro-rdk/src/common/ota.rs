@@ -148,13 +148,6 @@ pub(crate) struct OtaService<S: OtaMetadataStorage> {
 }
 
 impl<S: OtaMetadataStorage> OtaService<S> {
-    pub(crate) fn from_config_boxed(
-        new_config: &ServiceConfig,
-        storage: S,
-        exec: Executor,
-    ) -> Result<Box<Self>, OtaError> {
-        Ok(Box::new(Self::from_config(new_config, storage, exec)?))
-    }
     pub(crate) fn from_config(
         new_config: &ServiceConfig,
         storage: S,

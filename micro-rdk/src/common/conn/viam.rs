@@ -542,7 +542,7 @@ where
                 .iter()
                 .find(|&service| service.model == *ota::OTA_MODEL_TRIPLET)
             {
-                match ota::OtaService::from_config_boxed(
+                match ota::OtaService::from_config(
                     service,
                     self.storage.clone(),
                     self.executor.clone(),
