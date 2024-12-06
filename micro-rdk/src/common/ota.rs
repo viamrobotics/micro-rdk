@@ -294,11 +294,11 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 .map_err(|e| OtaError::Other(e.to_string()))?
         };
 
-        let conn = self.exec.spawn(async move {
+        let conn = Box::new(self.exec.spawn(async move {
             if let Err(err) = conn.await {
                 log::error!("connection failed: {:?}", err);
             }
-        });
+        }));
 
         log::info!("ota connected, beginning download");
         let request = Request::builder()
