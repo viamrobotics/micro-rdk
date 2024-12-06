@@ -374,7 +374,7 @@ impl OtaService {
         }
 
         drop(conn);
-        log::info!("firmware download complete");
+        log::info!("firmware download complete, {} bytes written", nwritten);
 
         if nwritten != file_len {
             log::error!("wrote {} bytes, expected to write {}", nwritten, file_len);
