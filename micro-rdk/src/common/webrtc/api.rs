@@ -35,6 +35,7 @@ use base64::{engine::general_purpose, Engine};
 use either::Either;
 use futures_lite::{Future, FutureExt, StreamExt};
 use prost::{DecodeError, EncodeError};
+use scopeguard::ScopeGuard;
 use sdp::{
     description::{
         common::{Address, ConnectionInformation},
@@ -679,6 +680,11 @@ where
         answer: Box<WebRtcSdp>,
         robot: Arc<Mutex<LocalRobot>>,
     ) -> Result<WebRTCConnection, ServerError> {
+        // Make sure that if we leave this scope without passing
+        // ownership of the `ice_agent` notifier to a new
+        // WebRTCConnection that the ICEAgent is terminated.
+        let ice_done_guard = scopeguard::guard(self.ice_agent.clone(), |ia| ia.done());
+
         self.run_ice_until_connected(&answer)
             .or(async {
                 Timer::after(Duration::from_secs(10)).await;
@@ -704,7 +710,7 @@ where
         Ok(WebRTCConnection::new(
             srv,
             self.transport,
-            self.ice_agent,
+            ScopeGuard::into_inner(ice_done_guard),
             c.1,
         ))
     }
