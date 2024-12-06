@@ -30,8 +30,8 @@ pub struct WebRtcCertificate {
     fingerprint: Fingerprint,
 }
 
-impl<'a> WebRtcCertificate {
-    pub fn new(serialized_der: Vec<u8>, key_pair: Vec<u8>, fingerprint: &'a str) -> Self {
+impl WebRtcCertificate {
+    pub fn new(serialized_der: Vec<u8>, key_pair: Vec<u8>, fingerprint: &str) -> Self {
         Self {
             serialized_der,
             priv_key: key_pair,

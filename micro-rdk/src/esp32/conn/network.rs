@@ -317,7 +317,7 @@ impl WifiManager for Esp32WifiNetwork {
         &'a self,
         ssid: &'a str,
         password: &'a str,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), WifiManagerError>> + '_>>
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), WifiManagerError>> + 'a>>
     {
         Box::pin(async {
             self.try_connect_to(ssid, password)

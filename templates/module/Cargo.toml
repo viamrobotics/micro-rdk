@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["{{authors}}"]
 resolver = "2"
 # TODO(RSDK-8992): Upgrade rust to latest esp-rs version
-rust-version = "1.82"
+rust-version = "1.83"
 
 [dependencies]
 micro-rdk = {git = "https://github.com/viamrobotics/micro-rdk.git", features = ["{{mcu}}"], version = "0.3.3", rev = "bb050e5"}
