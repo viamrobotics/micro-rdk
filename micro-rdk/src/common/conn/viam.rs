@@ -50,6 +50,9 @@ use super::network::Network;
 use super::server::{IncomingConnectionManager, WebRtcConfiguration};
 use crate::common::provisioning::server::AsNetwork;
 
+#[cfg(feature = "ota")]
+use crate::common::{credentials_storage::OtaMetadataStorage, ota};
+
 pub struct RobotCloudConfig {
     local_fqdn: String,
     name: String,
@@ -86,12 +89,25 @@ impl From<&proto::app::v1::CloudConfig> for RobotCloudConfig {
     }
 }
 
+#[cfg(not(feature = "ota"))]
 pub trait ViamServerStorage:
     RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static
 {
 }
+#[cfg(not(feature = "ota"))]
 impl<T> ViamServerStorage for T where
     T: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static
+{
+}
+
+#[cfg(feature = "ota")]
+pub trait ViamServerStorage:
+    RobotConfigurationStorage + WifiCredentialStorage + OtaMetadataStorage + Clone + 'static
+{
+}
+#[cfg(feature = "ota")]
+impl<T> ViamServerStorage for T where
+    T: RobotConfigurationStorage + WifiCredentialStorage + OtaMetadataStorage + Clone + 'static
 {
 }
 
@@ -519,7 +535,6 @@ where
 
         #[cfg(feature = "ota")]
         {
-            use crate::common::ota;
             log::debug!("ota feature enabled");
 
             if let Some(service) = config
@@ -527,16 +542,24 @@ where
                 .iter()
                 .find(|&service| service.model == *ota::OTA_MODEL_TRIPLET)
             {
-                if let Ok(mut ota) = ota::OtaService::from_config(service, self.executor.clone()) {
-                    self.ota_service_task
-                        .replace(self.executor.spawn(async move {
-                            if let Err(e) = ota.update().await {
-                                log::error!("{}", e);
-                            }
-                        }));
-                } else {
-                    log::error!("failed to build ota service from config: {:?}", service);
-                }
+                match ota::OtaService::from_config(
+                    service,
+                    self.storage.clone(),
+                    self.executor.clone(),
+                ) {
+                    Ok(mut ota) => {
+                        self.ota_service_task
+                            .replace(self.executor.spawn(async move {
+                                if let Err(e) = ota.update().await {
+                                    log::error!("failed to complete ota update {}", e);
+                                }
+                            }));
+                    }
+                    Err(e) => {
+                        log::error!("failed to build ota service: {}", e.to_string());
+                        log::error!("ota service config: {:?}", service);
+                    }
+                };
             } else {
                 log::error!(
                     "ota enabled, but no service of type `{}` found in robot config",

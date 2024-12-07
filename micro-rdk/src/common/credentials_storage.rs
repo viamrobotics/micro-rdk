@@ -11,6 +11,9 @@ use crate::proto::{
     provisioning::v1::{CloudConfig, SetNetworkCredentialsRequest},
 };
 
+#[cfg(feature = "ota")]
+use crate::common::ota::OtaMetadata;
+
 #[derive(Clone, Default, Debug)]
 pub struct RobotCredentials {
     pub(crate) robot_id: String,
@@ -127,6 +130,15 @@ pub trait RobotConfigurationStorage {
     fn reset_tls_certificate(&self) -> Result<(), Self::Error>;
 }
 
+#[cfg(feature = "ota")]
+pub trait OtaMetadataStorage {
+    type Error: Error + Debug + Into<ServerError>;
+    fn has_ota_metadata(&self) -> bool;
+    fn get_ota_metadata(&self) -> Result<OtaMetadata, Self::Error>;
+    fn store_ota_metadata(&self, ota_metadata: OtaMetadata) -> Result<(), Self::Error>;
+    fn reset_ota_metadata(&self) -> Result<(), Self::Error>;
+}
+
 #[derive(Default)]
 struct RAMCredentialStorageInner {
     robot_creds: Option<RobotCredentials>,
@@ -134,6 +146,8 @@ struct RAMCredentialStorageInner {
     wifi_creds: Option<WifiCredentials>,
     tls_cert: Option<TlsCertificate>,
     app_address: Option<String>,
+    #[cfg(feature = "ota")]
+    ota_metadata: Option<OtaMetadata>,
 }
 
 /// Simple CrendentialStorage made for testing purposes
@@ -148,7 +162,31 @@ impl RAMStorage {
             wifi_creds: None,
             tls_cert: None,
             app_address: None,
+            #[cfg(feature = "ota")]
+            ota_metadata: None,
         })))
+    }
+}
+
+#[cfg(feature = "ota")]
+impl OtaMetadataStorage for RAMStorage {
+    type Error = Infallible;
+    fn has_ota_metadata(&self) -> bool {
+        let inner_ref = self.0.lock().unwrap();
+        inner_ref.ota_metadata.is_some()
+    }
+    fn store_ota_metadata(&self, ota_metadata: OtaMetadata) -> Result<(), Self::Error> {
+        let mut inner_ref = self.0.lock().unwrap();
+        let _ = inner_ref.ota_metadata.insert(ota_metadata);
+        Ok(())
+    }
+    fn get_ota_metadata(&self) -> Result<OtaMetadata, Self::Error> {
+        let inner_ref = self.0.lock().unwrap();
+        Ok(inner_ref.ota_metadata.clone().unwrap_or_default())
+    }
+    fn reset_ota_metadata(&self) -> Result<(), Self::Error> {
+        let _ = self.0.lock().unwrap().ota_metadata.take();
+        Ok(())
     }
 }
 

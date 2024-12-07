@@ -38,6 +38,7 @@ use crate::{
     common::{
         config::{AttributeError, Kind},
         conn::viam::ViamH2Connector,
+        credentials_storage::OtaMetadataStorage,
         exec::Executor,
         grpc_client::H2Timer,
     },
@@ -59,6 +60,7 @@ use {bincode::Decode, futures_lite::AsyncWriteExt};
 // TODO(RSDK-9200): set according to active partition scheme
 const OTA_MAX_IMAGE_SIZE: usize = 1024 * 1024 * 4; // 4MB
 const SIZEOF_APPDESC: usize = 256;
+const MAX_VER_LEN: usize = 128;
 pub const OTA_MODEL_TYPE: &str = "ota_service";
 pub static OTA_MODEL_TRIPLET: Lazy<String> =
     Lazy::new(|| format!("rdk:builtin:{}", OTA_MODEL_TYPE));
@@ -112,6 +114,8 @@ pub enum OtaError {
     InitError,
     #[error("new image size is invalid: {0} bytes")]
     InvalidImageSize(usize),
+    #[error("version {0} has length {1}, maximum allowed characters is {2}")]
+    InvalidVersionLen(String, usize, usize),
     #[error("{0}")]
     Other(String),
 }
@@ -121,22 +125,40 @@ type OtaConnector = crate::esp32::tcp::Esp32H2Connector;
 #[cfg(not(feature = "esp32"))]
 type OtaConnector = crate::native::tcp::NativeH2Connector;
 
-pub(crate) struct OtaService {
-    exec: Executor,
-    connector: OtaConnector,
-    url: String,
+#[derive(Clone, Default, Debug)]
+pub struct OtaMetadata {
+    pub(crate) version: String,
 }
 
-impl OtaService {
+impl OtaMetadata {
+    pub fn new(version: String) -> Self {
+        Self { version }
+    }
+    pub(crate) fn version(&self) -> &str {
+        &self.version
+    }
+}
+
+pub(crate) struct OtaService<S: OtaMetadataStorage> {
+    exec: Executor,
+    connector: OtaConnector,
+    storage: S,
+    url: String,
+    pending_version: String,
+}
+
+impl<S: OtaMetadataStorage> OtaService<S> {
     pub(crate) fn from_config(
-        ota_config: &ServiceConfig,
+        new_config: &ServiceConfig,
+        storage: S,
         exec: Executor,
     ) -> Result<Self, OtaError> {
-        // TODO(RSDK-9205): impl From<ServiceConfig> for DynamicComponentConfig, use here
-        let kind: Kind = ota_config
+        let kind = new_config
             .attributes
             .as_ref()
-            .ok_or_else(|| OtaError::ConfigError("config missing `attributes`".to_string()))?
+            .ok_or_else(|| OtaError::ConfigError("config missing `attributes`".to_string()))?;
+
+        let url = kind
             .fields
             .get("url")
             .ok_or(OtaError::ConfigError(
@@ -145,12 +167,12 @@ impl OtaService {
             .kind
             .as_ref()
             .ok_or(OtaError::ConfigError(
-                "failed to get inner `Value`".to_string(),
+                "failed to get inner `Value` for url".to_string(),
             ))?
             .try_into()
             .map_err(|e: AttributeError| OtaError::ConfigError(e.to_string()))?;
 
-        let url = match kind {
+        let url = match url {
             Kind::StringValue(s) => s,
             _ => {
                 return Err(OtaError::ConfigError(format!(
@@ -159,19 +181,78 @@ impl OtaService {
                 )))
             }
         };
+
+        let pending_version = kind
+            .fields
+            .get("version")
+            .ok_or(OtaError::ConfigError(
+                "config missing `version` field".to_string(),
+            ))?
+            .kind
+            .as_ref()
+            .ok_or(OtaError::ConfigError(
+                "failed to get inner `Value` for version".to_string(),
+            ))?
+            .try_into()
+            .map_err(|e: AttributeError| OtaError::ConfigError(e.to_string()))?;
+
+        let pending_version = match pending_version {
+            Kind::StringValue(s) => s,
+            _ => {
+                return Err(OtaError::ConfigError(format!(
+                    "invalid url value: {:?}",
+                    pending_version
+                )))
+            }
+        };
+
+        if pending_version.len() > MAX_VER_LEN {
+            let len = pending_version.len();
+            return Err(OtaError::InvalidVersionLen(
+                pending_version,
+                len,
+                MAX_VER_LEN,
+            ));
+        }
+
         let connector = OtaConnector::default();
+
         Ok(Self {
-            url,
             connector,
             exec,
+            storage,
+            url,
+            pending_version,
         })
     }
 
     pub(crate) async fn update(&mut self) -> Result<(), OtaError> {
+        let stored_metadata = if !self.storage.has_ota_metadata() {
+            log::info!("no ota metadata currently stored in NVS");
+            OtaMetadata::default()
+        } else {
+            self.storage
+                .get_ota_metadata()
+                .inspect_err(|e| log::warn!("failed to get ota metadata from nvs: {}", e))
+                .unwrap_or_default()
+        };
+
+        if self.pending_version == stored_metadata.version() {
+            log::info!("firmware is up-to-date: {}", stored_metadata.version);
+            return Ok(());
+        }
+
+        log::info!(
+            "proceeding with update from version `{}` to version `{}`",
+            stored_metadata.version,
+            self.pending_version
+        );
+
         let mut uri = self
             .url
             .parse::<hyper::Uri>()
             .map_err(|_| OtaError::ConfigError(format!("invalid url: {}", self.url)))?;
+
         if uri.port().is_none() {
             if uri.scheme_str() != Some("https") {
                 log::error!("no port found and not https");
@@ -189,6 +270,7 @@ impl OtaService {
             );
             uri = hyper::Uri::from_parts(parts).map_err(|e| OtaError::Other(e.to_string()))?;
         };
+
         let io = self
             .connector
             .connect_to(&uri)
@@ -205,14 +287,13 @@ impl OtaService {
                 .map_err(|e| OtaError::Other(e.to_string()))?
         };
 
-        let conn = self.exec.spawn(async move {
+        let conn = Box::new(self.exec.spawn(async move {
             if let Err(err) = conn.await {
                 log::error!("connection failed: {:?}", err);
             }
-        });
+        }));
 
         log::info!("ota connected, beginning download");
-
         let request = Request::builder()
             .method("GET")
             .uri(uri)
@@ -281,18 +362,8 @@ impl OtaService {
                         let mut loader = EspFirmwareInfoLoader::new();
                         loader.load(&data).map_err(OtaError::EspError)?;
                         let new_fw = loader.get_info().map_err(OtaError::EspError)?;
-                        log::debug!("current firmware: {:?}", running_fw_info);
-                        log::debug!("new firmware: {:?}", new_fw);
-                        if let Some(ref running_fw) = running_fw_info {
-                            if running_fw.version == new_fw.version
-                                && running_fw.released == new_fw.released
-                            {
-                                log::info!("current firmware is up to date");
-                                update_handle.abort()?;
-                                return Ok(());
-                            }
-                        }
-                        log::info!("applying new ota firmware");
+                        log::debug!("current firmware app description: {:?}", running_fw_info);
+                        log::debug!("new firmware app description: {:?}", new_fw);
                     }
                     #[cfg(not(feature = "esp32"))]
                     {
@@ -323,6 +394,7 @@ impl OtaService {
                     .map_err(|e| OtaError::Other(e.to_string()))?;
                 // TODO change back to 'n' after impl async writer
                 nwritten += data.len();
+                log::info!("updating: {}/{} bytes written", nwritten, file_len);
             } else {
                 log::error!("file is larger than expected, aborting");
                 #[cfg(feature = "esp32")]
@@ -332,7 +404,7 @@ impl OtaService {
         }
 
         drop(conn);
-        log::info!("ota download complete");
+        log::info!("download complete");
 
         if nwritten != file_len {
             log::error!("wrote {} bytes, expected to write {}", nwritten, file_len);
@@ -347,11 +419,25 @@ impl OtaService {
 
         #[cfg(feature = "esp32")]
         {
+            log::info!("setting device to use new firmware on reboot");
             update_handle.complete().map_err(OtaError::EspError)?;
-            log::info!("resetting now to boot from new firmware");
+        }
+
+        log::info!("updating metadata in NVS");
+        self.storage
+            .store_ota_metadata(OtaMetadata {
+                version: self.pending_version.clone(),
+            })
+            .map_err(|e| OtaError::Other(e.to_string()))?;
+
+        log::info!("firmware update complete");
+
+        #[cfg(feature = "esp32")]
+        {
+            log::info!("rebooting...");
             esp_idf_svc::hal::reset::restart();
         }
-        log::info!("ota complete");
+
         Ok(())
     }
 }
