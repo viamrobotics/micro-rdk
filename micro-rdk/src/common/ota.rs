@@ -274,13 +274,6 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             uri = hyper::Uri::from_parts(parts).map_err(|e| OtaError::Other(e.to_string()))?;
         };
 
-        let io = self
-            .connector
-            .connect_to(&uri)
-            .map_err(|e| OtaError::Other(e.to_string()))?
-            .await
-            .map_err(|e| OtaError::Other(e.to_string()))?;
-
         let (mut sender, conn) = loop {
             match self.connector.connect_to(&uri) {
                 Ok(connection) => {
