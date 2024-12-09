@@ -153,7 +153,12 @@ impl ICEAgent {
             return Ok(());
         }
 
-        log::debug!("looking for srv reflexive candidate");
+        log::debug!("local_candidates: registering intrinsic local candidate");
+        let our_ip = SocketAddrV4::new(self.local_ip, self.transport.local_address().map_err(|_| IceError::IceIoError)?.port());
+        let local_cand = Candidate::new_host_candidate(our_ip);
+        self.local_candidates.push(local_cand);
+
+        log::debug!("local_candidates: looking for srv reflexive candidate");
 
         let message = stun_codec::Message::<stun_codec::rfc5389::Attribute>::new(
             stun_codec::MessageClass::Request,
@@ -165,10 +170,21 @@ impl ICEAgent {
         let bytes = Bytes::from(encoder.encode_into_bytes(message).unwrap());
 
         // TODO(RSDK-3063) Twilio address is hard-coded, we should support additional server via WebRTCOptions
-        let mut stun_ip = "global.stun.twilio.com:3478".to_socket_addrs().unwrap();
+        let mut stun_ip = match "global.stun.twilio.com:3478".to_socket_addrs() {
+            Ok(stun_ip) => stun_ip,
+            Err(err) => {
+                log::warn!("Failed trying to resolve STUN server address; no reflexive candidate will be generated: {}", err);
+                return Ok(());
+            },
+        };
 
-        // TODO(npm) it is problematic to panic if the resolution fails.
-        let stun_ip = stun_ip.next().unwrap();
+        let stun_ip = match stun_ip.next() {
+            Some(stun_ip) => stun_ip,
+            None => {
+                log::warn!("STUN server address resolution found no records; no reflexive candidate will be generated");
+                return Ok(())
+            },
+        };
 
         let stun_ip = match stun_ip {
             SocketAddr::V4(v4) => v4,
@@ -216,13 +232,6 @@ impl ICEAgent {
             SocketAddr::V4(v4) => v4,
             SocketAddr::V6(_) => return Err(IceError::IceXorMappedAddressIsIPV6),
         };
-
-        // the host ip was set when creating the ICEagent
-        let our_ip = SocketAddrV4::new(self.local_ip, rflx_addr.port());
-
-        let local_cand = Candidate::new_host_candidate(our_ip);
-
-        self.local_candidates.push(local_cand);
 
         let srflx_candidate = Candidate::new_srflx_candidate(rflx_addr, our_ip);
         self.local_candidates.push(srflx_candidate);
