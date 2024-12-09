@@ -590,7 +590,10 @@ where
         log::info!("gathering local candidates");
         let _ = ice_agent.local_candidates().await.inspect_err(|e| {
             if ice_agent.local_candidates.is_empty() {
-                log::warn!("Failed to generate any local candidates for incoming WebRTC connection: {}", e);
+                log::warn!(
+                    "Failed to generate any local candidates for incoming WebRTC connection: {}",
+                    e
+                );
             }
         });
 

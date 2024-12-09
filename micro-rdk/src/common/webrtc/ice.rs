@@ -154,7 +154,13 @@ impl ICEAgent {
         }
 
         log::debug!("local_candidates: registering intrinsic local candidate");
-        let our_ip = SocketAddrV4::new(self.local_ip, self.transport.local_address().map_err(|_| IceError::IceIoError)?.port());
+        let our_ip = SocketAddrV4::new(
+            self.local_ip,
+            self.transport
+                .local_address()
+                .map_err(|_| IceError::IceIoError)?
+                .port(),
+        );
         let local_cand = Candidate::new_host_candidate(our_ip);
         self.local_candidates.push(local_cand);
 
@@ -175,15 +181,15 @@ impl ICEAgent {
             Err(err) => {
                 log::warn!("Failed trying to resolve STUN server address; no reflexive candidate will be generated: {}", err);
                 return Ok(());
-            },
+            }
         };
 
         let stun_ip = match stun_ip.next() {
             Some(stun_ip) => stun_ip,
             None => {
                 log::warn!("STUN server address resolution found no records; no reflexive candidate will be generated");
-                return Ok(())
-            },
+                return Ok(());
+            }
         };
 
         let stun_ip = match stun_ip {
