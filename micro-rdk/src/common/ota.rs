@@ -457,7 +457,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
         }
 
         drop(conn);
-        log::info!("firmware download complete");
+        log::info!("firmware download complete: {} bytes", nwritten);
 
         if nwritten != file_len {
             log::error!("wrote {} bytes, expected to write {}", nwritten, file_len);
