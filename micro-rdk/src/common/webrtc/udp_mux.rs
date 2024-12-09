@@ -295,6 +295,10 @@ impl UdpMux {
     pub(crate) async fn send_to(&self, buf: &[u8], peer: SocketAddr) -> Result<usize> {
         self.muxer.send_to(buf, peer).await
     }
+
+    pub(crate) fn local_address(&self) -> Result<SocketAddr> {
+        self.muxer.socket.get_ref().local_addr()
+    }
 }
 
 impl Drop for UdpMux {

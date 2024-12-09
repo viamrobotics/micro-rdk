@@ -588,7 +588,14 @@ where
         self.signaling.send_sdp_answer(answer).await?;
 
         log::info!("gathering local candidates");
-        ice_agent.local_candidates().await.unwrap();
+        let _ = ice_agent.local_candidates().await.inspect_err(|e| {
+            if ice_agent.local_candidates.is_empty() {
+                log::warn!(
+                    "Failed to generate any local candidates for incoming WebRTC connection: {}",
+                    e
+                );
+            }
+        });
 
         for c in &ice_agent.local_candidates {
             log::debug!("sending local candidates {:?}", c);
