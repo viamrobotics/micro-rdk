@@ -229,9 +229,8 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 unsafe { esp_ota_get_next_update_partition(std::ptr::null()) };
 
             if ptr.is_null() {
-                log::warn!("pointer to next update partition was null, device may not be correctly partitioned");
                 let e = OtaError::Other(
-                    "failed to obtain a handle to the next OTA update partition".to_string(),
+                    "failed to obtain a handle to the next OTA update partition, device may not be partitioned properly for OTA".to_string(),
                 );
                 log::warn!(e.to_string());
                 return Err(e);
