@@ -232,7 +232,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 let e = OtaError::Other(
                     "failed to obtain a handle to the next OTA update partition, device may not be partitioned properly for OTA".to_string(),
                 );
-                log::warn!(e.to_string());
+                log::warn!("{}", e.to_string());
                 return Err(e);
             }
             let size = unsafe { (*ptr).size } as usize;
