@@ -15,7 +15,7 @@ links = "micro_rdk"
 crate-type = ["lib"]
 
 [features]
-default = ["builtin-components", "data"]
+default = ["builtin-components", "data", "local-signaling"]
 binstart = ["esp-idf-svc/binstart"]
 libstart = ["esp-idf-svc/libstart"]
 builtin-components = []
@@ -27,6 +27,7 @@ data = []
 qemu = []
 esp-idf-logs = ["esp32"]
 ota = []
+local-signaling = []
 
 [dev-dependencies]
 test-log.workspace = true

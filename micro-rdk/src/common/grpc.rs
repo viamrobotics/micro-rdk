@@ -145,6 +145,7 @@ where
     }
 
     // TODO(RSDK-9242): Use the builder pattern instead.
+    #[allow(dead_code)]
     pub(crate) fn register_signaling_server(&mut self, signaling_server: Arc<SignalingServer>) {
         let _ = self.signaling_server.insert(signaling_server);
     }

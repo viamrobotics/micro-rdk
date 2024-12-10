@@ -72,7 +72,6 @@ mod native {
         builder
             .with_http2_server(NativeH2Connector::default(), 12346)
             .with_webrtc_configuration(webrtc_config)
-            .with_max_concurrent_connection(3)
             .with_provisioning_info(info)
             .with_component_registry(registry)
             .with_default_tasks();
