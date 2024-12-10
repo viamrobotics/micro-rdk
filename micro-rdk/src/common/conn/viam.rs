@@ -194,7 +194,6 @@ where
     <Storage as RobotConfigurationStorage>::Error: Debug,
     ServerError: From<<Storage as RobotConfigurationStorage>::Error>,
 {
-
     pub fn get_default_max_concurrent_connections() -> usize {
         // By default, we get three, everywhere.
         #[allow(unused_mut)]
@@ -207,7 +206,8 @@ where
         }
 
         // But on an esp32 lacking SPIRAM, assume only one connection can be realized
-        #[cfg(target_os = "espidf")] {
+        #[cfg(target_os = "espidf")]
+        {
             extern "C" {
                 pub static g_spiram_ok: bool;
             }
@@ -262,7 +262,10 @@ where
     <Storage as RobotConfigurationStorage>::Error: Debug,
     ServerError: From<<Storage as RobotConfigurationStorage>::Error>,
 {
-    pub fn with_max_concurrent_connection(&mut self, max_concurrent_connections: usize) -> &mut Self {
+    pub fn with_max_concurrent_connection(
+        &mut self,
+        max_concurrent_connections: usize,
+    ) -> &mut Self {
         self.max_concurrent_connections = max_concurrent_connections;
         self
     }
