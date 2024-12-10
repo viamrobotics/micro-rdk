@@ -591,19 +591,22 @@ where
             let certs = if let Some(app) = app_client.as_ref() {
                 app.get_certificates()
                     .await
-                    .map(|cert_resp| {
-                        let cert: TlsCertificate = cert_resp.into();
-                        match self.storage.store_tls_certificate(cert.clone()) {
-                            Ok(_) => {
-                                log::debug!("stored TLS certificate received by app");
-                            }
-                            Err(err) => {
-                                log::error!("error storing TLS cert: {:?}", err);
-                            }
-                        }
-                        // even if we fail to store the certificate, proceed
-                        // with the valid certificate obtained by app
-                        Some(cert)
+                    .and_then(|cert_resp| {
+                        TlsCertificate::try_from(cert_resp)
+                            .map(|cert| {
+                                match self.storage.store_tls_certificate(cert.clone()) {
+                                    Ok(_) => {
+                                        log::debug!("stored TLS certificate received by app");
+                                    }
+                                    Err(err) => {
+                                        log::error!("error storing TLS cert: {:?}", err);
+                                    }
+                                }
+                                // even if we fail to store the certificate, proceed
+                                // with the valid certificate obtained by app
+                                Some(cert)
+                            })
+                            .map_err(|err| AppClientError::AppTlsCertParseError(err.to_string()))
                     })
                     .ok()
             } else {
@@ -1461,7 +1464,6 @@ mod tests {
                     Err("timeout".into())
                 })
                 .await;
-
             assert!(record.is_ok());
             let record = record.unwrap();
 

@@ -21,7 +21,7 @@ libstart = ["esp-idf-svc/libstart"]
 builtin-components = []
 camera = []
 esp32 = ["dep:esp-idf-svc", "dep:embedded-svc", "dep:embedded-hal", "esp-idf-svc/std", "esp-idf-svc/alloc", "dep:printf-compat"]
-native = ["dep:rustls", "dep:webpki-roots", "dep:rustls-pemfile", "dep:mdns-sd", "dep:local-ip-address", "dep:openssl", "dep:rcgen", "dep:async-std-openssl"]
+native = ["dep:rustls", "dep:webpki-roots", "dep:mdns-sd", "dep:local-ip-address", "dep:openssl", "dep:rcgen", "dep:async-std-openssl"]
 data-upload-hook-unstable = ["data", "esp32"]
 data = []
 qemu = []
@@ -42,7 +42,6 @@ mdns-sd = { workspace = true, optional = true }
 openssl = { workspace = true, optional = true }
 rcgen = { workspace = true, optional = true }
 rustls = { workspace = true, optional = true }
-rustls-pemfile = { workspace = true, optional = true }
 webpki-roots = { workspace = true, optional = true }
 bincode = "2.0.0-rc.3"
 
@@ -77,6 +76,7 @@ printf-compat = { workspace = true, optional = true }
 prost.workspace = true
 rand.workspace = true
 ringbuf.workspace = true
+rustls-pki-types.workspace = true
 scopeguard.workspace = true
 sctp-proto.workspace = true
 sdp.workspace = true
