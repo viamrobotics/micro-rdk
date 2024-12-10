@@ -1,7 +1,7 @@
 use axum::Router;
 use local_ip_address::local_ip;
 use std::net::SocketAddr;
-use tower_http::{services::ServeFile, trace::TraceLayer};
+use tower_http::{services::ServeDir, trace::TraceLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 const MICRO_RDK_OTA_BIN: &str = "micro-rdk-server-esp32-ota.bin";
@@ -24,7 +24,7 @@ async fn main() {
 fn using_serve_dir() -> Router {
     Router::new().nest_service(
         "/",
-        ServeFile::new(format!("{TARGET_DIR}/{MICRO_RDK_OTA_BIN}")),
+        ServeDir::new(TARGET_DIR),
     )
 }
 
