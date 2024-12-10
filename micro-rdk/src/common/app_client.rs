@@ -70,6 +70,8 @@ pub enum AppClientError {
     AppClientEmptyBody,
     #[error(transparent)]
     AppClientIoError(#[from] std::io::Error),
+    #[error("tls certificate parsing error: {0}")]
+    AppTlsCertParseError(String),
 }
 
 impl AppClientError {

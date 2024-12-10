@@ -83,7 +83,7 @@ impl Esp32ServerConfig {
                 cacert_bytes: 0,
             },
             __bindgen_anon_3: crate::esp32::esp_idf_svc::sys::esp_tls_cfg_server__bindgen_ty_3 {
-                // This is the server certificates in the PEM format
+                // This is the server certificates in the DER format
                 servercert_buf: srv_cert.as_ptr(),
             },
             __bindgen_anon_4: crate::esp32::esp_idf_svc::sys::esp_tls_cfg_server__bindgen_ty_4 {
@@ -439,14 +439,14 @@ impl<IO> From<Esp32ClientTlsStream<IO>> for Esp32TlsStream<IO> {
 
 #[derive(Default)]
 pub struct Esp32H2Connector {
-    srv_cert: Option<CString>,
-    srv_key: Option<CString>,
+    srv_cert: Option<Vec<u8>>,
+    srv_key: Option<Vec<u8>>,
 }
 
 impl ViamH2Connector for Esp32H2Connector {
     fn set_server_certificates(&mut self, srv_cert: Vec<u8>, srv_key: Vec<u8>) {
-        let _ = self.srv_cert.replace(CString::new(srv_cert).unwrap());
-        let _ = self.srv_key.replace(CString::new(srv_key).unwrap());
+        let _ = self.srv_cert.replace(srv_cert);
+        let _ = self.srv_key.replace(srv_key);
     }
     fn accept_connection(
         &self,
@@ -454,8 +454,8 @@ impl ViamH2Connector for Esp32H2Connector {
     ) -> Result<std::pin::Pin<Box<dyn IntoHttp2Stream>>, std::io::Error> {
         if self.srv_cert.is_some() && self.srv_key.is_some() {
             let cfg = Esp32ServerConfig::new(
-                self.srv_cert.as_ref().unwrap().to_bytes_with_nul(),
-                self.srv_key.as_ref().unwrap().to_bytes_with_nul(),
+                &self.srv_cert.as_ref().unwrap(),
+                &self.srv_key.as_ref().unwrap(),
             );
             let conn = Esp32Accept::new(connection, cfg)?;
             Ok(Box::pin(Esp32StreamAcceptor(conn)))
