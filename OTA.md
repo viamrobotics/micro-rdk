@@ -24,7 +24,7 @@ In app.viam, add the following to the `services` array; you can alternatively ad
 
 In the `url` field, enter the url where a firmware will be downloaded from
    - if using a local endpoint on the same network, remember to use the proper private ip address
-   - for cloud-hosted resources, embedded auth in the url is easiest, we don't support jwt yet
+   - for cloud-hosted resources, embedded auth in the url is easiest, we don't support tokens yet
 
 
 The `version` field is equivalent to a `tag` and can be any arbitrary string of up to 128 characters. After successfully applying the new firmware, this `version` will be stored in NVS. This values is compared to that of the latest machine config from app.viam and will trigger the update process.
@@ -80,8 +80,10 @@ To update a device's partition table, use the method in the Full Build workflow.
 
 
 ## Firmware Upload and Hosting Options
-### Local
-- use `make serve-ota` to point to create a local endpoint serving the ota build. Ensure the link includes the host's private address in the url.
+- Local
+  - Use `make serve-ota` to point to create a local endpoint serving the ota build.
+  - the command will build the ota firmware first before serving the url
+
 ### Cloud
 - if using a cloud hosting solution, generate a `url` for downloading your firmware that includes auth embedded in the url if possible.
 
