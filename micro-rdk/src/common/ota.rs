@@ -229,10 +229,12 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 unsafe { esp_ota_get_next_update_partition(std::ptr::null()) };
 
             if ptr.is_null() {
-                log::warn!("pointer to next update partition was null");
-                return Err(OtaError::Other(
+                log::warn!("pointer to next update partition was null, device may not be correctly partitioned");
+                let e = OtaError::Other(
                     "failed to obtain a handle to the next OTA update partition".to_string(),
-                ));
+                );
+                log::warn!(e.to_string());
+                return Err(e);
             }
             let size = unsafe { (*ptr).size } as usize;
             let address = unsafe { (*ptr).address } as usize;
@@ -268,7 +270,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
         }
 
         log::info!(
-            "proceeding with update from version `{}` to version `{}`",
+            "firmware is out of date, proceeding with update from version `{}` to version `{}`",
             stored_metadata.version,
             self.pending_version
         );
@@ -389,17 +391,17 @@ impl<S: OtaMetadataStorage> OtaService<S> {
         log::info!("writing new firmware to address `{:#x}`", self.address,);
 
         while let Some(next) = response.frame().await {
-            // hyper::Error(Body, Error { kind: Io(Custom { kind: Other, error: "ssl other error -26624" })
             let frame = next.map_err(|e| OtaError::Other(e.to_string()))?;
             if !frame.is_data() {
                 return Err(OtaError::Other(
                     "download contained non-data frame".to_string(),
                 ));
             }
+
             // Err variant returns the original frame, not an impl Error
             let data = frame
                 .into_data()
-                .map_err(|_| OtaError::Other("".to_string()))?;
+                .map_err(|_| OtaError::Other("failed to get data from frame".to_string()))?;
             total_downloaded += data.len();
 
             if !got_info {
@@ -453,7 +455,12 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 .map_err(|e| OtaError::Other(e.to_string()))?;
             // TODO change back to 'n' after impl async writer
             nwritten += data.len();
-            log::info!("updating: {}/{} bytes written", nwritten, file_len);
+            log::info!(
+                "updating next OTA partition at {}: {}/{} bytes written",
+                self.address,
+                nwritten,
+                file_len
+            );
         }
 
         drop(conn);
