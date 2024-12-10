@@ -28,6 +28,8 @@ pub(crate) struct SignalingServer {
 }
 
 impl SignalingServer {
+
+    #[allow(dead_code)]
     pub fn new(executor: Executor, sender: Sender<Box<WebRtcSignalingChannel>>) -> Self {
         Self {
             executor,

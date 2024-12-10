@@ -226,24 +226,15 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
         .unwrap();
     }
 
-    let max_connection = {
-        #[cfg(not(target_os = "espidf"))]
-        {
-            10
+    #[cfg(target_os = "espidf")]
+    {
+        use micro_rdk::esp32::esp_idf_svc::hal::sys::g_wifi_feature_caps;
+        use micro_rdk::esp32::esp_idf_svc::hal::sys::CONFIG_FEATURE_CACHE_TX_BUF_BIT;
+        if !g_spiram_ok {
+            log::info!("spiram not initialized disabling cache feature of the wifi driver");
+            g_wifi_feature_caps &= !(CONFIG_FEATURE_CACHE_TX_BUF_BIT as u64);
         }
-        #[cfg(target_os = "espidf")]
-        {
-            use micro_rdk::esp32::esp_idf_svc::hal::sys::g_wifi_feature_caps;
-            use micro_rdk::esp32::esp_idf_svc::hal::sys::CONFIG_FEATURE_CACHE_TX_BUF_BIT;
-            if !g_spiram_ok {
-                log::info!("spiram not initialized disabling cache feature of the wifi driver");
-                g_wifi_feature_caps &= !(CONFIG_FEATURE_CACHE_TX_BUF_BIT as u64);
-                1
-            } else {
-                3
-            }
-        }
-    };
+    }
 
     let network = {
         #[cfg(not(target_os = "espidf"))]
@@ -301,7 +292,6 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
     builder
         .with_provisioning_info(ctx.provisioning_info)
         .with_component_registry(ctx.registry)
-        .with_max_concurrent_connection(max_connection)
         .with_default_tasks();
 
     #[cfg(not(target_os = "espidf"))]
