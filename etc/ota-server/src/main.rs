@@ -1,8 +1,11 @@
 use axum::Router;
 use local_ip_address::local_ip;
 use std::net::SocketAddr;
-use tower_http::{services::ServeDir, trace::TraceLayer};
+use tower_http::{services::ServeFile, trace::TraceLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+const MICRO_RDK_OTA_BIN: &str = "micro-rdk-server-esp32-ota.bin";
+const TARGET_DIR: &str = "../../target/xtensa-esp32-espidf";
 
 #[tokio::main]
 async fn main() {
@@ -19,8 +22,10 @@ async fn main() {
 }
 
 fn using_serve_dir() -> Router {
-    // serve the file in the "assets" directory under `/assets`
-    Router::new().nest_service("/", ServeDir::new("../../target/xtensa-esp32-espidf"))
+    Router::new().nest_service(
+        "/",
+        ServeFile::new(format!("{TARGET_DIR}/{MICRO_RDK_OTA_BIN}")),
+    )
 }
 
 async fn serve(app: Router, port: u16) {
@@ -28,7 +33,7 @@ async fn serve(app: Router, port: u16) {
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     // get private address
     let local = local_ip().unwrap();
-    tracing::info!("serving ota partition at `http://{local}:{port}/micro-rdk-server-esp32-ota.bin`");
+    tracing::info!("serving ota partition: \n\n\thttp://{local}:{port}/{MICRO_RDK_OTA_BIN}");
     axum::serve(listener, app.layer(TraceLayer::new_for_http()))
         .await
         .unwrap();
