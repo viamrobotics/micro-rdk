@@ -105,6 +105,9 @@ build-esp32-bin: build-esp32-ota
 build-esp32-ota:
 	cargo +esp espflash save-image --package micro-rdk-server --features=ota --chip=esp32 ./target/xtensa-esp32-espidf/micro-rdk-server-esp32-ota.bin --bin=micro-rdk-server-esp32 --partition-table=micro-rdk-server/esp32/ota_8mb_partitions.csv --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --release
 
+serve-ota: build-esp32-ota
+	cargo r --package ota-server
+
 flash-esp32-bin:
 ifneq (,$(wildcard ./target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin))
 	espflash write-bin 0x0 ./target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin --baud 460800  && sleep 2 && espflash monitor
