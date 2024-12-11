@@ -48,7 +48,7 @@ use crate::{
 #[cfg(feature = "esp32")]
 use crate::esp32::esp_idf_svc::{
     ota::{EspFirmwareInfoLoader, EspOta},
-    sys::EspError,
+    sys::{esp_ota_get_next_update_partition, esp_partition_t, EspError},
 };
 use async_io::Timer;
 use http_body_util::{BodyExt, Empty};
@@ -59,8 +59,6 @@ use thiserror::Error;
 #[cfg(not(feature = "esp32"))]
 use {bincode::Decode, futures_lite::AsyncWriteExt};
 
-// TODO(RSDK-9200): set according to active partition scheme
-const OTA_MAX_IMAGE_SIZE: usize = 1024 * 1024 * 4; // 4MB
 const CONN_RETRY_SECS: u64 = 60;
 const SIZEOF_APPDESC: usize = 256;
 const MAX_VER_LEN: usize = 128;
@@ -115,8 +113,8 @@ pub enum OtaError {
     EspError(#[from] EspError),
     #[error("failed to initialize ota process")]
     InitError,
-    #[error("new image size is invalid: {0} bytes")]
-    InvalidImageSize(usize),
+    #[error("new image of {0} bytes is larger than target partition of {1} bytes")]
+    InvalidImageSize(usize, usize),
     #[error("version {0} has length {1}, maximum allowed characters is {2}")]
     InvalidVersionLen(String, usize, usize),
     #[error("{0}")]
@@ -148,6 +146,8 @@ pub(crate) struct OtaService<S: OtaMetadataStorage> {
     storage: S,
     url: String,
     pending_version: String,
+    max_size: usize,
+    address: usize,
 }
 
 impl<S: OtaMetadataStorage> OtaService<S> {
@@ -220,12 +220,35 @@ impl<S: OtaMetadataStorage> OtaService<S> {
 
         let connector = OtaConnector::default();
 
+        #[cfg(not(feature = "esp32"))]
+        let (max_size, address) = (1024 * 1024 * 4, 0xabcd);
+        #[cfg(feature = "esp32")]
+        let (max_size, address) = {
+            log::debug!("getting handle to next OTA update partition");
+            let ptr: *const esp_partition_t =
+                unsafe { esp_ota_get_next_update_partition(std::ptr::null()) };
+
+            if ptr.is_null() {
+                let e = OtaError::Other(
+                    "failed to obtain a handle to the next OTA update partition, device may not be partitioned properly for OTA".to_string(),
+                );
+                log::warn!("{}", e.to_string());
+                return Err(e);
+            }
+            let size = unsafe { (*ptr).size } as usize;
+            let address = unsafe { (*ptr).address } as usize;
+
+            (size, address)
+        };
+
         Ok(Self {
             connector,
             exec,
             storage,
             url,
             pending_version,
+            max_size,
+            address,
         })
     }
 
@@ -241,12 +264,12 @@ impl<S: OtaMetadataStorage> OtaService<S> {
         };
 
         if self.pending_version == stored_metadata.version() {
-            log::info!("firmware is up-to-date: {}", stored_metadata.version);
+            log::info!("firmware is up-to-date: `{}`", stored_metadata.version);
             return Ok(());
         }
 
         log::info!(
-            "proceeding with update from version `{}` to version `{}`",
+            "firmware is out of date, proceeding with update from version `{}` to version `{}`",
             stored_metadata.version,
             self.pending_version
         );
@@ -254,7 +277,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
         let mut uri = self
             .url
             .parse::<hyper::Uri>()
-            .map_err(|_| OtaError::ConfigError(format!("invalid url: {}", self.url)))?;
+            .map_err(|e| OtaError::ConfigError(format!("invalid url: `{}` - {}", self.url, e)))?;
 
         if uri.port().is_none() {
             if uri.scheme_str() != Some("https") {
@@ -346,8 +369,8 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             .parse::<usize>()
             .map_err(|e| OtaError::Other(e.to_string()))?;
 
-        if file_len > OTA_MAX_IMAGE_SIZE {
-            return Err(OtaError::InvalidImageSize(file_len));
+        if file_len > self.max_size {
+            return Err(OtaError::InvalidImageSize(file_len, self.max_size));
         }
 
         #[cfg(feature = "esp32")]
@@ -364,14 +387,20 @@ impl<S: OtaMetadataStorage> OtaService<S> {
         let mut total_downloaded: usize = 0;
         let mut got_info = false;
 
+        log::info!("writing new firmware to address `{:#x}`", self.address,);
+
         while let Some(next) = response.frame().await {
-            let frame = next.unwrap();
+            let frame = next.map_err(|e| OtaError::Other(e.to_string()))?;
             if !frame.is_data() {
                 return Err(OtaError::Other(
                     "download contained non-data frame".to_string(),
                 ));
             }
-            let data = frame.into_data().unwrap();
+
+            // Err variant returns the original frame, not an impl Error
+            let data = frame
+                .into_data()
+                .map_err(|_| OtaError::Other("failed to get data from frame".to_string()))?;
             total_downloaded += data.len();
 
             if !got_info {
@@ -403,30 +432,38 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 }
             }
 
-            if data.len() + nwritten <= OTA_MAX_IMAGE_SIZE {
-                // TODO(RSDK-9271) add async writer for ota
-                #[cfg(feature = "esp32")]
-                update_handle
-                    .write(&data)
-                    .map_err(|e| OtaError::Other(e.to_string()))?;
-                #[cfg(not(feature = "esp32"))]
-                let _n = update_handle
-                    .write(&data)
-                    .await
-                    .map_err(|e| OtaError::Other(e.to_string()))?;
-                // TODO change back to 'n' after impl async writer
-                nwritten += data.len();
-                log::info!("updating: {}/{} bytes written", nwritten, file_len);
-            } else {
+            if data.len() + nwritten > self.max_size {
                 log::error!("file is larger than expected, aborting");
                 #[cfg(feature = "esp32")]
                 update_handle.abort()?;
-                return Err(OtaError::Other("download be weird".to_string()));
+                return Err(OtaError::InvalidImageSize(
+                    data.len() + nwritten,
+                    self.max_size,
+                ));
             }
+
+            // TODO(RSDK-9271) add async writer for ota
+            #[cfg(feature = "esp32")]
+            update_handle
+                .write(&data)
+                .map_err(|e| OtaError::Other(e.to_string()))?;
+            #[cfg(not(feature = "esp32"))]
+            let _n = update_handle
+                .write(&data)
+                .await
+                .map_err(|e| OtaError::Other(e.to_string()))?;
+            // TODO change back to 'n' after impl async writer
+            nwritten += data.len();
+            log::info!(
+                "updating next OTA partition at {}: {}/{} bytes written",
+                self.address,
+                nwritten,
+                file_len
+            );
         }
 
         drop(conn);
-        log::info!("download complete");
+        log::info!("firmware download complete: {} bytes", nwritten);
 
         if nwritten != file_len {
             log::error!("wrote {} bytes, expected to write {}", nwritten, file_len);
@@ -441,11 +478,11 @@ impl<S: OtaMetadataStorage> OtaService<S> {
 
         #[cfg(feature = "esp32")]
         {
-            log::info!("setting device to use new firmware on reboot");
+            log::info!("setting device to use new firmware at `{}`", self.address);
             update_handle.complete().map_err(OtaError::EspError)?;
         }
 
-        log::info!("updating metadata in NVS");
+        log::info!("updating firmware metadata in NVS");
         self.storage
             .store_ota_metadata(OtaMetadata {
                 version: self.pending_version.clone(),
@@ -454,9 +491,11 @@ impl<S: OtaMetadataStorage> OtaService<S> {
 
         log::info!("firmware update complete");
 
+        // Test experimental ffi accesses here to be recoverable without flashing
         #[cfg(feature = "esp32")]
         {
-            log::info!("rebooting...");
+            log::info!("rebooting to load firmware from `{}`", self.address);
+            // TODO(RSDK-9464): flush logs to app.viam before restarting
             esp_idf_svc::hal::reset::restart();
         }
 
