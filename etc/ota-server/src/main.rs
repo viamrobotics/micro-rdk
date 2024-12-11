@@ -5,7 +5,7 @@ use tower_http::{services::ServeDir, trace::TraceLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 const MICRO_RDK_OTA_BIN: &str = "micro-rdk-server-esp32-ota.bin";
-const TARGET_DIR: &str = "../../target/xtensa-esp32-espidf";
+const TARGET_DIR: &str = "target/xtensa-esp32-espidf";
 
 #[tokio::main]
 async fn main() {
@@ -22,10 +22,7 @@ async fn main() {
 }
 
 fn using_serve_dir() -> Router {
-    Router::new().nest_service(
-        "/",
-        ServeDir::new(TARGET_DIR),
-    )
+    Router::new().nest_service("/", ServeDir::new(TARGET_DIR))
 }
 
 async fn serve(app: Router, port: u16) {
