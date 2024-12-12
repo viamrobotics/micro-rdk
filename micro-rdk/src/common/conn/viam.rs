@@ -194,7 +194,13 @@ where
     <Storage as RobotConfigurationStorage>::Error: Debug,
     ServerError: From<<Storage as RobotConfigurationStorage>::Error>,
 {
+    /// Returns the computed default limit on the number of concurrent
+    /// connections the micro-rdk will permit.
     pub fn get_default_max_concurrent_connections() -> usize {
+        // NOTE: If you adjust the logic in this method, please check
+        // the value in `Robot::Server::serve_http2_connection` to see
+        // if it needs a coordinated adjustment.
+
         // By default, we get three, everywhere.
         #[allow(unused_mut)]
         let mut max = 3;
@@ -837,8 +843,18 @@ where
     ) -> Task<Result<(), errors::ServerError>> {
         let exec = self.executor.clone();
         let robot = self.robot.clone();
+
+        // If the connection manager has a low limit on the number of
+        // concurrent connections, don't enable local signaling. This
+        // value may need to be adjusted if the logic in
+        // `ViamServerBuilder::get_default_max_concurrent_connections`
+        // changes.
         #[cfg(feature = "local-signaling")]
-        let ss = self.local_signaling_server.clone();
+        let ss = self
+            .local_signaling_server
+            .clone()
+            .filter(|_| self.incomming_connection_manager.max_connections() >= 5);
+
         self.executor.spawn(async move {
             #[allow(unused_mut)]
             let mut srv = GrpcServer::new(robot, GrpcBody::new());
