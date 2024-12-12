@@ -139,6 +139,11 @@ pub trait OtaMetadataStorage {
     fn reset_ota_metadata(&self) -> Result<(), Self::Error>;
 }
 
+pub trait StorageDiagnostic {
+    type Error: Error + Debug + Into<ServerError>;
+    fn log_space_diagnostic(&self) -> Result<(), Self::Error>;
+}
+
 #[derive(Default)]
 struct RAMCredentialStorageInner {
     robot_creds: Option<RobotCredentials>,
@@ -296,6 +301,15 @@ impl WifiCredentialStorage for RAMStorage {
     fn reset_wifi_credentials(&self) -> Result<(), Self::Error> {
         let mut inner_ref = self.0.lock().unwrap();
         let _ = inner_ref.wifi_creds.take();
+        Ok(())
+    }
+}
+
+impl StorageDiagnostic for RAMStorage {
+    type Error = Infallible;
+    fn log_space_diagnostic(&self) -> Result<(), Self::Error> {
+        let used_space = size_of_val(self);
+        log::info!("CREDENTIAL STORAGE STATS: {:?} bytes used", used_space);
         Ok(())
     }
 }
