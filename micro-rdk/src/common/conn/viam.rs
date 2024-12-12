@@ -853,7 +853,13 @@ where
         let ss = self
             .local_signaling_server
             .clone()
-            .filter(|_| self.incomming_connection_manager.max_connections() >= 5);
+            .filter(|_| self.incomming_connection_manager.max_connections() >= 5)
+            .or_else(|| {
+                log::warn!(
+                    "Disabling local WebRTC signaling because the configured connection limit is less than 5",
+                );
+                None
+            });
 
         self.executor.spawn(async move {
             #[allow(unused_mut)]
