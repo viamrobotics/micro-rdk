@@ -109,15 +109,12 @@ mod esp32 {
             }
         }
 
-        let max_connections = unsafe {
+        unsafe {
             if !g_spiram_ok {
                 log::info!("spiram not initialized disabling cache feature of the wifi driver");
                 g_wifi_feature_caps &= !(CONFIG_FEATURE_CACHE_TX_BUF_BIT as u64);
-                1
-            } else {
-                3
             }
-        };
+        }
 
         let mut info = ProvisioningInfo::default();
         info.set_manufacturer("viam".to_owned());
@@ -135,7 +132,6 @@ mod esp32 {
             .with_provisioning_info(info)
             .with_webrtc_configuration(webrtc_config)
             .with_http2_server(Esp32H2Connector::default(), 12346)
-            .with_max_concurrent_connection(max_connections)
             .with_default_tasks()
             .with_component_registry(registry);
         #[cfg(not(feature = "qemu"))]
