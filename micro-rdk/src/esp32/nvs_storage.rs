@@ -149,13 +149,13 @@ impl StorageDiagnostic for NVSStorage {
         let total_usable_space = (0.976 * (total_space as f64)) - 4000.0;
         let percentage_used = (used_space as f64) / total_usable_space;
         log::info!(
-            "Credential storage stats: {:?} of {:?} bytes used",
+            "Credential storage stats: {:?} of {:?} bytes of NVS storage used",
             used_space,
             total_space
         );
         if percentage_used > 0.9 {
             log::warn!(
-                "{:?} of {:?} bytes used, consider examination of storage usage",
+                "{:?} of {:?} bytes used, consider examination of NVS usage",
                 used_space,
                 total_space
             );
