@@ -48,7 +48,7 @@ use crate::{
 #[cfg(feature = "esp32")]
 use crate::esp32::esp_idf_svc::{
     ota::{EspFirmwareInfoLoader, EspOta},
-    sys::{esp_ota_get_next_update_partition, esp_partition_t, EspError},
+    sys::{esp_ota_get_next_update_partition, esp_partition_t},
 };
 use async_io::Timer;
 use http_body_util::{BodyExt, Empty};
@@ -103,20 +103,40 @@ struct EspAppDesc {
     reserv2: [u32; 20],
 }
 
-// TODO(RSDK-9214): surface (and use) underlying errors properly, use transparent where possible
 #[derive(Error, Debug)]
-pub enum OtaError {
-    #[error("{0}")]
-    ConfigError(String),
-    #[cfg(feature = "esp32")]
+pub(crate) enum ConfigError {
+    #[error("version {0} has length {1}, maximum allowed characters is {2}")]
+    InvalidVersionLen(String, usize, usize),
+    #[error("the url `{0}`, is not valid: {1}")]
+    InvalidUrl(String, String),
     #[error(transparent)]
-    EspError(#[from] EspError),
+    AttributeError(#[from] AttributeError),
+    #[error("required config attribute `{0}` not found")]
+    MissingAttribute(String),
+    #[error("value missing for field `{0}`")]
+    MissingValue(String),
+    #[error("{0}")]
+    Other(String),
+}
+
+#[derive(Error, Debug)]
+pub(crate) enum OtaError {
+    #[error("error occured during abort process: {0}")]
+    AbortError(String),
+    #[error("{0}")]
+    ConfigError(#[from] ConfigError),
+    #[error(transparent)]
+    NetworkError(#[from] hyper::Error),
+    #[error("{0}")]
+    UpdateError(String),
     #[error("failed to initialize ota process")]
     InitError,
     #[error("new image of {0} bytes is larger than target partition of {1} bytes")]
     InvalidImageSize(usize, usize),
-    #[error("version {0} has length {1}, maximum allowed characters is {2}")]
-    InvalidVersionLen(String, usize, usize),
+    #[error("failed to retrieve firmware header info from binary, firmware may not be valid for this system: {0}")]
+    InvalidFirmware(String),
+    #[error("error writing firmware to update partition: {0}")]
+    WriteError(String),
     #[error("{0}")]
     Other(String),
 }
@@ -156,66 +176,52 @@ impl<S: OtaMetadataStorage> OtaService<S> {
         storage: S,
         exec: Executor,
     ) -> Result<Self, OtaError> {
-        let kind = new_config
-            .attributes
-            .as_ref()
-            .ok_or_else(|| OtaError::ConfigError("config missing `attributes`".to_string()))?;
+        let kind = new_config.attributes.as_ref().ok_or_else(|| {
+            ConfigError::Other("ota service config has no attributes".to_string())
+        })?;
 
         let url = kind
             .fields
             .get("url")
-            .ok_or(OtaError::ConfigError(
-                "config missing `url` field".to_string(),
-            ))?
+            .ok_or(ConfigError::MissingAttribute("url".to_string()))?
             .kind
             .as_ref()
-            .ok_or(OtaError::ConfigError(
-                "failed to get inner `Value` for url".to_string(),
-            ))?
+            .ok_or(ConfigError::MissingValue("url".to_string()))?
             .try_into()
-            .map_err(|e: AttributeError| OtaError::ConfigError(e.to_string()))?;
+            .map_err(|e: AttributeError| ConfigError::Other(e.to_string()))?;
 
         let url = match url {
-            Kind::StringValue(s) => s,
-            _ => {
-                return Err(OtaError::ConfigError(format!(
-                    "invalid url value: {:?}",
-                    kind
-                )))
-            }
-        };
+            Kind::StringValue(s) => Ok(s),
+            _ => Err(ConfigError::Other(format!("invalid url value: {:?}", kind))),
+        }?;
 
         let pending_version = kind
             .fields
             .get("version")
-            .ok_or(OtaError::ConfigError(
-                "config missing `version` field".to_string(),
-            ))?
+            .ok_or(ConfigError::MissingAttribute("version".to_string()))?
             .kind
             .as_ref()
-            .ok_or(OtaError::ConfigError(
-                "failed to get inner `Value` for version".to_string(),
+            .ok_or(ConfigError::Other(
+                "failed to get inner for `version`".to_string(),
             ))?
             .try_into()
-            .map_err(|e: AttributeError| OtaError::ConfigError(e.to_string()))?;
+            .map_err(|e: AttributeError| ConfigError::AttributeError(e))?;
 
         let pending_version = match pending_version {
-            Kind::StringValue(s) => s,
-            _ => {
-                return Err(OtaError::ConfigError(format!(
-                    "invalid url value: {:?}",
-                    pending_version
-                )))
-            }
-        };
+            Kind::StringValue(s) => Ok(s),
+            _ => Err(ConfigError::Other(format!(
+                "invalid url value: {:?}",
+                pending_version
+            ))),
+        }?;
 
         if pending_version.len() > MAX_VER_LEN {
             let len = pending_version.len();
-            return Err(OtaError::InvalidVersionLen(
+            return Err(OtaError::ConfigError(ConfigError::InvalidVersionLen(
                 pending_version,
                 len,
                 MAX_VER_LEN,
-            ));
+            )));
         }
 
         let connector = OtaConnector::default();
@@ -229,7 +235,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 unsafe { esp_ota_get_next_update_partition(std::ptr::null()) };
 
             if ptr.is_null() {
-                let e = OtaError::Other(
+                let e = OtaError::UpdateError(
                     "failed to obtain a handle to the next OTA update partition, device may not be partitioned properly for OTA".to_string(),
                 );
                 log::warn!("{}", e.to_string());
@@ -277,7 +283,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
         let mut uri = self
             .url
             .parse::<hyper::Uri>()
-            .map_err(|e| OtaError::ConfigError(format!("invalid url: `{}` - {}", self.url, e)))?;
+            .map_err(|e| ConfigError::InvalidUrl(self.url.clone(), e.to_string()))?;
 
         if uri.port().is_none() {
             if uri.scheme_str() != Some("https") {
@@ -375,8 +381,18 @@ impl<S: OtaMetadataStorage> OtaService<S> {
 
         #[cfg(feature = "esp32")]
         let (mut ota, running_fw_info) = {
-            let ota = EspOta::new().map_err(OtaError::EspError)?;
-            let fw_info = ota.get_running_slot().map_err(OtaError::EspError)?.firmware;
+            let ota = EspOta::new().map_err(|e| {
+                OtaError::UpdateError(format!("failed to initiate ota partition handle: {}", e))
+            })?;
+            let fw_info = ota
+                .get_running_slot()
+                .map_err(|e| {
+                    OtaError::UpdateError(format!(
+                        "failed to get handle to running ota partition: {}",
+                        e
+                    ))
+                })?
+                .firmware;
             (ota, fw_info)
         };
         #[cfg(feature = "esp32")]
@@ -411,8 +427,12 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                     {
                         log::info!("verifying new ota firmware");
                         let mut loader = EspFirmwareInfoLoader::new();
-                        loader.load(&data).map_err(OtaError::EspError)?;
-                        let new_fw = loader.get_info().map_err(OtaError::EspError)?;
+                        loader
+                            .load(&data)
+                            .map_err(|e| OtaError::InvalidFirmware(e.to_string()))?;
+                        let new_fw = loader
+                            .get_info()
+                            .map_err(|e| OtaError::InvalidFirmware(e.to_string()))?;
                         log::debug!("current firmware app description: {:?}", running_fw_info);
                         log::debug!("new firmware app description: {:?}", new_fw);
                     }
@@ -435,7 +455,9 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             if data.len() + nwritten > self.max_size {
                 log::error!("file is larger than expected, aborting");
                 #[cfg(feature = "esp32")]
-                update_handle.abort()?;
+                update_handle
+                    .abort()
+                    .map_err(|e| OtaError::AbortError(format!("{:?}", e)))?;
                 return Err(OtaError::InvalidImageSize(
                     data.len() + nwritten,
                     self.max_size,
@@ -446,12 +468,12 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             #[cfg(feature = "esp32")]
             update_handle
                 .write(&data)
-                .map_err(|e| OtaError::Other(e.to_string()))?;
+                .map_err(|e| OtaError::WriteError(e.to_string()))?;
             #[cfg(not(feature = "esp32"))]
             let _n = update_handle
                 .write(&data)
                 .await
-                .map_err(|e| OtaError::Other(e.to_string()))?;
+                .map_err(|e| OtaError::Write(e.to_string()))?;
             // TODO change back to 'n' after impl async writer
             nwritten += data.len();
             log::info!(
@@ -469,7 +491,9 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             log::error!("wrote {} bytes, expected to write {}", nwritten, file_len);
             log::error!("aborting ota");
             #[cfg(feature = "esp32")]
-            update_handle.abort()?;
+            update_handle
+                .abort()
+                .map_err(|e| OtaError::AbortError(format!("{:?}", e)))?;
 
             return Err(OtaError::Other(
                 "nbytes written did not match file size".to_string(),
@@ -478,9 +502,14 @@ impl<S: OtaMetadataStorage> OtaService<S> {
 
         #[cfg(feature = "esp32")]
         {
-            log::info!("setting device to use new firmware at `{}`", self.address);
-            update_handle.complete().map_err(OtaError::EspError)?;
-        }
+            log::info!(
+                "setting device to use new firmware at `{:#x}`",
+                self.address
+            );
+            update_handle
+                .complete()
+                .map_err(|e| OtaError::UpdateError(format!("{:?}", e)))
+        }?;
 
         log::info!("updating firmware metadata in NVS");
         self.storage

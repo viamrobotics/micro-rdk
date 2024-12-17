@@ -184,7 +184,7 @@ pub struct ViamServerBuilder<Storage, State> {
     http2_server_port: u16,
     http2_server_insecure: bool,
     app_client_tasks: Vec<Box<dyn PeriodicAppClientTask>>,
-    max_concurrent_connections: u32,
+    max_concurrent_connections: usize,
     _state: PhantomData<State>,
 }
 
@@ -194,6 +194,39 @@ where
     <Storage as RobotConfigurationStorage>::Error: Debug,
     ServerError: From<<Storage as RobotConfigurationStorage>::Error>,
 {
+    /// Returns the computed default limit on the number of concurrent
+    /// connections the micro-rdk will permit.
+    pub fn get_default_max_concurrent_connections() -> usize {
+        // NOTE: If you adjust the logic in this method, please check
+        // the value in `Robot::Server::serve_http2_connection` to see
+        // if it needs a coordinated adjustment.
+
+        // By default, we get three, everywhere.
+        #[allow(unused_mut)]
+        let mut max = 3;
+
+        // If local signaling is enabled, grant two more
+        #[cfg(feature = "local-signaling")]
+        {
+            max += 2;
+        }
+
+        // But on an esp32 lacking SPIRAM, assume only one connection can be realized
+        #[cfg(target_os = "espidf")]
+        {
+            extern "C" {
+                pub static g_spiram_ok: bool;
+            }
+            unsafe {
+                if !g_spiram_ok {
+                    max = 1;
+                }
+            }
+        }
+
+        max
+    }
+
     pub fn new(storage: Storage) -> Self {
         ViamServerBuilder {
             storage,
@@ -205,7 +238,7 @@ where
             http2_server_port: 12346,
             http2_server_insecure: false,
             app_client_tasks: Default::default(),
-            max_concurrent_connections: 1,
+            max_concurrent_connections: Self::get_default_max_concurrent_connections(),
             _state: PhantomData,
         }
     }
@@ -235,7 +268,10 @@ where
     <Storage as RobotConfigurationStorage>::Error: Debug,
     ServerError: From<<Storage as RobotConfigurationStorage>::Error>,
 {
-    pub fn with_max_concurrent_connection(&mut self, max_concurrent_connections: u32) -> &mut Self {
+    pub fn with_max_concurrent_connection(
+        &mut self,
+        max_concurrent_connections: usize,
+    ) -> &mut Self {
         self.max_concurrent_connections = max_concurrent_connections;
         self
     }
@@ -376,7 +412,7 @@ pub struct ViamServer<Storage, C, M> {
     app_client_tasks: Vec<Box<dyn PeriodicAppClientTask>>,
     #[cfg(feature = "ota")]
     ota_service_task: Option<Task<()>>,
-    max_concurrent_connections: u32,
+    max_concurrent_connections: usize,
     network: Option<Box<dyn Network>>,
 }
 impl<Storage, C, M> ViamServer<Storage, C, M>
@@ -640,13 +676,16 @@ where
             webrtc_config: &self.webrtc_configuration,
             network,
             incomming_connection_manager: IncomingConnectionManager::new(
-                self.max_concurrent_connections as usize,
+                self.max_concurrent_connections,
             ),
             robot_config: &config,
-            local_signaling_server: Arc::new(SignalingServer::new(
+            #[cfg(feature = "local-signaling")]
+            local_signaling_server: Some(Arc::new(SignalingServer::new(
                 self.executor.clone(),
                 tx.clone(),
-            )),
+            ))),
+            #[cfg(not(feature = "local-signaling"))]
+            local_signaling_server: None,
         };
 
         if let Some(cfg) = config.cloud.as_ref() {
@@ -785,7 +824,8 @@ struct RobotServer<'a, M> {
     network: &'a dyn Network,
     incomming_connection_manager: IncomingConnectionManager,
     robot_config: &'a RobotConfig,
-    local_signaling_server: Arc<SignalingServer>,
+    #[allow(dead_code)]
+    local_signaling_server: Option<Arc<SignalingServer>>,
 }
 
 pub(crate) enum IncomingConnection {
@@ -803,10 +843,31 @@ where
     ) -> Task<Result<(), errors::ServerError>> {
         let exec = self.executor.clone();
         let robot = self.robot.clone();
-        let ss = self.local_signaling_server.clone();
+
+        // If the connection manager has a low limit on the number of
+        // concurrent connections, don't enable local signaling. This
+        // value may need to be adjusted if the logic in
+        // `ViamServerBuilder::get_default_max_concurrent_connections`
+        // changes.
+        #[cfg(feature = "local-signaling")]
+        let ss = self
+            .local_signaling_server
+            .clone()
+            .filter(|_| self.incomming_connection_manager.max_connections() >= 5)
+            .or_else(|| {
+                log::warn!(
+                    "Disabling local WebRTC signaling because the configured connection limit is less than 5",
+                );
+                None
+            });
+
         self.executor.spawn(async move {
+            #[allow(unused_mut)]
             let mut srv = GrpcServer::new(robot, GrpcBody::new());
-            srv.register_signaling_server(ss);
+            #[cfg(feature = "local-signaling")]
+            if let Some(ss) = ss {
+                srv.register_signaling_server(ss);
+            }
             http2::Builder::new(exec)
                 .initial_connection_window_size(2048)
                 .initial_stream_window_size(2048)

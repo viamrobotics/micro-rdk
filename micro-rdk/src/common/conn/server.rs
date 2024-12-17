@@ -116,6 +116,11 @@ impl IncomingConnectionManager {
         connections.resize_with(size, Default::default);
         Self { connections }
     }
+
+    pub(crate) fn max_connections(&self) -> usize {
+        self.connections.len()
+    }
+
     // return the lowest priority of active webrtc tasks or 0
     pub(crate) fn get_lowest_prio(&self) -> u32 {
         self.connections
