@@ -103,7 +103,7 @@ reqwless = "0.13.0"
 ringbuf = "~0.3"
 # TODO(RSDK-8995): Upgrade to latest `rustls` infrastructure
 rustls = { version = "~0.21", features = ["logging", "tls12"] }
-rustls-pemfile = { version = "2.2" }
+rustls-pki-types = "1.10.0"
 scopeguard = "1.2.0"
 sctp-proto = "0.3.0"
 sdp = "0.6.2"

@@ -3,6 +3,8 @@ use std::str::FromStr;
 use std::{convert::Infallible, error::Error, fmt::Debug, rc::Rc, sync::Mutex};
 
 use hyper::Uri;
+use rustls_pki_types::pem::PemObject;
+use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 
 use crate::{common::grpc::ServerError, proto::app::v1::RobotConfig};
 
@@ -90,12 +92,18 @@ pub struct TlsCertificate {
     pub(crate) private_key: Vec<u8>,
 }
 
-impl From<CertificateResponse> for TlsCertificate {
-    fn from(resp: CertificateResponse) -> Self {
-        Self {
-            certificate: resp.tls_certificate.into_bytes(),
-            private_key: resp.tls_private_key.into_bytes(),
-        }
+impl TryFrom<CertificateResponse> for TlsCertificate {
+    type Error = rustls_pki_types::pem::Error;
+    fn try_from(resp: CertificateResponse) -> Result<Self, Self::Error> {
+        // we convert the certificate and private key from PEM to DER format to save space
+        let private_key_bytes = resp.tls_private_key.into_bytes();
+        let private_key = PrivateKeyDer::from_pem_slice(&private_key_bytes[0..])?;
+        let cert_bytes = resp.tls_certificate.into_bytes();
+        let cert = CertificateDer::from_pem_slice(&cert_bytes[0..])?;
+        Ok(Self {
+            certificate: cert.to_vec(),
+            private_key: private_key.secret_der().to_vec(),
+        })
     }
 }
 
