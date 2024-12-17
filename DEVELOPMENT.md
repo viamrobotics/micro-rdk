@@ -80,6 +80,8 @@ Note that this disables incremental compilation for dev builds because
 
 ### Fixing `+esp` Builds on MacOS
 
+#### Use `CRATE_CC_NO_DEFAULTS`
+
 If you are building `Micro-RDK` for ESP32 on a macOS machine and you
 receive an error like the following:
 
@@ -105,6 +107,52 @@ you know the syntax for that, please submit a PR to this
 repository. It is possible that a resolution of [this upstream `cargo `issue](https://github.com/rust-lang/cargo/issues/10273)
  may be a prerequisite.
 
+#### Homebrew Python is not usable by default
+
+The Python packaging made available with Homebrew [is not intended for
+end-user
+consumption](https://justinmayer.com/posts/homebrew-python-is-not-for-you/). Attempts
+to install packages outside of a virtual environment of some sort will
+result in messages like the following:
+
+```
+$ python3 -m pip install foo
+error: externally-managed-environment
+× This environment is externally managed
+╰─> To install Python packages system-wide, try brew install
+    xyz, where xyz is the package you are trying to
+    install.
+
+    If you wish to install a non-brew-packaged Python package,
+    create a virtual environment using python3 -m venv path/to/venv.
+    Then use path/to/venv/bin/python and path/to/venv/bin/pip.
+
+    If you wish to install a non-brew packaged Python application,
+    it may be easiest to use pipx install xyz, which will manage a
+    virtual environment for you. Make sure you have pipx installed.
+
+note: If you believe this is a mistake, please contact your Python installation or OS distribution provider. You can override this, at the risk of breaking your Python installation or OS, by passing --break-system-packages.
+hint: See PEP 668 for the detailed specification.
+```
+
+Unfortunately, the ESP-IDF ecosystem explicitly depends on being able
+to install python packages for its own ends, specifically, the
+`virtualenv` package.
+
+This conflict is unfortunate, and there are only two somewhat unsavory
+paths forward:
+
+- Use a different Python installation which is not externally
+  managed. There are many ways to obtain a version of Python
+  independent from the one in Homebrew which will not prevent ESP-IDF
+  from installing the packages it wants to install (e.g. with
+  [`asdf`](https://asdf-vm.com/)).
+
+- Forcibly pre-install the `virtualenv` package by running `python3
+  -m pip install --user --break-system-packages virtualenv`. This will
+  permit the ESP-IDF build scripts to skip the attempt to install
+  `virtualenv` because it is already installed. However, per the scary
+  name of the flag, it risks breaking system packages.
 
 ### Patching in the local `micro-rdk` Monorepo at Tree Level
 
