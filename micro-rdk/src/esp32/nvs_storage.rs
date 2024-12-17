@@ -41,6 +41,7 @@ pub struct NVSStorage {
     // esp-idf-svc partition driver ensures that only one handle of a type can be created
     // so inner mutability can be achieves safely with RefCell
     nvs: Rc<RefCell<EspCustomNvs>>,
+    partition_name: CString,
 }
 
 impl NVSStorage {
@@ -51,6 +52,9 @@ impl NVSStorage {
 
         Ok(Self {
             nvs: Rc::new(nvs.into()),
+            partition_name: CString::new(partition_name).map_err(|_| {
+                EspError::from_non_zero(NonZeroI32::new(ESP_ERR_INVALID_ARG).unwrap())
+            })?,
         })
     }
 
@@ -126,29 +130,29 @@ impl NVSStorage {
     }
 }
 
+const BYTES_PER_ENTRY: usize = 32;
+
 impl StorageDiagnostic for NVSStorage {
     type Error = NVSStorageError;
     fn log_space_diagnostic(&self) -> Result<(), Self::Error> {
-        let part_name = CString::new("nvs")
-            .map_err(|_| EspError::from_non_zero(NonZeroI32::new(ESP_ERR_INVALID_ARG).unwrap()))?;
         let mut stats: nvs_stats_t = Default::default();
-        esp!(unsafe { nvs_get_stats(part_name.as_ptr(), &mut stats as *mut _) })?;
+        esp!(unsafe { nvs_get_stats(self.partition_name.as_ptr(), &mut stats as *mut _) })?;
 
-        // 32 bytes per entry
         let used_entries = stats.used_entries;
-        let used_space = used_entries * 32;
-        let used_page_header_space = (used_entries % 125) * 32;
+        let used_space = used_entries * BYTES_PER_ENTRY;
+        let total_space = stats.total_entries * BYTES_PER_ENTRY;
 
-        let used_space = used_space + used_page_header_space;
-        let total_space = stats.total_entries * 32;
-
-        log::info!("CREDENTIAL STORAGE STATS: {:?} bytes used", used_space);
         // From experimentation we have found that NVS requires 4000 bytes of
-        // unused space for reasons unknown. The percentage portion of the calculation
-        // comes from the maximum allowed blob size stated in the ESP32 documentation
+        // unused space for reasons unknown. The percentage portion of the calculation (0.976)
+        // comes from the blob size restriction as stated in the ESP32 documentation
         // on NVS
         let total_usable_space = (0.976 * (total_space as f64)) - 4000.0;
         let percentage_used = (used_space as f64) / total_usable_space;
+        log::info!(
+            "Credential storage stats: {:?} of {:?} bytes used",
+            used_space,
+            total_space
+        );
         if percentage_used > 0.9 {
             log::warn!(
                 "{:?} of {:?} bytes used, consider examination of storage usage",
