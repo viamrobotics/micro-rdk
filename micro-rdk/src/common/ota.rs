@@ -107,33 +107,36 @@ struct EspAppDesc {
 pub(crate) enum ConfigError {
     #[error("version {0} has length {1}, maximum allowed characters is {2}")]
     InvalidVersionLen(String, usize, usize),
-    #[error("the given url {0}, is not a valid URI: {1}")]
+    #[error("the url `{0}`, is not valid: {1}")]
     InvalidUrl(String, String),
     #[error(transparent)]
     AttributeError(#[from] AttributeError),
-    #[error("config missing attribute `{0}`")]
+    #[error("required config attribute `{0}` not found")]
     MissingAttribute(String),
-    #[error("config missing value for `{0}`")]
+    #[error("value missing for field `{0}`")]
     MissingValue(String),
     #[error("{0}")]
     Other(String),
 }
 
-// TODO(RSDK-9214): surface (and use) underlying errors properly, use transparent where possible
 #[derive(Error, Debug)]
 pub(crate) enum OtaError {
+    #[error("error occured during abort process: {0}")]
+    AbortError(String),
     #[error("{0}")]
     ConfigError(#[from] ConfigError),
     #[error(transparent)]
     NetworkError(#[from] hyper::Error),
-    #[error("error getting the writer handle for OTA: {0}")]
-    HandleError(String),
+    #[error("{0}")]
+    UpdateError(String),
     #[error("failed to initialize ota process")]
     InitError,
     #[error("new image of {0} bytes is larger than target partition of {1} bytes")]
     InvalidImageSize(usize, usize),
     #[error("failed to retrieve firmware header info from binary, firmware may not be valid for this system: {0}")]
     InvalidFirmware(String),
+    #[error("error writing firmware to update partition: {0}")]
+    WriteError(String),
     #[error("{0}")]
     Other(String),
 }
@@ -232,7 +235,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 unsafe { esp_ota_get_next_update_partition(std::ptr::null()) };
 
             if ptr.is_null() {
-                let e = OtaError::HandleError(
+                let e = OtaError::UpdateError(
                     "failed to obtain a handle to the next OTA update partition, device may not be partitioned properly for OTA".to_string(),
                 );
                 log::warn!("{}", e.to_string());
@@ -379,12 +382,12 @@ impl<S: OtaMetadataStorage> OtaService<S> {
         #[cfg(feature = "esp32")]
         let (mut ota, running_fw_info) = {
             let ota = EspOta::new().map_err(|e| {
-                OtaError::HandleError(format!("failed to initiate ota partition handle: {}", e))
+                OtaError::UpdateError(format!("failed to initiate ota partition handle: {}", e))
             })?;
             let fw_info = ota
                 .get_running_slot()
                 .map_err(|e| {
-                    OtaError::HandleError(format!(
+                    OtaError::UpdateError(format!(
                         "failed to get handle to running ota partition: {}",
                         e
                     ))
@@ -454,7 +457,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 #[cfg(feature = "esp32")]
                 update_handle
                     .abort()
-                    .map_err(|e| OtaError::HandleError(format!("{:?}", e)))?;
+                    .map_err(|e| OtaError::AbortError(format!("{:?}", e)))?;
                 return Err(OtaError::InvalidImageSize(
                     data.len() + nwritten,
                     self.max_size,
@@ -465,12 +468,12 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             #[cfg(feature = "esp32")]
             update_handle
                 .write(&data)
-                .map_err(|e| OtaError::Other(e.to_string()))?;
+                .map_err(|e| OtaError::WriteError(e.to_string()))?;
             #[cfg(not(feature = "esp32"))]
             let _n = update_handle
                 .write(&data)
                 .await
-                .map_err(|e| OtaError::Other(e.to_string()))?;
+                .map_err(|e| OtaError::Write(e.to_string()))?;
             // TODO change back to 'n' after impl async writer
             nwritten += data.len();
             log::info!(
@@ -490,7 +493,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             #[cfg(feature = "esp32")]
             update_handle
                 .abort()
-                .map_err(|e| OtaError::HandleError(format!("{:?}", e)))?;
+                .map_err(|e| OtaError::AbortError(format!("{:?}", e)))?;
 
             return Err(OtaError::Other(
                 "nbytes written did not match file size".to_string(),
@@ -505,7 +508,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             );
             update_handle
                 .complete()
-                .map_err(|e| OtaError::HandleError(format!("{:?}", e)))
+                .map_err(|e| OtaError::UpdateError(format!("{:?}", e)))
         }?;
 
         log::info!("updating firmware metadata in NVS");
