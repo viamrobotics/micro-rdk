@@ -13,7 +13,7 @@ use std::future::Future;
 use crate::common::app_client::{
     AppClient, AppClientBuilder, AppClientError, PeriodicAppClientTask,
 };
-use crate::common::credentials_storage::TlsCertificate;
+use crate::common::credentials_storage::{StorageDiagnostic, TlsCertificate};
 use crate::common::webrtc::signaling_server::SignalingServer;
 use std::marker::PhantomData;
 use std::net::{SocketAddr, TcpListener};
@@ -91,23 +91,33 @@ impl From<&proto::app::v1::CloudConfig> for RobotCloudConfig {
 
 #[cfg(not(feature = "ota"))]
 pub trait ViamServerStorage:
-    RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static
+    RobotConfigurationStorage + WifiCredentialStorage + StorageDiagnostic + Clone + 'static
 {
 }
 #[cfg(not(feature = "ota"))]
 impl<T> ViamServerStorage for T where
-    T: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static
+    T: RobotConfigurationStorage + WifiCredentialStorage + StorageDiagnostic + Clone + 'static
 {
 }
 
 #[cfg(feature = "ota")]
 pub trait ViamServerStorage:
-    RobotConfigurationStorage + WifiCredentialStorage + OtaMetadataStorage + Clone + 'static
+    RobotConfigurationStorage
+    + WifiCredentialStorage
+    + OtaMetadataStorage
+    + StorageDiagnostic
+    + Clone
+    + 'static
 {
 }
 #[cfg(feature = "ota")]
 impl<T> ViamServerStorage for T where
-    T: RobotConfigurationStorage + WifiCredentialStorage + OtaMetadataStorage + Clone + 'static
+    T: RobotConfigurationStorage
+        + WifiCredentialStorage
+        + OtaMetadataStorage
+        + StorageDiagnostic
+        + Clone
+        + 'static
 {
 }
 
@@ -454,6 +464,9 @@ where
     }
 
     pub(crate) async fn run(&mut self) -> ! {
+        if let Err(err) = self.storage.log_space_diagnostic() {
+            log::error!("error logging storage diagnostic: {:?}", err);
+        }
         // The first step is to check whether or not credentials are populated in
         // storage. If not, we should go straight to provisioning.
         //
@@ -643,6 +656,7 @@ where
                     })
                     .ok()
             } else {
+                log::info!("falling back to stored TLS certificate");
                 Some(self.storage.get_tls_certificate().ok())
             }
             .flatten();
@@ -662,6 +676,10 @@ where
                     };
                 }
             }
+        }
+
+        if let Err(err) = self.storage.log_space_diagnostic() {
+            log::error!("error logging storage diagnostic: {:?}", err);
         }
 
         let (tx, rx) = async_channel::bounded(1);
