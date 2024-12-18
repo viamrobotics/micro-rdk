@@ -100,10 +100,30 @@ size:
 	find . -name "esp-build.map" -exec ${IDF_PATH}/tools/idf_size.py {} \;
 
 build-esp32-bin: build-esp32-ota
-	cargo +esp espflash save-image --package micro-rdk-server --features=ota --merge --chip esp32 target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin -T micro-rdk-server/esp32/ota_8mb_partitions.csv -s 8mb --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --release
+	cargo +esp espflash save-image \
+		--skip-update-check \
+		--package=micro-rdk-server \
+		--features=ota \
+		--chip=esp32 \
+		--partition-table=micro-rdk-server/esp32/ota_8mb_partitions.csv \
+		--flash-size=8mb \
+		--bin=micro-rdk-server-esp32 \
+		--target=xtensa-esp32-espidf \
+		-Zbuild-std=std,panic_abort --release \
+		target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin \
+		--merge
 
 build-esp32-ota:
-	cargo +esp espflash save-image --package micro-rdk-server --features=ota --chip=esp32 ./target/xtensa-esp32-espidf/micro-rdk-server-esp32-ota.bin --bin=micro-rdk-server-esp32 --partition-table=micro-rdk-server/esp32/ota_8mb_partitions.csv --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --release
+	cargo +esp espflash save-image \
+		--skip-update-check \
+		--package=micro-rdk-server \
+		--features=ota \
+		--chip=esp32 \
+		--bin=micro-rdk-server-esp32 \
+		--partition-table=micro-rdk-server/esp32/ota_8mb_partitions.csv \
+		--target=xtensa-esp32-espidf \
+		-Zbuild-std=std,panic_abort --release \
+		./target/xtensa-esp32-espidf/micro-rdk-server-esp32-ota.bin
 
 serve-ota: build-esp32-ota
 	cargo r --package ota-server

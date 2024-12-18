@@ -1,23 +1,25 @@
 # Over-The-Air (OTA) Updates
 
 
-> OTA is experimental and in active development. Breaking changes should be expected often. Check this document frequently for updates
+**OTA is in active development. Breaking changes should be expected. Check this document frequently for updates.****
 
 
 ## Workflow
 
-In app.viam, add the following to the `services` array; you can alternatively add a `generic` service then edit it to match the following
+In [app.viam.com](app.viam.com), add the following to the `services` array; you can alternatively add a `generic` service then edit it to match the following
+
+### OTA Service Config
 
 ```json
-    {
-      "name": "OTA",
+	{
+	  "name": "OTA",
       "namespace": "rdk",
       "type": "generic",
       "model": "ota_service",
       "attributes": {
-        "url": "",
-        "version": ""
-		}
+        "url": <firmware-download-url>,
+        "version": <some-tag>
+	  }
 	}
 ```
 
@@ -27,33 +29,41 @@ In the `url` field, enter the url where a firmware will be downloaded from
    - for cloud-hosted resources, embedded auth in the url is easiest, we don't support tokens yet
 
 
-The `version` field is equivalent to a `tag` and can be any arbitrary string of up to 128 characters. After successfully applying the new firmware, this `version` will be stored in NVS. This values is compared to that of the latest machine config from app.viam and will trigger the update process.
+The `version` field is equivalent to a `tag` and can be any arbitrary string of up to 128 characters. 
+After successfully applying the new firmware, this `version` will be stored in NVS. 
+This values is compared to that of the latest machine config from app.viam.com and will trigger the update process.
 
 
 ## Requirements
 
-- An esp32 wrover-e with 8MB of flash memory.
+- an esp32 WROVER-E with 8MB or more of flash memory
+- a partition table (ex `partitions.csv`) with `otadata`, `ota_0`, and `ota_1` partitions
 
-## Build Process
 
 ## Primer
 
-```
-# ESP-IDF Partition Table
-# Name,   Type, SubType, Offset,  Size, Flags
-nvs,      data, nvs,     0x9000,  0x4000,
-otadata,  data, ota,     0xd000,  0x2000,
-phy_init, data, phy,     0xf000,  0x1000,
-factory,  app,  factory, 0x10000,  1M,
-ota_0,    app,  ota_0,   0x110000, 1M,
-ota_1,    app,  ota_1,   0x210000, 1M,
+Consider firmware built with the following partition table:
 
 ```
+# ESP-IDF Partition Table
+
+# Name,   Type, SubType, Offset,  Size, Flags
+# Note: if you have increased the bootloader size, make sure to update the offsets to avoid overlap
+nvs,	       data,	nvs,	  0x9000,	0x6000,
+otadata,       data,	ota,	  0xF000,	0x2000,
+phy_init,      data,	phy, 	  0x11000, 	0x1000,
+ota_0,	       app,	    ota_0,	  ,		    0x377000,
+ota_1,	       app,	    ota_1,	  ,		    0x377000,
+```
+
+The `otadata` partition contains information on which OTA partition to boot from and the states of the `ota_*` partitions.
 
 The terms 'firmware' or 'binary' can be a bit generic.
 In this section, we will refer to two types of binaries that can be built.
-1. a Merged Binary
-2. an App Image
+1. a Merged Image
+2. an [Application (App) Image](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/app_image_format.html)
+
+> Note: in the absence of a `factory` partition `ota_0` fills the same initial role.
 
 ## Full Build
 
@@ -61,30 +71,42 @@ If a device is built with the above partition table, the `make build-esp32-bin` 
 - the bootloader
 - the partition table mapping (`partitions.csv`)
 - populated partitions (with partition headers) according to the mapping
-
+/
 The command `make flash-esp32-bin` writes this entire merged binary to the device's flash memory.
 
-This is the build workflow which must be used if you want to update a device's partition table; for example, to make a device capable of OTA.
+This is the build workflow which must be used to:
+- flash a new device for the first time
+- update a device's partition table
+  - for example, make a device capable of OTA.
 
 **This is not the build that should be hosted at the `url` in the service config.**
-You can confirm this by using `ls -l` in your build directory to compare the size of the binary to your partition table.
+You can confirm this by using `ls -l** in your build directory to compare the size of the binary to your partition table.
 
-### OTA Build
-The `ota` build consists of *only*:
-- the type-specific partition header, `esp_app_desc_t`
+## OTA Build
+The `ota` build produces an app image (described above), which internally consists of:
+- the type-specific partition header, `esp_app_desc_t**
 - the application image that contains the program instructions
 
-This build must be within the size limits for the `ota0` and `ota1` partitions specified by a device's *current* partition table.
+**This app image is what you must host, see [Firmware Hosting Options](#firmware-hosting-options).**
 
-To update a device's partition table, use the method in the Full Build workflow.
+This build must be within the size limits of the smallest `ota_*` partition in a device's *current* partition table. 
+
+In this document's example, both the `ota_0` and `ota_1` partitions are ~3.4 MB. 
+The command underlying `make build-esp32-ota` takes the partition table as input so it **should** fail, additionally, target devices must be programmed to verify at runtime that the assertion holds.
+
+To update a device's partition table, use the method in the [Full Build](#full-build) workflow.
 
 
-## Firmware Upload and Hosting Options
-- Local
-  - Use `make serve-ota` to point to create a local endpoint serving the ota build.
+## Firmware Hosting Options
+### Local
+  - use `make serve-dev-ota` to create a local endpoint for serving the ota app image
   - the command will build the ota firmware first before serving the url
 
 ### Cloud
-- if using a cloud hosting solution, generate a `url` for downloading your firmware that includes auth embedded in the url if possible.
 
-## Internals
+The OTA Service in the micro-rdk currently supports **only HTTP/2**, this means that the hosting platform must support HTTP/2 connections. 
+
+While not all blob storage platform support HTTP/2, many offer Content Delivery Network (CDN) solutions that do.
+
+We don't currently support tokens in the [OTA Service Config](#ota-service-config), so if permissions are required to access the endpoint they must be embedded in the URL itself.
+
