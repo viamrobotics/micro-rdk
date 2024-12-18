@@ -89,6 +89,7 @@ stun_codec.workspace = true
 thiserror.workspace = true
 trackable.workspace = true
 uuid = { workspace = true, features = ["v4"]}
+snap.workspace = true
 
 [build-dependencies]
 embuild.workspace = true
