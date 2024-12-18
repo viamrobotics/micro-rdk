@@ -2,7 +2,12 @@
 use bytes::Bytes;
 use hyper::{http::uri::InvalidUri, Uri};
 use prost::{DecodeError, Message};
-use std::{cell::RefCell, rc::Rc};
+use snap::{read::FrameDecoder, write::FrameEncoder};
+use std::{
+    cell::RefCell,
+    io::{Read, Write},
+    rc::Rc,
+};
 use thiserror::Error;
 
 use crate::{
@@ -34,6 +39,8 @@ pub enum NVSStorageError {
     NVSValueDecodeError(#[from] DecodeError),
     #[error(transparent)]
     NVSUriParseError(#[from] InvalidUri),
+    #[error(transparent)]
+    NVSRobotConfigCompressionError(#[from] std::io::Error),
 }
 
 #[derive(Clone)]
@@ -207,13 +214,44 @@ impl RobotConfigurationStorage for NVSStorage {
     }
 
     fn store_robot_configuration(&self, cfg: &RobotConfig) -> Result<(), Self::Error> {
-        self.set_blob(NVS_ROBOT_CONFIG_KEY, cfg.encode_to_vec().into())?;
+        // Normally, we would just rely on blob comparison in
+        // `NVSStorage::set_blob` to dedup the write, but if snappy
+        // compression of the robot config isn't entirely
+        // deterministic, then that protection would be defeated. So,
+        // check the preimages here instead, and if they are
+        // equivalent, skip writing.
+        if self.has_robot_configuration() {
+            if let Ok(cached_cfg) = self.get_robot_configuration() {
+                if cached_cfg == *cfg {
+                    return Ok(());
+                }
+            }
+        }
+
+        let encoded_cfg = cfg.encode_to_vec();
+        let mut compressor = FrameEncoder::new(Vec::new());
+        compressor
+            .write_all(&encoded_cfg[..])
+            .map_err(NVSStorageError::NVSRobotConfigCompressionError)?;
+        let compressed = compressor
+            .into_inner()
+            .map_err(|e| NVSStorageError::NVSRobotConfigCompressionError(e.into_error()))?;
+        log::info!(
+            "robot configuration compressed for NVS storage: {} bytes before, {} bytes after",
+            encoded_cfg.len(),
+            compressed.len()
+        );
+        self.set_blob(NVS_ROBOT_CONFIG_KEY, compressed.into())?;
         Ok(())
     }
 
     fn get_robot_configuration(&self) -> Result<RobotConfig, Self::Error> {
-        let robot_config = self.get_blob(NVS_ROBOT_CONFIG_KEY)?;
-        RobotConfig::decode(&robot_config[..]).map_err(NVSStorageError::NVSValueDecodeError)
+        let mut decompressed_robot_config = vec![];
+        FrameDecoder::new(&self.get_blob(NVS_ROBOT_CONFIG_KEY)?[..])
+            .read_to_end(&mut decompressed_robot_config)
+            .map_err(NVSStorageError::NVSRobotConfigCompressionError)?;
+        RobotConfig::decode(&decompressed_robot_config[..])
+            .map_err(NVSStorageError::NVSValueDecodeError)
     }
 
     fn reset_robot_configuration(&self) -> Result<(), Self::Error> {
