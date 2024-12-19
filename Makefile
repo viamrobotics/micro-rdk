@@ -68,10 +68,10 @@ upload: cargo-ver
 	cargo +esp espflash flash --package micro-rdk-server --monitor --partition-table micro-rdk-server/esp32/partitions.csv --baud 460800 -f 80mhz --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
 
 test:
-	cargo test -p micro-rdk --lib --features native
+	cargo test -p micro-rdk --lib --features native,ota
 
 clippy-native:
-	cargo clippy -p micro-rdk --no-deps --features native  -- -Dwarnings
+	cargo clippy -p micro-rdk --no-deps --features native,ota  -- -Dwarnings
 
 clippy-esp32:
 	cargo +esp clippy -p micro-rdk  --features esp32,ota  --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
@@ -99,11 +99,34 @@ doc-open:
 size:
 	find . -name "esp-build.map" -exec ${IDF_PATH}/tools/idf_size.py {} \;
 
-build-esp32-bin:
-	cargo +esp espflash save-image --package micro-rdk-server --merge --chip esp32 target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin -T micro-rdk-server/esp32/partitions.csv -s 4mb  --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort --release
+build-esp32-bin: build-esp32-ota
+	cargo +esp espflash save-image \
+		--skip-update-check \
+		--package=micro-rdk-server \
+		--features=ota \
+		--chip=esp32 \
+		--bin=micro-rdk-server-esp32 \
+		--partition-table=micro-rdk-server/esp32/ota_8mb_partitions.csv \
+		--target=xtensa-esp32-espidf \
+		-Zbuild-std=std,panic_abort --release \
+		--flash-size=8mb \
+		--merge \
+		target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin
 
 build-esp32-ota:
-	cargo +esp espflash save-image --package micro-rdk-server --features=ota --chip=esp32 ./target/xtensa-esp32-espidf/micro-rdk-server-esp32-ota.bin --bin=micro-rdk-server-esp32 --partition-table=micro-rdk-server/esp32/ota_8mb_partitions.csv --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --release
+	cargo +esp espflash save-image \
+		--skip-update-check \
+		--package=micro-rdk-server \
+		--features=ota \
+		--chip=esp32 \
+		--bin=micro-rdk-server-esp32 \
+		--partition-table=micro-rdk-server/esp32/ota_8mb_partitions.csv \
+		--target=xtensa-esp32-espidf \
+		-Zbuild-std=std,panic_abort --release \
+		target/xtensa-esp32-espidf/micro-rdk-server-esp32-ota.bin
+
+serve-ota: build-esp32-ota
+	cargo r --package ota-dev-server
 
 flash-esp32-bin:
 ifneq (,$(wildcard ./target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin))
