@@ -139,6 +139,10 @@ pub trait OtaMetadataStorage {
     fn reset_ota_metadata(&self) -> Result<(), Self::Error>;
 }
 
+pub trait StorageDiagnostic {
+    fn log_space_diagnostic(&self);
+}
+
 #[derive(Default)]
 struct RAMCredentialStorageInner {
     robot_creds: Option<RobotCredentials>,
@@ -298,6 +302,10 @@ impl WifiCredentialStorage for RAMStorage {
         let _ = inner_ref.wifi_creds.take();
         Ok(())
     }
+}
+
+impl StorageDiagnostic for RAMStorage {
+    fn log_space_diagnostic(&self) {}
 }
 
 impl From<Infallible> for ServerError {
