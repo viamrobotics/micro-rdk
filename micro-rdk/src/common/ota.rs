@@ -119,6 +119,7 @@ pub(crate) enum ConfigError {
     Other(String),
 }
 
+#[allow(dead_code)]
 #[derive(Error, Debug)]
 pub(crate) enum OtaError {
     #[error("error occured during abort process: {0}")]
@@ -473,11 +474,11 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             let _n = update_handle
                 .write(&data)
                 .await
-                .map_err(|e| OtaError::Write(e.to_string()))?;
+                .map_err(|e| OtaError::WriteError(e.to_string()))?;
             // TODO change back to 'n' after impl async writer
             nwritten += data.len();
             log::info!(
-                "updating next OTA partition at {}: {}/{} bytes written",
+                "updating next OTA partition at {:#x}: {}/{} bytes written",
                 self.address,
                 nwritten,
                 file_len
@@ -523,7 +524,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
         // Test experimental ffi accesses here to be recoverable without flashing
         #[cfg(feature = "esp32")]
         {
-            log::info!("rebooting to load firmware from `{}`", self.address);
+            log::info!("rebooting to load firmware from `{:#x}`", self.address);
             // TODO(RSDK-9464): flush logs to app.viam before restarting
             esp_idf_svc::hal::reset::restart();
         }
