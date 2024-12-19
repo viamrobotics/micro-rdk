@@ -109,3 +109,10 @@ While not all blob storage platform support HTTP/2, many offer Content Delivery 
 
 We don't currently support tokens in the [OTA Service Config](#ota-service-config), so if permissions are required to access the endpoint they must be embedded in the URL itself.
 
+## Related Links
+
+> Links may point to latest branches of documentation to reduce chances of dead links; reference the appropriate version if available.
+
+- [Over The Air Updates](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/ota.html) - Espressif
+- [Partition Tables](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/partition-tables.html) - Espressif
+- [App Image Format](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/app_image_format.html) - Espressif
