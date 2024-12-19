@@ -125,7 +125,7 @@ build-esp32-ota:
 		target/xtensa-esp32-espidf/micro-rdk-server-esp32-ota.bin
 
 serve-ota: build-esp32-ota
-	cargo r --package ota-server
+	cargo r --package ota-dev-server
 
 flash-esp32-bin:
 ifneq (,$(wildcard ./target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin))
