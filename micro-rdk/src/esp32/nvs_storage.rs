@@ -133,10 +133,14 @@ impl NVSStorage {
 const BYTES_PER_ENTRY: usize = 32;
 
 impl StorageDiagnostic for NVSStorage {
-    type Error = NVSStorageError;
-    fn log_space_diagnostic(&self) -> Result<(), Self::Error> {
+    fn log_space_diagnostic(&self) {
         let mut stats: nvs_stats_t = Default::default();
-        esp!(unsafe { nvs_get_stats(self.partition_name.as_ptr(), &mut stats as *mut _) })?;
+        if let Err(err) =
+            esp!(unsafe { nvs_get_stats(self.partition_name.as_ptr(), &mut stats as *mut _) })
+        {
+            log::error!("could not acquire NVS stats: {:?}", err);
+            return;
+        }
 
         let used_entries = stats.used_entries;
         let used_space = used_entries * BYTES_PER_ENTRY;
@@ -147,20 +151,17 @@ impl StorageDiagnostic for NVSStorage {
         // comes from the blob size restriction as stated in the ESP32 documentation
         // on NVS
         let total_usable_space = (0.976 * (total_space as f64)) - 4000.0;
-        let percentage_used = (used_space as f64) / total_usable_space;
-        log::info!(
-            "Credential storage stats: {:?} of {:?} bytes of NVS storage used",
+        let fraction_used = (used_space as f64) / total_usable_space;
+        log::log!(
+            if fraction_used > 0.9 {
+                log::Level::Warn
+            } else {
+                log::Level::Info
+            },
+            "NVS stats: {:?} bytes used of {:?} available",
             used_space,
             total_space
         );
-        if percentage_used > 0.9 {
-            log::warn!(
-                "{:?} of {:?} bytes used, consider examination of NVS usage",
-                used_space,
-                total_space
-            );
-        }
-        Ok(())
     }
 }
 

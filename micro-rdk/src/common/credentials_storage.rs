@@ -140,8 +140,7 @@ pub trait OtaMetadataStorage {
 }
 
 pub trait StorageDiagnostic {
-    type Error: Error + Debug + Into<ServerError>;
-    fn log_space_diagnostic(&self) -> Result<(), Self::Error>;
+    fn log_space_diagnostic(&self);
 }
 
 #[derive(Default)]
@@ -306,11 +305,9 @@ impl WifiCredentialStorage for RAMStorage {
 }
 
 impl StorageDiagnostic for RAMStorage {
-    type Error = Infallible;
-    fn log_space_diagnostic(&self) -> Result<(), Self::Error> {
+    fn log_space_diagnostic(&self) {
         let used_space = size_of_val(self);
         log::info!("CREDENTIAL STORAGE STATS: {:?} bytes used", used_space);
-        Ok(())
     }
 }
 

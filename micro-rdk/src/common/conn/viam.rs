@@ -464,9 +464,7 @@ where
     }
 
     pub(crate) async fn run(&mut self) -> ! {
-        if let Err(err) = self.storage.log_space_diagnostic() {
-            log::error!("error logging storage diagnostic: {:?}", err);
-        }
+        self.storage.log_space_diagnostic();
         // The first step is to check whether or not credentials are populated in
         // storage. If not, we should go straight to provisioning.
         //
@@ -656,7 +654,7 @@ where
                     })
                     .ok()
             } else {
-                log::info!("falling back to stored TLS certificate");
+                log::info!("Failed to obtain certificates from app, will attempt to load any stored certificates");
                 Some(self.storage.get_tls_certificate().ok())
             }
             .flatten();
@@ -678,9 +676,7 @@ where
             }
         }
 
-        if let Err(err) = self.storage.log_space_diagnostic() {
-            log::error!("error logging storage diagnostic: {:?}", err);
-        }
+        self.storage.log_space_diagnostic();
 
         let (tx, rx) = async_channel::bounded(1);
 
