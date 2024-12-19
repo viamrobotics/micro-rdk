@@ -13,12 +13,12 @@ In [app.viam.com](app.viam.com), add the following to the `services` array; you 
 ```json
 	{
 	  "name": "OTA",
-      "namespace": "rdk",
-      "type": "generic",
-      "model": "ota_service",
-      "attributes": {
-        "url": <firmware-download-url>,
-        "version": <some-tag>
+    "namespace": "rdk",
+    "type": "generic",
+    "model": "ota_service",
+    "attributes": {
+      "url": <firmware-download-url>,
+      "version": <some-tag>
 	  }
 	}
 ```
