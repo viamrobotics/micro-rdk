@@ -11,16 +11,16 @@ In [app.viam.com](app.viam.com), add the following to the `services` array; you 
 ### OTA Service Config
 
 ```json
-	{
-	  "name": "OTA",
-    "namespace": "rdk",
-    "type": "generic",
-    "model": "ota_service",
-    "attributes": {
-      "url": <firmware-download-url>,
-      "version": <some-tag>
-	  }
-	}
+{
+  "name": "OTA",
+  "namespace": "rdk",
+  "type": "generic",
+  "model": "ota_service",
+  "attributes": {
+    "url": <firmware-download-url>,
+    "version": <some-tag>
+  }
+}
 ```
 
 
