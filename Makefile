@@ -109,7 +109,8 @@ build-esp32-bin: build-esp32-ota
 		--partition-table=micro-rdk-server/esp32/ota_8mb_partitions.csv \
 		--target=xtensa-esp32-espidf \
 		-Zbuild-std=std,panic_abort --release \
-		--merge
+		--flash-size=8mb \
+		--merge \
 		target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin
 
 build-esp32-ota:

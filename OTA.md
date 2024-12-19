@@ -31,7 +31,7 @@ In the `url` field, enter the url where a firmware will be downloaded from
 
 The `version` field is equivalent to a `tag` and can be any arbitrary string of up to 128 characters. 
 After successfully applying the new firmware, this `version` will be stored in NVS. 
-This values is compared to that of the latest machine config from app.viam.com and will trigger the update process.
+This value is compared to that of the latest machine config from app.viam.com and will trigger the update process.
 
 
 ## Requirements
@@ -80,7 +80,7 @@ This is the build workflow which must be used to:
   - for example, make a device capable of OTA.
 
 **This is not the build that should be hosted at the `url` in the service config.**
-You can confirm this by using `ls -l** in your build directory to compare the size of the binary to your partition table.
+You can confirm this by using `ls -l` in your build directory to compare the size of the binary to your partition table; the Merged Image will about the size of the full partition table, `8MB` in this example.
 
 ## OTA Build
 
@@ -107,7 +107,7 @@ The OTA Service in the micro-rdk currently supports **only HTTP/2**, this means 
 
 While not all blob storage platform support HTTP/2, many offer Content Delivery Network (CDN) solutions that do.
 
-We don't currently support tokens in the [OTA Service Config](#ota-service-config), so if permissions are required to access the endpoint they must be embedded in the URL itself.
+We don't currently support authentication tokens in the [OTA Service Config](#ota-service-config), so if permissions are required to access the endpoint they must be embedded in the URL as query params.
 
 ## Related Links
 
