@@ -2,20 +2,20 @@
 use bytes::Bytes;
 use hyper::{http::uri::InvalidUri, Uri};
 use prost::{DecodeError, Message};
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, ffi::CString, num::NonZeroI32, rc::Rc};
 use thiserror::Error;
 
 use crate::{
     common::{
         credentials_storage::{
-            RobotConfigurationStorage, RobotCredentials, TlsCertificate, WifiCredentialStorage,
-            WifiCredentials,
+            RobotConfigurationStorage, RobotCredentials, StorageDiagnostic, TlsCertificate,
+            WifiCredentialStorage, WifiCredentials,
         },
         grpc::{GrpcError, ServerError},
     },
     esp32::esp_idf_svc::{
         nvs::{EspCustomNvs, EspCustomNvsPartition, EspNvs},
-        sys::EspError,
+        sys::{esp, nvs_get_stats, nvs_stats_t, EspError, ESP_ERR_INVALID_ARG},
     },
     proto::{app::v1::RobotConfig, provisioning::v1::CloudConfig},
 };
@@ -41,6 +41,7 @@ pub struct NVSStorage {
     // esp-idf-svc partition driver ensures that only one handle of a type can be created
     // so inner mutability can be achieves safely with RefCell
     nvs: Rc<RefCell<EspCustomNvs>>,
+    partition_name: CString,
 }
 
 impl NVSStorage {
@@ -51,6 +52,9 @@ impl NVSStorage {
 
         Ok(Self {
             nvs: Rc::new(nvs.into()),
+            partition_name: CString::new(partition_name).map_err(|_| {
+                EspError::from_non_zero(NonZeroI32::new(ESP_ERR_INVALID_ARG).unwrap())
+            })?,
         })
     }
 
@@ -123,6 +127,41 @@ impl NVSStorage {
         let mut nvs = self.nvs.borrow_mut();
         let _ = nvs.remove(key)?;
         Ok(())
+    }
+}
+
+const BYTES_PER_ENTRY: usize = 32;
+
+impl StorageDiagnostic for NVSStorage {
+    fn log_space_diagnostic(&self) {
+        let mut stats: nvs_stats_t = Default::default();
+        if let Err(err) =
+            esp!(unsafe { nvs_get_stats(self.partition_name.as_ptr(), &mut stats as *mut _) })
+        {
+            log::error!("could not acquire NVS stats: {:?}", err);
+            return;
+        }
+
+        let used_entries = stats.used_entries;
+        let used_space = used_entries * BYTES_PER_ENTRY;
+        let total_space = stats.total_entries * BYTES_PER_ENTRY;
+
+        // From experimentation we have found that NVS requires 4000 bytes of
+        // unused space for reasons unknown. The percentage portion of the calculation (0.976)
+        // comes from the blob size restriction as stated in the ESP32 documentation
+        // on NVS
+        let total_usable_space = (0.976 * (total_space as f64)) - 4000.0;
+        let fraction_used = (used_space as f64) / total_usable_space;
+        log::log!(
+            if fraction_used > 0.9 {
+                log::Level::Warn
+            } else {
+                log::Level::Info
+            },
+            "NVS stats: {:?} bytes used of {:?} available",
+            used_space,
+            total_space
+        );
     }
 }
 
