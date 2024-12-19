@@ -28,23 +28,15 @@ impl ViamH2Connector for NativeH2Connector {
         connection: Async<TcpStream>,
     ) -> Result<std::pin::Pin<Box<dyn IntoHttp2Stream>>, std::io::Error> {
         if self.srv_cert.is_some() && self.srv_key.is_some() {
-            let cert_chain = rustls_pemfile::certs(&mut BufReader::new(
-                self.srv_cert.as_ref().unwrap().as_slice(),
-            ))
-            .map(|c| rustls::Certificate(c.unwrap().to_vec()))
-            .collect();
-            let priv_keys = rustls_pemfile::private_key(&mut BufReader::new(
-                self.srv_key.as_ref().unwrap().as_slice(),
-            ))
-            .unwrap()
-            .map(|k| rustls::PrivateKey(k.secret_der().to_vec()));
+            let priv_keys = rustls::PrivateKey(self.srv_key.clone().unwrap());
+            let cert_chain = vec![rustls::Certificate(self.srv_cert.clone().unwrap())];
             let mut cfg = ServerConfig::builder()
                 .with_safe_default_cipher_suites()
                 .with_safe_default_kx_groups()
                 .with_protocol_versions(&[&rustls::version::TLS12])
                 .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?
                 .with_no_client_auth()
-                .with_single_cert(cert_chain, priv_keys.unwrap())
+                .with_single_cert(cert_chain, priv_keys)
                 .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
             cfg.alpn_protocols = vec!["h2".as_bytes().to_vec()];
             Ok(Box::pin(NativeStreamAcceptor(
