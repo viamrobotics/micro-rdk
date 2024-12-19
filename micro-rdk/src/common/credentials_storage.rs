@@ -305,10 +305,7 @@ impl WifiCredentialStorage for RAMStorage {
 }
 
 impl StorageDiagnostic for RAMStorage {
-    fn log_space_diagnostic(&self) {
-        let used_space = size_of_val(self);
-        log::info!("CREDENTIAL STORAGE STATS: {:?} bytes used", used_space);
-    }
+    fn log_space_diagnostic(&self) {}
 }
 
 impl From<Infallible> for ServerError {
