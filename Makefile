@@ -105,13 +105,12 @@ build-esp32-bin: build-esp32-ota
 		--package=micro-rdk-server \
 		--features=ota \
 		--chip=esp32 \
-		--partition-table=micro-rdk-server/esp32/ota_8mb_partitions.csv \
-		--flash-size=8mb \
 		--bin=micro-rdk-server-esp32 \
+		--partition-table=micro-rdk-server/esp32/ota_8mb_partitions.csv \
 		--target=xtensa-esp32-espidf \
 		-Zbuild-std=std,panic_abort --release \
-		target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin \
 		--merge
+		target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin
 
 build-esp32-ota:
 	cargo +esp espflash save-image \
@@ -123,7 +122,7 @@ build-esp32-ota:
 		--partition-table=micro-rdk-server/esp32/ota_8mb_partitions.csv \
 		--target=xtensa-esp32-espidf \
 		-Zbuild-std=std,panic_abort --release \
-		./target/xtensa-esp32-espidf/micro-rdk-server-esp32-ota.bin
+		target/xtensa-esp32-espidf/micro-rdk-server-esp32-ota.bin
 
 serve-ota: build-esp32-ota
 	cargo r --package ota-server

@@ -67,12 +67,12 @@ In this section, we will refer to two types of binaries that can be built.
 
 ## Full Build
 
-If a device is built with the above partition table, the `make build-esp32-bin` command creates a Merged Binary that includes
+If a device is built with the above partition table, the `make build-esp32-bin` command creates a Merged Image that includes
 - the bootloader
 - the partition table mapping (`partitions.csv`)
 - populated partitions (with partition headers) according to the mapping
-/
-The command `make flash-esp32-bin` writes this entire merged binary to the device's flash memory.
+
+The command `make flash-esp32-bin` writes this entire Merged Image to the device's flash memory.
 
 This is the build workflow which must be used to:
 - flash a new device for the first time
@@ -83,16 +83,15 @@ This is the build workflow which must be used to:
 You can confirm this by using `ls -l** in your build directory to compare the size of the binary to your partition table.
 
 ## OTA Build
-The `ota` build produces an app image (described above), which internally consists of:
+
+The `make build-esp32-ota` command produces an App Image (described above), which internally consists of:
 - the type-specific partition header, `esp_app_desc_t**
 - the application image that contains the program instructions
 
 **This app image is what you must host, see [Firmware Hosting Options](#firmware-hosting-options).**
 
 This build must be within the size limits of the smallest `ota_*` partition in a device's *current* partition table. 
-
-In this document's example, both the `ota_0` and `ota_1` partitions are ~3.4 MB. 
-The command underlying `make build-esp32-ota` takes the partition table as input so it **should** fail, additionally, target devices must be programmed to verify at runtime that the assertion holds.
+This document assumes the user is using our included partition tables; should the final image be larger than the capacity of the ota partitions, the build will fail indicating so.
 
 To update a device's partition table, use the method in the [Full Build](#full-build) workflow.
 
