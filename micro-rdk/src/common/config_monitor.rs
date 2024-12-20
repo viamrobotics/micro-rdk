@@ -132,6 +132,7 @@ where
                         e
                     );
                 } else {
+                    // TODO(RSDK-9464): flush logs to app.viam before restarting
                     self.restart();
                 }
             }

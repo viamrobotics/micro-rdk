@@ -508,14 +508,10 @@ impl<S: OtaMetadataStorage> OtaService<S> {
 
         log::info!("firmware update complete");
 
-        // Test experimental ffi accesses here to be recoverable without flashing
+        // Note: test experimental ota ffi accesses here to be recoverable without flashing
         #[cfg(feature = "esp32")]
         {
-            log::info!(
-                "next reboot will load firmware from `{:#x}`",
-                self.address
-            );
-            // TODO(RSDK-9464): flush logs to app.viam before restarting
+            log::info!("next reboot will load firmware from `{:#x}`", self.address);
         }
 
         Ok(())
