@@ -512,11 +512,10 @@ impl<S: OtaMetadataStorage> OtaService<S> {
         #[cfg(feature = "esp32")]
         {
             log::info!(
-                "next rebooting will load firmware from `{:#x}`",
+                "next reboot will load firmware from `{:#x}`",
                 self.address
             );
             // TODO(RSDK-9464): flush logs to app.viam before restarting
-            esp_idf_svc::hal::reset::restart();
         }
 
         Ok(())
