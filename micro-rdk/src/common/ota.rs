@@ -274,12 +274,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
     }
 
     pub(crate) async fn needs_update(&self) -> bool {
-        let curr_metadata = self.stored_metadata().await;
-        if curr_metadata.version == self.pending_version {
-            false
-        } else {
-            true
-        }
+        self.stored_metadata().await.version != self.pending_version
     }
 
     pub(crate) fn pending_version(&self) -> &str {
