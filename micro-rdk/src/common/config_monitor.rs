@@ -77,17 +77,11 @@ where
                 })
                 .await?;
 
-            if new_config
-                .as_ref()
-                .config
-                .as_ref()
-                .is_some_and(|cfg| *cfg != *self.curr_config)
-            {
-                log::info!("new robot config detected");
+            if let Some(config) = new_config.as_ref().config.as_ref() {
+                let mut reboot = false;
 
                 #[cfg(feature = "ota")]
                 {
-                    let config = new_config.config.clone().unwrap();
                     if let Some(service) = config
                         .services
                         .iter()
@@ -99,25 +93,20 @@ where
                             self.executor.clone(),
                         ) {
                             Ok(mut ota) => {
-                                let curr_metadata = ota.stored_metadata().await;
-                                if curr_metadata.version != ota.pending_version {
+                                if ota.needs_update().await {
                                     log::info!(
-                                        "firmware is out of date, updating from `{}` to `{}`",
-                                        curr_metadata.version,
-                                        ota.pending_version
+                                        "firmware update to `{}` detected",
+                                        ota.pending_version(),
                                     );
-                                    while let Err(ota_err) = ota.update().await {
+                                    if let Err(ota_err) = ota.update().await {
                                         log::error!("failed to update firmware: {}", ota_err);
-                                        log::info!("retrying firmware update");
+                                    };
+                                    if ota.needs_reboot() {
+                                        reboot = true;
                                     }
-                                    log::info!("firmware update successful");
-                                };
-                                let curr_metadata = ota.stored_metadata().await;
-                                log::info!(
-                                    "firmware is up to date: version `{}`",
-                                    curr_metadata.version
-                                );
+                                }
                             }
+
                             Err(e) => {
                                 log::error!("failed to build ota service: {}", e.to_string());
                                 log::error!("ota service config: {:?}", service);
@@ -126,12 +115,18 @@ where
                     }
                 }
 
-                if let Err(e) = self.storage.reset_robot_configuration() {
-                    log::warn!(
-                        "Failed to reset robot config after new config detected: {}",
-                        e
-                    );
-                } else {
+                if *config != *self.curr_config {
+                    if let Err(e) = self.storage.reset_robot_configuration() {
+                        log::warn!(
+                            "Failed to reset robot config after new config detected: {}",
+                            e
+                        );
+                    } else {
+                        reboot = true;
+                    }
+                }
+
+                if reboot {
                     // TODO(RSDK-9464): flush logs to app.viam before restarting
                     self.restart();
                 }

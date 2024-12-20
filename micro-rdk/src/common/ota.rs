@@ -163,9 +163,10 @@ pub(crate) struct OtaService<S: OtaMetadataStorage> {
     connector: OtaConnector,
     storage: S,
     url: String,
-    pub(crate) pending_version: String,
+    pending_version: String,
     max_size: usize,
     address: usize,
+    needs_reboot: bool,
 }
 
 impl<S: OtaMetadataStorage> OtaService<S> {
@@ -178,6 +179,10 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             .get_ota_metadata()
             .inspect_err(|e| log::warn!("failed to get ota metadata from nvs: {}", e))
             .unwrap_or_default()
+    }
+
+    pub(crate) fn needs_reboot(&self) -> bool {
+        self.needs_reboot
     }
 
     pub(crate) fn from_config(
@@ -264,10 +269,27 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             pending_version,
             max_size,
             address,
+            needs_reboot: false,
         })
     }
 
+    pub(crate) async fn needs_update(&self) -> bool {
+        let curr_metadata = self.stored_metadata().await;
+        if curr_metadata.version == self.pending_version {
+            false
+        } else {
+            true
+        }
+    }
+
+    pub(crate) fn pending_version(&self) -> &str {
+        &self.pending_version
+    }
     pub(crate) async fn update(&mut self) -> Result<(), OtaError> {
+        if !(self.needs_update().await) {
+            return Ok(());
+        }
+
         let mut uri = self
             .url
             .parse::<hyper::Uri>()
@@ -507,12 +529,19 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             .map_err(|e| OtaError::Other(e.to_string()))?;
 
         log::info!("firmware update complete");
-
+        // verifies nvs was stored correctly
+        let curr_metadata = self.stored_metadata().await;
+        log::info!(
+            "firmware update successful: version `{}`",
+            curr_metadata.version
+        );
         // Note: test experimental ota ffi accesses here to be recoverable without flashing
         #[cfg(feature = "esp32")]
         {
             log::info!("next reboot will load firmware from `{:#x}`", self.address);
         }
+
+        self.needs_reboot = true;
 
         Ok(())
     }

@@ -480,6 +480,14 @@ where
             self.provision().await;
         }
 
+        #[cfg(feature = "ota")]
+        {
+            if self.storage.has_ota_metadata() {
+                let metadata = self.storage.get_ota_metadata().unwrap_or_default();
+                log::info!("firmware version: {}", metadata.version);
+            }
+        }
+
         // Since provisioning was run and completed, credentials are properly populated
         // if wifi manager is configured loop forever until wifi is connected
         if let Some(wifi) = self.wifi_manager.as_ref().as_ref() {
@@ -569,7 +577,6 @@ where
 
         #[cfg(feature = "esp32")]
         let hook = || crate::esp32::esp_idf_svc::hal::reset::restart();
-
         #[cfg(not(feature = "esp32"))]
         let hook = || std::process::exit(0);
 
