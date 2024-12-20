@@ -51,7 +51,7 @@ use super::server::{IncomingConnectionManager, WebRtcConfiguration};
 use crate::common::provisioning::server::AsNetwork;
 
 #[cfg(feature = "ota")]
-use crate::common::{credentials_storage::OtaMetadataStorage, ota};
+use crate::common::credentials_storage::OtaMetadataStorage;
 
 pub struct RobotCloudConfig {
     local_fqdn: String,
@@ -364,8 +364,6 @@ where
             http2_server_port: self.http2_server_port,
             wifi_manager: self.wifi_manager.into(),
             app_client_tasks: self.app_client_tasks,
-            #[cfg(feature = "ota")]
-            ota_service_task: Default::default(),
             max_concurrent_connections: self.max_concurrent_connections,
             network: Some(network),
         }
@@ -400,8 +398,6 @@ where
             http2_server_port: self.http2_server_port,
             wifi_manager: Rc::new(self.wifi_manager),
             app_client_tasks: self.app_client_tasks,
-            #[cfg(feature = "ota")]
-            ota_service_task: None,
             max_concurrent_connections: self.max_concurrent_connections,
             network: None,
         }
@@ -420,8 +416,6 @@ pub struct ViamServer<Storage, C, M> {
     http2_server_port: u16,
     wifi_manager: Rc<Option<Box<dyn WifiManager>>>,
     app_client_tasks: Vec<Box<dyn PeriodicAppClientTask>>,
-    #[cfg(feature = "ota")]
-    ota_service_task: Option<Task<()>>,
     max_concurrent_connections: usize,
     network: Option<Box<dyn Network>>,
 }
@@ -573,47 +567,20 @@ where
             log::error!("couldn't store the robot configuration reason {:?}", err);
         }
 
+        let hook = if cfg!(feature = "esp32") {
+            || crate::esp32::esp_idf_svc::hal::reset::restart()
+        } else {
+            || std::process::exit(0)
+        };
+
         let config_monitor_task = Box::new(ConfigMonitor::new(
             config.clone(),
             self.storage.clone(),
-            || std::process::exit(0),
+            #[cfg(feature = "ota")]
+            self.executor.clone(),
+            hook,
         ));
         self.app_client_tasks.push(config_monitor_task);
-
-        #[cfg(feature = "ota")]
-        {
-            log::debug!("ota feature enabled");
-
-            if let Some(service) = config
-                .services
-                .iter()
-                .find(|&service| service.model == *ota::OTA_MODEL_TRIPLET)
-            {
-                match ota::OtaService::from_config(
-                    service,
-                    self.storage.clone(),
-                    self.executor.clone(),
-                ) {
-                    Ok(mut ota) => {
-                        self.ota_service_task
-                            .replace(self.executor.spawn(async move {
-                                if let Err(e) = ota.update().await {
-                                    log::error!("failed to complete ota update {}", e);
-                                }
-                            }));
-                    }
-                    Err(e) => {
-                        log::error!("failed to build ota service: {}", e.to_string());
-                        log::error!("ota service config: {:?}", service);
-                    }
-                };
-            } else {
-                log::error!(
-                    "ota enabled, but no service of type `{}` found in robot config",
-                    ota::OTA_MODEL_TYPE
-                );
-            }
-        }
 
         let mut robot = LocalRobot::from_cloud_config(
             self.executor.clone(),

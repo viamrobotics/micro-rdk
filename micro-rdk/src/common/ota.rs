@@ -156,9 +156,6 @@ impl OtaMetadata {
     pub fn new(version: String) -> Self {
         Self { version }
     }
-    pub(crate) fn version(&self) -> &str {
-        &self.version
-    }
 }
 
 pub(crate) struct OtaService<S: OtaMetadataStorage> {
@@ -166,12 +163,23 @@ pub(crate) struct OtaService<S: OtaMetadataStorage> {
     connector: OtaConnector,
     storage: S,
     url: String,
-    pending_version: String,
+    pub(crate) pending_version: String,
     max_size: usize,
     address: usize,
 }
 
 impl<S: OtaMetadataStorage> OtaService<S> {
+    pub(crate) async fn stored_metadata(&self) -> OtaMetadata {
+        if !self.storage.has_ota_metadata() {
+            log::info!("no ota metadata currently stored in NVS");
+        }
+
+        self.storage
+            .get_ota_metadata()
+            .inspect_err(|e| log::warn!("failed to get ota metadata from nvs: {}", e))
+            .unwrap_or_default()
+    }
+
     pub(crate) fn from_config(
         new_config: &ServiceConfig,
         storage: S,
@@ -260,27 +268,6 @@ impl<S: OtaMetadataStorage> OtaService<S> {
     }
 
     pub(crate) async fn update(&mut self) -> Result<(), OtaError> {
-        let stored_metadata = if !self.storage.has_ota_metadata() {
-            log::info!("no ota metadata currently stored in NVS");
-            OtaMetadata::default()
-        } else {
-            self.storage
-                .get_ota_metadata()
-                .inspect_err(|e| log::warn!("failed to get ota metadata from nvs: {}", e))
-                .unwrap_or_default()
-        };
-
-        if self.pending_version == stored_metadata.version() {
-            log::info!("firmware is up-to-date: `{}`", stored_metadata.version);
-            return Ok(());
-        }
-
-        log::info!(
-            "firmware is out of date, proceeding with update from version `{}` to version `{}`",
-            stored_metadata.version,
-            self.pending_version
-        );
-
         let mut uri = self
             .url
             .parse::<hyper::Uri>()
@@ -524,7 +511,10 @@ impl<S: OtaMetadataStorage> OtaService<S> {
         // Test experimental ffi accesses here to be recoverable without flashing
         #[cfg(feature = "esp32")]
         {
-            log::info!("rebooting to load firmware from `{:#x}`", self.address);
+            log::info!(
+                "next rebooting will load firmware from `{:#x}`",
+                self.address
+            );
             // TODO(RSDK-9464): flush logs to app.viam before restarting
             esp_idf_svc::hal::reset::restart();
         }

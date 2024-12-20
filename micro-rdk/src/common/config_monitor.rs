@@ -8,13 +8,16 @@ use crate::{
 };
 use async_io::Timer;
 use futures_lite::{Future, FutureExt};
-use std::fmt::Debug;
-use std::pin::Pin;
-use std::time::Duration;
+use std::{fmt::Debug, pin::Pin, time::Duration};
+
+#[cfg(feature = "ota")]
+use crate::common::{exec::Executor, ota};
 
 pub struct ConfigMonitor<'a, Storage> {
     curr_config: Box<RobotConfig>, //config for robot gotten from last robot startup, aka inputted from entry
     storage: Storage,
+    #[cfg(feature = "ota")]
+    executor: Executor,
     restart_hook: Box<dyn Fn() + 'a>,
 }
 
@@ -27,11 +30,14 @@ where
     pub fn new(
         curr_config: Box<RobotConfig>,
         storage: Storage,
+        #[cfg(feature = "ota")] executor: Executor,
         restart_hook: impl Fn() + 'a,
     ) -> Self {
         Self {
             curr_config,
             storage,
+            #[cfg(feature = "ota")]
+            executor,
             restart_hook: Box::new(restart_hook),
         }
     }
@@ -72,9 +78,54 @@ where
                 .await?;
 
             if new_config
+                .as_ref()
                 .config
-                .is_some_and(|cfg| cfg != *self.curr_config)
+                .as_ref()
+                .is_some_and(|cfg| *cfg != *self.curr_config)
             {
+                log::info!("new robot config detected");
+
+                #[cfg(feature = "ota")]
+                {
+                    let config = new_config.config.clone().unwrap();
+                    if let Some(service) = config
+                        .services
+                        .iter()
+                        .find(|&service| service.model == *ota::OTA_MODEL_TRIPLET)
+                    {
+                        match ota::OtaService::from_config(
+                            service,
+                            self.storage.clone(),
+                            self.executor.clone(),
+                        ) {
+                            Ok(mut ota) => {
+                                let curr_metadata = ota.stored_metadata().await;
+                                if curr_metadata.version != ota.pending_version {
+                                    log::info!(
+                                        "firmware is out of date, updating from `{}` to `{}`",
+                                        curr_metadata.version,
+                                        ota.pending_version
+                                    );
+                                    while let Err(ota_err) = ota.update().await {
+                                        log::error!("failed to update firmware: {}", ota_err);
+                                        log::info!("retrying firmware update");
+                                    }
+                                    log::info!("firmware update successful");
+                                };
+                                let curr_metadata = ota.stored_metadata().await;
+                                log::info!(
+                                    "firmware is up to date: version `{}`",
+                                    curr_metadata.version
+                                );
+                            }
+                            Err(e) => {
+                                log::error!("failed to build ota service: {}", e.to_string());
+                                log::error!("ota service config: {:?}", service);
+                            }
+                        };
+                    }
+                }
+
                 if let Err(e) = self.storage.reset_robot_configuration() {
                     log::warn!(
                         "Failed to reset robot config after new config detected: {}",
