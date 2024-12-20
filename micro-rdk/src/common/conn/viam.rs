@@ -568,8 +568,7 @@ where
         }
 
         #[cfg(feature = "esp32")]
-        let hook =
-            || crate::esp32::esp_idf_svc::hal::reset::restart();
+        let hook = || crate::esp32::esp_idf_svc::hal::reset::restart();
 
         #[cfg(not(feature = "esp32"))]
         let hook = || std::process::exit(0);
