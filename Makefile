@@ -125,7 +125,7 @@ build-esp32-ota:
 		-Zbuild-std=std,panic_abort --release \
 		target/xtensa-esp32-espidf/micro-rdk-server-esp32-ota.bin
 
-serve-ota: build-esp32-ota
+serve-ota:
 	cargo r --package ota-dev-server
 
 flash-esp32-bin:
