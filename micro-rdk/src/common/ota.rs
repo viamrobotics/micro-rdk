@@ -167,6 +167,7 @@ pub(crate) struct OtaService<S: OtaMetadataStorage> {
     pending_version: String,
     max_size: usize,
     address: usize,
+    testing: bool,
 }
 
 impl<S: OtaMetadataStorage> OtaService<S> {
@@ -204,6 +205,21 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             Kind::StringValue(s) => Ok(s),
             _ => Err(ConfigError::Other(format!("invalid url value: {:?}", kind))),
         }?;
+
+        let testing = if let Some(k) = kind.fields.get("test") {
+            let v = k
+                .kind
+                .as_ref()
+                .unwrap_or(&crate::google::protobuf::value::Kind::BoolValue(false))
+                .try_into()
+                .unwrap();
+            match v {
+                Kind::BoolValue(b) => b,
+                _ => false,
+            }
+        } else {
+            false
+        };
 
         let pending_version = kind
             .fields
@@ -265,6 +281,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             pending_version,
             max_size,
             address,
+            testing,
         })
     }
 
@@ -275,7 +292,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
     /// Attempts to perform an OTA update.
     /// On success, returns an `Ok(true)` or `Ok(false)` indicating if a reboot is necessary.
     pub(crate) async fn update(&mut self) -> Result<bool, OtaError> {
-        if !(self.needs_update().await) {
+        if !(self.needs_update().await) && !self.testing {
             return Ok(false);
         }
 
