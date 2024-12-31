@@ -59,7 +59,8 @@ use thiserror::Error;
 #[cfg(not(feature = "esp32"))]
 use {bincode::Decode, futures_lite::AsyncWriteExt};
 
-const CONN_RETRY_SECS: u64 = 60;
+const CONN_RETRY_SECS: u64 = 1;
+const NUM_RETRY_CONN: usize = 3;
 const SIZEOF_APPDESC: usize = 256;
 const MAX_VER_LEN: usize = 128;
 pub const OTA_MODEL_TYPE: &str = "ota_service";
@@ -166,7 +167,6 @@ pub(crate) struct OtaService<S: OtaMetadataStorage> {
     pending_version: String,
     max_size: usize,
     address: usize,
-    needs_reboot: bool,
 }
 
 impl<S: OtaMetadataStorage> OtaService<S> {
@@ -179,10 +179,6 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             .get_ota_metadata()
             .inspect_err(|e| log::warn!("failed to get ota metadata from nvs: {}", e))
             .unwrap_or_default()
-    }
-
-    pub(crate) fn needs_reboot(&self) -> bool {
-        self.needs_reboot
     }
 
     pub(crate) fn from_config(
@@ -269,7 +265,6 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             pending_version,
             max_size,
             address,
-            needs_reboot: false,
         })
     }
 
@@ -277,12 +272,11 @@ impl<S: OtaMetadataStorage> OtaService<S> {
         self.stored_metadata().await.version != self.pending_version
     }
 
-    pub(crate) fn pending_version(&self) -> &str {
-        &self.pending_version
-    }
-    pub(crate) async fn update(&mut self) -> Result<(), OtaError> {
+    /// Attempts to perform an OTA update.
+    /// On success, returns an `Ok(true)` or `Ok(false)` indicating if a reboot is necessary.
+    pub(crate) async fn update(&mut self) -> Result<bool, OtaError> {
         if !(self.needs_update().await) {
-            return Ok(());
+            return Ok(false);
         }
 
         let mut uri = self
@@ -308,7 +302,14 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             uri = hyper::Uri::from_parts(parts).map_err(|e| OtaError::Other(e.to_string()))?;
         };
 
+        let mut num_tries = 0;
         let (mut sender, conn) = loop {
+            num_tries += 1;
+            if num_tries == NUM_RETRY_CONN {
+                return Err(OtaError::Other(
+                    "failed to establish connection".to_string(),
+                ));
+            }
             match self.connector.connect_to(&uri) {
                 Ok(connection) => {
                     match connection.await {
@@ -536,8 +537,6 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             log::info!("next reboot will load firmware from `{:#x}`", self.address);
         }
 
-        self.needs_reboot = true;
-
-        Ok(())
+        Ok(true)
     }
 }

@@ -92,26 +92,16 @@ where
                             self.storage.clone(),
                             self.executor.clone(),
                         ) {
-                            Ok(mut ota) => {
-                                if ota.needs_update().await {
-                                    log::info!(
-                                        "firmware update to `{}` detected",
-                                        ota.pending_version(),
-                                    );
-                                    if let Err(ota_err) = ota.update().await {
-                                        log::error!("failed to update firmware: {}", ota_err);
-                                    };
-                                    if ota.needs_reboot() {
-                                        reboot = true;
-                                    }
-                                }
-                            }
-
-                            Err(e) => {
-                                log::error!("failed to build ota service: {}", e.to_string());
-                                log::error!("ota service config: {:?}", service);
-                            }
-                        };
+                            Ok(mut ota) => match ota.update().await {
+                                Ok(needs_reboot) => reboot = needs_reboot,
+                                Err(e) => log::error!("failed to complete ota update: {}", e),
+                            },
+                            Err(e) => log::error!(
+                                "failed to create ota service from config:{} - {:?}",
+                                e,
+                                service,
+                            ),
+                        }
                     }
                 }
 
