@@ -331,6 +331,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 Ok(connection) => {
                     match connection.await {
                         Ok(io) => {
+                            // TODO(RSDK-9617): add timeout for stalled download
                             match http2::Builder::new(self.exec.clone())
                                 .max_frame_size(16_384) // lowest configurable
                                 .timer(H2Timer)
