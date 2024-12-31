@@ -304,7 +304,6 @@ impl<S: OtaMetadataStorage> OtaService<S> {
 
         let mut num_tries = 0;
         let (mut sender, conn) = loop {
-            num_tries += 1;
             if num_tries == NUM_RETRY_CONN {
                 return Err(OtaError::Other(
                     "failed to establish connection".to_string(),
@@ -343,6 +342,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 CONN_RETRY_SECS
             );
             Timer::after(Duration::from_secs(CONN_RETRY_SECS)).await;
+            num_tries += 1;
         };
 
         let conn = Box::new(self.exec.spawn(async move {
