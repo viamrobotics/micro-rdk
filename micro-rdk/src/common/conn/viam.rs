@@ -482,10 +482,10 @@ where
 
         #[cfg(feature = "ota")]
         {
-            if self.storage.has_ota_metadata() {
-                let metadata = self.storage.get_ota_metadata().unwrap_or_default();
-                log::info!("firmware version: {}", metadata.version);
-            }
+            match self.storage.get_ota_metadata() {
+                Ok(metadata) => log::info!("firmware version: {}", metadata.version),
+                Err(e) => log::warn!("not OTA firmware metadata available: {}", e),
+            };
         }
 
         // Since provisioning was run and completed, credentials are properly populated
