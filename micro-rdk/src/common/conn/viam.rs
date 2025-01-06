@@ -575,17 +575,12 @@ where
             log::error!("couldn't store the robot configuration reason {:?}", err);
         }
 
-        #[cfg(feature = "esp32")]
-        let hook = || crate::esp32::esp_idf_svc::hal::reset::restart();
-        #[cfg(not(feature = "esp32"))]
-        let hook = || std::process::exit(0);
-
         let config_monitor_task = Box::new(ConfigMonitor::new(
             config.clone(),
             self.storage.clone(),
             #[cfg(feature = "ota")]
             self.executor.clone(),
-            hook,
+            || std::process::exit(0),
         ));
         self.app_client_tasks.push(config_monitor_task);
 
