@@ -122,7 +122,7 @@ pub(crate) enum ConfigError {
 
 #[allow(dead_code)]
 #[derive(Error, Debug)]
-pub(crate) enum OtaError {
+pub(crate) enum OtaError<S: OtaMetadataStorage> {
     #[error("error occured during abort process: {0}")]
     AbortError(String),
     #[error("{0}")]
@@ -137,6 +137,10 @@ pub(crate) enum OtaError {
     InvalidImageSize(usize, usize),
     #[error("failed to retrieve firmware header info from binary, firmware may not be valid for this system: {0}")]
     InvalidFirmware(String),
+    #[error("failed to update OTA metadata: expected updated version to be `{0}`, found `{1}`")]
+    UpdateMetadata(String, String),
+    #[error(transparent)]
+    StorageError(<S as OtaMetadataStorage>::Error),
     #[error("error writing firmware to update partition: {0}")]
     WriteError(String),
     #[error("{0}")]
@@ -170,19 +174,21 @@ pub(crate) struct OtaService<S: OtaMetadataStorage> {
 }
 
 impl<S: OtaMetadataStorage> OtaService<S> {
-    pub(crate) fn stored_metadata(&self) -> Result<OtaMetadata, OtaError> {
+    pub(crate) fn stored_metadata(&self) -> Result<OtaMetadata, OtaError<S>> {
         if !self.storage.has_ota_metadata() {
             log::info!("no OTA metadata currently stored in NVS");
         }
 
-        self.storage.get_ota_metadata()?
+        self.storage
+            .get_ota_metadata()
+            .map_err(OtaError::StorageError)
     }
 
     pub(crate) fn from_config(
         new_config: &ServiceConfig,
         storage: S,
         exec: Executor,
-    ) -> Result<Self, OtaError> {
+    ) -> Result<Self, OtaError<S>> {
         let kind = new_config.attributes.as_ref().ok_or_else(|| {
             ConfigError::Other("ota service config has no attributes".to_string())
         })?;
@@ -271,7 +277,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
 
     /// Attempts to perform an OTA update.
     /// On success, returns an `Ok(true)` or `Ok(false)` indicating if a reboot is necessary.
-    pub(crate) async fn update(&mut self) -> Result<bool, OtaError> {
+    pub(crate) async fn update(&mut self) -> Result<bool, OtaError<S>> {
         if !(self.needs_update()) {
             return Ok(false);
         }
@@ -523,11 +529,20 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             .map_err(|e| OtaError::Other(e.to_string()))?;
 
         // verifies nvs was stored correctly
-        let curr_metadata = self.stored_metadata();
+        let curr_metadata = self
+            .stored_metadata()
+            .inspect_err(|e| log::error!("OTA update failed to store new metadata: {e}"))?;
+        if curr_metadata.version != self.pending_version {
+            return Err(OtaError::UpdateMetadata(
+                self.pending_version.clone(),
+                curr_metadata.version,
+            ));
+        };
         log::info!(
             "firmware update successful: version `{}`",
             curr_metadata.version
         );
+
         // Note: test experimental ota ffi accesses here to be recoverable without flashing
         #[cfg(feature = "esp32")]
         {
