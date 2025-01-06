@@ -30,7 +30,8 @@ where
     pub fn new(
         curr_config: Box<RobotConfig>,
         storage: Storage,
-        #[cfg(feature = "ota")] executor: Executor,
+        #[cfg(feature = "ota")]
+        executor: Executor,
         restart_hook: impl Fn() + 'a,
     ) -> Self {
         Self {

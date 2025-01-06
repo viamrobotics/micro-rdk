@@ -170,15 +170,12 @@ pub(crate) struct OtaService<S: OtaMetadataStorage> {
 }
 
 impl<S: OtaMetadataStorage> OtaService<S> {
-    pub(crate) fn stored_metadata(&self) -> OtaMetadata {
+    pub(crate) fn stored_metadata(&self) -> Result<OtaMetadata, OtaError> {
         if !self.storage.has_ota_metadata() {
-            log::info!("no ota metadata currently stored in NVS");
+            log::info!("no OTA metadata currently stored in NVS");
         }
 
-        self.storage
-            .get_ota_metadata()
-            .inspect_err(|e| log::warn!("failed to get ota metadata from nvs: {}", e))
-            .unwrap_or_default()
+        self.storage.get_ota_metadata()?
     }
 
     pub(crate) fn from_config(
@@ -269,7 +266,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
     }
 
     pub(crate) fn needs_update(&self) -> bool {
-        self.stored_metadata().await.version != self.pending_version
+        self.stored_metadata().unwrap_or_default().version != self.pending_version
     }
 
     /// Attempts to perform an OTA update.
@@ -525,7 +522,6 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             })
             .map_err(|e| OtaError::Other(e.to_string()))?;
 
-        log::info!("firmware update complete");
         // verifies nvs was stored correctly
         let curr_metadata = self.stored_metadata();
         log::info!(
