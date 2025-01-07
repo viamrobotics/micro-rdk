@@ -30,7 +30,8 @@ where
     pub fn new(
         curr_config: Box<RobotConfig>,
         storage: Storage,
-        #[cfg(feature = "ota")] executor: Executor,
+        #[cfg(feature = "ota")]
+        executor: Executor,
         restart_hook: impl Fn() + 'a,
     ) -> Self {
         Self {
@@ -87,6 +88,7 @@ where
                         .iter()
                         .find(|&service| service.model == *ota::OTA_MODEL_TRIPLET)
                     {
+                        // TODO(RSDK-9676): new OtaService created at every invocation, not ideal
                         match ota::OtaService::from_config(
                             service,
                             self.storage.clone(),

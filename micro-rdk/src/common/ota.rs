@@ -190,7 +190,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
         exec: Executor,
     ) -> Result<Self, OtaError<S>> {
         let kind = new_config.attributes.as_ref().ok_or_else(|| {
-            ConfigError::Other("ota service config has no attributes".to_string())
+            ConfigError::Other("OTA service config has no attributes".to_string())
         })?;
 
         let url = kind
