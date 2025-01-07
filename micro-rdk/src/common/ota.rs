@@ -63,7 +63,7 @@ use {bincode::Decode, futures_lite::AsyncWriteExt};
 
 const CONN_RETRY_SECS: u64 = 1;
 const NUM_RETRY_CONN: usize = 3;
-const FRAME_TIMEOUT_SECS: u64 = 30;
+const DOWNLOAD_TIMEOUT_SECS: u64 = 30;
 const SIZEOF_APPDESC: usize = 256;
 const MAX_VER_LEN: usize = 128;
 pub const OTA_MODEL_TYPE: &str = "ota_service";
@@ -123,9 +123,8 @@ pub(crate) enum ConfigError {
     Other(String),
 }
 
-/// used to differentiate between no-frame and a timeout
 #[derive(Error, Debug)]
-pub(crate) enum FrameError {
+pub(crate) enum DownloadError {
     #[error("resolving next frame took longer than {0} seconds")]
     Timeout(usize),
     #[error(transparent)]
@@ -142,7 +141,7 @@ pub(crate) enum OtaError<S: OtaMetadataStorage> {
     #[error(transparent)]
     NetworkError(#[from] hyper::Error),
     #[error(transparent)]
-    StalledDownload(#[from] FrameError),
+    DownloadError(#[from] DownloadError),
     #[error("{0}")]
     UpdateError(String),
     #[error("failed to initialize ota process")]
@@ -331,7 +330,6 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 Ok(connection) => {
                     match connection.await {
                         Ok(io) => {
-                            // TODO(RSDK-9617): add timeout for stalled download
                             match http2::Builder::new(self.exec.clone())
                                 .max_frame_size(16_384) // lowest configurable
                                 .timer(H2Timer)
@@ -433,10 +431,10 @@ impl<S: OtaMetadataStorage> OtaService<S> {
         loop {
             match stream
                 .try_next()
-                .map_err(FrameError::Network)
+                .map_err(DownloadError::Network)
                 .or(async {
-                    async_io::Timer::after(Duration::from_secs(FRAME_TIMEOUT_SECS)).await;
-                    Err(FrameError::Timeout(FRAME_TIMEOUT_SECS as usize))
+                    async_io::Timer::after(Duration::from_secs(DOWNLOAD_TIMEOUT_SECS)).await;
+                    Err(DownloadError::Timeout(DOWNLOAD_TIMEOUT_SECS as usize))
                 })
                 .await
             {
@@ -517,7 +515,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                     update_handle
                         .abort()
                         .map_err(|e| OtaError::AbortError(format!("{:?}", e)))?;
-                    return Err(OtaError::StalledDownload(e));
+                    return Err(OtaError::Download(e));
                 }
             }
         }
