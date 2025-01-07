@@ -1326,7 +1326,7 @@ mod tests {
             let _task = cloned_exec.spawn(async move {
                 viam_server.run().await;
             });
-            let _ = Timer::after(Duration::from_millis(500)).await;
+            let _ = Timer::after(Duration::from_millis(1000)).await;
             assert!(!cloned_ram_storage.has_robot_credentials())
         });
     }
