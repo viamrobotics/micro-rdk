@@ -51,9 +51,9 @@ use crate::esp32::esp_idf_svc::{
     sys::{esp_ota_get_next_update_partition, esp_partition_t},
 };
 use async_io::Timer;
-use http_body_util::{BodyExt, Empty};
 use futures_lite::{FutureExt, StreamExt};
 use futures_util::TryFutureExt;
+use http_body_util::{BodyExt, Empty};
 use hyper::{body::Bytes, client::conn::http2, Request};
 use once_cell::sync::Lazy;
 use std::time::Duration;
