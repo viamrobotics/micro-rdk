@@ -212,6 +212,11 @@ mod tests {
     pub fn global_network_test_lock<'a>() -> MutexGuard<'a, ()> {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
         let lock = LOCK.get_or_init(|| Mutex::new(()));
-        lock.lock().unwrap()
+        lock.lock().unwrap_or_else(|lock_result| {
+            // the shared data is (), which is not modifiable
+            // therefore always in a consistent state
+            lock.clear_poison();
+            lock_result.into_inner()
+        })
     }
 }
