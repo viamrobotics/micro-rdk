@@ -515,7 +515,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                     update_handle
                         .abort()
                         .map_err(|e| OtaError::AbortError(format!("{:?}", e)))?;
-                    return Err(OtaError::Download(e));
+                    return Err(OtaError::DownloadError(e));
                 }
             }
         }
