@@ -23,7 +23,7 @@ description = "Viam RDK for microcontroller"
 edition = "2021"
 license = "AGPL-3.0"
 repository = "https://github.com/viamrobotics/micro-rdk"
-version = "0.3.3"
+version = "0.4.0-rc1"
 # TODO(RSDK-8992): Upgrade rust to latest esp-rs version
 rust-version = "1.83"
 
