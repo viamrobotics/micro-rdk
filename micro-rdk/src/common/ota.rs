@@ -432,7 +432,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
         loop {
             match stream
                 .try_next()
-                .map_err(|e| FrameError::Network(e))
+                .map_err(FrameError::Network)
                 .or(async {
                     async_io::Timer::after(Duration::from_secs(30)).await;
                     Err(FrameError::Timeout(30))
@@ -516,7 +516,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                     update_handle
                         .abort()
                         .map_err(|e| OtaError::AbortError(format!("{:?}", e)))?;
-                    return Err(OtaError::StalledDownload(e.into()));
+                    return Err(OtaError::StalledDownload(e));
                 }
             }
         }
