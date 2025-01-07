@@ -63,6 +63,7 @@ use {bincode::Decode, futures_lite::AsyncWriteExt};
 
 const CONN_RETRY_SECS: u64 = 1;
 const NUM_RETRY_CONN: usize = 3;
+const FRAME_TIMEOUT_SECS: u64 = 30;
 const SIZEOF_APPDESC: usize = 256;
 const MAX_VER_LEN: usize = 128;
 pub const OTA_MODEL_TYPE: &str = "ota_service";
@@ -434,8 +435,8 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 .try_next()
                 .map_err(FrameError::Network)
                 .or(async {
-                    async_io::Timer::after(Duration::from_secs(30)).await;
-                    Err(FrameError::Timeout(30))
+                    async_io::Timer::after(Duration::from_secs(FRAME_TIMEOUT_SECS)).await;
+                    Err(FrameError::Timeout(FRAME_TIMEOUT_SECS as usize))
                 })
                 .await
             {
