@@ -8,12 +8,13 @@ use thiserror::Error;
 use crate::{
     common::{
         credentials_storage::{
-            RobotConfigurationStorage, RobotCredentials, StorageDiagnostic, TlsCertificate,
-            WifiCredentialStorage, WifiCredentials,
+            EmptyStorageCollectionError, RobotConfigurationStorage, RobotCredentials,
+            StorageDiagnostic, TlsCertificate, WifiCredentialStorage, WifiCredentials,
         },
         grpc::{GrpcError, ServerError},
     },
     esp32::esp_idf_svc::{
+        handle::RawHandle,
         nvs::{EspCustomNvs, EspCustomNvsPartition, EspNvs},
         sys::{esp, nvs_get_stats, nvs_stats_t, EspError, ESP_ERR_INVALID_ARG},
     },
@@ -34,6 +35,8 @@ pub enum NVSStorageError {
     NVSValueDecodeError(#[from] DecodeError),
     #[error(transparent)]
     NVSUriParseError(#[from] InvalidUri),
+    #[error("nvs collection empty")]
+    NVSCollectionEmpty(#[from] EmptyStorageCollectionError),
 }
 
 #[derive(Clone)]
@@ -42,19 +45,32 @@ pub struct NVSStorage {
     // so inner mutability can be achieves safely with RefCell
     nvs: Rc<RefCell<EspCustomNvs>>,
     partition_name: CString,
+    part: EspCustomNvsPartition,
+}
+
+#[derive(Clone)]
+pub struct MultiNVSStorage {
+    parts: Vec<NVSStorage>,
+}
+
+impl MultiNVSStorage {
+    pub fn new(parts: Vec<NVSStorage>) -> Self {
+        Self { parts }
+    }
 }
 
 impl NVSStorage {
     // taking partition name as argument so we can use another NVS part name if we want to.
     pub fn new(partition_name: &str) -> Result<Self, NVSStorageError> {
         let partition: EspCustomNvsPartition = EspCustomNvsPartition::take(partition_name)?;
-        let nvs = EspNvs::new(partition, "VIAM_NS", true)?;
+        let nvs = EspNvs::new(partition.clone(), "VIAM_NS", true)?;
 
         Ok(Self {
             nvs: Rc::new(nvs.into()),
             partition_name: CString::new(partition_name).map_err(|_| {
                 EspError::from_non_zero(NonZeroI32::new(ESP_ERR_INVALID_ARG).unwrap())
             })?,
+            part: partition,
         })
     }
 
@@ -136,7 +152,7 @@ impl StorageDiagnostic for NVSStorage {
     fn log_space_diagnostic(&self) {
         let mut stats: nvs_stats_t = Default::default();
         if let Err(err) =
-            esp!(unsafe { nvs_get_stats(self.partition_name.as_ptr(), &mut stats as *mut _) })
+            esp!(unsafe { nvs_get_stats(self.part.handle() as _, &mut stats as *mut _) })
         {
             log::error!("could not acquire NVS stats: {:?}", err);
             return;
