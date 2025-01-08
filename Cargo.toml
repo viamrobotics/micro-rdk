@@ -9,6 +9,7 @@ members = [
   "micro-rdk-ffi",
   "examples/modular-drivers",
   "etc/ota-dev-server",
+  "micro-rdk-nmea",
 ]
 
 default-members = [

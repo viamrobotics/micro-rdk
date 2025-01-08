@@ -2828,6 +2828,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "micro-rdk-nmea"
+version = "0.4.0-rc2"
+dependencies = [
+ "micro-rdk",
+ "thiserror 2.0.4",
+]
+
+[[package]]
 name = "micro-rdk-server"
 version = "0.4.0-rc2"
 dependencies = [
