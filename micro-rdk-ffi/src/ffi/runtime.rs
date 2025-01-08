@@ -269,7 +269,7 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
             None
         }.expect("has_robot_config set in cfg, but build-time configuration failed to set robot credentials");
         ram_storage
-            .store_robot_credentials(cloud_conf)
+            .store_robot_credentials(&cloud_conf)
             .expect("Failed to store cloud config");
         if ROBOT_APP_ADDRESS.is_some() {
             ram_storage

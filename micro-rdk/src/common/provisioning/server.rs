@@ -256,7 +256,7 @@ where
                 })?;
 
             self.storage
-                .store_wifi_credentials(creds)
+                .store_wifi_credentials(&creds)
                 .map_err(|e| ServerError::new(GrpcError::RpcInternal, Some(Box::new(e.into()))))?;
 
             let resp = SetNetworkCredentialsResponse::default();
@@ -331,7 +331,8 @@ where
     fn set_smart_machine_credentials(&self, body: Bytes) -> Result<Bytes, ServerError> {
         let creds =
             SetSmartMachineCredentialsRequest::decode(body).map_err(|_| GrpcError::RpcInternal)?;
-        self.storage.store_robot_credentials(creds.cloud.unwrap())?;
+        self.storage
+            .store_robot_credentials(creds.cloud.as_ref().unwrap())?;
         let resp = SetSmartMachineCredentialsResponse::default();
 
         let len = resp.encoded_len();

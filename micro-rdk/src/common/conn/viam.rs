@@ -609,7 +609,7 @@ where
                     .await
                     .map(|cert_resp| {
                         let cert: TlsCertificate = cert_resp.into();
-                        match self.storage.store_tls_certificate(cert.clone()) {
+                        match self.storage.store_tls_certificate(&cert) {
                             Ok(_) => {
                                 log::debug!("stored TLS certificate received by app");
                             }
@@ -1290,7 +1290,7 @@ mod tests {
             secret: "".to_string(),
             app_address: LOCALHOST_URI.to_owned(),
         };
-        assert!(ram_storage.store_robot_credentials(creds).is_ok());
+        assert!(ram_storage.store_robot_credentials(&creds).is_ok());
 
         let mdns = NativeMdns::new("".to_owned(), network.get_ip());
         assert!(mdns.is_ok());
@@ -1350,7 +1350,7 @@ mod tests {
             secret: "".to_string(),
             app_address: LOCALHOST_URI.to_owned(),
         };
-        assert!(ram_storage.store_robot_credentials(creds).is_ok());
+        assert!(ram_storage.store_robot_credentials(&creds).is_ok());
 
         let mdns = NativeMdns::new("".to_owned(), network.get_ip());
         assert!(mdns.is_ok());
@@ -1460,7 +1460,7 @@ mod tests {
             app_address: LOCALHOST_URI.to_owned(),
         };
 
-        assert!(ram_storage.store_robot_credentials(creds).is_ok());
+        assert!(ram_storage.store_robot_credentials(&creds).is_ok());
 
         let mdns = NativeMdns::new("".to_owned(), network.get_ip());
         assert!(mdns.is_ok());
@@ -1787,7 +1787,7 @@ mod tests {
             _ => panic!("oops expected ipv4"),
         };
 
-        ram_storage.store_robot_credentials(creds).unwrap();
+        ram_storage.store_robot_credentials(&creds).unwrap();
 
         let mut a = ViamServerBuilder::new(ram_storage);
         let mdns = NativeMdns::new("".to_owned(), Ipv4Addr::new(0, 0, 0, 0)).unwrap();

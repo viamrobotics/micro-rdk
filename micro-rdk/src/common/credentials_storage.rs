@@ -103,7 +103,7 @@ impl From<CertificateResponse> for TlsCertificate {
 pub trait WifiCredentialStorage {
     type Error: Error + Debug + Into<ServerError>;
     fn has_wifi_credentials(&self) -> bool;
-    fn store_wifi_credentials(&self, creds: WifiCredentials) -> Result<(), Self::Error>;
+    fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error>;
     fn get_wifi_credentials(&self) -> Result<WifiCredentials, Self::Error>;
     fn reset_wifi_credentials(&self) -> Result<(), Self::Error>;
 }
@@ -111,7 +111,7 @@ pub trait WifiCredentialStorage {
 pub trait RobotConfigurationStorage {
     type Error: Error + Debug + Into<ServerError>;
     fn has_robot_credentials(&self) -> bool;
-    fn store_robot_credentials(&self, cfg: CloudConfig) -> Result<(), Self::Error>;
+    fn store_robot_credentials(&self, cfg: &CloudConfig) -> Result<(), Self::Error>;
     fn get_robot_credentials(&self) -> Result<RobotCredentials, Self::Error>;
     fn reset_robot_credentials(&self) -> Result<(), Self::Error>;
 
@@ -126,7 +126,7 @@ pub trait RobotConfigurationStorage {
     fn reset_robot_configuration(&self) -> Result<(), Self::Error>;
 
     fn has_tls_certificate(&self) -> bool;
-    fn store_tls_certificate(&self, creds: TlsCertificate) -> Result<(), Self::Error>;
+    fn store_tls_certificate(&self, creds: &TlsCertificate) -> Result<(), Self::Error>;
     fn get_tls_certificate(&self) -> Result<TlsCertificate, Self::Error>;
     fn reset_tls_certificate(&self) -> Result<(), Self::Error>;
 }
@@ -136,7 +136,7 @@ pub trait OtaMetadataStorage {
     type Error: Error + Debug + Into<ServerError>;
     fn has_ota_metadata(&self) -> bool;
     fn get_ota_metadata(&self) -> Result<OtaMetadata, Self::Error>;
-    fn store_ota_metadata(&self, ota_metadata: OtaMetadata) -> Result<(), Self::Error>;
+    fn store_ota_metadata(&self, ota_metadata: &OtaMetadata) -> Result<(), Self::Error>;
     fn reset_ota_metadata(&self) -> Result<(), Self::Error>;
 }
 
@@ -200,7 +200,7 @@ impl OtaMetadataStorage for RAMStorage {
         let inner_ref = self.0.lock().unwrap();
         inner_ref.ota_metadata.is_some()
     }
-    fn store_ota_metadata(&self, ota_metadata: OtaMetadata) -> Result<(), Self::Error> {
+    fn store_ota_metadata(&self, ota_metadata: &OtaMetadata) -> Result<(), Self::Error> {
         let mut inner_ref = self.0.lock().unwrap();
         let _ = inner_ref.ota_metadata.insert(ota_metadata.clone());
         Ok(())
@@ -239,10 +239,10 @@ where
             |val, s| val.or(s.reset_ota_metadata()),
         )
     }
-    fn store_ota_metadata(&self, ota_metadata: OtaMetadata) -> Result<(), Self::Error> {
+    fn store_ota_metadata(&self, ota_metadata: &OtaMetadata) -> Result<(), Self::Error> {
         self.into_iter().fold(
             Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
-            |val, s| val.or(s.store_ota_metadata(ota_metadata.clone())),
+            |val, s| val.or(s.store_ota_metadata(ota_metadata)),
         )
     }
 }
@@ -253,7 +253,7 @@ impl RobotConfigurationStorage for RAMStorage {
         let inner_ref = self.0.lock().unwrap();
         inner_ref.robot_creds.is_some()
     }
-    fn store_robot_credentials(&self, cfg: CloudConfig) -> Result<(), Self::Error> {
+    fn store_robot_credentials(&self, cfg: &CloudConfig) -> Result<(), Self::Error> {
         let creds: RobotCredentials = cfg.clone().try_into()?;
         let mut inner_ref = self.0.lock().unwrap();
         let _ = inner_ref.robot_creds.insert(creds);
@@ -299,7 +299,7 @@ impl RobotConfigurationStorage for RAMStorage {
         let inner_ref = self.0.lock().unwrap();
         inner_ref.tls_cert.is_some()
     }
-    fn store_tls_certificate(&self, creds: TlsCertificate) -> Result<(), Self::Error> {
+    fn store_tls_certificate(&self, creds: &TlsCertificate) -> Result<(), Self::Error> {
         let mut inner_ref = self.0.lock().unwrap();
         let _ = inner_ref.tls_cert.insert(creds.clone());
         Ok(())
@@ -379,10 +379,10 @@ where
             |val, s| val.or(s.store_app_address(uri)),
         )
     }
-    fn store_tls_certificate(&self, creds: TlsCertificate) -> Result<(), Self::Error> {
+    fn store_tls_certificate(&self, creds: &TlsCertificate) -> Result<(), Self::Error> {
         self.into_iter().fold(
             Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
-            |val, s| val.or(s.store_tls_certificate(creds.clone())),
+            |val, s| val.or(s.store_tls_certificate(creds)),
         )
     }
     fn store_robot_configuration(&self, cfg: &RobotConfig) -> Result<(), Self::Error> {
@@ -391,10 +391,10 @@ where
             |val, s| val.or(s.store_robot_configuration(cfg)),
         )
     }
-    fn store_robot_credentials(&self, cfg: CloudConfig) -> Result<(), Self::Error> {
+    fn store_robot_credentials(&self, cfg: &CloudConfig) -> Result<(), Self::Error> {
         self.into_iter().fold(
             Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
-            |val, s| val.or(s.store_robot_credentials(cfg.clone())),
+            |val, s| val.or(s.store_robot_credentials(cfg)),
         )
     }
     fn get_robot_configuration(&self) -> Result<RobotConfig, Self::Error> {
@@ -442,7 +442,7 @@ impl WifiCredentialStorage for RAMStorage {
         let inner_ref = self.0.lock().unwrap();
         inner_ref.wifi_creds.is_some()
     }
-    fn store_wifi_credentials(&self, creds: WifiCredentials) -> Result<(), Self::Error> {
+    fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error> {
         let mut inner_ref = self.0.lock().unwrap();
         let _ = inner_ref.wifi_creds.insert(creds.clone());
         Ok(())
@@ -470,10 +470,10 @@ where
             |val, s| val.or(s.get_wifi_credentials()),
         )
     }
-    fn store_wifi_credentials(&self, creds: WifiCredentials) -> Result<(), Self::Error> {
+    fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error> {
         self.into_iter().fold(
             Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
-            |val, s| val.or(s.store_wifi_credentials(creds.clone())),
+            |val, s| val.or(s.store_wifi_credentials(creds)),
         )
     }
     fn reset_wifi_credentials(&self) -> Result<(), Self::Error> {
@@ -536,7 +536,7 @@ mod tests {
 
         assert!(!v.has_robot_credentials());
         assert!(ram2
-            .store_robot_credentials(CloudConfig {
+            .store_robot_credentials(&CloudConfig {
                 app_address: "http://downloadramstorage.org".to_owned(),
                 id: "ram2".to_owned(),
                 secret: "secret".to_owned()
@@ -549,14 +549,14 @@ mod tests {
         assert_eq!(cred.robot_id, "ram2");
 
         assert!(ram1
-            .store_robot_credentials(CloudConfig {
+            .store_robot_credentials(&CloudConfig {
                 app_address: "http://downloadramstorage.org".to_owned(),
                 id: "ram1".to_owned(),
                 secret: "secret".to_owned()
             })
             .is_ok());
         assert!(ram2
-            .store_robot_credentials(CloudConfig {
+            .store_robot_credentials(&CloudConfig {
                 app_address: "http://downloadramstorage.org".to_owned(),
                 id: "ram2".to_owned(),
                 secret: "secret".to_owned()
@@ -574,7 +574,7 @@ mod tests {
         assert!(!v.has_robot_credentials());
 
         assert!(v
-            .store_robot_credentials(CloudConfig {
+            .store_robot_credentials(&CloudConfig {
                 app_address: "http://downloadramstorage.org".to_owned(),
                 id: "vec".to_owned(),
                 secret: "secret".to_owned()

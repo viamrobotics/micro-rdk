@@ -205,7 +205,7 @@ impl OtaMetadataStorage for NVSStorage {
         let version = self.get_string(NVS_OTA_VERSION_KEY)?;
         Ok(OtaMetadata { version })
     }
-    fn store_ota_metadata(&self, ota_metadata: OtaMetadata) -> Result<(), Self::Error> {
+    fn store_ota_metadata(&self, ota_metadata: &OtaMetadata) -> Result<(), Self::Error> {
         self.set_string(NVS_OTA_VERSION_KEY, &ota_metadata.version)
     }
     fn reset_ota_metadata(&self) -> Result<(), Self::Error> {
@@ -244,7 +244,7 @@ impl RobotConfigurationStorage for NVSStorage {
         self.erase_key(NVS_ROBOT_APP_ADDRESS)
     }
 
-    fn store_robot_credentials(&self, cfg: CloudConfig) -> Result<(), Self::Error> {
+    fn store_robot_credentials(&self, cfg: &CloudConfig) -> Result<(), Self::Error> {
         self.set_string(NVS_ROBOT_SECRET_KEY, &cfg.secret)?;
         self.set_string(NVS_ROBOT_ID_KEY, &cfg.id)?;
         self.set_string(NVS_ROBOT_APP_ADDRESS, &cfg.app_address)?;
@@ -290,9 +290,15 @@ impl RobotConfigurationStorage for NVSStorage {
         })
     }
 
-    fn store_tls_certificate(&self, creds: TlsCertificate) -> Result<(), Self::Error> {
-        self.set_blob(NVS_TLS_CERTIFICATE_KEY, Bytes::from(creds.certificate))?;
-        self.set_blob(NVS_TLS_PRIVATE_KEY_KEY, Bytes::from(creds.private_key))?;
+    fn store_tls_certificate(&self, creds: &TlsCertificate) -> Result<(), Self::Error> {
+        self.set_blob(
+            NVS_TLS_CERTIFICATE_KEY,
+            Bytes::from(creds.certificate.clone()),
+        )?;
+        self.set_blob(
+            NVS_TLS_PRIVATE_KEY_KEY,
+            Bytes::from(creds.private_key.clone()),
+        )?;
         Ok(())
     }
 
@@ -316,7 +322,7 @@ impl WifiCredentialStorage for NVSStorage {
         Ok(WifiCredentials { ssid, pwd })
     }
 
-    fn store_wifi_credentials(&self, creds: WifiCredentials) -> Result<(), Self::Error> {
+    fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error> {
         self.set_string(NVS_WIFI_SSID_KEY, &creds.ssid)?;
         self.set_string(NVS_WIFI_PASSWORD_KEY, &creds.pwd)?;
         Ok(())
