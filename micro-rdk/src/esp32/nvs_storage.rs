@@ -47,17 +47,6 @@ pub struct NVSStorage {
     part: EspCustomNvsPartition,
 }
 
-#[derive(Clone)]
-pub struct MultiNVSStorage {
-    parts: Vec<NVSStorage>,
-}
-
-impl MultiNVSStorage {
-    pub fn new(parts: Vec<NVSStorage>) -> Self {
-        Self { parts }
-    }
-}
-
 impl NVSStorage {
     // taking partition name as argument so we can use another NVS part name if we want to.
     pub fn new(partition_name: &str) -> Result<Self, NVSStorageError> {
