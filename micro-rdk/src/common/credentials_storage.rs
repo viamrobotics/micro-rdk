@@ -230,7 +230,7 @@ where
     fn get_ota_metadata(&self) -> Result<OtaMetadata, Self::Error> {
         self.into_iter().fold(
             Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
-            |val, s| val.or(s.get_ota_metadata()),
+            |val, s| val.or_else(|_| s.get_ota_metadata()),
         )
     }
     fn reset_ota_metadata(&self) -> Result<(), Self::Error> {
@@ -242,7 +242,7 @@ where
     fn store_ota_metadata(&self, ota_metadata: &OtaMetadata) -> Result<(), Self::Error> {
         self.into_iter().fold(
             Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
-            |val, s| val.or(s.store_ota_metadata(ota_metadata)),
+            |val, s| val.or_else(|_| s.store_ota_metadata(ota_metadata)),
         )
     }
 }
@@ -261,6 +261,7 @@ impl RobotConfigurationStorage for RAMStorage {
     }
     fn get_robot_credentials(&self) -> Result<RobotCredentials, Self::Error> {
         let inner_ref = self.0.lock().unwrap();
+        log::info!("get robot creds");
         inner_ref
             .robot_creds
             .clone()
@@ -269,6 +270,7 @@ impl RobotConfigurationStorage for RAMStorage {
     fn reset_robot_credentials(&self) -> Result<(), Self::Error> {
         let mut inner_ref = self.0.lock().unwrap();
         let _ = inner_ref.robot_creds.take();
+        log::info!("reset robot creds");
         Ok(())
     }
 
@@ -358,49 +360,49 @@ where
     fn get_robot_credentials(&self) -> Result<RobotCredentials, Self::Error> {
         self.into_iter().fold(
             Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
-            |val, s| val.or(s.get_robot_credentials()),
+            |val, s| val.or_else(|_| s.get_robot_credentials()),
         )
     }
     fn get_tls_certificate(&self) -> Result<TlsCertificate, Self::Error> {
         self.into_iter().fold(
             Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
-            |val, s| val.or(s.get_tls_certificate()),
+            |val, s| val.or_else(|_| s.get_tls_certificate()),
         )
     }
     fn get_app_address(&self) -> Result<Uri, Self::Error> {
         self.into_iter().fold(
             Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
-            |val, s| val.or(s.get_app_address()),
+            |val, s| val.or_else(|_| s.get_app_address()),
         )
     }
     fn store_app_address(&self, uri: &str) -> Result<(), Self::Error> {
         self.into_iter().fold(
             Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
-            |val, s| val.or(s.store_app_address(uri)),
+            |val, s| val.or_else(|_| s.store_app_address(uri)),
         )
     }
     fn store_tls_certificate(&self, creds: &TlsCertificate) -> Result<(), Self::Error> {
         self.into_iter().fold(
             Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
-            |val, s| val.or(s.store_tls_certificate(creds)),
+            |val, s| val.or_else(|_| s.store_tls_certificate(creds)),
         )
     }
     fn store_robot_configuration(&self, cfg: &RobotConfig) -> Result<(), Self::Error> {
         self.into_iter().fold(
             Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
-            |val, s| val.or(s.store_robot_configuration(cfg)),
+            |val, s| val.or_else(|_| s.store_robot_configuration(cfg)),
         )
     }
     fn store_robot_credentials(&self, cfg: &CloudConfig) -> Result<(), Self::Error> {
         self.into_iter().fold(
             Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
-            |val, s| val.or(s.store_robot_credentials(cfg)),
+            |val, s| val.or_else(|_| s.store_robot_credentials(cfg)),
         )
     }
     fn get_robot_configuration(&self) -> Result<RobotConfig, Self::Error> {
         self.into_iter().fold(
             Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
-            |val, s| val.or(s.get_robot_configuration()),
+            |val, s| val.or_else(|_| s.get_robot_configuration()),
         )
     }
     fn reset_app_address(&self) -> Result<(), Self::Error> {
@@ -467,13 +469,13 @@ where
     fn get_wifi_credentials(&self) -> Result<WifiCredentials, Self::Error> {
         self.into_iter().fold(
             Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
-            |val, s| val.or(s.get_wifi_credentials()),
+            |val, s| val.or_else(|_| s.get_wifi_credentials()),
         )
     }
     fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error> {
         self.into_iter().fold(
             Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
-            |val, s| val.or(s.store_wifi_credentials(creds)),
+            |val, s| val.or_else(|_| s.store_wifi_credentials(creds)),
         )
     }
     fn reset_wifi_credentials(&self) -> Result<(), Self::Error> {
