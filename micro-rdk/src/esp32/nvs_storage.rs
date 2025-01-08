@@ -2,7 +2,7 @@
 use bytes::Bytes;
 use hyper::{http::uri::InvalidUri, Uri};
 use prost::{DecodeError, Message};
-use std::{cell::RefCell, ffi::CString, num::NonZeroI32, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 use thiserror::Error;
 
 use crate::{
@@ -16,7 +16,7 @@ use crate::{
     esp32::esp_idf_svc::{
         handle::RawHandle,
         nvs::{EspCustomNvs, EspCustomNvsPartition, EspNvs},
-        sys::{esp, nvs_get_stats, nvs_stats_t, EspError, ESP_ERR_INVALID_ARG},
+        sys::{esp, nvs_get_stats, nvs_stats_t, EspError},
     },
     proto::{app::v1::RobotConfig, provisioning::v1::CloudConfig},
 };
@@ -44,7 +44,6 @@ pub struct NVSStorage {
     // esp-idf-svc partition driver ensures that only one handle of a type can be created
     // so inner mutability can be achieves safely with RefCell
     nvs: Rc<RefCell<EspCustomNvs>>,
-    partition_name: CString,
     part: EspCustomNvsPartition,
 }
 
@@ -67,9 +66,6 @@ impl NVSStorage {
 
         Ok(Self {
             nvs: Rc::new(nvs.into()),
-            partition_name: CString::new(partition_name).map_err(|_| {
-                EspError::from_non_zero(NonZeroI32::new(ESP_ERR_INVALID_ARG).unwrap())
-            })?,
             part: partition,
         })
     }
