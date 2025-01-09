@@ -30,12 +30,13 @@ ota = []
 local-signaling = []
 
 [dev-dependencies]
-test-log.workspace = true
 env_logger.workspace = true
 rustls = { workspace = true, features = ["dangerous_configuration"] }
+test-log.workspace = true
 
 [target.'cfg(not(target_os = "espidf"))'.dependencies]
 async-std-openssl = { workspace = true, optional = true }
+bincode.workspace = true
 env_logger.workspace = true
 futures-rustls.workspace = true
 local-ip-address = { workspace = true, optional = true }
@@ -45,7 +46,6 @@ rcgen = { workspace = true, optional = true }
 rustls = { workspace = true, optional = true }
 rustls-pemfile = { workspace = true, optional = true }
 webpki-roots = { workspace = true, optional = true }
-bincode = "2.0.0-rc.3"
 
 [dependencies]
 async-channel.workspace = true

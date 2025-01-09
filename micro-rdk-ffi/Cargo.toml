@@ -27,7 +27,6 @@ embedded-svc.workspace = true
 futures-lite.workspace = true
 micro-rdk = { workspace = true, features = ["esp32", "data", "data-upload-hook-unstable"], default-features = true }
 
-
 [dependencies]
 base64.workspace = true
 lazy_static.workspace = true
