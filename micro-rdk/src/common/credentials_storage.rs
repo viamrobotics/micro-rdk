@@ -261,7 +261,6 @@ impl RobotConfigurationStorage for RAMStorage {
     }
     fn get_robot_credentials(&self) -> Result<RobotCredentials, Self::Error> {
         let inner_ref = self.0.lock().unwrap();
-        log::info!("get robot creds");
         inner_ref
             .robot_creds
             .clone()
@@ -270,7 +269,6 @@ impl RobotConfigurationStorage for RAMStorage {
     fn reset_robot_credentials(&self) -> Result<(), Self::Error> {
         let mut inner_ref = self.0.lock().unwrap();
         let _ = inner_ref.robot_creds.take();
-        log::info!("reset robot creds");
         Ok(())
     }
 
