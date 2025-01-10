@@ -1,7 +1,4 @@
-pub trait Lookup: Sized {
-    fn from_value(val: u32) -> Self;
-    fn to_string(&self) -> String;
-}
+pub trait Lookup: Sized + From<u32> + ToString {}
 
 /// For generating a lookup data type found in an NMEA message. The first argument is the name of the
 /// enum type that will be generated. Each successive argument is a tuple with
@@ -14,14 +11,16 @@ macro_rules! lookup {
             $default
         }
 
-        impl Lookup for $name {
-            fn from_value(val: u32) -> Self {
-                match val {
+        impl From<u32> for $name {
+            fn from(value: u32) -> Self {
+                match value {
                     $($value => Self::$var),*,
                     _ => Self::$default
                 }
             }
+        }
 
+        impl ToString for $name {
             fn to_string(&self) -> String {
                 match self {
                     $(Self::$var => $label),*,
@@ -29,6 +28,8 @@ macro_rules! lookup {
                 }.to_string()
             }
         }
+
+        impl Lookup for $name {}
     };
 
 }

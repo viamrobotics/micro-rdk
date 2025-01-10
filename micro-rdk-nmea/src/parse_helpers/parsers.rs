@@ -22,8 +22,8 @@ pub trait FieldReader {
 
 /// A field reader for parsing a basic number type. A reader with bit_size n will read its value
 /// as the first n bits of `size_of::<T>()` bytes with the remaining bits as zeroes (the resulting bytes
-/// will be parsed as Little-Endian). See invocation of the number_field macro below for the currently
-/// supported number types.
+/// will be parsed as Little-Endian). See invocation of the generate_number_field_readers macro below
+/// for the currently supported number types.
 pub struct NumberField<T> {
     bit_size: usize,
     _marker: PhantomData<T>,
@@ -55,14 +55,14 @@ where
     }
 }
 
-macro_rules! number_field {
+macro_rules! generate_number_field_readers {
     ($($t:ty),*) => {
         $(
             impl FieldReader for NumberField<$t> {
                 type FieldType = $t;
 
                 fn read_from_data(&self, data: &[u8], start_idx: usize) -> Result<(usize, Self::FieldType), NmeaParseError> {
-                    let type_size = std::mem::size_of::<$t>();
+                    let type_size = std::mem::size_of::<Self::FieldType>();
                     match self.bit_size {
                         x if x == (type_size * 8) => {
                             let value: &[u8] = &data[start_idx..(start_idx + type_size)];
@@ -88,7 +88,7 @@ macro_rules! number_field {
     };
 }
 
-number_field!(u8, i8, u16, i16, u32, i32, u64, i64);
+generate_number_field_readers!(u8, i8, u16, i16, u32, i32, u64, i64);
 
 /// A field reader for parsing data into a field type that implements the `Lookup` trait.
 /// The `bit_size` property is used to parse a raw number value first with a methodology similar to the one
@@ -140,7 +140,7 @@ where
             }
             _ => unreachable!("lookup field raw value cannot be more than 32 bits"),
         };
-        Ok((end_idx, T::from_value(enum_value)))
+        Ok((end_idx, enum_value.into()))
     }
 }
 
