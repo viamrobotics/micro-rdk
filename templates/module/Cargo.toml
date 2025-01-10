@@ -4,7 +4,6 @@ version = "0.3.3"
 edition = "2021"
 authors = ["{{authors}}"]
 resolver = "2"
-# TODO(RSDK-8992): Upgrade rust to latest esp-rs version
 rust-version = "1.83"
 
 [dependencies]
