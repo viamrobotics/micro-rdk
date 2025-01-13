@@ -8,13 +8,16 @@ use crate::{
 };
 use async_io::Timer;
 use futures_lite::{Future, FutureExt};
-use std::fmt::Debug;
-use std::pin::Pin;
-use std::time::Duration;
+use std::{fmt::Debug, pin::Pin, time::Duration};
+
+#[cfg(feature = "ota")]
+use crate::common::{exec::Executor, ota};
 
 pub struct ConfigMonitor<'a, Storage> {
     curr_config: Box<RobotConfig>, //config for robot gotten from last robot startup, aka inputted from entry
     storage: Storage,
+    #[cfg(feature = "ota")]
+    executor: Executor,
     restart_hook: Box<dyn Fn() + 'a>,
 }
 
@@ -27,11 +30,14 @@ where
     pub fn new(
         curr_config: Box<RobotConfig>,
         storage: Storage,
+        #[cfg(feature = "ota")] executor: Executor,
         restart_hook: impl Fn() + 'a,
     ) -> Self {
         Self {
             curr_config,
             storage,
+            #[cfg(feature = "ota")]
+            executor,
             restart_hook: Box::new(restart_hook),
         }
     }
@@ -71,16 +77,48 @@ where
                 })
                 .await?;
 
-            if new_config
-                .config
-                .is_some_and(|cfg| cfg != *self.curr_config)
-            {
-                if let Err(e) = self.storage.reset_robot_configuration() {
-                    log::warn!(
-                        "Failed to reset robot config after new config detected: {}",
-                        e
-                    );
-                } else {
+            if let Some(config) = new_config.as_ref().config.as_ref() {
+                let mut reboot = false;
+
+                #[cfg(feature = "ota")]
+                {
+                    if let Some(service) = config
+                        .services
+                        .iter()
+                        .find(|&service| service.model == *ota::OTA_MODEL_TRIPLET)
+                    {
+                        // TODO(RSDK-9676): new OtaService created at every invocation, not ideal
+                        match ota::OtaService::from_config(
+                            service,
+                            self.storage.clone(),
+                            self.executor.clone(),
+                        ) {
+                            Ok(mut ota) => match ota.update().await {
+                                Ok(needs_reboot) => reboot = needs_reboot,
+                                Err(e) => log::error!("failed to complete ota update: {}", e),
+                            },
+                            Err(e) => log::error!(
+                                "failed to create ota service from config:{} - {:?}",
+                                e,
+                                service,
+                            ),
+                        }
+                    }
+                }
+
+                if *config != *self.curr_config {
+                    if let Err(e) = self.storage.reset_robot_configuration() {
+                        log::warn!(
+                            "Failed to reset robot config after new config detected: {}",
+                            e
+                        );
+                    } else {
+                        reboot = true;
+                    }
+                }
+
+                if reboot {
+                    // TODO(RSDK-9464): flush logs to app.viam before restarting
                     self.restart();
                 }
             }

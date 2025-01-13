@@ -1,4 +1,3 @@
-# TODO(RSDK-8992): Upgrade rust to latest esp-rs version
 FROM rust:1.83-bookworm AS builder
 RUN apt update && apt-get install -y --no-install-recommends git libudev-dev make bzip2 gcc libgcrypt20 libgcrypt20-dev  ninja-build libudev-dev sudo wget git flex bison gperf ccache libffi-dev libssl-dev dfu-util libusb-1.0-0 cmake pkg-config libglib2.0-dev libpixman-1-dev software-properties-common openssh-client libslirp-dev python3-venv
 
@@ -23,7 +22,6 @@ RUN git clone --depth 1 -b v4.4.8 --single-branch --recurse-submodules --shallow
 
 FROM debian:bookworm
 
-# TODO(RSDK-8992): Upgrade rust to latest esp-rs version
 ARG RUST_VERSION=1.83.0
 
 ENV DEBIAN_FRONTEND=noninteractive

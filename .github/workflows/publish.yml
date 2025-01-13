@@ -30,7 +30,7 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: 1.76.0
+        toolchain: 1.83.0
         override: true
         target: ${{ matrix.job.target }}
         default: true
@@ -86,7 +86,7 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: 1.76.0
+        toolchain: 1.83.0
         override: true
         target: aarch64-unknown-linux-gnu
         default: true
