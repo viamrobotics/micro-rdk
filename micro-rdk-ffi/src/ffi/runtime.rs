@@ -288,7 +288,7 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
         use micro_rdk::common::credentials_storage::RAMStorage;
         use micro_rdk::common::credentials_storage::RobotConfigurationStorage;
         use micro_rdk::proto::provisioning::v1::CloudConfig;
-        log::info!("when the FFI was built a robot config was supplied, defaulting to this robot");
+
         let ram_storage = RAMStorage::new();
         let cloud_conf = if ROBOT_ID.is_some() && ROBOT_SECRET.is_some()  {
             Some(CloudConfig {
@@ -315,7 +315,6 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
         #[cfg(not(target_os = "espidf"))]
         let storage = micro_rdk::common::credentials_storage::RAMStorage::default();
         #[cfg(target_os = "espidf")]
-        //let storage =  {micro_rdk::esp32::nvs_storage::NVSStorage::new("nvs").unwrap()};
         let storage: Vec<micro_rdk::esp32::nvs_storage::NVSStorage> = ctx
             .storage
             .iter()
@@ -329,7 +328,7 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
                 })
             })
             .filter(|r| r.is_ok())
-            .map(|r| r.unwrap())
+            .flatten()
             .collect();
         storage
     };

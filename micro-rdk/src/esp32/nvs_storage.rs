@@ -231,14 +231,14 @@ impl RobotConfigurationStorage for NVSStorage {
 
     fn store_robot_credentials(&self, cfg: &CloudConfig) -> Result<(), Self::Error> {
         self.set_string(NVS_ROBOT_SECRET_KEY, &cfg.secret)?;
-        self.set_string(NVS_ROBOT_ID_KEY, &cfg.id).or_else(|err| {
-            let _ = self.reset_robot_credentials();
-            Err(err)
-        })?;
+        self.set_string(NVS_ROBOT_ID_KEY, &cfg.id)
+            .inspect_err(|_| {
+                let _ = self.erase_key(NVS_ROBOT_SECRET_KEY);
+            })?;
         self.set_string(NVS_ROBOT_APP_ADDRESS, &cfg.app_address)
-            .or_else(|err| {
-                let _ = self.reset_robot_credentials();
-                Err(err)
+            .inspect_err(|_| {
+                let _ = self.erase_key(NVS_ROBOT_SECRET_KEY);
+                let _ = self.erase_key(NVS_ROBOT_ID_KEY);
             })?;
         Ok(())
     }
@@ -291,9 +291,8 @@ impl RobotConfigurationStorage for NVSStorage {
             NVS_TLS_PRIVATE_KEY_KEY,
             Bytes::from(creds.private_key.clone()),
         )
-        .or_else(|err| {
-            let _ = self.reset_tls_certificate();
-            Err(err)
+        .inspect_err(|_| {
+            let _ = self.erase_key(NVS_TLS_CERTIFICATE_KEY);
         })?;
         Ok(())
     }
@@ -321,9 +320,8 @@ impl WifiCredentialStorage for NVSStorage {
     fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error> {
         self.set_string(NVS_WIFI_SSID_KEY, &creds.ssid)?;
         self.set_string(NVS_WIFI_PASSWORD_KEY, &creds.pwd)
-            .or_else(|err| {
-                let _ = self.reset_wifi_credentials();
-                Err(err)
+            .inspect_err(|_| {
+                let _ = self.erase_key(NVS_WIFI_SSID_KEY);
             })?;
         Ok(())
     }
