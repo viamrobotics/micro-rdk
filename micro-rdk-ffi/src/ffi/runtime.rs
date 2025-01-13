@@ -288,7 +288,7 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
         use micro_rdk::common::credentials_storage::RAMStorage;
         use micro_rdk::common::credentials_storage::RobotConfigurationStorage;
         use micro_rdk::proto::provisioning::v1::CloudConfig;
-
+        //TODO(RSDK-9715)
         let ram_storage = RAMStorage::new();
         let cloud_conf = if ROBOT_ID.is_some() && ROBOT_SECRET.is_some()  {
             Some(CloudConfig {
