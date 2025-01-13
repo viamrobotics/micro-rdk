@@ -310,6 +310,18 @@ void app_main(void)
     return;
   }
 
+  ret = viam_server_add_nvs_storage(viam_ctx, "nvs");
+  if (ret != VIAM_OK) {
+    ESP_LOGE(TAG,"couldn't set add nvs partition, error : %i", ret);
+    return;
+  }
+
+  ret = viam_server_add_nvs_storage(viam_ctx, "nvs_other");
+  if (ret != VIAM_OK) {
+    ESP_LOGE(TAG,"couldn't set add nvs partition, error : %i", ret);
+    return;
+  }
+
   ESP_LOGI(TAG,"starting viam server\r\n");
 
   xTaskCreatePinnedToCore((void*)viam_server_start, "viam", CONFIG_MICRO_RDK_TASK_STACK_SIZE, viam_ctx, 6, NULL, CONFIG_MICRO_RDK_TASK_PINNED_TO_CORE_1);
