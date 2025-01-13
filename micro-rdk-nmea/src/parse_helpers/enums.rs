@@ -1,9 +1,9 @@
-pub trait Lookup: Sized + From<u32> + ToString {}
+pub trait NmeaEnumeratedField: Sized + From<u32> + ToString {}
 
 /// For generating a lookup data type found in an NMEA message. The first argument is the name of the
 /// enum type that will be generated. Each successive argument is a tuple with
 /// (raw number value, name of enum instance, string representation)
-macro_rules! lookup {
+macro_rules! define_nmea_enum {
     ( $name:ident, $(($value:expr, $var:ident, $label:expr)),*, $default:ident) => {
         #[derive(Copy, Clone, Debug)]
         pub enum $name {
@@ -29,14 +29,14 @@ macro_rules! lookup {
             }
         }
 
-        impl Lookup for $name {}
+        impl NmeaEnumeratedField for $name {}
     };
 
 }
 
 // Examples below taken from https://canboat.github.io/canboat/canboat.html
 
-lookup!(
+define_nmea_enum!(
     WaterReference,
     (0, PaddleWheel, "Paddle Wheel"),
     (1, PitotTube, "Pitot Tube"),
@@ -46,7 +46,7 @@ lookup!(
     CouldNotParse
 );
 
-lookup!(
+define_nmea_enum!(
     TemperatureSource,
     (0, SeaTemperature, "Sea Temperature"),
     (1, OutsideTemperature, "Outside Temperature"),
@@ -75,7 +75,7 @@ lookup!(
     CouldNotParse
 );
 
-lookup!(
+define_nmea_enum!(
     SystemTimeSource,
     (0, Gps, "GPS"),
     (1, Glonass, "GLONASS"),
@@ -86,7 +86,7 @@ lookup!(
     CouldNotParse
 );
 
-lookup!(
+define_nmea_enum!(
     MagneticVariationSource,
     (0, Manual, "Manual"),
     (1, AutomaticChart, "Automatic Chart"),
@@ -100,7 +100,7 @@ lookup!(
     CouldNotParse
 );
 
-lookup!(
+define_nmea_enum!(
     RepeatIndicator,
     (0, Initial, "Initial"),
     (1, FirstRetransmission, "First retransmission"),
@@ -110,7 +110,7 @@ lookup!(
     CouldNotParse
 );
 
-lookup!(
+define_nmea_enum!(
     AisMessageId,
     (
         1,
@@ -194,21 +194,21 @@ lookup!(
     CouldNotParse
 );
 
-lookup!(
+define_nmea_enum!(
     PositionAccuracy,
     (0, Low, "Low"),
     (1, High, "High"),
     CouldNotParse
 );
 
-lookup!(
+define_nmea_enum!(
     RaimFlag,
     (0, NotInUse, "not in use"),
     (1, InUse, "in use"),
     CouldNotParse
 );
 
-lookup!(
+define_nmea_enum!(
     TimeStamp,
     (60, NotAvailable, "Not available"),
     (61, ManualInputMode, "Manual input mode"),
@@ -221,7 +221,7 @@ lookup!(
     CouldNotParse
 );
 
-lookup!(
+define_nmea_enum!(
     AisTransceiver,
     (0, ChannelAVdlReception, "Channel A VDL reception"),
     (1, ChannelBVdlReception, "Channel B VDL reception"),
@@ -236,7 +236,7 @@ lookup!(
     CouldNotParse
 );
 
-lookup!(
+define_nmea_enum!(
     NavStatus,
     (0, UnderWayUsingEngine, "Under way using engine"),
     (1, AtAnchor, "At anchor"),
@@ -271,7 +271,7 @@ lookup!(
     CouldNotParse
 );
 
-lookup!(
+define_nmea_enum!(
     AisSpecialManeuver,
     (0, NotAvailable, "Not available"),
     (
@@ -284,7 +284,7 @@ lookup!(
     CouldNotParse
 );
 
-lookup!(
+define_nmea_enum!(
     DirectionReference,
     (0, True, "True"),
     (1, Magnetic, "Magnetic"),
@@ -292,7 +292,7 @@ lookup!(
     CouldNotParse
 );
 
-lookup!(
+define_nmea_enum!(
     Gns,
     (0, Gps, "GPS"),
     (1, Glonass, "GLONASS"),
@@ -306,7 +306,7 @@ lookup!(
     CouldNotParse
 );
 
-lookup!(
+define_nmea_enum!(
     GnsMethod,
     (0, NoGnss, "no GNSS"),
     (1, GnssFix, "GNSS fix"),
@@ -320,7 +320,7 @@ lookup!(
     CouldNotParse
 );
 
-lookup!(
+define_nmea_enum!(
     GnsIntegrity,
     (0, NoIntegrityChecking, "No integrity checking"),
     (1, Safe, "Safe"),

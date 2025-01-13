@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use micro_rdk::common::sensor::GenericReadingsResult;
 
 use super::{
-    enums::Lookup,
+    enums::NmeaEnumeratedField,
     errors::{NmeaParseError, NumberFieldError},
 };
 
@@ -109,7 +109,7 @@ impl<T> LookupField<T> {
 
 impl<T> FieldReader for LookupField<T>
 where
-    T: Lookup,
+    T: NmeaEnumeratedField,
 {
     type FieldType = T;
 
