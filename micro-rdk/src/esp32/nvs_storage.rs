@@ -2,20 +2,21 @@
 use bytes::Bytes;
 use hyper::{http::uri::InvalidUri, Uri};
 use prost::{DecodeError, Message};
-use std::{cell::RefCell, ffi::CString, num::NonZeroI32, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 use thiserror::Error;
 
 use crate::{
     common::{
         credentials_storage::{
-            RobotConfigurationStorage, RobotCredentials, StorageDiagnostic, TlsCertificate,
-            WifiCredentialStorage, WifiCredentials,
+            EmptyStorageCollectionError, RobotConfigurationStorage, RobotCredentials,
+            StorageDiagnostic, TlsCertificate, WifiCredentialStorage, WifiCredentials,
         },
         grpc::{GrpcError, ServerError},
     },
     esp32::esp_idf_svc::{
+        handle::RawHandle,
         nvs::{EspCustomNvs, EspCustomNvsPartition, EspNvs},
-        sys::{esp, nvs_get_stats, nvs_stats_t, EspError, ESP_ERR_INVALID_ARG},
+        sys::{esp, nvs_get_stats, nvs_stats_t, EspError},
     },
     proto::{app::v1::RobotConfig, provisioning::v1::CloudConfig},
 };
@@ -34,6 +35,8 @@ pub enum NVSStorageError {
     NVSValueDecodeError(#[from] DecodeError),
     #[error(transparent)]
     NVSUriParseError(#[from] InvalidUri),
+    #[error("nvs collection empty")]
+    NVSCollectionEmpty(#[from] EmptyStorageCollectionError),
 }
 
 #[derive(Clone)]
@@ -41,20 +44,18 @@ pub struct NVSStorage {
     // esp-idf-svc partition driver ensures that only one handle of a type can be created
     // so inner mutability can be achieves safely with RefCell
     nvs: Rc<RefCell<EspCustomNvs>>,
-    partition_name: CString,
+    part: EspCustomNvsPartition,
 }
 
 impl NVSStorage {
     // taking partition name as argument so we can use another NVS part name if we want to.
     pub fn new(partition_name: &str) -> Result<Self, NVSStorageError> {
         let partition: EspCustomNvsPartition = EspCustomNvsPartition::take(partition_name)?;
-        let nvs = EspNvs::new(partition, "VIAM_NS", true)?;
+        let nvs = EspNvs::new(partition.clone(), "VIAM_NS", true)?;
 
         Ok(Self {
             nvs: Rc::new(nvs.into()),
-            partition_name: CString::new(partition_name).map_err(|_| {
-                EspError::from_non_zero(NonZeroI32::new(ESP_ERR_INVALID_ARG).unwrap())
-            })?,
+            part: partition,
         })
     }
 
@@ -136,7 +137,7 @@ impl StorageDiagnostic for NVSStorage {
     fn log_space_diagnostic(&self) {
         let mut stats: nvs_stats_t = Default::default();
         if let Err(err) =
-            esp!(unsafe { nvs_get_stats(self.partition_name.as_ptr(), &mut stats as *mut _) })
+            esp!(unsafe { nvs_get_stats(self.part.handle() as _, &mut stats as *mut _) })
         {
             log::error!("could not acquire NVS stats: {:?}", err);
             return;
@@ -189,7 +190,7 @@ impl OtaMetadataStorage for NVSStorage {
         let version = self.get_string(NVS_OTA_VERSION_KEY)?;
         Ok(OtaMetadata { version })
     }
-    fn store_ota_metadata(&self, ota_metadata: OtaMetadata) -> Result<(), Self::Error> {
+    fn store_ota_metadata(&self, ota_metadata: &OtaMetadata) -> Result<(), Self::Error> {
         self.set_string(NVS_OTA_VERSION_KEY, &ota_metadata.version)
     }
     fn reset_ota_metadata(&self) -> Result<(), Self::Error> {
@@ -228,10 +229,17 @@ impl RobotConfigurationStorage for NVSStorage {
         self.erase_key(NVS_ROBOT_APP_ADDRESS)
     }
 
-    fn store_robot_credentials(&self, cfg: CloudConfig) -> Result<(), Self::Error> {
+    fn store_robot_credentials(&self, cfg: &CloudConfig) -> Result<(), Self::Error> {
         self.set_string(NVS_ROBOT_SECRET_KEY, &cfg.secret)?;
-        self.set_string(NVS_ROBOT_ID_KEY, &cfg.id)?;
-        self.set_string(NVS_ROBOT_APP_ADDRESS, &cfg.app_address)?;
+        self.set_string(NVS_ROBOT_ID_KEY, &cfg.id)
+            .inspect_err(|_| {
+                let _ = self.erase_key(NVS_ROBOT_SECRET_KEY);
+            })?;
+        self.set_string(NVS_ROBOT_APP_ADDRESS, &cfg.app_address)
+            .inspect_err(|_| {
+                let _ = self.erase_key(NVS_ROBOT_SECRET_KEY);
+                let _ = self.erase_key(NVS_ROBOT_ID_KEY);
+            })?;
         Ok(())
     }
 
@@ -274,9 +282,18 @@ impl RobotConfigurationStorage for NVSStorage {
         })
     }
 
-    fn store_tls_certificate(&self, creds: TlsCertificate) -> Result<(), Self::Error> {
-        self.set_blob(NVS_TLS_CERTIFICATE_KEY, Bytes::from(creds.certificate))?;
-        self.set_blob(NVS_TLS_PRIVATE_KEY_KEY, Bytes::from(creds.private_key))?;
+    fn store_tls_certificate(&self, creds: &TlsCertificate) -> Result<(), Self::Error> {
+        self.set_blob(
+            NVS_TLS_CERTIFICATE_KEY,
+            Bytes::from(creds.certificate.clone()),
+        )?;
+        self.set_blob(
+            NVS_TLS_PRIVATE_KEY_KEY,
+            Bytes::from(creds.private_key.clone()),
+        )
+        .inspect_err(|_| {
+            let _ = self.erase_key(NVS_TLS_CERTIFICATE_KEY);
+        })?;
         Ok(())
     }
 
@@ -300,9 +317,12 @@ impl WifiCredentialStorage for NVSStorage {
         Ok(WifiCredentials { ssid, pwd })
     }
 
-    fn store_wifi_credentials(&self, creds: WifiCredentials) -> Result<(), Self::Error> {
+    fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error> {
         self.set_string(NVS_WIFI_SSID_KEY, &creds.ssid)?;
-        self.set_string(NVS_WIFI_PASSWORD_KEY, &creds.pwd)?;
+        self.set_string(NVS_WIFI_PASSWORD_KEY, &creds.pwd)
+            .inspect_err(|_| {
+                let _ = self.erase_key(NVS_WIFI_SSID_KEY);
+            })?;
         Ok(())
     }
 

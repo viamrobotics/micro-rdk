@@ -47,7 +47,7 @@ mod native {
                 log::info!("Storing static values from build time robot configuration");
                 storage
                     .store_robot_credentials(
-                        RobotCredentials::new(
+                        &RobotCredentials::new(
                             ROBOT_ID.unwrap().to_string(),
                             ROBOT_SECRET.unwrap().to_string(),
                         )

@@ -82,7 +82,7 @@ mod esp32 {
             if SSID.is_some() && PASS.is_some() {
                 log::info!("Storing static values from build time wifi configuration to NVS");
                 storage
-                    .store_wifi_credentials(WifiCredentials::new(
+                    .store_wifi_credentials(&WifiCredentials::new(
                         SSID.unwrap().to_string(),
                         PASS.unwrap().to_string(),
                     ))
@@ -96,7 +96,7 @@ mod esp32 {
                 log::info!("Storing static values from build time robot configuration to NVS");
                 storage
                     .store_robot_credentials(
-                        RobotCredentials::new(
+                        &RobotCredentials::new(
                             ROBOT_ID.unwrap().to_string(),
                             ROBOT_SECRET.unwrap().to_string(),
                         )
