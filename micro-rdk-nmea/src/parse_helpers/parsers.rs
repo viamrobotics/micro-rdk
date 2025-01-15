@@ -283,7 +283,7 @@ mod tests {
         assert!(cursor.advance(16).is_ok());
         let res = reader.read_from_cursor(&cursor);
         assert!(res.is_ok());
-        // 125 = 01111101, first four bits as byte => 01110000 = 112
+        // 125 = 01111101, first four bits as byte => 00000111 = 7
         assert_eq!(res.unwrap(), 7);
 
         let reader = NumberField::<u16>::new(12);
@@ -295,7 +295,7 @@ mod tests {
         let cursor = DataCursor::new(data);
 
         // [179, 152] is 39091 in u16, reading the first 12 bits and ignoring the last 4
-        // should yield [10110011 10011000] => [10110011 00001001] =>  (37043 in Little-Endian)
+        // should yield [10110011 10011000] => [10110011 00001001] => 2483 ( in Little-Endian)
         assert!(cursor.advance(24).is_ok());
         let res = reader.read_from_cursor(&cursor);
         assert!(res.is_ok());
