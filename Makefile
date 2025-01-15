@@ -106,7 +106,7 @@ build-esp32-bin: build-esp32-ota
 		--features=ota \
 		--chip=esp32 \
 		--bin=micro-rdk-server-esp32 \
-		--partition-table=micro-rdk-server/esp32/ota_8mb_partitions.csv \
+		--partition-table=micro-rdk-server/esp32/partitions.csv \
 		--target=xtensa-esp32-espidf \
 		-Zbuild-std=std,panic_abort --release \
 		--flash-size=8mb \
@@ -120,7 +120,7 @@ build-esp32-ota:
 		--features=ota \
 		--chip=esp32 \
 		--bin=micro-rdk-server-esp32 \
-		--partition-table=micro-rdk-server/esp32/ota_8mb_partitions.csv \
+		--partition-table=micro-rdk-server/esp32/partitions.csv \
 		--target=xtensa-esp32-espidf \
 		-Zbuild-std=std,panic_abort --release \
 		target/xtensa-esp32-espidf/micro-rdk-server-esp32-ota.bin
