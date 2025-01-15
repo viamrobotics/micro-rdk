@@ -42,7 +42,7 @@ impl<'a> DataCursor<'a> {
     fn read(&self, bits: usize) -> Result<DataRead, NmeaParseError> {
         let bit_position = self.bit_position.load(Ordering::SeqCst);
         let end_byte_position = (bit_position + bits).div_ceil(8);
-        if end_byte_position > data.len() {
+        if end_byte_position > self.data.len() {
             Err(NmeaParseError::EndOfBufferExceeded)
         } else {
             let start_byte_position = bit_position / 8;
@@ -184,9 +184,9 @@ where
     fn read_from_cursor(&self, cursor: &DataCursor) -> Result<Self::FieldType, NmeaParseError> {
         let data_read = cursor.read(self.bit_size)?;
         let enum_value = match self.bit_size {
-            x if x <= 8 => Ok(u8::try_from(data_read)? as u32),
-            x if x <= 16 => Ok(u16::try_from(data_read)? as u32),
-            x if x <= 32 => Ok(u16::try_from(data_read)? as u32),
+            x if x <= 8 => Ok::<u32, NmeaParseError>(u8::try_from(data_read)? as u32),
+            x if x <= 16 => Ok::<u32, NmeaParseError>(u16::try_from(data_read)? as u32),
+            x if x <= 32 => Ok::<u32, NmeaParseError>(u16::try_from(data_read)? as u32),
             _ => unreachable!("malformed lookup field detected"),
         }?;
         Ok(enum_value.into())
