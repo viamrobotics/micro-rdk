@@ -39,14 +39,18 @@ impl<'a> DataCursor<'a> {
         }
     }
 
-    fn read(&self, bits: usize) -> DataRead {
+    fn read(&self, bits: usize) -> Result<DataRead, NmeaParseError> {
         let bit_position = self.bit_position.load(Ordering::SeqCst);
         let end_byte_position = (bit_position + bits).div_ceil(8);
-        let start_byte_position = bit_position / 8;
-        DataRead {
-            data: &self.data[start_byte_position..end_byte_position],
-            bit_position: self.bit_position.clone(),
-            bit_size: bits,
+        if end_byte_position > data.len() {
+            Err(NmeaParseError::EndOfBufferExceeded)
+        } else {
+            let start_byte_position = bit_position / 8;
+            Ok(DataRead {
+                data: &self.data[start_byte_position..end_byte_position],
+                bit_position: self.bit_position.clone(),
+                bit_size: bits,
+            })
         }
     }
 
@@ -141,7 +145,7 @@ macro_rules! generate_number_field_readers {
                 type FieldType = $t;
 
                 fn read_from_cursor(&self, cursor: &DataCursor) -> Result<Self::FieldType, NmeaParseError> {
-                    Ok(cursor.read(self.bit_size).try_into()?)
+                    Ok(cursor.read(self.bit_size)?.try_into()?)
                 }
             }
         )*
@@ -159,10 +163,14 @@ pub struct LookupField<T> {
 }
 
 impl<T> LookupField<T> {
-    pub fn new(bit_size: usize) -> Self {
-        Self {
-            bit_size,
-            _marker: Default::default(),
+    pub fn new(bit_size: usize) -> Result<Self, NumberFieldError> {
+        if bit_size > 32 {
+            Err(NumberFieldError::ImproperBitSize(bit_size, 32))
+        } else {
+            Ok(Self {
+                bit_size,
+                _marker: Default::default(),
+            })
         }
     }
 }
@@ -174,12 +182,12 @@ where
     type FieldType = T;
 
     fn read_from_cursor(&self, cursor: &DataCursor) -> Result<Self::FieldType, NmeaParseError> {
-        let data_read = cursor.read(self.bit_size);
+        let data_read = cursor.read(self.bit_size)?;
         let enum_value = match self.bit_size {
             x if x <= 8 => Ok(u8::try_from(data_read)? as u32),
             x if x <= 16 => Ok(u16::try_from(data_read)? as u32),
             x if x <= 32 => Ok(u16::try_from(data_read)? as u32),
-            x => Err(NumberFieldError::ImproperBitSize(x, 32)),
+            _ => unreachable!("malformed lookup field detected"),
         }?;
         Ok(enum_value.into())
     }
@@ -297,6 +305,8 @@ mod tests {
     #[test]
     fn lookup_field_test() {
         let reader = LookupField::<MagneticVariationSource>::new(4);
+        assert!(reader.is_ok());
+        let reader = reader.unwrap();
 
         let data_vec: Vec<u8> = vec![100, 6, 111, 138, 152, 113];
         let data: &[u8] = &data_vec[..];
@@ -358,9 +368,9 @@ mod tests {
         }
 
         fn from_data(cursor: &super::DataCursor) -> Result<Self, NmeaParseError> {
-            let a = cursor.read(16).try_into()?;
-            let b = cursor.read(8).try_into()?;
-            let c = cursor.read(16).try_into()?;
+            let a = cursor.read(16)?.try_into()?;
+            let b = cursor.read(8)?.try_into()?;
+            let c = cursor.read(16)?.try_into()?;
             Ok(TestFieldSet { a, b, c })
         }
     }
