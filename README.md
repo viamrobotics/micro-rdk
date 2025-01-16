@@ -8,7 +8,7 @@ Table of Contents
   - [Getting Started](#getting-started)
   - [License](#license)
 
-# Micro-RDK (Robot Development Kit for Microcontrollers)
+# The Micro-RDK (Robot Development Kit for Microcontrollers)
 
 Viam provides an open source robot architecture that provides robotics functionality via simple APIs.
 
