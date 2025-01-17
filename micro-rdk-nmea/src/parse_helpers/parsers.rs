@@ -1,4 +1,3 @@
-use bitvec::prelude::*;
 use std::{
     marker::PhantomData,
     rc::Rc,
@@ -110,33 +109,21 @@ macro_rules! generate_number_field_readers {
     ($($t:ty),*) => {
         $(
             impl TryFrom<DataRead<'_>> for $t {
-                type Error = NumberFieldError;
+                type Error = NmeaParseError;
                 fn try_from(value: DataRead) -> Result<Self, Self::Error> {
                     let max_size = std::mem::size_of::<Self>();
                     if (value.bit_size / 8) > max_size {
-                        return Err(NumberFieldError::ImproperBitSize(value.bit_size, max_size * 8));
+                        Err(NumberFieldError::ImproperBitSize(value.bit_size, max_size * 8).into())
+                    } else if value.bit_size == (max_size * 8) {
+                        Ok(<$t>::from_le_bytes(value.data[..].try_into()?))
+                    } else {
+                        let byte_idx = value.bit_size / 8;
+                        let data_cpy = &mut value.data[..].to_vec();
+                        data_cpy.resize(max_size, 0);
+                        let shift = 8 - (value.bit_size % 8);
+                        data_cpy[byte_idx] = data_cpy[byte_idx] >> shift;
+                        Ok(<$t>::from_le_bytes(data_cpy[..].try_into()?))
                     }
-
-                    let bits = &value.data[..].view_bits::<Msb0>();
-
-                    let start_idx = value.bit_position.load(Ordering::SeqCst) % 8;
-                    let end_idx = start_idx + value.bit_size;
-                    let mut bit_vec = bits[start_idx..end_idx].to_bitvec();
-                    if bit_vec.len() != (max_size * 8) {
-                        // the last byte is incomplete, we reverse the remaining bits of the
-                        // incomplete byte so it can be padded with zeros, then we reverse the bits
-                        // of the now complete last byte for the proper bit order
-                        let last_bit_start = bit_vec.len() - (value.bit_size % 8);
-                        let _ = &bit_vec[last_bit_start..].reverse();
-
-                        for _ in (0..(max_size * 8 - value.bit_size)) {
-                            bit_vec.push(false);
-                        }
-
-                        let _ = &bit_vec[last_bit_start..(last_bit_start + 8)].reverse();
-                    }
-
-                    Ok(bit_vec.load_le::<$t>())
                 }
             }
 
@@ -305,6 +292,7 @@ mod tests {
 
         // 154 is 10011010, reading the first 3 bits should yield 100 = 4
         let res = reader.read_from_cursor(&cursor);
+        println!("res: {:?}", res);
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), 4);
     }
