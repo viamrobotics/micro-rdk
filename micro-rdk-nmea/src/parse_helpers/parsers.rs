@@ -123,18 +123,17 @@ macro_rules! generate_number_field_readers {
                     let end_idx = start_idx + value.bit_size;
                     let mut bit_vec = bits[start_idx..end_idx].to_bitvec();
                     if bit_vec.len() != (max_size * 8) {
+                        // the last byte is incomplete, we reverse the remaining bits of the
+                        // incomplete byte so it can be padded with zeros, then we reverse the bits
+                        // of the now complete last byte for the proper bit order
                         let last_bit_start = bit_vec.len() - (value.bit_size % 8);
                         let _ = &bit_vec[last_bit_start..].reverse();
 
-                        // pad the bit vector with 0 bits until we have enough bytes to
-                        // parse the number
                         for _ in (0..(max_size * 8 - value.bit_size)) {
                             bit_vec.push(false);
                         }
 
-
-                        let last_bit_start = bit_vec.len() - 8;
-                        let _ = &bit_vec[last_bit_start..].reverse();
+                        let _ = &bit_vec[last_bit_start..(last_bit_start + 8)].reverse();
                     }
 
                     Ok(bit_vec.load_le::<$t>())
@@ -183,12 +182,7 @@ where
 
     fn read_from_cursor(&self, cursor: &DataCursor) -> Result<Self::FieldType, NmeaParseError> {
         let data_read = cursor.read(self.bit_size)?;
-        let enum_value = match self.bit_size {
-            x if x <= 8 => Ok::<u32, NmeaParseError>(u8::try_from(data_read)? as u32),
-            x if x <= 16 => Ok::<u32, NmeaParseError>(u16::try_from(data_read)? as u32),
-            x if x <= 32 => Ok::<u32, NmeaParseError>(u16::try_from(data_read)? as u32),
-            _ => unreachable!("malformed lookup field detected"),
-        }?;
+        let enum_value = u32::try_from(data_read)?;
         Ok(enum_value.into())
     }
 }
@@ -300,6 +294,19 @@ mod tests {
         let res = reader.read_from_cursor(&cursor);
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), 2483);
+
+        let reader = NumberField::<u32>::new(3);
+        assert!(reader.is_ok());
+        let reader = reader.unwrap();
+
+        let data_vec: Vec<u8> = vec![154, 6, 125, 179, 152, 113];
+        let data: &[u8] = &data_vec[..];
+        let cursor = DataCursor::new(data);
+
+        // 154 is 10011010, reading the first 3 bits should yield 100 = 4
+        let res = reader.read_from_cursor(&cursor);
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), 4);
     }
 
     #[test]
