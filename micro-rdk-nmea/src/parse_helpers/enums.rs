@@ -3,6 +3,9 @@ pub trait NmeaEnumeratedField: Sized + From<u32> + ToString {}
 /// For generating a lookup data type found in an NMEA message. The first argument is the name of the
 /// enum type that will be generated. Each successive argument is a tuple with
 /// (raw number value, name of enum instance, string representation)
+///
+/// Note: we implement From<u32> rather than TryFrom<u32> because our equivalent library
+/// written in Go does not fail on unrecognized lookups.
 macro_rules! define_nmea_enum {
     ( $name:ident, $(($value:expr, $var:ident, $label:expr)),*, $default:ident) => {
         #[derive(Copy, Clone, Debug)]
@@ -43,7 +46,7 @@ define_nmea_enum!(
     (2, Doppler, "Doppler"),
     (3, Correlation, "Correlation (ultra sound)"),
     (4, Electromagnetic, "Electro Magnetic"),
-    CouldNotParse
+    UnknownLookupField
 );
 
 define_nmea_enum!(
@@ -72,7 +75,7 @@ define_nmea_enum!(
     (13, FreezerTemperature, "Freezer Temperature"),
     (14, ExhaustGasTemperature, "Exhaust Gas Temperature"),
     (15, ShaftSealTemeprature, "Shaft Seal Temperature"),
-    CouldNotParse
+    UnknownLookupField
 );
 
 define_nmea_enum!(
@@ -83,7 +86,7 @@ define_nmea_enum!(
     (3, LocalCesiumClock, "Local Cesium clock"),
     (4, LocalRubidiumClock, "Local Rubidium clock"),
     (5, LocalCrystalClock, "Local Crystal clock"),
-    CouldNotParse
+    UnknownLookupField
 );
 
 define_nmea_enum!(
@@ -97,7 +100,7 @@ define_nmea_enum!(
     (6, Wmm2010, "WMM 2010"),
     (7, Wmm2015, "WMM 2015"),
     (8, Wmm2020, "WMM 2020"),
-    CouldNotParse
+    UnknownLookupField
 );
 
 define_nmea_enum!(
@@ -107,7 +110,7 @@ define_nmea_enum!(
     (2, SecondRetransmission, "Second retransmission"),
     (3, ThirdRetransmission, "Third retransmission"),
     (4, FinalRetransmission, "Final retransmission"),
-    CouldNotParse
+    UnknownLookupField
 );
 
 define_nmea_enum!(
@@ -191,21 +194,21 @@ define_nmea_enum!(
         PositionReportForLongRangeApplications,
         "Position report for long range applications"
     ),
-    CouldNotParse
+    UnknownLookupField
 );
 
 define_nmea_enum!(
     PositionAccuracy,
     (0, Low, "Low"),
     (1, High, "High"),
-    CouldNotParse
+    UnknownLookupField
 );
 
 define_nmea_enum!(
     RaimFlag,
     (0, NotInUse, "not in use"),
     (1, InUse, "in use"),
-    CouldNotParse
+    UnknownLookupField
 );
 
 define_nmea_enum!(
@@ -218,7 +221,7 @@ define_nmea_enum!(
         PositioningSystemIsInoperative,
         "Positioning system is inoperative"
     ),
-    CouldNotParse
+    UnknownLookupField
 );
 
 define_nmea_enum!(
@@ -233,7 +236,7 @@ define_nmea_enum!(
         "Own information not broadcast"
     ),
     (5, Reserved, "Reserved"),
-    CouldNotParse
+    UnknownLookupField
 );
 
 define_nmea_enum!(
@@ -268,7 +271,7 @@ define_nmea_enum!(
         "Power-driven vessl pushing ahead or towing alongside"
     ),
     (14, AisSart, "AIS-SART"),
-    CouldNotParse
+    UnknownLookupField
 );
 
 define_nmea_enum!(
@@ -281,7 +284,7 @@ define_nmea_enum!(
     ),
     (2, EngagedInSpecialManeuver, "Engaged in special maneuver"),
     (3, Reserved, "Reserved"),
-    CouldNotParse
+    UnknownLookupField
 );
 
 define_nmea_enum!(
@@ -289,7 +292,7 @@ define_nmea_enum!(
     (0, True, "True"),
     (1, Magnetic, "Magnetic"),
     (2, Error, "Error"),
-    CouldNotParse
+    UnknownLookupField
 );
 
 define_nmea_enum!(
@@ -303,7 +306,7 @@ define_nmea_enum!(
     (6, Integrated, "integrated"),
     (7, Surveyed, "surveyed"),
     (8, Galileo, "Galileo"),
-    CouldNotParse
+    UnknownLookupField
 );
 
 define_nmea_enum!(
@@ -317,7 +320,7 @@ define_nmea_enum!(
     (6, EstimatedDrMode, "Estimated (DR) mode"),
     (7, ManualInput, "Manual Input"),
     (8, SimulateMode, "Simulate mode"),
-    CouldNotParse
+    UnknownLookupField
 );
 
 define_nmea_enum!(
@@ -325,5 +328,5 @@ define_nmea_enum!(
     (0, NoIntegrityChecking, "No integrity checking"),
     (1, Safe, "Safe"),
     (2, Caution, "Caution"),
-    CouldNotParse
+    UnknownLookupField
 );
