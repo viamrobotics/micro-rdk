@@ -1065,7 +1065,7 @@ mod tests {
         rc::Rc,
         sync::{
             atomic::{AtomicI32, Ordering},
-            Arc,
+            Arc, Condvar, Mutex,
         },
         time::Duration,
     };
@@ -1315,7 +1315,15 @@ mod tests {
 
         let mut app = AppServerInsecure::default();
 
+        // condvar to serialize fake-server-task auth and viam_server.run()
+        let pair = Arc::new((Mutex::new(false), Condvar::new()));
+        let pair2 = Arc::clone(&pair);
+
         app.auth_fn = Some(Rc::new(Box::new(move |req| {
+            let (lock, cvar) = &*pair2;
+            let mut started = lock.lock().unwrap();
+            *started = true;
+            cvar.notify_one();
             assert!(req.entity.contains("test-denied"));
             false
         })));
@@ -1324,9 +1332,21 @@ mod tests {
             let _fake_server_task =
                 cloned_exec.spawn(async move { run_fake_app_server(other_clone, app).await });
             let _task = cloned_exec.spawn(async move {
+                let (lock, cvar) = &*pair;
+                for _ in 0..3 {
+                    // lock within loop to drop mutex guard between (a)waits
+                    let mut started = lock.lock().unwrap();
+                    let result = cvar
+                        .wait_timeout(started, Duration::from_millis(10))
+                        .unwrap();
+                    started = result.0;
+                    if *started {
+                        break;
+                    }
+                }
                 viam_server.run().await;
             });
-            let _ = Timer::after(Duration::from_millis(1000)).await;
+            let _ = Timer::after(Duration::from_millis(500)).await;
             assert!(!cloned_ram_storage.has_robot_credentials())
         });
     }
