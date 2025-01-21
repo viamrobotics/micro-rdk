@@ -1,14 +1,11 @@
 # Micro-RDK
 
-The micro-RDK is a lightweight version of the Robot Development Kit (RDK) which can run on resource-limited embedded systems
+The Micro-RDK is a lightweight version of the Robot Development Kit (RDK) which can run on resource-limited embedded systems
 
-See the viam documentation for more information about Micro-RDK
+See the viam documentation for more information about the Micro-RDK
 
-* [Micro-RDK](https://docs.viam.com/get-started/installation/microcontrollers/)
+* [Micro-RDK](https://docs.viam.com/operate/get-started/other-hardware/micro-module/)
 
+## Example
 
-# Example
-
-Get started with (example)[https://github.com/viamrobotics/micro-rdk/tree/main/esp-idf-component]
-
-
+Get started with [example](https://github.com/viamrobotics/micro-rdk/tree/main/esp-idf-component])
