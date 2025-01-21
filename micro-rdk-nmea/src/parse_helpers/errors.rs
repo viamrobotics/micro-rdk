@@ -12,8 +12,8 @@ pub enum NmeaParseError {
     NumberFieldError(#[from] NumberFieldError),
     #[error(transparent)]
     TryFromSliceError(#[from] std::array::TryFromSliceError),
-    #[error("end of buffer exceeded")]
-    EndOfBufferExceeded,
+    #[error("not enough data to parse next field")]
+    NotEnoughData,
     #[error("found unsupported PGN {0}")]
     UnsupportedPgn(u32),
 }

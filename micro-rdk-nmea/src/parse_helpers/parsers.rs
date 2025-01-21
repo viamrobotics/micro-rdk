@@ -11,63 +11,51 @@ use super::{
     errors::{NmeaParseError, NumberFieldError},
 };
 
-/// Cursor over a byte slice of data. The cursor can be moved by either consuming
-/// child-instances of `DataRead` or calling the `advance` function
-pub struct DataCursor<'a> {
-    data: &'a [u8],
-    bit_position: Rc<AtomicUsize>,
+/// Cursor that consumes can consume bytes from a data vector by bit size.
+pub struct DataCursor {
+    data: Vec<u8>,
 }
 
-struct DataRead<'a> {
-    data: &'a [u8],
-    bit_position: Rc<AtomicUsize>,
-    bit_size: usize,
-}
-
-impl<'a> Drop for DataRead<'a> {
-    fn drop(&mut self) {
-        self.bit_position.fetch_add(self.bit_size, Ordering::SeqCst);
-    }
-}
-
-impl<'a> DataCursor<'a> {
-    pub fn new(data: &'a [u8]) -> Self {
-        Self {
-            data,
-            bit_position: Rc::new(AtomicUsize::new(0)),
-        }
+impl DataCursor {
+    pub fn new(data: Vec<u8>) -> Self {
+        DataCursor { data }
     }
 
-    fn read(&self, bits: usize) -> Result<DataRead, NmeaParseError> {
-        let bit_position = self.bit_position.load(Ordering::SeqCst);
-        let end_byte_position = (bit_position + bits).div_ceil(8);
-        if end_byte_position > self.data.len() {
-            Err(NmeaParseError::EndOfBufferExceeded)
-        } else {
-            let start_byte_position = bit_position / 8;
-            Ok(DataRead {
-                data: &self.data[start_byte_position..end_byte_position],
-                bit_position: self.bit_position.clone(),
-                bit_size: bits,
-            })
+    pub fn read(&mut self, bit_size: usize) -> Result<Vec<u8>, NmeaParseError> {
+        if bit_size / 8 > self.data.len() {
+            return Err(NmeaParseError::NotEnoughData);
         }
-    }
+        let mut res = Vec::new();
+        res.extend(self.data.drain(..(bit_size / 8)));
 
-    pub fn advance(&self, bits: usize) -> Result<(), NmeaParseError> {
-        let advanced_position = self.bit_position.fetch_add(bits, Ordering::SeqCst);
-        if advanced_position > (self.data.len() * 8) {
-            self.bit_position.fetch_sub(bits, Ordering::SeqCst);
-            Err(NmeaParseError::EndOfBufferExceeded)
-        } else {
-            Ok(())
+        // If the next bit_size takes us into the middle of a byte, then
+        // we want the next byte of the result to be shifted so as to ignore the remaining bits.
+        // The first byte of the data should have the bits that were included in the result
+        // set to zero.
+        //
+        // This is due to the way number fields in NMEA messages appear to be formatted
+        // from observation of successfully parsed data, which is that overflowing bits
+        // are read in MsB order, but the resulting bytes are read in Little-Endian.
+        //
+        // For example, let's say the data is [179, 152], and we want to read a u16 from a bit size of 12
+        //
+        // [179, 152] is 39091 in u16, reading the first 12 bits and ignoring the last 4
+        // should yield [10110011 10011000] => [10110011 00001001] => 2483 (in Little-Endian)
+        if bit_size % 8 != 0 {
+            res.push(self.data[0] >> (8 - (bit_size % 8)));
+            let mask: u8 = 255 >> (bit_size % 8);
+            if let Some(first_byte) = self.data.get_mut(0) {
+                *first_byte |= mask;
+            }
         }
+        Ok(res)
     }
 }
 
 /// Trait for reading a data type (`FieldType`) from a DataCursor.
 pub trait FieldReader {
     type FieldType;
-    fn read_from_cursor(&self, cursor: &DataCursor) -> Result<Self::FieldType, NmeaParseError>;
+    fn read_from_cursor(&self, cursor: &mut DataCursor) -> Result<Self::FieldType, NmeaParseError>;
 }
 
 /// A field reader for parsing a basic number type. A reader with bit_size n will read its value
@@ -108,30 +96,18 @@ where
 macro_rules! generate_number_field_readers {
     ($($t:ty),*) => {
         $(
-            impl TryFrom<DataRead<'_>> for $t {
-                type Error = NmeaParseError;
-                fn try_from(value: DataRead) -> Result<Self, Self::Error> {
-                    let max_size = std::mem::size_of::<Self>();
-                    if (value.bit_size / 8) > max_size {
-                        Err(NumberFieldError::ImproperBitSize(value.bit_size, max_size * 8).into())
-                    } else if value.bit_size == (max_size * 8) {
-                        Ok(<$t>::from_le_bytes(value.data[..].try_into()?))
-                    } else {
-                        let byte_idx = value.bit_size / 8;
-                        let data_cpy = &mut value.data[..].to_vec();
-                        data_cpy.resize(max_size, 0);
-                        let shift = 8 - (value.bit_size % 8);
-                        data_cpy[byte_idx] = data_cpy[byte_idx] >> shift;
-                        Ok(<$t>::from_le_bytes(data_cpy[..].try_into()?))
-                    }
-                }
-            }
-
             impl FieldReader for NumberField<$t> {
                 type FieldType = $t;
 
-                fn read_from_cursor(&self, cursor: &DataCursor) -> Result<Self::FieldType, NmeaParseError> {
-                    Ok(cursor.read(self.bit_size)?.try_into()?)
+                fn read_from_cursor(&self, cursor: &mut DataCursor2) -> Result<Self::FieldType, NmeaParseError> {
+                    let mut data = cursor.read(self.bit_size)?;
+                    let max_size = std::mem::size_of::<Self::FieldType>();
+                    if self.bit_size / 8 > max_size {
+                        Err(NumberFieldError::ImproperBitSize(self.bit_size, max_size * 8).into())
+                    } else {
+                        data.resize(max_size, 0);
+                        Ok(<$t>::from_le_bytes(data[..].try_into()?))
+                    }
                 }
             }
         )*
@@ -167,9 +143,9 @@ where
 {
     type FieldType = T;
 
-    fn read_from_cursor(&self, cursor: &DataCursor) -> Result<Self::FieldType, NmeaParseError> {
-        let data_read = cursor.read(self.bit_size)?;
-        let enum_value = u32::try_from(data_read)?;
+    fn read_from_cursor(&self, cursor: &mut DataCursor) -> Result<Self::FieldType, NmeaParseError> {
+        let number_parser = NumberField::<u32>::new(self.bit_size)?;
+        let enum_value = number_parser.read_from_cursor(cursor)?;
         Ok(enum_value.into())
     }
 }
@@ -191,7 +167,7 @@ where
 {
     type FieldType = [<NumberField<T> as FieldReader>::FieldType; N];
 
-    fn read_from_cursor(&self, cursor: &DataCursor) -> Result<Self::FieldType, NmeaParseError> {
+    fn read_from_cursor(&self, cursor: &mut DataCursor) -> Result<Self::FieldType, NmeaParseError> {
         let mut res: [<NumberField<T> as FieldReader>::FieldType; N] = [Default::default(); N];
         let field_reader: NumberField<T> = Default::default();
         for i in 0..N {
@@ -205,9 +181,8 @@ where
 /// Some NMEA 2000 messages have a set of fields that may be repeated a number of times (usually specified by the value
 /// of another field). This trait is for structs that implement this set of fields, most likely using the `FieldsetDerive` macro.
 pub trait FieldSet: Sized {
-    fn from_bytes(data: &[u8], current_index: usize) -> Result<(usize, Self), NmeaParseError>;
     fn to_readings(&self) -> Result<GenericReadingsResult, NmeaParseError>;
-    fn from_data(cursor: &DataCursor) -> Result<Self, NmeaParseError>;
+    fn from_data(cursor: &mut DataCursor) -> Result<Self, NmeaParseError>;
 }
 
 /// A field reader that parses a vector of structs representing a field set (see `FieldSet`) from a byte slice.
@@ -232,10 +207,10 @@ where
 {
     type FieldType = Vec<T>;
 
-    fn read_from_cursor(&self, cursor: &DataCursor) -> Result<Self::FieldType, NmeaParseError> {
+    fn read_from_cursor(&self, cursor: &mut DataCursor) -> Result<Self::FieldType, NmeaParseError> {
         let mut res = Vec::new();
         for _ in 0..self.length {
-            let elem = T::from_data(&cursor)?;
+            let elem = T::from_data(cursor)?;
             res.push(elem);
         }
         Ok(res)
@@ -255,14 +230,13 @@ mod tests {
     #[test]
     fn number_field_test() {
         let data_vec: Vec<u8> = vec![100, 6, 125, 73];
-        let data: &[u8] = &data_vec[..];
-        let cursor = DataCursor::new(data);
+        let mut cursor = DataCursor::new(data_vec);
 
         let reader = NumberField::<u8>::new(4);
         assert!(reader.is_ok());
         let reader = reader.unwrap();
-        assert!(cursor.advance(16).is_ok());
-        let res = reader.read_from_cursor(&cursor);
+        assert!(cursor.read(16).is_ok());
+        let res = reader.read_from_cursor(&mut cursor);
         assert!(res.is_ok());
         // 125 = 01111101, first four bits as byte => 00000111 = 7
         assert_eq!(res.unwrap(), 7);
@@ -272,13 +246,12 @@ mod tests {
         let reader = reader.unwrap();
 
         let data_vec: Vec<u8> = vec![100, 6, 125, 179, 152, 113];
-        let data: &[u8] = &data_vec[..];
-        let cursor = DataCursor::new(data);
+        let mut cursor = DataCursor::new(data_vec);
 
         // [179, 152] is 39091 in u16, reading the first 12 bits and ignoring the last 4
         // should yield [10110011 10011000] => [10110011 00001001] => 2483 ( in Little-Endian)
-        assert!(cursor.advance(24).is_ok());
-        let res = reader.read_from_cursor(&cursor);
+        assert!(cursor.read(24).is_ok());
+        let res = reader.read_from_cursor(&mut cursor);
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), 2483);
 
@@ -287,11 +260,10 @@ mod tests {
         let reader = reader.unwrap();
 
         let data_vec: Vec<u8> = vec![154, 6, 125, 179, 152, 113];
-        let data: &[u8] = &data_vec[..];
-        let cursor = DataCursor::new(data);
+        let mut cursor = DataCursor::new(data_vec);
 
         // 154 is 10011010, reading the first 3 bits should yield 100 = 4
-        let res = reader.read_from_cursor(&cursor);
+        let res = reader.read_from_cursor(&mut cursor);
         println!("res: {:?}", res);
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), 4);
@@ -304,11 +276,10 @@ mod tests {
         let reader = reader.unwrap();
 
         let data_vec: Vec<u8> = vec![100, 6, 111, 138, 152, 113];
-        let data: &[u8] = &data_vec[..];
-        let cursor = DataCursor::new(data);
+        let mut cursor = DataCursor::new(data_vec);
 
-        assert!(cursor.advance(24).is_ok());
-        let res = reader.read_from_cursor(&cursor);
+        assert!(cursor.read(24).is_ok());
+        let res = reader.read_from_cursor(&mut cursor);
         assert!(res.is_ok());
         assert!(matches!(res.unwrap(), MagneticVariationSource::Wmm2020));
     }
@@ -316,25 +287,24 @@ mod tests {
     #[test]
     fn array_field_test() {
         let data_vec: Vec<u8> = vec![100, 6, 111, 77, 152, 113, 42, 42];
-        let data: &[u8] = &data_vec[..];
-        let cursor = DataCursor::new(data);
+        let mut cursor = DataCursor::new(data_vec.clone());
 
         let reader = ArrayField::<u8, 3>::new();
-        assert!(cursor.advance(16).is_ok());
-        let res = reader.read_from_cursor(&cursor);
+        assert!(cursor.read(16).is_ok());
+        let res = reader.read_from_cursor(&mut cursor);
         assert_eq!(res.unwrap(), [111, 77, 152]);
 
-        let cursor = DataCursor::new(data);
+        let mut cursor = DataCursor::new(data_vec.clone());
         let reader = ArrayField::<u16, 2>::new();
         // [6, 11] = 28422, [77, 152] = 38989
-        assert!(cursor.advance(8).is_ok());
-        let res = reader.read_from_cursor(&cursor);
+        assert!(cursor.read(8).is_ok());
+        let res = reader.read_from_cursor(&mut cursor);
         assert_eq!(res.unwrap(), [28422, 38989]);
 
-        let cursor = DataCursor::new(data);
+        let mut cursor = DataCursor::new(data_vec);
         let reader = ArrayField::<i32, 2>::new();
         // [100, 6, 111, 77] = 1299121764, [152, 113, 42, 42] = 707424664
-        let res = reader.read_from_cursor(&cursor);
+        let res = reader.read_from_cursor(&mut cursor);
         assert_eq!(res.unwrap(), [1299121764, 707424664]);
     }
 
@@ -346,26 +316,20 @@ mod tests {
     }
 
     impl FieldSet for TestFieldSet {
-        fn from_bytes(data: &[u8], current_index: usize) -> Result<(usize, Self), NmeaParseError> {
-            let a_data: &[u8] = &data[current_index..(current_index + 2)];
-            let a = u16::from_le_bytes(a_data.try_into()?);
-            let b = data[current_index + 2];
-            let c_data: &[u8] = &data[(current_index + 3)..(current_index + 5)];
-            let c = u16::from_le_bytes(c_data.try_into()?);
-
-            Ok((current_index + 5, TestFieldSet { a, b, c }))
-        }
-
         fn to_readings(
             &self,
         ) -> Result<micro_rdk::common::sensor::GenericReadingsResult, NmeaParseError> {
             Err(NmeaParseError::UnsupportedPgn(0))
         }
 
-        fn from_data(cursor: &super::DataCursor) -> Result<Self, NmeaParseError> {
-            let a = cursor.read(16)?.try_into()?;
-            let b = cursor.read(8)?.try_into()?;
-            let c = cursor.read(16)?.try_into()?;
+        fn from_data(cursor: &mut super::DataCursor) -> Result<Self, NmeaParseError> {
+            let u16_reader = NumberField::<u16>::default();
+            let u8_reader = NumberField::<u8>::default();
+
+            let a = u16_reader.read_from_cursor(cursor)?;
+            let b = u8_reader.read_from_cursor(cursor)?;
+            let c = u16_reader.read_from_cursor(cursor)?;
+
             Ok(TestFieldSet { a, b, c })
         }
     }
@@ -373,12 +337,11 @@ mod tests {
     #[test]
     fn fieldset_field_test() {
         let data_vec: Vec<u8> = vec![100, 6, 111, 77, 152, 113, 42, 42, 1, 2, 3];
-        let data: &[u8] = &data_vec[..];
-        let cursor = DataCursor::new(data);
+        let mut cursor = DataCursor::new(data_vec);
 
         let reader = FieldSetList::<TestFieldSet>::new(2);
-        assert!(cursor.advance(8).is_ok());
-        let res = reader.read_from_cursor(&cursor);
+        assert!(cursor.read(8).is_ok());
+        let res = reader.read_from_cursor(&mut cursor);
         assert!(res.is_ok());
         let res = res.unwrap();
 
