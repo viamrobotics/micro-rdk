@@ -45,7 +45,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     } else {
       xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
     }
-    ESP_LOGI(TAG,"connect to the AP fail");
+    ESP_LOGI(TAG, "connect to the AP fail");
   } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
     ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
     ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
@@ -274,7 +274,7 @@ void app_main(void)
     viam_server_register_c_generic_sensor(viam_ctx, "sensorA", config_A);
 
   if (ret != VIAM_OK) {
-    ESP_LOGE(TAG,"couldn't register sensorA model, error : %i", ret);
+    ESP_LOGE(TAG, "couldn't register sensorA model, error : %i", ret);
     return;
   }
 
@@ -286,35 +286,47 @@ void app_main(void)
   ret = viam_server_register_c_generic_sensor(viam_ctx, "sensorB", config_B);
 
   if (ret != VIAM_OK) {
-    ESP_LOGE(TAG,"couldn't register sensorB model, error : %i", ret);
+    ESP_LOGE(TAG, "couldn't register sensorB model, error : %i", ret);
     return;
   }
 
   ret = viam_server_set_provisioning_manufacturer(viam_ctx, "viam-example");
   if (ret != VIAM_OK) {
-    ESP_LOGE(TAG,"couldn't set manufacturer, error : %i", ret);
+    ESP_LOGE(TAG, "couldn't set manufacturer, error : %i", ret);
     return;
   }
 
   uint8_t mac[8];
   esp_err_t esp_err = esp_efuse_mac_get_default(mac);
   if (esp_err != ESP_OK){
-    ESP_LOGE(TAG,"couldn't get default mac, error : %i", esp_err);
+    ESP_LOGE(TAG, "couldn't get default mac, error : %i", esp_err);
     return;
   }
   char model[50];
   snprintf(model, 50, "esp32-%02X%02X", mac[6],mac[7]);
   ret = viam_server_set_provisioning_model(viam_ctx, model);
   if (ret != VIAM_OK) {
-    ESP_LOGE(TAG,"couldn't set model, error : %i", ret);
+    ESP_LOGE(TAG, "couldn't set model, error : %i", ret);
     return;
   }
 
-  ESP_LOGI(TAG,"starting viam server\r\n");
+  ret = viam_server_add_nvs_storage(viam_ctx, "nvs");
+  if (ret != VIAM_OK) {
+    ESP_LOGE(TAG, "couldn't set add nvs partition, error : %i", ret);
+    return;
+  }
+
+  ret = viam_server_add_nvs_storage(viam_ctx, "nvs_other");
+  if (ret != VIAM_OK) {
+    ESP_LOGE(TAG, "couldn't set add nvs partition, error : %i", ret);
+    return;
+  }
+
+  ESP_LOGI(TAG, "starting viam server\r\n");
 
   xTaskCreatePinnedToCore((void*)viam_server_start, "viam", CONFIG_MICRO_RDK_TASK_STACK_SIZE, viam_ctx, 6, NULL, CONFIG_MICRO_RDK_TASK_PINNED_TO_CORE_1);
 #else
-  ESP_LOGE(TAG,"enable MICRO_RDK_ENABLE_BUILD_LIBRARY ");
+  ESP_LOGE(TAG, "enable MICRO_RDK_ENABLE_BUILD_LIBRARY ");
 #endif
 
 }

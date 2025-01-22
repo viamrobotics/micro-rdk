@@ -1,10 +1,9 @@
 [package]
 name = "{{project-name}}"
-version = "0.3.3"
+version = "0.0.1"
 edition = "2021"
 authors = ["{{authors}}"]
 resolver = "2"
-# TODO(RSDK-8992): Upgrade rust to latest esp-rs version
 rust-version = "1.83"
 
 [profile.release]
@@ -16,8 +15,8 @@ opt-level = "z"
 
 [dependencies.micro-rdk]
 git = "https://github.com/viamrobotics/micro-rdk.git"
-version = "0.3.3"
-rev = "bb050e5"
+version = "0.4.0"
+rev = "380a098"
 features = [
   "esp32",
   "binstart",
@@ -25,14 +24,14 @@ features = [
 ]
 
 [dependencies]
-embedded-svc = "0.27"
-embedded-hal = { version = "~0.2", features = ["unproven"]}
-log = "0.4"
 async-channel = "2"
+embedded-hal = { version = "~0.2", features = ["unproven"]}
+embedded-svc = "0.27"
 futures-lite = "2"
+log = "0.4"
 
 [build-dependencies]
-cargo_metadata = "0.18"
+cargo_metadata = "0.19"
 embuild = "0.32"
 regex = "1.11"
 serde = { version = "1.0", features = ["derive"] }

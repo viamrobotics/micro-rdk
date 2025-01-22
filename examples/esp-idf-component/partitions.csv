@@ -1,4 +1,7 @@
-# Name,   Type, SubType, Offset,   Size
-nvs,      data, nvs,     0x09000,  0x4000
-phy_init, data, phy,     0x13000,  0x1000
-factory,  app,  factory, 0x20000,  4M
+# Name,		Type,	SubType,	Offset,		Size,		Flags
+phy_init,	data,	phy,		0x9000,		0x1000,
+otadata,	data,	ota,		0xa000,		0x2000,
+nvs,		data,	nvs,		0xc000,		0x14000,
+ota_0,		app,	ota_0,		0x20000,	0x3e0000,
+ota_1,		app,	ota_1,		0x400000,	0x3e0000,
+coredump,	data,	coredump,	0x7e0000,	0x20000,

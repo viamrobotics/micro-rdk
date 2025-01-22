@@ -24,8 +24,7 @@ description = "Viam RDK for microcontroller"
 edition = "2021"
 license = "AGPL-3.0"
 repository = "https://github.com/viamrobotics/micro-rdk"
-version = "0.4.0-rc2"
-# TODO(RSDK-8992): Upgrade rust to latest esp-rs version
+version = "0.4.0"
 rust-version = "1.83"
 
 [profile.release]
@@ -48,7 +47,10 @@ async-io = "2"
 async-lock = "3.4.0"
 async-std-openssl = "0.6.3"
 atomic-waker = "1.1.2"
+axum = "0.7.9"
+axum-extra = "0.9.6"
 base64 = "0.22.1"
+bincode = "2.0.0-rc.3"
 bitfield = "0.17.0"
 bytecodec = "0.4.15"
 bytes = "1.9.0"
@@ -58,17 +60,17 @@ chrono = "0.4.38"
 chrono-tz = "0.10.0"
 clap = "4.5.23"
 crc32fast = "1.4.2"
-dns-message-parser = { version = "0.7", default-features = false}
 dialoguer = "0.11.0"
+dns-message-parser = { version = "0.7", default-features = false}
 either = "1.13.0"
 # TODO(RSDK-8991): Upgrade to latest `embedded-hal`
 embedded-hal = { version = "~0.2", features = ["unproven"] }
 embedded-svc = "0.27"
 embuild = "0.32.0"
 env_logger = "0.11.5"
+esp-idf-part = "0.5.0"
 # TODO(RSDK-8994): Upgrade to latest `esp-idf-svc`
 esp-idf-svc = { version = "~0.48", default-features = false }
-esp-idf-part = "0.5.0"
 espflash = { git = "https://github.com/viamrobotics/espflash.git", branch = "monitor-output" }
 futures = "0.3.31"
 futures-lite = "2"
@@ -96,9 +98,9 @@ prost = "0.13.4"
 prost-types = "0.13.4"
 quote = "1.0.37"
 rand = "0.8.5"
-regex = "1.11"
 # TODO(RSDK-8996): Upgrade `rcgen` to latest release
 rcgen = "~0.12"
+regex = "1.11"
 reqwest = "0.12.9"
 reqwless = "0.13.0"
 # TODO(RSDK-8996): Upgrade `ringbuf` to latest release

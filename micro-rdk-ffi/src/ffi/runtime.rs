@@ -27,6 +27,7 @@ pub struct viam_server_context {
     registry: Box<ComponentRegistry>,
     provisioning_info: ProvisioningInfo,
     _marker: PhantomData<(*mut u8, PhantomPinned)>, // Non Send, Non Sync
+    storage: Vec<String>,
 }
 
 #[cfg(target_os = "espidf")]
@@ -49,6 +50,7 @@ pub extern "C" fn init_viam_server_context() -> *mut viam_server_context {
         registry,
         provisioning_info,
         _marker: Default::default(),
+        storage: Default::default(),
     }))
 }
 
@@ -188,6 +190,35 @@ pub unsafe extern "C" fn viam_server_register_c_generic_sensor(
     viam_code::VIAM_OK
 }
 
+/// Add an nvs partition to the storage collection
+///
+/// When the viam server starts each partitions (if they exists) will be added to a storage collection
+/// and made available to the server
+///
+/// # Safety
+/// `ctx`, `storage_name` must be valid pointers
+/// may panic if the storage_name cannot be pushed on the vector
+#[no_mangle]
+pub unsafe extern "C" fn viam_server_add_nvs_storage(
+    ctx: *mut viam_server_context,
+    storage_name: *const c_char,
+) -> viam_code {
+    if ctx.is_null() || storage_name.is_null() {
+        return viam_code::VIAM_INVALID_ARG;
+    }
+
+    let ctx = unsafe { &mut *ctx };
+    let name = if let Ok(s) = unsafe { CStr::from_ptr(storage_name) }.to_str() {
+        s
+    } else {
+        return viam_code::VIAM_INVALID_ARG;
+    };
+
+    ctx.storage.push(name.to_owned());
+
+    viam_code::VIAM_OK
+}
+
 #[allow(dead_code)]
 const ROBOT_ID: Option<&str> = option_env!("MICRO_RDK_ROBOT_ID");
 #[allow(dead_code)]
@@ -257,7 +288,7 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
         use micro_rdk::common::credentials_storage::RAMStorage;
         use micro_rdk::common::credentials_storage::RobotConfigurationStorage;
         use micro_rdk::proto::provisioning::v1::CloudConfig;
-
+        //TODO(RSDK-9715)
         let ram_storage = RAMStorage::new();
         let cloud_conf = if ROBOT_ID.is_some() && ROBOT_SECRET.is_some()  {
             Some(CloudConfig {
@@ -269,7 +300,7 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
             None
         }.expect("has_robot_config set in cfg, but build-time configuration failed to set robot credentials");
         ram_storage
-            .store_robot_credentials(cloud_conf)
+            .store_robot_credentials(&cloud_conf)
             .expect("Failed to store cloud config");
         if ROBOT_APP_ADDRESS.is_some() {
             ram_storage
@@ -284,7 +315,21 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
         #[cfg(not(target_os = "espidf"))]
         let storage = micro_rdk::common::credentials_storage::RAMStorage::default();
         #[cfg(target_os = "espidf")]
-        let storage = micro_rdk::esp32::nvs_storage::NVSStorage::new("nvs").unwrap();
+        let storage: Vec<micro_rdk::esp32::nvs_storage::NVSStorage> = ctx
+            .storage
+            .iter()
+            .map(|s| {
+                micro_rdk::esp32::nvs_storage::NVSStorage::new(s).inspect_err(|err| {
+                    log::error!(
+                        "storage {} cannot be built reason {} continuing without",
+                        s,
+                        err
+                    )
+                })
+            })
+            .filter(|r| r.is_ok())
+            .flatten()
+            .collect();
         storage
     };
 

@@ -166,6 +166,12 @@ enum viam_code viam_server_register_c_generic_sensor(struct viam_server_context 
                                                      struct generic_c_sensor_config *sensor);
 
 /*
+ Add an nvs partition to the storage collection
+ */
+enum viam_code viam_server_add_nvs_storage(struct viam_server_context *ctx,
+                                           const char *storage_name);
+
+/*
  Starts the viam server, the function will take ownership of `ctx` therefore future call
  */
 enum viam_code viam_server_start(struct viam_server_context *ctx);
