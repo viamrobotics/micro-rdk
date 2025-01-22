@@ -5,13 +5,9 @@ pub(crate) mod utils;
 use crate::composition::PgnComposition;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
-use quote::quote;
 use syn::DeriveInput;
 
-fn get_statements(
-    input: &DeriveInput,
-    initialize_current_index: bool,
-) -> Result<PgnComposition, TokenStream> {
+fn get_statements(input: &DeriveInput) -> Result<PgnComposition, TokenStream> {
     let src_fields = if let syn::Data::Struct(syn::DataStruct { ref fields, .. }) = input.data {
         fields
     } else {
@@ -31,15 +27,6 @@ fn get_statements(
     };
 
     let mut statements = PgnComposition::new();
-    if initialize_current_index {
-        statements
-            .parsing_logic
-            .push(quote! { let mut current_index: usize = 0; });
-    } else {
-        statements
-            .parsing_logic
-            .push(quote! { let mut current_index: usize = current_index; });
-    }
     for field in named_fields.iter() {
         match PgnComposition::from_field(field) {
             Ok(new_statements) => {
@@ -66,7 +53,7 @@ fn get_statements(
 pub fn pgn_message_derive(item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as syn::DeriveInput);
 
-    match get_statements(&input, true) {
+    match get_statements(&input) {
         Ok(gen) => gen.into_token_stream(&input).into(),
         Err(tokens) => tokens,
     }
