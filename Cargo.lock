@@ -2829,7 +2829,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-nmea"
-version = "0.4.0-rc2"
+version = "0.4.0"
 dependencies = [
  "micro-rdk",
  "thiserror 2.0.4",
