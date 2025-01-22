@@ -1,5 +1,5 @@
 [package]
-name = "micro-rdk-nmea"
+name = "micro-rdk-nmea-macros"
 authors.workspace = true
 description.workspace = true
 edition.workspace = true
@@ -8,10 +8,13 @@ repository.workspace = true
 version.workspace = true
 rust-version.workspace = true
 
+[lib]
+proc-macro = true
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-base64 = { workspace = true }
-micro-rdk = { path = "../micro-rdk", features = ["native"] }
-micro-rdk-nmea-macros = { path = "../micro-rdk-nmea-macros" }
-thiserror = { workspace = true }
+proc-macro-crate = { workspace = true }
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true }

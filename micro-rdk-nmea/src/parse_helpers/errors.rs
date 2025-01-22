@@ -4,6 +4,10 @@ use thiserror::Error;
 pub enum NumberFieldError {
     #[error("field bit size {0} too large for max size {0}")]
     ImproperBitSize(usize, usize),
+    #[error("{0} field not present in message")]
+    FieldNotPresent(String),
+    #[error("{0} field was error value")]
+    FieldError(String),
 }
 
 #[derive(Debug, Error)]

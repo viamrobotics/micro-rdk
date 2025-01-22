@@ -6,6 +6,7 @@ members = [
   "micro-rdk-installer",
   "micro-rdk-macros",
   "micro-rdk-nmea",
+  "micro-rdk-nmea-macros",
   "micro-rdk-server",
   "micro-rdk-ffi",
   "examples/modular-drivers",
