@@ -1,6 +1,6 @@
 # Using Micro-RDK as a library Example
 
-This example cover shows how to use the Micro-RDK into a new or existing ESP project.
+This example shows how to use the Micro-RDK in a new or existing ESP project.
 
 ## How to configure the example
 
