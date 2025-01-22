@@ -18,7 +18,7 @@ mod tests {
         assert!(res.is_ok());
         let message = WaterDepth::from_bytes(data[33..].to_vec(), Some(13));
         assert!(message.is_ok());
-        let (message, _) = message.unwrap();
+        let message = message.unwrap();
         assert_eq!(message.source_id(), 13);
         let depth = message.depth();
         assert!(depth.is_ok());
@@ -40,7 +40,7 @@ mod tests {
         assert!(res.is_ok());
         let message = WaterDepth::from_bytes(data[33..].to_vec(), Some(13));
         assert!(message.is_ok());
-        let (message, _) = message.unwrap();
+        let message = message.unwrap();
         assert_eq!(message.source_id(), 13);
         let depth = message.depth();
         assert!(depth.is_ok());
@@ -63,7 +63,7 @@ mod tests {
 
         let message = TemperatureExtendedRange::from_bytes(data[33..].to_vec(), Some(23));
         assert!(message.is_ok());
-        let (message, _) = message.unwrap();
+        let message = message.unwrap();
         assert_eq!(message.source_id(), 23);
         let temp = message.temperature();
         assert!(temp.is_ok());

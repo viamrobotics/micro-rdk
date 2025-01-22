@@ -93,14 +93,13 @@ impl PgnComposition {
         let mrdk_crate = crate::utils::get_micro_rdk_crate_ident();
         quote! {
             impl #impl_generics #name #src_generics #src_where_clause {
-                pub fn from_bytes(data: Vec<u8>, source_id: Option<u8>) -> Result<(Self, usize), #error_ident> {
+                pub fn from_bytes(data: Vec<u8>, source_id: Option<u8>) -> Result<Self, #error_ident> {
                     use #crate_ident::parse_helpers::parsers::{DataCursor, FieldReader};
-                    println!("data: {:?}", data);
                     let mut cursor = DataCursor::new(data);
                     #(#parsing_logic)*
-                    Ok((Self {
+                    Ok(Self {
                         #(#struct_initialization)*
-                    }, current_index))
+                    })
                 }
                 #(#attribute_getters)*
 
