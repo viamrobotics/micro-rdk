@@ -1,14 +1,8 @@
 import asyncio
-import datetime
-import os
 import time
 import copy
 
-from importlib.metadata import version
-from typing import Coroutine, Any
 from viam.robot.client import DialOptions
-
-
 from viam.app.viam_client import ViamClient
 
 async def connect(robot_address: str, api_key: str, api_key_id: str) -> ViamClient:
@@ -30,7 +24,6 @@ async def main():
     start = None
     for i in range(5):
         try:
-            start = time.time()
             viam_client = await connect(robot_address, api_key, api_key_id)
             break
         except Exception as e:
