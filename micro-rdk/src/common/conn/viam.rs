@@ -1332,7 +1332,7 @@ mod tests {
                 // await multiple times to give both servers opportunity to process request/response
                 let _ = Timer::after(Duration::from_millis(50)).await;
                 if !cloned_ram_storage.has_robot_credentials() {
-                    // server properly handled response from fake_server
+                    // viam_server properly handled response from fake_app_server
                     break;
                 }
             }
