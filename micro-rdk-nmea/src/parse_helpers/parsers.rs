@@ -1,8 +1,4 @@
-use std::{
-    marker::PhantomData,
-    rc::Rc,
-    sync::atomic::{AtomicUsize, Ordering},
-};
+use std::marker::PhantomData;
 
 use micro_rdk::common::sensor::GenericReadingsResult;
 
@@ -99,7 +95,7 @@ macro_rules! generate_number_field_readers {
             impl FieldReader for NumberField<$t> {
                 type FieldType = $t;
 
-                fn read_from_cursor(&self, cursor: &mut DataCursor2) -> Result<Self::FieldType, NmeaParseError> {
+                fn read_from_cursor(&self, cursor: &mut DataCursor) -> Result<Self::FieldType, NmeaParseError> {
                     let mut data = cursor.read(self.bit_size)?;
                     let max_size = std::mem::size_of::<Self::FieldType>();
                     if self.bit_size / 8 > max_size {
