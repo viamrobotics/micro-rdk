@@ -1,6 +1,7 @@
 import asyncio
 import time
 import copy
+import os
 
 from viam.robot.client import DialOptions
 from viam.app.viam_client import ViamClient
