@@ -21,16 +21,16 @@ on the Micro-RDK itself.
 
 ### Tree-level `cargo` configuration
 
-The micro-rdk monorepo is only part of the development story: when
-developing for or with Micro-RDK, there will be other directories in
+The `micro-rdk` monorepo is only part of the development story: when
+developing for or with the Micro-RDK, there will be other directories in
 play (e.g. projects generated from the template, etc.), and
 coordinating the state of these many directories and repositories can
 prove troublesome. A carefully placed `.cargo/config.toml` file can
-inject settings for the entire tree of trees, including the micro-rdk
+inject settings for the entire tree of trees, including the `micro-rdk`
 monorepo, projects, and modules. Simply create a `.cargo` directory as
-a peer of your micro-rdk monorepo and any project directories, and
+a peer of your `micro-rdk` monorepo and any project directories, and
 then create a `config.toml` file within it. Settings applied in that
-file will now apply globally to all crates inside the micro-rdk as
+file will now apply globally to all crates inside the Micro-RDK as
 well as to peer project directories. Here is an example layout:
 
 ```
@@ -156,10 +156,10 @@ paths forward:
 
 ### Patching in the local `micro-rdk` Monorepo at Tree Level
 
-Again, if you are working with Micro-RDK, you probably have both the
-`Micro-RDK` monorepo and various project directories associated with
+Again, if you are working with the Micro-RDK, you probably have both the
+`micro-rdk` monorepo and various project directories associated with
 it. Those projects quite often have their own `Cargo.toml` files that
-have dependencies on micro-rdk by way of github:
+have dependencies on the Micro-RDK by way of GitHub:
 
 
 ```
@@ -170,7 +170,7 @@ micro-rdk-modular-driver-example = { version = "0.2.2", git = "https://github.co
 ```
 
 But just as often, what you actually want to do is to have these
-projects use your __local_ micro-rdk state, and you end up hand
+projects use your __local_ Micro-RDK state, and you end up hand
 editing the `Cargo.toml` file to point to a path instead:
 
 
@@ -204,7 +204,7 @@ without needing local `Cargo.toml` edits.
 
 ### Customizing ESP-IDF configuration
 
-The documented build procedures for Micro-RDK and Micro-RDK adjacent
+The documented build procedures for the Micro-RDK and Micro-RDK-adjacent
 projects leverage the [`embuild` package](https://github.com/esp-rs/embuild)
 to automate the installation of the ESP-IDF framework. The default
 settings are usually what you want, but there are times when it may
