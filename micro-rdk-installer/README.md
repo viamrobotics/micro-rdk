@@ -1,6 +1,6 @@
 # The Viam Micro-RDK Installer
 
-A CLI that allows a user to flash a build of Micro-RDK, along with their robot's credentials and their wifi information, directly to their esp32 without requiring installation of ESP-IDF, Rust, or Python.
+A CLI that allows a user to flash a build of the Micro-RDK, along with their robot's credentials and their wifi information, directly to their esp32 without requiring installation of ESP-IDF, Rust, or Python.
 
 ## Option 1: Download Pre-Built Binaries
 
@@ -22,15 +22,15 @@ Only necessary as an alternative to the previous Download step
 ## Usage
 
 ```text
-A CLI that can flash a compilation of micro-RDK directly to an ESP32 provided configuration information
+A CLI that can flash a compilation of the Micro-RDK directly to an ESP32 provided configuration information
 
 Usage: micro-rdk-installer [COMMAND]
 
 Commands:
-  write-flash           Flash a pre-compiled binary with the micro-RDK server directly to an ESP32 connected to
+  write-flash           Flash a pre-compiled binary (`viam-micro-server`) directly to an ESP32 connected to
                             your computer via data cable
   write-credentials     Write Wi-Fi and robot credentials to the NVS storage portion of a pre-compiled binary
-                            running a micro-RDK server
+                            running `viam-micro-server`
   create-nvs-partition  Generate a binary of a complete NVS data partition that contains Wi-Fi and security
                             credentials for a robot
   monitor               Monitor a currently connected ESP32
@@ -45,14 +45,14 @@ Options:
 1. Find your robot part at https://app.viam.com. Then navigate to the **Setup** tab
 2. Regardless of your operating system, select **Mac** and press the button that appears in Step 2 to download the Viam app config for your robot
 3. Run: `./micro-rdk-installer write-flash --app-config=<file path to the viam.json file downloaded in previous step>`
-    1. To see the micro-RDK server logs through the serial connection, add `--monitor`
+    1. To see the `viam-micro-server` logs through the serial connection, add `--monitor`
     2. If the program cannot auto-detect the serial port to which your ESP32 is connected, you may be prompted to select the correct one among a list
 
 ## Common Problems
 
 ### Linux Port Permissions
 
-If a "Permission Denied" or similar port error occurs, first check the connection of the ESP32 to the machine's USB port. If 
+If a "Permission Denied" or similar port error occurs, first check the connection of the ESP32 to the machine's USB port. If
 connected and the error persists, run `sudo usermod -a -G dialout $USER` to add the current user to the `dialout` group, then try again.
 
 ### MacOS Executable Permissions

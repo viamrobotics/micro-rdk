@@ -29,8 +29,8 @@ In the `url` field, enter the url where a firmware will be downloaded from
    - for cloud-hosted resources, embedded auth in the url is easiest, we don't support tokens yet
 
 
-The `version` field is equivalent to a `tag` and can be any arbitrary string of up to 128 characters. 
-After successfully applying the new firmware, this `version` will be stored in NVS. 
+The `version` field is equivalent to a `tag` and can be any arbitrary string of up to 128 characters.
+After successfully applying the new firmware, this `version` will be stored in NVS.
 This value is compared to that of the latest machine config from app.viam.com and will trigger the update process.
 
 
@@ -90,7 +90,7 @@ The `make build-esp32-ota` command produces an App Image (described above), whic
 
 **This app image is what you must host, see [Firmware Hosting Options](#firmware-hosting-options).**
 
-This build must be within the size limits of the smallest `ota_*` partition in a device's *current* partition table. 
+This build must be within the size limits of the smallest `ota_*` partition in a device's *current* partition table.
 This document assumes the user is using our included partition tables; should the final image be larger than the capacity of the ota partitions, the build will fail indicating so.
 
 To update a device's partition table, use the method in the [Full Build](#full-build) workflow.
@@ -103,7 +103,7 @@ To update a device's partition table, use the method in the [Full Build](#full-b
 
 ### Cloud
 
-The OTA Service in the micro-rdk currently supports **only HTTP/2**, this means that the hosting platform must support HTTP/2 connections. 
+The OTA Service in the Micro-RDK currently supports **only HTTP/2**, this means that the hosting platform must support HTTP/2 connections.
 
 While not all blob storage platform support HTTP/2, many offer Content Delivery Network (CDN) solutions that do.
 
