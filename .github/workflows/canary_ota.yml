@@ -14,11 +14,15 @@ on:
         required: true
       ESP32_CANARY_API_KEY_ID:
         required: true
-    inputs: #TODO(2): remove after testing, use $TAG_NAME
-      tagName:
+    inputs:
+      otaTag:
         description: 'OtaService Config Version tag'
         required: true
-        type: string
+        type: choice
+        default: 'latest'
+        options:
+          - latest
+          - v0.4.0 # earlier versions do not support OTA
 
 env:
   ESP32_CANARY_ROBOT: ${{ secrets.ESP32_CANARY_ROBOT }}
@@ -33,8 +37,8 @@ jobs:
       run:
         working-directory: ./canary
         shell: bash
-    env: # TODO(3): add step to get this from ${{github.ref_name}}, req TODO(1)
-      TAG_NAME: ${{ inputs.tagName }}
+    env:
+      ESP32_CANARY_OTA_VERSION_TAG: ${{ inputs.otaTag }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
