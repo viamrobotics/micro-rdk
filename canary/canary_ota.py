@@ -14,9 +14,7 @@ async def main():
     robot_address = os.environ["ESP32_CANARY_ROBOT"]
     api_key = os.environ["ESP32_CANARY_API_KEY"]
     api_key_id = os.environ["ESP32_CANARY_API_KEY_ID"]
-    # TODO add to CI
     part_id = os.environ["ESP32_CANARY_ROBOT_PART_ID"]
-    # TODO add to CI
     tag_name = os.environ["TAG_NAME"]
 
     print(f"connecting to robot at {robot_address} ...")
