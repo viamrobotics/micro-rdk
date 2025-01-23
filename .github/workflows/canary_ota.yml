@@ -1,7 +1,10 @@
 name: Update ESP32 Canary OtaServiceConfig
 
 on:
-  workflow_dispatch: #TODO: change to run after publishing
+  workflow_dispatch: #TODO(1): change to on:push:tags:'*'
+    pull_request:
+      branches:
+        - main
     secrets:
       ESP32_CANARY_ROBOT:
         required: true
@@ -11,7 +14,7 @@ on:
         required: true
       ESP32_CANARY_API_KEY_ID:
         required: true
-    inputs: #TODO: remove after testing, use $TAG_NAME
+    inputs: #TODO(2): remove after testing, use $TAG_NAME
       tagName:
         description: 'OtaService Config Version tag'
         required: true
@@ -30,7 +33,7 @@ jobs:
       run:
         working-directory: ./canary
         shell: bash
-    env: # TODO: add step to get this from ${{github.ref_name}}, req on:push:tags:'*'
+    env: # TODO(3): add step to get this from ${{github.ref_name}}, req TODO(1)
       TAG_NAME: ${{ inputs.tagName }}
     steps:
       - name: Checkout code
