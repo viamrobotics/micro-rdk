@@ -15,11 +15,18 @@ async def main():
     api_key = os.environ["ESP32_CANARY_API_KEY"]
     api_key_id = os.environ["ESP32_CANARY_API_KEY_ID"]
     part_id = os.environ["ESP32_CANARY_ROBOT_PART_ID"]
-    tag_name = os.environ["TAG_NAME"]
+    tag_name = os.environ["ESP32_CANARY_OTA_VERSION_TAG"]
 
+    bin_name = "micro-rdk-server-esp32-ota.bin"
+    url_base = "https://github.com/viamrobotics/micro-rdk/releases"
+    
+    if tag_name == "latest":
+        url_target = f"{url_base}/latest/download/{bin_name}"
+    else:
+        url_target = f"{url_base}/download/{tag_name}/{bin_name}"
+        
     print(f"connecting to robot at {robot_address} ...")
 
-    start = None
     for i in range(5):
         try:
             viam_client = await connect(robot_address, api_key, api_key_id)
@@ -38,8 +45,10 @@ async def main():
     service_updated = False
     updated_config = copy.copy(robot_part.robot_config)
     for service in updated_config["services"]:
+        # assumes only one such service exists
         if service["model"] == "ota_service":
-            service["attributes"]["version"] = tag_name
+            service["attributes"]["url"] = url_target
+            service["attributes"]["version"] = tag_name            
             service_updated = True
             print(f"updating OtaServiceConfig to `{service}`")
             break
