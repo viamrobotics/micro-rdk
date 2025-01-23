@@ -54,7 +54,7 @@ async def main():
 
     if not service_updated:
         viam_client.close()
-        sys.exit("failed to find or update service ota config")
+        raise Exception("failed to find or update ota service config")
 
     await cloud.update_robot_part(
         robot_part_id=robot_part.id,
@@ -67,6 +67,8 @@ async def main():
     for service in robot_part.robot_config["services"]:
         if service["model"] == "ota_service":
             print(f"OtaServiceConfig after updating: `{service}`")
+            if service["attributes"]["url"] != url_target or service["attributes"]["version"] != tag_name:
+                raise Exception("ota service config does not reflect update")
 
     viam_client.close()
 
