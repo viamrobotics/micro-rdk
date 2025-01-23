@@ -41,7 +41,6 @@ async def main():
 
     robot_part = await cloud.get_robot_part(robot_part_id=part_id)
 
-    # edit robot part config
     service_updated = False
     updated_config = copy.copy(robot_part.robot_config)
     for service in updated_config["services"]:
@@ -55,7 +54,7 @@ async def main():
 
     if not service_updated:
         viam_client.close()
-        sys.exit("failed to update service config")
+        sys.exit("failed to find or update service ota config")
 
     await cloud.update_robot_part(
         robot_part_id=robot_part.id,
