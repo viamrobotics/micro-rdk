@@ -1,10 +1,16 @@
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use quote::{format_ident, quote};
-use syn::{DeriveInput, Field, Ident, Type};
+use quote::{format_ident, quote, ToTokens};
+use syn::{DeriveInput, Field, GenericArgument, Ident, PathArguments, Type};
 
 use crate::attributes::MacroAttributes;
 use crate::utils::{error_tokens, get_micro_nmea_crate_ident, is_supported_integer_type};
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum CodeGenPurpose {
+    Message,
+    Fieldset,
+}
 
 /// Represents a subset of auto-generated code statements for the implementation of a particular
 /// NMEA message. Each field in a message struct contributes its own set of statements to the macro
@@ -37,7 +43,7 @@ impl PgnComposition {
             .append(&mut other.proto_conversion_logic);
     }
 
-    pub(crate) fn from_field(field: &Field) -> Result<Self, TokenStream> {
+    pub(crate) fn from_field(field: &Field, purpose: CodeGenPurpose) -> Result<Self, TokenStream> {
         let mut statements = Self::new();
         if let Some(name) = &field.ident {
             if name == "source_id" {
@@ -51,16 +57,23 @@ impl PgnComposition {
 
             let macro_attrs = MacroAttributes::from_field(field)?;
             if macro_attrs.offset != 0 {
-                let offset = macro_attrs.offset / 8;
+                let offset = macro_attrs.offset;
                 statements
                     .parsing_logic
                     .push(quote! { let _ = cursor.read(#offset)?; });
             }
 
             let new_statements = if is_supported_integer_type(&field.ty) {
-                handle_number_field(name, field, &macro_attrs)?
+                handle_number_field(name, field, &macro_attrs, purpose)?
             } else if macro_attrs.is_lookup {
-                handle_lookup_field(name, &field.ty, &macro_attrs)?
+                handle_lookup_field(name, &field.ty, &macro_attrs, purpose)?
+            } else if field.attrs.iter().any(|attr| {
+                attr.path()
+                    .segments
+                    .iter()
+                    .any(|seg| seg.ident.to_string().as_str() == "fieldset")
+            }) {
+                handle_fieldset(name, field, &macro_attrs, purpose)?
             } else {
                 let err_msg = format!(
                     "field type for {:?} unsupported for PGN message, macro attributes: {:?}",
@@ -79,7 +92,10 @@ impl PgnComposition {
         }
     }
 
-    pub(crate) fn from_input(input: &DeriveInput) -> Result<Self, TokenStream> {
+    pub(crate) fn from_input(
+        input: &DeriveInput,
+        purpose: CodeGenPurpose,
+    ) -> Result<Self, TokenStream> {
         let src_fields = if let syn::Data::Struct(syn::DataStruct { ref fields, .. }) = input.data {
             fields
         } else {
@@ -99,7 +115,7 @@ impl PgnComposition {
         };
         let mut statements = Self::new();
         for field in named_fields.iter() {
-            match PgnComposition::from_field(field) {
+            match PgnComposition::from_field(field, purpose) {
                 Ok(new_statements) => {
                     statements.merge(new_statements);
                 }
@@ -141,12 +157,55 @@ impl PgnComposition {
             }
         }
     }
+
+    pub(crate) fn into_fieldset_token_stream(self, input: &DeriveInput) -> TokenStream2 {
+        let name = &input.ident;
+        let parsing_logic = self.parsing_logic;
+        let attribute_getters = self.attribute_getters;
+        let struct_initialization = self.struct_initialization;
+        let proto_conversion_logic = self.proto_conversion_logic;
+        let (impl_generics, src_generics, src_where_clause) = input.generics.split_for_impl();
+        let crate_ident = crate::utils::get_micro_nmea_crate_ident();
+        let mrdk_crate = crate::utils::get_micro_rdk_crate_ident();
+        let error_ident = quote! {#crate_ident::parse_helpers::errors::NmeaParseError};
+        let field_set_ident = quote! {#crate_ident::parse_helpers::parsers::FieldSet};
+
+        quote! {
+            impl #impl_generics #name #src_generics #src_where_clause {
+                #(#attribute_getters)*
+            }
+
+            impl #impl_generics #field_set_ident for #name #src_generics #src_where_clause {
+                fn from_data(cursor: &mut DataCursor) -> Result<Self, #error_ident> {
+                    use #crate_ident::parse_helpers::parsers::FieldReader;
+                    #(#parsing_logic)*
+                    Ok(Self {
+                        #(#struct_initialization)*
+                    })
+                }
+
+                fn to_readings(&self) -> Result<#mrdk_crate::common::sensor::GenericReadingsResult, #error_ident> {
+                    let mut readings = std::collections::HashMap::new();
+                    #(#proto_conversion_logic)*
+                    Ok(readings)
+                }
+            }
+        }
+    }
+}
+
+fn get_read_statement(name: &Ident, purpose: CodeGenPurpose) -> TokenStream2 {
+    match purpose {
+        CodeGenPurpose::Message => quote! {let #name = reader.read_from_cursor(&mut cursor)?;},
+        CodeGenPurpose::Fieldset => quote! {let #name = reader.read_from_cursor(cursor)?;},
+    }
 }
 
 fn handle_number_field(
     name: &Ident,
     field: &Field,
     macro_attrs: &MacroAttributes,
+    purpose: CodeGenPurpose,
 ) -> Result<PgnComposition, TokenStream> {
     let bits_size: usize = macro_attrs.bits;
     let scale_token = macro_attrs.scale_token.as_ref();
@@ -238,9 +297,10 @@ fn handle_number_field(
     });
 
     let nmea_crate = get_micro_nmea_crate_ident();
+    let read_statement = get_read_statement(name, purpose);
     new_statements.parsing_logic.push(quote! {
         let reader = #nmea_crate::parse_helpers::parsers::NumberField::<#num_ty>::new(#bits_size)?;
-        let #name = reader.read_from_cursor(&mut cursor)?;
+        #read_statement
     });
 
     new_statements.struct_initialization.push(quote! {#name,});
@@ -251,6 +311,7 @@ fn handle_lookup_field(
     name: &Ident,
     field_type: &Type,
     macro_attrs: &MacroAttributes,
+    purpose: CodeGenPurpose,
 ) -> Result<PgnComposition, TokenStream> {
     let mut new_statements = PgnComposition::new();
     let bits_size = macro_attrs.bits;
@@ -261,9 +322,10 @@ fn handle_lookup_field(
         });
 
         let nmea_crate = get_micro_nmea_crate_ident();
+        let read_statement = get_read_statement(name, purpose);
         let setters = quote! {
             let reader = #nmea_crate::parse_helpers::parsers::LookupField::<#enum_type>::new(#bits_size)?;
-            let #name = reader.read_from_cursor(&mut cursor)?;
+            #read_statement
         };
 
         new_statements.parsing_logic.push(setters);
@@ -281,4 +343,81 @@ fn handle_lookup_field(
         })
     }
     Ok(new_statements)
+}
+
+fn handle_fieldset(
+    name: &Ident,
+    field: &Field,
+    macro_attrs: &MacroAttributes,
+    purpose: CodeGenPurpose,
+) -> Result<PgnComposition, TokenStream> {
+    let mut new_statements = PgnComposition::new();
+    if field.attrs.iter().any(|attr| {
+        attr.path()
+            .segments
+            .iter()
+            .any(|seg| seg.ident.to_string().as_str() == "fieldset")
+    }) {
+        let f_type = match &field.ty {
+            Type::Path(type_path) => {
+                let vec_seg = &type_path.path.segments[0];
+                if &vec_seg.ident.to_string() != "Vec" {
+                    Err(error_tokens("fieldset must be Vec"))
+                } else {
+                    if let PathArguments::AngleBracketed(args) = &vec_seg.arguments {
+                        let type_arg = &args.args[0];
+                        if let GenericArgument::Type(f_type) = type_arg {
+                            Ok(f_type.to_token_stream())
+                        } else {
+                            Err(error_tokens("fieldset must be Vec with type"))
+                        }
+                    } else {
+                        Err(error_tokens("fieldset must be Vec with angle brackets"))
+                    }
+                }
+            }
+            _ => Err(error_tokens("improper field type")),
+        }?;
+
+        let length_field_token = macro_attrs.length_field.as_ref().ok_or(error_tokens(
+            "length_field field must be specified for fieldset",
+        ))?;
+
+        let nmea_crate = get_micro_nmea_crate_ident();
+        let read_statement = get_read_statement(name, purpose);
+        new_statements.parsing_logic.push(quote! {
+            let reader = #nmea_crate::parse_helpers::parsers::FieldSetList::<#f_type>::new(#length_field_token as usize);
+            #read_statement
+        });
+
+        new_statements.attribute_getters.push(quote! {
+            pub fn #name(&self) -> Vec<#f_type> { self.#name.clone() }
+        });
+        new_statements.struct_initialization.push(quote! {#name,});
+        let proto_import_prefix = crate::utils::get_proto_import_prefix();
+        let prop_name = name.to_string();
+        let label = macro_attrs.label.clone().unwrap_or(quote! {#prop_name});
+        let crate_ident = crate::utils::get_micro_nmea_crate_ident();
+        let error_ident = quote! {#crate_ident::parse_helpers::errors::NmeaParseError};
+        new_statements.proto_conversion_logic.push(quote! {
+            let values: Result<Vec<#proto_import_prefix::Value>, #error_ident> = self.#name().iter().map(|inst| {
+                inst.to_readings().map(|fields| {
+                    #proto_import_prefix::Value {
+                        kind: Some(#proto_import_prefix::value::Kind::StructValue(#proto_import_prefix::Struct {
+                            fields: fields
+                        }))
+                    }
+                })
+            }).collect();
+            let value = #proto_import_prefix::Value {
+                kind: Some(#proto_import_prefix::value::Kind::ListValue(#proto_import_prefix::ListValue {
+                    values: values?
+                }))
+            };
+            readings.insert(#label.to_string(), value);
+        });
+        Ok(new_statements)
+    } else {
+        Err(error_tokens("msg"))
+    }
 }

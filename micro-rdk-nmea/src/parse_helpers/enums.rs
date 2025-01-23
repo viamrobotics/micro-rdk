@@ -330,3 +330,29 @@ define_nmea_enum!(
     (2, Caution, "Caution"),
     UnknownLookupField
 );
+
+define_nmea_enum!(
+    RangeResidualMode,
+    (
+        0,
+        PreCalculation,
+        "Range residuals were used to calculate data"
+    ),
+    (
+        1,
+        PostCalculation,
+        "Range residuals were calculated after the position"
+    ),
+    UnknownLookupField
+);
+
+define_nmea_enum!(
+    SatelliteStatus,
+    (0, NotTracked, "Not tracked"),
+    (1, Tracked, "Tracked"),
+    (2, Used, "Used"),
+    (3, NotTrackedDiff, "Not tracked+Diff"),
+    (4, TrackedDiff, "Tracked+Diff"),
+    (5, UsedDiff, "Used+Diff"),
+    UnknownLookupField
+);

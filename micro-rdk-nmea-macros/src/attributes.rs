@@ -14,6 +14,7 @@ use crate::utils::{error_tokens, UnitConversion};
 /// `scale_token`: scale factor to be applied to the raw value of the field
 /// `unit`: unit that the field's value should be converted to before serialization
 /// `is_lookup`: whether the field is a lookup field
+/// `is_fieldset`: whether the field represents a repeating set of fields
 /// `length_field`: if this field is a list of fieldsets, this is the field whose value represents
 /// the expected length of this list
 ///
@@ -43,6 +44,7 @@ pub(crate) struct MacroAttributes {
     pub(crate) scale_token: Option<TokenStream2>,
     pub(crate) unit: Option<UnitConversion>,
     pub(crate) is_lookup: bool,
+    pub(crate) is_fieldset: bool,
     pub(crate) length_field: Option<Ident>,
 }
 
@@ -89,6 +91,7 @@ impl MacroAttributes {
             label: None,
             length_field: None,
             unit: None,
+            is_fieldset: false,
         };
 
         for attr in field.attrs.iter() {
@@ -246,6 +249,7 @@ impl MacroAttributes {
                             }
                         })
                     }
+                    "fieldset" => macro_attrs.is_fieldset = true,
                     _ => {}
                 };
             }
