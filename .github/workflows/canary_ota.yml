@@ -1,19 +1,7 @@
 name: Update ESP32 Canary OtaServiceConfig
 
-on:
-  workflow_dispatch: #TODO(1): change to on:push:tags:'*'
-    branches:
-        - main
-        - rsdk-*
-    secrets:
-      ESP32_CANARY_ROBOT:
-        required: true
-      ESP32_CANARY_ROBOT_PART_ID:
-        required: true
-      ESP32_CANARY_API_KEY:
-        required: true
-      ESP32_CANARY_API_KEY_ID:
-        required: true
+on: 
+  workflow_dispatch:
     inputs:
       otaTag:
         description: 'OtaService Config Version tag'
@@ -21,8 +9,8 @@ on:
         type: choice
         default: 'latest'
         options:
-          - latest
-          - v0.4.0 # earlier versions do not support OTA
+            - latest
+            - v0.4.0 # earlier versions do not support OTA
 
 env:
   ESP32_CANARY_ROBOT: ${{ secrets.ESP32_CANARY_ROBOT }}
