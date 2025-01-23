@@ -1321,12 +1321,21 @@ mod tests {
         })));
         exec.block_on(async move {
             let other_clone = cloned_exec.clone();
-            let _fake_server_task =
-                cloned_exec.spawn(async move { run_fake_app_server(other_clone, app).await });
+            let _fake_server_task = cloned_exec.spawn(async move {
+                run_fake_app_server(other_clone, app).await;
+            });
             let _task = cloned_exec.spawn(async move {
                 viam_server.run().await;
             });
-            let _ = Timer::after(Duration::from_millis(500)).await;
+
+            for _ in 0..10 {
+                // await multiple times to give both servers opportunity to process request/response
+                let _ = Timer::after(Duration::from_millis(50)).await;
+                if !cloned_ram_storage.has_robot_credentials() {
+                    // viam_server properly handled response from fake_app_server
+                    break;
+                }
+            }
             assert!(!cloned_ram_storage.has_robot_credentials())
         });
     }
