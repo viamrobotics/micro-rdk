@@ -2,6 +2,9 @@ name: Update ESP32 Canary OtaServiceConfig
 
 on:
   workflow_dispatch: #TODO(1): change to on:push:tags:'*'
+    branches:
+        - main
+        - rsdk-*
     secrets:
       ESP32_CANARY_ROBOT:
         required: true
