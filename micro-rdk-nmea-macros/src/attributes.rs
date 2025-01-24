@@ -37,7 +37,7 @@ use crate::utils::{error_tokens, UnitConversion};
 
 #[derive(Debug)]
 pub(crate) struct MacroAttributes {
-    pub(crate) bits: Option<usize>,
+    pub(crate) bits: usize,
     pub(crate) offset: usize,
     pub(crate) label: Option<TokenStream2>,
     pub(crate) scale_token: Option<TokenStream2>,
@@ -49,14 +49,14 @@ pub(crate) struct MacroAttributes {
 // Attempt to deduce the bit size from the data type
 fn get_bits(field_ty: &Type) -> Result<usize, TokenStream> {
     Ok(match field_ty {
-        Type::Path(type_path) if type_path.path.is_ident("u32") => 32,
-        Type::Path(type_path) if type_path.path.is_ident("u16") => 16,
         Type::Path(type_path) if type_path.path.is_ident("u8") => 8,
-        Type::Path(type_path) if type_path.path.is_ident("i32") => 32,
-        Type::Path(type_path) if type_path.path.is_ident("i16") => 16,
         Type::Path(type_path) if type_path.path.is_ident("i8") => 8,
-        Type::Path(type_path) if type_path.path.is_ident("i64") => 64,
+        Type::Path(type_path) if type_path.path.is_ident("u16") => 16,
+        Type::Path(type_path) if type_path.path.is_ident("i16") => 16,
+        Type::Path(type_path) if type_path.path.is_ident("u32") => 32,
+        Type::Path(type_path) if type_path.path.is_ident("i32") => 32,
         Type::Path(type_path) if type_path.path.is_ident("u64") => 64,
+        Type::Path(type_path) if type_path.path.is_ident("i64") => 64,
         Type::Array(type_array) => {
             if let Expr::Lit(len) = &type_array.len {
                 if let Lit::Int(len) = &len.lit {
@@ -84,7 +84,7 @@ impl MacroAttributes {
         let mut macro_attrs = MacroAttributes {
             is_lookup: false,
             scale_token: None,
-            bits: None,
+            bits: 0,
             offset: 0,
             label: None,
             length_field: None,
@@ -116,7 +116,7 @@ impl MacroAttributes {
                         });
                     }
                     "bits" => {
-                        macro_attrs.bits.get_or_insert(match &attr.meta {
+                        macro_attrs.bits = match &attr.meta {
                             Meta::NameValue(named) => {
                                 if let Expr::Lit(ref expr_lit) = named.value {
                                     let bits_lit = expr_lit.lit.clone();
@@ -139,7 +139,7 @@ impl MacroAttributes {
                                     "bits received unexpected attribute value",
                                 ));
                             }
-                        });
+                        };
                     }
                     "offset" => {
                         macro_attrs.offset = match &attr.meta {
@@ -250,7 +250,9 @@ impl MacroAttributes {
                 };
             }
         }
-        macro_attrs.bits.get_or_insert(get_bits(&field.ty)?);
+        if macro_attrs.bits == 0 {
+            macro_attrs.bits = get_bits(&field.ty)?;
+        }
         Ok(macro_attrs)
     }
 }

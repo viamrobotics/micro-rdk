@@ -148,7 +148,7 @@ fn handle_number_field(
     field: &Field,
     macro_attrs: &MacroAttributes,
 ) -> Result<PgnComposition, TokenStream> {
-    let bits_size: usize = macro_attrs.bits.unwrap();
+    let bits_size: usize = macro_attrs.bits;
     let scale_token = macro_attrs.scale_token.as_ref();
     let unit = macro_attrs.unit.as_ref();
 
@@ -190,7 +190,7 @@ fn handle_number_field(
             }
         };
         scaling_logic = match bits_size {
-            x if x > 4 => quote! {
+            x if ((x < 4) && x > 1) => quote! {
                 #max_token
                 let result = match result {
                     x if x == max => { return Err(#error_ident::FieldNotPresent(#name_as_string_ident.to_string())); },
@@ -253,7 +253,7 @@ fn handle_lookup_field(
     macro_attrs: &MacroAttributes,
 ) -> Result<PgnComposition, TokenStream> {
     let mut new_statements = PgnComposition::new();
-    let bits_size = macro_attrs.bits.unwrap();
+    let bits_size = macro_attrs.bits;
     if let Type::Path(type_path) = field_type {
         let enum_type = type_path.clone();
         new_statements.attribute_getters.push(quote! {
