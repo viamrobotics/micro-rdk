@@ -1,10 +1,10 @@
 use proc_macro::TokenStream;
-use proc_macro2::TokenStream as TokenStream2;
+use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
 use syn::{DeriveInput, Field, Ident, Type};
 
 use crate::attributes::MacroAttributes;
-use crate::utils::{determine_supported_numeric, error_tokens, get_micro_nmea_crate_ident};
+use crate::utils::{error_tokens, get_micro_nmea_crate_ident, is_supported_integer_type};
 
 /// Represents a subset of auto-generated code statements for the implementation of a particular
 /// NMEA message. Each field in a message struct contributes its own set of statements to the macro
@@ -45,9 +45,7 @@ impl PgnComposition {
                 statements.attribute_getters.push(quote! {
                     pub fn #name(&self) -> #num_ty { self.#name }
                 });
-                statements
-                    .struct_initialization
-                    .push(quote! { source_id: source_id.unwrap(), });
+                statements.struct_initialization.push(quote! { source_id, });
                 return Ok(statements);
             }
 
@@ -59,7 +57,7 @@ impl PgnComposition {
                     .push(quote! { let _ = cursor.read(#offset)?; });
             }
 
-            let new_statements = if determine_supported_numeric(&field.ty) {
+            let new_statements = if is_supported_integer_type(&field.ty) {
                 handle_number_field(name, field, &macro_attrs)?
             } else if macro_attrs.is_lookup {
                 handle_lookup_field(name, &field.ty, &macro_attrs)?
@@ -81,6 +79,38 @@ impl PgnComposition {
         }
     }
 
+    pub(crate) fn from_input(input: &DeriveInput) -> Result<Self, TokenStream> {
+        let src_fields = if let syn::Data::Struct(syn::DataStruct { ref fields, .. }) = input.data {
+            fields
+        } else {
+            return Err(
+                syn::Error::new(Span::call_site(), "PgnMessageDerive expected struct")
+                    .to_compile_error()
+                    .into(),
+            );
+        };
+
+        let named_fields = if let syn::Fields::Named(f) = src_fields {
+            &f.named
+        } else {
+            return Err(crate::utils::error_tokens(
+                "PgnMessageDerive expected struct with named fields",
+            ));
+        };
+        let mut statements = Self::new();
+        for field in named_fields.iter() {
+            match PgnComposition::from_field(field) {
+                Ok(new_statements) => {
+                    statements.merge(new_statements);
+                }
+                Err(err) => {
+                    return Err(err);
+                }
+            };
+        }
+        Ok(statements)
+    }
+
     pub(crate) fn into_token_stream(self, input: &DeriveInput) -> TokenStream2 {
         let name = &input.ident;
         let parsing_logic = self.parsing_logic;
@@ -93,7 +123,7 @@ impl PgnComposition {
         let mrdk_crate = crate::utils::get_micro_rdk_crate_ident();
         quote! {
             impl #impl_generics #name #src_generics #src_where_clause {
-                pub fn from_bytes(data: Vec<u8>, source_id: Option<u8>) -> Result<Self, #error_ident> {
+                pub fn from_bytes(data: Vec<u8>, source_id: u8) -> Result<Self, #error_ident> {
                     use #crate_ident::parse_helpers::parsers::{DataCursor, FieldReader};
                     let mut cursor = DataCursor::new(data);
                     #(#parsing_logic)*
@@ -159,15 +189,27 @@ fn handle_number_field(
                 }
             }
         };
-        scaling_logic = quote! {
-            #max_token
-            let result = match result {
-                x if x == max => { return Err(#error_ident::FieldNotPresent(#name_as_string_ident.to_string())); },
-                x if x == (max - 1) => { return Err(#error_ident::FieldError(#name_as_string_ident.to_string())); },
-                x => {
-                    (x as f64) * #scale_token
-                }
-            };
+        scaling_logic = match bits_size {
+            x if x > 4 => quote! {
+                #max_token
+                let result = match result {
+                    x if x == max => { return Err(#error_ident::FieldNotPresent(#name_as_string_ident.to_string())); },
+                    x => {
+                        (x as f64) * #scale_token
+                    }
+                };
+            },
+            x if x >= 4 => quote! {
+                #max_token
+                let result = match result {
+                    x if x == max => { return Err(#error_ident::FieldNotPresent(#name_as_string_ident.to_string())); },
+                    x if x == (max - 1) => { return Err(#error_ident::FieldError(#name_as_string_ident.to_string())); },
+                    x => {
+                        (x as f64) * #scale_token
+                    }
+                };
+            },
+            _ => quote! {},
         };
         return_type = quote! {f64};
     }

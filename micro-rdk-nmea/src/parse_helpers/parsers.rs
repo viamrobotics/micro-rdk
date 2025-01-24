@@ -1,6 +1,7 @@
-use std::{array::TryFromSliceError, marker::PhantomData};
+use std::marker::PhantomData;
 
-use micro_rdk::{common::sensor::GenericReadingsResult, google::protobuf::Timestamp};
+use chrono::{DateTime, Utc};
+use micro_rdk::common::sensor::GenericReadingsResult;
 
 use super::{
     enums::NmeaEnumeratedField,
@@ -215,35 +216,16 @@ where
 
 // The first 32 bytes of the unparsed message stores metadata appearing in the header
 // of an NMEA message (the library assumes that a previous process has correctly serialized
-// this data from the CAN frame). For an explanation of the fields in this header, see
-// the section labeled "ISO-11783 and NMEA2000 header" at https://canboat.github.io/canboat/canboat.html
+// this data from the CAN frame).
+#[derive(Debug, Clone)]
 pub struct NmeaMessageMetadata {
-    timestamp: Timestamp,
+    timestamp: DateTime<Utc>,
     priority: u16,
     src: u16,
     dst: u16,
 }
 
 impl NmeaMessageMetadata {
-    pub fn from_bytes(data: [u8; 32]) -> Result<Self, TryFromSliceError> {
-        let seconds = u64::from_le_bytes(data[8..16].try_into()?) as i64;
-        let millis = u64::from_le_bytes(data[16..24].try_into()?);
-        let timestamp = Timestamp {
-            seconds,
-            nanos: (millis * 1000) as i32,
-        };
-
-        let dst = u16::from_le_bytes(data[26..28].try_into()?);
-        let src = u16::from_le_bytes(data[28..30].try_into()?);
-        let priority = u16::from_le_bytes(data[30..32].try_into()?);
-        Ok(Self {
-            timestamp,
-            priority,
-            src,
-            dst,
-        })
-    }
-
     pub fn src(&self) -> u16 {
         self.src
     }
@@ -256,8 +238,31 @@ impl NmeaMessageMetadata {
         self.priority
     }
 
-    pub fn timestamp(&self) -> Timestamp {
+    pub fn timestamp(&self) -> DateTime<Utc> {
         self.timestamp.clone()
+    }
+}
+
+impl TryFrom<Vec<u8>> for NmeaMessageMetadata {
+    type Error = NmeaParseError;
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        if value.len() < 32 {
+            return Err(NmeaParseError::NotEnoughData);
+        }
+        let seconds = u64::from_le_bytes(value[8..16].try_into()?) as i64;
+        let millis = u64::from_le_bytes(value[16..24].try_into()?);
+        let timestamp = DateTime::from_timestamp(seconds, (millis * 1000) as u32)
+            .ok_or(NmeaParseError::MalformedTimestamp)?;
+
+        let dst = u16::from_le_bytes(value[26..28].try_into()?);
+        let src = u16::from_le_bytes(value[28..30].try_into()?);
+        let priority = u16::from_le_bytes(value[30..32].try_into()?);
+        Ok(Self {
+            timestamp,
+            priority,
+            src,
+            dst,
+        })
     }
 }
 
@@ -280,7 +285,8 @@ mod tests {
         let res = general_purpose::STANDARD.decode_vec(data_str, &mut data);
         assert!(res.is_ok());
 
-        let metadata = NmeaMessageMetadata::from_bytes(data[0..32].try_into().unwrap());
+        let _ = data.split_off(32);
+        let metadata = NmeaMessageMetadata::try_from(data);
         assert!(metadata.is_ok());
         let metadata = metadata.unwrap();
 

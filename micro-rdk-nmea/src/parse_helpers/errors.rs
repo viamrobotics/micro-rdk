@@ -18,6 +18,8 @@ pub enum NmeaParseError {
     TryFromSliceError(#[from] std::array::TryFromSliceError),
     #[error("not enough data to parse next field")]
     NotEnoughData,
+    #[error("could not parse timestamp")]
+    MalformedTimestamp,
     #[error("found unsupported PGN {0}")]
     UnsupportedPgn(u32),
 }

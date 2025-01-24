@@ -10,13 +10,17 @@ mod tests {
         parse_helpers::{enums::TemperatureSource, errors::NumberFieldError},
     };
 
+    // The strings in the below test represent base64-encoded data examples taken from raw results
+    // posted by an active CAN sensor. The first 32 bytes involve a header that is represented in serialized
+    // form by parse_helpers::parsers::NmeaMessageMetadata.
+
     #[test]
     fn water_depth_parse() {
         let water_depth_str = "C/UBAHg+gD/TL/RmAAAAAFZODAAAAAAACAD/ABMAAwD/1AAAAAAA/w==";
         let mut data = Vec::<u8>::new();
         let res = general_purpose::STANDARD.decode_vec(water_depth_str, &mut data);
         assert!(res.is_ok());
-        let message = WaterDepth::from_bytes(data[33..].to_vec(), Some(13));
+        let message = WaterDepth::from_bytes(data[33..].to_vec(), 13);
         assert!(message.is_ok());
         let message = message.unwrap();
         assert_eq!(message.source_id(), 13);
@@ -38,7 +42,7 @@ mod tests {
         let mut data = Vec::<u8>::new();
         let res = general_purpose::STANDARD.decode_vec(water_depth_str, &mut data);
         assert!(res.is_ok());
-        let message = WaterDepth::from_bytes(data[33..].to_vec(), Some(13));
+        let message = WaterDepth::from_bytes(data[33..].to_vec(), 13);
         assert!(message.is_ok());
         let message = message.unwrap();
         assert_eq!(message.source_id(), 13);
@@ -61,7 +65,7 @@ mod tests {
         let res = general_purpose::STANDARD.decode_vec(temp_str, &mut data);
         assert!(res.is_ok());
 
-        let message = TemperatureExtendedRange::from_bytes(data[33..].to_vec(), Some(23));
+        let message = TemperatureExtendedRange::from_bytes(data[33..].to_vec(), 23);
         assert!(message.is_ok());
         let message = message.unwrap();
         assert_eq!(message.source_id(), 23);

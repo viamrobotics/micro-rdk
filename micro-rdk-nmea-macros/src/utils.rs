@@ -17,10 +17,10 @@ pub(crate) enum UnitConversion {
     RadPerSecToDegPerSec,
 }
 
-impl TryFrom<String> for UnitConversion {
+impl TryFrom<&str> for UnitConversion {
     type Error = TokenStream;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        match value.as_str() {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
             "Ah" => Ok(Self::CoulombToAmpereHour),
             "bar" => Ok(Self::PascalToBar),
             "C" => Ok(Self::KelvinToCelsius),
@@ -80,7 +80,7 @@ pub(crate) fn get_proto_import_prefix() -> TokenStream2 {
     quote! {#crate_ident::google::protobuf}
 }
 
-pub(crate) fn determine_supported_numeric(field_type: &Type) -> bool {
+pub(crate) fn is_supported_integer_type(field_type: &Type) -> bool {
     match field_type {
         Type::Path(type_path) => {
             type_path.path.is_ident("u32")

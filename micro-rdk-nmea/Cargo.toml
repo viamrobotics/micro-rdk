@@ -12,6 +12,7 @@ rust-version.workspace = true
 
 [dependencies]
 base64 = { workspace = true }
-micro-rdk = { path = "../micro-rdk", features = ["native"] }
-micro-rdk-nmea-macros = { path = "../micro-rdk-nmea-macros" }
+chrono = { workspace = true }
+micro-rdk = { workspace = true, features = ["native"] }
+micro-rdk-nmea-macros = { workspace = true }
 thiserror = { workspace = true }

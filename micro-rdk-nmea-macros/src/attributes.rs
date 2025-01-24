@@ -5,35 +5,35 @@ use syn::{Expr, Field, Ident, Lit, Meta, Type};
 
 use crate::utils::{error_tokens, UnitConversion};
 
-// `MacroAttributes` represents the important information derived from the macro attributes
-// attached to the field of a struct using the PgnMessageDerive macro.
-//
-// bits -> size in bits of the field in the NMEA message byte slice
-// offset -> the amount of bits to skip in the message data before parsing the field
-// label -> name of the key for the field when serializing the message to a GenericReadingsResult
-// scale_token -> scale factor to be applied to the raw value of the field
-// unit -> unit that the field's value should be converted to before serialization
-// is_lookup -> whether the field is a lookup field
-// length_field -> if this field is a list of fieldsets, this is the field whose value represents
-// the expected length of this list
-//
-// Ex. of usage (each attribute generates an instance of `MacroAttributes`)
-//
-// #[derive(PgnMessageDerive, Debug)]
-// pub struct TemperatureExtendedRange {
-//     source_id: u8,
-//     instance: u8,
-//     #[lookup]
-//     #[label = "temp_src"]
-//     source: TemperatureSource,
-//     #[bits = 24]
-//     #[scale = 0.001]
-//     #[unit = "C"]
-//     temperature: u32,
-//     #[scale = 0.1]
-//     #[offset = 16]
-//     set_temperature: u16,
-// }
+/// `MacroAttributes` represents the important information derived from the macro attributes
+/// attached to the field of a struct using the PgnMessageDerive macro.
+///
+/// `bits`: size in bits of the field in the NMEA message byte slice
+/// `offset`: the amount of bits to skip in the message data before parsing the field
+/// `label`: name of the key for the field when serializing the message to a GenericReadingsResult
+/// `scale_token`: scale factor to be applied to the raw value of the field
+/// `unit`: unit that the field's value should be converted to before serialization
+/// `is_lookup`: whether the field is a lookup field
+/// `length_field`: if this field is a list of fieldsets, this is the field whose value represents
+/// the expected length of this list
+///
+/// Ex. of usage (each attribute generates an instance of `MacroAttributes`)
+///
+/// #[derive(PgnMessageDerive, Debug)]
+/// pub struct TemperatureExtendedRange {
+///     source_id: u8,
+///     instance: u8,
+///     #[lookup]
+///     #[label = "temp_src"]
+///     source: TemperatureSource,
+///     #[bits = 24]
+///     #[scale = 0.001]
+///     #[unit = "C"]
+///     temperature: u32,
+///     #[scale = 0.1]
+///     #[offset = 16]
+///     set_temperature: u16,
+/// }
 
 #[derive(Debug)]
 pub(crate) struct MacroAttributes {
@@ -230,7 +230,7 @@ impl MacroAttributes {
                                         let unit_token = unit_lit.token();
                                         let unit_str = unit_token.to_string();
                                         UnitConversion::try_from(
-                                            unit_str.as_str().trim_matches('"').to_string(),
+                                            unit_str.as_str().trim_matches('"'),
                                         )?
                                     } else {
                                         return Err(error_tokens("unit parameter must be str"));
