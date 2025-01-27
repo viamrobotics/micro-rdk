@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use chrono::{DateTime, Utc};
 use micro_rdk::common::sensor::GenericReadingsResult;
 
 use super::{
@@ -213,15 +214,86 @@ where
     }
 }
 
+// The first 32 bytes of the unparsed message stores metadata appearing in the header
+// of an NMEA message (the library assumes that a previous process has correctly serialized
+// this data from the CAN frame).
+#[derive(Debug, Clone)]
+pub struct NmeaMessageMetadata {
+    timestamp: DateTime<Utc>,
+    priority: u16,
+    src: u16,
+    dst: u16,
+}
+
+impl NmeaMessageMetadata {
+    pub fn src(&self) -> u16 {
+        self.src
+    }
+
+    pub fn dst(&self) -> u16 {
+        self.dst
+    }
+
+    pub fn priority(&self) -> u16 {
+        self.priority
+    }
+
+    pub fn timestamp(&self) -> DateTime<Utc> {
+        self.timestamp.clone()
+    }
+}
+
+impl TryFrom<Vec<u8>> for NmeaMessageMetadata {
+    type Error = NmeaParseError;
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        if value.len() < 32 {
+            return Err(NmeaParseError::NotEnoughData);
+        }
+        let seconds = u64::from_le_bytes(value[8..16].try_into()?) as i64;
+        let millis = u64::from_le_bytes(value[16..24].try_into()?);
+        let timestamp = DateTime::from_timestamp(seconds, (millis * 1000) as u32)
+            .ok_or(NmeaParseError::MalformedTimestamp)?;
+
+        let dst = u16::from_le_bytes(value[26..28].try_into()?);
+        let src = u16::from_le_bytes(value[28..30].try_into()?);
+        let priority = u16::from_le_bytes(value[30..32].try_into()?);
+        Ok(Self {
+            timestamp,
+            priority,
+            src,
+            dst,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use base64::{engine::general_purpose, Engine};
+
     use crate::parse_helpers::{
         enums::MagneticVariationSource,
         errors::NmeaParseError,
-        parsers::{DataCursor, FieldReader},
+        parsers::{DataCursor, FieldReader, NmeaMessageMetadata},
     };
 
     use super::{ArrayField, FieldSet, FieldSetList, LookupField, NumberField};
+
+    #[test]
+    fn parse_metadata() {
+        let data_str = "C/UBAHg+gD8l2A2A/////40fszsAAAAACAD/AAIAAwAAhgEAALwC/w==";
+        let mut data = Vec::<u8>::new();
+        let res = general_purpose::STANDARD.decode_vec(data_str, &mut data);
+        assert!(res.is_ok());
+
+        let _ = data.split_off(32);
+        let metadata = NmeaMessageMetadata::try_from(data);
+        assert!(metadata.is_ok());
+        let metadata = metadata.unwrap();
+
+        assert_eq!(metadata.priority, 3);
+        assert_eq!(metadata.dst, 255);
+        assert_eq!(metadata.src, 2);
+    }
 
     #[test]
     fn number_field_test() {
