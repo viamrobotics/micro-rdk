@@ -60,6 +60,7 @@ async def main():
 
     if not service_updated:
         viam_client.close()
+        # TODO notify on slack
         raise Exception("failed to find or update ota service config")
 
     await cloud.update_robot_part(
@@ -74,6 +75,7 @@ async def main():
         if service["model"] == "ota_service":
             print(f"OtaServiceConfig after updating: `{service}`")
             if service["attributes"]["url"] != url or service["attributes"]["version"] != tag_name:
+                # TODO notify on slack
                 raise Exception("ota service config does not reflect update")
 
     viam_client.close()
