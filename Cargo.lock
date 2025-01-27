@@ -2704,7 +2704,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk"
-version = "0.4.0"
+version = "0.4.1-rc1"
 dependencies = [
  "async-channel 2.3.1",
  "async-executor",
@@ -2765,7 +2765,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-ffi"
-version = "0.4.0"
+version = "0.4.1-rc1"
 dependencies = [
  "async-channel 2.3.1",
  "base64 0.22.1",
@@ -2788,7 +2788,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-installer"
-version = "0.4.0"
+version = "0.4.1-rc1"
 dependencies = [
  "anyhow",
  "clap",
@@ -2810,7 +2810,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-macros"
-version = "0.4.0"
+version = "0.4.1-rc1"
 dependencies = [
  "micro-rdk",
  "proc-macro-crate 3.2.0",
@@ -2821,7 +2821,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-modular-driver-example"
-version = "0.4.0"
+version = "0.4.1-rc1"
 dependencies = [
  "log",
  "micro-rdk",
@@ -2829,7 +2829,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-nmea"
-version = "0.4.0"
+version = "0.4.1-rc1"
 dependencies = [
  "micro-rdk",
  "thiserror 2.0.4",
@@ -2837,7 +2837,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-server"
-version = "0.4.0"
+version = "0.4.1-rc1"
 dependencies = [
  "async-channel 2.3.1",
  "embedded-hal 0.2.7",
@@ -3195,7 +3195,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "ota-dev-server"
-version = "0.4.0"
+version = "0.4.1-rc1"
 dependencies = [
  "axum",
  "axum-extra",
