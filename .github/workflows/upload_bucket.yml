@@ -1,4 +1,4 @@
-name: Upload artifact to GCP Bucket
+name: Upload Artifact to GCP Bucket
 
 on:
   workflow_call:
