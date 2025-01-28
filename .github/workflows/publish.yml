@@ -200,8 +200,9 @@ jobs:
         name: ${{ github.ref_name }}
         body: ${{ steps.changelog.outputs.changelog }}
         
-    - name: Upload OTA Artifact to Bucket
-      uses: viamrobotics/micro-rdk/.github/workflows/upload_bucket.yml
-      with:
-        artifact-name: micro-rdk-server-esp32-ota.bin
-        dir-name: ${{ github.ref_name }}
+  upload-mirror:
+    needs: [publish-release]
+    uses: ./.github/workflows/upload_bucket.yml
+    with:
+      artifact-name: micro-rdk-server-esp32-ota.bin
+      dir-name: ${{ github.ref_name }}
