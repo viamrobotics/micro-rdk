@@ -138,17 +138,22 @@ impl PgnComposition {
         let error_ident = quote! {#crate_ident::parse_helpers::errors::NmeaParseError};
         let mrdk_crate = crate::utils::get_micro_rdk_crate_ident();
         quote! {
+
             impl #impl_generics #name #src_generics #src_where_clause {
-                pub fn from_cursor(mut cursor: #crate_ident::parse_helpers::parsers::DataCursor, source_id: u8) -> Result<Self, #error_ident> {
+                #(#attribute_getters)*
+            }
+
+            impl #impl_generics #crate_ident::messages::message::Message for #name #src_generics #src_where_clause {
+                fn from_cursor(mut cursor: #crate_ident::parse_helpers::parsers::DataCursor, source_id: u8) -> Result<Self, #error_ident> {
                     use #crate_ident::parse_helpers::parsers::FieldReader;
                     #(#parsing_logic)*
                     Ok(Self {
                         #(#struct_initialization)*
                     })
                 }
-                #(#attribute_getters)*
 
-                pub fn to_readings(self) -> Result<#mrdk_crate::common::sensor::GenericReadingsResult, #error_ident> {
+
+                fn to_readings(self) -> Result<#mrdk_crate::common::sensor::GenericReadingsResult, #error_ident> {
                     let mut readings = std::collections::HashMap::new();
                     #(#proto_conversion_logic)*
                     Ok(readings)

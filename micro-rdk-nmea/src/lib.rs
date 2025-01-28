@@ -6,7 +6,10 @@ mod tests {
     use base64::{engine::general_purpose, Engine};
 
     use crate::{
-        messages::pgns::{GnssPositionData, GnssSatsInView, TemperatureExtendedRange, WaterDepth},
+        messages::{
+            message::Message,
+            pgns::{GnssPositionData, GnssSatsInView, TemperatureExtendedRange, WaterDepth},
+        },
         parse_helpers::{
             enums::{
                 Gns, GnsIntegrity, GnsMethod, RangeResidualMode, SatelliteStatus, TemperatureSource,

@@ -225,6 +225,7 @@ pub struct NmeaMessageMetadata {
     priority: u16,
     src: u16,
     dst: u16,
+    pgn: u32,
 }
 
 impl NmeaMessageMetadata {
@@ -243,6 +244,10 @@ impl NmeaMessageMetadata {
     pub fn timestamp(&self) -> DateTime<Utc> {
         self.timestamp.clone()
     }
+
+    pub fn pgn(&self) -> u32 {
+        self.pgn
+    }
 }
 
 impl TryFrom<Vec<u8>> for NmeaMessageMetadata {
@@ -251,6 +256,7 @@ impl TryFrom<Vec<u8>> for NmeaMessageMetadata {
         if value.len() < 32 {
             return Err(NmeaParseError::NotEnoughData);
         }
+        let pgn = u32::from_le_bytes(value[0..4].try_into()?);
         let seconds = u64::from_le_bytes(value[8..16].try_into()?) as i64;
         let millis = u64::from_le_bytes(value[16..24].try_into()?);
         let timestamp = DateTime::from_timestamp(seconds, (millis * 1000) as u32)
@@ -264,6 +270,7 @@ impl TryFrom<Vec<u8>> for NmeaMessageMetadata {
             priority,
             src,
             dst,
+            pgn,
         })
     }
 }
