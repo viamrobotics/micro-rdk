@@ -1,6 +1,7 @@
 name: publish
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - "v*"
@@ -183,6 +184,7 @@ jobs:
 
     - name: Publish release
       uses: ncipollo/release-action@v1
+      if: github.event_name == 'push'
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         artifacts: |
