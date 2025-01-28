@@ -11,14 +11,12 @@ from dateutil import tz
 from viam.robot.client import DialOptions
 from viam.app.viam_client import ViamClient
 
-async def connect(robot_address: str, api_key: str, api_key_id: str) -> ViamClient:
-    dial_options = DialOptions.with_api_key(api_key_id=api_key_id,api_key=api_key)
-    return await ViamClient.create_from_dial_options(dial_options)
 
-async def try_connect(robot_address: str, api_key: str, api_key_id: str) -> ViamClient:
+async def connect(robot_address: str, api_key: str, api_key_id: str) -> ViamClient:
     for i in range(5):
         try:
-            viam_client = await connect(robot_address, api_key, api_key_id)
+            dial_options = DialOptions.with_api_key(api_key_id=api_key_id, api_key=api_key)
+            viam_client = await ViamClient.create_from_dial_options(dial_options)
             return viam_client
         except Exception as e:
             if i == 4:
@@ -27,7 +25,6 @@ async def try_connect(robot_address: str, api_key: str, api_key_id: str) -> Viam
         time.sleep(0.5)
 
 async def main():
-
     robot_address = os.environ["ESP32_CANARY_ROBOT"]
     api_key = os.environ["ESP32_CANARY_API_KEY"]
     api_key_id = os.environ["ESP32_CANARY_API_KEY_ID"]
@@ -41,7 +38,7 @@ async def main():
         
     print(f"connecting to robot at {robot_address} ...")
     
-    viam_client = await try_connect(robot_address, api_key, api_key_id)
+    viam_client = await connect(robot_address, api_key, api_key_id)
 
     cloud = viam_client.app_client
 
@@ -55,13 +52,14 @@ async def main():
             service["attributes"]["url"] = url
             service["attributes"]["version"] = tag_name            
             service_updated = True
-            print(f"updating OtaServiceConfig to `{service}`")
+            print(f"updating OtaServiceConfig version to `{tag_name}`")
             break
 
     if not service_updated:
         viam_client.close()
-        # TODO notify on slack
-        raise Exception("failed to find or update ota service config")
+        msg = f"failed to find or update ota service config to `{tag_name}`"
+        post_to_slack(msg, True)
+        raise Exception(msg)
 
     await cloud.update_robot_part(
         robot_part_id=robot_part.id,
@@ -75,16 +73,16 @@ async def main():
         if service["model"] == "ota_service":
             print(f"OtaServiceConfig after updating: `{service}`")
             if service["attributes"]["url"] != url or service["attributes"]["version"] != tag_name:
-                # TODO notify on slack
-                raise Exception("ota service config does not reflect update")
+                msg = f"ota service config does not reflect update to `{tag_name}`"
+                post_to_slack(msg, True)
+                raise Exception(msg)
 
     viam_client.close()
+    post_to_slack(f"OtaService config successfully updated to `{tag_name}`", False)
 
-if __name__ == '__main__':
-    asyncio.run(main())
-    
-def post_to_slack(msg: str):
+def post_to_slack(msg: str, is_error: bool):
     today = datetime.datetime.now(tz=tz.UTC).date()
+    msg = f"{today}: {msg}"
     slack_token = os.environ["CANARY_SLACKBOT_TOKEN"]
     channel_id = os.environ["MICRO_RDK_TEAM_CHANNEL_ID"]
     client = slack_sdk.WebClient(token=slack_token)
@@ -92,6 +90,11 @@ def post_to_slack(msg: str):
 
     try:
         api_result.validate()
-        raise Exception(msg)
+        if is_error:
+            raise Exception(msg)
     except Exception as e:
-        raise Exception(f"failure to post to Slack, error message was '{msg}'") from e 
+        raise Exception(f"failure to post to Slack, error message was '{msg}'") from e
+
+
+if __name__ == '__main__':
+    asyncio.run(main())
