@@ -1,6 +1,11 @@
 name: Update ESP32 Canary OtaServiceConfig
 
-on: 
+on:
+  workflow_call:
+    inputs:
+      otaTag:
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       otaTag:
