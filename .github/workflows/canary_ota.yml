@@ -22,6 +22,7 @@ env:
   ESP32_OTA_BINARY_NAME: ${{ vars.ESP32_OTA_BINARY_NAME }}
   GCP_BUCKET_URL: ${{ secrets.GCP_BUCKET_URL }}
   GCP_BUCKET_NAME: ${{ secrets.GCP_BUCKET_NAME }}
+  CANARY_SLACKBOT_TOKEN: ${{ secrets.CANARY_SLACKBOT_TOKEN }}
 
 jobs:
   update-canary-config:
