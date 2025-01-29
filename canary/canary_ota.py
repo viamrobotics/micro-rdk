@@ -25,8 +25,8 @@ async def connect(api_key: str, api_key_id: str, num_attempts: int) -> ViamClien
         time.sleep(0.5)
 
 async def main():
-    api_key = os.environ["ESP32_CANARY_API_KEY_2"]
-    api_key_id = os.environ["ESP32_CANARY_API_KEY_ID_2"]
+    api_key = os.environ["ESP32_CANARY_API_KEY"]
+    api_key_id = os.environ["ESP32_CANARY_API_KEY_ID"]
     part_id = os.environ["ESP32_CANARY_ROBOT_PART_ID"]
     tag_name = os.environ["ESP32_CANARY_OTA_VERSION_TAG"]
     bucket_url = os.environ["GCP_BUCKET_URL"]
