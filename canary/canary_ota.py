@@ -31,7 +31,7 @@ async def main():
     tag_name = os.environ["ESP32_CANARY_OTA_VERSION_TAG"]
     bucket_url = os.environ["GCP_BUCKET_URL"]
     bucket_name = os.environ["GCP_BUCKET_NAME"]
-    bin_name = "micro-rdk-server-esp32-ota.bin"
+    bin_name = os.environ["ESP32_OTA_BINARY_NAME"]
     
     url = f"{bucket_url}/{bucket_name}/{tag_name}/{bin_name}"
         
