@@ -23,6 +23,7 @@ env:
   GCP_BUCKET_URL: ${{ secrets.GCP_BUCKET_URL }}
   GCP_BUCKET_NAME: ${{ secrets.GCP_BUCKET_NAME }}
   CANARY_SLACKBOT_TOKEN: ${{ secrets.CANARY_SLACKBOT_TOKEN }}
+  MICRO_RDK_TEAM_CHANNEL_ID: ${{ secrets.MICRO_RDK_TEAM_CHANNEL_ID }}
 
 jobs:
   update-canary-config:
