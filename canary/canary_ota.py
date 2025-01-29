@@ -12,20 +12,19 @@ from viam.robot.client import DialOptions
 from viam.app.viam_client import ViamClient
 
 
-async def connect(robot_address: str, api_key: str, api_key_id: str) -> ViamClient:
-    for i in range(5):
+async def connect(api_key: str, api_key_id: str, num_attempts: int) -> ViamClient:
+    for i in range(num_attempts):
         try:
             dial_options = DialOptions.with_api_key(api_key_id=api_key_id, api_key=api_key)
             viam_client = await ViamClient.create_from_dial_options(dial_options)
             return viam_client
         except Exception as e:
-            if i == 4:
+            if i == num_attempts-1:
                 raise e
             print(e)
         time.sleep(0.5)
 
 async def main():
-    robot_address = os.environ["ESP32_CANARY_ROBOT"]
     api_key = os.environ["ESP32_CANARY_API_KEY"]
     api_key_id = os.environ["ESP32_CANARY_API_KEY_ID"]
     part_id = os.environ["ESP32_CANARY_ROBOT_PART_ID"]
@@ -36,12 +35,13 @@ async def main():
     
     url = f"{bucket_url}/{bucket_name}/{tag_name}/{bin_name}"
         
-    print(f"connecting to robot at {robot_address} ...")
+    print(f"connecting ViamClient ...")
     
-    viam_client = await connect(robot_address, api_key, api_key_id)
+    viam_client = await connect(api_key, api_key_id, 5)
 
     cloud = viam_client.app_client
 
+    print(f"getting robot part...")
     robot_part = await cloud.get_robot_part(robot_part_id=part_id)
 
     service_updated = False
@@ -61,13 +61,14 @@ async def main():
         post_to_slack(msg, True)
         raise Exception(msg)
 
+    print("updating robot part config...")
     await cloud.update_robot_part(
         robot_part_id=robot_part.id,
         name=robot_part.name,
         robot_config=updated_config
     )
 
-    # retrieve new config to verify
+    print("verifying config change...")
     robot_part = await cloud.get_robot_part(robot_part_id=part_id)
     for service in robot_part.robot_config["services"]:
         if service["model"] == "ota_service":
