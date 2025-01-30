@@ -11,40 +11,42 @@ use super::{
 /// Cursor that consumes can consume bytes from a data vector by bit size.
 pub struct DataCursor {
     data: Vec<u8>,
+    // the amount of bits by which the previously read field overflowed into
+    // the first byte
+    bit_offset: usize,
 }
 
 impl DataCursor {
     pub fn new(data: Vec<u8>) -> Self {
-        DataCursor { data }
+        DataCursor {
+            data,
+            bit_offset: 0,
+        }
     }
 
     pub fn read(&mut self, bit_size: usize) -> Result<Vec<u8>, NmeaParseError> {
-        if bit_size / 8 > self.data.len() {
+        let bits_to_read = bit_size + self.bit_offset;
+        if bits_to_read > self.data.len() * 8 {
             return Err(NmeaParseError::NotEnoughData);
         }
         let mut res = Vec::new();
-        res.extend(self.data.drain(..(bit_size / 8)));
+        res.extend(self.data.drain(..(bits_to_read / 8)));
 
-        // If the next bit_size takes us into the middle of a byte, then
-        // we want the next byte of the result to be shifted so as to ignore the remaining bits.
-        // The first byte of the data should have the bits that were included in the result
-        // set to zero.
-        //
-        // This is due to the way number fields in NMEA messages appear to be formatted
-        // from observation of successfully parsed data, which is that overflowing bits
-        // are read in MsB order, but the resulting bytes are read in Little-Endian.
-        //
-        // For example, let's say the data is [179, 152], and we want to read a u16 from a bit size of 12
-        //
-        // [179, 152] is 39091 in u16, reading the first 12 bits and ignoring the last 4
-        // should yield [10110011 10011000] => [10110011 00001001] => 2483 (in Little-Endian)
-        if bit_size % 8 != 0 {
-            res.push(self.data[0] >> (8 - (bit_size % 8)));
-            let mask: u8 = 255 >> (bit_size % 8);
-            if let Some(first_byte) = self.data.get_mut(0) {
-                *first_byte |= mask;
+        let next_offset = bits_to_read % 8;
+        // if our bit_size overflows to the middle of a byte by x bits, we want to select the last
+        // x bits of the next byte without consuming it
+        if next_offset != 0 {
+            res.push(self.data[0] & (255 >> (8 - next_offset)));
+        }
+
+        // if the previous field overflowed into the first byte by x bits, we want
+        // to shift that byte by x
+        if self.bit_offset != 0 {
+            if let Some(first_byte) = res.get_mut(0) {
+                *first_byte >>= self.bit_offset;
             }
         }
+        self.bit_offset = next_offset;
         Ok(res)
     }
 }
@@ -306,8 +308,8 @@ mod tests {
         assert!(cursor.read(16).is_ok());
         let res = reader.read_from_cursor(&mut cursor);
         assert!(res.is_ok());
-        // 125 = 01111101, first four bits as byte => 00000111 = 7
-        assert_eq!(res.unwrap(), 7);
+        // 125 = 01111101, last four bits as byte => 00001101 = 13
+        assert_eq!(res.unwrap(), 13);
 
         let reader = NumberField::<u16>::new(12);
         assert!(reader.is_ok());
@@ -316,12 +318,12 @@ mod tests {
         let data_vec: Vec<u8> = vec![100, 6, 125, 179, 152, 113];
         let mut cursor = DataCursor::new(data_vec);
 
-        // [179, 152] is 39091 in u16, reading the first 12 bits and ignoring the last 4
-        // should yield [10110011 10011000] => [10110011 00001001] => 2483 ( in Little-Endian)
+        // [179, 152] is 39091 in u16, reading the first 12 bits (8 + last 4 of the second byte)
+        // should yield [10110011 10011000] => [10110011 00001000] => 2227 (in Little-Endian)
         assert!(cursor.read(24).is_ok());
         let res = reader.read_from_cursor(&mut cursor);
         assert!(res.is_ok());
-        assert_eq!(res.unwrap(), 2483);
+        assert_eq!(res.unwrap(), 2227);
 
         let reader = NumberField::<u32>::new(3);
         assert!(reader.is_ok());
@@ -330,11 +332,10 @@ mod tests {
         let data_vec: Vec<u8> = vec![154, 6, 125, 179, 152, 113];
         let mut cursor = DataCursor::new(data_vec);
 
-        // 154 is 10011010, reading the first 3 bits should yield 100 = 4
+        // 154 is 10011010, reading the last 3 bits should yield 010 = 2
         let res = reader.read_from_cursor(&mut cursor);
-        println!("res: {:?}", res);
         assert!(res.is_ok());
-        assert_eq!(res.unwrap(), 4);
+        assert_eq!(res.unwrap(), 2);
     }
 
     #[test]
@@ -343,7 +344,7 @@ mod tests {
         assert!(reader.is_ok());
         let reader = reader.unwrap();
 
-        let data_vec: Vec<u8> = vec![100, 6, 111, 138, 152, 113];
+        let data_vec: Vec<u8> = vec![100, 6, 111, 72, 152, 113];
         let mut cursor = DataCursor::new(data_vec);
 
         assert!(cursor.read(24).is_ok());

@@ -2,7 +2,7 @@ pub(crate) mod attributes;
 pub(crate) mod composition;
 pub(crate) mod utils;
 
-use crate::composition::PgnComposition;
+use crate::composition::{CodeGenPurpose, PgnComposition};
 use proc_macro::TokenStream;
 
 /// PgnMessageDerive is a macro that implements parsing logic for a struct in the form of a method
@@ -17,8 +17,23 @@ use proc_macro::TokenStream;
 pub fn pgn_message_derive(item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as syn::DeriveInput);
 
-    match PgnComposition::from_input(&input) {
+    match PgnComposition::from_input(&input, CodeGenPurpose::Message) {
         Ok(statements) => statements.into_token_stream(&input).into(),
+        Err(tokens) => tokens,
+    }
+}
+
+/// FieldsetDerive is a macro that defines a struct implementing parsing logic for
+/// data found in a repeated field in a NMEA message via the `FieldSet` trait
+#[proc_macro_derive(
+    FieldsetDerive,
+    attributes(label, scale, lookup, bits, offset, fieldset, length_field, unit)
+)]
+pub fn fieldset_derive(item: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(item as syn::DeriveInput);
+
+    match PgnComposition::from_input(&input, CodeGenPurpose::Fieldset) {
+        Ok(statements) => statements.into_fieldset_token_stream(&input).into(),
         Err(tokens) => tokens,
     }
 }
