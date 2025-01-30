@@ -1,15 +1,5 @@
-dnspython==2.7.0
-googleapis-common-protos==1.66.0
-grpclib==0.4.7
-h2==4.1.0
-hpack==4.1.0
-hyperframe==6.1.0
-multidict==6.1.0
-numpy==2.2.2
-protobuf==5.29.1
-pymongo==4.11
-python-dateutil==2.9.0.post0
-six==1.17.0
-slack-sdk==3.34.0
-typing-extensions==4.12.2
-viam-sdk==0.38.0
+numpy ~= 2.2
+pymongo ~= 4.11
+python-dateutil ~= 2.2
+slack-sdk ~= 3.34
+viam-sdk ~= 0.38
