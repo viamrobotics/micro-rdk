@@ -26,7 +26,7 @@ impl DataCursor {
 
     pub fn read(&mut self, bit_size: usize) -> Result<Vec<u8>, NmeaParseError> {
         let bits_to_read = bit_size + self.bit_offset;
-        if bits_to_read / 8 > self.data.len() {
+        if bits_to_read > self.data.len() * 8 {
             return Err(NmeaParseError::NotEnoughData);
         }
         let mut res = Vec::new();
