@@ -308,7 +308,7 @@ mod tests {
         assert!(cursor.read(16).is_ok());
         let res = reader.read_from_cursor(&mut cursor);
         assert!(res.is_ok());
-        // 125 = 01111101, last four bits as byte => 00001101 = 7
+        // 125 = 01111101, last four bits as byte => 00001101 = 13
         assert_eq!(res.unwrap(), 13);
 
         let reader = NumberField::<u16>::new(12);
@@ -332,7 +332,7 @@ mod tests {
         let data_vec: Vec<u8> = vec![154, 6, 125, 179, 152, 113];
         let mut cursor = DataCursor::new(data_vec);
 
-        // 154 is 10011010, reading the last 3 bits should yield 010 = 4
+        // 154 is 10011010, reading the last 3 bits should yield 010 = 2
         let res = reader.read_from_cursor(&mut cursor);
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), 2);
