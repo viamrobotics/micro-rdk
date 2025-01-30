@@ -1,5 +1,5 @@
-python-dateutil
-viam-sdk
-pymongo
-numpy
-slack-sdk
+numpy ~= 2.2
+pymongo ~= 4.11
+python-dateutil ~= 2.2
+slack-sdk ~= 3.34
+viam-sdk ~= 0.38

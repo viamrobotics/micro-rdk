@@ -213,3 +213,9 @@ jobs:
     - name: Upload to GCP
       run: |
         gcloud storage cp micro-rdk-server-esp32-ota.bin gs://${{ secrets.GCP_BUCKET_NAME }}/${{ github.ref_name }}/
+  
+  update-canary-ota-config:
+    uses: ./.github/workflows/canary_ota.yml
+    needs: [publish-release]
+    with:
+      otaTag: ${{ github.ref_name }}
