@@ -38,6 +38,7 @@ jobs:
     - name: Install x86_64 linux dependencies
       if: ${{ matrix.job.os == 'ubuntu-latest' }}
       run: |
+        sudo apt-get update
         sudo apt-get install libudev-dev pkg-config libssl-dev
     - name: Install MacOS dependencies
       if: ${{ matrix.job.os == 'macos-latest' }}
