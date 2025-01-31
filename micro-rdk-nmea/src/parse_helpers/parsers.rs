@@ -221,11 +221,11 @@ where
 // this data from the CAN frame).
 #[derive(Debug, Clone)]
 pub struct NmeaMessageMetadata {
-    timestamp: DateTime<Utc>,
-    priority: u16,
-    src: u16,
-    dst: u16,
     pgn: u32,
+    timestamp: DateTime<Utc>,
+    dst: u16,
+    src: u16,
+    priority: u16,
 }
 
 impl NmeaMessageMetadata {
