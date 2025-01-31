@@ -218,5 +218,6 @@ jobs:
   update-canary-ota-config:
     uses: ./.github/workflows/canary_ota.yml
     needs: [publish-release]
+    secrets: inherit
     with:
       otaTag: ${{ github.ref_name }}
