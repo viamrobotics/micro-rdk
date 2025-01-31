@@ -9,7 +9,7 @@ use micro_rdk::{
 use crate::parse_helpers::{errors::NmeaParseError, parsers::DataCursor};
 
 pub trait Message: Sized + Clone {
-    fn from_cursor(cursor: DataCursor, source_id: u8) -> Result<Self, NmeaParseError>;
+    fn from_cursor(cursor: DataCursor) -> Result<Self, NmeaParseError>;
     fn to_readings(self) -> Result<GenericReadingsResult, NmeaParseError>;
 }
 
@@ -17,27 +17,16 @@ pub trait Message: Sized + Clone {
 pub struct UnparsedMessageData {
     data: Vec<u8>,
     pgn: u32,
-    source_id: u8,
 }
 
 impl UnparsedMessageData {
-    pub fn from_bytes(data: Vec<u8>, pgn: u32, source_id: u8) -> Result<Self, NmeaParseError> {
-        Ok(Self {
-            data,
-            source_id,
-            pgn,
-        })
+    pub fn from_bytes(data: Vec<u8>, pgn: u32) -> Result<Self, NmeaParseError> {
+        Ok(Self { data, pgn })
     }
 
     pub fn to_readings(self) -> Result<GenericReadingsResult, NmeaParseError> {
         let data_string = general_purpose::STANDARD.encode(self.data);
         Ok(HashMap::from([
-            (
-                "source_id".to_string(),
-                Value {
-                    kind: Some(Kind::NumberValue(self.source_id as f64)),
-                },
-            ),
             (
                 "data".to_string(),
                 Value {
@@ -55,9 +44,5 @@ impl UnparsedMessageData {
 
     pub fn pgn(&self) -> u32 {
         self.pgn
-    }
-
-    pub fn source_id(&self) -> u8 {
-        self.source_id
     }
 }

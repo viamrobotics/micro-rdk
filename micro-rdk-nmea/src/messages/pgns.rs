@@ -132,13 +132,13 @@ macro_rules! define_pgns {
                 }
             }
 
-            pub fn from_bytes(pgn: u32, source_id: u8, bytes: Vec<u8>) -> Result<Self, crate::parse_helpers::errors::NmeaParseError> {
+            pub fn from_bytes(pgn: u32, bytes: Vec<u8>) -> Result<Self, crate::parse_helpers::errors::NmeaParseError> {
                 Ok(match pgn {
                     $($pgn => {
                         let cursor = DataCursor::new(bytes);
-                        Self::$enum($pgndef::from_cursor(cursor, source_id)?)
+                        Self::$enum($pgndef::from_cursor(cursor)?)
                     }),*,
-                    x => Self::Unsupported(UnparsedMessageData::from_bytes(bytes, x, source_id)?)
+                    x => Self::Unsupported(UnparsedMessageData::from_bytes(bytes, x)?)
                 })
             }
 
@@ -165,9 +165,9 @@ pub struct NmeaMessage {
 
 impl NmeaMessage {
     pub fn new(mut bytes: Vec<u8>) -> Result<Self, NmeaParseError> {
-        let msg_data = bytes.split_off(33);
+        let msg_data = bytes.split_off(32);
         let metadata = NmeaMessageMetadata::try_from(bytes)?;
-        let data = MessageData::from_bytes(metadata.pgn(), metadata.src() as u8, msg_data)?;
+        let data = MessageData::from_bytes(metadata.pgn(), msg_data)?;
         Ok(Self { metadata, data })
     }
 

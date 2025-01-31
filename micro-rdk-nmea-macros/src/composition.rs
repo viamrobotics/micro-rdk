@@ -46,15 +46,6 @@ impl PgnComposition {
     pub(crate) fn from_field(field: &Field, purpose: CodeGenPurpose) -> Result<Self, TokenStream> {
         let mut statements = Self::new();
         if let Some(name) = &field.ident {
-            if name == "source_id" {
-                let num_ty = &field.ty;
-                statements.attribute_getters.push(quote! {
-                    pub fn #name(&self) -> #num_ty { self.#name }
-                });
-                statements.struct_initialization.push(quote! { source_id, });
-                return Ok(statements);
-            }
-
             let macro_attrs = MacroAttributes::from_field(field)?;
             if macro_attrs.offset != 0 {
                 let offset = macro_attrs.offset;
@@ -144,7 +135,7 @@ impl PgnComposition {
             }
 
             impl #impl_generics #crate_ident::messages::message::Message for #name #src_generics #src_where_clause {
-                fn from_cursor(mut cursor: #crate_ident::parse_helpers::parsers::DataCursor, source_id: u8) -> Result<Self, #error_ident> {
+                fn from_cursor(mut cursor: #crate_ident::parse_helpers::parsers::DataCursor) -> Result<Self, #error_ident> {
                     use #crate_ident::parse_helpers::parsers::FieldReader;
                     #(#parsing_logic)*
                     Ok(Self {

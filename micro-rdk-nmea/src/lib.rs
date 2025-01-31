@@ -29,11 +29,10 @@ mod tests {
         let mut data = Vec::<u8>::new();
         let res = general_purpose::STANDARD.decode_vec(water_depth_str, &mut data);
         assert!(res.is_ok());
-        let cursor = DataCursor::new(data[33..].to_vec());
-        let message = WaterDepth::from_cursor(cursor, 13);
+        let cursor = DataCursor::new(data[32..].to_vec());
+        let message = WaterDepth::from_cursor(cursor);
         assert!(message.is_ok());
         let message = message.unwrap();
-        assert_eq!(message.source_id(), 13);
         let depth = message.depth();
         assert!(depth.is_ok());
         assert_eq!(depth.unwrap(), 2.12);
@@ -52,11 +51,10 @@ mod tests {
         let mut data = Vec::<u8>::new();
         let res = general_purpose::STANDARD.decode_vec(water_depth_str, &mut data);
         assert!(res.is_ok());
-        let cursor = DataCursor::new(data[33..].to_vec());
-        let message = WaterDepth::from_cursor(cursor, 13);
+        let cursor = DataCursor::new(data[32..].to_vec());
+        let message = WaterDepth::from_cursor(cursor);
         assert!(message.is_ok());
         let message = message.unwrap();
-        assert_eq!(message.source_id(), 13);
         let depth = message.depth();
         assert!(depth.is_ok());
         assert_eq!(depth.unwrap(), 3.9);
@@ -76,11 +74,10 @@ mod tests {
         let res = general_purpose::STANDARD.decode_vec(temp_str, &mut data);
         assert!(res.is_ok());
 
-        let cursor = DataCursor::new(data[33..].to_vec());
-        let message = TemperatureExtendedRange::from_cursor(cursor, 23);
+        let cursor = DataCursor::new(data[32..].to_vec());
+        let message = TemperatureExtendedRange::from_cursor(cursor);
         assert!(message.is_ok());
         let message = message.unwrap();
-        assert_eq!(message.source_id(), 23);
         let temp = message.temperature();
         assert!(temp.is_ok());
         let temp = temp.unwrap();
@@ -102,8 +99,8 @@ mod tests {
         let mut data = Vec::<u8>::new();
         let res = general_purpose::STANDARD.decode_vec(gnss_str, &mut data);
         assert!(res.is_ok());
-        let cursor = DataCursor::new(data[33..].to_vec());
-        let message = GnssPositionData::from_cursor(cursor, 3);
+        let cursor = DataCursor::new(data[32..].to_vec());
+        let message = GnssPositionData::from_cursor(cursor);
         assert!(message.is_ok());
         let message = message.unwrap();
 
@@ -143,8 +140,8 @@ mod tests {
         let res = general_purpose::STANDARD.decode_vec(msg_str, &mut data);
         assert!(res.is_ok());
 
-        let cursor = DataCursor::new(data[33..].to_vec());
-        let message = GnssSatsInView::from_cursor(cursor, 3);
+        let cursor = DataCursor::new(data[32..].to_vec());
+        let message = GnssSatsInView::from_cursor(cursor);
         assert!(message.is_ok());
         let message = message.unwrap();
         println!("message: {:?}", message);
