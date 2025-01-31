@@ -163,14 +163,17 @@ pub struct NmeaMessage {
     data: MessageData,
 }
 
-impl NmeaMessage {
-    pub fn new(mut bytes: Vec<u8>) -> Result<Self, NmeaParseError> {
-        let msg_data = bytes.split_off(32);
-        let metadata = NmeaMessageMetadata::try_from(bytes)?;
+impl TryFrom<Vec<u8>> for NmeaMessage {
+    type Error = NmeaParseError;
+    fn try_from(mut value: Vec<u8>) -> Result<Self, Self::Error> {
+        let msg_data = value.split_off(32);
+        let metadata = NmeaMessageMetadata::try_from(value)?;
         let data = MessageData::from_bytes(metadata.pgn(), msg_data)?;
         Ok(Self { metadata, data })
     }
+}
 
+impl NmeaMessage {
     pub fn to_readings(self) -> Result<GenericReadingsResult, NmeaParseError> {
         Ok(HashMap::from([
             (

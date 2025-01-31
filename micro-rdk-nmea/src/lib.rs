@@ -33,6 +33,9 @@ mod tests {
         let message = WaterDepth::from_cursor(cursor);
         assert!(message.is_ok());
         let message = message.unwrap();
+        let source_id = message.source_id();
+        assert!(source_id.is_ok());
+        assert_eq!(source_id.unwrap(), 255);
         let depth = message.depth();
         assert!(depth.is_ok());
         assert_eq!(depth.unwrap(), 2.12);
@@ -55,6 +58,9 @@ mod tests {
         let message = WaterDepth::from_cursor(cursor);
         assert!(message.is_ok());
         let message = message.unwrap();
+        let source_id = message.source_id();
+        assert!(source_id.is_ok());
+        assert_eq!(source_id.unwrap(), 0);
         let depth = message.depth();
         assert!(depth.is_ok());
         assert_eq!(depth.unwrap(), 3.9);
@@ -78,6 +84,10 @@ mod tests {
         let message = TemperatureExtendedRange::from_cursor(cursor);
         assert!(message.is_ok());
         let message = message.unwrap();
+        let source_id = message.source_id();
+        assert!(source_id.is_ok());
+        assert_eq!(source_id.unwrap(), 255);
+
         let temp = message.temperature();
         assert!(temp.is_ok());
         let temp = temp.unwrap();
@@ -103,6 +113,10 @@ mod tests {
         let message = GnssPositionData::from_cursor(cursor);
         assert!(message.is_ok());
         let message = message.unwrap();
+
+        let source_id = message.source_id();
+        assert!(source_id.is_ok());
+        assert_eq!(source_id.unwrap(), 58);
 
         let altitude = message.altitude();
         assert!(altitude.is_ok());
@@ -145,6 +159,10 @@ mod tests {
         assert!(message.is_ok());
         let message = message.unwrap();
         println!("message: {:?}", message);
+
+        let source_id = message.source_id();
+        assert!(source_id.is_ok());
+        assert_eq!(source_id.unwrap(), 162);
 
         let range_residual_mode = message.range_residual_mode();
         println!("range_residual_mode: {:?}", range_residual_mode);
