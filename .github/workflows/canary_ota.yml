@@ -6,6 +6,23 @@ on:
       otaTag:
         required: true
         type: string
+    secrets:
+      ESP32_CANARY_ROBOT:
+        required: true
+      ESP32_CANARY_ROBOT_PART_ID:
+        required: true
+      ESP32_CANARY_API_KEY:
+        required: true
+      ESP32_CANARY_API_KEY_ID:
+        required: true
+      GCP_BUCKET_URL:
+        required: true
+      GCP_BUCKET_NAME:
+        required: true
+      CANARY_SLACKBOT_TOKEN:
+        required: true
+      MICRO_RDK_TEAM_CHANNEL_ID:
+        required: true
   workflow_dispatch:
     inputs:
       otaTag:
