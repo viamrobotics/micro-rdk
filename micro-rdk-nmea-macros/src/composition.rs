@@ -22,6 +22,7 @@ pub(crate) struct PgnComposition {
     pub(crate) parsing_logic: Vec<TokenStream2>,
     pub(crate) struct_initialization: Vec<TokenStream2>,
     pub(crate) proto_conversion_logic: Vec<TokenStream2>,
+    pub(crate) pgn_declaration: Option<TokenStream2>,
 }
 
 impl PgnComposition {
@@ -31,7 +32,12 @@ impl PgnComposition {
             parsing_logic: vec![],
             struct_initialization: vec![],
             proto_conversion_logic: vec![],
+            pgn_declaration: None,
         }
+    }
+
+    pub(crate) fn set_pgn_declaration(&mut self, dec: TokenStream2) {
+        self.pgn_declaration = Some(dec)
     }
 
     pub(crate) fn merge(&mut self, mut other: Self) {
@@ -41,12 +47,34 @@ impl PgnComposition {
             .append(&mut other.struct_initialization);
         self.proto_conversion_logic
             .append(&mut other.proto_conversion_logic);
+        if other.pgn_declaration.is_some() {
+            self.pgn_declaration = other.pgn_declaration;
+        }
     }
 
     pub(crate) fn from_field(field: &Field, purpose: CodeGenPurpose) -> Result<Self, TokenStream> {
         let mut statements = Self::new();
         if let Some(name) = &field.ident {
             let macro_attrs = MacroAttributes::from_field(field)?;
+
+            if name == "_pgn" {
+                if let Some(pgn) = macro_attrs.pgn {
+                    statements.set_pgn_declaration(quote! {
+                        const PGN: u32 = #pgn;
+                    });
+                    statements
+                        .struct_initialization
+                        .push(quote! { _pgn: std::marker::PhantomData, });
+                    return Ok(statements);
+                } else {
+                    let err_msg = format!(
+                        "pgn field must define pgn attribute, macro attributes: {:?}",
+                        macro_attrs
+                    );
+                    return Err(error_tokens(&err_msg));
+                }
+            }
+
             if macro_attrs.offset != 0 {
                 let offset = macro_attrs.offset;
                 statements
@@ -118,23 +146,31 @@ impl PgnComposition {
         Ok(statements)
     }
 
-    pub(crate) fn into_token_stream(self, input: &DeriveInput) -> TokenStream2 {
+    pub(crate) fn into_token_stream(
+        self,
+        input: &DeriveInput,
+    ) -> Result<TokenStream2, TokenStream> {
         let name = &input.ident;
         let parsing_logic = self.parsing_logic;
         let attribute_getters = self.attribute_getters;
         let struct_initialization = self.struct_initialization;
         let proto_conversion_logic = self.proto_conversion_logic;
+        if self.pgn_declaration.is_none() {
+            return Err(error_tokens("pgn field of type u32 required"));
+        }
+        let pgn_declaration = self.pgn_declaration.unwrap();
         let (impl_generics, src_generics, src_where_clause) = input.generics.split_for_impl();
         let crate_ident = crate::utils::get_micro_nmea_crate_ident();
         let error_ident = quote! {#crate_ident::parse_helpers::errors::NmeaParseError};
         let mrdk_crate = crate::utils::get_micro_rdk_crate_ident();
-        quote! {
-
+        Ok(quote! {
             impl #impl_generics #name #src_generics #src_where_clause {
                 #(#attribute_getters)*
             }
 
             impl #impl_generics #crate_ident::messages::message::Message for #name #src_generics #src_where_clause {
+                #pgn_declaration
+
                 fn from_cursor(mut cursor: #crate_ident::parse_helpers::parsers::DataCursor) -> Result<Self, #error_ident> {
                     use #crate_ident::parse_helpers::parsers::FieldReader;
                     #(#parsing_logic)*
@@ -150,7 +186,7 @@ impl PgnComposition {
                     Ok(readings)
                 }
             }
-        }
+        })
     }
 
     pub(crate) fn into_fieldset_token_stream(self, input: &DeriveInput) -> TokenStream2 {

@@ -9,8 +9,12 @@ use micro_rdk::{
 use crate::parse_helpers::{errors::NmeaParseError, parsers::DataCursor};
 
 pub trait Message: Sized + Clone {
+    const PGN: u32;
     fn from_cursor(cursor: DataCursor) -> Result<Self, NmeaParseError>;
     fn to_readings(self) -> Result<GenericReadingsResult, NmeaParseError>;
+    fn pgn(&self) -> u32 {
+        Self::PGN
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -46,6 +46,7 @@ pub(crate) struct MacroAttributes {
     pub(crate) is_lookup: bool,
     pub(crate) is_fieldset: bool,
     pub(crate) length_field: Option<Ident>,
+    pub(crate) pgn: Option<u32>,
 }
 
 // Attempt to deduce the bit size from the data type
@@ -92,6 +93,7 @@ impl MacroAttributes {
             length_field: None,
             unit: None,
             is_fieldset: false,
+            pgn: None,
         };
 
         for attr in field.attrs.iter() {
@@ -135,6 +137,32 @@ impl MacroAttributes {
                                     }
                                 } else {
                                     return Err(error_tokens("bits parameter must be int"));
+                                }
+                            }
+                            _ => {
+                                return Err(error_tokens(
+                                    "bits received unexpected attribute value",
+                                ));
+                            }
+                        };
+                    }
+                    "pgn" => {
+                        macro_attrs.pgn = match &attr.meta {
+                            Meta::NameValue(named) => {
+                                if let Expr::Lit(ref expr_lit) = named.value {
+                                    let bits_lit = expr_lit.lit.clone();
+                                    if let Lit::Int(bits_lit) = bits_lit {
+                                        match bits_lit.base10_parse::<u32>() {
+                                            Ok(bits) => Some(bits),
+                                            Err(err) => {
+                                                return Err(error_tokens(err.to_string().as_str()));
+                                            }
+                                        }
+                                    } else {
+                                        return Err(error_tokens("pgn parameter must be int"));
+                                    }
+                                } else {
+                                    return Err(error_tokens("pgn parameter must be int"));
                                 }
                             }
                             _ => {

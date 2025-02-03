@@ -279,10 +279,13 @@ impl TryFrom<Vec<u8>> for NmeaMessageMetadata {
 mod tests {
     use base64::{engine::general_purpose, Engine};
 
-    use crate::parse_helpers::{
-        enums::MagneticVariationSource,
-        errors::NmeaParseError,
-        parsers::{DataCursor, FieldReader, NmeaMessageMetadata},
+    use crate::{
+        messages::pgns::MESSAGE_HEADER_OFFSET,
+        parse_helpers::{
+            enums::MagneticVariationSource,
+            errors::NmeaParseError,
+            parsers::{DataCursor, FieldReader, NmeaMessageMetadata},
+        },
     };
 
     use super::{ArrayField, FieldSet, FieldSetList, LookupField, NumberField};
@@ -294,7 +297,7 @@ mod tests {
         let res = general_purpose::STANDARD.decode_vec(data_str, &mut data);
         assert!(res.is_ok());
 
-        let _ = data.split_off(32);
+        let _ = data.split_off(MESSAGE_HEADER_OFFSET);
         let metadata = NmeaMessageMetadata::try_from(data);
         assert!(metadata.is_ok());
         let metadata = metadata.unwrap();

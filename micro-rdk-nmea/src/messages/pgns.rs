@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::marker::PhantomData;
 
 use micro_rdk::{
     common::sensor::GenericReadingsResult,
@@ -15,6 +16,8 @@ use crate::parse_helpers::{
 
 #[derive(PgnMessageDerive, Clone, Debug)]
 pub struct WaterDepth {
+    #[pgn = 128267]
+    _pgn: PhantomData<u32>,
     source_id: u8,
     #[scale = 0.01]
     depth: u32,
@@ -26,6 +29,8 @@ pub struct WaterDepth {
 
 #[derive(PgnMessageDerive, Clone, Debug)]
 pub struct TemperatureExtendedRange {
+    #[pgn = 130316]
+    _pgn: PhantomData<u32>,
     source_id: u8,
     instance: u8,
     #[lookup]
@@ -48,6 +53,8 @@ pub struct ReferenceStation {
 
 #[derive(PgnMessageDerive, Clone, Debug)]
 pub struct GnssPositionData {
+    #[pgn = 129029]
+    _pgn: PhantomData<u32>,
     source_id: u8,
     date: u16,
     #[scale = 0.0001]
@@ -105,6 +112,8 @@ pub struct Satellite {
 
 #[derive(PgnMessageDerive, Clone, Debug)]
 pub struct GnssSatsInView {
+    #[pgn = 129540]
+    _pgn: PhantomData<u32>,
     source_id: u8,
     #[lookup]
     #[bits = 2]
@@ -127,7 +136,7 @@ macro_rules! define_pgns {
         impl MessageData {
             pub fn pgn(&self) -> u32 {
                 match self {
-                    $(Self::$enum(_) => $pgn),*,
+                    $(Self::$enum(msg) => msg.pgn()),*,
                     Self::Unsupported(unparsed) => unparsed.pgn()
                 }
             }
@@ -152,6 +161,8 @@ macro_rules! define_pgns {
     };
 }
 
+pub const MESSAGE_HEADER_OFFSET: usize = 32;
+
 define_pgns!(
     (WaterDepth, Pgn128267, 128267),
     (TemperatureExtendedRange, Pgn130316, 130316),
@@ -166,7 +177,7 @@ pub struct NmeaMessage {
 impl TryFrom<Vec<u8>> for NmeaMessage {
     type Error = NmeaParseError;
     fn try_from(mut value: Vec<u8>) -> Result<Self, Self::Error> {
-        let msg_data = value.split_off(32);
+        let msg_data = value.split_off(MESSAGE_HEADER_OFFSET);
         let metadata = NmeaMessageMetadata::try_from(value)?;
         let data = MessageData::from_bytes(metadata.pgn(), msg_data)?;
         Ok(Self { metadata, data })
