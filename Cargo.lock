@@ -634,9 +634,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.10"
+version = "1.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13208fcbb66eaeffe09b99fffbe1af420f00a7b35aa99ad683dfc1aa76145229"
+checksum = "e4730490333d58093109dc02c23174c3f4d490998c3fed3cc8e82d57afedb9cf"
 dependencies = [
  "shlex",
 ]
@@ -2648,7 +2648,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk"
-version = "0.4.1-rc8"
+version = "0.4.1-rc9"
 dependencies = [
  "async-channel 2.3.1",
  "async-executor",
@@ -2709,7 +2709,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-ffi"
-version = "0.4.1-rc8"
+version = "0.4.1-rc9"
 dependencies = [
  "async-channel 2.3.1",
  "base64 0.22.1",
@@ -2732,7 +2732,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-installer"
-version = "0.4.1-rc8"
+version = "0.4.1-rc9"
 dependencies = [
  "anyhow",
  "clap",
@@ -2754,7 +2754,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-macros"
-version = "0.4.1-rc8"
+version = "0.4.1-rc9"
 dependencies = [
  "micro-rdk",
  "proc-macro-crate 3.2.0",
@@ -2765,7 +2765,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-modular-driver-example"
-version = "0.4.1-rc8"
+version = "0.4.1-rc9"
 dependencies = [
  "log",
  "micro-rdk",
@@ -2773,7 +2773,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-nmea"
-version = "0.4.1-rc8"
+version = "0.4.1-rc9"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -2784,7 +2784,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-nmea-macros"
-version = "0.4.1-rc8"
+version = "0.4.1-rc9"
 dependencies = [
  "proc-macro-crate 3.2.0",
  "proc-macro2",
@@ -2794,7 +2794,7 @@ dependencies = [
 
 [[package]]
 name = "micro-rdk-server"
-version = "0.4.1-rc8"
+version = "0.4.1-rc9"
 dependencies = [
  "async-channel 2.3.1",
  "embedded-hal 0.2.7",
@@ -3152,7 +3152,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "ota-dev-server"
-version = "0.4.1-rc8"
+version = "0.4.1-rc9"
 dependencies = [
  "axum",
  "axum-extra",
