@@ -7,7 +7,7 @@ use micro_rdk::{
 };
 use micro_rdk_nmea_macros::{FieldsetDerive, PgnMessageDerive};
 
-use super::message::{Message, UnparsedMessageData};
+use super::message::{Message, UnparsedNmeaMessageBody};
 use crate::parse_helpers::{
     enums::{Gns, GnsIntegrity, GnsMethod, RangeResidualMode, SatelliteStatus, TemperatureSource},
     errors::NmeaParseError,
@@ -126,17 +126,17 @@ pub struct GnssSatsInView {
 }
 
 macro_rules! define_pgns {
-    ( $(($pgndef:ident, $enum:ident, $pgn:expr)),* ) => {
+    ( $(($pgndef:ident, $pgn:expr)),* ) => {
         #[derive(Clone, Debug)]
-        pub enum MessageData {
-            $($enum($pgndef)),*,
-            Unsupported(UnparsedMessageData)
+        pub enum NmeaMessageBody {
+            $($pgndef($pgndef)),*,
+            Unsupported(UnparsedNmeaMessageBody)
         }
 
-        impl MessageData {
+        impl NmeaMessageBody {
             pub fn pgn(&self) -> u32 {
                 match self {
-                    $(Self::$enum(msg) => msg.pgn()),*,
+                    $(Self::$pgndef(msg) => msg.pgn()),*,
                     Self::Unsupported(unparsed) => unparsed.pgn()
                 }
             }
@@ -145,15 +145,15 @@ macro_rules! define_pgns {
                 Ok(match pgn {
                     $($pgn => {
                         let cursor = DataCursor::new(bytes);
-                        Self::$enum($pgndef::from_cursor(cursor)?)
+                        Self::$pgndef($pgndef::from_cursor(cursor)?)
                     }),*,
-                    x => Self::Unsupported(UnparsedMessageData::from_bytes(bytes, x)?)
+                    x => Self::Unsupported(UnparsedNmeaMessageBody::from_bytes(bytes, x)?)
                 })
             }
 
             pub fn to_readings(self) -> Result<GenericReadingsResult, crate::parse_helpers::errors::NmeaParseError> {
                 match self {
-                    $(Self::$enum(msg) => msg.to_readings()),*,
+                    $(Self::$pgndef(msg) => msg.to_readings()),*,
                     Self::Unsupported(msg) => msg.to_readings()
                 }
             }
@@ -161,25 +161,25 @@ macro_rules! define_pgns {
     };
 }
 
-pub const MESSAGE_HEADER_OFFSET: usize = 32;
+pub const MESSAGE_DATA_OFFSET: usize = 32;
 
 define_pgns!(
-    (WaterDepth, Pgn128267, 128267),
-    (TemperatureExtendedRange, Pgn130316, 130316),
-    (GnssSatsInView, Pgn129540, 129540)
+    (WaterDepth, 128267),
+    (TemperatureExtendedRange, 130316),
+    (GnssSatsInView, 129540)
 );
 
 pub struct NmeaMessage {
     metadata: NmeaMessageMetadata,
-    data: MessageData,
+    data: NmeaMessageBody,
 }
 
 impl TryFrom<Vec<u8>> for NmeaMessage {
     type Error = NmeaParseError;
     fn try_from(mut value: Vec<u8>) -> Result<Self, Self::Error> {
-        let msg_data = value.split_off(MESSAGE_HEADER_OFFSET);
+        let msg_data = value.split_off(MESSAGE_DATA_OFFSET);
         let metadata = NmeaMessageMetadata::try_from(value)?;
-        let data = MessageData::from_bytes(metadata.pgn(), msg_data)?;
+        let data = NmeaMessageBody::from_bytes(metadata.pgn(), msg_data)?;
         Ok(Self { metadata, data })
     }
 }

@@ -167,7 +167,7 @@ impl MacroAttributes {
                             }
                             _ => {
                                 return Err(error_tokens(
-                                    "bits received unexpected attribute value",
+                                    "pgn received unexpected attribute value",
                                 ));
                             }
                         };

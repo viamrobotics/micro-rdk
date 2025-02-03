@@ -10,7 +10,7 @@ mod tests {
             message::Message,
             pgns::{
                 GnssPositionData, GnssSatsInView, TemperatureExtendedRange, WaterDepth,
-                MESSAGE_HEADER_OFFSET,
+                MESSAGE_DATA_OFFSET,
             },
         },
         parse_helpers::{
@@ -32,7 +32,7 @@ mod tests {
         let mut data = Vec::<u8>::new();
         let res = general_purpose::STANDARD.decode_vec(water_depth_str, &mut data);
         assert!(res.is_ok());
-        let cursor = DataCursor::new(data[MESSAGE_HEADER_OFFSET..].to_vec());
+        let cursor = DataCursor::new(data[MESSAGE_DATA_OFFSET..].to_vec());
         let message = WaterDepth::from_cursor(cursor);
         assert!(message.is_ok());
         let message = message.unwrap();
@@ -57,7 +57,7 @@ mod tests {
         let mut data = Vec::<u8>::new();
         let res = general_purpose::STANDARD.decode_vec(water_depth_str, &mut data);
         assert!(res.is_ok());
-        let cursor = DataCursor::new(data[MESSAGE_HEADER_OFFSET..].to_vec());
+        let cursor = DataCursor::new(data[MESSAGE_DATA_OFFSET..].to_vec());
         let message = WaterDepth::from_cursor(cursor);
         assert!(message.is_ok());
         let message = message.unwrap();
@@ -83,7 +83,7 @@ mod tests {
         let res = general_purpose::STANDARD.decode_vec(temp_str, &mut data);
         assert!(res.is_ok());
 
-        let cursor = DataCursor::new(data[MESSAGE_HEADER_OFFSET..].to_vec());
+        let cursor = DataCursor::new(data[MESSAGE_DATA_OFFSET..].to_vec());
         let message = TemperatureExtendedRange::from_cursor(cursor);
         assert!(message.is_ok());
         let message = message.unwrap();
@@ -112,7 +112,7 @@ mod tests {
         let mut data = Vec::<u8>::new();
         let res = general_purpose::STANDARD.decode_vec(gnss_str, &mut data);
         assert!(res.is_ok());
-        let cursor = DataCursor::new(data[MESSAGE_HEADER_OFFSET..].to_vec());
+        let cursor = DataCursor::new(data[MESSAGE_DATA_OFFSET..].to_vec());
         let message = GnssPositionData::from_cursor(cursor);
         assert!(message.is_ok());
         let message = message.unwrap();
@@ -157,7 +157,7 @@ mod tests {
         let res = general_purpose::STANDARD.decode_vec(msg_str, &mut data);
         assert!(res.is_ok());
 
-        let cursor = DataCursor::new(data[MESSAGE_HEADER_OFFSET..].to_vec());
+        let cursor = DataCursor::new(data[MESSAGE_DATA_OFFSET..].to_vec());
         let message = GnssSatsInView::from_cursor(cursor);
         assert!(message.is_ok());
         let message = message.unwrap();

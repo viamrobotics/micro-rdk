@@ -18,12 +18,12 @@ pub trait Message: Sized + Clone {
 }
 
 #[derive(Debug, Clone)]
-pub struct UnparsedMessageData {
+pub struct UnparsedNmeaMessageBody {
     data: Vec<u8>,
     pgn: u32,
 }
 
-impl UnparsedMessageData {
+impl UnparsedNmeaMessageBody {
     pub fn from_bytes(data: Vec<u8>, pgn: u32) -> Result<Self, NmeaParseError> {
         Ok(Self { data, pgn })
     }
