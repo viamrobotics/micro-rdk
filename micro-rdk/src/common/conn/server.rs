@@ -117,6 +117,7 @@ impl IncomingConnectionManager {
         Self { connections }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn max_connections(&self) -> usize {
         self.connections.len()
     }
