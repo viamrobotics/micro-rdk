@@ -126,7 +126,7 @@ pub struct GnssSatsInView {
 }
 
 macro_rules! define_pgns {
-    ( $(($pgndef:ident, $pgn:expr)),* ) => {
+    ( $($pgndef:ident),* ) => {
         #[derive(Clone, Debug)]
         pub enum NmeaMessageBody {
             $($pgndef($pgndef)),*,
@@ -143,7 +143,7 @@ macro_rules! define_pgns {
 
             pub fn from_bytes(pgn: u32, bytes: Vec<u8>) -> Result<Self, crate::parse_helpers::errors::NmeaParseError> {
                 Ok(match pgn {
-                    $($pgn => {
+                    $($pgndef::PGN => {
                         let cursor = DataCursor::new(bytes);
                         Self::$pgndef($pgndef::from_cursor(cursor)?)
                     }),*,
@@ -164,9 +164,9 @@ macro_rules! define_pgns {
 pub const MESSAGE_DATA_OFFSET: usize = 32;
 
 define_pgns!(
-    (WaterDepth, 128267),
-    (TemperatureExtendedRange, 130316),
-    (GnssSatsInView, 129540)
+    WaterDepth,
+    TemperatureExtendedRange,
+    GnssSatsInView
 );
 
 pub struct NmeaMessage {
