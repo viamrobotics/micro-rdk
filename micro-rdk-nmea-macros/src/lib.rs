@@ -12,13 +12,16 @@ use proc_macro::TokenStream;
 /// annotating the struct fields to customize the parsing/deserializing logic
 #[proc_macro_derive(
     PgnMessageDerive,
-    attributes(label, scale, lookup, bits, offset, fieldset, length_field, unit)
+    attributes(label, scale, lookup, bits, offset, fieldset, length_field, unit, pgn)
 )]
 pub fn pgn_message_derive(item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as syn::DeriveInput);
 
     match PgnComposition::from_input(&input, CodeGenPurpose::Message) {
-        Ok(statements) => statements.into_token_stream(&input).into(),
+        Ok(statements) => match statements.into_token_stream(&input) {
+            Ok(tokens) => tokens.into(),
+            Err(tokens) => tokens,
+        },
         Err(tokens) => tokens,
     }
 }

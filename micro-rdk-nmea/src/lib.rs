@@ -6,7 +6,13 @@ mod tests {
     use base64::{engine::general_purpose, Engine};
 
     use crate::{
-        messages::pgns::{GnssPositionData, GnssSatsInView, TemperatureExtendedRange, WaterDepth},
+        messages::{
+            message::Message,
+            pgns::{
+                GnssPositionData, GnssSatsInView, TemperatureExtendedRange, WaterDepth,
+                MESSAGE_DATA_OFFSET,
+            },
+        },
         parse_helpers::{
             enums::{
                 Gns, GnsIntegrity, GnsMethod, RangeResidualMode, SatelliteStatus, TemperatureSource,
@@ -26,11 +32,13 @@ mod tests {
         let mut data = Vec::<u8>::new();
         let res = general_purpose::STANDARD.decode_vec(water_depth_str, &mut data);
         assert!(res.is_ok());
-        let cursor = DataCursor::new(data[33..].to_vec());
-        let message = WaterDepth::from_cursor(cursor, 13);
+        let cursor = DataCursor::new(data[MESSAGE_DATA_OFFSET..].to_vec());
+        let message = WaterDepth::from_cursor(cursor);
         assert!(message.is_ok());
         let message = message.unwrap();
-        assert_eq!(message.source_id(), 13);
+        let source_id = message.source_id();
+        assert!(source_id.is_ok());
+        assert_eq!(source_id.unwrap(), 255);
         let depth = message.depth();
         assert!(depth.is_ok());
         assert_eq!(depth.unwrap(), 2.12);
@@ -49,11 +57,13 @@ mod tests {
         let mut data = Vec::<u8>::new();
         let res = general_purpose::STANDARD.decode_vec(water_depth_str, &mut data);
         assert!(res.is_ok());
-        let cursor = DataCursor::new(data[33..].to_vec());
-        let message = WaterDepth::from_cursor(cursor, 13);
+        let cursor = DataCursor::new(data[MESSAGE_DATA_OFFSET..].to_vec());
+        let message = WaterDepth::from_cursor(cursor);
         assert!(message.is_ok());
         let message = message.unwrap();
-        assert_eq!(message.source_id(), 13);
+        let source_id = message.source_id();
+        assert!(source_id.is_ok());
+        assert_eq!(source_id.unwrap(), 0);
         let depth = message.depth();
         assert!(depth.is_ok());
         assert_eq!(depth.unwrap(), 3.9);
@@ -73,11 +83,14 @@ mod tests {
         let res = general_purpose::STANDARD.decode_vec(temp_str, &mut data);
         assert!(res.is_ok());
 
-        let cursor = DataCursor::new(data[33..].to_vec());
-        let message = TemperatureExtendedRange::from_cursor(cursor, 23);
+        let cursor = DataCursor::new(data[MESSAGE_DATA_OFFSET..].to_vec());
+        let message = TemperatureExtendedRange::from_cursor(cursor);
         assert!(message.is_ok());
         let message = message.unwrap();
-        assert_eq!(message.source_id(), 23);
+        let source_id = message.source_id();
+        assert!(source_id.is_ok());
+        assert_eq!(source_id.unwrap(), 255);
+
         let temp = message.temperature();
         assert!(temp.is_ok());
         let temp = temp.unwrap();
@@ -99,10 +112,14 @@ mod tests {
         let mut data = Vec::<u8>::new();
         let res = general_purpose::STANDARD.decode_vec(gnss_str, &mut data);
         assert!(res.is_ok());
-        let cursor = DataCursor::new(data[33..].to_vec());
-        let message = GnssPositionData::from_cursor(cursor, 3);
+        let cursor = DataCursor::new(data[MESSAGE_DATA_OFFSET..].to_vec());
+        let message = GnssPositionData::from_cursor(cursor);
         assert!(message.is_ok());
         let message = message.unwrap();
+
+        let source_id = message.source_id();
+        assert!(source_id.is_ok());
+        assert_eq!(source_id.unwrap(), 58);
 
         let altitude = message.altitude();
         assert!(altitude.is_ok());
@@ -140,11 +157,15 @@ mod tests {
         let res = general_purpose::STANDARD.decode_vec(msg_str, &mut data);
         assert!(res.is_ok());
 
-        let cursor = DataCursor::new(data[33..].to_vec());
-        let message = GnssSatsInView::from_cursor(cursor, 3);
+        let cursor = DataCursor::new(data[MESSAGE_DATA_OFFSET..].to_vec());
+        let message = GnssSatsInView::from_cursor(cursor);
         assert!(message.is_ok());
         let message = message.unwrap();
         println!("message: {:?}", message);
+
+        let source_id = message.source_id();
+        assert!(source_id.is_ok());
+        assert_eq!(source_id.unwrap(), 162);
 
         let range_residual_mode = message.range_residual_mode();
         println!("range_residual_mode: {:?}", range_residual_mode);

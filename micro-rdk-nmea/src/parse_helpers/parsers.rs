@@ -221,10 +221,11 @@ where
 // this data from the CAN frame).
 #[derive(Debug, Clone)]
 pub struct NmeaMessageMetadata {
+    pgn: u32,
     timestamp: DateTime<Utc>,
-    priority: u16,
-    src: u16,
     dst: u16,
+    src: u16,
+    priority: u16,
 }
 
 impl NmeaMessageMetadata {
@@ -243,6 +244,10 @@ impl NmeaMessageMetadata {
     pub fn timestamp(&self) -> DateTime<Utc> {
         self.timestamp.clone()
     }
+
+    pub fn pgn(&self) -> u32 {
+        self.pgn
+    }
 }
 
 impl TryFrom<Vec<u8>> for NmeaMessageMetadata {
@@ -251,6 +256,7 @@ impl TryFrom<Vec<u8>> for NmeaMessageMetadata {
         if value.len() < 32 {
             return Err(NmeaParseError::NotEnoughData);
         }
+        let pgn = u32::from_le_bytes(value[0..4].try_into()?);
         let seconds = u64::from_le_bytes(value[8..16].try_into()?) as i64;
         let millis = u64::from_le_bytes(value[16..24].try_into()?);
         let timestamp = DateTime::from_timestamp(seconds, (millis * 1000) as u32)
@@ -264,6 +270,7 @@ impl TryFrom<Vec<u8>> for NmeaMessageMetadata {
             priority,
             src,
             dst,
+            pgn,
         })
     }
 }
@@ -272,10 +279,13 @@ impl TryFrom<Vec<u8>> for NmeaMessageMetadata {
 mod tests {
     use base64::{engine::general_purpose, Engine};
 
-    use crate::parse_helpers::{
-        enums::MagneticVariationSource,
-        errors::NmeaParseError,
-        parsers::{DataCursor, FieldReader, NmeaMessageMetadata},
+    use crate::{
+        messages::pgns::MESSAGE_DATA_OFFSET,
+        parse_helpers::{
+            enums::MagneticVariationSource,
+            errors::NmeaParseError,
+            parsers::{DataCursor, FieldReader, NmeaMessageMetadata},
+        },
     };
 
     use super::{ArrayField, FieldSet, FieldSetList, LookupField, NumberField};
@@ -287,7 +297,7 @@ mod tests {
         let res = general_purpose::STANDARD.decode_vec(data_str, &mut data);
         assert!(res.is_ok());
 
-        let _ = data.split_off(32);
+        let _ = data.split_off(MESSAGE_DATA_OFFSET);
         let metadata = NmeaMessageMetadata::try_from(data);
         assert!(metadata.is_ok());
         let metadata = metadata.unwrap();

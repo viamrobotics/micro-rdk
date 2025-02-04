@@ -1,12 +1,23 @@
+use std::collections::HashMap;
+use std::marker::PhantomData;
+
+use micro_rdk::{
+    common::sensor::GenericReadingsResult,
+    google::protobuf::{value::Kind, Struct, Value},
+};
 use micro_rdk_nmea_macros::{FieldsetDerive, PgnMessageDerive};
 
+use super::message::{Message, UnparsedNmeaMessageBody};
 use crate::parse_helpers::{
     enums::{Gns, GnsIntegrity, GnsMethod, RangeResidualMode, SatelliteStatus, TemperatureSource},
-    parsers::{DataCursor, FieldSet},
+    errors::NmeaParseError,
+    parsers::{DataCursor, FieldSet, NmeaMessageMetadata},
 };
 
-#[derive(PgnMessageDerive, Debug)]
+#[derive(PgnMessageDerive, Clone, Debug)]
 pub struct WaterDepth {
+    #[pgn = 128267]
+    _pgn: PhantomData<u32>,
     source_id: u8,
     #[scale = 0.01]
     depth: u32,
@@ -16,8 +27,10 @@ pub struct WaterDepth {
     range: u8,
 }
 
-#[derive(PgnMessageDerive, Debug)]
+#[derive(PgnMessageDerive, Clone, Debug)]
 pub struct TemperatureExtendedRange {
+    #[pgn = 130316]
+    _pgn: PhantomData<u32>,
     source_id: u8,
     instance: u8,
     #[lookup]
@@ -40,6 +53,8 @@ pub struct ReferenceStation {
 
 #[derive(PgnMessageDerive, Clone, Debug)]
 pub struct GnssPositionData {
+    #[pgn = 129029]
+    _pgn: PhantomData<u32>,
     source_id: u8,
     date: u16,
     #[scale = 0.0001]
@@ -97,6 +112,9 @@ pub struct Satellite {
 
 #[derive(PgnMessageDerive, Clone, Debug)]
 pub struct GnssSatsInView {
+    #[pgn = 129540]
+    _pgn: PhantomData<u32>,
+    source_id: u8,
     #[lookup]
     #[bits = 2]
     range_residual_mode: RangeResidualMode,
@@ -105,4 +123,102 @@ pub struct GnssSatsInView {
     #[fieldset]
     #[length_field = "sats_in_view"]
     satellites: Vec<Satellite>,
+}
+
+macro_rules! define_pgns {
+    ( $(($pgndef:ident, $pgn:expr)),* ) => {
+        #[derive(Clone, Debug)]
+        pub enum NmeaMessageBody {
+            $($pgndef($pgndef)),*,
+            Unsupported(UnparsedNmeaMessageBody)
+        }
+
+        impl NmeaMessageBody {
+            pub fn pgn(&self) -> u32 {
+                match self {
+                    $(Self::$pgndef(msg) => msg.pgn()),*,
+                    Self::Unsupported(unparsed) => unparsed.pgn()
+                }
+            }
+
+            pub fn from_bytes(pgn: u32, bytes: Vec<u8>) -> Result<Self, crate::parse_helpers::errors::NmeaParseError> {
+                Ok(match pgn {
+                    $($pgn => {
+                        let cursor = DataCursor::new(bytes);
+                        Self::$pgndef($pgndef::from_cursor(cursor)?)
+                    }),*,
+                    x => Self::Unsupported(UnparsedNmeaMessageBody::from_bytes(bytes, x)?)
+                })
+            }
+
+            pub fn to_readings(self) -> Result<GenericReadingsResult, crate::parse_helpers::errors::NmeaParseError> {
+                match self {
+                    $(Self::$pgndef(msg) => msg.to_readings()),*,
+                    Self::Unsupported(msg) => msg.to_readings()
+                }
+            }
+        }
+    };
+}
+
+pub const MESSAGE_DATA_OFFSET: usize = 32;
+
+define_pgns!(
+    (WaterDepth, 128267),
+    (TemperatureExtendedRange, 130316),
+    (GnssSatsInView, 129540)
+);
+
+pub struct NmeaMessage {
+    metadata: NmeaMessageMetadata,
+    data: NmeaMessageBody,
+}
+
+impl TryFrom<Vec<u8>> for NmeaMessage {
+    type Error = NmeaParseError;
+    fn try_from(mut value: Vec<u8>) -> Result<Self, Self::Error> {
+        let msg_data = value.split_off(MESSAGE_DATA_OFFSET);
+        let metadata = NmeaMessageMetadata::try_from(value)?;
+        let data = NmeaMessageBody::from_bytes(metadata.pgn(), msg_data)?;
+        Ok(Self { metadata, data })
+    }
+}
+
+impl NmeaMessage {
+    pub fn to_readings(self) -> Result<GenericReadingsResult, NmeaParseError> {
+        Ok(HashMap::from([
+            (
+                "prio".to_string(),
+                Value {
+                    kind: Some(Kind::NumberValue(self.metadata.priority() as f64)),
+                },
+            ),
+            (
+                "pgn".to_string(),
+                Value {
+                    kind: Some(Kind::NumberValue(self.metadata.pgn() as f64)),
+                },
+            ),
+            (
+                "src".to_string(),
+                Value {
+                    kind: Some(Kind::NumberValue(self.metadata.src() as f64)),
+                },
+            ),
+            (
+                "dst".to_string(),
+                Value {
+                    kind: Some(Kind::NumberValue(self.metadata.dst() as f64)),
+                },
+            ),
+            (
+                "fields".to_string(),
+                Value {
+                    kind: Some(Kind::StructValue(Struct {
+                        fields: self.data.to_readings()?,
+                    })),
+                },
+            ),
+        ]))
+    }
 }
