@@ -14,6 +14,7 @@ use std::sync::{Arc, Mutex};
 use super::analog::AnalogError;
 use super::board::BoardError;
 
+use super::config::AttributeError;
 use super::generic::DoCommand;
 use super::i2c::I2CErrors;
 
@@ -34,6 +35,8 @@ pub static COMPONENT_NAME: &str = "sensor";
 pub enum SensorError {
     #[error(transparent)]
     AnalogError(#[from] AnalogError),
+    #[error(transparent)]
+    ConfigAttributeError(#[from] AttributeError),
     #[error("sensor config error: {0}")]
     ConfigError(&'static str),
     #[error(transparent)]
@@ -43,6 +46,8 @@ pub enum SensorError {
     SensorI2CError(#[from] I2CErrors),
     #[error("{0}")]
     SensorGenericError(&'static str),
+    #[error("{0}")]
+    SensorDriverError(String),
     #[error("method {0} unimplemented")]
     SensorMethodUnimplemented(&'static str),
     #[error(transparent)]

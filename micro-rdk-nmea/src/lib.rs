@@ -1,5 +1,12 @@
+use micro_rdk::common::registry::{ComponentRegistry, RegistryError};
+
 pub mod messages;
 pub mod parse_helpers;
+pub mod viamboat;
+
+pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {
+    viamboat::register_models(registry)
+}
 
 #[cfg(test)]
 mod tests {
@@ -9,8 +16,8 @@ mod tests {
         messages::{
             message::Message,
             pgns::{
-                GnssPositionData, NmeaMessage, NmeaMessageBody, TemperatureExtendedRange,
-                WaterDepth, MESSAGE_DATA_OFFSET,
+                GnssPositionData, GnssSatsInView, NmeaMessage, NmeaMessageBody,
+                PositionRapidUpdate, TemperatureExtendedRange, WaterDepth, MESSAGE_DATA_OFFSET,
             },
         },
         parse_helpers::{
@@ -36,9 +43,7 @@ mod tests {
         let message = WaterDepth::from_cursor(cursor);
         assert!(message.is_ok());
         let message = message.unwrap();
-        let source_id = message.source_id();
-        assert!(source_id.is_ok());
-        assert_eq!(source_id.unwrap(), 255);
+        assert_eq!(message.source_id().unwrap(), 255);
         let depth = message.depth();
         assert!(depth.is_ok());
         assert_eq!(depth.unwrap(), 2.12);
@@ -236,5 +241,24 @@ mod tests {
 
         let status_2 = sats[2].status();
         assert!(matches!(status_2, SatelliteStatus::UsedDiff));
+    }
+
+    #[test]
+    fn pru_parse_test() {
+        // let msg_str = "AfgBAHg+gD8l2A2A/////zxxqDsAAAAACAD/AAIAAgBAj1APQNs60A==";
+        let msg_str = "AfgBAHg+gD94/5tnAAAAAFqsAQAAAAAACAD/AAgAAgD+//9//v//fw==";
+        let mut data = Vec::<u8>::new();
+        let res = general_purpose::STANDARD.decode_vec(msg_str, &mut data);
+        assert!(res.is_ok());
+        println!("data: {:?}, len: {:?}", data, data.len());
+
+        let cursor = DataCursor::new(data[MESSAGE_DATA_OFFSET..].to_vec());
+        let message = PositionRapidUpdate::from_cursor(cursor);
+        println!("res: {:?}", message);
+        assert!(message.is_ok());
+        let message = message.unwrap();
+        println!("lat: {:?}", message.latitude());
+        println!("lon: {:?}", message.longitude());
+        // assert!(false);
     }
 }

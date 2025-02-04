@@ -11,7 +11,7 @@ use micro_rdk::common::{
     exec::Executor,
     log::initialize_logger,
     provisioning::server::ProvisioningInfo,
-    registry::{ComponentRegistry, Dependency},
+    registry::{ComponentRegistry, Dependency, RegistryError},
     sensor::{SensorError, SensorType},
     webrtc::certificate::Certificate,
 };
@@ -35,6 +35,21 @@ extern "C" {
     pub static g_spiram_ok: bool;
 }
 
+macro_rules! generate_register_modules {
+    ($($module:ident),*) => {
+        #[allow(unused_variables)]
+        fn register_modules(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {
+            $(
+                log::info!("registering micro-rdk module '{}'", stringify!($module));
+                $module::register_models(registry)?;
+            )*
+                Ok(())
+        }
+    }
+}
+
+include!(concat!(env!("OUT_DIR"), "/modules.rs"));
+
 /// Creates a new Viam server context
 ///
 /// Use the returned pointer to register your own components using the C API
@@ -43,6 +58,7 @@ extern "C" {
 #[no_mangle]
 pub extern "C" fn init_viam_server_context() -> *mut viam_server_context {
     let registry = Box::<ComponentRegistry>::default();
+    initialize_logger::<micro_rdk::esp32::esp_idf_svc::log::EspLogger>();
     let mut provisioning_info = ProvisioningInfo::default();
     provisioning_info.set_manufacturer("viam".to_owned());
     provisioning_info.set_model("ffi-provisioning".to_owned());
@@ -239,7 +255,7 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
         return viam_code::VIAM_INVALID_ARG;
     }
 
-    let ctx = unsafe { Box::from_raw(ctx) };
+    let mut ctx = unsafe { Box::from_raw(ctx) };
 
     #[cfg(not(target_os = "espidf"))]
     {
@@ -248,7 +264,7 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
     #[cfg(target_os = "espidf")]
     {
         micro_rdk::esp32::esp_idf_svc::sys::link_patches();
-        initialize_logger::<micro_rdk::esp32::esp_idf_svc::log::EspLogger>();
+        // initialize_logger::<micro_rdk::esp32::esp_idf_svc::log::EspLogger>();
         micro_rdk::esp32::esp_idf_svc::sys::esp!(unsafe {
             micro_rdk::esp32::esp_idf_svc::sys::esp_vfs_eventfd_register(
                 &micro_rdk::esp32::esp_idf_svc::sys::esp_vfs_eventfd_config_t { max_fds: 5 },
@@ -332,6 +348,10 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
             .collect();
         storage
     };
+
+    if let Err(e) = register_modules(&mut ctx.registry) {
+        log::error!("couldn't register modules {:?}", e);
+    }
 
     let mut builder = ViamServerBuilder::new(storage);
     builder

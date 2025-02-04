@@ -9,10 +9,30 @@ use micro_rdk_nmea_macros::{FieldsetDerive, PgnMessageDerive};
 
 use super::message::{Message, UnparsedNmeaMessageBody};
 use crate::parse_helpers::{
-    enums::{Gns, GnsIntegrity, GnsMethod, RangeResidualMode, SatelliteStatus, TemperatureSource},
+    enums::{
+        DirectionReference, Gns, GnsIntegrity, GnsMethod, RangeResidualMode, SatelliteStatus,
+        TemperatureSource, WaterReference,
+    },
     errors::NmeaParseError,
     parsers::{DataCursor, FieldSet, NmeaMessageMetadata},
 };
+
+#[derive(PgnMessageDerive, Clone, Debug)]
+pub struct Speed {
+    #[pgn = 128259]
+    _pgn: PhantomData<u32>,
+    source_id: u8,
+    #[scale = 0.01]
+    #[unit = "knots"]
+    speed_water_referenced: u16,
+    #[scale = 0.01]
+    speed_ground_referenced: u16,
+    #[lookup]
+    #[bits = 8]
+    speed_water_referenced_type: WaterReference,
+    #[bits = 4]
+    speed_direction: u8,
+}
 
 #[derive(PgnMessageDerive, Clone, Debug)]
 pub struct WaterDepth {
@@ -25,6 +45,19 @@ pub struct WaterDepth {
     offset: i16,
     #[scale = 10.0]
     range: u8,
+}
+
+#[derive(PgnMessageDerive, Clone, Debug)]
+pub struct DistanceLog {
+    #[pgn = 128275]
+    _pgn: PhantomData<u32>,
+    date: u16,
+    #[scale = 0.0001]
+    time: u32,
+    #[unit = "M"]
+    log: u32,
+    #[unit = "M"]
+    trip_log: u32,
 }
 
 #[derive(PgnMessageDerive, Clone, Debug)]
@@ -125,6 +158,72 @@ pub struct GnssSatsInView {
     satellites: Vec<Satellite>,
 }
 
+// #[derive(PgnMessageDerive, Clone, Debug)]
+// pub struct EnvironmentalParameters {
+
+// }
+
+#[derive(PgnMessageDerive, Clone, Debug)]
+pub struct PositionRapidUpdate {
+    #[pgn = 129025]
+    _pgn: PhantomData<u32>,
+    #[scale = 1e-07]
+    latitude: i32,
+    #[scale = 1e-07]
+    longitude: i32,
+}
+
+#[derive(PgnMessageDerive, Clone, Debug)]
+pub struct CogSog {
+    #[pgn = 129026]
+    _pgn: PhantomData<u32>,
+    source_id: u8,
+    #[lookup]
+    #[bits = 2]
+    cog_reference: DirectionReference,
+    #[offset = 6]
+    #[unit = "deg"]
+    #[scale = 0.0001]
+    course_over_ground: u16,
+    #[scale = 0.01]
+    speed_over_ground: u16,
+}
+
+#[derive(PgnMessageDerive, Clone, Debug)]
+pub struct VesselHeading {
+    #[pgn = 127250]
+    _pgn: PhantomData<u32>,
+    source_id: u8,
+    #[scale = 0.0001]
+    #[unit = "deg"]
+    heading: u16,
+    #[scale = 0.0001]
+    #[unit = "deg"]
+    deviation: i16,
+    #[scale = 0.0001]
+    #[unit = "deg"]
+    variation: i16,
+    #[lookup]
+    #[bits = 2]
+    reference: DirectionReference,
+}
+
+#[derive(PgnMessageDerive, Clone, Debug)]
+pub struct Attitude {
+    #[pgn = 127257]
+    _pgn: PhantomData<u32>,
+    source_id: u8,
+    #[scale = 0.0001]
+    #[unit = "deg"]
+    yaw: i16,
+    #[scale = 0.0001]
+    #[unit = "deg"]
+    pitch: i16,
+    #[scale = 0.0001]
+    #[unit = "deg"]
+    roll: i16,
+}
+
 macro_rules! define_pgns {
     ( $($pgndef:ident),* ) => {
         #[derive(Clone, Debug)]
@@ -163,11 +262,21 @@ macro_rules! define_pgns {
 
 pub const MESSAGE_DATA_OFFSET: usize = 32;
 
-define_pgns!(WaterDepth, TemperatureExtendedRange, GnssSatsInView);
+define_pgns!(
+    WaterDepth,
+    TemperatureExtendedRange,
+    GnssSatsInView,
+    CogSog,
+    PositionRapidUpdate,
+    VesselHeading,
+    Attitude,
+    Speed,
+    DistanceLog
+);
 
 pub struct NmeaMessage {
-    pub metadata: NmeaMessageMetadata,
-    pub data: NmeaMessageBody,
+    pub(crate) metadata: NmeaMessageMetadata,
+    pub(crate) data: NmeaMessageBody,
 }
 
 impl TryFrom<Vec<u8>> for NmeaMessage {
