@@ -163,11 +163,7 @@ macro_rules! define_pgns {
 
 pub const MESSAGE_DATA_OFFSET: usize = 32;
 
-define_pgns!(
-    WaterDepth,
-    TemperatureExtendedRange,
-    GnssSatsInView
-);
+define_pgns!(WaterDepth, TemperatureExtendedRange, GnssSatsInView);
 
 pub struct NmeaMessage {
     pub metadata: NmeaMessageMetadata,
