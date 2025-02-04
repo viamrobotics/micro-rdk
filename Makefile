@@ -68,7 +68,7 @@ upload: cargo-ver
 	cargo +esp espflash flash --package micro-rdk-server --monitor --partition-table micro-rdk-server/esp32/partitions.csv --baud 460800 -f 80mhz --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
 
 test:
-	cargo test -p micro-rdk --lib --features native,ota
+	cargo test --workspace --tests --no-fail-fast --features native,ota
 
 clippy-native:
 	cargo clippy -p micro-rdk --no-deps --features native,ota  -- -Dwarnings
