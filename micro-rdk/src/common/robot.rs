@@ -504,6 +504,7 @@ impl LocalRobot {
     }
 
     pub fn get_periodic_app_client_tasks(&mut self) -> Vec<Box<dyn PeriodicAppClientTask>> {
+        #[allow(unused_mut)]
         let mut tasks = Vec::<Box<dyn PeriodicAppClientTask>>::new();
 
         #[cfg(feature = "data")]

@@ -62,7 +62,7 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 }
 
 pub type GenericReadingsResult =
-    ::std::collections::HashMap<::prost::alloc::string::String, google::protobuf::Value>;
+    HashMap<::prost::alloc::string::String, google::protobuf::Value>;
 
 #[cfg(feature = "data")]
 impl From<GenericReadingsResult> for Data {

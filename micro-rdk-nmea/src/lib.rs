@@ -9,7 +9,7 @@ mod tests {
         messages::{
             message::Message,
             pgns::{
-                GnssPositionData, GnssSatsInView, NmeaMessage, NmeaMessageBody, TemperatureExtendedRange, WaterDepth, MESSAGE_DATA_OFFSET
+                GnssPositionData, NmeaMessage, NmeaMessageBody, TemperatureExtendedRange, WaterDepth, MESSAGE_DATA_OFFSET
             },
         },
         parse_helpers::{
