@@ -9,8 +9,7 @@ mod tests {
         messages::{
             message::Message,
             pgns::{
-                GnssPositionData, GnssSatsInView, TemperatureExtendedRange, WaterDepth,
-                MESSAGE_DATA_OFFSET,
+                GnssPositionData, GnssSatsInView, NmeaMessage, NmeaMessageBody, TemperatureExtendedRange, WaterDepth, MESSAGE_DATA_OFFSET
             },
         },
         parse_helpers::{
@@ -157,10 +156,17 @@ mod tests {
         let res = general_purpose::STANDARD.decode_vec(msg_str, &mut data);
         assert!(res.is_ok());
 
-        let cursor = DataCursor::new(data[MESSAGE_DATA_OFFSET..].to_vec());
-        let message = GnssSatsInView::from_cursor(cursor);
-        assert!(message.is_ok());
+        let nmea_message = NmeaMessage::try_from(data);
+        assert!(nmea_message.is_ok());
+
+        let nmea_message = nmea_message.unwrap();
+        let message = match nmea_message.data {
+            NmeaMessageBody::GnssSatsInView(val) => Some(val),
+            _ => None,
+        };
+        assert!(message.is_some());
         let message = message.unwrap();
+
         println!("message: {:?}", message);
 
         let source_id = message.source_id();

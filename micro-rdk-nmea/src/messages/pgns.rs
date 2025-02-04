@@ -170,8 +170,8 @@ define_pgns!(
 );
 
 pub struct NmeaMessage {
-    metadata: NmeaMessageMetadata,
-    data: NmeaMessageBody,
+    pub metadata: NmeaMessageMetadata,
+    pub data: NmeaMessageBody,
 }
 
 impl TryFrom<Vec<u8>> for NmeaMessage {
