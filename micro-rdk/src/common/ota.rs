@@ -48,7 +48,10 @@ use crate::{
 #[cfg(feature = "esp32")]
 use crate::esp32::esp_idf_svc::{
     ota::{EspFirmwareInfoLoader, EspOta},
-    sys::{esp_ota_get_next_update_partition, esp_partition_t},
+    sys::{
+        esp_app_desc_t, esp_image_header_t, esp_image_segment_header_t,
+        esp_ota_get_next_update_partition, esp_partition_t,
+    },
 };
 use async_io::Timer;
 use futures_lite::{FutureExt, StreamExt};
@@ -64,7 +67,14 @@ use {bincode::Decode, futures_lite::AsyncWriteExt};
 const CONN_RETRY_SECS: u64 = 1;
 const NUM_RETRY_CONN: usize = 3;
 const DOWNLOAD_TIMEOUT_SECS: u64 = 30;
-const SIZEOF_APPDESC: usize = 256;
+#[cfg(feature = "esp32")]
+static FIRMWARE_HEADER_SIZE: Lazy<usize> = Lazy::new(|| {
+    std::mem::size_of::<esp_image_header_t>()
+        + std::mem::size_of::<esp_image_segment_header_t>()
+        + std::mem::size_of::<esp_app_desc_t>()
+});
+#[cfg(not(feature = "esp32"))]
+const FIRMWARE_HEADER_SIZE: &usize = &1024;
 const MAX_VER_LEN: usize = 128;
 pub const OTA_MODEL_TYPE: &str = "ota_service";
 pub static OTA_MODEL_TRIPLET: Lazy<String> =
@@ -442,7 +452,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                     total_downloaded += data.len();
 
                     if !got_info {
-                        if total_downloaded < SIZEOF_APPDESC {
+                        if total_downloaded < *FIRMWARE_HEADER_SIZE {
                             log::error!("initial frame too small to retrieve esp_app_desc_t");
                         } else {
                             #[cfg(feature = "esp32")]
