@@ -264,7 +264,6 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
     #[cfg(target_os = "espidf")]
     {
         micro_rdk::esp32::esp_idf_svc::sys::link_patches();
-        // initialize_logger::<micro_rdk::esp32::esp_idf_svc::log::EspLogger>();
         micro_rdk::esp32::esp_idf_svc::sys::esp!(unsafe {
             micro_rdk::esp32::esp_idf_svc::sys::esp_vfs_eventfd_register(
                 &micro_rdk::esp32::esp_idf_svc::sys::esp_vfs_eventfd_config_t { max_fds: 5 },

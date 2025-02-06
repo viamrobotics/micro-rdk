@@ -158,11 +158,6 @@ pub struct GnssSatsInView {
     satellites: Vec<Satellite>,
 }
 
-// #[derive(PgnMessageDerive, Clone, Debug)]
-// pub struct EnvironmentalParameters {
-
-// }
-
 #[derive(PgnMessageDerive, Clone, Debug)]
 pub struct PositionRapidUpdate {
     #[pgn = 129025]

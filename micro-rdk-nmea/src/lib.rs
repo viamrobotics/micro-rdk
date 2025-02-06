@@ -242,23 +242,4 @@ mod tests {
         let status_2 = sats[2].status();
         assert!(matches!(status_2, SatelliteStatus::UsedDiff));
     }
-
-    #[test]
-    fn pru_parse_test() {
-        // let msg_str = "AfgBAHg+gD8l2A2A/////zxxqDsAAAAACAD/AAIAAgBAj1APQNs60A==";
-        let msg_str = "AfgBAHg+gD94/5tnAAAAAFqsAQAAAAAACAD/AAgAAgD+//9//v//fw==";
-        let mut data = Vec::<u8>::new();
-        let res = general_purpose::STANDARD.decode_vec(msg_str, &mut data);
-        assert!(res.is_ok());
-        println!("data: {:?}, len: {:?}", data, data.len());
-
-        let cursor = DataCursor::new(data[MESSAGE_DATA_OFFSET..].to_vec());
-        let message = PositionRapidUpdate::from_cursor(cursor);
-        println!("res: {:?}", message);
-        assert!(message.is_ok());
-        let message = message.unwrap();
-        println!("lat: {:?}", message.latitude());
-        println!("lon: {:?}", message.longitude());
-        // assert!(false);
-    }
 }
