@@ -58,6 +58,7 @@ include!(concat!(env!("OUT_DIR"), "/modules.rs"));
 #[no_mangle]
 pub extern "C" fn init_viam_server_context() -> *mut viam_server_context {
     let registry = Box::<ComponentRegistry>::default();
+    #[cfg(feature = "esp32")]
     initialize_logger::<micro_rdk::esp32::esp_idf_svc::log::EspLogger>();
     let mut provisioning_info = ProvisioningInfo::default();
     provisioning_info.set_manufacturer("viam".to_owned());
