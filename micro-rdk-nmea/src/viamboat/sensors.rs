@@ -81,7 +81,7 @@ fn readings_to_messages(
         if let Some(pgns) = &pgns {
             let split_key: Vec<&str> = k.split_terminator("-").collect();
             if split_key.len() == 2 {
-                if let Ok(msg_pgn) = split_key[0].parse::<u32>() {
+                if let Ok(msg_pgn) = u32::from_str_radix(split_key[0], 16) {
                     pgns.iter().any(|&x| x == msg_pgn)
                 } else {
                     false
