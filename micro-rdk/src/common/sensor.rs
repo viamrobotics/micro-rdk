@@ -110,7 +110,7 @@ pub trait Readings {
     }
 }
 
-pub trait Sensor: Readings + Status + DoCommand {}
+pub trait Sensor: Readings + Status + DoCommand + Send {}
 
 pub type SensorType = Arc<Mutex<dyn Sensor>>;
 
