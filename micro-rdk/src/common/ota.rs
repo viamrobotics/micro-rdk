@@ -407,7 +407,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             .parse::<usize>()
             .map_err(|e| OtaError::Other(e.to_string()))?;
 
-        if file_len > self.max_size {
+        if file_len > self.max_size || file_len < *FIRMWARE_HEADER_SIZE {
             return Err(OtaError::InvalidImageSize(file_len, self.max_size));
         }
 
@@ -478,7 +478,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                                     EspAppDesc,
                                     bincode::config::Configuration,
                                 >(
-                                    &data[..SIZEOF_APPDESC],
+                                    &data[..*FIRMWARE_HEADER_SIZE],
                                     bincode::config::standard(),
                                 ) {
                                     log::debug!("{:?}", decoded.0);
