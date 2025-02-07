@@ -159,6 +159,12 @@ impl<T, const N: usize> ArrayField<T, N> {
     }
 }
 
+impl<T, const N: usize> Default for ArrayField<T, N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T, const N: usize> FieldReader for ArrayField<T, N>
 where
     NumberField<T>: FieldReader,
@@ -169,9 +175,8 @@ where
     fn read_from_cursor(&self, cursor: &mut DataCursor) -> Result<Self::FieldType, NmeaParseError> {
         let mut res: [<NumberField<T> as FieldReader>::FieldType; N] = [Default::default(); N];
         let field_reader: NumberField<T> = Default::default();
-        for i in 0..N {
-            let next_elem = field_reader.read_from_cursor(cursor)?;
-            res[i] = next_elem;
+        for thing in res.iter_mut().take(N) {
+            *thing = field_reader.read_from_cursor(cursor)?;
         }
         Ok(res)
     }
@@ -242,7 +247,7 @@ impl NmeaMessageMetadata {
     }
 
     pub fn timestamp(&self) -> DateTime<Utc> {
-        self.timestamp.clone()
+        self.timestamp
     }
 
     pub fn pgn(&self) -> u32 {
