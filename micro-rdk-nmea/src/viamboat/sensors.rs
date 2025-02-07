@@ -77,11 +77,11 @@ fn readings_to_messages(
     pgns: Option<Vec<u32>>,
     sources: Option<Vec<u8>>,
 ) -> Result<Vec<NmeaMessage>, ViamboatSensorError> {
-    let filtered_on_pgn = readings.iter().filter(|(&ref k, _)| {
+    let filtered_on_pgn = readings.iter().filter(|(k, _)| {
         if let Some(pgns) = &pgns {
             let split_key: Vec<&str> = k.split_terminator("-").collect();
             if split_key.len() == 2 {
-                if let Ok(msg_pgn) = u32::from_str_radix(split_key[0], 16) {
+                if let Ok(msg_pgn) = split_key[0].parse::<u32>() {
                     pgns.iter().any(|&x| x == msg_pgn)
                 } else {
                     false
@@ -94,11 +94,11 @@ fn readings_to_messages(
         }
     });
 
-    let filtered_on_src = filtered_on_pgn.filter(|(&ref k, _)| {
+    let filtered_on_src = filtered_on_pgn.filter(|(k, _)| {
         if let Some(sources) = &sources {
             let split_key: Vec<&str> = k.split_terminator("-").collect();
             if split_key.len() == 2 {
-                if let Ok(src) = u32::from_str_radix(split_key[1], 10) {
+                if let Ok(src) = split_key[1].parse::<u32>() {
                     sources.iter().any(|&x| (x as u32) == src)
                 } else {
                     false
@@ -477,7 +477,7 @@ impl Readings for PgnSensor {
         let readings = messages.map(|msgs| {
             let readings: Result<Vec<GenericReadingsResult>, NmeaParseError> =
                 msgs.into_iter().map(|msg| msg.to_readings()).collect();
-            readings.map_err(|err| ViamboatSensorError::from(err))
+            readings.map_err(ViamboatSensorError::from)
         });
         let readings = readings.and_then(|inner| inner).map(|readings_vec| {
             let value_mapped: Vec<Value> = readings_vec
@@ -542,7 +542,7 @@ impl Readings for DebugPgnSensor {
         let message_protos: Result<Vec<Value>, NmeaParseError> = messages
             .into_iter()
             .map(|msg| {
-                let readings = msg.to_readings().unwrap_or(HashMap::new());
+                let readings = msg.to_readings().unwrap_or_default();
                 Ok(Value {
                     kind: Some(Kind::StructValue(Struct { fields: readings })),
                 })
