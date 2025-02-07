@@ -67,6 +67,9 @@ use {bincode::Decode, futures_lite::AsyncWriteExt};
 const CONN_RETRY_SECS: u64 = 1;
 const NUM_RETRY_CONN: usize = 3;
 const DOWNLOAD_TIMEOUT_SECS: u64 = 30;
+
+/// https://github.com/esp-rs/esp-idf-svc/blob/4ccf3182b32129b55082b5810d837a1cf5bc1a08/src/ota.rs#L94
+/// https://github.com/espressif/esp-idf/commit/3b9cb25fe18c5a6ed64ddd6a1dc4d0ce0b6cdc2a
 #[cfg(feature = "esp32")]
 static FIRMWARE_HEADER_SIZE: Lazy<usize> = Lazy::new(|| {
     std::mem::size_of::<esp_image_header_t>()
@@ -75,6 +78,7 @@ static FIRMWARE_HEADER_SIZE: Lazy<usize> = Lazy::new(|| {
 });
 #[cfg(not(feature = "esp32"))]
 const FIRMWARE_HEADER_SIZE: &usize = &1024;
+
 const MAX_VER_LEN: usize = 128;
 pub const OTA_MODEL_TYPE: &str = "ota_service";
 pub static OTA_MODEL_TRIPLET: Lazy<String> =
