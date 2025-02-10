@@ -417,7 +417,10 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             return Err(OtaError::InvalidImageSizeLarge(file_len, self.max_size));
         }
         if file_len < *FIRMWARE_HEADER_SIZE {
-            return Err(OtaError::InvalidImageSizeSmall(file_len, *FIRMWARE_HEADER_SIZE));
+            return Err(OtaError::InvalidImageSizeSmall(
+                file_len,
+                *FIRMWARE_HEADER_SIZE,
+            ));
         }
 
         #[cfg(feature = "esp32")]
