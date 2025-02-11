@@ -35,6 +35,7 @@ extern "C" {
     pub static g_spiram_ok: bool;
 }
 
+// TODO(RSDK-9963): Move to micro-RDK
 macro_rules! generate_register_modules {
     ($($module:ident),*) => {
         #[allow(unused_variables)]

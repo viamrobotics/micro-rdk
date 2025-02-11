@@ -56,7 +56,7 @@ impl UnitConversion {
                 let result = (result as f64) * 1.94384;
             },
             Self::MetersToNauticalMiles => quote! {
-                let result = (result as f64) * 0.539957;
+                let result = (result as f64) * 0.000539957;
             },
         }
     }

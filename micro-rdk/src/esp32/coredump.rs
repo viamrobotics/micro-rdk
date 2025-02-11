@@ -75,7 +75,7 @@ impl Coredump {
     }
 }
 
-// *mut esp_idf_svc::sys::esp_flash_t (which is one of the attributes for `esp_partition_t`) does not
+// TODO(RSDK-9956): *mut esp_idf_svc::sys::esp_flash_t (which is one of the attributes for `esp_partition_t`) does not
 // implement Send. We force an implementation of Send here so we can actually wrap in an Arc<Mutex<_>>
 // for now, but we should investigate a better canonical solution
 unsafe impl Send for Coredump {}

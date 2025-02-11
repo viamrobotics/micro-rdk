@@ -175,6 +175,7 @@ where
     fn read_from_cursor(&self, cursor: &mut DataCursor) -> Result<Self::FieldType, NmeaParseError> {
         let mut res: [<NumberField<T> as FieldReader>::FieldType; N] = [Default::default(); N];
         let field_reader: NumberField<T> = Default::default();
+        // TODO: Upon upgrade to Rust 1.84, change below to using try_from_fn
         for thing in res.iter_mut().take(N) {
             *thing = field_reader.read_from_cursor(cursor)?;
         }

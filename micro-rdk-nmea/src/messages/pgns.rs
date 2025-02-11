@@ -21,15 +21,20 @@ use crate::parse_helpers::{
 pub struct Speed {
     #[pgn = 128259]
     _pgn: PhantomData<u32>,
+
     source_id: u8,
+
     #[scale = 0.01]
     #[unit = "knots"]
     speed_water_referenced: u16,
+
     #[scale = 0.01]
     speed_ground_referenced: u16,
+
     #[lookup]
     #[bits = 8]
     speed_water_referenced_type: WaterReference,
+
     #[bits = 4]
     speed_direction: u8,
 }
@@ -38,11 +43,15 @@ pub struct Speed {
 pub struct WaterDepth {
     #[pgn = 128267]
     _pgn: PhantomData<u32>,
+
     source_id: u8,
+
     #[scale = 0.01]
     depth: u32,
+
     #[scale = 0.001]
     offset: i16,
+
     #[scale = 10.0]
     range: u8,
 }
@@ -51,11 +60,15 @@ pub struct WaterDepth {
 pub struct DistanceLog {
     #[pgn = 128275]
     _pgn: PhantomData<u32>,
+
     date: u16,
+
     #[scale = 0.0001]
     time: u32,
+
     #[unit = "M"]
     log: u32,
+
     #[unit = "M"]
     trip_log: u32,
 }
@@ -64,14 +77,19 @@ pub struct DistanceLog {
 pub struct TemperatureExtendedRange {
     #[pgn = 130316]
     _pgn: PhantomData<u32>,
+
     source_id: u8,
+
     instance: u8,
+
     #[lookup]
     source: TemperatureSource,
+
     #[bits = 24]
     #[scale = 0.001]
     #[unit = "C"]
     temperature: u32,
+
     #[scale = 0.1]
     set_temperature: u16,
 }
@@ -88,34 +106,49 @@ pub struct ReferenceStation {
 pub struct GnssPositionData {
     #[pgn = 129029]
     _pgn: PhantomData<u32>,
+
     source_id: u8,
+
     date: u16,
+
     #[scale = 0.0001]
     time: u32,
+
     #[scale = 1e-16]
     latitude: i64,
+
     #[scale = 1e-16]
     longitude: i64,
+
     #[scale = 1e-06]
     altitude: i64,
+
     #[lookup]
     #[bits = 4]
     gnss_type: Gns,
+
     #[lookup]
     #[bits = 4]
     method: GnsMethod,
+
     #[lookup]
     #[bits = 2]
     integrity: GnsIntegrity,
+
     #[offset = 6]
     number_of_svs: u8,
+
     #[scale = 0.01]
     hdop: i16,
+
     #[scale = 0.01]
     pdop: i16,
+
     #[scale = 0.01]
     geoidal_separation: i32,
+
     reference_stations: u8,
+
     #[fieldset]
     #[length_field = "reference_stations"]
     reference_station_structs: Vec<ReferenceStation>,
@@ -124,18 +157,24 @@ pub struct GnssPositionData {
 #[derive(FieldsetDerive, Clone, Debug)]
 pub struct Satellite {
     prn: u8,
+
     #[scale = 0.0001]
     #[unit = "deg"]
     elevation: i16,
+
     #[scale = 0.0001]
     #[unit = "deg"]
     azimuth: u16,
+
     #[scale = 0.01]
     snr: u16,
+
     range_residuals: i32,
+
     #[lookup]
     #[bits = 4]
     status: SatelliteStatus,
+
     // normally we would handle "reserved" fields by using the offset attribute
     // on the next field, but in the edge case of a reserved field being the last
     // field of a fieldset we need to include it
@@ -147,12 +186,16 @@ pub struct Satellite {
 pub struct GnssSatsInView {
     #[pgn = 129540]
     _pgn: PhantomData<u32>,
+
     source_id: u8,
+
     #[lookup]
     #[bits = 2]
     range_residual_mode: RangeResidualMode,
+
     #[offset = 6]
     sats_in_view: u8,
+
     #[fieldset]
     #[length_field = "sats_in_view"]
     satellites: Vec<Satellite>,
@@ -162,8 +205,10 @@ pub struct GnssSatsInView {
 pub struct PositionRapidUpdate {
     #[pgn = 129025]
     _pgn: PhantomData<u32>,
+
     #[scale = 1e-07]
     latitude: i32,
+
     #[scale = 1e-07]
     longitude: i32,
 }
@@ -172,14 +217,18 @@ pub struct PositionRapidUpdate {
 pub struct CogSog {
     #[pgn = 129026]
     _pgn: PhantomData<u32>,
+
     source_id: u8,
+
     #[lookup]
     #[bits = 2]
     cog_reference: DirectionReference,
+
     #[offset = 6]
     #[unit = "deg"]
     #[scale = 0.0001]
     course_over_ground: u16,
+
     #[scale = 0.01]
     speed_over_ground: u16,
 }
@@ -188,16 +237,21 @@ pub struct CogSog {
 pub struct VesselHeading {
     #[pgn = 127250]
     _pgn: PhantomData<u32>,
+
     source_id: u8,
+
     #[scale = 0.0001]
     #[unit = "deg"]
     heading: u16,
+
     #[scale = 0.0001]
     #[unit = "deg"]
     deviation: i16,
+
     #[scale = 0.0001]
     #[unit = "deg"]
     variation: i16,
+
     #[lookup]
     #[bits = 2]
     reference: DirectionReference,
@@ -207,13 +261,17 @@ pub struct VesselHeading {
 pub struct Attitude {
     #[pgn = 127257]
     _pgn: PhantomData<u32>,
+
     source_id: u8,
+
     #[scale = 0.0001]
     #[unit = "deg"]
     yaw: i16,
+
     #[scale = 0.0001]
     #[unit = "deg"]
     pitch: i16,
+
     #[scale = 0.0001]
     #[unit = "deg"]
     roll: i16,

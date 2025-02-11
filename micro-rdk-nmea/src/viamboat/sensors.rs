@@ -72,6 +72,10 @@ struct PgnGateway {
     sensor: SensorType,
 }
 
+struct MyMotor {
+    board: BoardType,
+}
+
 fn readings_to_messages(
     readings: &GenericReadingsResult,
     pgns: Option<Vec<u32>>,

@@ -120,7 +120,7 @@ pub struct HCSR04Sensor {
     isr_shared_state: Arc<IsrSharedState>,
 }
 
-// `Notification` contains an instance of `PhantomData<const* ()>`, but `const* ()` does not
+// TODO(RSDK-9956): `Notification` contains an instance of `PhantomData<const* ()>`, but `const* ()` does not
 // implement Send. We force an implementation of Send here so we can actually wrap in an Arc<Mutex<_>>
 // for now, but we should investigate a better canonical solution
 unsafe impl Send for HCSR04Sensor {}

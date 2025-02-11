@@ -376,9 +376,6 @@ impl LocalRobot {
                 let res = match self.resources.get(&r_name) {
                     Some(r) => r.clone(),
                     None => {
-                        for key in self.resources.keys() {
-                            log::warn!("res key found: {:?}", key)
-                        }
                         return Err(RobotError::RobotDependencyMissing(
                             key.1,
                             config.name.to_owned(),
