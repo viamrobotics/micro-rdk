@@ -161,7 +161,9 @@ pub(crate) enum OtaError<S: OtaMetadataStorage> {
     #[error("failed to initialize ota process")]
     InitError,
     #[error("new image of {0} bytes is larger than target partition of {1} bytes")]
-    InvalidImageSize(usize, usize),
+    InvalidImageSizeLarge(usize, usize),
+    #[error("new image of {0} bytes is smaller than minimum firmware size of {1} bytes")]
+    InvalidImageSizeSmall(usize, usize),
     #[error("failed to retrieve firmware header info from binary, firmware may not be valid for this system: {0}")]
     InvalidFirmware(String),
     #[error("failed to update OTA metadata: expected updated version to be `{0}`, found `{1}`")]
@@ -411,8 +413,14 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             .parse::<usize>()
             .map_err(|e| OtaError::Other(e.to_string()))?;
 
-        if file_len > self.max_size || file_len < *FIRMWARE_HEADER_SIZE {
-            return Err(OtaError::InvalidImageSize(file_len, self.max_size));
+        if file_len > self.max_size {
+            return Err(OtaError::InvalidImageSizeLarge(file_len, self.max_size));
+        }
+        if file_len < *FIRMWARE_HEADER_SIZE {
+            return Err(OtaError::InvalidImageSizeSmall(
+                file_len,
+                *FIRMWARE_HEADER_SIZE,
+            ));
         }
 
         #[cfg(feature = "esp32")]
@@ -498,7 +506,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                         update_handle
                             .abort()
                             .map_err(|e| OtaError::AbortError(format!("{:?}", e)))?;
-                        return Err(OtaError::InvalidImageSize(
+                        return Err(OtaError::InvalidImageSizeLarge(
                             data.len() + nwritten,
                             self.max_size,
                         ));
