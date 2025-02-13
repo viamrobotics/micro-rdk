@@ -99,6 +99,8 @@ pub trait Readings {
                     seconds: reading_received_dt.timestamp(),
                     nanos: reading_received_dt.timestamp_subsec_nanos() as i32,
                 }),
+                annotations: None,
+                mime_type: 0,
             }),
             data: Some(readings.into()),
         })

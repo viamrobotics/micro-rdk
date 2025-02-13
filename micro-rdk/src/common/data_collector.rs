@@ -273,6 +273,8 @@ impl DataCollector {
                     seconds: reading_requested_ts.as_secs() as i64,
                     nanos: reading_requested_ts.subsec_nanos() as i32,
                 }),
+                annotations: None,
+                mime_type: 0,
             }),
             data: Some(data),
         })

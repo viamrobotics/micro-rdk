@@ -90,6 +90,14 @@ pub mod proto {
                 include!("gen/viam.app.mltraining.v1.rs");
             }
         }
+
+        // responsible to proto dependency, same issue as above
+        #[cfg(feature = "data")]
+        pub mod data {
+            pub mod v1 {
+                include!("gen/viam.app.data.v1.rs");
+            }
+        }
     }
 
     pub mod rpc {
