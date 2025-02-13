@@ -114,6 +114,9 @@ pub struct GetPropertiesResponse {
     /// Supported MIME types by the camera
     #[prost(string, repeated, tag="4")]
     pub mime_types: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// Optional camera frame rate for image capture timing
+    #[prost(float, optional, tag="5")]
+    pub frame_rate: ::core::option::Option<f32>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

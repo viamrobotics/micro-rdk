@@ -1,8 +1,22 @@
 // @generated
-/// this is an experimental API message
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TunnelRequest {
+    #[prost(uint32, tag="1")]
+    pub destination_port: u32,
+    #[prost(bytes="vec", tag="2")]
+    pub data: ::prost::alloc::vec::Vec<u8>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TunnelResponse {
+    #[prost(bytes="vec", tag="1")]
+    pub data: ::prost::alloc::vec::Vec<u8>,
+}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FrameSystemConfig {
+    /// this is an experimental API message
     #[prost(message, optional, tag="1")]
     pub frame: ::core::option::Option<super::super::common::v1::Transform>,
     #[prost(message, optional, tag="2")]
@@ -167,6 +181,7 @@ pub struct GetSessionsResponse {
     pub sessions: ::prost::alloc::vec::Vec<Session>,
 }
 // Discovery
+// Discovery is deprecated
 
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -175,6 +190,8 @@ pub struct DiscoveryQuery {
     pub subtype: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
     pub model: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -183,6 +200,28 @@ pub struct Discovery {
     pub query: ::core::option::Option<DiscoveryQuery>,
     #[prost(message, optional, tag="2")]
     pub results: ::core::option::Option<super::super::super::google::protobuf::Struct>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ModuleModel {
+    #[prost(string, tag="1")]
+    pub module_name: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub model: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub api: ::prost::alloc::string::String,
+    #[prost(bool, tag="4")]
+    pub from_local_module: bool,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetModelsFromModulesRequest {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetModelsFromModulesResponse {
+    #[prost(message, repeated, tag="1")]
+    pub models: ::prost::alloc::vec::Vec<ModuleModel>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -348,6 +387,43 @@ pub struct GetMachineStatusResponse {
     pub resources: ::prost::alloc::vec::Vec<ResourceStatus>,
     #[prost(message, optional, tag="2")]
     pub config: ::core::option::Option<ConfigStatus>,
+    #[prost(enumeration="get_machine_status_response::State", tag="3")]
+    pub state: i32,
+}
+/// Nested message and enum types in `GetMachineStatusResponse`.
+pub mod get_machine_status_response {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+    #[repr(i32)]
+    pub enum State {
+        Unspecified = 0,
+        /// the machine is reachable but still in the process of configuring initial
+        /// modules and resources.
+        Initializing = 1,
+        /// the machine has finished initializing.
+        Running = 2,
+    }
+    impl State {
+        /// String value of the enum field names used in the ProtoBuf definition.
+        ///
+        /// The values are not transformed in any way and thus are considered stable
+        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        pub fn as_str_name(&self) -> &'static str {
+            match self {
+                State::Unspecified => "STATE_UNSPECIFIED",
+                State::Initializing => "STATE_INITIALIZING",
+                State::Running => "STATE_RUNNING",
+            }
+        }
+        /// Creates an enum from field names used in the ProtoBuf definition.
+        pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+            match value {
+                "STATE_UNSPECIFIED" => Some(Self::Unspecified),
+                "STATE_INITIALIZING" => Some(Self::Initializing),
+                "STATE_RUNNING" => Some(Self::Running),
+                _ => None,
+            }
+        }
+    }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -368,6 +444,9 @@ pub struct ResourceStatus {
     /// resource is ready and non-null if the resource unhealthy.
     #[prost(string, tag="5")]
     pub error: ::prost::alloc::string::String,
+    /// infomation about resource orgID, locationID and partID
+    #[prost(message, optional, tag="6")]
+    pub cloud_metadata: ::core::option::Option<GetCloudMetadataResponse>,
 }
 /// Nested message and enum types in `ResourceStatus`.
 pub mod resource_status {

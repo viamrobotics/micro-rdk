@@ -36,6 +36,8 @@ pub struct SubmitCustomTrainingJobRequest {
     pub model_name: ::prost::alloc::string::String,
     #[prost(string, tag="5")]
     pub model_version: ::prost::alloc::string::String,
+    #[prost(map="string, string", tag="7")]
+    pub arguments: ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
