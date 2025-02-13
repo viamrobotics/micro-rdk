@@ -332,11 +332,11 @@ impl AppClient {
         &self,
         ip: Option<Ipv4Addr>,
     ) -> Result<Box<DeviceAgentConfigResponse>, AppClientError> {
-        let host_info = HostInfo {
-            platform: "esp32",
-            distro: "esp32",
+        let host_info = Some(HostInfo {
+            platform: "esp32".to_string(),
+            distro: "esp32".to_string(),
             tags: Default::default(),
-        };
+        });
 
         let req = DeviceAgentConfigRequest {
             id: self.robot_credentials.robot_id.clone(),
@@ -357,21 +357,12 @@ impl AppClient {
 
         let (mut r, headers) = self.grpc_client.send_request(r).await?;
 
-        let datetime = if let Some(date_val) = headers.get("date") {
-            let date_str = date_val
-                .to_str()
-                .map_err(|_| AppClientError::AppConfigHeaderValueParseError)?;
-            DateTime::parse_from_rfc2822(date_str).ok()
-        } else {
-            None
-        };
-
         if r.is_empty() {
             return Err(AppClientError::AppClientEmptyBody);
         }
         let cfg_response = DeviceAgentConfigResponse::decode(r.split_off(5))?;
 
-        Ok((Box::new(cfg_response), datetime))
+        Ok(Box::new(cfg_response))
     }
 
     pub async fn push_logs(&self, logs: Vec<LogEntry>) -> Result<(), AppClientError> {
