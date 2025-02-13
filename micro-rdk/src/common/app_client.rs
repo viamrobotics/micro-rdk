@@ -328,9 +328,7 @@ impl AppClient {
         Ok((Box::new(cfg_response), datetime))
     }
 
-    pub async fn get_agent_config(
-        &self,
-    ) -> Result<Box<DeviceAgentConfigResponse>, AppClientError> {
+    pub async fn get_agent_config(&self) -> Result<Box<DeviceAgentConfigResponse>, AppClientError> {
         let host_info = Some(HostInfo {
             platform: "linux/amd64".to_string(),
             distro: "esp32".to_string(),
@@ -362,6 +360,66 @@ impl AppClient {
         let cfg_response = DeviceAgentConfigResponse::decode(r.split_off(5))?;
 
         Ok(Box::new(cfg_response))
+    }
+
+    pub async fn get_agent_networks(&self) -> Result<Vec<(String, String)>, AppClientError> {
+        log::info!("checking for agent config...");
+        match self.get_agent_config().await {
+            Ok(config_response) => {
+                // log::info!("config response: {:?}", config_response);
+                let agent = config_response
+                    .subsystem_configs
+                    .get("agent-provisioning")
+                    .unwrap();
+                if let Some(ref attribute_struct) = agent.attributes {
+                    let network_value = attribute_struct.fields.get("networks").unwrap();
+                    //log::info!("network value: {:?}", network_value);
+                    if let Some(kind) = network_value.kind.clone() {
+                        if let crate::google::protobuf::value::Kind::ListValue(list) = kind {
+                            list.values.iter().for_each(|net_conf| {
+                                if let Some(inner) = &net_conf.kind {
+                                    if let crate::google::protobuf::value::Kind::StructValue(
+                                        network,
+                                    ) = inner
+                                    {
+                                        // log::info!("network: {:?}", network);
+                                        let ssid = network
+                                            .fields
+                                            .get("ssid")
+                                            .unwrap()
+                                            .clone()
+                                            .kind
+                                            .unwrap();
+                                        let priority = network
+                                            .fields
+                                            .get("priority")
+                                            .unwrap()
+                                            .clone()
+                                            .kind
+                                            .unwrap();
+                                        let passwd = network
+                                            .fields
+                                            .get("psk")
+                                            .unwrap()
+                                            .clone()
+                                            .kind
+                                            .unwrap();
+                                        log::info!(
+                                            "network: {:?} - {:?} - {:?}",
+                                            ssid,
+                                            passwd,
+                                            priority
+                                        );
+                                    }
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+            Err(e) => log::error!("failed to get agent config: {}", e),
+        }
+        Ok(Vec::new())
     }
 
     pub async fn push_logs(&self, logs: Vec<LogEntry>) -> Result<(), AppClientError> {

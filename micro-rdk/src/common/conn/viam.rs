@@ -574,15 +574,6 @@ where
         if let Err(err) = self.storage.store_robot_configuration(&config) {
             log::error!("couldn't store the robot configuration reason {:?}", err);
         }
-        
-        log::info!("checking for agent config...");
-        match app_client.as_ref() {
-            Some(app) => match app.get_agent_config().await {
-                Ok(agent_config) => log::info!("agent config: {:?}", agent_config),
-                Err(e) => log::error!("failed to get agent config: {}", e),
-            },
-            None => {}
-        };
 
         let config_monitor_task = Box::new(ConfigMonitor::new(
             config.clone(),
