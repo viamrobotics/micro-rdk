@@ -330,10 +330,9 @@ impl AppClient {
 
     pub async fn get_agent_config(
         &self,
-        ip: Option<Ipv4Addr>,
     ) -> Result<Box<DeviceAgentConfigResponse>, AppClientError> {
         let host_info = Some(HostInfo {
-            platform: "esp32".to_string(),
+            platform: "linux/amd64".to_string(),
             distro: "esp32".to_string(),
             tags: Default::default(),
         });
