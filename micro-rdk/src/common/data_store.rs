@@ -328,7 +328,7 @@ mod tests {
     use crate::google::protobuf::Timestamp;
     use crate::google::protobuf::{value::Kind, Struct, Value};
     use crate::proto::app::data_sync::v1::sensor_data::Data;
-    use crate::proto::app::data_sync::v1::{SensorData, SensorMetadata};
+    use crate::proto::app::data_sync::v1::{MimeType, SensorData, SensorMetadata};
     use prost::{length_delimiter_len, Message};
     use rand::distributions::Alphanumeric;
     use rand::Rng;
@@ -395,6 +395,8 @@ mod tests {
                     seconds: reading_received_dt.timestamp(),
                     nanos: reading_received_dt.timestamp_subsec_nanos() as i32,
                 }),
+                mime_type: MimeType::Unspecified.into(),
+                annotations: None,
             }),
             data: Some(Data::Struct(Struct {
                 fields: HashMap::from([
@@ -432,6 +434,8 @@ mod tests {
                     seconds: reading_received_dt.timestamp(),
                     nanos: reading_received_dt.timestamp_subsec_nanos() as i32,
                 }),
+                mime_type: MimeType::Unspecified.into(),
+                annotations: None,
             }),
             data: Some(Data::Struct(Struct {
                 fields: HashMap::from([
@@ -495,6 +499,8 @@ mod tests {
                     seconds: reading_received_dt.timestamp(),
                     nanos: reading_received_dt.timestamp_subsec_nanos() as i32,
                 }),
+                mime_type: MimeType::Unspecified.into(),
+                annotations: None,
             }),
             data: Some(Data::Struct(Struct {
                 fields: HashMap::from([
@@ -531,6 +537,8 @@ mod tests {
                     seconds: reading_received_dt.timestamp(),
                     nanos: reading_received_dt.timestamp_subsec_nanos() as i32,
                 }),
+                mime_type: MimeType::Unspecified.into(),
+                annotations: None,
             }),
             data: Some(Data::Struct(Struct {
                 fields: HashMap::from([
@@ -784,6 +792,8 @@ mod tests {
                     seconds: reading_received_ts.as_secs() as i64,
                     nanos: reading_received_ts.subsec_nanos() as i32,
                 }),
+                mime_type: MimeType::Unspecified.into(),
+                annotations: None,
             }),
             data: Some(data),
         };
