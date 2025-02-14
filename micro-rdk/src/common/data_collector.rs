@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::time::{Duration, Instant};
 
 use crate::google::protobuf::Timestamp;
-use crate::proto::app::data_sync::v1::{SensorData, SensorMetadata};
+use crate::proto::app::data_sync::v1::{SensorData, SensorMetadata, MimeType};
 
 use super::{
     config::{AttributeError, Kind},
@@ -274,7 +274,7 @@ impl DataCollector {
                     nanos: reading_requested_ts.subsec_nanos() as i32,
                 }),
                 annotations: None,
-                mime_type: 0,
+                mime_type: MimeType::Unspecified.into(),
             }),
             data: Some(data),
         })
