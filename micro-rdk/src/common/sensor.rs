@@ -22,7 +22,7 @@ use thiserror::Error;
 #[cfg(feature = "data")]
 use crate::{
     google::protobuf::Timestamp,
-    proto::app::data_sync::v1::{sensor_data::Data, SensorData, SensorMetadata, MimeType},
+    proto::app::data_sync::v1::{sensor_data::Data, MimeType, SensorData, SensorMetadata},
 };
 
 #[cfg(feature = "esp32")]

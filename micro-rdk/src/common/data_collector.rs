@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::time::{Duration, Instant};
 
 use crate::google::protobuf::Timestamp;
-use crate::proto::app::data_sync::v1::{SensorData, SensorMetadata, MimeType};
+use crate::proto::app::data_sync::v1::{MimeType, SensorData, SensorMetadata};
 
 use super::{
     config::{AttributeError, Kind},
