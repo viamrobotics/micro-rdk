@@ -558,12 +558,13 @@ where
             None => None,
         };
 
-        let _agent_config = match app_client.as_ref() {
-            Some(app) => app.get_agent_networks().await.inspect_err(|err| {
-                log::error!("couldn't get agent config, {:?}", err);
-            }).ok(),
-            None => None,
-        };
+        if let Some(app) = app_client.as_ref() {
+            if let Ok(device_agent_config) = app.get_agent_config().await {
+                let agent_config: crate::common::config::AgentConfig =
+                    device_agent_config.as_ref().try_into().unwrap();
+                log::debug!("agent config: {:?}", agent_config);
+            }
+        }
 
         let (config, build_time) = config.map_or_else(
             || {

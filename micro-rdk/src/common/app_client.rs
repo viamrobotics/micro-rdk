@@ -5,6 +5,7 @@ use crate::proto::{
     app::{
         agent::v1::{
             DeviceAgentConfigRequest, DeviceAgentConfigResponse, DeviceSubsystemConfig, HostInfo,
+            VersionInfo,
         },
         v1::{
             AgentInfo, ConfigRequest, ConfigResponse, LogRequest, NeedsRestartRequest,
@@ -335,9 +336,15 @@ impl AppClient {
             tags: Default::default(),
         });
 
+        let version_info = Some(VersionInfo {
+            agent_running: "none".to_string(),
+            ..Default::default()
+        });
+
         let req = DeviceAgentConfigRequest {
             id: self.robot_credentials.robot_id.clone(),
             host_info,
+            version_info,
             subsystem_versions: Default::default(),
         };
         let body = encode_request(req)?;
@@ -360,40 +367,6 @@ impl AppClient {
         let cfg_response = DeviceAgentConfigResponse::decode(r.split_off(5))?;
 
         Ok(Box::new(cfg_response))
-    }
-
-    pub async fn get_agent_networks(&self) -> Result<Vec<(String, String)>, AppClientError> {
-        log::info!("checking for agent config...");
-        match self.get_agent_config().await {
-            Ok(config_response) => {
-                log::info!("config response: {:?}", config_response);
-                log::info!("getting agent-provisioning subsystem_config..");
-                let agent = config_response
-                    .subsystem_configs
-                    .get("agent-provisioning")
-                    .unwrap();
-                log::info!("agent_provisioning: {:?}", agent);
-                if let Some(ref attribute_struct) = agent.attributes {
-                    let network_value = attribute_struct.fields.get("networks").unwrap();
-                    //log::info!("network value: {:?}", network_value);
-                    if let Some(kind) = network_value.kind.clone() {
-                        let kindvec: crate::common::config::Kind =
-                            kind.clone().try_into().expect("stuff");
-                        log::info!("kindvec: {:?}", kindvec);
-                        match kindvec {
-                            crate::common::config::Kind::VecValue(v) => {
-                                v.iter()
-                                    .map(crate::common::config::NetworkSetting::try_from)
-                                    .for_each(|res| log::info!("conversion res: {:?}", res));
-                            }
-                            _ => log::info!("not a vec"),
-                        }
-                    }
-                }
-            }
-            Err(e) => log::error!("failed to get agent config: {}", e),
-        }
-        Ok(Vec::new())
     }
 
     pub async fn push_logs(&self, logs: Vec<LogEntry>) -> Result<(), AppClientError> {

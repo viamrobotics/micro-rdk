@@ -2,7 +2,10 @@
 #[cfg(feature = "data")]
 use crate::common::data_collector::DataCollectorConfig;
 use crate::google;
-use crate::proto::{app::v1::ComponentConfig, common::v1::ResourceName};
+use crate::proto::{
+    app::{agent::v1::DeviceAgentConfigResponse, v1::ComponentConfig},
+    common::v1::ResourceName,
+};
 
 use std::collections::HashMap;
 use std::num::{ParseFloatError, ParseIntError};
@@ -20,8 +23,37 @@ pub enum AttributeError {
     ValidationError(String),
 }
 
+impl TryFrom<&DeviceAgentConfigResponse> for AgentConfig {
+    type Error = AttributeError;
+    fn try_from(value: &DeviceAgentConfigResponse) -> Result<Self, Self::Error> {
+        if let Some(ref additional_networks) = value.additional_networks {
+            let network_settings = additional_networks
+                .fields
+                .iter()
+                .filter_map(|(_k, v)| {
+                    let network_kind: &Kind = &v
+                        .kind
+                        .clone()
+                        .ok_or(AttributeError::ConversionImpossibleError)
+                        .ok()
+                        .as_ref()
+                        .unwrap()
+                        .try_into()
+                        .unwrap();
+
+                    network_kind.try_into().ok()
+                })
+                .collect();
+            Ok(Self { network_settings })
+        } else {
+            Err(AttributeError::ConversionImpossibleError)
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct AgentConfig {
-    network_configuration: Vec<NetworkSetting>,
+    network_settings: Vec<NetworkSetting>,
 }
 
 impl TryFrom<&Kind> for NetworkSetting {
