@@ -20,6 +20,49 @@ pub enum AttributeError {
     ValidationError(String),
 }
 
+pub struct AgentConfig {
+    network_configuration: Vec<NetworkSetting>,
+}
+
+impl TryFrom<&Kind> for NetworkSetting {
+    type Error = AttributeError;
+    fn try_from(value: &Kind) -> Result<Self, Self::Error> {
+        let ssid: String = value
+            .get("ssid")?
+            .ok_or(AttributeError::ConversionImpossibleError)?
+            .try_into()?;
+        let password: String = value
+            .get("psk")?
+            .ok_or(AttributeError::ConversionImpossibleError)?
+            .try_into()?;
+        let priority: usize = value
+            .get("priority")?
+            .ok_or(AttributeError::ConversionImpossibleError)?
+            .try_into()?;
+        Ok(Self {
+            ssid,
+            password,
+            priority,
+        })
+    }
+}
+
+impl std::fmt::Debug for NetworkSetting {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "NetworkSetting {{ ssid: {}, password: ***, priority: {} }}",
+            self.ssid, self.priority
+        )
+    }
+}
+
+pub struct NetworkSetting {
+    ssid: String,
+    password: String,
+    priority: usize,
+}
+
 impl From<ParseIntError> for AttributeError {
     fn from(_: ParseIntError) -> AttributeError {
         AttributeError::ParseNumError

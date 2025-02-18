@@ -366,53 +366,27 @@ impl AppClient {
         log::info!("checking for agent config...");
         match self.get_agent_config().await {
             Ok(config_response) => {
-                // log::info!("config response: {:?}", config_response);
+                log::info!("config response: {:?}", config_response);
+                log::info!("getting agent-provisioning subsystem_config..");
                 let agent = config_response
                     .subsystem_configs
                     .get("agent-provisioning")
                     .unwrap();
+                log::info!("agent_provisioning: {:?}", agent);
                 if let Some(ref attribute_struct) = agent.attributes {
                     let network_value = attribute_struct.fields.get("networks").unwrap();
                     //log::info!("network value: {:?}", network_value);
                     if let Some(kind) = network_value.kind.clone() {
-                        if let crate::google::protobuf::value::Kind::ListValue(list) = kind {
-                            list.values.iter().for_each(|net_conf| {
-                                if let Some(inner) = &net_conf.kind {
-                                    if let crate::google::protobuf::value::Kind::StructValue(
-                                        network,
-                                    ) = inner
-                                    {
-                                        // log::info!("network: {:?}", network);
-                                        let ssid = network
-                                            .fields
-                                            .get("ssid")
-                                            .unwrap()
-                                            .clone()
-                                            .kind
-                                            .unwrap();
-                                        let priority = network
-                                            .fields
-                                            .get("priority")
-                                            .unwrap()
-                                            .clone()
-                                            .kind
-                                            .unwrap();
-                                        let passwd = network
-                                            .fields
-                                            .get("psk")
-                                            .unwrap()
-                                            .clone()
-                                            .kind
-                                            .unwrap();
-                                        log::info!(
-                                            "network: {:?} - {:?} - {:?}",
-                                            ssid,
-                                            passwd,
-                                            priority
-                                        );
-                                    }
-                                }
-                            });
+                        let kindvec: crate::common::config::Kind =
+                            kind.clone().try_into().expect("stuff");
+                        log::info!("kindvec: {:?}", kindvec);
+                        match kindvec {
+                            crate::common::config::Kind::VecValue(v) => {
+                                v.iter()
+                                    .map(crate::common::config::NetworkSetting::try_from)
+                                    .for_each(|res| log::info!("conversion res: {:?}", res));
+                            }
+                            _ => log::info!("not a vec"),
                         }
                     }
                 }

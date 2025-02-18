@@ -558,6 +558,13 @@ where
             None => None,
         };
 
+        let _agent_config = match app_client.as_ref() {
+            Some(app) => app.get_agent_networks().await.inspect_err(|err| {
+                log::error!("couldn't get agent config, {:?}", err);
+            }).ok(),
+            None => None,
+        };
+
         let (config, build_time) = config.map_or_else(
             || {
                 (
