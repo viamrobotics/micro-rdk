@@ -16,8 +16,8 @@ jobs:
       matrix:
         job:
           - { target: x86_64-unknown-linux-gnu, file_suffix: amd64-linux, os: ubuntu-22.04}
-          - { target: x86_64-apple-darwin, file_suffix: macos, os: macos-latest}
-          - { target: x86_64-pc-windows-gnu, file_suffix: windows.exe, os: windows-latest}
+          - { target: x86_64-apple-darwin, file_suffix: macos, os: macos-14}
+          - { target: x86_64-pc-windows-gnu, file_suffix: windows.exe, os: windows-2022}
     runs-on: ${{ matrix.job.os }}
     defaults:
       run:
@@ -41,7 +41,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install libudev-dev pkg-config libssl-dev
     - name: Install MacOS dependencies
-      if: ${{ matrix.job.os == 'macos-latest' }}
+      if: ${{ matrix.job.os == 'macos-14' }}
       run: |
         brew install coreutils
         export PATH="/usr/local/opt/coreutils/libexec/gnubin:$PATH"
@@ -49,11 +49,11 @@ jobs:
       run: |
         cargo build -p micro-rdk-installer --release --target ${{ matrix.job.target }} --locked
     - name: Rename result
-      if: ${{ matrix.job.os != 'windows-latest' }}
+      if: ${{ matrix.job.os != 'windows-2022' }}
       run: |
         cp target/${{ matrix.job.target }}/release/micro-rdk-installer micro-rdk-installer-${{ matrix.job.file_suffix }}
     - name: Rename result (Windows)
-      if: ${{ matrix.job.os == 'windows-latest' }}
+      if: ${{ matrix.job.os == 'windows-2022' }}
       run: |
         cp target/${{ matrix.job.target }}/release/micro-rdk-installer.exe micro-rdk-installer-${{ matrix.job.file_suffix }}
     - name: Check release type
