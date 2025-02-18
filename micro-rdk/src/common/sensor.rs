@@ -22,7 +22,7 @@ use thiserror::Error;
 #[cfg(feature = "data")]
 use crate::{
     google::protobuf::Timestamp,
-    proto::app::data_sync::v1::{sensor_data::Data, SensorData, SensorMetadata},
+    proto::app::data_sync::v1::{sensor_data::Data, MimeType, SensorData, SensorMetadata},
 };
 
 #[cfg(feature = "esp32")]
@@ -99,6 +99,8 @@ pub trait Readings {
                     seconds: reading_received_dt.timestamp(),
                     nanos: reading_received_dt.timestamp_subsec_nanos() as i32,
                 }),
+                annotations: None,
+                mime_type: MimeType::Unspecified.into(),
             }),
             data: Some(readings.into()),
         })

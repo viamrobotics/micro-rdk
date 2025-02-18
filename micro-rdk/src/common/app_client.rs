@@ -257,6 +257,7 @@ impl AppClient {
             version: env!("CARGO_PKG_VERSION").to_string(),
             git_revision: "".to_string(),
             platform: Some("esp32".to_string()),
+            platform_tags: vec![],
         });
 
         let req = ConfigRequest {

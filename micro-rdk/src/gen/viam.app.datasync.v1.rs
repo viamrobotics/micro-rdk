@@ -67,7 +67,8 @@ pub struct StreamingDataCaptureUploadResponse {
     #[prost(string, tag="1")]
     pub file_id: ::prost::alloc::string::String,
 }
-/// SensorMetadata contains the time the sensor data was requested and was received.
+/// SensorMetadata contains the time the sensor data was requested and was
+/// received.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SensorMetadata {
@@ -75,6 +76,10 @@ pub struct SensorMetadata {
     pub time_requested: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
     #[prost(message, optional, tag="2")]
     pub time_received: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
+    #[prost(enumeration="MimeType", tag="3")]
+    pub mime_type: i32,
+    #[prost(message, optional, tag="4")]
+    pub annotations: ::core::option::Option<super::super::data::v1::Annotations>,
 }
 /// SensorData contains the contents and metadata for tabular data.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -162,6 +167,38 @@ pub struct DataCaptureUploadMetadata {
     pub upload_metadata: ::core::option::Option<UploadMetadata>,
     #[prost(message, optional, tag="2")]
     pub sensor_metadata: ::core::option::Option<SensorMetadata>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum MimeType {
+    Unspecified = 0,
+    ImageJpeg = 1,
+    ImagePng = 2,
+    ApplicationPcd = 3,
+}
+impl MimeType {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            MimeType::Unspecified => "MIME_TYPE_UNSPECIFIED",
+            MimeType::ImageJpeg => "MIME_TYPE_IMAGE_JPEG",
+            MimeType::ImagePng => "MIME_TYPE_IMAGE_PNG",
+            MimeType::ApplicationPcd => "MIME_TYPE_APPLICATION_PCD",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "MIME_TYPE_UNSPECIFIED" => Some(Self::Unspecified),
+            "MIME_TYPE_IMAGE_JPEG" => Some(Self::ImageJpeg),
+            "MIME_TYPE_IMAGE_PNG" => Some(Self::ImagePng),
+            "MIME_TYPE_APPLICATION_PCD" => Some(Self::ApplicationPcd),
+            _ => None,
+        }
+    }
 }
 /// DataType specifies the type of data uploaded.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]

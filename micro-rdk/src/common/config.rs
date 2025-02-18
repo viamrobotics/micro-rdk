@@ -364,6 +364,8 @@ pub trait Component {
             r#type: "component".to_string(),
             subtype: self.get_type().to_string(),
             name: self.get_name().to_string(),
+            local_name: self.get_name().to_string(),
+            remote_path: vec![],
         }
     }
     fn get_attribute<'a, T>(&'a self, key: &str) -> Result<T, AttributeError>

@@ -18,6 +18,12 @@ pub struct StartBuildRequest {
     /// must be valid semver2.0 string (ex: 1.2.3-rc0)
     #[prost(string, tag="5")]
     pub module_version: ::prost::alloc::string::String,
+    /// checkout token. provide this for private repos
+    #[prost(string, optional, tag="6")]
+    pub token: ::core::option::Option<::prost::alloc::string::String>,
+    /// optional working directory. defaults to repo root.
+    #[prost(string, optional, tag="7")]
+    pub workdir: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

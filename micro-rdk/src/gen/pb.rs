@@ -10,6 +10,8 @@ pub struct CppFeatures {
     pub legacy_closed_enum: ::core::option::Option<bool>,
     #[prost(enumeration="cpp_features::StringType", optional, tag="2")]
     pub string_type: ::core::option::Option<i32>,
+    #[prost(bool, optional, tag="3")]
+    pub enum_name_uses_string_view: ::core::option::Option<bool>,
 }
 /// Nested message and enum types in `CppFeatures`.
 pub mod cpp_features {
@@ -41,6 +43,54 @@ pub mod cpp_features {
                 "VIEW" => Some(Self::View),
                 "CORD" => Some(Self::Cord),
                 "STRING" => Some(Self::String),
+                _ => None,
+            }
+        }
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GoFeatures {
+    /// Whether or not to generate the deprecated UnmarshalJSON method for enums.
+    #[prost(bool, optional, tag="1")]
+    pub legacy_unmarshal_json_enum: ::core::option::Option<bool>,
+    /// One of OPEN, HYBRID or OPAQUE.
+    #[prost(enumeration="go_features::ApiLevel", optional, tag="2")]
+    pub api_level: ::core::option::Option<i32>,
+}
+/// Nested message and enum types in `GoFeatures`.
+pub mod go_features {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+    #[repr(i32)]
+    pub enum ApiLevel {
+        /// API_LEVEL_UNSPECIFIED results in selecting the OPEN API,
+        /// but needs to be a separate value to distinguish between
+        /// an explicitly set api level or a missing api level.
+        Unspecified = 0,
+        ApiOpen = 1,
+        ApiHybrid = 2,
+        ApiOpaque = 3,
+    }
+    impl ApiLevel {
+        /// String value of the enum field names used in the ProtoBuf definition.
+        ///
+        /// The values are not transformed in any way and thus are considered stable
+        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        pub fn as_str_name(&self) -> &'static str {
+            match self {
+                ApiLevel::Unspecified => "API_LEVEL_UNSPECIFIED",
+                ApiLevel::ApiOpen => "API_OPEN",
+                ApiLevel::ApiHybrid => "API_HYBRID",
+                ApiLevel::ApiOpaque => "API_OPAQUE",
+            }
+        }
+        /// Creates an enum from field names used in the ProtoBuf definition.
+        pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+            match value {
+                "API_LEVEL_UNSPECIFIED" => Some(Self::Unspecified),
+                "API_OPEN" => Some(Self::ApiOpen),
+                "API_HYBRID" => Some(Self::ApiHybrid),
+                "API_OPAQUE" => Some(Self::ApiOpaque),
                 _ => None,
             }
         }
