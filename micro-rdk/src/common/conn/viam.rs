@@ -560,9 +560,15 @@ where
 
         // TODO(RSDK-9887): remove after implementing agent NVS storage
         if let Some(app) = app_client.as_ref() {
+            use crate::common::config::AgentConfig;
             if let Ok(device_agent_config) = app.get_agent_config().await {
-                let agent_config: crate::common::config::AgentConfig =
-                    device_agent_config.as_ref().try_into().unwrap();
+                let agent_config: AgentConfig =
+                    device_agent_config
+                        .as_ref()
+                        .try_into()
+                        .unwrap_or(AgentConfig {
+                            network_settings: Vec::new(),
+                        });
                 log::debug!("agent config: {:?}", agent_config);
             }
         }

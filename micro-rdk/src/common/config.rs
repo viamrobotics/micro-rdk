@@ -53,7 +53,13 @@ impl TryFrom<&DeviceAgentConfigResponse> for AgentConfig {
 
 #[derive(Debug)]
 pub struct AgentConfig {
-    network_settings: Vec<NetworkSetting>,
+    pub network_settings: Vec<NetworkSetting>,
+}
+
+pub struct NetworkSetting {
+    ssid: String,
+    password: String,
+    priority: usize,
 }
 
 impl TryFrom<&Kind> for NetworkSetting {
@@ -87,12 +93,6 @@ impl std::fmt::Debug for NetworkSetting {
             self.ssid, self.priority
         )
     }
-}
-
-pub struct NetworkSetting {
-    ssid: String,
-    password: String,
-    priority: usize,
 }
 
 impl From<ParseIntError> for AttributeError {
