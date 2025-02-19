@@ -31,19 +31,13 @@ impl TryFrom<&DeviceAgentConfigResponse> for AgentConfig {
                 .fields
                 .iter()
                 .filter_map(|(_k, v)| {
-                    let network_kind: &Kind = &v
-                        .kind
-                        .clone()
-                        .ok_or(AttributeError::ConversionImpossibleError)
-                        .ok()
+                    let local_kind: Option<Kind> =
+                        v.kind.clone().and_then(|v| Kind::try_from(v).ok());
+                    local_kind
                         .as_ref()
-                        .unwrap()
-                        .try_into()
-                        .unwrap();
-
-                    network_kind.try_into().ok()
+                        .and_then(|v| NetworkSetting::try_from(v).ok())
                 })
-                .collect();
+                .collect::<Vec<NetworkSetting>>();
             Ok(Self { network_settings })
         } else {
             Err(AttributeError::ConversionImpossibleError)
