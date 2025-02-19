@@ -331,7 +331,7 @@ impl AppClient {
 
     pub async fn get_agent_config(&self) -> Result<Box<DeviceAgentConfigResponse>, AppClientError> {
         let host_info = Some(HostInfo {
-            platform: "linux/amd64".to_string(),
+            platform: "micro-rdk/esp32".to_string(),
             distro: "esp32".to_string(),
             tags: Default::default(),
         });
