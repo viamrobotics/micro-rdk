@@ -345,7 +345,7 @@ impl AppClient {
             id: self.robot_credentials.robot_id.clone(),
             host_info,
             version_info,
-            subsystem_versions: Default::default(),
+            ..Default::default()
         };
         let body = encode_request(req)?;
 
