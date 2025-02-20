@@ -70,6 +70,9 @@ upload: cargo-ver
 test:
 	cargo test --workspace --tests --no-fail-fast --features native,ota
 
+clippy-nmea:
+	cargo clippy -p micro-rdk-nmea --no-deps --features native -- -Dwarnings
+
 clippy-native:
 	cargo clippy -p micro-rdk --no-deps --features native,ota  -- -Dwarnings
 

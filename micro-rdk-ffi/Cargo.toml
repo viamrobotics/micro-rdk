@@ -15,6 +15,9 @@ publish = false
 name = "micrordk"
 crate-type = ["staticlib"] # Creates static lib
 
+[features]
+viamboat = ["dep:micro-rdk-nmea"]
+
 [target.'cfg(not(target_os = "espidf"))'.dependencies]
 env_logger.workspace = true
 local-ip-address.workspace = true
@@ -26,6 +29,7 @@ embedded-hal.workspace = true
 embedded-svc.workspace = true
 futures-lite.workspace = true
 micro-rdk = { workspace = true, features = ["esp32", "data", "data-upload-hook-unstable"], default-features = true }
+micro-rdk-nmea = { workspace = true, features = ["esp32"], optional = true }
 
 [dependencies]
 base64.workspace = true
