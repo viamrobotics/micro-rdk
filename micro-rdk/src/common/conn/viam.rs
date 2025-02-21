@@ -38,7 +38,9 @@ use crate::common::webrtc::api::{SignalingTask, WebRtcApi, WebRtcError, WebRtcSi
 use crate::common::webrtc::certificate::Certificate;
 use crate::common::webrtc::dtls::DtlsBuilder;
 use crate::common::{
-    credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage},
+    credentials_storage::{
+        NetworkSettingStorage, RobotConfigurationStorage, WifiCredentialStorage,
+    },
     exec::Executor,
 };
 use crate::proto;
@@ -91,12 +93,22 @@ impl From<&proto::app::v1::CloudConfig> for RobotCloudConfig {
 
 #[cfg(not(feature = "ota"))]
 pub trait ViamServerStorage:
-    RobotConfigurationStorage + WifiCredentialStorage + StorageDiagnostic + Clone + 'static
+    RobotConfigurationStorage
+    + NetworkSettingStorage
+    + WifiCredentialStorage
+    + StorageDiagnostic
+    + Clone
+    + 'static
 {
 }
 #[cfg(not(feature = "ota"))]
 impl<T> ViamServerStorage for T where
-    T: RobotConfigurationStorage + WifiCredentialStorage + StorageDiagnostic + Clone + 'static
+    T: RobotConfigurationStorage
+        + NetworkSettingStorage
+        + WifiCredentialStorage
+        + StorageDiagnostic
+        + Clone
+        + 'static
 {
 }
 
@@ -104,6 +116,7 @@ impl<T> ViamServerStorage for T where
 pub trait ViamServerStorage:
     RobotConfigurationStorage
     + WifiCredentialStorage
+    + NetworkSettingStorage
     + OtaMetadataStorage
     + StorageDiagnostic
     + Clone
@@ -114,6 +127,7 @@ pub trait ViamServerStorage:
 impl<T> ViamServerStorage for T where
     T: RobotConfigurationStorage
         + WifiCredentialStorage
+        + NetworkSettingStorage
         + OtaMetadataStorage
         + StorageDiagnostic
         + Clone
@@ -570,6 +584,16 @@ where
                             network_settings: Vec::new(),
                         });
                 log::debug!("agent config: {:?}", agent_config);
+                if !self.storage.has_network_settings() {
+                    if !agent_config.network_settings.is_empty() {
+                        let _ = self
+                            .storage
+                            .store_network_settings(&agent_config.network_settings);
+                    }
+                } else {
+                    let networks = self.storage.get_network_settings().unwrap();
+                    log::info!("networks found in nvs: {:?}", networks);
+                }
             }
         }
 

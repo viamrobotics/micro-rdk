@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 use bytes::Bytes;
 use hyper::{http::uri::InvalidUri, Uri};
+use postcard::{from_bytes, to_allocvec};
 use prost::{DecodeError, Message};
 use std::{cell::RefCell, rc::Rc};
 use thiserror::Error;
-use postcard::{from_bytes, to_allocvec};
 
 use crate::{
     common::{
