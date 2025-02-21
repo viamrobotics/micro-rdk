@@ -72,6 +72,7 @@ lazy_static.workspace = true
 log.workspace = true
 micro-rdk-macros.workspace = true
 once_cell.workspace = true
+postcard.workspace = true
 pin-project-lite.workspace = true
 pin-project.workspace = true
 printf-compat = { workspace = true, optional = true }

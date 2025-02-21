@@ -4,6 +4,7 @@ use hyper::{http::uri::InvalidUri, Uri};
 use prost::{DecodeError, Message};
 use std::{cell::RefCell, rc::Rc};
 use thiserror::Error;
+use postcard::{from_bytes, to_allocvec};
 
 use crate::{
     common::{
@@ -343,18 +344,17 @@ impl NetworkSettingStorage for NVSStorage {
     }
 
     fn get_network_settings(&self) -> Result<Vec<NetworkSetting>, Self::Error> {
-        let _blob: Vec<u8> = self.get_blob(NVS_NETWORK_SETTINGS_KEY)?;
-        // TODO: deserialize blob
-        Ok(Vec::new())
+        let blob: Vec<u8> = self.get_blob(NVS_NETWORK_SETTINGS_KEY)?;
+        let networks: Vec<NetworkSetting> = from_bytes(&blob).unwrap();
+        Ok(networks)
     }
 
     fn store_network_settings(
         &self,
-        _network_settings: &[NetworkSetting],
+        network_settings: &[NetworkSetting],
     ) -> Result<(), Self::Error> {
-        // serialize networks to bytes
-        let bytes = Bytes::new();
-        self.set_blob(NVS_NETWORK_SETTINGS_KEY, bytes)?;
+        let bytes: Vec<u8> = to_allocvec(network_settings).unwrap();
+        self.set_blob(NVS_NETWORK_SETTINGS_KEY, bytes.into())?;
         Ok(())
     }
 

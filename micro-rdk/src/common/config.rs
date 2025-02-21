@@ -1,14 +1,18 @@
 #![allow(dead_code)]
 #[cfg(feature = "data")]
 use crate::common::data_collector::DataCollectorConfig;
-use crate::google;
-use crate::proto::{
-    app::{agent::v1::DeviceAgentConfigResponse, v1::ComponentConfig},
-    common::v1::ResourceName,
+use crate::{
+    google,
+    proto::{
+        app::{agent::v1::DeviceAgentConfigResponse, v1::ComponentConfig},
+        common::v1::ResourceName,
+    },
 };
-
-use std::collections::HashMap;
-use std::num::{ParseFloatError, ParseIntError};
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::HashMap,
+    num::{ParseFloatError, ParseIntError},
+};
 use thiserror::Error;
 
 #[derive(Error, Debug, Eq, PartialEq)]
@@ -434,7 +438,7 @@ impl TryFrom<&DeviceAgentConfigResponse> for AgentConfig {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NetworkSetting {
     ssid: String,
     password: String,
