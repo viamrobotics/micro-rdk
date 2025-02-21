@@ -177,7 +177,7 @@ const NVS_WIFI_SSID_KEY: &str = "WIFI_SSID";
 const NVS_WIFI_PASSWORD_KEY: &str = "WIFI_PASSWORD";
 const NVS_TLS_CERTIFICATE_KEY: &str = "TLS_CERT";
 const NVS_TLS_PRIVATE_KEY_KEY: &str = "TLS_PRIV_KEY";
-const NVS_NETWORK_SETTINGS_KEY: &str = "NETWORK_SETTINGS";
+const NVS_NETWORK_SETTINGS_KEY: &str = "NETWORKS";
 
 #[cfg(feature = "ota")]
 const NVS_OTA_VERSION_KEY: &str = "OTA_VERSION";
