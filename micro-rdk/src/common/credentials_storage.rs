@@ -5,7 +5,10 @@ use hyper::{http::uri::InvalidUri, Uri};
 use std::str::FromStr;
 use std::{error::Error, fmt::Debug, rc::Rc, sync::Mutex};
 
-use crate::{common::grpc::ServerError, proto::app::v1::RobotConfig};
+use crate::{
+    common::{config::NetworkSetting, grpc::ServerError},
+    proto::app::v1::RobotConfig,
+};
 
 #[cfg(feature = "ota")]
 use crate::common::ota::OtaMetadata;
@@ -108,6 +111,14 @@ pub trait WifiCredentialStorage {
     fn reset_wifi_credentials(&self) -> Result<(), Self::Error>;
 }
 
+pub trait NetworkSettingStorage {
+    type Error: Error + Debug + Into<ServerError>;
+    fn has_network_settings(&self) -> bool;
+    fn store_network_settings(&self, networks: &[NetworkSetting]) -> Result<(), Self::Error>;
+    fn get_network_settings(&self) -> Result<Vec<NetworkSetting>, Self::Error>;
+    fn reset_network_settings(&self) -> Result<(), Self::Error>;
+}
+
 pub trait RobotConfigurationStorage {
     type Error: Error + Debug + Into<ServerError>;
     fn has_robot_credentials(&self) -> bool;
@@ -153,6 +164,7 @@ struct RAMCredentialStorageInner {
     robot_creds: Option<RobotCredentials>,
     robot_config: Option<RobotConfig>,
     wifi_creds: Option<WifiCredentials>,
+    network_settings: Option<Vec<NetworkSetting>>,
     tls_cert: Option<TlsCertificate>,
     app_address: Option<String>,
     #[cfg(feature = "ota")]
@@ -187,9 +199,64 @@ impl RAMStorage {
             wifi_creds: None,
             tls_cert: None,
             app_address: None,
+            network_settings: None,
             #[cfg(feature = "ota")]
             ota_metadata: None,
         })))
+    }
+}
+
+impl NetworkSettingStorage for RAMStorage {
+    type Error = RAMStorageError;
+    fn has_network_settings(&self) -> bool {
+        let inner_ref = self.0.lock().unwrap();
+        inner_ref.network_settings.is_some()
+    }
+    fn get_network_settings(&self) -> Result<Vec<NetworkSetting>, Self::Error> {
+        let inner_ref = self.0.lock().unwrap();
+        inner_ref
+            .network_settings
+            .clone()
+            .ok_or(RAMStorageError::NotFound)
+    }
+    fn store_network_settings(&self, networks: &[NetworkSetting]) -> Result<(), Self::Error> {
+        let mut inner_ref = self.0.lock().unwrap();
+        let _ = inner_ref.network_settings.insert(networks.into());
+        Ok(())
+    }
+    fn reset_network_settings(&self) -> Result<(), Self::Error> {
+        let _ = self.0.lock().unwrap().network_settings.take();
+        Ok(())
+    }
+}
+
+impl<Iterable, Storage: NetworkSettingStorage> NetworkSettingStorage for Iterable
+where
+    for<'a> &'a Iterable: IntoIterator<Item = &'a Storage>,
+    Storage::Error: From<EmptyStorageCollectionError>,
+{
+    type Error = Storage::Error;
+    fn has_network_settings(&self) -> bool {
+        self.into_iter()
+            .any(NetworkSettingStorage::has_network_settings)
+    }
+    fn get_network_settings(&self) -> Result<Vec<NetworkSetting>, Self::Error> {
+        self.into_iter().fold(
+            Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
+            |val, s| val.or_else(|_| s.get_network_settings()),
+        )
+    }
+    fn store_network_settings(&self, networks: &[NetworkSetting]) -> Result<(), Self::Error> {
+        self.into_iter().fold(
+            Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
+            |val, s| val.or_else(|_| s.store_network_settings(networks)),
+        )
+    }
+    fn reset_network_settings(&self) -> Result<(), Self::Error> {
+        self.into_iter().fold(
+            Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
+            |val, s| val.or(s.reset_network_settings()),
+        )
     }
 }
 

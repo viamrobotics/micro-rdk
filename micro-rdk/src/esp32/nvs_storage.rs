@@ -7,9 +7,11 @@ use thiserror::Error;
 
 use crate::{
     common::{
+        config::NetworkSetting,
         credentials_storage::{
-            EmptyStorageCollectionError, RobotConfigurationStorage, RobotCredentials,
-            StorageDiagnostic, TlsCertificate, WifiCredentialStorage, WifiCredentials,
+            EmptyStorageCollectionError, NetworkSettingStorage, RobotConfigurationStorage,
+            RobotCredentials, StorageDiagnostic, TlsCertificate, WifiCredentialStorage,
+            WifiCredentials,
         },
         grpc::{GrpcError, ServerError},
     },
@@ -174,6 +176,7 @@ const NVS_WIFI_SSID_KEY: &str = "WIFI_SSID";
 const NVS_WIFI_PASSWORD_KEY: &str = "WIFI_PASSWORD";
 const NVS_TLS_CERTIFICATE_KEY: &str = "TLS_CERT";
 const NVS_TLS_PRIVATE_KEY_KEY: &str = "TLS_PRIV_KEY";
+const NVS_NETWORK_SETTINGS_KEY: &str = "NETWORK_SETTINGS";
 
 #[cfg(feature = "ota")]
 const NVS_OTA_VERSION_KEY: &str = "OTA_VERSION";
@@ -329,6 +332,34 @@ impl WifiCredentialStorage for NVSStorage {
     fn reset_wifi_credentials(&self) -> Result<(), Self::Error> {
         self.erase_key(NVS_WIFI_SSID_KEY)?;
         self.erase_key(NVS_WIFI_PASSWORD_KEY)?;
+        Ok(())
+    }
+}
+
+impl NetworkSettingStorage for NVSStorage {
+    type Error = NVSStorageError;
+    fn has_network_settings(&self) -> bool {
+        self.has_blob(NVS_NETWORK_SETTINGS_KEY).unwrap_or(false)
+    }
+
+    fn get_network_settings(&self) -> Result<Vec<NetworkSetting>, Self::Error> {
+        let _blob: Vec<u8> = self.get_blob(NVS_NETWORK_SETTINGS_KEY)?;
+        // TODO: deserialize blob
+        Ok(Vec::new())
+    }
+
+    fn store_network_settings(
+        &self,
+        _network_settings: &[NetworkSetting],
+    ) -> Result<(), Self::Error> {
+        // serialize networks to bytes
+        let bytes = Bytes::new();
+        self.set_blob(NVS_NETWORK_SETTINGS_KEY, bytes)?;
+        Ok(())
+    }
+
+    fn reset_network_settings(&self) -> Result<(), Self::Error> {
+        self.erase_key(NVS_NETWORK_SETTINGS_KEY)?;
         Ok(())
     }
 }

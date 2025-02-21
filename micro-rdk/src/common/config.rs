@@ -434,6 +434,7 @@ impl TryFrom<&DeviceAgentConfigResponse> for AgentConfig {
     }
 }
 
+#[derive(Clone)]
 pub struct NetworkSetting {
     ssid: String,
     password: String,
