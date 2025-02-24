@@ -500,6 +500,8 @@ where
                 if let Err(err) = wifi.set_sta_mode(network.clone()).await {
                     log::error!("failed to connect to network: {:?}", err);
                     let _ = Timer::after(Duration::from_secs(1)).await;
+                } else {
+                    break;
                 }
             }
         }
