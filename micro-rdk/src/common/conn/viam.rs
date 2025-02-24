@@ -489,14 +489,18 @@ where
         }
 
         // Since provisioning was run and completed, credentials are properly populated
-        // if wifi manager is configured loop forever until wifi is connected
+        // if wifi manager is configured loop forever until wifi is connected via
+        // a the provisioned network or one from previously stored agent config
         if let Some(wifi) = self.wifi_manager.as_ref().as_ref() {
-            while let Err(err) = wifi
-                .set_sta_mode(self.storage.get_wifi_credentials().unwrap())
-                .await
-            {
-                log::error!("couldn't connect to wifi reason {:?}", err);
-                let _ = Timer::after(Duration::from_secs(2)).await;
+            // TODO: reimplement `get_all_networks` placeholder in NetworkSettingsStorage after RSDK-9887
+            let networks = self.storage.get_all_networks().unwrap();
+            let mut networks = networks.iter().cycle();
+            while let Some(network) = networks.next() {
+                log::info!("attempting to connect to network `{}`", network.ssid);
+                if let Err(err) = wifi.set_sta_mode(network.clone()).await {
+                    log::error!("failed to connect to network: {:?}", err);
+                    let _ = Timer::after(Duration::from_secs(1)).await;
+                }
             }
         }
 

@@ -114,6 +114,7 @@ pub trait NetworkSettingsStorage {
     fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error>;
     fn get_wifi_credentials(&self) -> Result<WifiCredentials, Self::Error>;
     fn reset_wifi_credentials(&self) -> Result<(), Self::Error>;
+    fn get_all_networks(&self) -> Result<Vec<WifiCredentials>, Self::Error>;
 }
 
 pub trait RobotConfigurationStorage {
@@ -532,6 +533,70 @@ where
         self.into_iter().fold(
             Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
             |val, s| val.or(s.reset_robot_credentials()),
+        )
+    }
+}
+
+impl WifiCredentialStorage for RAMStorage {
+    type Error = RAMStorageError;
+    fn get_wifi_credentials(&self) -> Result<WifiCredentials, Self::Error> {
+        let inner_ref = self.0.lock().unwrap();
+        inner_ref
+            .wifi_creds
+            .clone()
+            .ok_or(RAMStorageError::NotFound)
+    }
+    fn get_all_networks(&self) -> Result<Vec<WifiCredentials>, Self::Error> {
+        Ok(vec![self.get_wifi_credentials()?])
+    }
+    fn has_wifi_credentials(&self) -> bool {
+        let inner_ref = self.0.lock().unwrap();
+        inner_ref.wifi_creds.is_some()
+    }
+    fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error> {
+        let mut inner_ref = self.0.lock().unwrap();
+        let _ = inner_ref.wifi_creds.insert(creds.clone());
+        Ok(())
+    }
+    fn reset_wifi_credentials(&self) -> Result<(), Self::Error> {
+        let mut inner_ref = self.0.lock().unwrap();
+        let _ = inner_ref.wifi_creds.take();
+        Ok(())
+    }
+}
+
+impl<Iterable, Storage: WifiCredentialStorage> WifiCredentialStorage for Iterable
+where
+    for<'a> &'a Iterable: IntoIterator<Item = &'a Storage>,
+    Storage::Error: From<EmptyStorageCollectionError>,
+{
+    type Error = Storage::Error;
+    fn has_wifi_credentials(&self) -> bool {
+        self.into_iter()
+            .any(WifiCredentialStorage::has_wifi_credentials)
+    }
+    fn get_wifi_credentials(&self) -> Result<WifiCredentials, Self::Error> {
+        self.into_iter().fold(
+            Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
+            |val, s| val.or_else(|_| s.get_wifi_credentials()),
+        )
+    }
+    fn get_all_networks(&self) -> Result<Vec<WifiCredentials>, Self::Error> {
+        self.into_iter().fold(
+            Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
+            |val, s| val.or_else(|_| s.get_all_networks()),
+        )
+    }
+    fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error> {
+        self.into_iter().fold(
+            Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
+            |val, s| val.or_else(|_| s.store_wifi_credentials(creds)),
+        )
+    }
+    fn reset_wifi_credentials(&self) -> Result<(), Self::Error> {
+        self.into_iter().fold(
+            Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
+            |val, s| val.or(s.reset_wifi_credentials()),
         )
     }
 }

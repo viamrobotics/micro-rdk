@@ -354,6 +354,10 @@ impl NetworkSettingsStorage for NVSStorage {
         Ok(WifiCredentials { ssid, pwd })
     }
 
+    fn get_all_networks(&self) -> Result<Vec<WifiCredentials>, Self::Error> {
+        Ok(vec![self.get_wifi_credentials()?])
+    }
+
     fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error> {
         self.set_string(NVS_WIFI_SSID_KEY, &creds.ssid)?;
         self.set_string(NVS_WIFI_PASSWORD_KEY, &creds.pwd)
