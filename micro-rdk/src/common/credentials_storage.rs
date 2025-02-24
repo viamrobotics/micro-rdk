@@ -46,6 +46,7 @@ impl From<SetNetworkCredentialsRequest> for WifiCredentials {
         Self {
             ssid: value.ssid,
             pwd: value.psk,
+            priority: 0,
         }
     }
 }
@@ -74,11 +75,16 @@ impl From<RobotCredentials> for CloudConfig {
 pub struct WifiCredentials {
     pub(crate) ssid: String,
     pub(crate) pwd: String,
+    pub(crate) priority: i32,
 }
 
 impl WifiCredentials {
     pub fn new(ssid: String, pwd: String) -> Self {
-        Self { ssid, pwd }
+        Self {
+            ssid,
+            pwd,
+            priority: 0,
+        }
     }
     pub(crate) fn wifi_ssid(&self) -> &str {
         &self.ssid

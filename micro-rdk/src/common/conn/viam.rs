@@ -493,8 +493,9 @@ where
         // a the provisioned network or one from previously stored agent config
         if let Some(wifi) = self.wifi_manager.as_ref().as_ref() {
             // TODO: reimplement `get_all_networks` placeholder in NetworkSettingsStorage after RSDK-9887
-            let networks = self.storage.get_all_networks().unwrap();
-            let mut networks = networks.iter().cycle();
+            let mut networks = self.storage.get_all_networks().unwrap();
+            networks.sort_by(|a, b| b.priority.cmp(&a.priority));
+            let mut networks = networks.iter().filter(|net| net.priority >= 0).cycle();
             while let Some(network) = networks.next() {
                 log::info!("attempting to connect to network `{}`", network.ssid);
                 if let Err(err) = wifi.set_sta_mode(network.clone()).await {
