@@ -96,7 +96,7 @@ pub trait ViamServerStorage:
 }
 #[cfg(not(feature = "ota"))]
 impl<T> ViamServerStorage for T where
-    T: RobotConfigurationStorage + NetworksSettingStorage + StorageDiagnostic + Clone + 'static
+    T: RobotConfigurationStorage + NetworkSettingsStorage + StorageDiagnostic + Clone + 'static
 {
 }
 
