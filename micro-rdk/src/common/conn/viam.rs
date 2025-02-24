@@ -501,6 +501,7 @@ where
                     log::error!("failed to connect to network: {:?}", err);
                     let _ = Timer::after(Duration::from_secs(1)).await;
                 } else {
+                    log::info!("successfully connected to network `{}`", network.ssid);
                     break;
                 }
             }
