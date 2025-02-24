@@ -1,8 +1,7 @@
 #![allow(dead_code)]
 use bytes::Bytes;
 use hyper::{http::uri::InvalidUri, Uri};
-use postcard::{from_bytes, to_allocvec};
-use prost::{DecodeError, Message};
+use prost::Message;
 use std::{cell::RefCell, rc::Rc};
 use thiserror::Error;
 
@@ -26,6 +25,14 @@ use crate::{
 const MAX_NVS_KEY_SIZE: usize = 15;
 
 #[derive(Error, Debug)]
+pub enum NVSDecodeError {
+    #[error(transparent)]
+    Postcard(#[from] postcard::Error),
+    #[error(transparent)]
+    Prost(#[from] prost::DecodeError),
+}
+
+#[derive(Error, Debug)]
 pub enum NVSStorageError {
     #[error(transparent)]
     EspError(#[from] EspError),
@@ -34,7 +41,9 @@ pub enum NVSStorageError {
     #[error("nvs key {0} exceeds {1} characters")]
     NVSKeyTooLong(String, usize),
     #[error(transparent)]
-    NVSValueDecodeError(#[from] DecodeError),
+    NVSValueDecodeError(#[from] NVSDecodeError),
+    #[error(transparent)]
+    NVSValueEncodeError(#[from] postcard::Error),
     #[error(transparent)]
     NVSUriParseError(#[from] InvalidUri),
     #[error("nvs collection empty")]
@@ -263,7 +272,8 @@ impl RobotConfigurationStorage for NVSStorage {
 
     fn get_robot_configuration(&self) -> Result<RobotConfig, Self::Error> {
         let robot_config = self.get_blob(NVS_ROBOT_CONFIG_KEY)?;
-        RobotConfig::decode(&robot_config[..]).map_err(NVSStorageError::NVSValueDecodeError)
+        let config = RobotConfig::decode(&robot_config[..]).map_err(NVSDecodeError::Prost)?;
+        Ok(config)
     }
 
     fn reset_robot_configuration(&self) -> Result<(), Self::Error> {
@@ -315,7 +325,8 @@ impl NetworkSettingsStorage for NVSStorage {
 
     fn get_network_settings(&self) -> Result<Vec<NetworkSetting>, Self::Error> {
         let blob: Vec<u8> = self.get_blob(NVS_NETWORK_SETTINGS_KEY)?;
-        let networks: Vec<NetworkSetting> = from_bytes(&blob).unwrap();
+        let networks: Vec<NetworkSetting> =
+            postcard::from_bytes(&blob).map_err(NVSDecodeError::Postcard)?;
         Ok(networks)
     }
 
@@ -323,7 +334,7 @@ impl NetworkSettingsStorage for NVSStorage {
         &self,
         network_settings: &[NetworkSetting],
     ) -> Result<(), Self::Error> {
-        let bytes: Vec<u8> = to_allocvec(network_settings).unwrap();
+        let bytes: Vec<u8> = postcard::to_allocvec(network_settings)?;
         self.set_blob(NVS_NETWORK_SETTINGS_KEY, bytes.into())?;
         Ok(())
     }
