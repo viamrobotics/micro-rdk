@@ -10,9 +10,8 @@ use crate::{
     common::{
         config::NetworkSetting,
         credentials_storage::{
-            EmptyStorageCollectionError, NetworkSettingStorage, RobotConfigurationStorage,
-            RobotCredentials, StorageDiagnostic, TlsCertificate, WifiCredentialStorage,
-            WifiCredentials,
+            EmptyStorageCollectionError, NetworkSettingsStorage, RobotConfigurationStorage,
+            RobotCredentials, StorageDiagnostic, TlsCertificate, WifiCredentials,
         },
         grpc::{GrpcError, ServerError},
     },
@@ -308,8 +307,31 @@ impl RobotConfigurationStorage for NVSStorage {
     }
 }
 
-impl WifiCredentialStorage for NVSStorage {
+impl NetworkSettingsStorage for NVSStorage {
     type Error = NVSStorageError;
+    fn has_network_settings(&self) -> bool {
+        self.has_blob(NVS_NETWORK_SETTINGS_KEY).unwrap_or(false)
+    }
+
+    fn get_network_settings(&self) -> Result<Vec<NetworkSetting>, Self::Error> {
+        let blob: Vec<u8> = self.get_blob(NVS_NETWORK_SETTINGS_KEY)?;
+        let networks: Vec<NetworkSetting> = from_bytes(&blob).unwrap();
+        Ok(networks)
+    }
+
+    fn store_network_settings(
+        &self,
+        network_settings: &[NetworkSetting],
+    ) -> Result<(), Self::Error> {
+        let bytes: Vec<u8> = to_allocvec(network_settings).unwrap();
+        self.set_blob(NVS_NETWORK_SETTINGS_KEY, bytes.into())?;
+        Ok(())
+    }
+
+    fn reset_network_settings(&self) -> Result<(), Self::Error> {
+        self.erase_key(NVS_NETWORK_SETTINGS_KEY)?;
+        Ok(())
+    }
     fn has_wifi_credentials(&self) -> bool {
         self.has_string(NVS_WIFI_SSID_KEY).unwrap_or(false)
             && self.has_string(NVS_WIFI_PASSWORD_KEY).unwrap_or(false)
@@ -333,33 +355,6 @@ impl WifiCredentialStorage for NVSStorage {
     fn reset_wifi_credentials(&self) -> Result<(), Self::Error> {
         self.erase_key(NVS_WIFI_SSID_KEY)?;
         self.erase_key(NVS_WIFI_PASSWORD_KEY)?;
-        Ok(())
-    }
-}
-
-impl NetworkSettingStorage for NVSStorage {
-    type Error = NVSStorageError;
-    fn has_network_settings(&self) -> bool {
-        self.has_blob(NVS_NETWORK_SETTINGS_KEY).unwrap_or(false)
-    }
-
-    fn get_network_settings(&self) -> Result<Vec<NetworkSetting>, Self::Error> {
-        let blob: Vec<u8> = self.get_blob(NVS_NETWORK_SETTINGS_KEY)?;
-        let networks: Vec<NetworkSetting> = from_bytes(&blob).unwrap();
-        Ok(networks)
-    }
-
-    fn store_network_settings(
-        &self,
-        network_settings: &[NetworkSetting],
-    ) -> Result<(), Self::Error> {
-        let bytes: Vec<u8> = to_allocvec(network_settings).unwrap();
-        self.set_blob(NVS_NETWORK_SETTINGS_KEY, bytes.into())?;
-        Ok(())
-    }
-
-    fn reset_network_settings(&self) -> Result<(), Self::Error> {
-        self.erase_key(NVS_NETWORK_SETTINGS_KEY)?;
         Ok(())
     }
 }
