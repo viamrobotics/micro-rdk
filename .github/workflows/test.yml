@@ -22,6 +22,7 @@ jobs:
       src-servers: ${{ steps.filter.outputs.src-servers }}
       src-cli: ${{ steps.filter.outputs.src-cli }}
       src-ffi: ${{ steps.filter.outputs.src-ffi }}
+      src-nmea: ${{ steps.filter.outputs.src-nmea }}
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
     steps:
@@ -55,6 +56,8 @@ jobs:
             - 'micro-rdk-installer/**'
           src-ffi:
             - 'micro-rdk-ffi/**'
+          src-nmea:
+            - 'micro-rdk-nmea/**'
 
   build_cli:
     needs: changes
@@ -104,6 +107,32 @@ jobs:
     - name: Clippy Micro-RDK FFI
       run: |
         bash -c '. /home/testbot/.bash_profile ; git config --global --add safe.directory "$ESP_ROOT"/esp-idf && make clippy-ffi'
+
+  check_nmea:
+    needs: changes
+    name: Tests, Format, Clippy Micro-RDK NMEA
+    if: ${{ needs.changes.outputs.src-nmea == 'true'}}
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
+    steps:
+    - name : Checkout main branch code
+      if: github.event_name != 'pull_request_target'
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
+    - name: Check out PR branch code
+      if: github.event_name == 'pull_request_target'
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        fetch-depth: 2
+    - name: Format Micro-RDK NMEA
+      run: |
+        bash -c 'cargo fmt -p micro-rdk-nmea -- --check'
+    - name: Clippy Micro-RDK NMEA
+      run: |
+        bash -c '. /home/testbot/.bash_profile ; git config --global --add safe.directory "$ESP_ROOT"/esp-idf && make clippy-nmea'
 
   test_and_build:
     needs: changes

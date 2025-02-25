@@ -47,7 +47,7 @@ pub struct AnalogResolution {
     pub step_size: f32,
 }
 
-pub trait AnalogReader<Word> {
+pub trait AnalogReader<Word>: Send {
     type Error;
     fn read(&mut self) -> Result<Word, Self::Error>;
     fn name(&self) -> String;

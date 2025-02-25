@@ -1,5 +1,12 @@
+use micro_rdk::common::registry::{ComponentRegistry, RegistryError};
+
 pub mod messages;
 pub mod parse_helpers;
+pub mod viamboat;
+
+pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {
+    viamboat::register_models(registry)
+}
 
 #[cfg(test)]
 mod tests {
@@ -36,9 +43,7 @@ mod tests {
         let message = WaterDepth::from_cursor(cursor);
         assert!(message.is_ok());
         let message = message.unwrap();
-        let source_id = message.source_id();
-        assert!(source_id.is_ok());
-        assert_eq!(source_id.unwrap(), 255);
+        assert_eq!(message.source_id().unwrap(), 255);
         let depth = message.depth();
         assert!(depth.is_ok());
         assert_eq!(depth.unwrap(), 2.12);
