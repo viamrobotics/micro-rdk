@@ -495,7 +495,7 @@ where
             // TODO: reimplement `get_all_networks` placeholder in NetworkSettingsStorage after RSDK-9887
             let mut networks = self.storage.get_all_networks().unwrap();
             networks.sort_by(|a, b| b.priority.cmp(&a.priority));
-            let mut networks = networks.iter().filter(|net| net.priority >= 0).cycle();
+            let mut networks = networks.iter().cycle();
             while let Some(network) = networks.next() {
                 log::info!("attempting to connect to network `{}`", network.ssid);
                 if let Err(err) = wifi.set_sta_mode(network.clone()).await {
