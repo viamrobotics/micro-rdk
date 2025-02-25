@@ -567,53 +567,6 @@ where
             None => None,
         };
 
-        // TODO(RSDK-10062): determine where additional network updates logic should live
-        if let Some(app) = app_client.as_ref() {
-            use crate::common::config::AgentConfig;
-            if let Ok(device_agent_config) = app.get_agent_config().await {
-                let agent_config: AgentConfig =
-                    device_agent_config
-                        .as_ref()
-                        .try_into()
-                        .unwrap_or(AgentConfig {
-                            network_settings: Vec::new(),
-                        });
-                log::debug!("agent config: {:?}", agent_config);
-                if !self.storage.has_network_settings() {
-                    log::info!("no additional network settings in nvs...");
-                    if !agent_config.network_settings.is_empty() {
-                        log::info!("found network settings in agent config");
-                        if let Err(e) = self
-                            .storage
-                            .store_network_settings(&agent_config.network_settings)
-                        {
-                            log::error!("failed to store network settings to nvs: {}", e);
-                        } else {
-                            log::info!("successfully stored networks to nvs");
-                        }
-                    } else {
-                        log::info!("no network settings in agent config");
-                    }
-                } else {
-                    log::info!("network settings found in nvs");
-                    let networks = self.storage.get_network_settings().unwrap_or_default();
-                    if networks != agent_config.network_settings {
-                        log::info!("updating stored networks settings...");
-                        if let Err(e) = self
-                            .storage
-                            .store_network_settings(&agent_config.network_settings)
-                        {
-                            log::error!("failed to store network settings to nvs: {}", e);
-                        } else {
-                            log::info!("successfully updated network settings in nvs");
-                        }
-                    } else {
-                        log::debug!("dynamically stored networks: {:?}", networks);
-                    }
-                }
-            }
-        }
-
         let (config, build_time) = config.map_or_else(
             || {
                 (
