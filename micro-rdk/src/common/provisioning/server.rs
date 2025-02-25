@@ -10,11 +10,12 @@ use std::{
 
 use crate::{
     common::{
+        config::NetworkSetting,
         conn::{
             mdns::Mdns,
             network::{Network, NetworkError},
         },
-        credentials_storage::{NetworkSettingsStorage, RobotConfigurationStorage, WifiCredentials},
+        credentials_storage::{NetworkSettingsStorage, RobotConfigurationStorage},
         exec::Executor,
         grpc::{GrpcBody, GrpcError, GrpcResponse, ServerError},
         webrtc::api::AtomicSync,
@@ -243,20 +244,20 @@ where
     }
     async fn set_network_credential_request(&self, body: Bytes) -> Result<Bytes, ServerError> {
         if let Some(wifi_manager) = self.wifi_manager.as_ref() {
-            let creds: WifiCredentials = SetNetworkCredentialsRequest::decode(body)
+            let creds: NetworkSetting = SetNetworkCredentialsRequest::decode(body)
                 .map_err(|e| ServerError::new(GrpcError::RpcInternal, Some(e.into())))?
                 .into();
 
             // may not be the best place to attempt to validate passed credentials
             wifi_manager
-                .try_connect(&creds.ssid, &creds.pwd)
+                .try_connect(&creds.ssid, &creds.password)
                 .await
                 .map_err(|err| {
                     ServerError::new(GrpcError::RpcInvalidArgument, Some(Box::new(err)))
                 })?;
 
             self.storage
-                .store_wifi_credentials(&creds)
+                .store_default_network(&creds)
                 .map_err(|e| ServerError::new(GrpcError::RpcInternal, Some(Box::new(e.into()))))?;
 
             let resp = SetNetworkCredentialsResponse::default();
@@ -346,7 +347,7 @@ where
 
         match self.wifi_manager.as_ref() {
             Some(_) => {
-                if self.storage.has_wifi_credentials() {
+                if self.storage.has_default_network() {
                     self.credential_ready.done()
                 }
             }
@@ -531,7 +532,7 @@ pub trait WifiManager: Network {
     ) -> Pin<Box<dyn Future<Output = Result<(), WifiManagerError>> + '_>>;
     fn set_sta_mode(
         &self,
-        credential: WifiCredentials,
+        credential: NetworkSetting,
     ) -> Pin<Box<dyn Future<Output = Result<(), WifiManagerError>> + '_>>;
 }
 

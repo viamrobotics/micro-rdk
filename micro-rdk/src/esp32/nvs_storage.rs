@@ -10,7 +10,7 @@ use crate::{
         config::NetworkSetting,
         credentials_storage::{
             EmptyStorageCollectionError, NetworkSettingsStorage, RobotConfigurationStorage,
-            RobotCredentials, StorageDiagnostic, TlsCertificate, WifiCredentials,
+            RobotCredentials, StorageDiagnostic, TlsCertificate,
         },
         grpc::{GrpcError, ServerError},
     },
@@ -177,12 +177,15 @@ impl StorageDiagnostic for NVSStorage {
     }
 }
 
+// the values of the following variables are tightly coupled with the installer's
+// credential update functions and should be modified with care
+const NVS_DEFAULT_SSID_KEY: &str = "WIFI_SSID";
+const NVS_DEFAULT_PASSWORD_KEY: &str = "WIFI_PASSWORD";
 const NVS_ROBOT_SECRET_KEY: &str = "ROBOT_SECRET";
 const NVS_ROBOT_ID_KEY: &str = "ROBOT_ID";
 const NVS_ROBOT_APP_ADDRESS: &str = "ROBOT_APP_ADDR";
+
 const NVS_ROBOT_CONFIG_KEY: &str = "ROBOT_CONFIG";
-const NVS_WIFI_SSID_KEY: &str = "WIFI_SSID";
-const NVS_WIFI_PASSWORD_KEY: &str = "WIFI_PASSWORD";
 const NVS_TLS_CERTIFICATE_KEY: &str = "TLS_CERT";
 const NVS_TLS_PRIVATE_KEY_KEY: &str = "TLS_PRIV_KEY";
 const NVS_NETWORK_SETTINGS_KEY: &str = "NETWORKS";
@@ -335,6 +338,10 @@ impl NetworkSettingsStorage for NVSStorage {
         network_settings: &[NetworkSetting],
     ) -> Result<(), Self::Error> {
         let bytes: Vec<u8> = postcard::to_allocvec(network_settings)?;
+        log::info!(
+            "storing {} bytes of network settings in nvs...",
+            bytes.len()
+        );
         self.set_blob(NVS_NETWORK_SETTINGS_KEY, bytes.into())?;
         Ok(())
     }
@@ -343,37 +350,46 @@ impl NetworkSettingsStorage for NVSStorage {
         self.erase_key(NVS_NETWORK_SETTINGS_KEY)?;
         Ok(())
     }
-    fn has_wifi_credentials(&self) -> bool {
-        self.has_string(NVS_WIFI_SSID_KEY).unwrap_or(false)
-            && self.has_string(NVS_WIFI_PASSWORD_KEY).unwrap_or(false)
+    fn has_default_network(&self) -> bool {
+        self.has_string(NVS_DEFAULT_SSID_KEY).unwrap_or(false)
+            && self.has_string(NVS_DEFAULT_PASSWORD_KEY).unwrap_or(false)
     }
 
-    fn get_wifi_credentials(&self) -> Result<WifiCredentials, Self::Error> {
-        let ssid = self.get_string(NVS_WIFI_SSID_KEY)?;
-        let pwd = self.get_string(NVS_WIFI_PASSWORD_KEY)?;
-        Ok(WifiCredentials {
+    fn get_default_network(&self) -> Result<NetworkSetting, Self::Error> {
+        let ssid = self.get_string(NVS_DEFAULT_SSID_KEY)?;
+        let password = self.get_string(NVS_DEFAULT_PASSWORD_KEY)?;
+        Ok(NetworkSetting {
             ssid,
-            pwd,
+            password,
             priority: 0,
         })
     }
 
-    fn get_all_networks(&self) -> Result<Vec<WifiCredentials>, Self::Error> {
-        Ok(vec![self.get_wifi_credentials()?])
+    fn get_all_networks(&self) -> Result<Vec<NetworkSetting>, Self::Error> {
+        // return error if failed to get default network (not provisioned/configured)
+        let default = self.get_default_network()?;
+        let mut networks = if self.has_network_settings() {
+            // return err if nvs found key but failed to retrieve
+            self.get_network_settings()?
+        } else {
+            Vec::new()
+        };
+        networks.push(default);
+        Ok(networks)
     }
 
-    fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error> {
-        self.set_string(NVS_WIFI_SSID_KEY, &creds.ssid)?;
-        self.set_string(NVS_WIFI_PASSWORD_KEY, &creds.pwd)
+    fn store_default_network(&self, network: &NetworkSetting) -> Result<(), Self::Error> {
+        self.set_string(NVS_DEFAULT_SSID_KEY, &network.ssid)?;
+        self.set_string(NVS_DEFAULT_PASSWORD_KEY, &network.password)
             .inspect_err(|_| {
-                let _ = self.erase_key(NVS_WIFI_SSID_KEY);
+                let _ = self.erase_key(NVS_DEFAULT_SSID_KEY);
             })?;
         Ok(())
     }
 
-    fn reset_wifi_credentials(&self) -> Result<(), Self::Error> {
-        self.erase_key(NVS_WIFI_SSID_KEY)?;
-        self.erase_key(NVS_WIFI_PASSWORD_KEY)?;
+    fn reset_default_network(&self) -> Result<(), Self::Error> {
+        self.erase_key(NVS_DEFAULT_SSID_KEY)?;
+        self.erase_key(NVS_DEFAULT_PASSWORD_KEY)?;
         Ok(())
     }
 }

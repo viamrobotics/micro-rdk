@@ -42,7 +42,7 @@ use futures_util::lock::Mutex;
 use once_cell::sync::OnceCell;
 
 use crate::{
-    common::{credentials_storage::WifiCredentials, provisioning::server::WifiApConfiguration},
+    common::{config::NetworkSetting, provisioning::server::WifiApConfiguration},
     esp32::esp_idf_svc::sys::EspError,
 };
 
@@ -191,19 +191,16 @@ impl Esp32WifiNetwork {
         unsafe { sys::esp!(sys::esp_netif_dhcps_start(handle)) }?;
         Ok(())
     }
-    pub async fn set_station_mode(
-        &self,
-        wifi_creds: WifiCredentials,
-    ) -> Result<(), WifiManagerError> {
+    pub async fn set_station_mode(&self, network: NetworkSetting) -> Result<(), WifiManagerError> {
         let config = Configuration::Client(ClientConfiguration {
-            ssid: wifi_creds
+            ssid: network
                 .ssid
                 .as_str()
                 .try_into()
                 .map_err(|_| NetworkError::HeaplessStringConversionError)?,
             auth_method: AuthMethod::None,
-            password: wifi_creds
-                .pwd
+            password: network
+                .password
                 .as_str()
                 .try_into()
                 .map_err(|_| NetworkError::HeaplessStringConversionError)?,
@@ -338,7 +335,7 @@ impl WifiManager for Esp32WifiNetwork {
     }
     fn set_sta_mode(
         &self,
-        credential: WifiCredentials,
+        credential: NetworkSetting,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), WifiManagerError>> + '_>>
     {
         Box::pin(async { self.set_station_mode(credential).await })

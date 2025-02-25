@@ -463,19 +463,19 @@ where
         // storage. If not, we should go straight to provisioning.
         //
         // truth table for 2nd check
-        // +------------------+------------------+------------------+
-        //| Has WifiManager  | Has Credential   | Should provision |
-        //+------------------+------------------+------------------+
-        //| false            | x                | false            |
-        //| true             | false            | true             |
-        //| true             | true             | false            |
-        //+------------------+------------------+------------------+
+        // +------------------+---------------------+------------------+
+        //| Has WifiManager  | Has Default Network  | Should provision |
+        //+------------------+----------------------+------------------+
+        //| false            | x                    | false            |
+        //| true             | false                | true             |
+        //| true             | true                 | false            |
+        //+------------------+----------------------+------------------+
         if !self.storage.has_robot_credentials()
             || self
                 .wifi_manager
                 .as_ref()
                 .as_ref()
-                .is_some_and(|_| !self.storage.has_wifi_credentials())
+                .is_some_and(|_| !self.storage.has_default_network())
         {
             self.provision().await;
         }
@@ -495,6 +495,7 @@ where
             // TODO: reimplement `get_all_networks` placeholder in NetworkSettingsStorage after RSDK-9887
             let mut networks = self.storage.get_all_networks().unwrap();
             networks.sort_by(|a, b| b.priority.cmp(&a.priority));
+            log::debug!("networks to try: {:?}", networks);
             let mut networks = networks.iter().cycle();
             while let Some(network) = networks.next() {
                 log::info!("attempting to connect to network `{}`", network.ssid);
@@ -596,9 +597,7 @@ where
                 } else {
                     log::info!("network settings found in nvs");
                     let networks = self.storage.get_network_settings().unwrap_or_default();
-                    if !agent_config.network_settings.is_empty()
-                        && networks != agent_config.network_settings
-                    {
+                    if networks != agent_config.network_settings {
                         log::info!("updating stored networks settings...");
                         if let Err(e) = self
                             .storage
