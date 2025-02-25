@@ -1,0 +1,60 @@
+name: publish
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-project:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
+    steps:
+    - name : Checkout main branch code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 2
+    - name: Build esp32 OTA binary
+      run: |
+        bash -c '. /home/testbot/.bash_profile ; git config --global --add safe.directory "$ESP_ROOT"/esp-idf && make build-esp32-ota'
+        cp target/xtensa-esp32-espidf/project-ota.bin project-ota.bin
+    - name: Upload release Lib
+      uses: actions/upload-artifact@v4
+      with:
+        name: ota-binary
+        path: |
+          project-ota.bin
+
+  publish-release:
+    needs: [build-project]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check release type
+      id: check-tag
+      run: |
+        if echo ${{ github.event.ref }} | grep -Eq '^refs/tags/v.*rc[0-9]{1}$'; then
+              echo "match=true" >> $GITHUB_OUTPUT
+        else
+              echo "match=false" >> $GITHUB_OUTPUT
+        fi
+    - name: Download OTA binary
+      uses: actions/download-artifact@v4
+      with:
+        name: ota-binary
+    - name: Compute checksums
+      run: |
+        sha256sum  project-ota.bin  >> sha256sums.txt
+    - name: Publish release
+      uses: ncipollo/release-action@v1
+      if: github.event_name == 'push'
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        artifacts: |
+          project-ota.bin
+          sha256sums.txt
+        prerelease: ${{ steps.check-tag.outputs.match }}
+        replacesArtifacts: true
+        allowUpdates: true
+        name: ${{ github.ref_name }}
