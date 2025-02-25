@@ -496,8 +496,7 @@ where
             let mut networks = self.storage.get_all_networks().unwrap();
             networks.sort_by(|a, b| b.priority.cmp(&a.priority));
             log::debug!("networks to try: {:?}", networks);
-            let mut networks = networks.iter().cycle();
-            while let Some(network) = networks.next() {
+            for network in networks.iter().cycle() {
                 log::info!("attempting to connect to network `{}`", network.ssid);
                 if let Err(err) = wifi.set_sta_mode(network.clone()).await {
                     log::error!("failed to connect to network: {:?}", err);
