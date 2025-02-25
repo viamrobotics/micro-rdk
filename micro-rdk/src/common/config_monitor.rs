@@ -3,7 +3,9 @@ use super::{
     conn::viam::ViamServerStorage,
 };
 use crate::{
-    common::{credentials_storage::RobotConfigurationStorage, grpc::ServerError},
+    common::{
+        config::AgentConfig, credentials_storage::RobotConfigurationStorage, grpc::ServerError,
+    },
     proto::app::v1::RobotConfig,
 };
 use async_io::Timer;
@@ -69,6 +71,7 @@ where
         app_client: &'c AppClient,
     ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'c>> {
         Box::pin(async move {
+            let mut reboot = false;
             let (new_config, _cfg_received_datetime) = app_client
                 .get_app_config(None)
                 .or(async {
@@ -78,8 +81,6 @@ where
                 .await?;
 
             if let Some(config) = new_config.as_ref().config.as_ref() {
-                let mut reboot = false;
-
                 #[cfg(feature = "ota")]
                 {
                     if let Some(service) = config
@@ -116,11 +117,33 @@ where
                         reboot = true;
                     }
                 }
+            }
 
-                if reboot {
-                    // TODO(RSDK-9464): flush logs to app.viam before restarting
-                    self.restart();
+            if let Ok(device_agent_config) = app_client.get_agent_config().await {
+                if let Ok(agent_config) = AgentConfig::try_from(device_agent_config.as_ref()) {
+                    log::debug!("agent config: {:?}", agent_config);
+
+                    let stored = self.storage.get_network_settings().unwrap_or_default();
+
+                    if agent_config.network_settings != stored {
+                        log::info!("new network settings found in config");
+                        if let Err(e) = self
+                            .storage
+                            .store_network_settings(&agent_config.network_settings)
+                        {
+                            log::error!("failed to store network settings to nvs: {}", e);
+                        } else {
+                            log::info!("successfully stored networks to nvs");
+                            reboot = true;
+                        }
+                    }
                 }
+            }
+
+            if reboot {
+                log::info!("rebooting from config monitor...");
+                // TODO(RSDK-9464): flush logs to app.viam before restarting
+                self.restart();
             }
 
             Ok(Some(self.get_default_period()))
