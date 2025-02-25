@@ -1,15 +1,16 @@
 #![allow(dead_code)]
 use bytes::Bytes;
 use hyper::{http::uri::InvalidUri, Uri};
-use prost::{DecodeError, Message};
+use prost::Message;
 use std::{cell::RefCell, rc::Rc};
 use thiserror::Error;
 
 use crate::{
     common::{
+        config::NetworkSetting,
         credentials_storage::{
-            EmptyStorageCollectionError, RobotConfigurationStorage, RobotCredentials,
-            StorageDiagnostic, TlsCertificate, WifiCredentialStorage, WifiCredentials,
+            EmptyStorageCollectionError, NetworkSettingsStorage, RobotConfigurationStorage,
+            RobotCredentials, StorageDiagnostic, TlsCertificate, WifiCredentials,
         },
         grpc::{GrpcError, ServerError},
     },
@@ -24,6 +25,14 @@ use crate::{
 const MAX_NVS_KEY_SIZE: usize = 15;
 
 #[derive(Error, Debug)]
+pub enum NVSDecodeError {
+    #[error(transparent)]
+    Postcard(#[from] postcard::Error),
+    #[error(transparent)]
+    Prost(#[from] prost::DecodeError),
+}
+
+#[derive(Error, Debug)]
 pub enum NVSStorageError {
     #[error(transparent)]
     EspError(#[from] EspError),
@@ -32,7 +41,9 @@ pub enum NVSStorageError {
     #[error("nvs key {0} exceeds {1} characters")]
     NVSKeyTooLong(String, usize),
     #[error(transparent)]
-    NVSValueDecodeError(#[from] DecodeError),
+    NVSValueDecodeError(#[from] NVSDecodeError),
+    #[error(transparent)]
+    NVSValueEncodeError(#[from] postcard::Error),
     #[error(transparent)]
     NVSUriParseError(#[from] InvalidUri),
     #[error("nvs collection empty")]
@@ -174,6 +185,7 @@ const NVS_WIFI_SSID_KEY: &str = "WIFI_SSID";
 const NVS_WIFI_PASSWORD_KEY: &str = "WIFI_PASSWORD";
 const NVS_TLS_CERTIFICATE_KEY: &str = "TLS_CERT";
 const NVS_TLS_PRIVATE_KEY_KEY: &str = "TLS_PRIV_KEY";
+const NVS_NETWORK_SETTINGS_KEY: &str = "NETWORKS";
 
 #[cfg(feature = "ota")]
 const NVS_OTA_VERSION_KEY: &str = "OTA_VERSION";
@@ -260,7 +272,8 @@ impl RobotConfigurationStorage for NVSStorage {
 
     fn get_robot_configuration(&self) -> Result<RobotConfig, Self::Error> {
         let robot_config = self.get_blob(NVS_ROBOT_CONFIG_KEY)?;
-        RobotConfig::decode(&robot_config[..]).map_err(NVSStorageError::NVSValueDecodeError)
+        let config = RobotConfig::decode(&robot_config[..]).map_err(NVSDecodeError::Prost)?;
+        Ok(config)
     }
 
     fn reset_robot_configuration(&self) -> Result<(), Self::Error> {
@@ -304,8 +317,32 @@ impl RobotConfigurationStorage for NVSStorage {
     }
 }
 
-impl WifiCredentialStorage for NVSStorage {
+impl NetworkSettingsStorage for NVSStorage {
     type Error = NVSStorageError;
+    fn has_network_settings(&self) -> bool {
+        self.has_blob(NVS_NETWORK_SETTINGS_KEY).unwrap_or(false)
+    }
+
+    fn get_network_settings(&self) -> Result<Vec<NetworkSetting>, Self::Error> {
+        let blob: Vec<u8> = self.get_blob(NVS_NETWORK_SETTINGS_KEY)?;
+        let networks: Vec<NetworkSetting> =
+            postcard::from_bytes(&blob).map_err(NVSDecodeError::Postcard)?;
+        Ok(networks)
+    }
+
+    fn store_network_settings(
+        &self,
+        network_settings: &[NetworkSetting],
+    ) -> Result<(), Self::Error> {
+        let bytes: Vec<u8> = postcard::to_allocvec(network_settings)?;
+        self.set_blob(NVS_NETWORK_SETTINGS_KEY, bytes.into())?;
+        Ok(())
+    }
+
+    fn reset_network_settings(&self) -> Result<(), Self::Error> {
+        self.erase_key(NVS_NETWORK_SETTINGS_KEY)?;
+        Ok(())
+    }
     fn has_wifi_credentials(&self) -> bool {
         self.has_string(NVS_WIFI_SSID_KEY).unwrap_or(false)
             && self.has_string(NVS_WIFI_PASSWORD_KEY).unwrap_or(false)

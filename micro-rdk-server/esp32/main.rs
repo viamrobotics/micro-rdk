@@ -25,7 +25,8 @@ mod esp32 {
     use micro_rdk::{
         common::{
             credentials_storage::{
-                RobotConfigurationStorage, RobotCredentials, WifiCredentialStorage, WifiCredentials,
+                NetworkSettingsStorage, RobotConfigurationStorage, RobotCredentials,
+                WifiCredentials,
             },
             log::initialize_logger,
             provisioning::server::ProvisioningInfo,
