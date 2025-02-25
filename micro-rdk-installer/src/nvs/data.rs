@@ -7,7 +7,6 @@ use super::partition::{NVSEntry, NVSKeyValuePair, NVSValue};
 pub struct WifiCredentials {
     pub ssid: String,
     pub password: Secret<String>,
-    pub priority: i32,
 }
 
 impl Default for WifiCredentials {
@@ -15,7 +14,6 @@ impl Default for WifiCredentials {
         Self {
             ssid: "".to_string(),
             password: Secret::new("".to_string()),
-            priority: 0,
         }
     }
 }
