@@ -1,2 +1,2 @@
 // AUTO-GENERATED CODE; DO NOT DELETE OR EDIT
-pub const VIAM_API_VERSION: &str = "v0.1.336";
+pub const VIAM_API_VERSION: &str = "v0.1.394";

@@ -11,6 +11,10 @@ pub struct ResourceName {
     pub subtype: ::prost::alloc::string::String,
     #[prost(string, tag="4")]
     pub name: ::prost::alloc::string::String,
+    #[prost(string, repeated, tag="5")]
+    pub remote_path: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(string, tag="6")]
+    pub local_name: ::prost::alloc::string::String,
 }
 /// Pose is a combination of location and orientation.
 /// Location is expressed as distance which is represented by x , y, z coordinates. Orientation is expressed as an orientation vector which

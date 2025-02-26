@@ -21,8 +21,7 @@ pub struct GetEndPositionResponse {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct JointPositions {
     /// A list of joint positions. Rotations values are in degrees, translational values in mm.
-    /// The numbers are ordered spatially from the base toward the end effector
-    /// This is used in GetJointPositionsResponse and MoveToJointPositionsRequest
+    /// There should be 1 entry in the list per joint DOF, ordered spatially from the base toward the end effector of the arm
     #[prost(double, repeated, tag="1")]
     pub values: ::prost::alloc::vec::Vec<f64>,
 }
@@ -83,6 +82,26 @@ pub struct MoveToJointPositionsResponse {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MoveThroughJointPositionsRequest {
+    /// Name of an arm
+    #[prost(string, tag="1")]
+    pub name: ::prost::alloc::string::String,
+    /// A list of joint positions which will be moved to in the order they are specified
+    #[prost(message, repeated, tag="2")]
+    pub positions: ::prost::alloc::vec::Vec<JointPositions>,
+    /// optional specifications to be obeyed during the motion
+    #[prost(message, optional, tag="3")]
+    pub options: ::core::option::Option<MoveOptions>,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MoveThroughJointPositionsResponse {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StopRequest {
     /// Name of an arm
     #[prost(string, tag="1")]
@@ -116,5 +135,15 @@ pub struct IsMovingRequest {
 pub struct IsMovingResponse {
     #[prost(bool, tag="1")]
     pub is_moving: bool,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MoveOptions {
+    /// Maximum allowable velocity of an arm joint, in degrees per second
+    #[prost(double, optional, tag="1")]
+    pub max_vel_degs_per_sec: ::core::option::Option<f64>,
+    /// Maximum allowable acceleration of an arm joint, in degrees per second squared
+    #[prost(double, optional, tag="2")]
+    pub max_acc_degs_per_sec2: ::core::option::Option<f64>,
 }
 // @@protoc_insertion_point(module)

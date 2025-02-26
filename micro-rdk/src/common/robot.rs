@@ -151,6 +151,8 @@ fn resource_name_from_component_cfg(cfg: &DynamicComponentConfig) -> ResourceNam
         r#type: "component".to_string(),
         subtype: cfg.r#type.to_string(),
         name: cfg.name.to_string(),
+        local_name: cfg.name.to_string(),
+        remote_path: vec![],
     }
 }
 
@@ -371,6 +373,8 @@ impl LocalRobot {
                     r#type: "component".to_owned(),
                     subtype: key.0.to_owned(),
                     name: key.1.clone(),
+                    local_name: key.1.clone().to_string(),
+                    remote_path: vec![],
                 };
 
                 let res = match self.resources.get(&r_name) {
@@ -718,6 +722,8 @@ impl LocalRobot {
             namespace: "rdk".to_string(),
             r#type: "component".to_string(),
             subtype: "motor".to_string(),
+            local_name: name.clone(),
+            remote_path: vec![],
             name,
         };
         match self.resources.get(&name) {
@@ -732,6 +738,8 @@ impl LocalRobot {
             namespace: "rdk".to_string(),
             r#type: "component".to_string(),
             subtype: "camera".to_string(),
+            local_name: name.clone(),
+            remote_path: vec![],
             name,
         };
         match self.resources.get(&name) {
@@ -745,6 +753,8 @@ impl LocalRobot {
             namespace: "rdk".to_string(),
             r#type: "component".to_string(),
             subtype: "base".to_string(),
+            local_name: name.clone(),
+            remote_path: vec![],
             name,
         };
         match self.resources.get(&name) {
@@ -758,6 +768,8 @@ impl LocalRobot {
             namespace: "rdk".to_string(),
             r#type: "component".to_string(),
             subtype: "board".to_string(),
+            local_name: name.clone(),
+            remote_path: vec![],
             name,
         };
         match self.resources.get(&name) {
@@ -771,6 +783,8 @@ impl LocalRobot {
             namespace: "rdk".to_string(),
             r#type: "component".to_string(),
             subtype: "sensor".to_string(),
+            local_name: name.clone(),
+            remote_path: vec![],
             name,
         };
         match self.resources.get(&name) {
@@ -788,6 +802,8 @@ impl LocalRobot {
             namespace: "rdk".to_string(),
             r#type: "component".to_string(),
             subtype: "movement_sensor".to_string(),
+            local_name: name.clone(),
+            remote_path: vec![],
             name,
         };
         match self.resources.get(&name) {
@@ -802,6 +818,8 @@ impl LocalRobot {
             namespace: "rdk".to_string(),
             r#type: "component".to_string(),
             subtype: "encoder".to_string(),
+            local_name: name.clone(),
+            remote_path: vec![],
             name,
         };
         match self.resources.get(&name) {
@@ -816,6 +834,8 @@ impl LocalRobot {
             namespace: "rdk".to_string(),
             r#type: "component".to_string(),
             subtype: "power_sensor".to_string(),
+            local_name: name.clone(),
+            remote_path: vec![],
             name,
         };
         match self.resources.get(&name) {
@@ -830,6 +850,8 @@ impl LocalRobot {
             namespace: "rdk".to_string(),
             r#type: "component".to_string(),
             subtype: "servo".to_string(),
+            local_name: name.clone(),
+            remote_path: vec![],
             name,
         };
         match self.resources.get(&name) {
@@ -847,6 +869,8 @@ impl LocalRobot {
             namespace: "rdk".to_string(),
             r#type: "component".to_string(),
             subtype: "generic".to_string(),
+            local_name: name.clone(),
+            remote_path: vec![],
             name,
         };
         match self.resources.get(&name) {

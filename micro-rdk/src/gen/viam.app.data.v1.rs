@@ -158,8 +158,8 @@ pub struct TabularDataBySqlRequest {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TabularDataBySqlResponse {
-    #[prost(message, repeated, tag="1")]
-    pub data: ::prost::alloc::vec::Vec<super::super::super::super::google::protobuf::Struct>,
+    #[prost(bytes="vec", repeated, tag="2")]
+    pub raw_data: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
 }
 /// TabularDataByMQLRequest requests tabular data using an MQL query.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -172,13 +172,86 @@ pub struct TabularDataByMqlRequest {
     /// namespace, which holds the Viam organization's tabular data.
     #[prost(bytes="vec", repeated, tag="3")]
     pub mql_binary: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    #[prost(bool, optional, tag="4")]
+    pub use_recent_data: ::core::option::Option<bool>,
 }
 /// TabularDataByMQLResponse provides unified tabular data and metadata, queried with MQL.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TabularDataByMqlResponse {
-    #[prost(message, repeated, tag="1")]
-    pub data: ::prost::alloc::vec::Vec<super::super::super::super::google::protobuf::Struct>,
+    #[prost(bytes="vec", repeated, tag="2")]
+    pub raw_data: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+}
+/// ExportTabularDataRequest requests tabular data from the specified data source.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ExportTabularDataRequest {
+    #[prost(string, tag="1")]
+    pub part_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub resource_name: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub resource_subtype: ::prost::alloc::string::String,
+    #[prost(string, tag="4")]
+    pub method_name: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="5")]
+    pub interval: ::core::option::Option<CaptureInterval>,
+}
+/// ExportTabularDataResponse provides unified tabular data and metadata for a single data point from the specified data source.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ExportTabularDataResponse {
+    #[prost(string, tag="1")]
+    pub part_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub resource_name: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub resource_subtype: ::prost::alloc::string::String,
+    #[prost(string, tag="4")]
+    pub method_name: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="5")]
+    pub time_captured: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
+    #[prost(string, tag="6")]
+    pub organization_id: ::prost::alloc::string::String,
+    #[prost(string, tag="7")]
+    pub location_id: ::prost::alloc::string::String,
+    #[prost(string, tag="8")]
+    pub robot_name: ::prost::alloc::string::String,
+    #[prost(string, tag="9")]
+    pub robot_id: ::prost::alloc::string::String,
+    #[prost(string, tag="10")]
+    pub part_name: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="11")]
+    pub method_parameters: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
+    #[prost(string, repeated, tag="12")]
+    pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(message, optional, tag="13")]
+    pub payload: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
+}
+/// GetLatestTabularDataRequest requests the most recent tabular data captured from the specified data source.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetLatestTabularDataRequest {
+    #[prost(string, tag="1")]
+    pub part_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub resource_name: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub method_name: ::prost::alloc::string::String,
+    #[prost(string, tag="4")]
+    pub resource_subtype: ::prost::alloc::string::String,
+}
+/// GetLatestTabularDataResponse provides the data, time synced, and time captured of the most recent tabular data captured
+/// from the requested data source, as long as it was synced within the last year.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetLatestTabularDataResponse {
+    #[prost(message, optional, tag="1")]
+    pub time_captured: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
+    #[prost(message, optional, tag="2")]
+    pub time_synced: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
+    #[prost(message, optional, tag="3")]
+    pub payload: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 /// BinaryData contains data and metadata associated with binary data.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -261,6 +334,19 @@ pub struct BoundingBox {
     pub x_max_normalized: f64,
     #[prost(double, tag="6")]
     pub y_max_normalized: f64,
+    /// confidence is an optional range from 0 - 1
+    #[prost(double, optional, tag="7")]
+    pub confidence: ::core::option::Option<f64>,
+}
+/// Classification represents a confidence score with a label.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Classification {
+    #[prost(string, tag="1")]
+    pub label: ::prost::alloc::string::String,
+    /// confidence is an optional range from 0 - 1
+    #[prost(double, optional, tag="2")]
+    pub confidence: ::core::option::Option<f64>,
 }
 /// Annotations are data annotations used for machine learning.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -268,6 +354,8 @@ pub struct BoundingBox {
 pub struct Annotations {
     #[prost(message, repeated, tag="1")]
     pub bboxes: ::prost::alloc::vec::Vec<BoundingBox>,
+    #[prost(message, repeated, tag="2")]
+    pub classifications: ::prost::alloc::vec::Vec<Classification>,
 }
 /// BinaryMetadata is the metadata associated with binary data.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -440,7 +528,7 @@ pub struct AddBoundingBoxToImageByIdResponse {
     #[prost(string, tag="1")]
     pub bbox_id: ::prost::alloc::string::String,
 }
-/// RemoveBoundingBoxFromImageByIDRequest removes the bounding box with specified bbox ID for the file represented by the binary id.
+/// RemoveBoundingBoxFromImageByIDRequest removes the bounding box with specified bounding box ID for the file represented by the binary ID.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RemoveBoundingBoxFromImageByIdRequest {
@@ -452,6 +540,29 @@ pub struct RemoveBoundingBoxFromImageByIdRequest {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RemoveBoundingBoxFromImageByIdResponse {
+}
+/// UpdateBoundingBoxRequest updates the bounding box with specified bounding box ID for the file represented by the binary ID.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UpdateBoundingBoxRequest {
+    #[prost(message, optional, tag="1")]
+    pub binary_id: ::core::option::Option<BinaryId>,
+    #[prost(string, tag="2")]
+    pub bbox_id: ::prost::alloc::string::String,
+    #[prost(string, optional, tag="3")]
+    pub label: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(double, optional, tag="4")]
+    pub x_min_normalized: ::core::option::Option<f64>,
+    #[prost(double, optional, tag="5")]
+    pub y_min_normalized: ::core::option::Option<f64>,
+    #[prost(double, optional, tag="6")]
+    pub x_max_normalized: ::core::option::Option<f64>,
+    #[prost(double, optional, tag="7")]
+    pub y_max_normalized: ::core::option::Option<f64>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UpdateBoundingBoxResponse {
 }
 /// BoundingBoxLabelsByFilterRequest requests all the labels of the bounding boxes from files from a given filter.
 #[allow(clippy::derive_partial_eq_without_eq)]

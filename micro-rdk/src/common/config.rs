@@ -1,11 +1,18 @@
 #![allow(dead_code)]
 #[cfg(feature = "data")]
 use crate::common::data_collector::DataCollectorConfig;
-use crate::google;
-use crate::proto::{app::v1::ComponentConfig, common::v1::ResourceName};
-
-use std::collections::HashMap;
-use std::num::{ParseFloatError, ParseIntError};
+use crate::{
+    google,
+    proto::{
+        app::{agent::v1::DeviceAgentConfigResponse, v1::ComponentConfig},
+        common::v1::ResourceName,
+    },
+};
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::HashMap,
+    num::{ParseFloatError, ParseIntError},
+};
 use thiserror::Error;
 
 #[derive(Error, Debug, Eq, PartialEq)]
@@ -364,6 +371,8 @@ pub trait Component {
             r#type: "component".to_string(),
             subtype: self.get_type().to_string(),
             name: self.get_name().to_string(),
+            local_name: self.get_name().to_string(),
+            remote_path: vec![],
         }
     }
     fn get_attribute<'a, T>(&'a self, key: &str) -> Result<T, AttributeError>
@@ -399,6 +408,73 @@ impl Component for DynamicComponentConfig {
             }
         }
         Err(AttributeError::KeyNotFound(key.to_string()))
+    }
+}
+
+#[derive(Debug)]
+pub struct AgentConfig {
+    pub network_settings: Vec<NetworkSetting>,
+}
+
+impl TryFrom<&DeviceAgentConfigResponse> for AgentConfig {
+    type Error = AttributeError;
+    fn try_from(value: &DeviceAgentConfigResponse) -> Result<Self, Self::Error> {
+        if let Some(additional_networks) = &value.additional_networks {
+            let network_settings = additional_networks
+                .fields
+                .iter()
+                .filter_map(|(_k, v)| {
+                    let local_kind: Option<Kind> =
+                        v.kind.clone().and_then(|v| Kind::try_from(v).ok());
+                    local_kind
+                        .as_ref()
+                        .and_then(|v| NetworkSetting::try_from(v).ok())
+                })
+                .collect::<Vec<NetworkSetting>>();
+            Ok(Self { network_settings })
+        } else {
+            Err(AttributeError::ConversionImpossibleError)
+        }
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct NetworkSetting {
+    ssid: String,
+    password: String,
+    priority: i32,
+}
+
+impl TryFrom<&Kind> for NetworkSetting {
+    type Error = AttributeError;
+    fn try_from(value: &Kind) -> Result<Self, Self::Error> {
+        let ssid: String = value
+            .get("ssid")?
+            .ok_or(AttributeError::ConversionImpossibleError)?
+            .try_into()?;
+        let password: String = value
+            .get("psk")?
+            .ok_or(AttributeError::ConversionImpossibleError)?
+            .try_into()?;
+        let priority: i32 = value
+            .get("priority")?
+            .ok_or(AttributeError::ConversionImpossibleError)?
+            .try_into()?;
+        Ok(Self {
+            ssid,
+            password,
+            priority,
+        })
+    }
+}
+
+impl std::fmt::Debug for NetworkSetting {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "NetworkSetting {{ ssid: {}, password: ***, priority: {} }}",
+            self.ssid, self.priority
+        )
     }
 }
 

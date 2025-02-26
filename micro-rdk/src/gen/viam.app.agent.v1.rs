@@ -10,26 +10,46 @@ pub struct DeviceAgentConfigRequest {
     #[prost(message, optional, tag="2")]
     pub host_info: ::core::option::Option<HostInfo>,
     /// current subsystems and versions
+    /// DEPRECATED in favor of version_info
     #[prost(map="string, string", tag="3")]
     pub subsystem_versions: ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
+    /// Currently installed versions for agent and viam-server
+    #[prost(message, optional, tag="4")]
+    pub version_info: ::core::option::Option<VersionInfo>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DeviceAgentConfigResponse {
     /// subsystems to be installed/configured/updated
     /// note: previously installed subsystems will be removed from the system if removed from this list
+    /// DEPRECATED in favor of indidivual update_info and settings fields
     #[prost(map="string, message", tag="1")]
     pub subsystem_configs: ::std::collections::HashMap<::prost::alloc::string::String, DeviceSubsystemConfig>,
     /// how often this request should be repeated
     #[prost(message, optional, tag="2")]
     pub check_interval: ::core::option::Option<super::super::super::super::google::protobuf::Duration>,
+    /// update info for agent and viam-server, parsed/processed in App
+    #[prost(message, optional, tag="3")]
+    pub agent_update_info: ::core::option::Option<UpdateInfo>,
+    #[prost(message, optional, tag="4")]
+    pub viam_server_update_info: ::core::option::Option<UpdateInfo>,
+    /// various settings that are passed directly to device Agent
+    #[prost(message, optional, tag="5")]
+    pub advanced_settings: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
+    #[prost(message, optional, tag="6")]
+    pub network_configuration: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
+    #[prost(message, optional, tag="7")]
+    pub additional_networks: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
+    #[prost(message, optional, tag="8")]
+    pub system_configuration: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
+/// DEPRECATED as of January 2025
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DeviceSubsystemConfig {
     /// data needed to download/validate the subsystem
     #[prost(message, optional, tag="1")]
-    pub update_info: ::core::option::Option<SubsystemUpdateInfo>,
+    pub update_info: ::core::option::Option<UpdateInfo>,
     /// if this subsystem is disabled and should not be started by the agent
     #[prost(bool, tag="2")]
     pub disable: bool,
@@ -39,6 +59,22 @@ pub struct DeviceSubsystemConfig {
     /// arbitrary config sections
     #[prost(message, optional, tag="4")]
     pub attributes: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct VersionInfo {
+    /// the version of agent currently running and making the request
+    #[prost(string, tag="1")]
+    pub agent_running: ::prost::alloc::string::String,
+    /// the version of agent installed (will run after restart if different)
+    #[prost(string, tag="2")]
+    pub agent_installed: ::prost::alloc::string::String,
+    /// the version of viam-server currently running
+    #[prost(string, tag="3")]
+    pub viam_server_running: ::prost::alloc::string::String,
+    /// the version of viam-server installed (will run after restart if different)
+    #[prost(string, tag="4")]
+    pub viam_server_installed: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -56,7 +92,7 @@ pub struct HostInfo {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SubsystemUpdateInfo {
+pub struct UpdateInfo {
     /// unpacked filename as it is expected on disk (regardless of url)
     #[prost(string, tag="1")]
     pub filename: ::prost::alloc::string::String,

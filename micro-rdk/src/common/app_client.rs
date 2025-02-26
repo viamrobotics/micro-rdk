@@ -2,9 +2,15 @@
 use crate::proto::app::v1::CertificateRequest;
 use crate::proto::app::v1::CertificateResponse;
 use crate::proto::{
-    app::v1::{
-        AgentInfo, ConfigRequest, ConfigResponse, LogRequest, NeedsRestartRequest,
-        NeedsRestartResponse,
+    app::{
+        agent::v1::{
+            DeviceAgentConfigRequest, DeviceAgentConfigResponse, DeviceSubsystemConfig, HostInfo,
+            VersionInfo,
+        },
+        v1::{
+            AgentInfo, ConfigRequest, ConfigResponse, LogRequest, NeedsRestartRequest,
+            NeedsRestartResponse,
+        },
     },
     common::v1::LogEntry,
     rpc::{
@@ -257,6 +263,7 @@ impl AppClient {
             version: env!("CARGO_PKG_VERSION").to_string(),
             git_revision: "".to_string(),
             platform: Some("esp32".to_string()),
+            platform_tags: vec![],
         });
 
         let req = ConfigRequest {
@@ -320,6 +327,46 @@ impl AppClient {
         let cfg_response = ConfigResponse::decode(r.split_off(5))?;
 
         Ok((Box::new(cfg_response), datetime))
+    }
+
+    pub async fn get_agent_config(&self) -> Result<Box<DeviceAgentConfigResponse>, AppClientError> {
+        let host_info = Some(HostInfo {
+            platform: "micro-rdk/esp32".to_string(),
+            distro: "esp32".to_string(),
+            tags: Default::default(),
+        });
+
+        let version_info = Some(VersionInfo {
+            agent_running: "none".to_string(),
+            ..Default::default()
+        });
+
+        let req = DeviceAgentConfigRequest {
+            id: self.robot_credentials.robot_id.clone(),
+            host_info,
+            version_info,
+            ..Default::default()
+        };
+        let body = encode_request(req)?;
+
+        let r = self
+            .grpc_client
+            .build_request(
+                "/viam.app.agent.v1.AgentDeviceService/DeviceAgentConfig",
+                Some(&self.jwt),
+                "",
+                BodyExt::boxed(Full::new(body).map_err(|never| match never {})),
+            )
+            .map_err(AppClientError::AppGrpcClientError)?;
+
+        let (mut r, headers) = self.grpc_client.send_request(r).await?;
+
+        if r.is_empty() {
+            return Err(AppClientError::AppClientEmptyBody);
+        }
+        let cfg_response = DeviceAgentConfigResponse::decode(r.split_off(5))?;
+
+        Ok(Box::new(cfg_response))
     }
 
     pub async fn push_logs(&self, logs: Vec<LogEntry>) -> Result<(), AppClientError> {

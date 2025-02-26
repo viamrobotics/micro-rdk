@@ -67,8 +67,6 @@ def get_summary_for_platform(coll: collection.Collection, platform: str) -> Tupl
     avg_connection_attempts = connection_attempts / num_results
     
     total_board_calls = board_api_successes + board_api_failures
-    if total_board_calls == 0:
-        post_to_slack_critical_error(platform)
     summary = {
         "date": start_of_day,
         "successes": successes,
@@ -79,7 +77,7 @@ def get_summary_for_platform(coll: collection.Collection, platform: str) -> Tupl
         "sdk_version": sdk_version
     }
     failure_rate = round(connection_failures / num_results, 3)
-    board_failure_rate = round(board_api_failures / total_board_calls)
+    board_failure_rate = round(board_api_failures / total_board_calls) if total_board_calls != 0 else 0
     return (summary, failure_rate, board_failure_rate, sdk_version)
 
 def post_to_slack_on_failure(failure_rate: float, board_failure_rate: float, platform: str, version: str):
@@ -110,7 +108,7 @@ def post_error_to_slack(msg: str):
         api_result.validate()
         raise Exception(msg)
     except Exception as e:
-        raise Exception(f"failure to post to Slack, error message was '{msg}'") from e
+        raise Exception(f"failure to post to Slack, error message was '{e}'")
 
 if __name__ == '__main__':
     main()

@@ -71,6 +71,11 @@ pub mod proto {
         pub mod v1 {
             include!("gen/viam.app.v1.rs");
         }
+        pub mod agent {
+            pub mod v1 {
+                include!("gen/viam.app.agent.v1.rs");
+            }
+        }
         pub mod packages {
             pub mod v1 {
                 include!("gen/viam.app.packages.v1.rs");
@@ -88,6 +93,14 @@ pub mod proto {
         pub mod mltraining {
             pub mod v1 {
                 include!("gen/viam.app.mltraining.v1.rs");
+            }
+        }
+
+        // responsible to proto dependency, same issue as above
+        #[cfg(feature = "data")]
+        pub mod data {
+            pub mod v1 {
+                include!("gen/viam.app.data.v1.rs");
             }
         }
     }
