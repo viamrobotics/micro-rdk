@@ -10,7 +10,7 @@ use micro_rdk::{
     common::{
         conn::{server::WebRtcConfiguration, viam::ViamServerBuilder},
         credentials_storage::{
-            RobotConfigurationStorage, RobotCredentials, NetworkSettingsStorage, NetworkSetting,
+            NetworkSetting, RobotConfigurationStorage, RobotCredentials, WifiCredentialsStorage,
         },
         exec::Executor,
         log::initialize_logger,
@@ -75,7 +75,7 @@ fn main() {
                 .store_default_network(&NetworkSetting::new(
                     SSID.unwrap().to_string(),
                     PASS.unwrap().to_string(),
-                    0
+                    0,
                 ))
                 .expect("Failed to store WiFi credentials to NVS");
         }

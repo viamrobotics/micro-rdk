@@ -9,8 +9,8 @@ use crate::{
     common::{
         config::NetworkSetting,
         credentials_storage::{
-            EmptyStorageCollectionError, NetworkSettingsStorage, RobotConfigurationStorage,
-            RobotCredentials, StorageDiagnostic, TlsCertificate,
+            EmptyStorageCollectionError, RobotConfigurationStorage, RobotCredentials,
+            StorageDiagnostic, TlsCertificate, WifiCredentials, WifiCredentialsStorage,
         },
         grpc::{GrpcError, ServerError},
     },
@@ -320,7 +320,7 @@ impl RobotConfigurationStorage for NVSStorage {
     }
 }
 
-impl NetworkSettingsStorage for NVSStorage {
+impl WifiCredentialsStorage for NVSStorage {
     type Error = NVSStorageError;
     fn has_network_settings(&self) -> bool {
         self.has_blob(NVS_NETWORK_SETTINGS_KEY).unwrap_or(false)
@@ -350,6 +350,20 @@ impl NetworkSettingsStorage for NVSStorage {
         self.erase_key(NVS_NETWORK_SETTINGS_KEY)?;
         Ok(())
     }
+
+    fn has_wifi_credentials(&self) -> bool {
+        self.has_default_network()
+    }
+
+    fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error> {
+        let network = NetworkSetting {
+            ssid: creds.ssid.clone(),
+            password: creds.pwd.clone(),
+            priority: 0,
+        };
+        self.store_default_network(&network)
+    }
+
     fn has_default_network(&self) -> bool {
         self.has_string(NVS_DEFAULT_SSID_KEY).unwrap_or(false)
             && self.has_string(NVS_DEFAULT_PASSWORD_KEY).unwrap_or(false)

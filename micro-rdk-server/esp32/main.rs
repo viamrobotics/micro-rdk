@@ -26,7 +26,7 @@ mod esp32 {
         common::{
             config::NetworkSetting,
             credentials_storage::{
-                NetworkSettingsStorage, RobotConfigurationStorage, RobotCredentials,
+                RobotConfigurationStorage, RobotCredentials, WifiCredentialsStorage,
             },
             log::initialize_logger,
             provisioning::server::ProvisioningInfo,

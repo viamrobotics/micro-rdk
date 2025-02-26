@@ -38,7 +38,7 @@ use crate::common::webrtc::api::{SignalingTask, WebRtcApi, WebRtcError, WebRtcSi
 use crate::common::webrtc::certificate::Certificate;
 use crate::common::webrtc::dtls::DtlsBuilder;
 use crate::common::{
-    credentials_storage::{NetworkSettingsStorage, RobotConfigurationStorage},
+    credentials_storage::{RobotConfigurationStorage, WifiCredentialsStorage},
     exec::Executor,
 };
 use crate::proto;
@@ -91,19 +91,19 @@ impl From<&proto::app::v1::CloudConfig> for RobotCloudConfig {
 
 #[cfg(not(feature = "ota"))]
 pub trait ViamServerStorage:
-    RobotConfigurationStorage + NetworkSettingsStorage + StorageDiagnostic + Clone + 'static
+    RobotConfigurationStorage + WifiCredentialsStorage + StorageDiagnostic + Clone + 'static
 {
 }
 #[cfg(not(feature = "ota"))]
 impl<T> ViamServerStorage for T where
-    T: RobotConfigurationStorage + NetworkSettingsStorage + StorageDiagnostic + Clone + 'static
+    T: RobotConfigurationStorage + WifiCredentialsStorage + StorageDiagnostic + Clone + 'static
 {
 }
 
 #[cfg(feature = "ota")]
 pub trait ViamServerStorage:
     RobotConfigurationStorage
-    + NetworkSettingsStorage
+    + WifiCredentialsStorage
     + OtaMetadataStorage
     + StorageDiagnostic
     + Clone
@@ -113,7 +113,7 @@ pub trait ViamServerStorage:
 #[cfg(feature = "ota")]
 impl<T> ViamServerStorage for T where
     T: RobotConfigurationStorage
-        + NetworkSettingsStorage
+        + WifiCredentialsStorage
         + OtaMetadataStorage
         + StorageDiagnostic
         + Clone
@@ -492,7 +492,6 @@ where
         // if wifi manager is configured loop forever until wifi is connected via
         // a the provisioned network or one from previously stored agent config
         if let Some(wifi) = self.wifi_manager.as_ref().as_ref() {
-            // TODO: reimplement `get_all_networks` placeholder in NetworkSettingsStorage after RSDK-9887
             let mut networks = self.storage.get_all_networks().unwrap();
             networks.sort_by(|a, b| b.priority.cmp(&a.priority));
             log::debug!("networks to try: {:?}", networks);
