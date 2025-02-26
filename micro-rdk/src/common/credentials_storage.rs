@@ -98,7 +98,7 @@ pub trait WifiCredentialsStorage {
     fn get_network_settings(&self) -> Result<Vec<NetworkSetting>, Self::Error>;
     fn reset_network_settings(&self) -> Result<(), Self::Error>;
 
-    // TODO(): remove the following two after updating template to new apis
+    // TODO(RSDK-10105): remove the following two after updating template to new apis
     fn has_wifi_credentials(&self) -> bool;
     fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error>;
 
