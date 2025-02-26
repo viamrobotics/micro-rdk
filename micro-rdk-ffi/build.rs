@@ -70,7 +70,7 @@ fn main() {
             .id
             .clone();
 
-        let viam_modules: Vec<_> = metadata
+        let viam_modules_filter = metadata
             // Obtain the dependency graph from the metadata and iterate its nodes
             .resolve
             .as_ref()
@@ -95,8 +95,14 @@ fn main() {
                 metadata[&dep.pkg].metadata["com"]["viam"]["module"]
                     .as_bool()
                     .unwrap_or(false)
-            })
-            .collect();
+            });
+        // this is because feature-based dependency resolution only occurs after the build script
+        // runs
+        #[cfg(not(feature = "viamboat"))]
+        let viam_modules_filter =
+            viam_modules_filter.filter(|dep| dep.name.as_str() != "micro_rdk_nmea");
+        let viam_modules: Vec<_> = viam_modules_filter.collect();
+
         let out_dir = env::var_os("OUT_DIR").expect("OUT_DIR environment variable unset");
 
         let mut modules_rs_content = String::new();

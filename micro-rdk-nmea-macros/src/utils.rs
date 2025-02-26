@@ -15,6 +15,8 @@ pub(crate) enum UnitConversion {
     PascalToBar,
     RadianToDegree,
     RadPerSecToDegPerSec,
+    MetersPerSecToKnots,
+    MetersToNauticalMiles,
 }
 
 impl TryFrom<&str> for UnitConversion {
@@ -26,6 +28,8 @@ impl TryFrom<&str> for UnitConversion {
             "C" => Ok(Self::KelvinToCelsius),
             "deg" => Ok(Self::RadianToDegree),
             "deg/s" => Ok(Self::RadPerSecToDegPerSec),
+            "knots" => Ok(Self::MetersPerSecToKnots),
+            "M" => Ok(Self::MetersToNauticalMiles),
             x => Err(error_tokens(
                 format!("encountered unsupported unit {:?}", x).as_str(),
             )),
@@ -47,6 +51,12 @@ impl UnitConversion {
             },
             Self::RadianToDegree | Self::RadPerSecToDegPerSec => quote! {
                 let result = (result as f64) * (180.0 / std::f64::consts::PI);
+            },
+            Self::MetersPerSecToKnots => quote! {
+                let result = (result as f64) * 1.94384;
+            },
+            Self::MetersToNauticalMiles => quote! {
+                let result = (result as f64) * 0.000539957;
             },
         }
     }

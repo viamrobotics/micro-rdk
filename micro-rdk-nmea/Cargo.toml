@@ -10,9 +10,17 @@ rust-version.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+esp32 = ['micro-rdk/esp32']
+native = ['micro-rdk/native']
+
 [dependencies]
 base64 = { workspace = true }
 chrono = { workspace = true }
-micro-rdk = { workspace = true, features = ["native"] }
+log = { workspace = true }
+micro-rdk = { workspace = true }
 micro-rdk-nmea-macros = { workspace = true }
 thiserror = { workspace = true }
+
+[package.metadata.com.viam]
+module = true

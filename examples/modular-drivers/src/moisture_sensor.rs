@@ -5,14 +5,11 @@ use std::{
 
 use micro_rdk::{
     common::{
-        analog::AnalogReaderType,
+        analog::{AnalogError, AnalogReader, AnalogReaderType},
         board::Board,
         config::ConfigType,
         registry::{get_board_from_dependencies, ComponentRegistry, Dependency, RegistryError},
-        sensor::{
-            GenericReadingsResult, Readings, Sensor, SensorError, SensorResult, SensorT,
-            SensorType, TypedReadingsResult,
-        },
+        sensor::{GenericReadingsResult, Readings, Sensor, SensorError, SensorResult, SensorType},
         status::{Status, StatusError},
     },
     google::protobuf,
@@ -24,12 +21,14 @@ pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryE
     Ok(())
 }
 
+// TODO: When RSDK-9955 has been completed change back to reader explicitly being an AnalogReaderType
+// instance and remove generics
 #[derive(DoCommand)]
-pub struct MoistureSensor {
-    reader: AnalogReaderType<u16>,
+pub struct MoistureSensor<T: AnalogReader<u16, Error = AnalogError>> {
+    reader: T,
 }
 
-impl MoistureSensor {
+impl MoistureSensor<AnalogReaderType<u16>> {
     pub fn from_config(_cfg: ConfigType, deps: Vec<Dependency>) -> Result<SensorType, SensorError> {
         let board = get_board_from_dependencies(deps);
         if board.is_none() {
@@ -46,28 +45,20 @@ impl MoistureSensor {
     }
 }
 
-impl Sensor for MoistureSensor {}
+impl<T: AnalogReader<u16, Error = AnalogError>> Sensor for MoistureSensor<T> {}
 
-impl Readings for MoistureSensor {
+impl<T: AnalogReader<u16, Error = AnalogError>> Readings for MoistureSensor<T> {
     fn get_generic_readings(&mut self) -> Result<GenericReadingsResult, SensorError> {
-        Ok(self
-            .get_readings()?
-            .into_iter()
+        let mut x: HashMap<String, f64> = HashMap::new();
+        let reading = self.reader.read()?;
+        x.insert("millivolts".to_string(), reading as f64);
+        Ok(x.into_iter()
             .map(|v| (v.0, SensorResult::<f64> { value: v.1 }.into()))
             .collect())
     }
 }
 
-impl SensorT<f64> for MoistureSensor {
-    fn get_readings(&self) -> Result<TypedReadingsResult<f64>, SensorError> {
-        let reading = self.reader.lock().unwrap().read()?;
-        let mut x = HashMap::new();
-        x.insert("millivolts".to_string(), reading as f64);
-        Ok(x)
-    }
-}
-
-impl Status for MoistureSensor {
+impl<T: AnalogReader<u16, Error = AnalogError>> Status for MoistureSensor<T> {
     fn get_status(&self) -> Result<Option<micro_rdk::google::protobuf::Struct>, StatusError> {
         Ok(Some(protobuf::Struct {
             fields: HashMap::new(),
