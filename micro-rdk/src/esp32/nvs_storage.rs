@@ -10,7 +10,7 @@ use crate::{
         config::NetworkSetting,
         credentials_storage::{
             EmptyStorageCollectionError, RobotConfigurationStorage, RobotCredentials,
-            StorageDiagnostic, TlsCertificate, WifiCredentials, WifiCredentialsStorage,
+            StorageDiagnostic, TlsCertificate, WifiCredentialStorage, WifiCredentials,
         },
         grpc::{GrpcError, ServerError},
     },
@@ -320,7 +320,7 @@ impl RobotConfigurationStorage for NVSStorage {
     }
 }
 
-impl WifiCredentialsStorage for NVSStorage {
+impl WifiCredentialStorage for NVSStorage {
     type Error = NVSStorageError;
     fn has_network_settings(&self) -> bool {
         self.has_blob(NVS_NETWORK_SETTINGS_KEY).unwrap_or(false)

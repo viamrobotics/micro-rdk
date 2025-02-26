@@ -91,7 +91,7 @@ impl WifiCredentials {
     }
 }
 
-pub trait WifiCredentialsStorage {
+pub trait WifiCredentialStorage {
     type Error: Error + Debug + Into<ServerError>;
     fn has_network_settings(&self) -> bool;
     fn store_network_settings(&self, networks: &[NetworkSetting]) -> Result<(), Self::Error>;
@@ -196,7 +196,7 @@ impl RAMStorage {
     }
 }
 
-impl WifiCredentialsStorage for RAMStorage {
+impl WifiCredentialStorage for RAMStorage {
     type Error = RAMStorageError;
     fn has_network_settings(&self) -> bool {
         let inner_ref = self.0.lock().unwrap();
@@ -257,7 +257,7 @@ impl WifiCredentialsStorage for RAMStorage {
     }
 }
 
-impl<Iterable, Storage: WifiCredentialsStorage> WifiCredentialsStorage for Iterable
+impl<Iterable, Storage: WifiCredentialStorage> WifiCredentialStorage for Iterable
 where
     for<'a> &'a Iterable: IntoIterator<Item = &'a Storage>,
     Storage::Error: From<EmptyStorageCollectionError>,
@@ -265,7 +265,7 @@ where
     type Error = Storage::Error;
     fn has_network_settings(&self) -> bool {
         self.into_iter()
-            .any(WifiCredentialsStorage::has_network_settings)
+            .any(WifiCredentialStorage::has_network_settings)
     }
     fn get_network_settings(&self) -> Result<Vec<NetworkSetting>, Self::Error> {
         self.into_iter().fold(
@@ -287,7 +287,7 @@ where
     }
     fn has_wifi_credentials(&self) -> bool {
         self.into_iter()
-            .any(WifiCredentialsStorage::has_wifi_credentials)
+            .any(WifiCredentialStorage::has_wifi_credentials)
     }
     fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error> {
         self.into_iter().fold(
@@ -297,7 +297,7 @@ where
     }
     fn has_default_network(&self) -> bool {
         self.into_iter()
-            .any(WifiCredentialsStorage::has_default_network)
+            .any(WifiCredentialStorage::has_default_network)
     }
     fn get_default_network(&self) -> Result<NetworkSetting, Self::Error> {
         self.into_iter().fold(

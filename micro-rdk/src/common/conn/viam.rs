@@ -38,7 +38,7 @@ use crate::common::webrtc::api::{SignalingTask, WebRtcApi, WebRtcError, WebRtcSi
 use crate::common::webrtc::certificate::Certificate;
 use crate::common::webrtc::dtls::DtlsBuilder;
 use crate::common::{
-    credentials_storage::{RobotConfigurationStorage, WifiCredentialsStorage},
+    credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage},
     exec::Executor,
 };
 use crate::proto;
@@ -91,19 +91,19 @@ impl From<&proto::app::v1::CloudConfig> for RobotCloudConfig {
 
 #[cfg(not(feature = "ota"))]
 pub trait ViamServerStorage:
-    RobotConfigurationStorage + WifiCredentialsStorage + StorageDiagnostic + Clone + 'static
+    RobotConfigurationStorage + WifiCredentialStorage + StorageDiagnostic + Clone + 'static
 {
 }
 #[cfg(not(feature = "ota"))]
 impl<T> ViamServerStorage for T where
-    T: RobotConfigurationStorage + WifiCredentialsStorage + StorageDiagnostic + Clone + 'static
+    T: RobotConfigurationStorage + WifiCredentialStorage + StorageDiagnostic + Clone + 'static
 {
 }
 
 #[cfg(feature = "ota")]
 pub trait ViamServerStorage:
     RobotConfigurationStorage
-    + WifiCredentialsStorage
+    + WifiCredentialStorage
     + OtaMetadataStorage
     + StorageDiagnostic
     + Clone
@@ -113,7 +113,7 @@ pub trait ViamServerStorage:
 #[cfg(feature = "ota")]
 impl<T> ViamServerStorage for T where
     T: RobotConfigurationStorage
-        + WifiCredentialsStorage
+        + WifiCredentialStorage
         + OtaMetadataStorage
         + StorageDiagnostic
         + Clone
