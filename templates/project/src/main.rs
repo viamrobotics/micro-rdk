@@ -10,7 +10,7 @@ use micro_rdk::{
     common::{
         conn::{server::WebRtcConfiguration, viam::ViamServerBuilder},
         credentials_storage::{
-            RobotConfigurationStorage, RobotCredentials, WifiCredentials, WifiCredentialsStorage,
+            RobotConfigurationStorage, RobotCredentials, WifiCredentialsStorage, WifiCredentials,
         },
         exec::Executor,
         log::initialize_logger,
