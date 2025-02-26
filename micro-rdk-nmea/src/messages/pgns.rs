@@ -22,7 +22,7 @@ pub struct Speed {
     #[pgn = 128259]
     _pgn: PhantomData<u32>,
 
-    source_id: u8,
+    sequence_id: u8,
 
     #[scale = 0.01]
     #[unit = "knots"]
@@ -44,7 +44,7 @@ pub struct WaterDepth {
     #[pgn = 128267]
     _pgn: PhantomData<u32>,
 
-    source_id: u8,
+    sequence_id: u8,
 
     #[scale = 0.01]
     depth: u32,
@@ -78,7 +78,7 @@ pub struct TemperatureExtendedRange {
     #[pgn = 130316]
     _pgn: PhantomData<u32>,
 
-    source_id: u8,
+    sequence_id: u8,
 
     instance: u8,
 
@@ -107,7 +107,7 @@ pub struct GnssPositionData {
     #[pgn = 129029]
     _pgn: PhantomData<u32>,
 
-    source_id: u8,
+    sequence_id: u8,
 
     date: u16,
 
@@ -187,7 +187,7 @@ pub struct GnssSatsInView {
     #[pgn = 129540]
     _pgn: PhantomData<u32>,
 
-    source_id: u8,
+    sequence_id: u8,
 
     #[lookup]
     #[bits = 2]
@@ -218,7 +218,7 @@ pub struct CogSog {
     #[pgn = 129026]
     _pgn: PhantomData<u32>,
 
-    source_id: u8,
+    sequence_id: u8,
 
     #[lookup]
     #[bits = 2]
@@ -238,7 +238,7 @@ pub struct VesselHeading {
     #[pgn = 127250]
     _pgn: PhantomData<u32>,
 
-    source_id: u8,
+    sequence_id: u8,
 
     #[scale = 0.0001]
     #[unit = "deg"]
@@ -262,7 +262,7 @@ pub struct Attitude {
     #[pgn = 127257]
     _pgn: PhantomData<u32>,
 
-    source_id: u8,
+    sequence_id: u8,
 
     #[scale = 0.0001]
     #[unit = "deg"]

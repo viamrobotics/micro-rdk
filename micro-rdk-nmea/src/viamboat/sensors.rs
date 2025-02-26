@@ -2,7 +2,7 @@
 //! raw NMEA message data. The data is expected to be a hashmap with key-value pairs of the form
 //! "<PGN in hex>-<source>": "<raw data encoded as a string in base64>" (example below)
 //!
-//! ```
+//! ```ignore
 //! {
 //!     "1FD0A-16": "Cv0BAHg+gD8voKFnAAAAAIdQAwAAAAAACAD/ABYAAgBbAADgeg8A/w==",
 //!     "1FD0C-23": "DP0BAHg+gD8voKFnAAAAAL+PAwAAAAAACAD/ACMAAgD/AABQkAT//w==",
@@ -415,6 +415,8 @@ impl MovementSensor for ViamboatMovementSensor {
             },
         )
     }
+    // TODO: When RSDK-10106 is merged, change the implementation to call get_data and determine values
+    // based on whether certain key/values are missing
     fn get_properties(&self) -> MovementSensorSupportedMethods {
         MovementSensorSupportedMethods {
             position_supported: true,

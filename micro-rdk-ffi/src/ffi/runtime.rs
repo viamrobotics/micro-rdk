@@ -61,6 +61,8 @@ pub extern "C" fn init_viam_server_context() -> *mut viam_server_context {
     let registry = Box::<ComponentRegistry>::default();
     #[cfg(target_os = "espidf")]
     initialize_logger::<micro_rdk::esp32::esp_idf_svc::log::EspLogger>();
+    #[cfg(not(target_os = "espidf"))]
+    initialize_logger::<env_logger::Logger>();
     let mut provisioning_info = ProvisioningInfo::default();
     provisioning_info.set_manufacturer("viam".to_owned());
     provisioning_info.set_model("ffi-provisioning".to_owned());
@@ -259,10 +261,6 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
 
     let mut ctx = unsafe { Box::from_raw(ctx) };
 
-    #[cfg(not(target_os = "espidf"))]
-    {
-        initialize_logger::<env_logger::Logger>();
-    }
     #[cfg(target_os = "espidf")]
     {
         micro_rdk::esp32::esp_idf_svc::sys::link_patches();

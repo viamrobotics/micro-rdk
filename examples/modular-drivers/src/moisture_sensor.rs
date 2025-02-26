@@ -21,6 +21,8 @@ pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryE
     Ok(())
 }
 
+// TODO: When RSDK-9955 has been completed change back to reader explicitly being an AnalogReaderType
+// instance and remove generics
 #[derive(DoCommand)]
 pub struct MoistureSensor<T: AnalogReader<u16, Error = AnalogError>> {
     reader: T,
