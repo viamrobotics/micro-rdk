@@ -244,20 +244,20 @@ where
     }
     async fn set_network_credential_request(&self, body: Bytes) -> Result<Bytes, ServerError> {
         if let Some(wifi_manager) = self.wifi_manager.as_ref() {
-            let creds: NetworkSetting = SetNetworkCredentialsRequest::decode(body)
+            let network: NetworkSetting = SetNetworkCredentialsRequest::decode(body)
                 .map_err(|e| ServerError::new(GrpcError::RpcInternal, Some(e.into())))?
                 .into();
 
             // may not be the best place to attempt to validate passed credentials
             wifi_manager
-                .try_connect(&creds.ssid, &creds.password)
+                .try_connect(&network.ssid, &network.password)
                 .await
                 .map_err(|err| {
                     ServerError::new(GrpcError::RpcInvalidArgument, Some(Box::new(err)))
                 })?;
 
             self.storage
-                .store_default_network(&creds)
+                .store_default_network(&network.ssid, &network.password)
                 .map_err(|e| ServerError::new(GrpcError::RpcInternal, Some(Box::new(e.into()))))?;
 
             let resp = SetNetworkCredentialsResponse::default();

@@ -356,12 +356,7 @@ impl WifiCredentialsStorage for NVSStorage {
     }
 
     fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error> {
-        let network = NetworkSetting {
-            ssid: creds.ssid.clone(),
-            password: creds.pwd.clone(),
-            priority: 0,
-        };
-        self.store_default_network(&network)
+        self.store_default_network(&creds.ssid, &creds.pwd)
     }
 
     fn has_default_network(&self) -> bool {
@@ -392,9 +387,9 @@ impl WifiCredentialsStorage for NVSStorage {
         Ok(networks)
     }
 
-    fn store_default_network(&self, network: &NetworkSetting) -> Result<(), Self::Error> {
-        self.set_string(NVS_DEFAULT_SSID_KEY, &network.ssid)?;
-        self.set_string(NVS_DEFAULT_PASSWORD_KEY, &network.password)
+    fn store_default_network(&self, ssid: &str, password: &str) -> Result<(), Self::Error> {
+        self.set_string(NVS_DEFAULT_SSID_KEY, ssid)?;
+        self.set_string(NVS_DEFAULT_PASSWORD_KEY, password)
             .inspect_err(|_| {
                 let _ = self.erase_key(NVS_DEFAULT_SSID_KEY);
             })?;

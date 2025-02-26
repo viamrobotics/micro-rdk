@@ -24,7 +24,6 @@ mod esp32 {
     use micro_rdk::esp32::tcp::Esp32H2Connector;
     use micro_rdk::{
         common::{
-            config::NetworkSetting,
             credentials_storage::{
                 RobotConfigurationStorage, RobotCredentials, WifiCredentialsStorage,
             },
@@ -83,11 +82,7 @@ mod esp32 {
             if SSID.is_some() && PASS.is_some() {
                 log::info!("Storing static values from build time wifi configuration to NVS");
                 storage
-                    .store_default_network(&NetworkSetting::new(
-                        SSID.unwrap().to_string(),
-                        PASS.unwrap().to_string(),
-                        0,
-                    ))
+                    .store_default_network(SSID.unwrap(), PASS.unwrap())
                     .expect("Failed to store WiFi credentials to NVS");
             }
         }

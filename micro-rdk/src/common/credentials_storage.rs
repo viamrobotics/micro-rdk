@@ -103,7 +103,7 @@ pub trait WifiCredentialsStorage {
     fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error>;
 
     fn has_default_network(&self) -> bool;
-    fn store_default_network(&self, network: &NetworkSetting) -> Result<(), Self::Error>;
+    fn store_default_network(&self, ssid: &str, password: &str) -> Result<(), Self::Error>;
     fn get_default_network(&self) -> Result<NetworkSetting, Self::Error>;
     fn reset_default_network(&self) -> Result<(), Self::Error>;
     fn get_all_networks(&self) -> Result<Vec<NetworkSetting>, Self::Error>;
@@ -229,20 +229,19 @@ impl WifiCredentialsStorage for RAMStorage {
         self.has_default_network()
     }
     fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error> {
-        let network = NetworkSetting {
-            ssid: creds.ssid.clone(),
-            password: creds.pwd.clone(),
-            priority: 0,
-        };
-        self.store_default_network(&network)
+        self.store_default_network(&creds.ssid, &creds.pwd)
     }
     fn has_default_network(&self) -> bool {
         let inner_ref = self.0.lock().unwrap();
         inner_ref.default_network.is_some()
     }
-    fn store_default_network(&self, network: &NetworkSetting) -> Result<(), Self::Error> {
+    fn store_default_network(&self, ssid: &str, password: &str) -> Result<(), Self::Error> {
         let mut inner_ref = self.0.lock().unwrap();
-        let _ = inner_ref.default_network.insert(network.clone());
+        let _ = inner_ref.default_network.insert(NetworkSetting {
+            ssid: ssid.to_string(),
+            password: password.to_string(),
+            priority: 0,
+        });
         Ok(())
     }
     fn reset_default_network(&self) -> Result<(), Self::Error> {
@@ -306,10 +305,10 @@ where
             |val, s| val.or_else(|_| s.get_default_network()),
         )
     }
-    fn store_default_network(&self, network: &NetworkSetting) -> Result<(), Self::Error> {
+    fn store_default_network(&self, ssid: &str, password: &str) -> Result<(), Self::Error> {
         self.into_iter().fold(
             Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
-            |val, s| val.or_else(|_| s.store_default_network(network)),
+            |val, s| val.or_else(|_| s.store_default_network(ssid, password)),
         )
     }
     fn reset_default_network(&self) -> Result<(), Self::Error> {
