@@ -1,9 +1,5 @@
 # Over-The-Air (OTA) Updates
 
-
-**OTA is in active development. Breaking changes should be expected. Check this document frequently for updates.****
-
-
 ## Workflow
 
 In [app.viam.com](app.viam.com), add the following to the `services` array; you can alternatively add a `generic` service then edit it to match the following

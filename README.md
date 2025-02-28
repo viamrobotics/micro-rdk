@@ -4,7 +4,6 @@ Table of Contents
 - [Table of Contents](#table-of-contents)
 - [Micro-RDK (Robot Development Kit for Microcontrollers)](#micro-rdk-robot-development-kit-for-microcontrollers)
   - [Contact](#contact)
-  - [(In)stability Notice](#instability-notice)
   - [Getting Started](#getting-started)
   - [License](#license)
 
@@ -28,11 +27,6 @@ the ESP32.
 - Support: <https://support.viam.com>
 
 If you have a bug or an idea, please open an issue [here](https://viam.atlassian.net/servicedesk/customer/portal/7).
-
-## (In)stability Notice
-
-> **Warning**
-> This is a beta release of the Viam Micro-RDK. Stability is not guaranteed. Breaking changes are likely to occur, and occur often.
 
 ## Getting Started
 
