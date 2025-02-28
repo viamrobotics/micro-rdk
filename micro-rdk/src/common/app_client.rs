@@ -299,6 +299,7 @@ impl AppClient {
             // the config response to set the time of day on the device. This may be replaced
             // by calls to an NTP server in the future
             let local_dt = Local::now().fixed_offset();
+
             // Viam does not pre-exist the year 2020, so if the year is before that
             // at the very least the current time is wrong and needs to be corrected
             if local_dt.year() < VIAM_FOUNDING_YEAR {
@@ -315,6 +316,12 @@ impl AppClient {
                             "could not set time of day for timestamp {:?}: {:?}",
                             current_dt,
                             err
+                        );
+                    })
+                    .inspect(|_| {
+                        log::info!(
+                            "time of day has been set to to {}",
+                            Local::now().fixed_offset()
                         );
                     });
                 }

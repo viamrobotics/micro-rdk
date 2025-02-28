@@ -55,6 +55,8 @@ mod esp32 {
         esp_idf_svc::sys::link_patches();
         initialize_logger::<EspLogger>();
 
+        log::info!("micro-rdk-server started (esp32)");
+
         esp_idf_svc::sys::esp!(unsafe {
             esp_idf_svc::sys::esp_vfs_eventfd_register(
                 &esp_idf_svc::sys::esp_vfs_eventfd_config_t { max_fds: 5 },
@@ -71,30 +73,38 @@ mod esp32 {
 
         let mut registry = Box::<ComponentRegistry>::default();
         register_example_modules(&mut registry);
+
         #[cfg(feature = "qemu")]
         let storage = { RAMStorage::new() }; //NVSStorage::new("nvs").unwrap();
         #[cfg(not(feature = "qemu"))]
         let storage = { NVSStorage::new("nvs").unwrap() };
+
         // At runtime, if the program does not detect credentials or configs in storage,
         // it will try to load statically compiled values.
 
         if !storage.has_wifi_credentials() {
+            log::warn!("no wifi credentials were found in storage");
+
             // check if any were statically compiled
             if SSID.is_some() && PASS.is_some() {
-                log::info!("Storing static values from build time wifi configuration to NVS");
+                log::info!("storing static values from build time wifi configuration to storage");
                 storage
                     .store_wifi_credentials(&WifiCredentials::new(
                         SSID.unwrap().to_string(),
                         PASS.unwrap().to_string(),
                     ))
-                    .expect("Failed to store WiFi credentials to NVS");
+                    .expect("failed to store WiFi credentials to storage");
             }
         }
 
-        if !storage.has_robot_configuration() {
+        if !storage.has_robot_credentials() {
+            log::warn!("no machine credentials were found in storage");
+
             // check if any were statically compiled
             if ROBOT_ID.is_some() && ROBOT_SECRET.is_some() && ROBOT_APP_ADDRESS.is_some() {
-                log::info!("Storing static values from build time robot configuration to NVS");
+                log::info!(
+                    "storing static values from build time machine configuration to storage"
+                );
                 storage
                     .store_robot_credentials(
                         &RobotCredentials::new(
@@ -103,10 +113,10 @@ mod esp32 {
                         )
                         .into(),
                     )
-                    .expect("Failed to store robot credentials to NVS");
+                    .expect("failed to store machine credentials to storage");
                 storage
                     .store_app_address(ROBOT_APP_ADDRESS.unwrap())
-                    .expect("Failed to store app address to NVS")
+                    .expect("failed to store app address to storage")
             }
         }
 

@@ -29,6 +29,8 @@ mod native {
     pub(crate) fn main_native() {
         initialize_logger::<env_logger::Logger>();
 
+        log::info!("micro-rdk-server started (native)");
+
         let network = match local_ip_address::local_ip().expect("error parsing local IP") {
             std::net::IpAddr::V4(ip) => ExternallyManagedNetwork::new(ip),
             _ => panic!("oops expected ipv4"),
@@ -41,10 +43,14 @@ mod native {
         // At runtime, if the program does not detect credentials or configs in storage,
         // it will try to load statically compiled values.
 
-        if !storage.has_robot_configuration() {
+        if !storage.has_robot_credentials() {
+            log::warn!("no machine credentials were found in storage");
+
             // check if any were statically compiled
             if ROBOT_ID.is_some() && ROBOT_SECRET.is_some() && ROBOT_APP_ADDRESS.is_some() {
-                log::info!("Storing static values from build time robot configuration");
+                log::info!(
+                    "storing static values from build time machine configuration to storage"
+                );
                 storage
                     .store_robot_credentials(
                         &RobotCredentials::new(
@@ -53,10 +59,10 @@ mod native {
                         )
                         .into(),
                     )
-                    .expect("Failed to store robot credentials");
+                    .expect("failed to store machine credentials to storage");
                 storage
                     .store_app_address(ROBOT_APP_ADDRESS.unwrap())
-                    .expect("Failed to store app address")
+                    .expect("failed to store app address to storage")
             }
         }
 
