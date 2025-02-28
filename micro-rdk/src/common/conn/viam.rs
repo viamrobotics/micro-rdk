@@ -3,7 +3,7 @@ use async_executor::Task;
 use async_io::{Async, Timer};
 use either::Either;
 
-use futures_lite::{FutureExt, StreamExt};
+use futures_lite::StreamExt;
 use futures_util::stream::FuturesUnordered;
 use futures_util::TryFutureExt;
 use hyper::server::conn::http2;
@@ -21,7 +21,6 @@ use std::net::{SocketAddr, TcpListener};
 use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
-use std::task::Poll;
 use std::time::Duration;
 use std::{fmt::Debug, net::TcpStream};
 
@@ -809,18 +808,26 @@ where
         mut app_client: Option<AppClient>,
     ) -> Result<(), errors::ServerError> {
         let wait = Duration::from_secs(1); // should do exponential back off
+
         loop {
-            if let Some(app_client) = app_client {
-                let mut app_client_tasks: FuturesUnordered<AppClientTaskRunner> =
-                    FuturesUnordered::new();
+            if let Some(app_client) = &app_client {
                 log::info!("starting execution of app client tasks");
+                let mut app_client_tasks: FuturesUnordered<_> = FuturesUnordered::new();
                 for task in &self.app_client_tasks {
-                    app_client_tasks.push(AppClientTaskRunner {
-                        app_client: &app_client,
-                        invoker: task,
-                        state: TaskRunnerState::Run {
-                            task: task.invoke(&app_client),
-                        },
+                    app_client_tasks.push(async move {
+                        let mut duration = task.get_default_period();
+                        loop {
+                            let _ = Timer::after(duration).await;
+                            match task.invoke(app_client).await {
+                                Ok(Some(next_duration)) => {
+                                    duration = next_duration;
+                                }
+                                Ok(None) => {}
+                                e @ Err(_) => {
+                                    break e;
+                                }
+                            }
+                        }
                     });
                 }
                 while let Some(res) = app_client_tasks.next().await {
@@ -833,10 +840,16 @@ where
                     }
                 }
             }
+
+            // Explicitly release the app_client resources before sleeping, and before
+            // trying to construct a new one with `connect_to_app` below.
+            std::mem::drop(app_client.take());
+            let _ = Timer::after(wait).await;
+
             // the only way to reach here is either we had a None passed (app_client wasn't connected at boot)
             // or an error was reported by an underlying task which means that app client
             // is considered gone
-            let _ = Timer::after(wait).await;
+
             log::info!("attempting to reestablish a connection to app for app client tasks");
             app_client = self
                 .connect_to_app()
@@ -1098,84 +1111,6 @@ where
                 log::error!("failed to serve incoming connection: {:?}", e)
             }
         }
-    }
-}
-
-pin_project_lite::pin_project! {
-    #[project = TaskRunnerStateProj]
-    enum TaskRunnerState<'a> {
-    Sleep{#[pin]timer : Timer},
-    Run{ task: std::pin::Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'a>>},
-    }
-}
-
-impl Future for TaskRunnerState<'_> {
-    type Output = Result<Option<Duration>, AppClientError>;
-    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-        match self.project() {
-            TaskRunnerStateProj::Run { task } => {
-                let res = futures_lite::ready!(task.poll(cx));
-                Poll::Ready(res)
-            }
-            TaskRunnerStateProj::Sleep { timer } => {
-                let _ = futures_lite::ready!(timer.poll(cx));
-                Poll::Ready(Ok(None))
-            }
-        }
-    }
-}
-
-pin_project_lite::pin_project! {
-    struct AppClientTaskRunner<'a> {
-    invoker: &'a dyn PeriodicAppClientTask, //need to impl deref?
-    app_client: &'a AppClient,
-    #[pin]
-    state: TaskRunnerState<'a>
-    }
-}
-
-impl Future for AppClientTaskRunner<'_> {
-    type Output = Result<(), AppClientError>;
-    fn poll(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        let res = {
-            let this = self.as_mut().project();
-            futures_lite::ready!(this.state.poll(cx))?
-        };
-        // we need to swap the state between Run,Sleep such as Run -> Sleep or Sleep -> Run
-        // it's not possible in safe rust to mutate the inner state therefore we need to resort to
-        // unsafe code
-        unsafe {
-            // move self.state out of self, from this point on self.state is in an invalid state
-            // because we have it pinned there are no risk of another part of the code reading this field
-            // however if a panic occurs while mutating the state this will lead to UB since
-            // dropping TaskRunner will be invalid
-            // To circumvent this we catch panic as they happen (either when calling self.invoker.invoke() or instantiating
-            // the new timer.
-            // If a panic occurs and abort call will be issued. We could return an error but we would need to either write the value
-            // moved self.state back or put a default value.
-            let old = std::ptr::read(&self.state);
-            let next = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match old {
-                TaskRunnerState::Run { task: _ } => TaskRunnerState::Sleep {
-                    timer: res.map_or(
-                        Timer::after(self.invoker.get_default_period()),
-                        Timer::after,
-                    ),
-                },
-                TaskRunnerState::Sleep { timer: _ } => TaskRunnerState::Run {
-                    task: self.invoker.invoke(self.app_client),
-                },
-            }))
-            .unwrap_or_else(|_| std::process::abort());
-            // move the new value into self.state, the old value will be dropped when leaving the unsafe block
-            std::ptr::write(&mut self.state, next);
-        }
-        // state has changed we need to poll again immediately
-        cx.waker().wake_by_ref();
-
-        Poll::Pending
     }
 }
 
