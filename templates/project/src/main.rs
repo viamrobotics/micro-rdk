@@ -55,6 +55,8 @@ fn main() {
     esp_idf_svc::sys::link_patches();
     initialize_logger::<EspLogger>();
 
+    log::info!("{} started (esp32)", env!("CARGO_PKG_NAME"));
+
     esp_idf_svc::sys::esp!(unsafe {
         esp_idf_svc::sys::esp_vfs_eventfd_register(&esp_idf_svc::sys::esp_vfs_eventfd_config_t {
             max_fds: 5,
@@ -68,23 +70,27 @@ fn main() {
     // it will try to load statically compiled values.
 
     if !storage.has_wifi_credentials() {
+        log::warn!("no wifi credentials were found in storage");
+
         // check if any were statically compiled
         if SSID.is_some() && PASS.is_some() {
-            log::info!("Storing static values from build time wifi configuration to NVS");
+            log::info!("storing static values from build time wifi configuration to storage");
             storage
                 .store_wifi_credentials(&WifiCredentials::new(
                     SSID.unwrap().to_string(),
                     PASS.unwrap().to_string(),
                 ))
-                .expect("Failed to store WiFi credentials to NVS");
+                .expect("failed to store WiFi credentials to storage");
         }
     }
 
     if !storage.has_robot_credentials() {
+        log::warn!("no machine configuration was found in storage");
+
         // check if any were statically compiled
         // TODO(RSDK-9148): update with app address storage logic when version is incremented
         if ROBOT_ID.is_some() && ROBOT_SECRET.is_some() && ROBOT_APP_ADDRESS.is_some() {
-            log::info!("Storing static values from build time robot configuration to NVS");
+            log::info!("storing static values from build time machine configuration to storage");
             storage
                 .store_robot_credentials(
                     &RobotCredentials::new(
@@ -93,10 +99,10 @@ fn main() {
                     )
                     .into(),
                 )
-                .expect("Failed to store robot credentials to NVS");
+                .expect("failed to store machine credentials to storage");
             storage
                 .store_app_address(ROBOT_APP_ADDRESS.unwrap())
-                .expect("Failed to store app address to NVS")
+                .expect("failed to store app address to storage")
         }
     }
 
