@@ -304,15 +304,8 @@ impl<S: OtaMetadataStorage> OtaService<S> {
         self.stored_metadata().unwrap_or_default().version != self.pending_version
     }
 
-    /// Attempts to perform an OTA update.
-    /// On success, returns an `Ok(true)` or `Ok(false)` indicating if a reboot is necessary.
-    pub(crate) async fn update(&mut self) -> Result<bool, OtaError<S>> {
-        if !(self.needs_update()) {
-            return Ok(false);
-        }
-
-        let mut uri = self
-            .url
+    fn parse_uri(&self, url: &str) -> Result<hyper::Uri, OtaError<S>> {
+        let mut uri = url
             .parse::<hyper::Uri>()
             .map_err(|e| ConfigError::InvalidUrl(self.url.clone(), e.to_string()))?;
 
@@ -334,71 +327,113 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             uri = hyper::Uri::from_parts(parts).map_err(|e| OtaError::Other(e.to_string()))?;
         };
 
-        let mut num_tries = 0;
-        let (mut sender, conn) = loop {
-            num_tries += 1;
-            if num_tries == NUM_RETRY_CONN + 1 {
-                return Err(OtaError::Other(
-                    "failed to establish connection".to_string(),
-                ));
-            }
-            match self.connector.connect_to(&uri) {
-                Ok(connection) => {
-                    match connection.await {
-                        Ok(io) => {
-                            match http2::Builder::new(self.exec.clone())
-                                .max_frame_size(16_384) // lowest configurable
-                                .timer(H2Timer)
-                                .handshake(io)
-                                .await
-                            {
-                                Ok(pair) => break pair,
-                                Err(e) => {
-                                    log::error!("failed to build http request: {}", e);
+        Ok(uri)
+    }
+
+    /// Attempts to perform an OTA update.
+    /// On success, returns an `Ok(true)` or `Ok(false)` indicating if a reboot is necessary.
+    pub(crate) async fn update(&mut self) -> Result<bool, OtaError<S>> {
+        if !(self.needs_update()) {
+            return Ok(false);
+        }
+
+        let mut uri = self.parse_uri(&self.url)?;
+        let mut response: hyper::Response<hyper::body::Incoming>;
+
+        let conn = loop {
+            let (mut sender, conn) = loop {
+                let mut num_tries = 0;
+                num_tries += 1;
+                if num_tries == NUM_RETRY_CONN + 1 {
+                    return Err(OtaError::Other(
+                        "failed to establish connection".to_string(),
+                    ));
+                }
+                match self.connector.connect_to(&uri) {
+                    Ok(connection) => {
+                        match connection.await {
+                            Ok(io) => {
+                                match http2::Builder::new(self.exec.clone())
+                                    .max_frame_size(16_384) // lowest configurable
+                                    .timer(H2Timer)
+                                    .handshake(io)
+                                    .await
+                                {
+                                    Ok(pair) => break pair,
+                                    Err(e) => {
+                                        log::error!("failed to build http request: {}", e);
+                                    }
                                 }
                             }
-                        }
-                        Err(e) => {
-                            log::error!("failed to create tcp stream: {}", e);
+                            Err(e) => {
+                                log::error!("failed to create tcp stream: {}", e);
+                            }
                         }
                     }
-                }
-                Err(e) => {
-                    log::error!("failed to create http connection: {}", e);
-                }
+                    Err(e) => {
+                        log::error!("failed to create http connection: {}", e);
+                    }
+                };
+
+                log::debug!(
+                    "retry establishing http connection to {} in {} seconds",
+                    &uri,
+                    CONN_RETRY_SECS
+                );
+                Timer::after(Duration::from_secs(CONN_RETRY_SECS)).await;
             };
 
-            log::debug!(
-                "retry establishing http connection to {} in {} seconds",
-                &uri,
-                CONN_RETRY_SECS
-            );
-            Timer::after(Duration::from_secs(CONN_RETRY_SECS)).await;
+            let conn = Box::new(self.exec.spawn(async move {
+                if let Err(err) = conn.await {
+                    log::error!("connection failed: {:?}", err);
+                }
+            }));
+
+            log::info!("ota connected, beginning download");
+            let request = Request::builder()
+                .method("GET")
+                .uri(uri)
+                .body(Empty::<Bytes>::new())
+                .map_err(|e| OtaError::Other(e.to_string()))?;
+            response = sender
+                .send_request(request)
+                .await
+                .map_err(|e| OtaError::Other(e.to_string()))?;
+
+            // TODO(RSDK-9346): handle other success codes
+            use hyper::StatusCode;
+            match response.status() {
+                StatusCode::OK => break conn,
+                StatusCode::FOUND
+                | StatusCode::SEE_OTHER
+                | StatusCode::TEMPORARY_REDIRECT
+                | StatusCode::MOVED_PERMANENTLY
+                | StatusCode::PERMANENT_REDIRECT
+                | StatusCode::USE_PROXY => {
+                    log::debug!("target url has been redirected...");
+                    let headers = response.headers();
+                    if !headers.contains_key("location") {
+                        return Err(OtaError::Other(
+                            "`location` not found in redirection response header".to_string(),
+                        ));
+                    }
+                    uri = self.parse_uri(headers["location"].to_str().map_err(|e| {
+                        OtaError::Other(format!(
+                            "invalid redirection `location` in header: {} - {:?}",
+                            e, headers
+                        ))
+                    })?)?;
+                    continue;
+                }
+                _ => {
+                    return Err(OtaError::Other(format!(
+                        "Bad Request - Status: {}",
+                        response.status()
+                    )))
+                }
+            }
         };
 
-        let conn = Box::new(self.exec.spawn(async move {
-            if let Err(err) = conn.await {
-                log::error!("connection failed: {:?}", err);
-            }
-        }));
-
-        log::info!("ota connected, beginning download");
-        let request = Request::builder()
-            .method("GET")
-            .uri(uri)
-            .body(Empty::<Bytes>::new())
-            .map_err(|e| OtaError::Other(e.to_string()))?;
-        let response = sender
-            .send_request(request)
-            .await
-            .map_err(|e| OtaError::Other(e.to_string()))?;
-
-        // TODO(RSDK-9346): handle other success codes
-        if response.status() != 200 {
-            return Err(OtaError::Other(
-                format!("Bad Request - Status:{}", response.status()).to_string(),
-            ));
-        }
         let headers = response.headers();
         log::debug!("ota response headers: {:?}", headers);
 
