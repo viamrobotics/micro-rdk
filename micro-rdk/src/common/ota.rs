@@ -401,15 +401,10 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 .map_err(|e| OtaError::Other(e.to_string()))?;
 
             // TODO(RSDK-9346): handle other success codes
-            use hyper::StatusCode;
-            match response.status() {
-                StatusCode::OK => break conn,
-                StatusCode::FOUND
-                | StatusCode::SEE_OTHER
-                | StatusCode::TEMPORARY_REDIRECT
-                | StatusCode::MOVED_PERMANENTLY
-                | StatusCode::PERMANENT_REDIRECT
-                | StatusCode::USE_PROXY => {
+            let status = response.status();
+            match (status.is_success(), status.is_redirection()) {
+                (true, false) => break conn,
+                (false, true) => {
                     log::debug!("target url has been redirected...");
                     let headers = response.headers();
                     if !headers.contains_key("location") {
