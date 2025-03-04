@@ -501,7 +501,11 @@ where
                 .unwrap();
 
             log::info!("attempting to configure wifi according to network priority...");
-            while let Err(_) = wifi.try_connect_with_priority(networks.clone()).await {}
+            while wifi
+                .try_connect_with_priority(networks.clone())
+                .await
+                .is_err()
+            {}
         }
 
         let network = self.network.as_ref().map_or_else(
