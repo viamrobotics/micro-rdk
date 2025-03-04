@@ -492,10 +492,16 @@ where
         // if wifi manager is configured loop forever until wifi is connected via
         // a the provisioned network or one from previously stored agent config
         if let Some(wifi) = self.wifi_manager.as_ref().as_ref() {
-            let networks = self.storage.get_all_networks().unwrap();
-            log::info!("attempting to configure wifi according to priority...");
-            while let Err(_) = wifi.try_connect_with_priority(networks.clone()).await {
-            }
+            let networks = self
+                .storage
+                .get_all_networks()
+                .inspect_err(|e| {
+                    log::error!("failed to retrieve any stored networks, consider reflashing or provisioning...")
+                })
+                .unwrap();
+
+            log::info!("attempting to configure wifi according to network priority...");
+            while let Err(_) = wifi.try_connect_with_priority(networks.clone()).await {}
         }
 
         let network = self.network.as_ref().map_or_else(
