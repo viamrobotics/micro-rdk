@@ -534,6 +534,10 @@ pub trait WifiManager: Network {
         &self,
         credential: NetworkSetting,
     ) -> Pin<Box<dyn Future<Output = Result<(), WifiManagerError>> + '_>>;
+    fn try_connect_with_priority(
+        &self,
+        networks: Vec<NetworkSetting>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), WifiManagerError>> + '_>>;
 }
 
 pub trait AsNetwork {

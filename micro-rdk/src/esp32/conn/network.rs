@@ -1,6 +1,7 @@
 use core::ffi::c_void;
 use std::{
     cell::RefCell,
+    collections::HashSet,
     ffi::CString,
     fmt::Display,
     net::Ipv4Addr,
@@ -296,6 +297,36 @@ impl Esp32WifiNetwork {
         log::info!("connection successful");
         Ok(())
     }
+    async fn try_connect_with_priority(
+        &self,
+        mut networks: Vec<NetworkSetting>,
+    ) -> Result<(), WifiManagerError> {
+        let access_points: Vec<String> = self
+            .scan_networks_inner()
+            .await
+            .inspect_err(|e| log::error!("failed to scan available networks: {}", e))?
+            .iter()
+            .map(|ap| ap.ssid.to_string())
+            .collect();
+        let access_points: HashSet<String> = HashSet::from_iter(access_points);
+        networks.sort_by(|a, b| b.priority.cmp(&a.priority));
+        for network in networks.iter() {
+            if !access_points.contains(&network.ssid) {
+                log::warn!("no network named `{}` found", network.ssid);
+                continue;
+            }
+            if let Err(e) = self.try_connect(&network.ssid, &network.password).await {
+                log::error!("failed to connect to `{}`: {}", network.ssid, e);
+            } else {
+                log::info!("successfully connected to network `{}`", network.ssid);
+                return Ok(());
+            }
+            let _ = async_io::Timer::after(crate::time::Duration::from_secs(1)).await;
+        }
+        Err(WifiManagerError::OtherError(
+            "failed to connect to any of stored networks".into(),
+        ))
+    }
 }
 
 impl WifiManager for Esp32WifiNetwork {
@@ -346,6 +377,13 @@ impl WifiManager for Esp32WifiNetwork {
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), WifiManagerError>> + '_>>
     {
         Box::pin(async { self.set_ap_sta_mode(conifg_ap).await })
+    }
+    fn try_connect_with_priority(
+        &self,
+        networks: Vec<NetworkSetting>,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), WifiManagerError>> + '_>>
+    {
+        Box::pin(async { self.try_connect_with_priority(networks).await })
     }
 }
 

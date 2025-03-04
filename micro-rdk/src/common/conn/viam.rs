@@ -492,18 +492,9 @@ where
         // if wifi manager is configured loop forever until wifi is connected via
         // a the provisioned network or one from previously stored agent config
         if let Some(wifi) = self.wifi_manager.as_ref().as_ref() {
-            let mut networks = self.storage.get_all_networks().unwrap();
-            networks.sort_by(|a, b| b.priority.cmp(&a.priority));
-            log::debug!("networks to try: {:?}", networks);
-            for network in networks.iter().cycle() {
-                log::info!("attempting to connect to network `{}`", network.ssid);
-                if let Err(err) = wifi.set_sta_mode(network.clone()).await {
-                    log::error!("failed to connect to network: {:?}", err);
-                    let _ = Timer::after(Duration::from_secs(1)).await;
-                } else {
-                    log::info!("successfully connected to network `{}`", network.ssid);
-                    break;
-                }
+            let networks = self.storage.get_all_networks().unwrap();
+            log::info!("attempting to configure wifi according to priority...");
+            while let Err(_) = wifi.try_connect_with_priority(networks.clone()).await {
             }
         }
 
