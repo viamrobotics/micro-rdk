@@ -25,8 +25,7 @@ mod esp32 {
     use micro_rdk::{
         common::{
             credentials_storage::{
-                NetworkSettingsStorage, RobotConfigurationStorage, RobotCredentials,
-                WifiCredentials,
+                RobotConfigurationStorage, RobotCredentials, WifiCredentialStorage,
             },
             log::initialize_logger,
             provisioning::server::ProvisioningInfo,
@@ -78,15 +77,12 @@ mod esp32 {
         // At runtime, if the program does not detect credentials or configs in storage,
         // it will try to load statically compiled values.
 
-        if !storage.has_wifi_credentials() {
+        if !storage.has_default_network() {
             // check if any were statically compiled
             if SSID.is_some() && PASS.is_some() {
                 log::info!("Storing static values from build time wifi configuration to NVS");
                 storage
-                    .store_wifi_credentials(&WifiCredentials::new(
-                        SSID.unwrap().to_string(),
-                        PASS.unwrap().to_string(),
-                    ))
+                    .store_default_network(SSID.unwrap(), PASS.unwrap())
                     .expect("Failed to store WiFi credentials to NVS");
             }
         }
