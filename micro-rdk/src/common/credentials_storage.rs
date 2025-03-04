@@ -93,20 +93,48 @@ impl WifiCredentials {
 
 pub trait WifiCredentialStorage {
     type Error: Error + Debug + Into<ServerError>;
-    fn has_network_settings(&self) -> bool;
-    fn store_network_settings(&self, networks: &[NetworkSetting]) -> Result<(), Self::Error>;
-    fn get_network_settings(&self) -> Result<Vec<NetworkSetting>, Self::Error>;
-    fn reset_network_settings(&self) -> Result<(), Self::Error>;
-
-    // TODO(RSDK-10105): remove the following two after updating template to new apis
-    fn has_wifi_credentials(&self) -> bool;
-    fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error>;
-
     fn has_default_network(&self) -> bool;
     fn store_default_network(&self, ssid: &str, password: &str) -> Result<(), Self::Error>;
     fn get_default_network(&self) -> Result<NetworkSetting, Self::Error>;
     fn reset_default_network(&self) -> Result<(), Self::Error>;
+    fn has_network_settings(&self) -> bool;
+    fn store_network_settings(&self, networks: &[NetworkSetting]) -> Result<(), Self::Error>;
+    fn get_network_settings(&self) -> Result<Vec<NetworkSetting>, Self::Error>;
+    fn reset_network_settings(&self) -> Result<(), Self::Error>;
     fn get_all_networks(&self) -> Result<Vec<NetworkSetting>, Self::Error>;
+
+    // TODO(RSDK-10105): remove deprecated methods
+    #[deprecated(
+        since = "0.5.0",
+        note = "method has been deprecated in favor of has_default_network()"
+    )]
+    fn has_wifi_credentials(&self) -> bool {
+        self.has_default_network()
+    }
+    #[deprecated(
+        since = "0.5.0",
+        note = "method has been deprecated in favor of store_default_network()"
+    )]
+    fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error> {
+        self.store_default_network(&creds.ssid, &creds.pwd)
+    }
+    #[deprecated(
+        since = "0.5.0",
+        note = "method has been deprecated in favor of get_default_network()"
+    )]
+    fn get_wifi_credentials(&self) -> Result<WifiCredentials, Self::Error> {
+        self.get_default_network().map(|network| WifiCredentials {
+            ssid: network.ssid,
+            pwd: network.password,
+        })
+    }
+    #[deprecated(
+        since = "0.5.0",
+        note = "method has been deprecated in favor of reset_default_network()"
+    )]
+    fn reset_wifi_credentials(&self) -> Result<(), Self::Error> {
+        self.reset_default_network()
+    }
 }
 
 pub trait RobotConfigurationStorage {
@@ -225,12 +253,7 @@ impl WifiCredentialStorage for RAMStorage {
             .clone()
             .ok_or(RAMStorageError::NotFound)
     }
-    fn has_wifi_credentials(&self) -> bool {
-        self.has_default_network()
-    }
-    fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error> {
-        self.store_default_network(&creds.ssid, &creds.pwd)
-    }
+
     fn has_default_network(&self) -> bool {
         let inner_ref = self.0.lock().unwrap();
         inner_ref.default_network.is_some()
@@ -276,7 +299,7 @@ where
     fn store_network_settings(&self, networks: &[NetworkSetting]) -> Result<(), Self::Error> {
         self.into_iter().fold(
             Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
-            |val, s| val.or_else(|_| s.store_network_settings(networks)),
+            |val, s| val.or_else(|_| s.store_network_settings(&networks)),
         )
     }
     fn reset_network_settings(&self) -> Result<(), Self::Error> {
@@ -287,12 +310,12 @@ where
     }
     fn has_wifi_credentials(&self) -> bool {
         self.into_iter()
-            .any(WifiCredentialStorage::has_wifi_credentials)
+            .any(WifiCredentialStorage::has_default_network)
     }
     fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error> {
         self.into_iter().fold(
             Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
-            |val, s| val.or_else(|_| s.store_wifi_credentials(creds)),
+            |val, s| val.or_else(|_| s.store_default_network(&creds.ssid, &creds.pwd)),
         )
     }
     fn has_default_network(&self) -> bool {

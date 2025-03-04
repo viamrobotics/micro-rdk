@@ -10,7 +10,7 @@ use crate::{
         config::NetworkSetting,
         credentials_storage::{
             EmptyStorageCollectionError, RobotConfigurationStorage, RobotCredentials,
-            StorageDiagnostic, TlsCertificate, WifiCredentialStorage, WifiCredentials,
+            StorageDiagnostic, TlsCertificate, WifiCredentialStorage,
         },
         grpc::{GrpcError, ServerError},
     },
@@ -337,7 +337,10 @@ impl WifiCredentialStorage for NVSStorage {
         &self,
         network_settings: &[NetworkSetting],
     ) -> Result<(), Self::Error> {
-        let bytes: Vec<u8> = postcard::to_allocvec(network_settings)?;
+        let mut settings = network_settings.to_vec();
+        // enforce sorting before serialization for write deduplication
+        settings.sort_by(|a, b| b.priority.cmp(&a.priority));
+        let bytes: Vec<u8> = postcard::to_allocvec(&network_settings)?;
         log::info!(
             "storing {} bytes of network settings in nvs...",
             bytes.len()
@@ -349,14 +352,6 @@ impl WifiCredentialStorage for NVSStorage {
     fn reset_network_settings(&self) -> Result<(), Self::Error> {
         self.erase_key(NVS_NETWORK_SETTINGS_KEY)?;
         Ok(())
-    }
-
-    fn has_wifi_credentials(&self) -> bool {
-        self.has_default_network()
-    }
-
-    fn store_wifi_credentials(&self, creds: &WifiCredentials) -> Result<(), Self::Error> {
-        self.store_default_network(&creds.ssid, &creds.pwd)
     }
 
     fn has_default_network(&self) -> bool {
