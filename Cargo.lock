@@ -433,24 +433,22 @@ dependencies = [
 
 [[package]]
 name = "bindgen"
-version = "0.63.0"
+version = "0.71.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36d860121800b2a9a94f9b5604b332d5cffb234ce17609ea479d723dbc9d3885"
+checksum = "5f58bf3d7db68cfbac37cfc485a8d711e87e064c3d0fe0435b92f7a407f9d6b3"
 dependencies = [
- "bitflags 1.3.2",
+ "bitflags 2.8.0",
  "cexpr",
  "clang-sys",
- "lazy_static",
- "lazycell",
+ "itertools 0.13.0",
  "log",
- "peeking_take_while",
+ "prettyplease",
  "proc-macro2",
  "quote",
  "regex",
- "rustc-hash 1.1.0",
+ "rustc-hash",
  "shlex",
- "syn 1.0.109",
- "which",
+ "syn 2.0.96",
 ]
 
 [[package]]
@@ -1327,13 +1325,14 @@ checksum = "1f878075b9794c1e4ac788c95b728f26aa6366d32eeb10c7051389f898f7d067"
 
 [[package]]
 name = "embassy-sync"
-version = "0.5.0"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd938f25c0798db4280fcd8026bf4c2f48789aebf8f77b6e5cf8a7693ba114ec"
+checksum = "8d2c8cdff05a7a51ba0087489ea44b0b1d97a296ca6b1d6d1a33ea7423d34049"
 dependencies = [
  "cfg-if",
  "critical-section",
  "embedded-io-async",
+ "futures-sink",
  "futures-util",
  "heapless 0.8.0",
 ]
@@ -1423,27 +1422,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "embuild"
-version = "0.31.4"
+name = "embedded-svc"
+version = "0.28.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4caa4f198bb9152a55c0103efb83fa4edfcbb8625f4c9e94ae8ec8e23827c563"
+checksum = "a7770e30ab55cfbf954c00019522490d6ce26a3334bede05a732ba61010e98e0"
 dependencies = [
- "anyhow",
- "bindgen",
- "bitflags 1.3.2",
- "cmake",
- "filetime",
- "globwalk",
- "home",
- "log",
- "remove_dir_all",
+ "defmt",
+ "embedded-io 0.6.1",
+ "embedded-io-async",
+ "enumset",
+ "heapless 0.8.0",
+ "num_enum",
  "serde",
- "serde_json",
- "shlex",
- "strum 0.24.1",
- "tempfile",
- "thiserror 1.0.69",
- "which",
+ "strum 0.25.0",
 ]
 
 [[package]]
@@ -1458,6 +1449,31 @@ dependencies = [
  "log",
  "shlex",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "embuild"
+version = "0.33.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "28a8cbd9507fabce8f2741b9ca45da9e898cc2b0f1c2e53d21cb2436aeac811d"
+dependencies = [
+ "anyhow",
+ "bindgen",
+ "bitflags 1.3.2",
+ "cmake",
+ "filetime",
+ "globwalk",
+ "home",
+ "log",
+ "regex",
+ "remove_dir_all",
+ "serde",
+ "serde_json",
+ "shlex",
+ "strum 0.24.1",
+ "tempfile",
+ "thiserror 1.0.69",
+ "which",
 ]
 
 [[package]]
@@ -1547,9 +1563,9 @@ dependencies = [
 
 [[package]]
 name = "esp-idf-hal"
-version = "0.43.1"
+version = "0.45.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7adf3fb19a9ca016cbea1ab8a7b852ac69df8fcde4923c23d3b155efbc42a74"
+checksum = "775ce25171dc4f615146a4a27ed3a64c6fd99ced77d7112062f2b19bf933f5db"
 dependencies = [
  "atomic-waker",
  "embassy-sync",
@@ -1560,7 +1576,7 @@ dependencies = [
  "embedded-hal-nb",
  "embedded-io 0.6.1",
  "embedded-io-async",
- "embuild 0.31.4",
+ "embuild 0.33.0",
  "enumset",
  "esp-idf-sys",
  "heapless 0.8.0",
@@ -1589,16 +1605,17 @@ dependencies = [
 
 [[package]]
 name = "esp-idf-svc"
-version = "0.48.1"
+version = "0.51.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2180642ca122a7fec1ec417a9b1a77aa66aaa067fdf1daae683dd8caba84f26b"
+checksum = "2bc07aaba257d28d54a96af005ca67d0b38876d8837f5d54a3e0547e100b219c"
 dependencies = [
  "embassy-futures",
  "embedded-hal-async",
- "embedded-svc",
- "embuild 0.31.4",
+ "embedded-svc 0.28.1",
+ "embuild 0.33.0",
  "enumset",
  "esp-idf-hal",
+ "futures-io",
  "heapless 0.8.0",
  "log",
  "num_enum",
@@ -1607,16 +1624,16 @@ dependencies = [
 
 [[package]]
 name = "esp-idf-sys"
-version = "0.34.1"
+version = "0.36.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e148f97c04ed3e9181a08bcdc9560a515aad939b0ba7f50a0022e294665e0af"
+checksum = "fb77a3d02b579a60a811ed9be22b78c5e794bc492d833ee7fc44d3a0155885e1"
 dependencies = [
  "anyhow",
- "bindgen",
  "build-time",
  "cargo_metadata 0.18.1",
+ "cmake",
  "const_format",
- "embuild 0.31.4",
+ "embuild 0.33.0",
  "envy",
  "libc",
  "regex",
@@ -2526,12 +2543,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
-name = "lazycell"
-version = "1.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
-
-[[package]]
 name = "libc"
 version = "0.2.169"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2710,7 +2721,7 @@ dependencies = [
  "dns-message-parser",
  "either",
  "embedded-hal 0.2.7",
- "embedded-svc",
+ "embedded-svc 0.27.1",
  "embuild 0.32.0",
  "env_logger",
  "esp-idf-svc",
@@ -2761,7 +2772,7 @@ dependencies = [
  "cargo_metadata 0.19.1",
  "cbindgen",
  "embedded-hal 0.2.7",
- "embedded-svc",
+ "embedded-svc 0.27.1",
  "embuild 0.32.0",
  "env_logger",
  "futures-lite",
@@ -2845,7 +2856,7 @@ version = "0.4.1-rc9"
 dependencies = [
  "async-channel 2.3.1",
  "embedded-hal 0.2.7",
- "embedded-svc",
+ "embedded-svc 0.27.1",
  "embuild 0.32.0",
  "env_logger",
  "futures-lite",
@@ -3272,12 +3283,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "peeking_take_while"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19b17cddbe7ec3f8bc800887bab5e717348c95ea2ca0b1bf0837fb964dc67099"
-
-[[package]]
 name = "pem"
 version = "3.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3446,6 +3451,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "prettyplease"
+version = "0.2.30"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1ccf34da56fc294e7d4ccf69a85992b7dfb826b7cf57bac6a70bba3494cc08a"
+dependencies = [
+ "proc-macro2",
+ "syn 2.0.96",
+]
+
+[[package]]
 name = "printf-compat"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3540,7 +3555,7 @@ dependencies = [
  "pin-project-lite",
  "quinn-proto",
  "quinn-udp",
- "rustc-hash 2.1.0",
+ "rustc-hash",
  "rustls 0.23.22",
  "socket2",
  "thiserror 2.0.11",
@@ -3558,7 +3573,7 @@ dependencies = [
  "getrandom 0.2.15",
  "rand",
  "ring",
- "rustc-hash 2.1.0",
+ "rustc-hash",
  "rustls 0.23.22",
  "rustls-pki-types",
  "slab",
@@ -3796,12 +3811,6 @@ name = "rustc-demangle"
 version = "0.1.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "719b953e2095829ee67db738b3bfa9fa368c94900df327b3f07fe6e794d2fe1f"
-
-[[package]]
-name = "rustc-hash"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
 
 [[package]]
 name = "rustc-hash"

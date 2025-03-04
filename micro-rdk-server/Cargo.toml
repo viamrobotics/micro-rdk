@@ -53,8 +53,7 @@ path = "esp32/main.rs"
 
 
 [package.metadata.esp-idf-sys]
-# TODO(RSDK-8998): Upgrade ESP-IDF to latest stable
-esp_idf_version = "v4.4.8"
+esp_idf_version = "v5.4"
 esp_idf_tools_install_dir = "custom:target/.embuild/espressif"
 esp_idf_sdkconfig_defaults = [
   "micro-rdk-server/sdkconfig.defaults",
@@ -64,3 +63,6 @@ esp_idf_sdkconfig_defaults = [
 remote_component = { name = "espressif/esp32-camera", version = "2.0.9"}
 bindings_module = "camera"
 bindings_header = "bindings.h"
+
+[[package.metadata.esp-idf-sys.extra_components]]
+remote_component = { name = "espressif/mdns", version = "1.8.0" }

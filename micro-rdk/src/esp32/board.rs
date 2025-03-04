@@ -31,6 +31,7 @@ use super::{
 #[cfg(esp32)]
 use super::analog::Esp32AnalogReader;
 
+// TODO(RSDK-10188): Update to ESP-IDF ADC API
 #[cfg(esp32)]
 use crate::esp32::esp_idf_svc::hal::adc::{
     attenuation::adc_atten_t_ADC_ATTEN_DB_11 as Atten11dB, config::Config, AdcChannelDriver,

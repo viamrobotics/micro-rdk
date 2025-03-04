@@ -73,6 +73,7 @@ struct Esp32ServerConfig {
 impl Esp32ServerConfig {
     fn new(srv_cert: &[u8], srv_key: &[u8]) -> Self {
         let mut alpn_proto: Vec<_> = vec![ALPN_PROTOCOLS.as_ptr() as *const i8, std::ptr::null()];
+        // TODO(RSDK-10200): Missing fields when using ESP-IDF 5
         let cfg = Box::new(esp_tls_cfg_server {
             alpn_protos: alpn_proto.as_mut_ptr(),
             __bindgen_anon_1: crate::esp32::esp_idf_svc::sys::esp_tls_cfg_server__bindgen_ty_1 {
@@ -114,6 +115,7 @@ struct Esp32ClientConfig {
 impl Esp32ClientConfig {
     fn new() -> Self {
         let mut alpn_proto = vec![ALPN_PROTOCOLS.as_ptr() as *const i8, std::ptr::null()];
+        // TODO(RSDK-10200): Missing fields when using ESP-IDF 5
         let cfg = Box::new(esp_tls_cfg {
             alpn_protos: alpn_proto.as_mut_ptr(),
             __bindgen_anon_1: crate::esp32::esp_idf_svc::sys::esp_tls_cfg__bindgen_ty_1 {
@@ -206,10 +208,12 @@ where
         let tls_context = Esp32TLSContext::new()?;
         unsafe {
             std::ptr::write_unaligned(
+                // TODO(RSDK-10201): The field `role` is not found when using ESP-IDF 5
                 std::ptr::addr_of_mut!((*(*tls_context)).role),
                 esp_tls_role_ESP_TLS_SERVER,
             )
         };
+        // TODO(RSDK-10201): The field `sockfd` is not found when using ESP-IDF 5
         unsafe { std::ptr::write_unaligned(std::ptr::addr_of_mut!((*(*tls_context)).sockfd), -1) };
         unsafe {
             esp!(esp_create_mbedtls_handle(
@@ -328,10 +332,12 @@ where
 
         unsafe {
             std::ptr::write_unaligned(
+                // TODO(RSDK-10201): The field `role` is not found when using ESP-IDF 5
                 std::ptr::addr_of_mut!((*(*tls_context)).role),
                 esp_tls_role_ESP_TLS_CLIENT,
             )
         };
+        // TODO(RSDK-10201): The field `sockfd` is not found when using ESP-IDF 5
         unsafe { std::ptr::write_unaligned(std::ptr::addr_of_mut!((*(*tls_context)).sockfd), -1) };
         let host = CString::new(addr.host().unwrap()).unwrap();
         unsafe {
@@ -346,6 +352,7 @@ where
 
         unsafe {
             mbedtls_ssl_conf_read_timeout(
+                // TODO(RSDK-10201): The field `conf` is not found when using ESP-IDF 5
                 std::ptr::addr_of_mut!((*(*tls_context)).conf),
                 30 * 1000,
             );

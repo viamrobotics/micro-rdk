@@ -100,6 +100,7 @@ impl Esp32WifiNetwork {
             channel: 10,
             secondary_channel: None,
             protocols: Protocol::P802D11B | Protocol::P802D11BG | Protocol::P802D11BGN,
+            // TODO(RSDK-10193): There are esp_idf_svc vs embedded-svc ambiguities that arise here.
             auth_method: esp_idf_svc::wifi::AuthMethod::WPA2Personal,
             password: ap_config
                 .password
@@ -108,6 +109,7 @@ impl Esp32WifiNetwork {
                 .map_err(|_| WifiManagerError::HeaplessStringError)?,
             max_connections: 1,
         };
+        // TODO(10194): This is missing the `pmf_config` and `scan_method` fields
         let sta_conf = ClientConfiguration {
             ssid: "".try_into().unwrap(),
             bssid: None,
@@ -160,6 +162,7 @@ impl Esp32WifiNetwork {
             start_ip,
             end_ip,
         };
+        // TODO(RSDK-10190): ESP-IDF5 does not expose this symbol
 
         unsafe { sys::esp!(sys::esp_netif_dhcps_stop(handle)) }?;
         unsafe { sys::esp!(sys::esp_netif_set_ip_info(handle, &ip_info as *const _)) }?;
@@ -252,7 +255,7 @@ impl Esp32WifiNetwork {
         let sl_stack = esp32_get_system_event_loop()?;
 
         let subscription = sl_stack.subscribe::<WifiEvent, _>(move |event: WifiEvent| {
-            if matches!(event, WifiEvent::StaDisconnected) {
+            if matches!(event, WifiEvent::StaDisconnected(_)) {
                 if let Ok(wifi) = esp32_get_wifi() {
                     if let Some(mut wifi_guard) = wifi.try_lock() {
                         let wifi_mut = wifi_guard.wifi_mut();
@@ -266,7 +269,7 @@ impl Esp32WifiNetwork {
                         }
                     }
                 }
-            } else if matches!(event, WifiEvent::StaConnected) {
+            } else if matches!(event, WifiEvent::StaConnected(_)) {
                 log::info!("wifi connected event received");
             }
         })?;

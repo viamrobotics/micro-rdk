@@ -305,7 +305,7 @@ impl AppClient {
             if local_dt.year() < VIAM_FOUNDING_YEAR {
                 if let Some(current_dt) = datetime {
                     use esp_idf_svc::sys::{settimeofday, timeval};
-                    let tv_sec = current_dt.timestamp() as i32;
+                    let tv_sec = current_dt.timestamp();
                     let tv_usec = current_dt.timestamp_subsec_micros() as i32;
                     let current_timeval = timeval { tv_sec, tv_usec };
                     crate::esp32::esp_idf_svc::sys::esp!(unsafe {

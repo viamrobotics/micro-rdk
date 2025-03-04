@@ -172,6 +172,7 @@ impl GeneratedWebRtcCertificateBuilder {
             ))
         }?;
 
+        // TODO(RSDK-10196): The `pk_ctx` field doesn't exist in ESP-IDF 5. Maybe it should be `private_kp_ctx`?
         let ecp_keypair = self.kp_context.pk_ctx;
 
         unsafe {

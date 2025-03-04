@@ -62,6 +62,7 @@ unsafe extern "C" fn mbedtls_net_write<S: AsyncWrite>(
             if state.error.as_ref().unwrap().kind() == std::io::ErrorKind::WouldBlock {
                 return MBEDTLS_ERR_SSL_WANT_WRITE;
             }
+            // TODO(RSDK-10189): This constant is not exported in ESP-IDF 5
             MBEDTLS_ERR_NET_SEND_FAILED
         }
     }
@@ -86,6 +87,7 @@ unsafe extern "C" fn mbedtls_net_read<S: AsyncRead>(
             if state.error.as_ref().unwrap().kind() == std::io::ErrorKind::WouldBlock {
                 return MBEDTLS_ERR_SSL_WANT_READ;
             }
+            // TODO(RSDK-10189): This constant is not exported in ESP-IDF 5
             MBEDTLS_ERR_NET_RECV_FAILED
         }
     }
@@ -115,6 +117,7 @@ unsafe extern "C" fn mbedtls_net_read_with_timeout<S: AsyncRead>(
             match state.error.as_ref().unwrap().kind() {
                 std::io::ErrorKind::WouldBlock => MBEDTLS_ERR_SSL_WANT_READ,
                 std::io::ErrorKind::TimedOut => MBEDTLS_ERR_SSL_TIMEOUT,
+                // TODO(RSDK-10189): This constant is not exported in ESP-IDF 5
                 _ => MBEDTLS_ERR_NET_RECV_FAILED,
             }
         }
@@ -224,6 +227,7 @@ extern "C" fn mbedtls_timing_dtls_set_delay<S>(
         ctx.reset_delay();
     } else if let Some(ssl_ctx) = ctx.ssl_ctx {
         let (_, cx) = unsafe {
+            // TODO(RSDK-10196): The `p_bio` field doesn't exist in ESP-IDF 5. Maybe it should be `private_p_bio`?
             let state = SSLStreamInner::<S>::from_raw((*ssl_ctx).p_bio);
             state.as_parts()
         };
@@ -246,6 +250,7 @@ extern "C" fn mbedtls_timing_get_delay<S>(data: *mut c_void) -> c_int {
 
     if let Some(ssl_ctx) = ctx.ssl_ctx {
         let (_, cx) = unsafe {
+            // TODO(RSDK-10196): The `p_bio` field doesn't exist in ESP-IDF 5. Maybe it should be `private_p_bio`?
             let state = SSLStreamInner::<S>::from_raw((*ssl_ctx).p_bio);
             state.as_parts()
         };
@@ -318,6 +323,8 @@ impl DtlsSSLContext {
         if ret != 0 {
             return Err(SSLError::SSLCertParseFail(ret));
         }
+
+        // TODO(RSDK-10197): This is missing two arguments in ESP-IDF 5
         let ret = unsafe {
             mbedtls_pk_parse_key(
                 self.pk_ctx.as_mut(),
@@ -503,6 +510,7 @@ impl SSLContext {
     fn get_ssl_ctx_ptr(&mut self) -> *mut mbedtls_ssl_context {
         match self {
             SSLContext::DtlsSSLContext(context) => context.ssl_ctx.as_mut(),
+            // TODO(RSDK-10198): The `ssl` field here no longer works in ESP-IDF 5
             SSLContext::Esp32TLSContext(context) => unsafe { &mut (*(**context)).ssl }, // potentially needs read_unaligned
         }
     }
