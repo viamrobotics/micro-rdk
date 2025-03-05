@@ -502,7 +502,7 @@ where
 
             log::info!("attempting to configure wifi according to network priority...");
             while wifi
-                .try_connect_with_priority(networks.clone())
+                .try_connect_by_priority(networks.clone())
                 .await
                 .is_err()
             {}

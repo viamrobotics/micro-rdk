@@ -297,10 +297,12 @@ impl Esp32WifiNetwork {
         log::info!("connection successful");
         Ok(())
     }
-    async fn try_connect_with_priority(
+    async fn try_connect_by_priority(
         &self,
         mut networks: Vec<NetworkSetting>,
     ) -> Result<(), WifiManagerError> {
+        let mut wifi = esp32_get_wifi()?.lock().await;
+        wifi.start().await?;
         let access_points: Vec<String> = self
             .scan_networks_inner()
             .await
@@ -378,12 +380,12 @@ impl WifiManager for Esp32WifiNetwork {
     {
         Box::pin(async { self.set_ap_sta_mode(conifg_ap).await })
     }
-    fn try_connect_with_priority(
+    fn try_connect_by_priority(
         &self,
         networks: Vec<NetworkSetting>,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), WifiManagerError>> + '_>>
     {
-        Box::pin(async { self.try_connect_with_priority(networks).await })
+        Box::pin(async { self.try_connect_by_priority(networks).await })
     }
 }
 
