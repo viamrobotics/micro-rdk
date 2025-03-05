@@ -810,16 +810,16 @@ where
     ) -> Result<(), errors::ServerError> {
         let wait = Duration::from_secs(1); // should do exponential back off
         loop {
-            if let Some(app_client) = app_client {
+            if let Some(app_client) = &app_client {
                 let mut app_client_tasks: FuturesUnordered<AppClientTaskRunner> =
                     FuturesUnordered::new();
                 log::info!("starting execution of app client tasks");
                 for task in &self.app_client_tasks {
                     app_client_tasks.push(AppClientTaskRunner {
-                        app_client: &app_client,
+                        app_client,
                         invoker: task,
                         state: TaskRunnerState::Run {
-                            task: task.invoke(&app_client),
+                            task: task.invoke(app_client),
                         },
                     });
                 }
@@ -833,10 +833,16 @@ where
                     }
                 }
             }
+
+            // Explicitly release the app_client resources before sleeping, and before
+            // trying to construct a new one with `connect_to_app` below.
+            std::mem::drop(app_client.take());
+            let _ = Timer::after(wait).await;
+
             // the only way to reach here is either we had a None passed (app_client wasn't connected at boot)
             // or an error was reported by an underlying task which means that app client
             // is considered gone
-            let _ = Timer::after(wait).await;
+
             log::info!("attempting to reestablish a connection to app for app client tasks");
             app_client = self
                 .connect_to_app()
