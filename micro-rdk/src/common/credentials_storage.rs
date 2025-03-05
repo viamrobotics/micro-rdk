@@ -299,7 +299,7 @@ where
     fn store_network_settings(&self, networks: &[NetworkSetting]) -> Result<(), Self::Error> {
         self.into_iter().fold(
             Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
-            |val, s| val.or_else(|_| s.store_network_settings(&networks)),
+            |val, s| val.or_else(|_| s.store_network_settings(networks)),
         )
     }
     fn reset_network_settings(&self) -> Result<(), Self::Error> {

@@ -496,7 +496,7 @@ where
                 .storage
                 .get_all_networks()
                 .inspect_err(|e| {
-                    log::error!("failed to retrieve any stored networks, consider reflashing or provisioning...")
+                    log::error!("failed to retrieve any stored networks, consider reflashing or provisioning: {}", e)
                 })
                 .unwrap();
 
