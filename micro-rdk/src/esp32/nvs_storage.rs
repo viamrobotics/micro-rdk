@@ -373,8 +373,9 @@ impl WifiCredentialStorage for NVSStorage {
         // return error if failed to get default network (not provisioned/configured)
         let default = self.get_default_network()?;
         let mut networks = if self.has_network_settings() {
-            // return err if nvs found key but failed to retrieve
-            self.get_network_settings()?
+            self.get_network_settings()
+                .inspect_err(|e| log::error!("failed to retrieve stored networks: {}", e))
+                .unwrap_or_default()
         } else {
             Vec::new()
         };
