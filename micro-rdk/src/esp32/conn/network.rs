@@ -317,13 +317,24 @@ impl Esp32WifiNetwork {
                 log::warn!("no network named `{}` found", network.ssid);
                 continue;
             }
-            if let Err(e) = self.try_connect(&network.ssid, &network.password).await {
+
+            let mut conf = wifi.get_configuration()?;
+            let (sta, _) = conf.as_mixed_conf_mut();
+            sta.ssid = network.ssid.as_str().try_into().unwrap();
+            sta.auth_method = AuthMethod::None;
+            sta.password = network.password.as_str().try_into().unwrap();
+
+            wifi.set_configuration(&conf)?;
+
+            if let Err(e) = wifi.connect().await {
                 log::error!("failed to connect to `{}`: {}", network.ssid, e);
             } else {
                 log::info!("successfully connected to network `{}`", network.ssid);
                 return Ok(());
             }
-            let _ = async_io::Timer::after(crate::time::Duration::from_secs(1)).await;
+        }
+        if let Err(e) = wifi.stop().await {
+            log::error!("failed to stop internal wifi manager: {}", e);
         }
         Err(WifiManagerError::OtherError(
             "failed to connect to any of stored networks".into(),
