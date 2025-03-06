@@ -612,8 +612,13 @@ where
     let srv = srv.build(storage.clone());
     let listen = TcpListener::bind("0.0.0.0:4772")?; // VIAM app expects the server to be at 4772
     let listen: Async<TcpListener> = listen.try_into()?;
-
     let port = listen.get_ref().local_addr()?.port();
+
+    log::info!(
+        "provisioning server listening at {}",
+        listen.get_ref().local_addr()?
+    );
+
     {
         let mut borrowed_mdns = mdns.borrow_mut();
         borrowed_mdns.set_hostname(&hostname)?;
@@ -624,6 +629,11 @@ where
             port,
             &[("provisioning", "")],
         )?;
+
+        log::info!(
+            "provisioning server now discoverable via mDNS at {}.local",
+            hostname
+        );
     }
 
     let credential_ready = srv.get_credential_ready();
@@ -635,7 +645,9 @@ where
     // Future will complete when either robot credentials have been transmitted when WiFi provisioning is disabled
     // or when both robot credentials and WiFi credentials have been transmitted.
     // wait for provisioning completion
+    log::info!("waiting for provisioning server to obtain credentials");
     credential_ready.await;
+    log::info!("provisioning server has obtained the desired credentials");
 
     provisioning_server_task.cancel().await;
     let mut mdns = mdns.borrow_mut();
@@ -643,6 +655,7 @@ where
         log::error!("provisioning couldn't remove mdns record error {:?}", e);
     }
 
+    log::info!("provisioning server terminating");
     Ok(())
 }
 

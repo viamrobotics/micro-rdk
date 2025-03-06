@@ -5,6 +5,7 @@ use either::Either;
 
 use futures_lite::{FutureExt, StreamExt};
 use futures_util::stream::FuturesUnordered;
+use futures_util::TryFutureExt;
 use hyper::server::conn::http2;
 use hyper::{rt, Uri};
 use std::cell::RefCell;
@@ -458,6 +459,8 @@ where
     }
 
     pub(crate) async fn run(&mut self) -> ! {
+        log::info!("starting viam server");
+
         self.storage.log_space_diagnostic();
         // The first step is to check whether or not credentials are populated in
         // storage. If not, we should go straight to provisioning.
@@ -470,27 +473,37 @@ where
         //| true             | false            | true             |
         //| true             | true             | false            |
         //+------------------+------------------+------------------+
-        if !self.storage.has_robot_credentials()
-            || self
-                .wifi_manager
-                .as_ref()
-                .as_ref()
-                .is_some_and(|_| !self.storage.has_wifi_credentials())
-        {
+
+        let missing_robot_creds = !self.storage.has_robot_credentials();
+        let missing_wifi_creds = self
+            .wifi_manager
+            .as_ref()
+            .as_ref()
+            .is_some_and(|_| !self.storage.has_wifi_credentials());
+
+        if missing_robot_creds || missing_wifi_creds {
+            if missing_robot_creds {
+                log::warn!("no machine credentials found in storage - provisioning required");
+            }
+            if missing_wifi_creds {
+                log::warn!("no wifi credentials found in storage - provisioning required");
+            }
+
             self.provision().await;
         }
 
         #[cfg(feature = "ota")]
         {
             match self.storage.get_ota_metadata() {
-                Ok(metadata) => log::info!("firmware version: {}", metadata.version),
-                Err(e) => log::warn!("not OTA firmware metadata available: {}", e),
+                Ok(metadata) => log::info!("OTA firmware version: {}", metadata.version),
+                Err(e) => log::warn!("OTA firmware metadata is not available: {}", e),
             };
         }
 
         // Since provisioning was run and completed, credentials are properly populated
         // if wifi manager is configured loop forever until wifi is connected
         if let Some(wifi) = self.wifi_manager.as_ref().as_ref() {
+            log::info!("using stored wifi credentials to enter STA mode");
             while let Err(err) = wifi
                 .set_sta_mode(self.storage.get_wifi_credentials().unwrap())
                 .await
@@ -510,10 +523,12 @@ where
             .storage
             .get_app_address()
             .or_else(|_| {
+                log::info!("no app address configured in storage, falling back to default");
                 let _ = self.storage.store_app_address("https://app.viam.com:443");
                 self.storage.get_app_address()
             })
             .unwrap();
+        log::info!("configured app server address is {}", app_address);
 
         // attempt to instantiate an app client
         // if we have an unauthenticated or permission denied error, we erase the creds
@@ -525,7 +540,9 @@ where
             .connect_to_app()
             .await
             .inspect_err(|error| {
+                log::error!("couldn't connect to {} reason {:?}", app_address, error);
                 if error.is_permission_denied() || error.is_unauthenticated() {
+                    log::error!("credentials were deemed invalid by app server - cached credentials and configuration will be erased");
                     let _ = self.storage.reset_robot_credentials().inspect_err(|err| {
                         log::error!("error {:?} while erasing credentials", err)
                     });
@@ -535,7 +552,6 @@ where
                     #[cfg(not(test))]
                     panic!("erased credentials restart robot"); // TODO bubble up error and go back in provisioning
                 }
-                log::error!("couldn't connect to {} reason {:?}", app_address, error);
             })
             .ok();
 
@@ -550,13 +566,14 @@ where
                 .await
                 .inspect_err(|err| {
                     log::error!(
-                        "couldn't get config, will default to cached config reason {:?}",
+                        "couldn't get machine config, will default to cached config - reason {:?}",
                         err
                     )
                 })
                 .ok(),
             None => None,
-        };
+        }
+        .inspect(|_| log::info!("machine configuration obtained from app server"));
 
         // TODO(RSDK-10062): determine where additional network updates logic should live
         if let Some(app) = app_client.as_ref() {
@@ -609,19 +626,28 @@ where
 
         let (config, build_time) = config.map_or_else(
             || {
+                log::warn!("failed to fetch machine config from app server; attempting to build from cached configuration");
                 (
                     self.storage
                         .get_robot_configuration()
-                        .ok() //can inspect and report empty robot will be constructed
-                        .map_or(Box::default(), Box::new),
+                        .map_or_else(|_| {
+                            log::warn!("unable to obtain a cached machine configuration from storage - an empty machine will be created");
+                            Box::default()
+                        }, Box::new),
                     None,
                 )
             },
-            |resp| (resp.0.config.map_or(Box::default(), Box::new), resp.1),
+            |resp| (resp.0.config.map_or_else(|| {
+                log::warn!("machine config returned from app is empty - an empty machine will be created");
+                Box::default()}, Box::new), resp.1),
         );
 
+        log::info!("writing machine configuration to storage");
         if let Err(err) = self.storage.store_robot_configuration(&config) {
-            log::error!("couldn't store the robot configuration reason {:?}", err);
+            log::error!(
+                "couldn't store the machine configuration - reason {:?}",
+                err
+            );
         }
 
         let config_monitor_task = Box::new(ConfigMonitor::new(
@@ -633,6 +659,7 @@ where
         ));
         self.app_client_tasks.push(config_monitor_task);
 
+        log::info!("building machine from configuration");
         let mut robot = LocalRobot::from_cloud_config(
             self.executor.clone(),
             robot_creds.robot_id.clone(),
@@ -640,7 +667,9 @@ where
             &mut self.component_registry,
             build_time,
         )
-        .inspect_err(|err| log::error!("couldn't build the robot reason {:?}", err))
+        .inspect_err(|err| {
+            log::error!("couldn't build the machine as configured: reason {:?}", err)
+        })
         .unwrap_or_default();
 
         self.app_client_tasks
@@ -654,16 +683,17 @@ where
             // we're using "if let Some(...) = ..." over calling map on option because a
             // future cannot be awaited inside a closure (and trying to use OptionFuture or block_on felt messier)
             let certs = if let Some(app) = app_client.as_ref() {
+                log::info!("trying to obtain certificates from app server");
                 app.get_certificates()
                     .await
                     .map(|cert_resp| {
                         let cert: TlsCertificate = cert_resp.into();
                         match self.storage.store_tls_certificate(&cert) {
                             Ok(_) => {
-                                log::debug!("stored TLS certificate received by app");
+                                log::info!("TLS certificate written to storage");
                             }
                             Err(err) => {
-                                log::error!("error storing TLS cert: {:?}", err);
+                                log::error!("failed to store certificates: {:?}", err);
                             }
                         }
                         // even if we fail to store the certificate, proceed
@@ -684,6 +714,7 @@ where
                     let _ = std::mem::replace(&mut self.http2_server, HTTP2Server::Empty);
                 }
                 Some(certs) => {
+                    log::info!("starting HTTP2 server with certificates");
                     if let HTTP2Server::HTTP2Connector(s) = &mut self.http2_server {
                         s.set_server_certificates(
                             certs.certificate.clone(),
@@ -733,6 +764,7 @@ where
         )));
         tasks.push(Either::Left(Box::pin(inner.run())));
 
+        log::info!("viam server started");
         while let Some(ret) = tasks.next().await {
             log::error!("task ran returned {:?}", ret);
         }
@@ -741,24 +773,33 @@ where
     }
 
     async fn connect_to_app(&self) -> Result<AppClient, AppClientError> {
-        let robot_creds = self.storage.get_robot_credentials().unwrap();
         let app_uri = self
             .storage
             .get_app_address()
             .unwrap_or("https://app.viam.com:443".parse::<Uri>().unwrap());
-        let app_client_io = self
-            .http2_connector
-            .connect_to(&app_uri)
-            .map_err(AppClientError::AppClientIoError)?
-            .await
-            .map_err(AppClientError::AppClientIoError)?;
-        let grpc_client = GrpcClient::new(app_client_io, self.executor.clone(), app_uri)
-            .await
-            .map_err(AppClientError::AppGrpcClientError)?;
 
-        AppClientBuilder::new(Box::new(grpc_client), robot_creds.clone())
-            .build()
-            .await
+        let robot_creds = self.storage.get_robot_credentials().unwrap();
+
+        {
+            log::info!("attempting to connect to app server {}", app_uri);
+
+            let app_client_io = self
+                .http2_connector
+                .connect_to(&app_uri)
+                .map_err(AppClientError::AppClientIoError)?
+                .await
+                .map_err(AppClientError::AppClientIoError)?;
+
+            let grpc_client =
+                GrpcClient::new(app_client_io, self.executor.clone(), app_uri.clone())
+                    .await
+                    .map_err(AppClientError::AppGrpcClientError)?;
+
+            AppClientBuilder::new(Box::new(grpc_client), robot_creds.clone())
+                .build()
+                .await
+        }
+        .inspect_err(|e| log::warn!("failed to connect to app server {}: error {}", app_uri, e))
     }
 
     // run task forever reconnecting on demand
@@ -769,34 +810,47 @@ where
     ) -> Result<(), errors::ServerError> {
         let wait = Duration::from_secs(1); // should do exponential back off
         loop {
-            if let Some(app_client) = app_client {
+            if let Some(app_client) = &app_client {
                 let mut app_client_tasks: FuturesUnordered<AppClientTaskRunner> =
                     FuturesUnordered::new();
+                log::info!("starting execution of app client tasks");
                 for task in &self.app_client_tasks {
                     app_client_tasks.push(AppClientTaskRunner {
-                        app_client: &app_client,
+                        app_client,
                         invoker: task,
                         state: TaskRunnerState::Run {
-                            task: task.invoke(&app_client),
+                            task: task.invoke(app_client),
                         },
                     });
                 }
                 while let Some(res) = app_client_tasks.next().await {
                     if let Err(err) = res {
-                        log::error!("a task returned the following error {:?}", err);
+                        log::error!(
+                            "an app client task returned an error {:?} - dropping app client",
+                            err
+                        );
                         break;
                     }
                 }
             }
+
+            // Explicitly release the app_client resources before sleeping, and before
+            // trying to construct a new one with `connect_to_app` below.
+            std::mem::drop(app_client.take());
+            let _ = Timer::after(wait).await;
+
             // the only way to reach here is either we had a None passed (app_client wasn't connected at boot)
             // or an error was reported by an underlying task which means that app client
             // is considered gone
-            let _ = Timer::after(wait).await;
+
+            log::info!("attempting to reestablish a connection to app for app client tasks");
             app_client = self
                 .connect_to_app()
                 .await
                 .inspect_err(|error| {
-                    if error.is_permission_denied() || error.is_unauthenticated() {
+                    log::error!("couldn't connect to app server, reason {:?}", error);
+                     if error.is_permission_denied() || error.is_unauthenticated() {
+                        log::error!("credentials were deemed invalid by app server - cached credentials and configuration will be erased");
                         let _ = self.storage.reset_robot_credentials().inspect_err(|err| {
                             log::error!("error {:?} while erasing credentials", err)
                         });
@@ -806,16 +860,18 @@ where
                         #[cfg(not(test))]
                         panic!("erased credentials restart robot"); // TODO bubble up error and go back in provisioning
                     }
-                    log::error!("couldn't connect to signaling server, reason {:?}", error);
+
                 })
                 .ok();
         }
     }
+
     // I am adding provisioning in the main flow of viamserver
     // this is however outside of the scope IMO. What could be a better way?
     // We don't want the user to have to write code to handle the provisioning
     // case.
     async fn provision(&self) {
+        log::info!("Starting provisioning");
         let mut last_error = None;
         if let Some(wifi) = self.wifi_manager.as_ref() {
             while let Err(err) = wifi.set_ap_sta_mode(WifiApConfiguration::default()).await {
@@ -833,8 +889,10 @@ where
         )
         .await
         {
+            log::warn!("Provisioning failed with error {}", e);
             let _ = last_error.insert(e);
         }
+        log::info!("Provisioning completed");
     }
 }
 
@@ -893,22 +951,32 @@ where
                 None
             });
 
-        self.executor.spawn(async move {
-            #[allow(unused_mut)]
-            let mut srv = GrpcServer::new(robot, GrpcBody::new());
-            #[cfg(feature = "local-signaling")]
-            if let Some(ss) = ss {
-                srv.register_signaling_server(ss);
+        log::info!("spawning task for new HTTP2 connection");
+        self.executor.spawn(
+            async move {
+                log::info!("task for new HTTP2 connection started");
+                #[allow(unused_mut)]
+                let mut srv = GrpcServer::new(robot, GrpcBody::new());
+                #[cfg(feature = "local-signaling")]
+                if let Some(ss) = ss {
+                    srv.register_signaling_server(ss);
+                }
+                http2::Builder::new(exec)
+                    .initial_connection_window_size(2048)
+                    .initial_stream_window_size(2048)
+                    .max_send_buf_size(4096)
+                    .max_concurrent_streams(2)
+                    .serve_connection(io, srv)
+                    .await
+                    .map_err(|e| errors::ServerError::Other(e.into()))
             }
-            http2::Builder::new(exec)
-                .initial_connection_window_size(2048)
-                .initial_stream_window_size(2048)
-                .max_send_buf_size(4096)
-                .max_concurrent_streams(2)
-                .serve_connection(io, srv)
-                .await
-                .map_err(|e| errors::ServerError::Other(e.into()))
-        })
+            .inspect_ok(|_| {
+                log::info!("HTTP2 connection task ended normally");
+            })
+            .inspect_err(|e| {
+                log::warn!("HTTP2 connection task ended with an error: {}", e);
+            }),
+        )
     }
     async fn serve_incoming_connection(
         &mut self,
@@ -943,10 +1011,21 @@ where
                     let (answer, prio) = api.answer(0).await?;
                     let robot = self.robot.clone();
 
-                    let task = self.executor.spawn(async move {
-                        let mut conn = api.connect(answer, robot).await?;
-                        conn.run().await
-                    });
+                    log::info!("spawning task for new WebRTC connection");
+                    let task = self.executor.spawn(
+                        async move {
+                            log::info!("task for new WebRTC connection started");
+                            let mut conn = api.connect(answer, robot).await?;
+                            log::info!("new WebRTC connection established");
+                            conn.run().await
+                        }
+                        .inspect_ok(|_| {
+                            log::info!("WebRTC connection task ended normally");
+                        })
+                        .inspect_err(|e| {
+                            log::warn!("WebRTC connection task ended with an error: {}", e);
+                        }),
+                    );
                     self.incomming_connection_manager
                         .insert_new_conn(task, prio)
                         .await;
@@ -1019,9 +1098,10 @@ where
                     })
                 };
 
+            log::info!("machine server waiting for a new incoming connection");
             let incoming = Box::pin(futures_lite::future::or(h2_conn, webrtc_conn)).await;
             if let Err(e) = self.serve_incoming_connection(incoming).await {
-                log::error!("failed to server incoming connection reason {:?}", e)
+                log::error!("failed to serve incoming connection: {:?}", e)
             }
         }
     }
