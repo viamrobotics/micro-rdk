@@ -406,6 +406,8 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             let mut sender = sender.unwrap();
             let inner_conn = inner_conn.unwrap();
 
+            // underlying engine that drives the request IO
+            // boxed to prevent stack overflow
             conn = Some(Box::new(self.exec.spawn(async move {
                 if let Err(err) = inner_conn.await {
                     log::error!("connection failed: {:?}", err);
