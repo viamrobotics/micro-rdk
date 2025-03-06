@@ -338,8 +338,8 @@ impl WifiCredentialStorage for NVSStorage {
         network_settings: &[NetworkSetting],
     ) -> Result<(), Self::Error> {
         let mut settings = network_settings.to_vec();
-        // enforce sorting before serialization for write deduplication
-        settings.sort_by(|a, b| b.priority.cmp(&a.priority));
+        // enforce sorting by ssid before serialization for write deduplication
+        settings.sort_by(|a, b| a.ssid.cmp(&b.ssid));
         let bytes: Vec<u8> = postcard::to_allocvec(&network_settings)?;
         log::info!(
             "storing {} bytes of network settings in nvs...",
