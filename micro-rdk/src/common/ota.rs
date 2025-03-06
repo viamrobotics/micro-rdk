@@ -386,14 +386,6 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 }
             };
 
-            if sender.is_none() || inner_conn.is_none() {
-                return Err(OtaError::Other(
-                    "invalid state, error path not handled".to_string(),
-                ));
-            }
-            let mut sender = sender.unwrap();
-            let inner_conn = inner_conn.unwrap();
-
             if retry {
                 log::debug!(
                     "retry establishing http connection to {} in {} seconds",
@@ -403,6 +395,14 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 Timer::after(Duration::from_secs(CONN_RETRY_SECS)).await;
                 continue;
             }
+
+            if sender.is_none() || inner_conn.is_none() {
+                return Err(OtaError::Other(
+                    "invalid state, error path not handled".to_string(),
+                ));
+            }
+            let mut sender = sender.unwrap();
+            let inner_conn = inner_conn.unwrap();
 
             conn = Some(Box::new(self.exec.spawn(async move {
                 if let Err(err) = inner_conn.await {
