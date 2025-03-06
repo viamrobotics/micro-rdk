@@ -441,9 +441,9 @@ impl TryFrom<&DeviceAgentConfigResponse> for AgentConfig {
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NetworkSetting {
-    pub ssid: String,
-    pub password: String,
-    pub priority: i32,
+    pub(crate) ssid: String,
+    pub(crate) password: String,
+    pub(crate) priority: i32,
 }
 
 impl NetworkSetting {
@@ -496,6 +496,22 @@ impl std::fmt::Debug for NetworkSetting {
             "NetworkSetting {{ ssid: {}, password: ***, priority: {} }}",
             self.ssid, self.priority
         )
+    }
+}
+
+use core::cmp::Ordering;
+impl Ord for NetworkSetting {
+    fn cmp(&self, other: &Self) -> Ordering {
+        if self.priority == other.priority {
+            return self.ssid.cmp(&other.ssid);
+        }
+        other.priority.cmp(&self.priority)
+    }
+}
+
+impl PartialOrd for NetworkSetting {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
