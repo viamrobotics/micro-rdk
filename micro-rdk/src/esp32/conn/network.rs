@@ -300,6 +300,8 @@ impl Esp32WifiNetwork {
         &self,
         mut networks: Vec<NetworkSetting>,
     ) -> Result<(), WifiManagerError> {
+        // TODO(RSDK-10184): scan available networks first
+        // attempt to connect only if available
         networks.sort();
         for network in networks.iter() {
             if let Err(e) = self.set_station_mode(network.clone()).await {
