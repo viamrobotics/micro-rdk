@@ -1,7 +1,6 @@
 use core::ffi::c_void;
 use std::{
     cell::RefCell,
-    collections::HashSet,
     ffi::CString,
     fmt::Display,
     net::Ipv4Addr,
@@ -301,40 +300,14 @@ impl Esp32WifiNetwork {
         &self,
         mut networks: Vec<NetworkSetting>,
     ) -> Result<(), WifiManagerError> {
-        let mut wifi = esp32_get_wifi()?.lock().await;
-        wifi.start().await?;
-        let access_points: Vec<String> = self
-            .scan_networks_inner()
-            .await
-            .inspect_err(|e| log::error!("failed to scan available networks: {}", e))?
-            .iter()
-            .map(|ap| ap.ssid.to_string())
-            .collect();
-        let access_points: HashSet<String> = HashSet::from_iter(access_points);
-        networks.sort_by(|a, b| b.priority.cmp(&a.priority));
+        networks.sort();
         for network in networks.iter() {
-            if !access_points.contains(&network.ssid) {
-                log::warn!("no network named `{}` found", network.ssid);
-                continue;
-            }
-
-            let mut conf = wifi.get_configuration()?;
-            let (sta, _) = conf.as_mixed_conf_mut();
-            sta.ssid = network.ssid.as_str().try_into().unwrap();
-            sta.auth_method = AuthMethod::None;
-            sta.password = network.password.as_str().try_into().unwrap();
-
-            wifi.set_configuration(&conf)?;
-
-            if let Err(e) = wifi.connect().await {
+            if let Err(e) = self.set_station_mode(network.clone()).await {
                 log::error!("failed to connect to `{}`: {}", network.ssid, e);
             } else {
                 log::info!("successfully connected to network `{}`", network.ssid);
                 return Ok(());
             }
-        }
-        if let Err(e) = wifi.stop().await {
-            log::error!("failed to stop internal wifi manager: {}", e);
         }
         Err(WifiManagerError::OtherError(
             "failed to connect to any of stored networks".into(),
