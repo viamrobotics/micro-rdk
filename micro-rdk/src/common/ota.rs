@@ -350,6 +350,8 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 ));
             }
 
+            log::info!("OTA connection attempt {}: `{}` ", num_tries, uri);
+
             let mut sender = None;
             let mut inner_conn = None;
             let retry;
@@ -387,8 +389,8 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             };
 
             if retry {
-                log::debug!(
-                    "retry establishing http connection to {} in {} seconds",
+                log::warn!(
+                    "attempting to retry connection to `{}` in {} seconds",
                     &uri,
                     CONN_RETRY_SECS
                 );
@@ -413,7 +415,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             log::info!("ota connected, beginning download");
             let request = Request::builder()
                 .method("GET")
-                .uri(uri)
+                .uri(&uri)
                 .body(Empty::<Bytes>::new())
                 .map_err(|e| OtaError::Other(e.to_string()))?;
             response = sender
@@ -425,7 +427,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             match (status.is_success(), status.is_redirection()) {
                 (true, false) => break,
                 (false, true) => {
-                    log::debug!("target url has been redirected...");
+                    log::info!("OTA connection received a redirection...");
                     let headers = response.headers();
                     if !headers.contains_key(hyper::header::LOCATION) {
                         log::error!("`location` not found in redirection response header");
@@ -434,14 +436,21 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                             headers
                         )));
                     }
-                    uri = self.parse_uri(headers[hyper::header::LOCATION].to_str().map_err(
-                        |e| {
-                            OtaError::Other(format!(
-                                "invalid redirection `location` in header: {} - {:?}",
-                                e, headers
-                            ))
-                        },
-                    )?)?;
+
+                    let new_uri = headers[hyper::header::LOCATION].to_str().map_err(|e| {
+                        OtaError::Other(format!(
+                            "invalid redirection `location` in header: {} - {:?}",
+                            e, headers
+                        ))
+                    })?;
+
+                    log::info!(
+                        "OTA target has been redirected from `{}` to `{}`",
+                        uri,
+                        new_uri
+                    );
+
+                    uri = self.parse_uri(new_uri)?;
                     drop(conn.take());
                     continue;
                 }
