@@ -354,7 +354,6 @@ impl<S: OtaMetadataStorage> OtaService<S> {
 
             let mut sender = None;
             let mut inner_conn = None;
-            let retry;
             match self.connector.connect_to(&uri) {
                 Ok(connection) => {
                     match connection.await {
@@ -368,27 +367,23 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                                 Ok(pair) => {
                                     sender = Some(pair.0);
                                     inner_conn = Some(pair.1);
-                                    retry = false;
                                 }
                                 Err(e) => {
                                     log::error!("failed to build http request: {}", e);
-                                    retry = true;
                                 }
                             }
                         }
                         Err(e) => {
                             log::error!("failed to create tcp stream: {}", e);
-                            retry = true;
                         }
                     }
                 }
                 Err(e) => {
                     log::error!("failed to create http connection: {}", e);
-                    retry = true;
                 }
             };
 
-            if retry {
+            if sender.is_none() || inner_conn.is_none() {
                 log::warn!(
                     "attempting to retry connection to `{}` in {} seconds",
                     &uri,
@@ -396,12 +391,6 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 );
                 Timer::after(Duration::from_secs(CONN_RETRY_SECS)).await;
                 continue;
-            }
-
-            if sender.is_none() || inner_conn.is_none() {
-                return Err(OtaError::Other(
-                    "invalid state, error path not handled".to_string(),
-                ));
             }
             let mut sender = sender.unwrap();
             let inner_conn = inner_conn.unwrap();
