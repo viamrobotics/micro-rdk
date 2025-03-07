@@ -65,7 +65,7 @@ use thiserror::Error;
 use {bincode::Decode, futures_lite::AsyncWriteExt};
 
 const CONN_RETRY_SECS: u64 = 1;
-const NUM_RETRY_CONN: usize = 3;
+const NUM_RETRY_CONN: usize = 5;
 const DOWNLOAD_TIMEOUT_SECS: u64 = 30;
 
 /// https://github.com/esp-rs/esp-idf-svc/blob/4ccf3182b32129b55082b5810d837a1cf5bc1a08/src/ota.rs#L94
@@ -304,15 +304,8 @@ impl<S: OtaMetadataStorage> OtaService<S> {
         self.stored_metadata().unwrap_or_default().version != self.pending_version
     }
 
-    /// Attempts to perform an OTA update.
-    /// On success, returns an `Ok(true)` or `Ok(false)` indicating if a reboot is necessary.
-    pub(crate) async fn update(&mut self) -> Result<bool, OtaError<S>> {
-        if !(self.needs_update()) {
-            return Ok(false);
-        }
-
-        let mut uri = self
-            .url
+    fn parse_uri(&self, url: &str) -> Result<hyper::Uri, OtaError<S>> {
+        let mut uri = url
             .parse::<hyper::Uri>()
             .map_err(|e| ConfigError::InvalidUrl(self.url.clone(), e.to_string()))?;
 
@@ -334,14 +327,33 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             uri = hyper::Uri::from_parts(parts).map_err(|e| OtaError::Other(e.to_string()))?;
         };
 
+        Ok(uri)
+    }
+
+    /// Attempts to perform an OTA update.
+    /// On success, returns an `Ok(true)` or `Ok(false)` indicating if a reboot is necessary.
+    pub(crate) async fn update(&mut self) -> Result<bool, OtaError<S>> {
+        if !(self.needs_update()) {
+            return Ok(false);
+        }
+
+        let mut uri = self.parse_uri(&self.url)?;
+        let mut response: hyper::Response<hyper::body::Incoming>;
+        let mut conn;
+
         let mut num_tries = 0;
-        let (mut sender, conn) = loop {
+        loop {
             num_tries += 1;
             if num_tries == NUM_RETRY_CONN + 1 {
                 return Err(OtaError::Other(
                     "failed to establish connection".to_string(),
                 ));
             }
+
+            log::info!("OTA connection attempt {}: `{}` ", num_tries, uri);
+
+            let mut sender = None;
+            let mut inner_conn = None;
             match self.connector.connect_to(&uri) {
                 Ok(connection) => {
                     match connection.await {
@@ -352,7 +364,10 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                                 .handshake(io)
                                 .await
                             {
-                                Ok(pair) => break pair,
+                                Ok(pair) => {
+                                    sender = Some(pair.0);
+                                    inner_conn = Some(pair.1);
+                                }
                                 Err(e) => {
                                     log::error!("failed to build http request: {}", e);
                                 }
@@ -368,37 +383,77 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 }
             };
 
-            log::debug!(
-                "retry establishing http connection to {} in {} seconds",
-                &uri,
-                CONN_RETRY_SECS
-            );
-            Timer::after(Duration::from_secs(CONN_RETRY_SECS)).await;
-        };
-
-        let conn = Box::new(self.exec.spawn(async move {
-            if let Err(err) = conn.await {
-                log::error!("connection failed: {:?}", err);
+            if sender.is_none() || inner_conn.is_none() {
+                log::warn!(
+                    "attempting to retry connection to `{}` in {} seconds",
+                    &uri,
+                    CONN_RETRY_SECS
+                );
+                Timer::after(Duration::from_secs(CONN_RETRY_SECS)).await;
+                continue;
             }
-        }));
+            let mut sender = sender.unwrap();
+            let inner_conn = inner_conn.unwrap();
 
-        log::info!("ota connected, beginning download");
-        let request = Request::builder()
-            .method("GET")
-            .uri(uri)
-            .body(Empty::<Bytes>::new())
-            .map_err(|e| OtaError::Other(e.to_string()))?;
-        let response = sender
-            .send_request(request)
-            .await
-            .map_err(|e| OtaError::Other(e.to_string()))?;
+            // underlying Task that drives the request IO
+            // boxed to prevent stack overflow
+            conn = Some(Box::new(self.exec.spawn(async move {
+                if let Err(err) = inner_conn.await {
+                    log::error!("connection failed: {:?}", err);
+                }
+            })));
 
-        // TODO(RSDK-9346): handle other success codes
-        if response.status() != 200 {
-            return Err(OtaError::Other(
-                format!("Bad Request - Status:{}", response.status()).to_string(),
-            ));
+            log::info!("ota connected, beginning download");
+            let request = Request::builder()
+                .method("GET")
+                .uri(&uri)
+                .body(Empty::<Bytes>::new())
+                .map_err(|e| OtaError::Other(e.to_string()))?;
+            response = sender
+                .send_request(request)
+                .await
+                .map_err(|e| OtaError::Other(e.to_string()))?;
+
+            let status = response.status();
+            match (status.is_success(), status.is_redirection()) {
+                (true, false) => break,
+                (false, true) => {
+                    log::info!("OTA connection received a redirection...");
+                    let headers = response.headers();
+                    if !headers.contains_key(hyper::header::LOCATION) {
+                        log::error!("`location` not found in redirection response header");
+                        return Err(OtaError::Other(format!(
+                            "invalid redirection response header: {:?}",
+                            headers
+                        )));
+                    }
+
+                    let new_uri = headers[hyper::header::LOCATION].to_str().map_err(|e| {
+                        OtaError::Other(format!(
+                            "invalid redirection `location` in header: {} - {:?}",
+                            e, headers
+                        ))
+                    })?;
+
+                    log::info!(
+                        "OTA target has been redirected from `{}` to `{}`",
+                        uri,
+                        new_uri
+                    );
+
+                    uri = self.parse_uri(new_uri)?;
+                    drop(conn.take());
+                    continue;
+                }
+                _ => {
+                    return Err(OtaError::Other(format!(
+                        "Bad Request - Status: {}",
+                        response.status()
+                    )))
+                }
+            };
         }
+
         let headers = response.headers();
         log::debug!("ota response headers: {:?}", headers);
 

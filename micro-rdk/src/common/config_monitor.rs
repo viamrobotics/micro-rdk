@@ -45,7 +45,7 @@ where
     }
 
     fn restart(&self) -> ! {
-        log::warn!("Robot configuration change detected restarting micro-rdk");
+        log::warn!("machine configuration change detected - restarting micro-rdk");
         (self.restart_hook)();
         unreachable!();
     }
@@ -110,7 +110,7 @@ where
                 if *config != *self.curr_config {
                     if let Err(e) = self.storage.reset_robot_configuration() {
                         log::warn!(
-                            "Failed to reset robot config after new config detected: {}",
+                            "failed to reset machine config after new config detected: {}",
                             e
                         );
                     } else {

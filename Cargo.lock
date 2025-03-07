@@ -2769,6 +2769,7 @@ dependencies = [
  "local-ip-address",
  "log",
  "micro-rdk",
+ "micro-rdk-nmea",
  "regex",
  "serde",
  "serde_json",
@@ -2822,6 +2823,7 @@ version = "0.4.1-rc9"
 dependencies = [
  "base64 0.22.1",
  "chrono",
+ "log",
  "micro-rdk",
  "micro-rdk-nmea-macros",
  "thiserror 2.0.11",
@@ -2851,6 +2853,7 @@ dependencies = [
  "log",
  "micro-rdk",
  "micro-rdk-modular-driver-example",
+ "micro-rdk-nmea",
  "regex",
  "serde",
  "serde_json",

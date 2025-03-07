@@ -1,9 +1,5 @@
 # Viam Micro-RDK Development
 
-## (In)stability Notice
-
-> **Warning** The Viam Micro-RDK is currently in beta.
-
 ## Overview
 
 This document provides advanced development configuration notes to aid

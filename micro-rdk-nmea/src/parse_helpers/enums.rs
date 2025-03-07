@@ -23,12 +23,12 @@ macro_rules! define_nmea_enum {
             }
         }
 
-        impl ToString for $name {
-            fn to_string(&self) -> String {
-                match self {
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}", match self {
                     $(Self::$var => $label),*,
                     Self::$default => "could not parse"
-                }.to_string()
+                }.to_string())
             }
         }
 
