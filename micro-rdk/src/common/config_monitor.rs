@@ -123,9 +123,18 @@ where
                 if let Ok(agent_config) = AgentConfig::try_from(device_agent_config.as_ref()) {
                     log::debug!("agent config: {:?}", agent_config);
 
-                    let stored = self.storage.get_network_settings().unwrap_or_default();
+                    let stored = self
+                        .storage
+                        .get_network_settings()
+                        .inspect_err(|e| log::warn!("failed to get networks from NVS: {}", e))
+                        .unwrap_or_default();
 
-                    if agent_config.network_settings != stored {
+                    if agent_config.network_settings.len() != stored.len()
+                        || agent_config
+                            .network_settings
+                            .iter()
+                            .any(|net| !stored.contains(net))
+                    {
                         log::info!("new network settings found in config");
                         if let Err(e) = self
                             .storage
