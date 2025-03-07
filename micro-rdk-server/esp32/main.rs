@@ -82,7 +82,6 @@ mod esp32 {
         // it will try to load statically compiled values.
 
         if !storage.has_default_network() {
-
             // check if any were statically compiled
             if SSID.is_some() && PASS.is_some() {
                 log::info!("storing static values from build time wifi configuration to storage");

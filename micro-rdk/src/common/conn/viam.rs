@@ -479,7 +479,7 @@ where
             .as_ref()
             .as_ref()
             .is_some_and(|_| !self.storage.has_default_network());
-      
+
         if missing_robot_creds || missing_wifi_creds {
             if missing_robot_creds {
                 log::warn!("no machine credentials found in storage - provisioning required");
