@@ -6,6 +6,7 @@ use crate::{
     proto::{
         app::{agent::v1::DeviceAgentConfigResponse, v1::ComponentConfig},
         common::v1::ResourceName,
+        provisioning::v1::SetNetworkCredentialsRequest,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -440,9 +441,29 @@ impl TryFrom<&DeviceAgentConfigResponse> for AgentConfig {
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NetworkSetting {
-    ssid: String,
-    password: String,
-    priority: i32,
+    pub(crate) ssid: String,
+    pub(crate) password: String,
+    pub(crate) priority: i32,
+}
+
+impl NetworkSetting {
+    pub fn new(ssid: String, password: String, priority: i32) -> Self {
+        Self {
+            ssid,
+            password,
+            priority,
+        }
+    }
+}
+
+impl From<SetNetworkCredentialsRequest> for NetworkSetting {
+    fn from(value: SetNetworkCredentialsRequest) -> Self {
+        Self {
+            ssid: value.ssid,
+            password: value.psk,
+            priority: 0,
+        }
+    }
 }
 
 impl TryFrom<&Kind> for NetworkSetting {
@@ -475,6 +496,22 @@ impl std::fmt::Debug for NetworkSetting {
             "NetworkSetting {{ ssid: {}, password: ***, priority: {} }}",
             self.ssid, self.priority
         )
+    }
+}
+
+use core::cmp::Ordering;
+impl Ord for NetworkSetting {
+    fn cmp(&self, other: &Self) -> Ordering {
+        if self.priority == other.priority {
+            return self.ssid.cmp(&other.ssid);
+        }
+        other.priority.cmp(&self.priority)
+    }
+}
+
+impl PartialOrd for NetworkSetting {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
