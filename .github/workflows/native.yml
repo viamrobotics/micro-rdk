@@ -1,0 +1,46 @@
+# Goal here is to run all CI that do not require the ESP-IDF environment
+name: CI for Native
+
+on:
+  workflow_call:
+
+env:
+  CARGO_INCREMENTAL: 0
+  RUSTFLAGS: "-D warnings"
+  RUST_BACKTRACE: short
+  RUSTUP_MAX_RETRIES: 10
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+    - name : Checkout main branch code
+      if: github.event_name != 'pull_request_target'
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
+    - name: Check out PR branch code
+      if: github.event_name == 'pull_request_target'
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        fetch-depth: 2
+    - uses: dtolnay/rust-toolchain@1.83
+      with:
+        components: clippy
+    - name: Cache Dependencies
+      uses: Swatinem/rust-cache@v2
+    - name: install libudev
+      run: sudo apt update && sudo apt install libudev-dev -y
+    - name: Clippy Micro-RDK native
+      run: cargo clippy -p micro-rdk --no-deps --features native,ota
+    - name: Clippy ffi
+      run: cargo clippy -p micro-rdk-ffi --no-deps
+    - name: Clippy installer
+      run: cargo clippy -p micro-rdk-installer --no-deps
+    - name: Clippy Micro-RDK server
+      run: cargo clippy -p micro-rdk-server --bin micro-rdk-server-native --no-deps
+    - name: Clippy NMEA
+      run: cargo clippy -p micro-rdk-nmea --no-deps --features native
+    - name: Tests
+      run: cargo test --workspace --tests --no-fail-fast --features native,ota
