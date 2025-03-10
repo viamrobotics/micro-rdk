@@ -10,11 +10,12 @@ use std::{
 
 use crate::{
     common::{
+        config::NetworkSetting,
         conn::{
             mdns::Mdns,
             network::{Network, NetworkError},
         },
-        credentials_storage::{NetworkSettingsStorage, RobotConfigurationStorage, WifiCredentials},
+        credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage},
         exec::Executor,
         grpc::{GrpcBody, GrpcError, GrpcResponse, ServerError},
         webrtc::api::AtomicSync,
@@ -215,7 +216,7 @@ impl<S: Clone> Clone for ProvisioningService<S> {
 
 impl<S> ProvisioningService<S>
 where
-    S: RobotConfigurationStorage + NetworkSettingsStorage + Clone,
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone,
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
 {
     async fn process_request_inner(&self, req: Request<Incoming>) -> Result<Bytes, ServerError> {
@@ -243,20 +244,20 @@ where
     }
     async fn set_network_credential_request(&self, body: Bytes) -> Result<Bytes, ServerError> {
         if let Some(wifi_manager) = self.wifi_manager.as_ref() {
-            let creds: WifiCredentials = SetNetworkCredentialsRequest::decode(body)
+            let network: NetworkSetting = SetNetworkCredentialsRequest::decode(body)
                 .map_err(|e| ServerError::new(GrpcError::RpcInternal, Some(e.into())))?
                 .into();
 
             // may not be the best place to attempt to validate passed credentials
             wifi_manager
-                .try_connect(&creds.ssid, &creds.pwd)
+                .try_connect(&network.ssid, &network.password)
                 .await
                 .map_err(|err| {
                     ServerError::new(GrpcError::RpcInvalidArgument, Some(Box::new(err)))
                 })?;
 
             self.storage
-                .store_wifi_credentials(&creds)
+                .store_default_network(&network.ssid, &network.password)
                 .map_err(|e| ServerError::new(GrpcError::RpcInternal, Some(Box::new(e.into()))))?;
 
             let resp = SetNetworkCredentialsResponse::default();
@@ -346,7 +347,7 @@ where
 
         match self.wifi_manager.as_ref() {
             Some(_) => {
-                if self.storage.has_wifi_credentials() {
+                if self.storage.has_default_network() {
                     self.credential_ready.done()
                 }
             }
@@ -382,7 +383,7 @@ where
 
 impl<S> Service<Request<Incoming>> for ProvisioningService<S>
 where
-    S: RobotConfigurationStorage + NetworkSettingsStorage + Clone + 'static,
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
 {
     type Response = Response<GrpcBody>;
@@ -396,7 +397,7 @@ where
 #[pin_project::pin_project]
 pub(crate) struct ProvisoningServer<I, S, E>
 where
-    S: RobotConfigurationStorage + NetworkSettingsStorage + Clone + 'static,
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
 {
     _exec: PhantomData<E>,
@@ -409,7 +410,7 @@ where
 
 impl<I, S, E> Future for ProvisoningServer<I, S, E>
 where
-    S: RobotConfigurationStorage + NetworkSettingsStorage + Clone + 'static,
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
     I: rt::Read + rt::Write + std::marker::Unpin + 'static,
     E: rt::bounds::Http2ServerConnExec<
@@ -432,7 +433,7 @@ where
 
 impl<I, S, E> ProvisoningServer<I, S, E>
 where
-    S: RobotConfigurationStorage + NetworkSettingsStorage + Clone + 'static,
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
     I: rt::Read + rt::Write + std::marker::Unpin + 'static,
     E: rt::bounds::Http2ServerConnExec<
@@ -531,7 +532,11 @@ pub trait WifiManager: Network {
     ) -> Pin<Box<dyn Future<Output = Result<(), WifiManagerError>> + '_>>;
     fn set_sta_mode(
         &self,
-        credential: WifiCredentials,
+        credential: NetworkSetting,
+    ) -> Pin<Box<dyn Future<Output = Result<(), WifiManagerError>> + '_>>;
+    fn try_connect_by_priority(
+        &self,
+        networks: Vec<NetworkSetting>,
     ) -> Pin<Box<dyn Future<Output = Result<(), WifiManagerError>> + '_>>;
 }
 
@@ -555,7 +560,7 @@ pub(crate) async fn accept_connections<S>(
     service: ProvisioningService<S>,
     exec: Executor,
 ) where
-    S: RobotConfigurationStorage + NetworkSettingsStorage + Clone + 'static,
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
 {
     // Annoyingly VIAM app creates a new HTTP2 connection for each provisioning request
@@ -588,7 +593,7 @@ pub(crate) async fn serve_provisioning_async<S, M>(
     mdns: &RefCell<M>,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
-    S: RobotConfigurationStorage + NetworkSettingsStorage + Clone + 'static,
+    S: RobotConfigurationStorage + WifiCredentialStorage + Clone + 'static,
     <S as RobotConfigurationStorage>::Error: Debug,
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
     M: Mdns,
