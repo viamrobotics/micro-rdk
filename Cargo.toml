@@ -25,7 +25,7 @@ description = "Viam RDK for microcontroller"
 edition = "2021"
 license = "AGPL-3.0"
 repository = "https://github.com/viamrobotics/micro-rdk"
-version = "0.4.1-rc9"
+version = "0.4.1-rc10"
 rust-version = "1.83"
 
 [profile.release]
