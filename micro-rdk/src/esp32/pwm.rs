@@ -109,6 +109,7 @@ impl<'a> PwmDriver<'a> {
 
     pub fn get_timer_frequency(&self) -> u32 {
         let timer: ledc_timer_t = (self.timer_number as u8).into();
+        // TODO(RSDK-10199): SpeedMode is now a trait in ESP-IDF 5
         unsafe { ledc_get_freq(SpeedMode::LowSpeed.into(), timer) }
     }
 
@@ -175,6 +176,7 @@ struct LedcManager<'a> {
 struct LedcTimerWrapper<'a> {
     frequency: u32,
     count: u8,
+    // TODO(RSDK-10192): LedcTimerDriver expects an additional template argument in ESP-IDF 5
     timer: OnceCell<LedcTimerDriver<'a>>,
 }
 
@@ -350,6 +352,7 @@ impl<'a> LedcManager<'a> {
                     .ok_or(Esp32PwmError::NoTimersAvailable)?;
                 unsafe {
                     ledc_bind_channel_timer(
+                        // TODO(RSDK-10199): SpeedMode is now a trait in ESP-IDF 5
                         SpeedMode::LowSpeed.into(),
                         Into::<usize>::into(channel) as u32,
                         new_timer as u32,

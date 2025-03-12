@@ -433,6 +433,7 @@ where
         {
             // set the TWDT to expire after 3 minutes
             crate::esp32::esp_idf_svc::sys::esp!(unsafe {
+                // TODO(RSDK-10195): This should now take an esp_task_wdt_config_t
                 crate::esp32::esp_idf_svc::sys::esp_task_wdt_init(180, true)
             })
             .unwrap();

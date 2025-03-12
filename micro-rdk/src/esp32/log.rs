@@ -126,6 +126,6 @@ impl ViamLogAdapter for EspLogger {
         self.get_max_level()
     }
     fn new() -> Self {
-        Self {}
+        EspLogger::new()
     }
 }
