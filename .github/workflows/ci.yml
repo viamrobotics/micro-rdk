@@ -47,6 +47,8 @@ jobs:
             - 'micro-rdk/src/gen/**'
             - 'micro-rdk-ffi/**'
             - 'micro-rdk-server/**'
+            - 'Cargo.toml'
+            - '**/Cargo.toml'
 
   format:
     name: Check code formatting
