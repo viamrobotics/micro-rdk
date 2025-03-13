@@ -33,12 +33,14 @@ list-partitions:
 
 build-esp32-bin:
 	cargo espflash save-image \
-		--merge \
-		--chip esp32 \
-		--partition-table partitions.csv \
-		--target xtensa-esp32-espidf \
-		--flash-size ${FLASHSIZE} \
+		--skip-update-check \
+		--chip=esp32 \
+		--partition-table=partitions.csv \
+		--target=xtensa-esp32-espidf \
+		-Zbuild-std=std,panic_abort \
 		--release \
+		--flash-size=${FLASHSIZE} \
+		--merge \
 		target/xtensa-esp32-espidf/release/{{project-name}}.bin
 
 build-esp32-ota:
@@ -49,7 +51,7 @@ build-esp32-ota:
 		--target=xtensa-esp32-espidf \
 		-Zbuild-std=std,panic_abort \
 		--release \
-		target/xtensa-esp32-espidf/project-ota.bin
+		target/xtensa-esp32-espidf/release/{{project-name}}-ota.bin
 
 flash-esp32-bin:
 ifneq (,$(wildcard target/xtensa-esp32-espidf/release/{{project-name}}))
