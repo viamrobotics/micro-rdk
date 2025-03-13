@@ -32,15 +32,7 @@ jobs:
       uses: Swatinem/rust-cache@v2
     - name: install libudev
       run: sudo apt update && sudo apt install libudev-dev -y
-    - name: Clippy Micro-RDK native
-      run: cargo clippy -p micro-rdk --no-deps --features native,ota
-    - name: Clippy ffi
-      run: cargo clippy -p micro-rdk-ffi --no-deps
-    - name: Clippy installer
-      run: cargo clippy -p micro-rdk-installer --no-deps
-    - name: Clippy Micro-RDK server
-      run: cargo clippy -p micro-rdk-server --bin micro-rdk-server-native --no-deps
-    - name: Clippy NMEA
-      run: cargo clippy -p micro-rdk-nmea --no-deps --features native
+    - name: Clippy Micro-RDK workspace
+      run: cargo clippy --workspace --no-deps --locked --all-targets --features native,ota
     - name: Tests
       run: cargo test --workspace --tests --no-fail-fast --features native,ota
