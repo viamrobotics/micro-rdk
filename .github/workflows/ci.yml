@@ -54,7 +54,7 @@ jobs:
 
   ci-native:
     name: Run CI Native
-    needs: [changes, format]
+    needs: [format]
     uses: ./.github/workflows/native.yml
     
   ci-esp32:
