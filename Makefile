@@ -56,7 +56,6 @@ endif
 	pkill qemu || true
 	$(QEMU_ESP32_XTENSA)/qemu-system-xtensa -nographic -machine esp32 -gdb tcp::3334 -nic user,model=open_eth,hostfwd=udp::-:61205,hostfwd=tcp::12346-:12346 -drive file=target/xtensa-esp32-espidf/debug/debug.bin,if=mtd,format=raw -S -m 4m
 
-
 test:
 	cargo test --workspace --tests --no-fail-fast --features native
 
