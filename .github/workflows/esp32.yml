@@ -1,0 +1,51 @@
+name: CI for ESP32
+
+on:
+  workflow_call:
+
+env:
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: short
+
+# by default github use sh as shell
+defaults:
+  run:
+    # will use bash to run each command, bash will source /etc/profile which will give us the environment to build for esp32
+    shell: bash --norc  -leo pipefail {0}
+        
+jobs:
+  all:
+    name: "Build, clippy and test for esp32"
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
+    steps:
+    - name : Checkout main branch code
+      if: github.event_name != 'pull_request_target'
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
+    - name: Check out PR branch code
+      if: github.event_name == 'pull_request_target'
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        fetch-depth: 2
+    # workaround, the environment definition is under the testbot user but github action runs everything as root
+    - name: Move profile
+      run: cp /home/testbot/.bash_profile /etc/profile
+    - name : Set default toolchain to esp
+      run: rustup default esp
+    - name: Cache Dependencies
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-directories: "/host/.micro-rdk-docker-caches/cargo-registry/"
+        cache-all-crates: true
+    - name: ESP32 Clippy
+      run: |
+        git config --global --add safe.directory /opt/esp/esp-idf
+        make clippy-esp32
+    - name: ESP32 Server Build
+      run: |
+        make build-esp32-bin
+        

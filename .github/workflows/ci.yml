@@ -1,0 +1,33 @@
+name: Micro-RDK CI
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  pull_request:
+    branches: ['main']
+  push:
+    branches:
+      - '**'
+    tags-ignore:
+      - '**'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+
+jobs:
+
+  format:
+    name: Check code formatting
+    uses: ./.github/workflows/format.yml
+
+  ci-native:
+    name: Run CI Native
+    needs: [format]
+    uses: ./.github/workflows/native.yml
+    
+  ci-esp32:
+    name: Run CI Esp32
+    needs: [format]
+    uses: ./.github/workflows/esp32.yml
+

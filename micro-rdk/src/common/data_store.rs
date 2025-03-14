@@ -798,11 +798,9 @@ mod tests {
             data: Some(data),
         };
 
-        let encountered_data_too_large_err =
-            match data_store.write_message(&thing_key, message, WriteMode::OverwriteOldest) {
-                Err(DataStoreError::DataTooLarge(_, _, _)) => true,
-                _ => false,
-            };
-        assert!(encountered_data_too_large_err);
+        assert!(matches!(
+            data_store.write_message(&thing_key, message, WriteMode::OverwriteOldest),
+            Err(DataStoreError::DataTooLarge(_, _, _))
+        ));
     }
 }

@@ -124,10 +124,13 @@ fn movement_sensor_readings_derive() {
         if let Some(Kind::NumberValue(lat)) = lat_val.unwrap().kind {
             assert_eq!(lat, 1.0);
         } else {
-            assert!(false)
+            panic!(
+                "expected a Kind::NumberValue have {:?}",
+                lat_val.unwrap().kind
+            );
         }
     } else {
-        assert!(false)
+        panic!("expected a StructValue have {:?}", pos);
     }
 
     // test acceleration
@@ -142,10 +145,13 @@ fn movement_sensor_readings_derive() {
         if let Some(Kind::NumberValue(y)) = y_val.unwrap().kind {
             assert_eq!(y, 1.0);
         } else {
-            assert!(false)
+            panic!(
+                "expected a Kind::NumberValue have {:?}",
+                y_val.unwrap().kind
+            );
         }
     } else {
-        assert!(false)
+        panic!("expected a StructValue have {:?}", acc);
     }
 }
 

@@ -1,0 +1,32 @@
+name: Format
+
+on:
+  workflow_call:
+
+env:
+  CARGO_INCREMENTAL: 0
+  RUSTFLAGS: "-D warnings"
+  RUST_BACKTRACE: short
+  RUSTUP_MAX_RETRIES: 10
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+    - name : Checkout main branch code
+      if: github.event_name != 'pull_request_target'
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
+    - name: Check out PR branch code
+      if: github.event_name == 'pull_request_target'
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        fetch-depth: 2
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt
+    - name: Format
+      run: cargo fmt --all --check
+      
