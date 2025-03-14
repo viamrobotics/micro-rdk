@@ -5,7 +5,6 @@ on:
 
 env:
   CARGO_INCREMENTAL: 0
-  RUSTFLAGS: "-D warnings --cfg espidf_time32 "
   RUST_BACKTRACE: short
 
 # by default github use sh as shell
@@ -45,12 +44,8 @@ jobs:
     - name: ESP32 Clippy
       run: |
         git config --global --add safe.directory /opt/esp/esp-idf
-        cargo clippy -p micro-rdk --lib --features esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --release --no-deps
-    - name: ESP32 Server  Clippy & Build
+        make clippy-esp32
+    - name: ESP32 Server Build
       run: |
-        cargo clippy -p micro-rdk-server --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --release --no-deps
         make build-esp32-bin
-    - name: ESP32 Clippy FFI ESP32
-      run: |
-        cargo clippy -p micro-rdk-ffi --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --release --no-deps
         

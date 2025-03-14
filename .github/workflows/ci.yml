@@ -16,39 +16,6 @@ concurrency:
 
 
 jobs:
-  changes:
-    name: Path Changed
-    runs-on: ubuntu-latest
-    outputs:
-      src-esp32: ${{ steps.filter.outputs.src-esp32 }}
-      src-common: ${{ steps.filter.outputs.src-common }}
-    steps:
-    - name : Checkout main branch code
-      if: github.event_name != 'pull_request_target'
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 2
-    - name: Check out PR branch code
-      if: github.event_name == 'pull_request_target'
-      uses: actions/checkout@v4
-      with:
-        ref: ${{ github.event.pull_request.head.sha }}
-        fetch-depth: 2
-    - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-    - name: path filter
-      uses: dorny/paths-filter@v3
-      id: filter
-      with:
-        filters: |
-          src-esp32:
-            - 'micro-rdk/src/esp32/**'
-          src-common:
-            - 'micro-rdk/src/common/**'
-            - 'micro-rdk/src/gen/**'
-            - 'micro-rdk-ffi/**'
-            - 'micro-rdk-server/**'
-            - 'Cargo.toml'
-            - '**/Cargo.toml'
 
   format:
     name: Check code formatting
@@ -61,7 +28,6 @@ jobs:
     
   ci-esp32:
     name: Run CI Esp32
-    needs: [changes, format]
-    if: needs.changes.outputs.src-esp32 == 'true' || needs.changes.outputs.src-common == 'true'
+    needs: [format]
     uses: ./.github/workflows/esp32.yml
 

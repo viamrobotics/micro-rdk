@@ -1,7 +1,4 @@
 SHELL := /bin/bash
-ESPFLASHVERSION_MAJ := $(shell expr `cargo espflash -V | grep ^cargo-espflash | sed 's/^.* //g' | cut -f1 -d. `)
-ESPFLASHVERSION_MIN := $(shell expr `cargo espflash -V | grep ^cargo-espflash | sed 's/^.* //g' | cut -f2 -d. `)
-ESPFLASHVERSION := $(shell [ $(ESPFLASHVERSION_MAJ) -gt 2 -a $(ESPFLASHVERSION_MIN) -ge 2 ] && echo true)
 VIAM_API_VERSION := v0.1.394
 
 DATE := $(shell date +%F)
@@ -27,11 +24,6 @@ buf: buf-clean
 license-finder:
 	license_finder
 
-cargo-ver:
-ifneq ($(ESPFLASHVERSION),true)
-		$(error Update espfash to version >=3.0. Update with cargo install cargo-espflash)
-endif
-
 build:
 	cargo +esp build  -p micro-rdk-server --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort
 
@@ -48,7 +40,7 @@ build-qemu:
 	cargo +esp build -p micro-rdk-server --bin micro-rdk-server-esp32  --features qemu --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort && cargo +esp espflash save-image --package micro-rdk-server --features qemu --merge --chip esp32 target/xtensa-esp32-espidf/debug/debug.bin -T micro-rdk-server/esp32/partitions.csv -s 4mb  --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
 
 
-sim-local: cargo-ver build-qemu
+sim-local: build-qemu
 ifndef QEMU_ESP32_XTENSA
 	$(error QEMU_ESP32_XTENSA is not set)
 endif
@@ -57,7 +49,7 @@ endif
 
 # debug-local is identical to sim-local, except the `-S` at the end means "wait until a debugger is
 # attached before starting."
-debug-local: cargo-ver build-qemu
+debug-local: build-qemu
 ifndef QEMU_ESP32_XTENSA
 	$(error QEMU_ESP32_XTENSA is not set)
 endif
@@ -66,27 +58,14 @@ endif
 
 
 test:
-	cargo test --workspace --tests --no-fail-fast --features native,ota
-
-clippy-nmea:
-	cargo clippy -p micro-rdk-nmea --no-deps --features native -- -Dwarnings
+	cargo test --workspace --tests --no-fail-fast --features native
 
 clippy-native:
-	cargo clippy -p micro-rdk --no-deps --features native,ota --release  -- -Dwarnings
+	cargo clippy --workspace --no-deps --locked --all-targets --features native  -- -Dwarnings
 
 clippy-esp32:
-	cargo +esp clippy -p micro-rdk  --features esp32,ota  --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --release -- -Dwarnings
-
-clippy-cli:
-	cargo clippy -p micro-rdk-installer --no-default-features -- -Dwarnings
-
-clippy-ffi-native:
-	cargo clippy -p micro-rdk-ffi -- -Dwarnings
-
-clippy-ffi-esp32:
-	cargo +esp clippy -p micro-rdk-ffi  --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --release -- -Dwarnings
-
-clippy-ffi : clippy-ffi-native clippy-ffi-esp32
+	cargo +esp clippy -p micro-rdk-server --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --release -- -Dwarnings
+	cargo +esp clippy -p micro-rdk-ffi --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --release -- -Dwarnings
 
 format:
 	cargo fmt --all -- --check

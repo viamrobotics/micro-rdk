@@ -6,7 +6,6 @@ on:
 
 env:
   CARGO_INCREMENTAL: 0
-  RUSTFLAGS: "-D warnings"
   RUST_BACKTRACE: short
   RUSTUP_MAX_RETRIES: 10
 
@@ -33,6 +32,6 @@ jobs:
     - name: install libudev
       run: sudo apt update && sudo apt install libudev-dev -y
     - name: Clippy Micro-RDK workspace
-      run: cargo clippy --workspace --no-deps --locked --all-targets --features native,ota
+      run: make clippy-native
     - name: Tests
-      run: cargo test --workspace --tests --no-fail-fast --features native,ota
+      run: make test
