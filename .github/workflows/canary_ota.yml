@@ -15,10 +15,6 @@ on:
         required: true
       ESP32_CANARY_API_KEY_ID:
         required: true
-      GCP_BUCKET_URL:
-        required: true
-      GCP_BUCKET_NAME:
-        required: true
       CANARY_SLACKBOT_TOKEN:
         required: true
       MICRO_RDK_TEAM_CHANNEL_ID:
@@ -37,8 +33,6 @@ env:
   ESP32_CANARY_API_KEY: ${{ secrets.ESP32_CANARY_API_KEY }}
   ESP32_CANARY_API_KEY_ID: ${{ secrets.ESP32_CANARY_API_KEY_ID }}
   ESP32_OTA_BINARY_NAME: ${{ vars.ESP32_OTA_BINARY_NAME }}
-  GCP_BUCKET_URL: ${{ secrets.GCP_BUCKET_URL }}
-  GCP_BUCKET_NAME: ${{ secrets.GCP_BUCKET_NAME }}
   CANARY_SLACKBOT_TOKEN: ${{ secrets.CANARY_SLACKBOT_TOKEN }}
   MICRO_RDK_TEAM_CHANNEL_ID: ${{ secrets.MICRO_RDK_TEAM_CHANNEL_ID }}
 
