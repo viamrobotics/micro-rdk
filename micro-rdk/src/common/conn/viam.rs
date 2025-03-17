@@ -1209,12 +1209,13 @@ mod tests {
     use rustls::client::ServerCertVerifier;
 
     const LOCALHOST_URI: &str = "http://localhost:56563";
+    type AuthFn = dyn Fn(&AuthenticateRequest) -> bool;
 
     #[derive(Clone, Default)]
     struct AppServerInsecure {
         config_fn: Option<Rc<Box<dyn Fn() -> RobotConfig>>>,
         log_fn: Option<&'static dyn Fn()>,
-        auth_fn: Option<Rc<Box<dyn Fn(&AuthenticateRequest) -> bool>>>,
+        auth_fn: Option<Rc<Box<AuthFn>>>,
     }
 
     impl AppServerInsecure {
@@ -1399,12 +1400,13 @@ mod tests {
         );
         let cloned_exec = exec.clone();
 
-        let mut app = AppServerInsecure::default();
-
-        app.auth_fn = Some(Rc::new(Box::new(move |req| {
-            assert!(req.entity.contains("test-denied"));
-            false
-        })));
+        let app = AppServerInsecure {
+            auth_fn: Some(Rc::new(Box::new(move |req| {
+                assert!(req.entity.contains("test-denied"));
+                false
+            }))),
+            ..Default::default()
+        };
         exec.block_on(async move {
             let other_clone = cloned_exec.clone();
             let _fake_server_task = cloned_exec.spawn(async move {
@@ -1519,7 +1521,7 @@ mod tests {
             // this should simulate a network loss or app.viam.com going offline for some
             // reasons. We should still be able to make a connection to the H2 server
             assert!(fake_server_task.cancel().await.is_none());
-            let _ = Timer::after(Duration::from_millis(300));
+            let _ = Timer::after(Duration::from_millis(300)).await;
             let t2 = test_connect_to(addr, cloned_exec.clone()).await;
             assert!(t2.is_ok());
             assert_eq!(shared_auth_counter.load(Ordering::Acquire), 1);
@@ -1576,15 +1578,17 @@ mod tests {
         );
         let cloned_exec = exec.clone();
 
-        let mut app = AppServerInsecure::default();
-        app.config_fn = Some(Rc::new(Box::new(|| {
-            let mut cfg = make_sample_config();
-            if let Some(cloud) = cfg.cloud.as_mut() {
-                cloud.fqdn = "test-bot.xxds65ui.viam.cloud".to_owned();
-                cloud.local_fqdn = "test-bot.xxds65ui.viam.local.cloud".to_owned();
-            }
-            cfg
-        })));
+        let app = AppServerInsecure {
+            config_fn: Some(Rc::new(Box::new(|| {
+                let mut cfg = make_sample_config();
+                if let Some(cloud) = cfg.cloud.as_mut() {
+                    cloud.fqdn = "test-bot.xxds65ui.viam.cloud".to_owned();
+                    cloud.local_fqdn = "test-bot.xxds65ui.viam.local.cloud".to_owned();
+                }
+                cfg
+            }))),
+            ..Default::default()
+        };
 
         let _fake_server_task =
             exec.spawn(async move { run_fake_app_server(cloned_exec, app).await });
@@ -1679,7 +1683,7 @@ mod tests {
                         .unwrap(),
                     "0"
                 );
-                let _ = Timer::after(Duration::from_millis(500));
+                let _ = Timer::after(Duration::from_millis(500)).await;
             }
         });
 
@@ -1721,16 +1725,18 @@ mod tests {
         );
         let cloned_exec = exec.clone();
 
-        let mut app = AppServerInsecure::default();
-        app.auth_fn = Some(Rc::new(Box::new(|req: &AuthenticateRequest| {
-            assert!(req.credentials.is_some());
-            assert_eq!(
-                req.credentials.as_ref().unwrap().payload,
-                "a-secret-test".to_owned()
-            );
-            assert_eq!(req.entity, "an-id-test".to_owned());
-            true
-        })));
+        let app = AppServerInsecure {
+            auth_fn: Some(Rc::new(Box::new(|req: &AuthenticateRequest| {
+                assert!(req.credentials.is_some());
+                assert_eq!(
+                    req.credentials.as_ref().unwrap().payload,
+                    "a-secret-test".to_owned()
+                );
+                assert_eq!(req.entity, "an-id-test".to_owned());
+                true
+            }))),
+            ..Default::default()
+        };
 
         let _fake_server_task =
             exec.spawn(async move { run_fake_app_server(cloned_exec, app).await });
@@ -1826,12 +1832,13 @@ mod tests {
             let _ = conn.await;
         });
 
-        let mut req = SetSmartMachineCredentialsRequest::default();
-        req.cloud = Some(CloudConfig {
-            id: "an-id-test".to_owned(),
-            secret: "a-secret-test".to_owned(),
-            app_address: LOCALHOST_URI.to_owned(),
-        });
+        let req = SetSmartMachineCredentialsRequest {
+            cloud: Some(CloudConfig {
+                id: "an-id-test".to_owned(),
+                secret: "a-secret-test".to_owned(),
+                app_address: LOCALHOST_URI.to_owned(),
+            }),
+        };
 
         let body = encode_request(req);
         assert!(body.is_ok());

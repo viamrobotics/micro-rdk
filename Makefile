@@ -1,7 +1,4 @@
 SHELL := /bin/bash
-ESPFLASHVERSION_MAJ := $(shell expr `cargo espflash -V | grep ^cargo-espflash | sed 's/^.* //g' | cut -f1 -d. `)
-ESPFLASHVERSION_MIN := $(shell expr `cargo espflash -V | grep ^cargo-espflash | sed 's/^.* //g' | cut -f2 -d. `)
-ESPFLASHVERSION := $(shell [ $(ESPFLASHVERSION_MAJ) -gt 2 -a $(ESPFLASHVERSION_MIN) -ge 2 ] && echo true)
 VIAM_API_VERSION := v0.1.394
 
 DATE := $(shell date +%F)
@@ -27,11 +24,6 @@ buf: buf-clean
 license-finder:
 	license_finder
 
-cargo-ver:
-ifneq ($(ESPFLASHVERSION),true)
-		$(error Update espfash to version >=3.0. Update with cargo install cargo-espflash)
-endif
-
 build:
 	cargo +esp build  -p micro-rdk-server --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf  -Zbuild-std=std,panic_abort
 
@@ -48,7 +40,7 @@ build-qemu:
 	cargo +esp build -p micro-rdk-server --bin micro-rdk-server-esp32  --features qemu --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort && cargo +esp espflash save-image --package micro-rdk-server --features qemu --merge --chip esp32 target/xtensa-esp32-espidf/debug/debug.bin -T micro-rdk-server/esp32/partitions.csv -s 4mb  --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
 
 
-sim-local: cargo-ver build-qemu
+sim-local: build-qemu
 ifndef QEMU_ESP32_XTENSA
 	$(error QEMU_ESP32_XTENSA is not set)
 endif
@@ -57,38 +49,22 @@ endif
 
 # debug-local is identical to sim-local, except the `-S` at the end means "wait until a debugger is
 # attached before starting."
-debug-local: cargo-ver build-qemu
+debug-local: build-qemu
 ifndef QEMU_ESP32_XTENSA
 	$(error QEMU_ESP32_XTENSA is not set)
 endif
 	pkill qemu || true
 	$(QEMU_ESP32_XTENSA)/qemu-system-xtensa -nographic -machine esp32 -gdb tcp::3334 -nic user,model=open_eth,hostfwd=udp::-:61205,hostfwd=tcp::12346-:12346 -drive file=target/xtensa-esp32-espidf/debug/debug.bin,if=mtd,format=raw -S -m 4m
 
-upload: cargo-ver
-	cargo +esp espflash flash --package micro-rdk-server --monitor --partition-table micro-rdk-server/esp32/partitions.csv --baud 460800 -f 80mhz --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
-
 test:
-	cargo test --workspace --tests --no-fail-fast --features native,ota
-
-clippy-nmea:
-	cargo clippy -p micro-rdk-nmea --no-deps --features native -- -Dwarnings
+	cargo test --workspace --tests --no-fail-fast --features native
 
 clippy-native:
-	cargo clippy -p micro-rdk --no-deps --features native,ota  -- -Dwarnings
+	cargo clippy --workspace --no-deps --locked --all-targets --features native  -- -Dwarnings
 
 clippy-esp32:
-	cargo +esp clippy -p micro-rdk  --features esp32,ota  --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
-
-clippy-cli:
-	cargo clippy -p micro-rdk-installer --no-default-features -- -Dwarnings
-
-clippy-ffi-native:
-	cargo clippy -p micro-rdk-ffi -- -Dwarnings
-
-clippy-ffi-esp32:
-	cargo +esp clippy -p micro-rdk-ffi  --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort -- -Dwarnings
-
-clippy-ffi : clippy-ffi-native clippy-ffi-esp32
+	cargo +esp clippy -p micro-rdk-server --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --release -- -Dwarnings
+	cargo +esp clippy -p micro-rdk-ffi --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --release -- -Dwarnings
 
 format:
 	cargo fmt --all -- --check
@@ -99,18 +75,14 @@ doc:
 doc-open:
 	cargo doc --no-default-features --features esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --open
 
-size:
-	find . -name "esp-build.map" -exec ${IDF_PATH}/tools/idf_size.py {} \;
-
-build-esp32-bin: build-esp32-ota
+build-esp32-bin:
 	cargo +esp espflash save-image \
 		--skip-update-check \
 		--package=micro-rdk-server \
-		--features=ota \
 		--chip=esp32 \
 		--bin=micro-rdk-server-esp32 \
 		--partition-table=micro-rdk-server/esp32/partitions.csv \
-		--target=xtensa-esp32-espidf \
+		--target=xtensa-esp32-espidf	 \
 		-Zbuild-std=std,panic_abort --release \
 		--flash-size=8mb \
 		--merge \
@@ -120,7 +92,6 @@ build-esp32-ota:
 	cargo +esp espflash save-image \
 		--skip-update-check \
 		--package=micro-rdk-server \
-		--features=ota \
 		--chip=esp32 \
 		--bin=micro-rdk-server-esp32 \
 		--partition-table=micro-rdk-server/esp32/partitions.csv \
@@ -138,22 +109,3 @@ else
 	$(error micro-rdk-server-esp32.bin not found, run make build-esp32-bin first)
 endif
 
-canon-image: canon-image-amd64 canon-image-arm64
-
-canon-image-amd64:
-	cd etc/docker && docker buildx build . --load --no-cache --platform linux/amd64 -t $(IMAGE_BASE):amd64
-
-canon-image-arm64:
-	cd etc/docker && docker buildx build . --load --no-cache --platform linux/arm64 -t $(IMAGE_BASE):arm64
-
-canon-upload: canon-upload-amd64 canon-upload-arm64
-
-canon-upload-amd64:
-	docker tag $(IMAGE_BASE):amd64 $(IMAGE_BASE):amd64_$(DATE)
-	docker push $(IMAGE_BASE):amd64
-	docker push $(IMAGE_BASE):amd64_$(DATE)
-
-canon-upload-arm64:
-	docker tag $(IMAGE_BASE):arm64 $(IMAGE_BASE):arm64_$(DATE)
-	docker push $(IMAGE_BASE):arm64
-	docker push $(IMAGE_BASE):arm64_$(DATE)

@@ -14,6 +14,8 @@ use micro_rdk::common::{
     status::{Status, StatusError},
 };
 
+unsafe impl Send for WaterPump {}
+
 /// This driver is for a water pump and optional led
 #[derive(DoCommand)]
 pub struct WaterPump {
