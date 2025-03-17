@@ -824,7 +824,6 @@ mod tests {
                 secret: "a-secret".to_owned(),
                 app_address: "http://localhost:56563".to_owned(),
             }),
-            ..Default::default()
         };
 
         let body = encode_request(req);

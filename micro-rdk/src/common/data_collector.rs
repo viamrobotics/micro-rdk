@@ -319,7 +319,7 @@ mod tests {
         assert!(matches!(conf.method, CollectionMethod::Readings));
         assert_eq!(conf.capture_frequency_hz, 100.0);
         assert_eq!(conf.capacity, (DEFAULT_CACHE_SIZE_KB * 1000.0) as usize);
-        assert_eq!(conf.disabled, false);
+        assert!(!conf.disabled);
 
         let kind_map = HashMap::from([
             (
@@ -335,7 +335,7 @@ mod tests {
         assert!(matches!(conf.method, CollectionMethod::AngularVelocity));
         assert_eq!(conf.capture_frequency_hz, 100.0);
         assert_eq!(conf.capacity, 2000);
-        assert_eq!(conf.disabled, true);
+        assert!(conf.disabled);
 
         let kind_map = HashMap::from([
             (
@@ -348,7 +348,7 @@ mod tests {
         ]);
         let conf_kind = Kind::StructValue(kind_map);
         let conf: DataCollectorConfig = (&conf_kind).try_into()?;
-        assert_eq!(conf.disabled, false);
+        assert!(!conf.disabled);
 
         let kind_map = HashMap::from([
             (
@@ -375,7 +375,7 @@ mod tests {
         let conf = DataCollectorConfig::try_from(&conf_kind);
         assert!(conf.is_ok());
         let conf = conf.unwrap();
-        assert_eq!(conf.disabled, true);
+        assert!(conf.disabled);
 
         let kind_map = HashMap::from([
             (
