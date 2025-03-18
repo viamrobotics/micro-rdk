@@ -1,3 +1,8 @@
+#
+# NOTE: This file is explicitly excluded from cargo generate's liquid template expansion
+# due to conflicts between the github syntax and the liquid syntax.
+#
+
 name: publish
 
 on:
@@ -16,16 +21,26 @@ jobs:
       uses: actions/checkout@v3
       with:
         fetch-depth: 2
+    - name: Set Project Name
+      id: set_project_name
+      run: |
+          echo "PROJECT_NAME=`cargo metadata --no-deps --format-version=1 | jq '.packages[0].name' -r`" >> $GITHUB_OUTPUT
+          echo "PROJECT_VERSION=`cargo metadata --no-deps --format-version=1 | jq '.packages[0].version' -r`" >> $GITHUB_OUTPUT
     - name: Build esp32 OTA binary
       run: |
-        bash -c '. /home/testbot/.bash_profile ; git config --global --add safe.directory "$ESP_ROOT"/esp-idf && make build-esp32-ota'
-        cp target/xtensa-esp32-espidf/project-ota.bin project-ota.bin
+        bash -c '. /home/testbot/.bash_profile ; git config --global --add safe.directory "$ESP_ROOT"/esp-idf && make build-esp32-bin build-esp32-ota'
+        PROJECT_NAME=${{ steps.set_project_name.outputs.PROJECT_NAME }}
+        cp target/xtensa-esp32-espidf/release/${PROJECT_NAME} ${PROJECT_NAME}.elf
+        cp target/xtensa-esp32-espidf/release/${PROJECT_NAME}.bin ${PROJECT_NAME}.bin
+        cp target/xtensa-esp32-espidf/release/${PROJECT_NAME}-ota.bin ${PROJECT_NAME}.bin
     - name: Upload release Lib
       uses: actions/upload-artifact@v4
       with:
-        name: ota-binary
+        name: binaries
         path: |
-          project-ota.bin
+          ${{ steps.set_project_name.outputs.PROJECT_NAME }}.elf
+          ${{ steps.set_project_name.outputs.PROJECT_NAME }}.bin
+          ${{ steps.set_project_name.outputs.PROJECT_NAME }}-ota.bin
 
   publish-release:
     needs: [build-project]
@@ -39,20 +54,24 @@ jobs:
         else
               echo "match=false" >> $GITHUB_OUTPUT
         fi
-    - name: Download OTA binary
+    - name: Download binaries
       uses: actions/download-artifact@v4
       with:
-        name: ota-binary
+        name: binaries
     - name: Compute checksums
       run: |
-        sha256sum  project-ota.bin  >> sha256sums.txt
+        sha256sum ${{ needs.build-project.steps.set_project_name.outputs.PROJECT_NAME }}.elf >> sha256sums.txt
+        sha256sum ${{ needs.build-project.steps.set_project_name.outputs.PROJECT_NAME }}.bin >> sha256sums.txt
+        sha256sum ${{ needs.build-project.steps.set_project_name.outputs.PROJECT_NAME }}-ota.bin >> sha256sums.txt
     - name: Publish release
       uses: ncipollo/release-action@v1
       if: github.event_name == 'push'
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         artifacts: |
-          project-ota.bin
+          ${{ needs.build-project.steps.set_project_name.outputs.PROJECT_NAME }}.elf
+          ${{ needs.build-project.steps.set_project_name.outputs.PROJECT_NAME }}.bin
+          ${{ needs.build-project.steps.set_project_name.outputs.PROJECT_NAME }}-ota.bin
           sha256sums.txt
         prerelease: ${{ steps.check-tag.outputs.match }}
         replacesArtifacts: true

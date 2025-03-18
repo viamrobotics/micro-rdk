@@ -7,10 +7,11 @@ resolver = "2"
 rust-version = "1.83"
 
 [profile.release]
-opt-level = "s"
+debug = true
+opt-level = "z"
 
 [profile.dev]
-debug = true # Symbols are nice and they don't increase the size on Flash
+debug = true
 opt-level = "z"
 
 [dependencies.micro-rdk]

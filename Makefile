@@ -82,11 +82,12 @@ build-esp32-bin:
 		--chip=esp32 \
 		--bin=micro-rdk-server-esp32 \
 		--partition-table=micro-rdk-server/esp32/partitions.csv \
-		--target=xtensa-esp32-espidf	 \
-		-Zbuild-std=std,panic_abort --release \
+		--target=xtensa-esp32-espidf \
+		-Zbuild-std=std,panic_abort \
+		--release \
 		--flash-size=8mb \
 		--merge \
-		target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin
+		target/xtensa-esp32-espidf/release/micro-rdk-server-esp32.bin
 
 build-esp32-ota:
 	cargo +esp espflash save-image \
@@ -96,16 +97,16 @@ build-esp32-ota:
 		--bin=micro-rdk-server-esp32 \
 		--partition-table=micro-rdk-server/esp32/partitions.csv \
 		--target=xtensa-esp32-espidf \
-		-Zbuild-std=std,panic_abort --release \
-		target/xtensa-esp32-espidf/micro-rdk-server-esp32-ota.bin
+		-Zbuild-std=std,panic_abort \
+		--release \
+		target/xtensa-esp32-espidf/release/micro-rdk-server-esp32-ota.bin
 
 serve-ota:
 	cargo r --package ota-dev-server
 
 flash-esp32-bin:
-ifneq (,$(wildcard ./target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin))
-	espflash write-bin 0x0 ./target/xtensa-esp32-espidf/micro-rdk-server-esp32.bin --baud 460800  && sleep 2 && espflash monitor
+ifneq (,$(wildcard ./target/xtensa-esp32-espidf/release/micro-rdk-server-esp32.bin))
+	espflash write-bin 0x0 ./target/xtensa-esp32-espidf/release/micro-rdk-server-esp32.bin --baud 460800  && sleep 2 && espflash monitor
 else
 	$(error micro-rdk-server-esp32.bin not found, run make build-esp32-bin first)
 endif
-

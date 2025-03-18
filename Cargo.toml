@@ -29,16 +29,12 @@ version = "0.4.1-rc10"
 rust-version = "1.83"
 
 [profile.release]
-opt-level = "s"
-
-[profile.dev]
-debug = true # Symbols are nice and they don't increase the size on Flash
+debug = true
 opt-level = "z"
 
-[profile.release-ffi]
-inherits = "release"
-debug = true # Symbols are nice and they don't increase the size on Flash
-opt-level = "s"
+[profile.dev]
+debug = true
+opt-level = "z"
 
 [workspace.dependencies]
 anyhow = "1.0.94"

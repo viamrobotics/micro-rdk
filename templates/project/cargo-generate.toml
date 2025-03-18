@@ -2,6 +2,7 @@
 cargo_generate_version = ">=0.10.0"
 ignore = [".git","README.md"]
 description = "Micro-RDK template"
+exclude = [".github/workflows/publish.yml"]
 
 [placeholders.mcu]
 type = "string"
