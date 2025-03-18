@@ -18,7 +18,7 @@ jobs:
     name: "Build, clippy and test for esp32"
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
+      image: ghcr.io/viamrobotics/micro-rdk-dev-env:1.83.0-amd64
     steps:
     - name : Checkout main branch code
       if: github.event_name != 'pull_request_target'
