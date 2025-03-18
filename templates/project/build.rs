@@ -22,18 +22,16 @@ fn main() -> Result<(), &'static str> {
 
     if std::env::var_os("MICRO_RDK_WIFI_PASSWORD").is_none() {
         let pass: &'static str = "{{pwd}}";
-        if !(pass.len() > 0) {
-            return Err("WiFi password wasn't set during the template generation. You can set with MICRO_RDK_WIFI_PASSWORD environment variable");
+        if pass.len() > 0 {
+            println!("cargo:rustc-env=MICRO_RDK_WIFI_PASSWORD={}", pass);
         }
-        println!("cargo:rustc-env=MICRO_RDK_WIFI_PASSWORD={}", pass);
     }
 
     if std::env::var_os("MICRO_RDK_WIFI_SSID").is_none() {
         let ssid: &'static str = "{{ssid}}";
-        if !(ssid.len() > 0) {
-            return Err("WiFi ssid wasn't set during the template generation. You can set with MICRO_RDK_WIFI_SSID environment variable");
+        if ssid.len() > 0 {
+            println!("cargo:rustc-env=MICRO_RDK_WIFI_SSID={}", ssid);
         }
-        println!("cargo:rustc-env=MICRO_RDK_WIFI_SSID={}", ssid);
     }
 
     if let Ok(content) = std::fs::read_to_string("viam.json") {
@@ -44,11 +42,7 @@ fn main() -> Result<(), &'static str> {
             );
             println!("cargo:rustc-env=MICRO_RDK_ROBOT_ID={}", cfg.cloud.id);
             println!("cargo:rustc-env=MICRO_RDK_ROBOT_APP_ADDRESS={}", cfg.cloud.app_address);
-        } else {
-            return Err("`viam.json` is empty or it's content are invalid, re download it from app.viam.com");
         }
-    } else {
-        return Err("`viam.json` configuration file not found in project root directory");
     }
 
     embuild::build::CfgArgs::output_propagated("MICRO_RDK").unwrap();
