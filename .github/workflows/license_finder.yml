@@ -12,7 +12,7 @@ jobs:
     name: Audit 3rd-Party Licenses
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
+      image: ghcr.io/viamrobotics/micro-rdk-dev-env:1.83.0-amd64
     timeout-minutes: 10
 
     steps:
