@@ -10,7 +10,7 @@ jobs:
   build-project:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
+      image: ghcr.io/viamrobotics/micro-rdk-dev-env:1.83.0-amd64
     steps:
     - name : Checkout main branch code
       uses: actions/checkout@v3

@@ -74,7 +74,7 @@ jobs:
   build-installer-arm64-linux:
     runs-on: [buildjet-8vcpu-ubuntu-2204-arm]
     container:
-      image: ghcr.io/viamrobotics/micro-rdk-dev-env:arm64
+      image: ghcr.io/viamrobotics/micro-rdk-dev-env:1.83.0-arm64
     needs: tests
     defaults:
       run:
@@ -106,7 +106,7 @@ jobs:
   build-micro-RDK:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/viamrobotics/micro-rdk-dev-env:amd64
+      image: ghcr.io/viamrobotics/micro-rdk-dev-env:1.83.0-amd64
     needs: tests
     steps:
     - name : Checkout main branch code
