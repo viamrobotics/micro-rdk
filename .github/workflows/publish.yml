@@ -73,6 +73,11 @@ jobs:
   # github-actions does not have a runner that supports arm64 linux and cross-compilation does not seem to work for the ring crate
   build-installer-arm64-linux:
     runs-on: [buildjet-8vcpu-ubuntu-2204-arm]
+    # by default github use sh as shell
+    defaults:
+      run:
+        # will use bash to run each command, bash will source /etc/profile which will give us the environment to build for esp32
+        shell: bash --norc  -leo pipefail {0}
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:1.83.0-arm64
     needs: tests
@@ -105,6 +110,11 @@ jobs:
 
   build-micro-RDK:
     runs-on: ubuntu-latest
+    # by default github use sh as shell
+    defaults:
+      run:
+        # will use bash to run each command, bash will source /etc/profile which will give us the environment to build for esp32
+        shell: bash --norc  -leo pipefail {0}
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:1.83.0-amd64
     needs: tests
@@ -115,7 +125,10 @@ jobs:
         fetch-depth: 2
     - name: Build esp32 binary
       run: |
-        bash -c '. /home/testbot/.bash_profile ; git config --global --add safe.directory "$ESP_ROOT"/esp-idf && make build-esp32-ota && make build-esp32-bin && cargo +esp build -p micro-rdk-ffi --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --locked --profile release'
+        git config --global --add safe.directory "$ESP_ROOT"/esp-idf
+        make build-esp32-bin
+        make build-esp32-ota
+        cargo +esp build -p micro-rdk-ffi --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --locked --profile release
         cp target/xtensa-esp32-espidf/release/micro-rdk-server-esp32 micro-rdk-server-esp32.elf
         cp target/xtensa-esp32-espidf/release/micro-rdk-server-esp32.bin micro-rdk-server-esp32.bin
         cp target/xtensa-esp32-espidf/release/micro-rdk-server-esp32-ota.bin micro-rdk-server-esp32-ota.bin
