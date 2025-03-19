@@ -14,6 +14,8 @@ on:
 jobs:
   build-project:
     runs-on: ubuntu-latest
+    outputs:
+        PROJECT_NAME: ${{ steps.set_project_name.outputs.PROJECT_NAME }}
     # by default github use sh as shell
     defaults:
       run:
@@ -39,7 +41,7 @@ jobs:
         PROJECT_NAME=${{ steps.set_project_name.outputs.PROJECT_NAME }}
         cp target/xtensa-esp32-espidf/release/${PROJECT_NAME} ${PROJECT_NAME}.elf
         cp target/xtensa-esp32-espidf/release/${PROJECT_NAME}.bin ${PROJECT_NAME}.bin
-        cp target/xtensa-esp32-espidf/release/${PROJECT_NAME}-ota.bin ${PROJECT_NAME}.bin
+        cp target/xtensa-esp32-espidf/release/${PROJECT_NAME}-ota.bin ${PROJECT_NAME}-ota.bin
     - name: Upload release Lib
       uses: actions/upload-artifact@v4
       with:
@@ -67,18 +69,18 @@ jobs:
         name: binaries
     - name: Compute checksums
       run: |
-        sha256sum ${{ needs.build-project.steps.set_project_name.outputs.PROJECT_NAME }}.elf >> sha256sums.txt
-        sha256sum ${{ needs.build-project.steps.set_project_name.outputs.PROJECT_NAME }}.bin >> sha256sums.txt
-        sha256sum ${{ needs.build-project.steps.set_project_name.outputs.PROJECT_NAME }}-ota.bin >> sha256sums.txt
+        sha256sum ${{ needs.build-project.outputs.PROJECT_NAME }}.elf >> sha256sums.txt
+        sha256sum ${{ needs.build-project.outputs.PROJECT_NAME }}.bin >> sha256sums.txt
+        sha256sum ${{ needs.build-project.outputs.PROJECT_NAME }}-ota.bin >> sha256sums.txt
     - name: Publish release
       uses: ncipollo/release-action@v1
       if: github.event_name == 'push'
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         artifacts: |
-          ${{ needs.build-project.steps.set_project_name.outputs.PROJECT_NAME }}.elf
-          ${{ needs.build-project.steps.set_project_name.outputs.PROJECT_NAME }}.bin
-          ${{ needs.build-project.steps.set_project_name.outputs.PROJECT_NAME }}-ota.bin
+          ${{ needs.build-project.outputs.PROJECT_NAME }}.elf
+          ${{ needs.build-project.outputs.PROJECT_NAME }}.bin
+          ${{ needs.build-project.outputs.PROJECT_NAME }}-ota.bin
           sha256sums.txt
         prerelease: ${{ steps.check-tag.outputs.match }}
         replacesArtifacts: true
