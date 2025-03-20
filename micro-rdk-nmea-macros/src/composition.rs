@@ -394,17 +394,15 @@ fn handle_fieldset(
                 let vec_seg = &type_path.path.segments[0];
                 if &vec_seg.ident.to_string() != "Vec" {
                     Err(error_tokens("fieldset must be Vec"))
-                } else {
-                    if let PathArguments::AngleBracketed(args) = &vec_seg.arguments {
-                        let type_arg = &args.args[0];
-                        if let GenericArgument::Type(f_type) = type_arg {
-                            Ok(f_type.to_token_stream())
-                        } else {
-                            Err(error_tokens("fieldset must be Vec with type"))
-                        }
+                } else if let PathArguments::AngleBracketed(args) = &vec_seg.arguments {
+                    let type_arg = &args.args[0];
+                    if let GenericArgument::Type(f_type) = type_arg {
+                        Ok(f_type.to_token_stream())
                     } else {
-                        Err(error_tokens("fieldset must be Vec with angle brackets"))
+                        Err(error_tokens("fieldset must be Vec with type"))
                     }
+                } else {
+                    Err(error_tokens("fieldset must be Vec with angle brackets"))
                 }
             }
             _ => Err(error_tokens("improper field type")),

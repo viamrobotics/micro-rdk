@@ -1,0 +1,37 @@
+# Goal here is to run all CI that do not require the ESP-IDF environment
+name: CI for Native
+
+on:
+  workflow_call:
+
+env:
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: short
+  RUSTUP_MAX_RETRIES: 10
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+    - name : Checkout main branch code
+      if: github.event_name != 'pull_request_target'
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
+    - name: Check out PR branch code
+      if: github.event_name == 'pull_request_target'
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        fetch-depth: 2
+    - uses: dtolnay/rust-toolchain@1.83
+      with:
+        components: clippy
+    - name: Cache Dependencies
+      uses: Swatinem/rust-cache@v2
+    - name: install libudev
+      run: sudo apt update && sudo apt install libudev-dev -y
+    - name: Clippy Micro-RDK workspace
+      run: make clippy-native
+    - name: Tests
+      run: make test

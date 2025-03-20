@@ -29,14 +29,12 @@ async def main():
     api_key_id = os.environ["ESP32_CANARY_API_KEY_ID"]
     part_id = os.environ["ESP32_CANARY_ROBOT_PART_ID"]
     tag_name = os.environ["ESP32_CANARY_OTA_VERSION_TAG"]
-    bucket_url = os.environ["GCP_BUCKET_URL"]
-    bucket_name = os.environ["GCP_BUCKET_NAME"]
     bin_name = os.environ["ESP32_OTA_BINARY_NAME"]
-    
-    url = f"{bucket_url}/{bucket_name}/{tag_name}/{bin_name}"
-        
+
+    url = f"https://github.com/viamrobotics/micro-rdk/releases/download/{tag-name}/{bin_name}"
+
     print(f"connecting ViamClient ...")
-    
+
     viam_client = await connect(api_key, api_key_id, 5)
 
     cloud = viam_client.app_client
@@ -50,7 +48,7 @@ async def main():
         # assumes only one such service exists
         if service["model"] == "ota_service":
             service["attributes"]["url"] = url
-            service["attributes"]["version"] = tag_name            
+            service["attributes"]["version"] = tag_name
             service_updated = True
             print(f"updating OtaServiceConfig version to `{tag_name}`")
             break

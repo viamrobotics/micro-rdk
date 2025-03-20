@@ -28,5 +28,4 @@ micro-rdk-arm64:
 	$(BUILD_CMD)
 
 micro-rdk-upload:
-	docker push 'ghcr.io/viamrobotics/micro-rdk-dev-env:amd64'
-	docker push 'ghcr.io/viamrobotics/micro-rdk-dev-env:arm64'
+	docker push -a 'ghcr.io/viamrobotics/micro-rdk-dev-env'

@@ -1,7 +1,7 @@
 idf_component_register(INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}")
 idf_build_set_property(INCLUDE_DIRECTORIES "${CMAKE_CURRENT_BINARY_DIR}/assets" APPEND)
 
-set(LIBMICRORDK_VERSION v0.4.1-rc9)
+set(LIBMICRORDK_VERSION v0.4.1-rc10)
 set(LIBMICRORDK_URL https://github.com/viamrobotics/micro-rdk/releases/download/${LIBMICRORDK_VERSION}/micro-rdk-lib.zip)
 set(LIBMICRORDK_PATH ${CMAKE_BINARY_DIR}/import/micro-rdk-lib.zip)
 

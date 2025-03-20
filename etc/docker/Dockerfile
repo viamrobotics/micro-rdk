@@ -11,7 +11,7 @@ RUN export TARGET=$(rustc -vV | sed -En 's/^host: //p') && \
 WORKDIR /qemu
 RUN git clone --depth 1 --branch esp-develop https://github.com/espressif/qemu
 RUN cd qemu && mkdir build && cd build && ../configure --target-list=xtensa-softmmu  --enable-gcrypt --enable-slirp \
-    --disable-sanitizers  --disable-strip --disable-user \
+    --disable-strip --disable-user \
     --disable-capstone --disable-vnc --disable-sdl --disable-gtk && ninja qemu-system-xtensa
 
 WORKDIR /esp
@@ -40,6 +40,7 @@ RUN apt update
 
 RUN apt-get install -y --no-install-recommends git wget flex bison gperf python3 python3-pip python3-virtualenv cmake ninja-build ccache libffi-dev libssl-dev libudev-dev dfu-util libusb-1.0-0 openssh-client software-properties-common python3-venv sudo curl && \
     apt-get install -y --no-install-recommends cmake && \
+    apt-get install -y --no-install-recommends jq && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3 10
 
 
@@ -97,15 +98,15 @@ RUN git config --global --add safe.directory '*'
 
 RUN rm -rf $CARGO_HOME/registry
 
-RUN echo "PATH=$PATH" >> ~/.bash_profile && \
-    echo ". $ESP_ROOT/export-esp.sh" >> ~/.bash_profile && \
-    echo ". $IDF_PATH/export.sh"  >> ~/.bash_profile && \
-    echo "export ESP_IDF_TOOLS_INSTALL_DIR=fromenv"  >> ~/.bash_profile && \
-    echo "CARGO_HOME=/host/.micro-rdk-docker-caches/cargo-registry" >> ~/.bash_profile && \
-    echo "[[ -v SCCACHE ]] && export RUSTC_WRAPPER=/usr/bin/sccache" >> ~/.bash_profile && \
-    echo "[[ -v SCCACHE ]] && export SCCACHE_DIR=/host/.micro-rdk-docker-caches/sccache" >> ~/.bash_profile
-
 USER root
+
+RUN echo "PATH=$PATH" >> /etc/profile && \
+    echo ". $ESP_ROOT/export-esp.sh" >> /etc/profile && \
+    echo ". $IDF_PATH/export.sh"  >> /etc/profile && \
+    echo "export ESP_IDF_TOOLS_INSTALL_DIR=fromenv"  >> /etc/profile && \
+    echo "CARGO_HOME=/host/.micro-rdk-docker-caches/cargo-registry" >> /etc/profile && \
+    echo "[[ -v SCCACHE ]] && export RUSTC_WRAPPER=/usr/bin/sccache" >> /etc/profile && \
+    echo "[[ -v SCCACHE ]] && export SCCACHE_DIR=/host/.micro-rdk-docker-caches/sccache" >> /etc/profile
 
 RUN apt-get install make build-essential pkg-config -y && apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*

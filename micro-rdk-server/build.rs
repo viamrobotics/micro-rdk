@@ -23,16 +23,15 @@ fn main() {
         .unwrap()
         .is_match(&env::var("TARGET").unwrap())
     {
-        if !std::env::var_os("CARGO_FEATURE_QEMU").is_some() {
-            if std::env::var_os("MICRO_RDK_WIFI_PASSWORD")
+        if std::env::var_os("CARGO_FEATURE_QEMU").is_none()
+            && std::env::var_os("MICRO_RDK_WIFI_PASSWORD")
                 .or(std::env::var_os("MICRO_RDK_WIFI_SSID"))
                 .is_some()
-                && std::env::var_os("MICRO_RDK_WIFI_SSID")
-                    .zip(std::env::var_os("MICRO_RDK_WIFI_PASSWORD"))
-                    .is_none()
-            {
-                panic!("Both or none of environment variables MICRO_RDK_WIFI_SSID and MICRO_RDK_WIFI_PASSWORD should be set");
-            }
+            && std::env::var_os("MICRO_RDK_WIFI_SSID")
+                .zip(std::env::var_os("MICRO_RDK_WIFI_PASSWORD"))
+                .is_none()
+        {
+            panic!("Both or none of environment variables MICRO_RDK_WIFI_SSID and MICRO_RDK_WIFI_PASSWORD should be set");
         }
 
         embuild::build::CfgArgs::output_propagated("MICRO_RDK").unwrap();
