@@ -10,8 +10,10 @@ pub enum Error {
     NVSMissingError,
     #[error("NVS offset missing in partition table")]
     NVSOffsetMissingError,
-    #[error("File Error: {0}")]
+    #[error(transparent)]
     FileError(std::io::Error),
+    #[error("Machine credentials file not found at {0}, error: {1}")]
+    ConfigFileNotFound(String, std::io::Error),
     #[error("Binary Retrieval Error: {0}")]
     BinaryRetrievalError(RequestError),
     #[error("Binary Too Small, File Size: {0}")]
