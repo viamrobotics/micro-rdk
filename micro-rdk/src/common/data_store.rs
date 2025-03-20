@@ -257,7 +257,7 @@ impl DataStore for DefaultDataStore {
         // if the message is larger than the entire capacity of the buffer,
         // then it will wrap around and corrupt itself. So we should error when
         // the message is too large. The user can then reconfigure with a larger
-        // cache size as a workaround
+        // cache size as a workaround.
         let buffer_capacity = buffer.capacity();
         if encode_len > buffer_capacity {
             return Err(DataStoreError::DataTooLarge(
