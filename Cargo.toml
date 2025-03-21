@@ -62,12 +62,11 @@ dns-message-parser = { version = "0.7", default-features = false}
 either = "1.13.0"
 # TODO(RSDK-8991): Upgrade to latest `embedded-hal`
 embedded-hal = { version = "~0.2", features = ["unproven"] }
-# TODO(RSDK-10203): Upgrade `embedded-svc` to latest release (in sync with esp-idf-svc?)
-embedded-svc = "0.28"
+embedded-svc = "~0.28"
 embuild = "0.32.0"
 env_logger = "0.11.5"
 esp-idf-part = "0.5.0"
-esp-idf-svc = { version = "0.51", default-features = false }
+esp-idf-svc = { version = "~0.51", default-features = false }
 espflash = { git = "https://github.com/viamrobotics/espflash.git", branch = "monitor-output" }
 futures = "0.3.31"
 futures-lite = "2"
