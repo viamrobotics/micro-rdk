@@ -22,19 +22,11 @@ use micro_rdk::{
         certificate::GeneratedWebRtcCertificateBuilder,
         conn::{mdns::Esp32Mdns, network::Esp32WifiNetwork},
         dtls::Esp32DtlsBuilder,
-        esp_idf_svc::{
-            self,
-            log::EspLogger,
-            sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT},
-        },
+        esp_idf_svc::{self, log::EspLogger},
         nvs_storage::NVSStorage,
         tcp::Esp32H2Connector,
     },
 };
-
-extern "C" {
-    pub static g_spiram_ok: bool;
-}
 
 macro_rules! generate_register_modules {
     ($($module:ident),*) => {
@@ -103,13 +95,6 @@ fn main() {
             storage
                 .store_app_address(ROBOT_APP_ADDRESS.unwrap())
                 .expect("failed to store app address to storage")
-        }
-    }
-
-    unsafe {
-        if !g_spiram_ok {
-            log::info!("spiram not initialized disabling cache feature of the wifi driver");
-            g_wifi_feature_caps &= !(CONFIG_FEATURE_CACHE_TX_BUF_BIT as u64);
         }
     }
 
