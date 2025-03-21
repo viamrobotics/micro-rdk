@@ -1404,25 +1404,6 @@ dependencies = [
 
 [[package]]
 name = "embedded-svc"
-version = "0.27.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac6f87e7654f28018340aa55f933803017aefabaa5417820a3b2f808033c7bbc"
-dependencies = [
- "defmt",
- "embedded-io 0.6.1",
- "embedded-io-async",
- "enumset",
- "heapless 0.8.0",
- "log",
- "no-std-net",
- "num_enum",
- "serde",
- "strum 0.25.0",
- "strum_macros 0.25.3",
-]
-
-[[package]]
-name = "embedded-svc"
 version = "0.28.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7770e30ab55cfbf954c00019522490d6ce26a3334bede05a732ba61010e98e0"
@@ -1432,9 +1413,11 @@ dependencies = [
  "embedded-io-async",
  "enumset",
  "heapless 0.8.0",
+ "log",
  "num_enum",
  "serde",
  "strum 0.25.0",
+ "strum_macros 0.25.3",
 ]
 
 [[package]]
@@ -1611,7 +1594,7 @@ checksum = "2bc07aaba257d28d54a96af005ca67d0b38876d8837f5d54a3e0547e100b219c"
 dependencies = [
  "embassy-futures",
  "embedded-hal-async",
- "embedded-svc 0.28.1",
+ "embedded-svc",
  "embuild 0.33.0",
  "enumset",
  "esp-idf-hal",
@@ -2721,7 +2704,7 @@ dependencies = [
  "dns-message-parser",
  "either",
  "embedded-hal 0.2.7",
- "embedded-svc 0.27.1",
+ "embedded-svc",
  "embuild 0.32.0",
  "env_logger",
  "esp-idf-svc",
@@ -2772,7 +2755,7 @@ dependencies = [
  "cargo_metadata 0.19.1",
  "cbindgen",
  "embedded-hal 0.2.7",
- "embedded-svc 0.27.1",
+ "embedded-svc",
  "embuild 0.32.0",
  "env_logger",
  "futures-lite",
@@ -2856,7 +2839,7 @@ version = "0.4.1-rc10"
 dependencies = [
  "async-channel 2.3.1",
  "embedded-hal 0.2.7",
- "embedded-svc 0.27.1",
+ "embedded-svc",
  "embuild 0.32.0",
  "env_logger",
  "futures-lite",
@@ -3051,15 +3034,6 @@ dependencies = [
  "cfg-if",
  "cfg_aliases",
  "libc",
-]
-
-[[package]]
-name = "no-std-net"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1bcece43b12349917e096cddfa66107277f123e6c96a5aea78711dc601a47152"
-dependencies = [
- "serde",
 ]
 
 [[package]]

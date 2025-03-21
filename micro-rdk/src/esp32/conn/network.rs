@@ -31,12 +31,8 @@ use {
 
 use esp_idf_svc::{
     hal::modem::WifiModem,
-    sys::{
-        esp_interface_t_ESP_IF_WIFI_STA, esp_wifi_get_config, esp_wifi_set_config, wifi_config_t,
-        wifi_scan_method_t_WIFI_ALL_CHANNEL_SCAN, wifi_sort_method_t_WIFI_CONNECT_AP_BY_SIGNAL,
-    },
     timer::EspTaskTimerService,
-    wifi::AsyncWifi,
+    wifi::{AsyncWifi, ScanMethod, ScanSortMethod},
 };
 use futures_util::lock::Mutex;
 use once_cell::sync::OnceCell;
@@ -101,7 +97,7 @@ impl Esp32WifiNetwork {
             secondary_channel: None,
             protocols: Protocol::P802D11B | Protocol::P802D11BG | Protocol::P802D11BGN,
             // TODO(RSDK-10193): There are esp_idf_svc vs embedded-svc ambiguities that arise here.
-            auth_method: esp_idf_svc::wifi::AuthMethod::WPA2Personal,
+            auth_method: AuthMethod::WPA2Personal,
             password: ap_config
                 .password
                 .as_str()
@@ -116,6 +112,8 @@ impl Esp32WifiNetwork {
             auth_method: AuthMethod::None,
             password: "".try_into().unwrap(),
             channel: None,
+            scan_method: ScanMethod::CompleteScan(ScanSortMethod::Signal),
+            ..Default::default()
         };
 
         // may not want to store the config we can always retrieve it
@@ -214,28 +212,6 @@ impl Esp32WifiNetwork {
         wifi.stop().await?;
         wifi.set_configuration(&config)?;
 
-        let mut sta_config = wifi_config_t::default();
-
-        // Change the connection behavior to do a full scan and selecting the AP with the
-        // strongest signal, instead of connecting to the first found AP which may not be the best
-        // AP.
-        match esp_idf_svc::sys::esp!(unsafe {
-            esp_wifi_get_config(esp_interface_t_ESP_IF_WIFI_STA, &mut sta_config as *mut _)
-        }) {
-            Ok(_) => {
-                sta_config.sta.scan_method = wifi_scan_method_t_WIFI_ALL_CHANNEL_SCAN;
-                sta_config.sta.sort_method = wifi_sort_method_t_WIFI_CONNECT_AP_BY_SIGNAL;
-
-                if let Err(e) = esp_idf_svc::sys::esp!(unsafe {
-                    esp_wifi_set_config(esp_interface_t_ESP_IF_WIFI_STA, &mut sta_config as *mut _)
-                }) {
-                    log::warn!("couldn't update wifi station scan/sort config {:?}", e);
-                }
-            }
-            Err(e) => {
-                log::warn!("couldn't get wifi station config {:?}", e);
-            }
-        }
         drop(wifi);
         self.connect().await?;
         Ok(())
