@@ -1,8 +1,8 @@
 use crate::esp32::esp_idf_svc::hal::gpio::AnyIOPin;
 use crate::esp32::esp_idf_svc::hal::gpio::Pin;
 use crate::esp32::esp_idf_svc::hal::ledc::{
-    config::TimerConfig, LedcDriver, LedcTimerDriver, SpeedMode, CHANNEL0, CHANNEL1, CHANNEL2,
-    CHANNEL3, CHANNEL4, CHANNEL5, CHANNEL6, CHANNEL7, TIMER0, TIMER1, TIMER2, TIMER3,
+    config::TimerConfig, LedcDriver, LedcTimer, LedcTimerDriver, LowSpeed, CHANNEL0, CHANNEL1,
+    CHANNEL2, CHANNEL3, CHANNEL4, CHANNEL5, CHANNEL6, CHANNEL7, TIMER0, TIMER1, TIMER2, TIMER3,
 };
 use crate::esp32::esp_idf_svc::hal::peripheral::Peripheral;
 use crate::esp32::esp_idf_svc::hal::prelude::FromValueType;
@@ -109,8 +109,7 @@ impl<'a> PwmDriver<'a> {
 
     pub fn get_timer_frequency(&self) -> u32 {
         let timer: ledc_timer_t = (self.timer_number as u8).into();
-        // TODO(RSDK-10199): SpeedMode is now a trait in ESP-IDF 5
-        unsafe { ledc_get_freq(SpeedMode::LowSpeed.into(), timer) }
+        unsafe { ledc_get_freq(LowSpeed::SPEED_MODE, timer) }
     }
 
     pub fn set_timer_frequency(&mut self, frequency_hz: u32) -> Result<(), Esp32PwmError> {
@@ -166,6 +165,49 @@ impl From<PwmChannel> for usize {
     }
 }
 
+pub enum LedcTimerOption<'a> {
+    Timer0(LedcTimerDriver<'a, TIMER0>),
+    Timer1(LedcTimerDriver<'a, TIMER1>),
+    Timer2(LedcTimerDriver<'a, TIMER2>),
+    Timer3(LedcTimerDriver<'a, TIMER3>),
+}
+
+impl LedcTimerOption<'_> {
+    pub fn new(timer: u8, conf: &TimerConfig) -> Result<Self, Esp32PwmError> {
+        match timer {
+            0 => {
+                let driver = LedcTimerDriver::new(unsafe { TIMER0::new() }, conf)
+                    .map_err(Esp32PwmError::EspError)?;
+                Ok(Self::Timer0(driver))
+            }
+            1 => {
+                let driver = LedcTimerDriver::new(unsafe { TIMER1::new() }, conf)
+                    .map_err(Esp32PwmError::EspError)?;
+                Ok(Self::Timer1(driver))
+            }
+            2 => {
+                let driver = LedcTimerDriver::new(unsafe { TIMER2::new() }, conf)
+                    .map_err(Esp32PwmError::EspError)?;
+                Ok(Self::Timer2(driver))
+            }
+            3 => {
+                let driver = LedcTimerDriver::new(unsafe { TIMER3::new() }, conf)
+                    .map_err(Esp32PwmError::EspError)?;
+                Ok(Self::Timer3(driver))
+            }
+        }
+    }
+
+    pub fn timer(&self) -> ledc_timer_t {
+        match self {
+            Timer0(_) => TIMER0::timer(),
+            Timer1(_) => TIMER1::timer(),
+            Timer2(_) => TIMER2::timer(),
+            Timer3(_) => TIMER3::timer(),
+        }
+    }
+}
+
 #[derive(Debug)]
 struct LedcManager<'a> {
     used_channel: PwmChannelInUse,
@@ -176,8 +218,7 @@ struct LedcManager<'a> {
 struct LedcTimerWrapper<'a> {
     frequency: u32,
     count: u8,
-    // TODO(RSDK-10192): LedcTimerDriver expects an additional template argument in ESP-IDF 5
-    timer: OnceCell<LedcTimerDriver<'a>>,
+    timer: OnceCell<LedcTimerOption<'a>>,
 }
 
 impl Debug for LedcTimerWrapper<'_> {
@@ -190,24 +231,11 @@ impl Debug for LedcTimerWrapper<'_> {
     }
 }
 
-fn create_timer_driver<'a>(
-    timer: u8,
-    conf: &TimerConfig,
-) -> Result<LedcTimerDriver<'a>, Esp32PwmError> {
-    match timer {
-        0 => LedcTimerDriver::new(unsafe { TIMER0::new() }, conf).map_err(Esp32PwmError::EspError),
-        1 => LedcTimerDriver::new(unsafe { TIMER1::new() }, conf).map_err(Esp32PwmError::EspError),
-        2 => LedcTimerDriver::new(unsafe { TIMER2::new() }, conf).map_err(Esp32PwmError::EspError),
-        3 => LedcTimerDriver::new(unsafe { TIMER3::new() }, conf).map_err(Esp32PwmError::EspError),
-        _ => unreachable!(),
-    }
-}
-
 impl LedcTimerWrapper<'_> {
     fn new(id: u8, frequency_hz: u32) -> Result<Self, Esp32PwmError> {
         let timer_config = TimerConfig::default().frequency(frequency_hz.Hz());
         let timer = OnceCell::new();
-        let _ = timer.set(create_timer_driver(id, &timer_config)?);
+        let _ = timer.set(LedcTimerOption::new(timer, &timer_config)?);
         Ok(Self {
             count: 0,
             frequency: frequency_hz,
@@ -232,7 +260,7 @@ impl LedcTimerWrapper<'_> {
         // We have to reconfigure the timer so the appropriate clock source for that frequency may be
         // selected. If no appropriate clock source exists the previous timer frequency
         // will be retained
-        match create_timer_driver(id, &timer_config) {
+        match LedcTimerOption::new(id, &timer_config) {
             Ok(driver) => {
                 let _ = self.timer.set(driver);
                 self.frequency = frequency_hz;
@@ -242,7 +270,7 @@ impl LedcTimerWrapper<'_> {
                 let timer_config = TimerConfig::default().frequency(self.frequency.Hz());
                 let _ =
                     self.timer
-                        .set(create_timer_driver(id, &timer_config).unwrap_or_else(|_| {
+                        .set(LedcTimerOption::new(id, &timer_config).unwrap_or_else(|_| {
                             panic!("bad frequency previously set on timer {:?}", id)
                         }));
                 Err(err)
@@ -352,8 +380,7 @@ impl<'a> LedcManager<'a> {
                     .ok_or(Esp32PwmError::NoTimersAvailable)?;
                 unsafe {
                     ledc_bind_channel_timer(
-                        // TODO(RSDK-10199): SpeedMode is now a trait in ESP-IDF 5
-                        SpeedMode::LowSpeed.into(),
+                        LowSpeed::SPEED_MODE,
                         Into::<usize>::into(channel) as u32,
                         new_timer as u32,
                     )
