@@ -36,7 +36,7 @@ use esp_idf_svc::{
         wifi_scan_method_t_WIFI_ALL_CHANNEL_SCAN, wifi_sort_method_t_WIFI_CONNECT_AP_BY_SIGNAL,
     },
     timer::EspTaskTimerService,
-    wifi::AsyncWifi,
+    wifi::{AsyncWifi, ScanMethod, ScanSortMethod},
 };
 use futures_util::lock::Mutex;
 use once_cell::sync::OnceCell;
@@ -101,7 +101,7 @@ impl Esp32WifiNetwork {
             secondary_channel: None,
             protocols: Protocol::P802D11B | Protocol::P802D11BG | Protocol::P802D11BGN,
             // TODO(RSDK-10193): There are esp_idf_svc vs embedded-svc ambiguities that arise here.
-            auth_method: esp_idf_svc::wifi::AuthMethod::WPA2Personal,
+            auth_method: AuthMethod::WPA2Personal,
             password: ap_config
                 .password
                 .as_str()
@@ -116,6 +116,8 @@ impl Esp32WifiNetwork {
             auth_method: AuthMethod::None,
             password: "".try_into().unwrap(),
             channel: None,
+            scan_method: ScanMethod::CompleteScan(ScanSortMethod::Signal),
+            ..Default::default()
         };
 
         // may not want to store the config we can always retrieve it
