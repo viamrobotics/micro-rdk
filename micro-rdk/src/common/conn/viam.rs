@@ -431,10 +431,17 @@ where
     pub fn run_forever(&mut self) -> ! {
         #[cfg(feature = "esp32")]
         {
+            let wdt_cfg = crate::esp32::esp_idf_svc::sys::esp_task_wdt_config_t {
+                timeout_ms: (180 * 10_u32.pow(6)), // 180 seconds in milliseconds
+                trigger_panic: true,
+                // TWDT wants to know the bitmask for which core's idle task it should subscribe to
+                idle_core_mask: 1
+                    << unsafe { crate::esp32::esp_idf_svc::sys::esp_cpu_get_core_id() },
+            };
+
             // set the TWDT to expire after 3 minutes
             crate::esp32::esp_idf_svc::sys::esp!(unsafe {
-                // TODO(RSDK-10195): This should now take an esp_task_wdt_config_t
-                crate::esp32::esp_idf_svc::sys::esp_task_wdt_init(180, true)
+                crate::esp32::esp_idf_svc::sys::esp_task_wdt_init(&wdt_cfg)
             })
             .unwrap();
 
