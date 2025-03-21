@@ -30,11 +30,6 @@ pub struct viam_server_context {
     storage: Vec<String>,
 }
 
-#[cfg(target_os = "espidf")]
-extern "C" {
-    pub static g_spiram_ok: bool;
-}
-
 // TODO(RSDK-9963): Move to micro-RDK
 macro_rules! generate_register_modules {
     ($($module:ident),*) => {
@@ -270,16 +265,6 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
             )
         })
         .unwrap();
-    }
-
-    #[cfg(target_os = "espidf")]
-    {
-        use micro_rdk::esp32::esp_idf_svc::hal::sys::g_wifi_feature_caps;
-        use micro_rdk::esp32::esp_idf_svc::hal::sys::CONFIG_FEATURE_CACHE_TX_BUF_BIT;
-        if !g_spiram_ok {
-            log::info!("spiram not initialized disabling cache feature of the wifi driver");
-            g_wifi_feature_caps &= !(CONFIG_FEATURE_CACHE_TX_BUF_BIT as u64);
-        }
     }
 
     let network = {

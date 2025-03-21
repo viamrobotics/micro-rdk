@@ -222,19 +222,6 @@ where
             max += 2;
         }
 
-        // But on an esp32 lacking SPIRAM, assume only one connection can be realized
-        #[cfg(target_os = "espidf")]
-        {
-            extern "C" {
-                pub static g_spiram_ok: bool;
-            }
-            unsafe {
-                if !g_spiram_ok {
-                    max = 1;
-                }
-            }
-        }
-
         max
     }
 

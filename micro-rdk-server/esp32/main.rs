@@ -31,15 +31,8 @@ mod esp32 {
             provisioning::server::ProvisioningInfo,
             registry::ComponentRegistry,
         },
-        esp32::esp_idf_svc::{
-            self,
-            log::EspLogger,
-            sys::{g_wifi_feature_caps, CONFIG_FEATURE_CACHE_TX_BUF_BIT},
-        },
+        esp32::esp_idf_svc::{self, log::EspLogger},
     };
-    extern "C" {
-        pub static g_spiram_ok: bool;
-    }
 
     fn register_example_modules(r: &mut ComponentRegistry) {
         if let Err(e) = micro_rdk_modular_driver_example::free_heap_sensor::register_models(r) {
@@ -111,13 +104,6 @@ mod esp32 {
                 storage
                     .store_app_address(ROBOT_APP_ADDRESS.unwrap())
                     .expect("failed to store app address to storage")
-            }
-        }
-
-        unsafe {
-            if !g_spiram_ok {
-                log::info!("spiram not initialized disabling cache feature of the wifi driver");
-                g_wifi_feature_caps &= !(CONFIG_FEATURE_CACHE_TX_BUF_BIT as u64);
             }
         }
 
