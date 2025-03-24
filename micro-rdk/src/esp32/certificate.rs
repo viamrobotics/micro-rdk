@@ -15,10 +15,10 @@ use esp_idf_svc::sys::{
     mbedtls_pk_type_t_MBEDTLS_PK_ECKEY, mbedtls_pk_write_key_der, mbedtls_x509write_cert,
     mbedtls_x509write_crt_der, mbedtls_x509write_crt_free, mbedtls_x509write_crt_init,
     mbedtls_x509write_crt_set_issuer_key, mbedtls_x509write_crt_set_issuer_name,
-    mbedtls_x509write_crt_set_md_alg, mbedtls_x509write_crt_set_subject_key,
-    mbedtls_x509write_crt_set_subject_name, mbedtls_x509write_crt_set_validity,
-    mbedtls_x509write_crt_set_version, MBEDTLS_ERR_PK_BAD_INPUT_DATA, MBEDTLS_X509_CRT_VERSION_3,
-    SHA_TYPE_SHA2_256,
+    mbedtls_x509write_crt_set_md_alg, mbedtls_x509write_crt_set_serial_raw,
+    mbedtls_x509write_crt_set_subject_key, mbedtls_x509write_crt_set_subject_name,
+    mbedtls_x509write_crt_set_validity, mbedtls_x509write_crt_set_version,
+    MBEDTLS_ERR_PK_BAD_INPUT_DATA, MBEDTLS_X509_CRT_VERSION_3, SHA_TYPE_SHA2_256,
 };
 
 use crate::common::webrtc::certificate::{Certificate, Fingerprint};
@@ -173,7 +173,9 @@ impl GeneratedWebRtcCertificateBuilder {
         }?;
 
         // TODO(RSDK-10196): The `pk_ctx` field doesn't exist in ESP-IDF 5. Maybe it should be `private_kp_ctx`?
-        let ecp_keypair = self.kp_context.pk_ctx;
+        // we should use the mbedtls_ecp_keypair *mbedtls_pk_ec(const mbedtls_pk_context pk) but it's defined as static inline
+        // to access it we would need to change bindgen invocation to export it
+        let ecp_keypair = self.kp_context.private_pk_ctx;
 
         unsafe {
             MbedTLSError::to_unit_result(mbedtls_ecp_gen_key(
@@ -232,6 +234,15 @@ impl GeneratedWebRtcCertificateBuilder {
                 &mut self.crt_context as *mut mbedtls_x509write_cert,
                 not_before.as_ptr(),
                 not_after.as_ptr(),
+            ))
+        }?;
+
+        let mut serial_number = [0xAB_u8; 12];
+        unsafe {
+            MbedTLSError::to_unit_result(mbedtls_x509write_crt_set_serial_raw(
+                &mut self.crt_context as *mut mbedtls_x509write_cert,
+                serial_number.as_mut_ptr(),
+                serial_number.len(),
             ))
         }?;
 
