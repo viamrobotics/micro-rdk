@@ -37,7 +37,7 @@ native:
 	cargo run -p micro-rdk-server --bin micro-rdk-server-native
 
 build-qemu:
-	cargo +esp build -p micro-rdk-server --bin micro-rdk-server-esp32  --features qemu --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort && cargo +esp espflash save-image --package micro-rdk-server --features qemu --merge --chip esp32 target/xtensa-esp32-espidf/debug/debug.bin -T micro-rdk-server/esp32/partitions.csv -s 4mb  --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
+	cargo +esp build -p micro-rdk-server --bin micro-rdk-server-esp32  --features qemu --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --release && cargo +esp espflash save-image --release --package micro-rdk-server --features qemu --merge --chip esp32 target/xtensa-esp32-espidf/release/qemu.bin -T micro-rdk-server/esp32/partitions.csv -s 8mb  --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
 
 
 sim-local: build-qemu
