@@ -3,8 +3,8 @@ use async_io::Async;
 
 use esp_idf_svc::sys::{
     esp, esp_crt_bundle_attach, esp_tls_cfg, esp_tls_cfg_server, esp_tls_conn_destroy,
-    esp_tls_init, esp_tls_role_ESP_TLS_CLIENT, esp_tls_role_ESP_TLS_SERVER, esp_tls_t,
-    mbedtls_ssl_conf_read_timeout, EspError,
+    esp_tls_init, esp_tls_role_ESP_TLS_CLIENT, esp_tls_role_ESP_TLS_SERVER,
+    esp_tls_server_session_init, esp_tls_t, mbedtls_ssl_conf_read_timeout, EspError,
 };
 use futures_lite::FutureExt;
 use futures_lite::{ready, AsyncRead, AsyncWrite, Future};
@@ -98,11 +98,15 @@ impl Esp32ServerConfig {
             },
             serverkey_password: std::ptr::null(),
             serverkey_password_len: 0_u32,
+            ..Default::default()
         });
         Self { cfg, alpn_proto }
     }
     fn get_cfg_ptr(&self) -> *const esp_tls_cfg_server {
         &*self.cfg as *const _
+    }
+    fn get_cfg_ptr_mut(&mut self) -> *mut esp_tls_cfg_server {
+        &mut *self.cfg as *mut _
     }
 }
 
@@ -143,13 +147,13 @@ impl Esp32ClientConfig {
             use_global_ca_store: false,
             skip_common_name: false,
             keep_alive_cfg: std::ptr::null_mut(),
-            psk_hint_key: std::ptr::null(),
             crt_bundle_attach: Some(esp_crt_bundle_attach),
             ds_data: std::ptr::null_mut(),
             if_name: std::ptr::null_mut(),
             is_plain_tcp: false,
             timeout_ms: 50000,
             common_name: std::ptr::null(),
+            ..Default::default()
         });
         Self { cfg, alpn_proto }
     }
@@ -204,26 +208,17 @@ impl<IO> Esp32Accept<IO>
 where
     IO: AsyncRead + AsyncWrite + Unpin + AsRawFd,
 {
-    fn new(stream: IO, cfg: Esp32ServerConfig) -> Result<Self, std::io::Error> {
+    fn new(stream: IO, mut cfg: Esp32ServerConfig) -> Result<Self, std::io::Error> {
         let tls_context = Esp32TLSContext::new()?;
         unsafe {
-            std::ptr::write_unaligned(
-                // TODO(RSDK-10201): The field `role` is not found when using ESP-IDF 5
-                std::ptr::addr_of_mut!((*(*tls_context)).role),
-                esp_tls_role_ESP_TLS_SERVER,
-            )
-        };
-        // TODO(RSDK-10201): The field `sockfd` is not found when using ESP-IDF 5
-        unsafe { std::ptr::write_unaligned(std::ptr::addr_of_mut!((*(*tls_context)).sockfd), -1) };
-        unsafe {
-            esp!(esp_create_mbedtls_handle(
-                std::ptr::null_mut(),
-                0,
-                cfg.get_cfg_ptr() as *const c_void,
+            esp!(esp_tls_server_session_init(
+                cfg.get_cfg_ptr_mut(),
+                stream.as_raw_fd(),
                 *tls_context
             ))
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?
-        };
+        }
+        .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+
         let io = AsyncSSLStream::new(SSLContext::Esp32TLSContext(tls_context), stream).unwrap();
         Ok(Self {
             cfg: Arc::new(cfg),
@@ -330,15 +325,6 @@ where
     fn new(stream: IO, cfg: Esp32ClientConfig, addr: &Uri) -> Result<Self, std::io::Error> {
         let tls_context = Esp32TLSContext::new()?;
 
-        unsafe {
-            std::ptr::write_unaligned(
-                // TODO(RSDK-10201): The field `role` is not found when using ESP-IDF 5
-                std::ptr::addr_of_mut!((*(*tls_context)).role),
-                esp_tls_role_ESP_TLS_CLIENT,
-            )
-        };
-        // TODO(RSDK-10201): The field `sockfd` is not found when using ESP-IDF 5
-        unsafe { std::ptr::write_unaligned(std::ptr::addr_of_mut!((*(*tls_context)).sockfd), -1) };
         let host = CString::new(addr.host().unwrap()).unwrap();
         unsafe {
             esp!(esp_create_mbedtls_handle(
@@ -350,13 +336,13 @@ where
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?
         };
 
-        unsafe {
-            mbedtls_ssl_conf_read_timeout(
-                // TODO(RSDK-10201): The field `conf` is not found when using ESP-IDF 5
-                std::ptr::addr_of_mut!((*(*tls_context)).conf),
-                30 * 1000,
-            );
-        }
+        // unsafe {
+        //     mbedtls_ssl_conf_read_timeout(
+        //         // TODO(RSDK-10201): The field `conf` is not found when using ESP-IDF 5
+        //         std::ptr::addr_of_mut!((*(*tls_context)).conf),
+        //         30 * 1000,
+        //     );
+        // }
         let io = AsyncSSLStream::new(SSLContext::Esp32TLSContext(tls_context), stream).unwrap();
         Ok(Self {
             cfg: Arc::new(cfg),
