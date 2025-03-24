@@ -336,13 +336,6 @@ where
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?
         };
 
-        // unsafe {
-        //     mbedtls_ssl_conf_read_timeout(
-        //         // TODO(RSDK-10201): The field `conf` is not found when using ESP-IDF 5
-        //         std::ptr::addr_of_mut!((*(*tls_context)).conf),
-        //         30 * 1000,
-        //     );
-        // }
         let io = AsyncSSLStream::new(SSLContext::Esp32TLSContext(tls_context), stream).unwrap();
         Ok(Self {
             cfg: Arc::new(cfg),
