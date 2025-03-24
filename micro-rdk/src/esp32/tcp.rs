@@ -3,8 +3,8 @@ use async_io::Async;
 
 use esp_idf_svc::sys::{
     esp, esp_crt_bundle_attach, esp_tls_cfg, esp_tls_cfg_server, esp_tls_conn_destroy,
-    esp_tls_init, esp_tls_role_ESP_TLS_CLIENT, esp_tls_role_ESP_TLS_SERVER,
-    esp_tls_server_session_init, esp_tls_t, mbedtls_ssl_conf_read_timeout, EspError,
+    esp_tls_get_ssl_context, esp_tls_init, esp_tls_server_session_init, esp_tls_t,
+    mbedtls_ssl_conf_read_timeout, mbedtls_ssl_config, mbedtls_ssl_context, EspError,
 };
 use futures_lite::FutureExt;
 use futures_lite::{ready, AsyncRead, AsyncWrite, Future};
@@ -101,9 +101,6 @@ impl Esp32ServerConfig {
             ..Default::default()
         });
         Self { cfg, alpn_proto }
-    }
-    fn get_cfg_ptr(&self) -> *const esp_tls_cfg_server {
-        &*self.cfg as *const _
     }
     fn get_cfg_ptr_mut(&mut self) -> *mut esp_tls_cfg_server {
         &mut *self.cfg as *mut _
@@ -336,6 +333,13 @@ where
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?
         };
 
+        unsafe {
+            mbedtls_ssl_conf_read_timeout(
+                (*(esp_tls_get_ssl_context(*tls_context) as *mut mbedtls_ssl_context)).private_conf
+                    as *mut mbedtls_ssl_config,
+                30 * 1000,
+            );
+        }
         let io = AsyncSSLStream::new(SSLContext::Esp32TLSContext(tls_context), stream).unwrap();
         Ok(Self {
             cfg: Arc::new(cfg),
