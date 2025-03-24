@@ -537,9 +537,11 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                                     .fetch(&data, &mut new_fw)
                                     .map_err(|e| OtaError::InvalidFirmware(e.to_string()))?;
                                 if loaded {
-                                    let new_fw = loader
-                                        .get_info()
-                                        .map_err(|e| OtaError::InvalidFirmware(e.to_string()))?;
+                                    log::debug!(
+                                        "current firmware app description: {:?}",
+                                        running_fw_info
+                                    );
+                                    log::debug!("new firmware app description: {:?}", new_fw);
                                     got_info = true;
                                 }
                             }
