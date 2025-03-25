@@ -34,8 +34,9 @@ use super::analog::Esp32AnalogReader;
 // TODO(RSDK-10188): Update to ESP-IDF ADC API
 #[cfg(esp32)]
 use crate::esp32::esp_idf_svc::hal::adc::{
-    attenuation::adc_atten_t_ADC_ATTEN_DB_11 as Atten11dB, config::Config, AdcChannelDriver,
-    AdcDriver, ADC1,
+    attenuation::adc_atten_t_ADC_ATTEN_DB_11 as Atten11dB,
+    oneshot::{config::AdcChannelConfig, AdcChannelDriver, AdcDriver},
+    ADC1,
 };
 
 use crate::esp32::esp_idf_svc::hal::gpio::InterruptType;
@@ -86,7 +87,7 @@ impl EspBoard {
                         .map(|v| {
                             let adc1 = Arc::new(Mutex::new(AdcDriver::new(
                                 unsafe { ADC1::new() },
-                                &Config::new().calibration(true),
+                                &AdcChannelConfig::new().calibration(true),
                             )?));
                             let chan: Result<AnalogReaderType<u16>, BoardError> = match v.pin {
                                 32 => {
