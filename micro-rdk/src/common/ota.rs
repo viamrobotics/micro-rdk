@@ -533,6 +533,9 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                                     download_id: None,
                                 };
                                 let loader = EspFirmwareInfoLoad {};
+                                // We *infer* that the binary is a valid by verifying
+                                // the presence of the firmware header in the first bytes,
+                                // however this does not imply validity of the image as a whole.
                                 let loaded = loader
                                     .fetch(&data, &mut new_fw)
                                     .map_err(|e| OtaError::InvalidFirmware(e.to_string()))?;
@@ -543,6 +546,12 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                                     );
                                     log::debug!("new firmware app description: {:?}", new_fw);
                                     got_info = true;
+                                } else {
+                                    log::error!(
+                                        "unable to validate image header in first {} bytes, terminating download",
+                                        total_downloaded
+                                    );
+                                    break;
                                 }
                             }
                             #[cfg(not(feature = "esp32"))]
