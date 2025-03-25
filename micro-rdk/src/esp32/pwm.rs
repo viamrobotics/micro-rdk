@@ -195,6 +195,7 @@ impl LedcTimerOption<'_> {
                     .map_err(Esp32PwmError::EspError)?;
                 Ok(Self::Timer3(driver))
             }
+            _ => unreachable!()
         }
     }
 
