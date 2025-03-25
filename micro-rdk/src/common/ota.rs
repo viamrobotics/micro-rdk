@@ -547,10 +547,11 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                                     log::debug!("new firmware app description: {:?}", new_fw);
                                     got_info = true;
                                 } else {
-                                    log::warn!(
-                                        "unable to validate image header in first {} bytes",
+                                    log::error!(
+                                        "unable to validate image header in first {} bytes, terminating download",
                                         total_downloaded
                                     );
+                                    break;
                                 }
                             }
                             #[cfg(not(feature = "esp32"))]
