@@ -1,4 +1,3 @@
-use core::ffi::c_void;
 use std::{
     cell::RefCell,
     ffi::CString,
@@ -144,35 +143,8 @@ impl Esp32WifiNetwork {
             netmask,
         };
 
-        let mut octet = addr.octets();
-        octet[3] += 1;
-
-        let start_ip = sys::ip4_addr {
-            addr: u32::from_le_bytes(octet),
-        };
-        octet[3] += 2;
-        let end_ip = sys::ip4_addr {
-            addr: u32::from_le_bytes(octet),
-        };
-
-        let mut dhcps_leases = sys::dhcps_lease_t {
-            enable: true,
-            start_ip,
-            end_ip,
-        };
-        // TODO(RSDK-10190): ESP-IDF5 does not expose this symbol
-
         unsafe { sys::esp!(sys::esp_netif_dhcps_stop(handle)) }?;
         unsafe { sys::esp!(sys::esp_netif_set_ip_info(handle, &ip_info as *const _)) }?;
-        unsafe {
-            sys::esp!(sys::esp_netif_dhcps_option(
-                handle,
-                sys::esp_netif_dhcp_option_mode_t_ESP_NETIF_OP_SET,
-                sys::esp_netif_dhcp_option_id_t_ESP_NETIF_REQUESTED_IP_ADDRESS,
-                &mut dhcps_leases as *mut _ as *mut c_void,
-                std::mem::size_of::<sys::dhcps_lease_t>() as u32
-            ))
-        }?;
 
         let mut dns_config = sys::esp_netif_dns_info_t {
             ip: sys::esp_ip_addr_t {
