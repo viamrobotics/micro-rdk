@@ -47,7 +47,8 @@ atomic-waker = "1.1.2"
 axum = "0.7.9"
 axum-extra = "0.9.6"
 base64 = "0.22.1"
-bincode = "2.0.0-rc.3"
+#TODO(RSDK-10324) remove crate or relax pinned version for bincode crate
+bincode = "=2.0.0-rc.3"
 bitfield = "0.17.0"
 bytecodec = "0.4.15"
 bytes = "1.9.0"
@@ -62,8 +63,7 @@ dns-message-parser = { version = "0.7", default-features = false}
 either = "1.13.0"
 # TODO(RSDK-8991): Upgrade to latest `embedded-hal`
 embedded-hal = { version = "~0.2", features = ["unproven"] }
-# TODO(RSDK-10203): Upgrade `embedded-svc` to latest release (in sync with esp-idf-svc?)
-embedded-svc = "~0.27"
+embedded-svc = "~0.28"
 embuild = "0.32.0"
 env_logger = "0.11.5"
 esp-idf-part = "0.5.0"
