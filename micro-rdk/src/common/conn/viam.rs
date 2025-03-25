@@ -432,7 +432,7 @@ where
         #[cfg(feature = "esp32")]
         {
             let wdt_cfg = crate::esp32::esp_idf_svc::sys::esp_task_wdt_config_t {
-                timeout_ms: (180 * 10_u32.pow(6)), // 180 seconds in milliseconds
+                timeout_ms: (180 * 10_u32.pow(3)), // 180 seconds in milliseconds
                 trigger_panic: true,
                 // TWDT wants to know the bitmask for which core's idle task it should subscribe to
                 idle_core_mask: 1 << unsafe { crate::esp32::esp_idf_svc::hal::cpu::core().into() },
