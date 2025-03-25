@@ -47,6 +47,7 @@ atomic-waker = "1.1.2"
 axum = "0.7.9"
 axum-extra = "0.9.6"
 base64 = "0.22.1"
+#TODO(RSDK-10324) remove crate or relax pinned version for bincode crate
 bincode = "=2.0.0-rc.3"
 bitfield = "0.17.0"
 bytecodec = "0.4.15"
