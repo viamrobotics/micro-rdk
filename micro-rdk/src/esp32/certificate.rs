@@ -237,7 +237,7 @@ impl GeneratedWebRtcCertificateBuilder {
             ))
         }?;
 
-        let mut serial_number = [0xAB_u8; 12];
+        let mut serial_number = [0x0_u8; 1];
         unsafe {
             MbedTLSError::to_unit_result(mbedtls_x509write_crt_set_serial_raw(
                 &mut self.crt_context as *mut mbedtls_x509write_cert,
