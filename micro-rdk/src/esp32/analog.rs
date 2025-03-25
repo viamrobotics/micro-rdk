@@ -1,34 +1,23 @@
 #![allow(dead_code)]
 use crate::common::analog::{AnalogError, AnalogReader, AnalogResolution};
-use crate::esp32::esp_idf_svc::hal::adc::oneshot::{AdcChannelDriver, AdcDriver};
+use crate::esp32::esp_idf_svc::hal::{
+    adc::oneshot::{AdcChannelDriver, AdcDriver},
+    gpio::ADCPin,
+};
+use std::borrow::Borrow;
 
-// TODO(RSDK-10188): Update to ESP-IDF 5 ADC API
-use crate::esp32::esp_idf_svc::hal::gpio::ADCPin;
-use std::sync::{Arc, Mutex};
-
-pub struct Esp32AnalogReader<'a, const A: u32, T: ADCPin> {
-    channel: AdcChannelDriver<'a, A, T>,
-    driver: Arc<Mutex<AdcDriver<'a, T::Adc>>>,
+pub struct Esp32AnalogReader<'a, T: ADCPin, M: Borrow<AdcDriver<'a, T::Adc>>> {
+    channel: AdcChannelDriver<'a, T, M>,
     name: String,
 }
 
-impl<'a, const A: u32, T: ADCPin> Esp32AnalogReader<'a, A, T> {
-    pub fn new(
-        name: String,
-        channel: AdcChannelDriver<'a, A, T>,
-        driver: Arc<Mutex<AdcDriver<'a, T::Adc>>>,
-    ) -> Self {
-        Self {
-            name,
-            channel,
-            driver,
-        }
+impl<'a, T: ADCPin, M: Borrow<AdcDriver<'a, T::Adc>>> Esp32AnalogReader<'a, T, M> {
+    pub fn new(name: String, channel: AdcChannelDriver<'a, T, M>) -> Self {
+        Self { name, channel }
     }
     fn inner_read(&mut self) -> Result<u16, AnalogError> {
-        self.driver
-            .lock()
-            .unwrap()
-            .read(&mut self.channel)
+        self.channel
+            .read()
             .map_err(|e| AnalogError::AnalogReadError(e.code()))
     }
     fn inner_name(&self) -> String {
@@ -36,7 +25,9 @@ impl<'a, const A: u32, T: ADCPin> Esp32AnalogReader<'a, A, T> {
     }
 }
 
-impl<const A: u32, T: ADCPin> AnalogReader<u16> for Esp32AnalogReader<'_, A, T> {
+impl<'a, T: ADCPin, M: Borrow<AdcDriver<'a, T::Adc>>> AnalogReader<u16>
+    for Esp32AnalogReader<'a, T, M>
+{
     type Error = AnalogError;
     fn read(&mut self) -> Result<u16, Self::Error> {
         self.inner_read()
