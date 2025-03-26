@@ -36,7 +36,6 @@ test-log.workspace = true
 
 [target.'cfg(not(target_os = "espidf"))'.dependencies]
 async-std-openssl = { workspace = true, optional = true }
-bincode.workspace = true
 env_logger.workspace = true
 futures-rustls.workspace = true
 local-ip-address = { workspace = true, optional = true }
