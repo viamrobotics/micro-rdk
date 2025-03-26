@@ -296,6 +296,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
     /// Attempts to perform an OTA update.
     /// On success, returns an `Ok(true)` or `Ok(false)` indicating if a reboot is necessary.
     pub(crate) async fn update(&mut self) -> Result<bool, OtaError<S>> {
+        // TODO(RSDK-10331): refactor OTA update logic to work with state machines
         if !(self.needs_update()) {
             return Ok(false);
         }
