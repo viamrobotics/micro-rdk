@@ -503,7 +503,9 @@ where
         // a the provisioned network or one from previously stored agent config
         if let Some(wifi) = self.wifi_manager.as_ref().as_ref() {
             if !self.storage.has_network_settings() {
-                log::info!("initializing additional network storage as empty since it is not present");
+                log::info!(
+                    "initializing additional network storage as empty since it is not present"
+                );
                 if let Err(e) = self.storage.store_network_settings(Default::default()) {
                     log::error!("failed to initialize additional networks storage: {}", e);
                 }
