@@ -1,8 +1,9 @@
 use crate::esp32::esp_idf_svc::hal::gpio::AnyIOPin;
 use crate::esp32::esp_idf_svc::hal::gpio::Pin;
 use crate::esp32::esp_idf_svc::hal::ledc::{
-    config::TimerConfig, LedcDriver, LedcTimer, LedcTimerDriver, LowSpeed, CHANNEL0, CHANNEL1,
-    CHANNEL2, CHANNEL3, CHANNEL4, CHANNEL5, CHANNEL6, CHANNEL7, TIMER0, TIMER1, TIMER2, TIMER3,
+    config::TimerConfig, LedcDriver, LedcTimer, LedcTimerDriver, LowSpeed, SpeedMode, CHANNEL0,
+    CHANNEL1, CHANNEL2, CHANNEL3, CHANNEL4, CHANNEL5, CHANNEL6, CHANNEL7, TIMER0, TIMER1, TIMER2,
+    TIMER3,
 };
 use crate::esp32::esp_idf_svc::hal::peripheral::Peripheral;
 use crate::esp32::esp_idf_svc::hal::prelude::FromValueType;
@@ -56,75 +57,40 @@ enum PwmChannel {
     C7,
 }
 
-fn get_ledc_driver_by_channel<'a>(
-    channel: PwmChannel,
-    timer: &LedcTimerDriver<'a>,
-    pin: AnyIOPin,
-) -> Result<LedcDriver<'a>, Esp32PwmError> {
-    crate::esp32::esp_idf_svc::hal::into_ref!(pin);
+impl PwmChannel {
+    fn into_ledc_driver<'a, T>(
+        self,
+        timer: &'a LedcTimerDriver<T>,
+        pin: AnyIOPin,
+    ) -> Result<LedcDriver<'a>, Esp32PwmError>
+    where
+        T: LedcTimer<SpeedMode = LowSpeed>,
+    {
+        crate::esp32::esp_idf_svc::hal::into_ref!(pin);
 
-    Ok(match channel {
-        PwmChannel::C0 => LedcDriver::new(unsafe { CHANNEL0::new() }, timer, pin)?,
-        PwmChannel::C1 => LedcDriver::new(unsafe { CHANNEL1::new() }, timer, pin)?,
-        PwmChannel::C2 => LedcDriver::new(unsafe { CHANNEL2::new() }, timer, pin)?,
-        PwmChannel::C3 => LedcDriver::new(unsafe { CHANNEL3::new() }, timer, pin)?,
-        PwmChannel::C4 => LedcDriver::new(unsafe { CHANNEL4::new() }, timer, pin)?,
-        PwmChannel::C5 => LedcDriver::new(unsafe { CHANNEL5::new() }, timer, pin)?,
-        PwmChannel::C6 => LedcDriver::new(unsafe { CHANNEL6::new() }, timer, pin)?,
-        PwmChannel::C7 => LedcDriver::new(unsafe { CHANNEL7::new() }, timer, pin)?,
-    })
-}
-
-pub(crate) struct PwmDriver<'a> {
-    // the timer property on this LedcDriver is unreliable due to the logic below
-    // in set_timer_frequency
-    ledc_driver: LedcDriver<'a>,
-    timer_number: usize,
-    channel: PwmChannel,
-}
-impl<'a> PwmDriver<'a> {
-    pub fn new(pin: AnyIOPin, starting_frequency_hz: u32) -> Result<PwmDriver<'a>, Esp32PwmError> {
-        let mut ledc_manager = LEDC_MANAGER.lock().unwrap();
-        let channel = ledc_manager.allocate_pin(pin.pin(), starting_frequency_hz)?;
-        let timer = ledc_manager.get_configure_timer_instance(channel.1);
-        let ledc_driver = get_ledc_driver_by_channel(channel.0, timer, pin)?;
-        Ok(PwmDriver {
-            ledc_driver,
-            timer_number: channel.1 as usize,
-            channel: channel.0,
+        Ok(match self {
+            Self::C0 => LedcDriver::new(unsafe { CHANNEL0::new() }, timer, pin)?,
+            Self::C1 => LedcDriver::new(unsafe { CHANNEL1::new() }, timer, pin)?,
+            Self::C2 => LedcDriver::new(unsafe { CHANNEL2::new() }, timer, pin)?,
+            Self::C3 => LedcDriver::new(unsafe { CHANNEL3::new() }, timer, pin)?,
+            Self::C4 => LedcDriver::new(unsafe { CHANNEL4::new() }, timer, pin)?,
+            Self::C5 => LedcDriver::new(unsafe { CHANNEL5::new() }, timer, pin)?,
+            Self::C6 => LedcDriver::new(unsafe { CHANNEL6::new() }, timer, pin)?,
+            Self::C7 => LedcDriver::new(unsafe { CHANNEL7::new() }, timer, pin)?,
         })
     }
-
-    pub fn set_ledc_duty_pct(&mut self, pct: f64) -> Result<(), Esp32PwmError> {
-        let max_duty = self.ledc_driver.get_max_duty();
-        self.ledc_driver
-            .set_duty(((max_duty as f64) * pct.abs()).floor() as u32)?;
-        Ok(())
-    }
-
-    pub fn get_ledc_duty_pct(&self) -> f64 {
-        let max_duty = self.ledc_driver.get_max_duty();
-        (self.ledc_driver.get_duty() as f64) / (max_duty as f64)
-    }
-
-    pub fn get_timer_frequency(&self) -> u32 {
-        let timer: ledc_timer_t = (self.timer_number as u8).into();
-        unsafe { ledc_get_freq(LowSpeed::SPEED_MODE, timer) }
-    }
-
-    pub fn set_timer_frequency(&mut self, frequency_hz: u32) -> Result<(), Esp32PwmError> {
-        let mut ledc_manager = LEDC_MANAGER.lock().unwrap();
-        let timer_number =
-            ledc_manager.set_timer_frequency(self.timer_number, frequency_hz, self.channel)?;
-        self.timer_number = timer_number;
-        Ok(())
-    }
 }
 
-impl Drop for PwmDriver<'_> {
-    fn drop(&mut self) {
-        let mut ledc_manager = LEDC_MANAGER.lock().unwrap();
-        ledc_manager.release_channel_and_timer(self.channel, self.timer_number);
+fn get_ledc_driver_by_channel_by_timer<'d: 'a>(
+    channel: PwmChannel,
+    timer_opt: &'d LedcTimerOption<'a>,
+    pin: AnyIOPin,
+) -> Result<LedcDriver<'d>, Esp32PwmError> {
+    match timer_opt {
+        LedcTimerOption::Timer0(timer) => channel.into_ledc_driver(timer, pin),
+        LedcTimerOption::Timer1(timer) => channel.into_ledc_driver(timer, pin),
+        LedcTimerOption::Timer2(timer) => channel.into_ledc_driver(timer, pin),
+        LedcTimerOption::Timer3(timer) => channel.into_ledc_driver(timer, pin),
     }
 }
 
@@ -165,6 +131,59 @@ impl From<PwmChannel> for usize {
     }
 }
 
+pub(crate) struct PwmDriver<'a> {
+    // the timer property on this LedcDriver is unreliable due to the logic below
+    // in set_timer_frequency
+    ledc_driver: LedcDriver<'a>,
+    timer_number: usize,
+    channel: PwmChannel,
+}
+impl<'a> PwmDriver<'a> {
+    pub fn new(pin: AnyIOPin, starting_frequency_hz: u32) -> Result<PwmDriver<'a>, Esp32PwmError> {
+        let mut ledc_manager = LEDC_MANAGER.lock().unwrap();
+        let channel = ledc_manager.allocate_pin(pin.pin(), starting_frequency_hz)?;
+        let timer = ledc_manager.get_configure_timer_instance(channel.1);
+        let ledc_driver = get_ledc_driver_by_channel_by_timer(channel.0, timer, pin)?;
+        Ok(PwmDriver {
+            ledc_driver,
+            timer_number: channel.1 as usize,
+            channel: channel.0,
+        })
+    }
+
+    pub fn set_ledc_duty_pct(&mut self, pct: f64) -> Result<(), Esp32PwmError> {
+        let max_duty = self.ledc_driver.get_max_duty();
+        self.ledc_driver
+            .set_duty(((max_duty as f64) * pct.abs()).floor() as u32)?;
+        Ok(())
+    }
+
+    pub fn get_ledc_duty_pct(&self) -> f64 {
+        let max_duty = self.ledc_driver.get_max_duty();
+        (self.ledc_driver.get_duty() as f64) / (max_duty as f64)
+    }
+
+    pub fn get_timer_frequency(&self) -> u32 {
+        let timer: ledc_timer_t = (self.timer_number as u8).into();
+        unsafe { ledc_get_freq(LowSpeed::SPEED_MODE, timer) }
+    }
+
+    pub fn set_timer_frequency(&mut self, frequency_hz: u32) -> Result<(), Esp32PwmError> {
+        let mut ledc_manager = LEDC_MANAGER.lock().unwrap();
+        let timer_number =
+            ledc_manager.set_timer_frequency(self.timer_number, frequency_hz, self.channel)?;
+        self.timer_number = timer_number;
+        Ok(())
+    }
+}
+
+impl Drop for PwmDriver<'_> {
+    fn drop(&mut self) {
+        let mut ledc_manager = LEDC_MANAGER.lock().unwrap();
+        ledc_manager.release_channel_and_timer(self.channel, self.timer_number);
+    }
+}
+
 pub enum LedcTimerOption<'a> {
     Timer0(LedcTimerDriver<'a, TIMER0>),
     Timer1(LedcTimerDriver<'a, TIMER1>),
@@ -172,7 +191,7 @@ pub enum LedcTimerOption<'a> {
     Timer3(LedcTimerDriver<'a, TIMER3>),
 }
 
-impl LedcTimerOption<'_> {
+impl<'a> LedcTimerOption<'a> {
     pub fn new(timer: u8, conf: &TimerConfig) -> Result<Self, Esp32PwmError> {
         match timer {
             0 => {
@@ -195,16 +214,16 @@ impl LedcTimerOption<'_> {
                     .map_err(Esp32PwmError::EspError)?;
                 Ok(Self::Timer3(driver))
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
-    pub fn timer(&self) -> ledc_timer_t {
+    pub fn timer(&'a self) -> ledc_timer_t {
         match self {
-            Timer0(_) => TIMER0::timer(),
-            Timer1(_) => TIMER1::timer(),
-            Timer2(_) => TIMER2::timer(),
-            Timer3(_) => TIMER3::timer(),
+            Self::Timer0(_) => TIMER0::timer(),
+            Self::Timer1(_) => TIMER1::timer(),
+            Self::Timer2(_) => TIMER2::timer(),
+            Self::Timer3(_) => TIMER3::timer(),
         }
     }
 }
@@ -236,7 +255,7 @@ impl LedcTimerWrapper<'_> {
     fn new(id: u8, frequency_hz: u32) -> Result<Self, Esp32PwmError> {
         let timer_config = TimerConfig::default().frequency(frequency_hz.Hz());
         let timer = OnceCell::new();
-        let _ = timer.set(LedcTimerOption::new(timer, &timer_config)?);
+        let _ = timer.set(LedcTimerOption::new(id, &timer_config)?);
         Ok(Self {
             count: 0,
             frequency: frequency_hz,
@@ -301,7 +320,7 @@ impl<'a> LedcManager<'a> {
         }
     }
 
-    fn get_configure_timer_instance<'d>(&'d self, timer_number: u32) -> &'d LedcTimerDriver<'a> {
+    fn get_configure_timer_instance<'d>(&'d self, timer_number: u32) -> &'d LedcTimerOption<'a> {
         self.timer_allocation[timer_number as usize]
             .timer
             .get()
