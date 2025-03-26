@@ -502,7 +502,6 @@ where
         // if wifi manager is configured loop forever until wifi is connected via
         // a the provisioned network or one from previously stored agent config
         if let Some(wifi) = self.wifi_manager.as_ref().as_ref() {
-
             if !self.storage.has_network_settings() {
                 log::info!("initializing additional networks storage...");
                 if let Err(e) = self.storage.store_network_settings(Default::default()) {
