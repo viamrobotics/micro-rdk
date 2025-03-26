@@ -505,7 +505,7 @@ where
             if !self.storage.has_network_settings() {
                 log::info!("initializing additional networks storage...");
                 if let Err(e) = self.storage.store_network_settings(Default::default()) {
-                    log::error!("failed to initialize new network settings storage: {}", e);
+                    log::error!("failed to initialize additional networks storage: {}", e);
                 }
             }
 
