@@ -3,7 +3,7 @@ use async_io::Async;
 
 use esp_idf_svc::sys::{
     esp, esp_crt_bundle_attach, esp_tls_cfg, esp_tls_cfg_server, esp_tls_conn_destroy,
-    esp_tls_get_ssl_context, esp_tls_init, esp_tls_server_session_init, esp_tls_t,
+    esp_tls_get_ssl_context, esp_tls_init, esp_tls_server_session_create, esp_tls_t,
     mbedtls_ssl_conf_read_timeout, mbedtls_ssl_config, mbedtls_ssl_context, EspError,
 };
 use futures_lite::FutureExt;
@@ -208,7 +208,7 @@ where
     fn new(stream: IO, mut cfg: Esp32ServerConfig) -> Result<Self, std::io::Error> {
         let tls_context = Esp32TLSContext::new()?;
         unsafe {
-            esp!(esp_tls_server_session_init(
+            esp!(esp_tls_server_session_create(
                 cfg.get_cfg_ptr_mut(),
                 stream.as_raw_fd(),
                 *tls_context
