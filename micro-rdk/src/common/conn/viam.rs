@@ -435,7 +435,6 @@ where
             let wdt_cfg = crate::esp32::esp_idf_svc::sys::esp_task_wdt_config_t {
                 timeout_ms: (180 * 10_u32.pow(3)), // 180 seconds in milliseconds
                 trigger_panic: true,
-                // TWDT wants to know the bitmask for which core's idle task it should subscribe to
                 idle_core_mask: (1 << CONFIG_FREERTOS_NUMBER_OF_CORES) - 1,
             };
 
