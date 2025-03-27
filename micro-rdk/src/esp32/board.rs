@@ -85,10 +85,10 @@ impl EspBoard {
             #[cfg(esp32)]
             let analogs =
                 if let Ok(analogs) = cfg.get_attribute::<Vec<AnalogReaderConfig>>("analogs") {
+                    let adc1 = Arc::new(AdcDriver::new(unsafe { ADC1::new() })?);
                     let analogs: Result<Vec<AnalogReaderType<u16>>, BoardError> = analogs
                         .iter()
                         .map(|v| {
-                            let adc1 = AdcDriver::new(unsafe { ADC1::new() })?;
                             let config = AdcChannelConfig {
                                 attenuation: DB_11,
                                 calibration: Calibration::Line,
@@ -99,7 +99,7 @@ impl EspBoard {
                                     let p: AnalogReaderType<u16> =
                                         Arc::new(Mutex::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::new(adc1, unsafe {
+                                            AdcChannelDriver::new(adc1.clone(), unsafe {
                                                 crate::esp32::esp_idf_svc::hal::gpio::Gpio32::new()
                                             }, &config)
                                             .map_err(BoardError::EspError)?
@@ -110,7 +110,7 @@ impl EspBoard {
                                     let p: AnalogReaderType<u16> =
                                         Arc::new(Mutex::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::new(adc1, unsafe {
+                                            AdcChannelDriver::new(adc1.clone(), unsafe {
                                                 crate::esp32::esp_idf_svc::hal::gpio::Gpio33::new()
                                             }, &config)
                                             .map_err(BoardError::EspError)?
@@ -121,7 +121,7 @@ impl EspBoard {
                                     let p: AnalogReaderType<u16> =
                                         Arc::new(Mutex::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::new(adc1, unsafe {
+                                            AdcChannelDriver::new(adc1.clone(), unsafe {
                                                 crate::esp32::esp_idf_svc::hal::gpio::Gpio34::new()
                                             }, &config)
                                             .map_err(BoardError::EspError)?
@@ -132,7 +132,7 @@ impl EspBoard {
                                     let p: AnalogReaderType<u16> =
                                         Arc::new(Mutex::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::new(adc1, unsafe {
+                                            AdcChannelDriver::new(adc1.clone(), unsafe {
                                                 crate::esp32::esp_idf_svc::hal::gpio::Gpio35::new()
                                             }, &config)
                                             .map_err(BoardError::EspError)?
@@ -143,7 +143,7 @@ impl EspBoard {
                                     let p: AnalogReaderType<u16> =
                                         Arc::new(Mutex::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::new(adc1, unsafe {
+                                            AdcChannelDriver::new(adc1.clone(), unsafe {
                                                 crate::esp32::esp_idf_svc::hal::gpio::Gpio36::new()
                                             }, &config)
                                             .map_err(BoardError::EspError)?
@@ -154,7 +154,7 @@ impl EspBoard {
                                     let p: AnalogReaderType<u16> =
                                         Arc::new(Mutex::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::new(adc1, unsafe {
+                                            AdcChannelDriver::new(adc1.clone(), unsafe {
                                                 crate::esp32::esp_idf_svc::hal::gpio::Gpio37::new()
                                             }, &config)
                                             .map_err(BoardError::EspError)?
@@ -165,7 +165,7 @@ impl EspBoard {
                                     let p: AnalogReaderType<u16> =
                                         Arc::new(Mutex::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::new(adc1, unsafe {
+                                            AdcChannelDriver::new(adc1.clone(), unsafe {
                                                 crate::esp32::esp_idf_svc::hal::gpio::Gpio38::new()
                                             }, &config)
                                             .map_err(BoardError::EspError)?
@@ -176,7 +176,7 @@ impl EspBoard {
                                     let p: AnalogReaderType<u16> =
                                         Arc::new(Mutex::new(Esp32AnalogReader::new(
                                             v.name.to_string(),
-                                            AdcChannelDriver::new(adc1, unsafe {
+                                            AdcChannelDriver::new(adc1.clone(), unsafe {
                                                 crate::esp32::esp_idf_svc::hal::gpio::Gpio39::new()
                                             }, &config)
                                             .map_err(BoardError::EspError)?
