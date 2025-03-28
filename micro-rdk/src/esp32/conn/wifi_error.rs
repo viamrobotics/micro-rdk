@@ -84,7 +84,7 @@ impl From<c_uint> for WifiErrReason {
             wifi_err_reason_t_WIFI_REASON_ASSOC_FAIL => Self::AssocFail(v),
             wifi_err_reason_t_WIFI_REASON_HANDSHAKE_TIMEOUT => Self::HandshakeTimeout(v),
             wifi_err_reason_t_WIFI_REASON_CONNECTION_FAIL => Self::ConnectionFail(v),
-            wifi_err_reason_t_WIFI_REASON_AP_TSF_RESET => Self::ApTsfReset(t),
+            wifi_err_reason_t_WIFI_REASON_AP_TSF_RESET => Self::ApTsfReset(v),
             wifi_err_reason_t_WIFI_REASON_ROAMING => Self::Roaming(v),
             wifi_err_reason_t_WIFI_REASON_ASSOC_COMEBACK_TIME_TOO_LONG => {
                 Self::AssocComebackTimeTooLong(v)
