@@ -610,9 +610,9 @@ impl Esp32ExternallyManagedNetwork {
         {
             data.connected.store(false, Ordering::Release);
             if !ev_data.is_null() {
-                let disconn: esp_idf_svc::sys::wifi_event_sta_disconnected_t =
-                    unsafe { core::mem::transmute(*ev_data) };
-                let reason: super::wifi_error::WifiErrReason = disconn.reason.into();
+                let disconn: *const esp_idf_svc::sys::wifi_event_sta_disconnected_t =
+                    unsafe { core::mem::transmute(ev_data) };
+                let reason: super::wifi_error::WifiErrReason = (*disconn).reason.into();
                 log::error!("sta disconnected: {:?}", reason);
             }
         }
