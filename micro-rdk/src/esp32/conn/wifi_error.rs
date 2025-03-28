@@ -2,8 +2,8 @@
 use esp_idf_svc::sys::*;
 use core::ffi::c_uint;
 
-impl From<u8> for WifiErrReason {
-    fn from(value: u8) -> Self {
+impl From<u16> for WifiErrReason {
+    fn from(value: u16) -> Self {
         (value as c_uint).into()
     }
 }

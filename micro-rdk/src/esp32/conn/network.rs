@@ -1,3 +1,4 @@
+use super::wifi_error::WifiErrReason;
 use std::{
     cell::RefCell,
     ffi::CString,
@@ -202,25 +203,30 @@ impl Esp32WifiNetwork {
 
         let sl_stack = esp32_get_system_event_loop()?;
 
-        let subscription = sl_stack.subscribe::<WifiEvent, _>(move |event: WifiEvent| {
-            if matches!(event, WifiEvent::StaDisconnected(_)) {
-                if let Ok(wifi) = esp32_get_wifi() {
-                    if let Some(mut wifi_guard) = wifi.try_lock() {
-                        let wifi_mut = wifi_guard.wifi_mut();
-                        if let Err(err) = wifi_mut.connect() {
-                            let ssid = wifi_mut
-                                .get_configuration()
-                                .map_or("<no_ssid>".to_owned(), |c| {
-                                    c.as_client_conf_ref().unwrap().ssid.to_string()
-                                });
-                            log::error!("could not connect to WiFi {} cause : {:?}", ssid, err);
+        let subscription =
+            sl_stack.subscribe::<WifiEvent, _>(move |event: WifiEvent| match event {
+                WifiEvent::StaDisconnected(disconnected) => {
+                    let reason: WifiErrReason = disconnected.reason().into();
+                    log::info!("StaDisconnected event received: {:?}", reason);
+                    if let Ok(wifi) = esp32_get_wifi() {
+                        if let Some(mut wifi_guard) = wifi.try_lock() {
+                            let wifi_mut = wifi_guard.wifi_mut();
+                            if let Err(err) = wifi_mut.connect() {
+                                let ssid = wifi_mut
+                                    .get_configuration()
+                                    .map_or("<no_ssid>".to_owned(), |c| {
+                                        c.as_client_conf_ref().unwrap().ssid.to_string()
+                                    });
+                                log::error!("could not connect to WiFi {} cause : {:?}", ssid, err);
+                            }
                         }
                     }
                 }
-            } else if matches!(event, WifiEvent::StaConnected(_)) {
-                log::info!("wifi connected event received");
-            }
-        })?;
+                WifiEvent::StaConnected(_) => {
+                    log::info!("wifi connected event received");
+                }
+                _ => {}
+            })?;
         let _ = self._subscription.borrow_mut().replace(subscription);
         Ok(())
     }
@@ -609,12 +615,6 @@ impl Esp32ExternallyManagedNetwork {
             && ev_id == esp_idf_svc::sys::wifi_event_t_WIFI_EVENT_STA_DISCONNECTED
         {
             data.connected.store(false, Ordering::Release);
-            if !ev_data.is_null() {
-                let disconn: *const esp_idf_svc::sys::wifi_event_sta_disconnected_t =
-                    unsafe { core::mem::transmute(ev_data) };
-                let reason: super::wifi_error::WifiErrReason = (*disconn).reason.into();
-                log::error!("sta disconnected: {:?}", reason);
-            }
         }
 
         if ev_base == esp_idf_svc::sys::ETH_EVENT
