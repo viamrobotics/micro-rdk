@@ -9,9 +9,7 @@ use std::rc::Rc;
 use micro_rdk::{
     common::{
         conn::{server::WebRtcConfiguration, viam::ViamServerBuilder},
-        credentials_storage::{
-            RobotConfigurationStorage, RobotCredentials, WifiCredentialStorage,
-        },
+        credentials_storage::{RobotConfigurationStorage, RobotCredentials, WifiCredentialStorage},
         exec::Executor,
         log::initialize_logger,
         provisioning::server::ProvisioningInfo,
@@ -74,12 +72,11 @@ fn main() {
 
         // check if any were statically compiled
         if SSID.is_some() && PASS.is_some() {
-            log::info!("storing static values from build time network settings to storage as default");
+            log::info!(
+                "storing static values from build time network settings to storage as default"
+            );
             storage
-                .store_default_network(
-                    SSID.unwrap(),
-                    PASS.unwrap(),
-                )
+                .store_default_network(SSID.unwrap(), PASS.unwrap())
                 .expect("failed to store network settings to storage");
         }
     }

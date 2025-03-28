@@ -86,7 +86,9 @@ mod esp32 {
 
             // check if any were statically compiled
             if SSID.is_some() && PASS.is_some() {
-                log::info!("storing static values from build time network settings to storage as default");
+                log::info!(
+                    "storing static values from build time network settings to storage as default"
+                );
                 storage
                     .store_default_network(SSID.unwrap(), PASS.unwrap())
                     .expect("failed to store network settings to storage");
