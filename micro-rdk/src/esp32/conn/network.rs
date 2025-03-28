@@ -1,4 +1,3 @@
-use super::wifi_error::WifiErrReason;
 use std::{
     cell::RefCell,
     ffi::CString,
@@ -206,7 +205,7 @@ impl Esp32WifiNetwork {
         let subscription =
             sl_stack.subscribe::<WifiEvent, _>(move |event: WifiEvent| match event {
                 WifiEvent::StaDisconnected(disconnected) => {
-                    let reason: WifiErrReason = disconnected.reason().into();
+                    let reason: super::wifi_error::WifiErrReason = disconnected.reason().into();
                     log::info!("StaDisconnected event received: {:?}", reason);
                     if let Ok(wifi) = esp32_get_wifi() {
                         if let Some(mut wifi_guard) = wifi.try_lock() {
