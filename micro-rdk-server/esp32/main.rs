@@ -82,12 +82,14 @@ mod esp32 {
         // it will try to load statically compiled values.
 
         if !storage.has_default_network() {
+            log::warn!("no default network settings found in storage");
+
             // check if any were statically compiled
             if SSID.is_some() && PASS.is_some() {
-                log::info!("storing static values from build time wifi configuration to storage");
+                log::info!("storing static values from build time network settings to storage as default");
                 storage
                     .store_default_network(SSID.unwrap(), PASS.unwrap())
-                    .expect("Failed to store WiFi credentials to NVS");
+                    .expect("failed to store network settings to storage");
             }
         }
 
