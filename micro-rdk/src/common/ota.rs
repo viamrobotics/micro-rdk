@@ -54,6 +54,8 @@ use crate::esp32::esp_idf_svc::{
     },
 };
 use async_io::Timer;
+#[cfg(not(feature = "esp32"))]
+use futures_lite::AsyncWriteExt;
 use futures_lite::{FutureExt, StreamExt};
 use futures_util::TryFutureExt;
 use http_body_util::{BodyExt, Empty};
@@ -61,8 +63,6 @@ use hyper::{body::Bytes, client::conn::http2, Request};
 use once_cell::sync::Lazy;
 use std::time::Duration;
 use thiserror::Error;
-#[cfg(not(feature = "esp32"))]
-use {bincode::Decode, futures_lite::AsyncWriteExt};
 
 const CONN_RETRY_SECS: u64 = 1;
 const NUM_RETRY_CONN: usize = 5;
@@ -83,43 +83,6 @@ const MAX_VER_LEN: usize = 128;
 pub const OTA_MODEL_TYPE: &str = "ota_service";
 pub static OTA_MODEL_TRIPLET: Lazy<String> =
     Lazy::new(|| format!("rdk:builtin:{}", OTA_MODEL_TYPE));
-
-/// https://github.com/espressif/esp-idf/blob/ce6085349f8d5a95fc857e28e2d73d73dd3629b5/components/esp_app_format/include/esp_app_desc.h#L42
-/// https://docs.esp-rs.org/esp-idf-sys/esp_idf_sys/struct.esp_app_desc_t.html
-/// typedef struct {
-///     uint32_t magic_word;        /*!< Magic word ESP_APP_DESC_MAGIC_WORD */
-///     uint32_t secure_version;    /*!< Secure version */
-///     uint32_t reserv1[2];        /*!< reserv1 */
-///     char version[32];           /*!< Application version */
-///     char project_name[32];      /*!< Project name */
-///     char time[16];              /*!< Compile time */
-///     char date[16];              /*!< Compile date*/
-///     char idf_ver[32];           /*!< Version IDF */
-///     uint8_t app_elf_sha256[32]; /*!< sha256 of elf file */
-///     uint32_t reserv2[19];       /*!< reserv2 */
-/// } esp_app_desc_t;
-///
-/// should be 256 bytes in size
-#[cfg(not(feature = "esp32"))]
-#[repr(C)]
-#[derive(Decode, Debug, PartialEq)]
-struct EspAppDesc {
-    //TODO(RSDK-9342): add verified, native impl of esp_app_desc_t for debugging
-    /// ESP_APP_DESC_MAGIC_WORD (0xABCD5432)
-    magic_word: u32,
-    secure_version: u32,
-    reserv1: [u32; 2],
-    /// application version
-    version: [u8; 32],
-    project_name: [u8; 32],
-    /// compile time
-    time: [u8; 16],
-    /// compile date
-    date: [u8; 16],
-    idf_ver: [u8; 32],
-    app_elf_sha256: [u8; 32],
-    reserv2: [u32; 20],
-}
 
 #[derive(Error, Debug)]
 pub(crate) enum ConfigError {
@@ -333,6 +296,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
     /// Attempts to perform an OTA update.
     /// On success, returns an `Ok(true)` or `Ok(false)` indicating if a reboot is necessary.
     pub(crate) async fn update(&mut self) -> Result<bool, OtaError<S>> {
+        // TODO(RSDK-10331): refactor OTA update logic to work with state machines
         if !(self.needs_update()) {
             return Ok(false);
         }
@@ -553,20 +517,6 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                                     );
                                     break;
                                 }
-                            }
-                            #[cfg(not(feature = "esp32"))]
-                            {
-                                log::debug!("deserializing app header");
-                                if let Ok(decoded) = bincode::decode_from_slice::<
-                                    EspAppDesc,
-                                    bincode::config::Configuration,
-                                >(
-                                    &data[..*FIRMWARE_HEADER_SIZE],
-                                    bincode::config::standard(),
-                                ) {
-                                    log::debug!("{:?}", decoded.0);
-                                }
-                                got_info = true;
                             }
                         }
                     }
