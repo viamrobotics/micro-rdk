@@ -26,6 +26,7 @@ pub mod utils;
 pub mod conn {
     pub mod mdns;
     pub mod network;
+    pub mod wifi_error;
 }
 pub mod coredump;
 pub mod nvs_storage;
