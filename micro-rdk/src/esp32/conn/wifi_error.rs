@@ -68,6 +68,15 @@ pub enum WifiErrReason {
     Unrecognized(u32),
 }
 
+impl std::fmt::Display for WifiErrReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Unrecognized(v) => write!(f, "Unrecognized - internal code {}", v),
+            _ => write!(f, "{:?}", self),
+        }
+    }
+}
+
 impl From<u16> for WifiErrReason {
     fn from(value: u16) -> Self {
         (value as u32).into()
