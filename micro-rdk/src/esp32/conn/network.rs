@@ -38,7 +38,7 @@ use once_cell::sync::OnceCell;
 
 use crate::{
     common::{config::NetworkSetting, provisioning::server::WifiApConfiguration},
-    esp32::esp_idf_svc::sys::EspError,
+    esp32::{conn::wifi_error::WifiErrReason, esp_idf_svc::sys::EspError},
 };
 
 #[cfg(feature = "qemu")]
@@ -203,10 +203,23 @@ impl Esp32WifiNetwork {
         let sl_stack = esp32_get_system_event_loop()?;
 
         let subscription =
-            sl_stack.subscribe::<WifiEvent, _>(move |event: WifiEvent| match event {
+            sl_stack.subscribe::<WifiEvent, _>(move |event: WifiEvent| {
+                    let ssid: String = CString::new(event.0.ssid())
+                        .inspect_err(|_| log::error!("failed to parse ssid to CString"))
+                        .unwrap_or(CString::new("").unwrap())
+                        .into_string()
+                        .inspect_err(|_| log::error!("failed to parse ssid to Rust string"))
+                        .unwrap_or("".to_string());
+                match event {
                 WifiEvent::StaDisconnected(disconnected) => {
-                    let reason: super::wifi_error::WifiErrReason = disconnected.reason().into();
-                    log::info!("StaDisconnected event received: {:?}", reason);
+                    let reason: WifiErrReason = disconnected.reason().into();
+                    log::info!(
+                        "received a WiFi disconnection event for SSID `{}` (RSSI {}) with reason: `{:?}`",
+                        ssid,
+                        disconnected.rssi(),
+                        reason,
+                    );
+
                     if let Ok(wifi) = esp32_get_wifi() {
                         if let Some(mut wifi_guard) = wifi.try_lock() {
                             let wifi_mut = wifi_guard.wifi_mut();
@@ -221,10 +234,13 @@ impl Esp32WifiNetwork {
                         }
                     }
                 }
-                WifiEvent::StaConnected(_) => {
-                    log::info!("wifi connected event received");
+                WifiEvent::StaConnected(connected) => {
+                    log::info!(
+                        "received a WiFi connection event for SSID {}",
+                        ssid);
                 }
                 _ => {}
+            }
             })?;
         let _ = self._subscription.borrow_mut().replace(subscription);
         Ok(())
