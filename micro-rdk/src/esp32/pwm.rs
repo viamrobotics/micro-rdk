@@ -60,7 +60,7 @@ enum PwmChannel {
 impl PwmChannel {
     fn into_ledc_driver<'a, T>(
         self,
-        timer: &'a LedcTimerDriver<T>,
+        timer: &LedcTimerDriver<'a, T>,
         pin: AnyIOPin,
     ) -> Result<LedcDriver<'a>, Esp32PwmError>
     where
@@ -81,11 +81,11 @@ impl PwmChannel {
     }
 }
 
-fn get_ledc_driver_by_channel_by_timer<'d: 'a>(
+fn get_ledc_driver_by_channel_by_timer<'a>(
     channel: PwmChannel,
-    timer_opt: &'d LedcTimerOption<'a>,
+    timer_opt: &LedcTimerOption<'a>,
     pin: AnyIOPin,
-) -> Result<LedcDriver<'d>, Esp32PwmError> {
+) -> Result<LedcDriver<'a>, Esp32PwmError> {
     match timer_opt {
         LedcTimerOption::Timer0(timer) => channel.into_ledc_driver(timer, pin),
         LedcTimerOption::Timer1(timer) => channel.into_ledc_driver(timer, pin),
