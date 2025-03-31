@@ -204,7 +204,7 @@ impl Esp32WifiNetwork {
 
         let subscription =
             sl_stack.subscribe::<WifiEvent, _>(move |event: WifiEvent| match event {
-                    WifiEvent::StaDisconnected(disconnected) => {
+                WifiEvent::StaDisconnected(disconnected) => {
                     let ssid: String = CString::new(disconnected.ssid())
                         .inspect_err(|_| log::error!("failed to parse ssid to CString"))
                         .unwrap_or(CString::new("").unwrap())
@@ -214,7 +214,7 @@ impl Esp32WifiNetwork {
 
                     let reason: WifiErrReason = disconnected.reason().into();
                     log::info!(
-                        "received a WiFi disconnection event for SSID `{}` (RSSI {}) with reason: {}",
+                        "received a WiFi disconnection event for SSID `{}` (RSSI {}) with reason: ",
                         ssid,
                         disconnected.rssi(),
                         reason,
@@ -229,26 +229,27 @@ impl Esp32WifiNetwork {
                                     .map_or("<no_ssid>".to_owned(), |c| {
                                         c.as_client_conf_ref().unwrap().ssid.to_string()
                                     });
-                                log::error!("could not connect to WiFi `{}` cause : {:?}", ssid, err);
+                                log::error!(
+                                    "could not connect to WiFi `{}` cause : {:?}",
+                                    ssid,
+                                    err
+                                );
                             }
                         }
                     }
                 }
-                    WifiEvent::StaConnected(connected) => {
-                        let ssid: String = CString::new(connected.ssid())
+                WifiEvent::StaConnected(connected) => {
+                    let ssid: String = CString::new(connected.ssid())
                         .inspect_err(|_| log::error!("failed to parse ssid to CString"))
                         .unwrap_or(CString::new("").unwrap())
                         .into_string()
                         .inspect_err(|_| log::error!("failed to parse ssid to Rust string"))
                         .unwrap_or("".to_string());
 
-                    log::info!(
-                        "received a WiFi connection event for SSID `{}`",
-                        ssid);
+                    log::info!("received a WiFi connection event for SSID `{}`", ssid);
                 }
                 _ => {}
-                }
-            )?;
+            })?;
         let _ = self._subscription.borrow_mut().replace(subscription);
         Ok(())
     }
