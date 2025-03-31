@@ -86,7 +86,7 @@ impl From<u32> for WifiErrReason {
             wifi_err_reason_t_WIFI_REASON_ASSOC_LEAVE => Self::AssocLeave,
             wifi_err_reason_t_WIFI_REASON_ASSOC_NOT_AUTHED => Self::AssocNotAuthed,
             wifi_err_reason_t_WIFI_REASON_DISASSOC_PWRCAP_BAD => Self::DisassocPwrcapBad,
-            wifi_err_reason_t_WIFI_REASON_DISASSOC_SUPCHAN_BAD => Self::SupchanBad,
+            wifi_err_reason_t_WIFI_REASON_DISASSOC_SUPCHAN_BAD => Self::DisassocSupchanBad,
             wifi_err_reason_t_WIFI_REASON_BSS_TRANSITION_DISASSOC => Self::BssTransitionDisassoc,
             wifi_err_reason_t_WIFI_REASON_IE_INVALID => Self::IeInvalid,
             wifi_err_reason_t_WIFI_REASON_MIC_FAILURE => Self::MicFailure,

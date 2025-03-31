@@ -203,15 +203,15 @@ impl Esp32WifiNetwork {
         let sl_stack = esp32_get_system_event_loop()?;
 
         let subscription =
-            sl_stack.subscribe::<WifiEvent, _>(move |event: WifiEvent| {
-                    let ssid: String = CString::new(event.0.ssid())
+            sl_stack.subscribe::<WifiEvent, _>(move |event: WifiEvent| match event {
+                    WifiEvent::StaDisconnected(disconnected) => {
+                    let ssid: String = CString::new(disconnected.ssid())
                         .inspect_err(|_| log::error!("failed to parse ssid to CString"))
                         .unwrap_or(CString::new("").unwrap())
                         .into_string()
                         .inspect_err(|_| log::error!("failed to parse ssid to Rust string"))
                         .unwrap_or("".to_string());
-                match event {
-                WifiEvent::StaDisconnected(disconnected) => {
+
                     let reason: WifiErrReason = disconnected.reason().into();
                     log::info!(
                         "received a WiFi disconnection event for SSID `{}` (RSSI {}) with reason: `{:?}`",
@@ -234,14 +234,21 @@ impl Esp32WifiNetwork {
                         }
                     }
                 }
-                WifiEvent::StaConnected(connected) => {
+                    WifiEvent::StaConnected(connected) => {
+                        let ssid: String = CString::new(connected.ssid())
+                        .inspect_err(|_| log::error!("failed to parse ssid to CString"))
+                        .unwrap_or(CString::new("").unwrap())
+                        .into_string()
+                        .inspect_err(|_| log::error!("failed to parse ssid to Rust string"))
+                        .unwrap_or("".to_string());
+
                     log::info!(
                         "received a WiFi connection event for SSID {}",
                         ssid);
                 }
                 _ => {}
-            }
-            })?;
+                }
+            )?;
         let _ = self._subscription.borrow_mut().replace(subscription);
         Ok(())
     }
