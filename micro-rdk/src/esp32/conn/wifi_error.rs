@@ -1,13 +1,8 @@
 #![allow(non_snake_case)]
-use core::ffi::c_uint;
+#![allow(non_upper_case_globals)]
 use esp_idf_svc::sys::*;
 
-impl From<u16> for WifiErrReason {
-    fn from(value: u16) -> Self {
-        (value as c_uint).into()
-    }
-}
-
+/// Wrapper around (`wifi_err_reason_t`)[https://github.com/espressif/esp-idf/blob/a3864c088dafb0b8ce94dba272685b850b46c837/components/esp_wifi/include/esp_wifi_types_generic.h#L175]
 #[derive(Debug)]
 pub enum WifiErrReason {
     Unspecified,
@@ -71,6 +66,12 @@ pub enum WifiErrReason {
     NoApFoundInAuthModeThreshold,
     NoApFoundInRssiThreshold,
     Unrecognized(u32),
+}
+
+impl From<u16> for WifiErrReason {
+    fn from(value: u16) -> Self {
+        (value as u32).into()
+    }
 }
 
 impl From<u32> for WifiErrReason {
@@ -149,7 +150,7 @@ impl From<u32> for WifiErrReason {
                 Self::NoApFoundWithCompatibleSecurity
             }
             wifi_err_reason_t_WIFI_REASON_NO_AP_FOUND_IN_AUTHMODE_THRESHOLD => {
-                Self::NoApFoundInAuthmodeThreshold
+                Self::NoApFoundInAuthModeThreshold
             }
             wifi_err_reason_t_WIFI_REASON_NO_AP_FOUND_IN_RSSI_THRESHOLD => {
                 Self::NoApFoundInRssiThreshold
