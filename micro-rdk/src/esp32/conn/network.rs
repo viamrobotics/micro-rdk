@@ -214,7 +214,7 @@ impl Esp32WifiNetwork {
 
                     let reason: WifiErrReason = disconnected.reason().into();
                     log::info!(
-                        "received a WiFi disconnection event for SSID `{}` (RSSI {}) with reason: `{:?}`",
+                        "received a WiFi disconnection event for SSID `{}` (RSSI {}) with reason: {}",
                         ssid,
                         disconnected.rssi(),
                         reason,
@@ -229,7 +229,7 @@ impl Esp32WifiNetwork {
                                     .map_or("<no_ssid>".to_owned(), |c| {
                                         c.as_client_conf_ref().unwrap().ssid.to_string()
                                     });
-                                log::error!("could not connect to WiFi {} cause : {:?}", ssid, err);
+                                log::error!("could not connect to WiFi `{}` cause : {:?}", ssid, err);
                             }
                         }
                     }
@@ -243,7 +243,7 @@ impl Esp32WifiNetwork {
                         .unwrap_or("".to_string());
 
                     log::info!(
-                        "received a WiFi connection event for SSID {}",
+                        "received a WiFi connection event for SSID `{}`",
                         ssid);
                 }
                 _ => {}
