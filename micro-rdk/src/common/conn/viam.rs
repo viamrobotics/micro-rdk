@@ -418,10 +418,16 @@ where
     pub fn run_forever(&mut self) -> ! {
         #[cfg(feature = "esp32")]
         {
+            use esp_idf_svc::sys::{esp_task_wdt_config_t, CONFIG_FREERTOS_NUMBER_OF_CORES};
+            let wdt_cfg = crate::esp32::esp_idf_svc::sys::esp_task_wdt_config_t {
+                timeout_ms: (180 * 10_u32.pow(3)), // 180 seconds in milliseconds
+                trigger_panic: true,
+                idle_core_mask: (1 << CONFIG_FREERTOS_NUMBER_OF_CORES) - 1,
+            };
+
             // set the TWDT to expire after 3 minutes
             crate::esp32::esp_idf_svc::sys::esp!(unsafe {
-                // TODO(RSDK-10195): This should now take an esp_task_wdt_config_t
-                crate::esp32::esp_idf_svc::sys::esp_task_wdt_init(180, true)
+                crate::esp32::esp_idf_svc::sys::esp_task_wdt_init(&wdt_cfg)
             })
             .unwrap();
 
@@ -490,6 +496,15 @@ where
         // if wifi manager is configured loop forever until wifi is connected via
         // a the provisioned network or one from previously stored agent config
         if let Some(wifi) = self.wifi_manager.as_ref().as_ref() {
+            if !self.storage.has_network_settings() {
+                log::info!(
+                    "initializing additional network storage as empty since it is not present"
+                );
+                if let Err(e) = self.storage.store_network_settings(Default::default()) {
+                    log::error!("failed to initialize additional networks storage: {}", e);
+                }
+            }
+
             log::info!("using stored wifi credentials to enter STA mode");
             let networks = self
                 .storage
