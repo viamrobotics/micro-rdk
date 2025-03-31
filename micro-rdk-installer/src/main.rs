@@ -225,7 +225,8 @@ fn create_nvs_partition_binary(
     wifi_password: Option<Secret<String>>,
 ) -> Result<Vec<u8>, Error> {
     let mut storage_data = ViamFlashStorageData::default();
-    let config_str = fs::read_to_string(config_path).map_err(Error::FileError)?;
+    let config_str = fs::read_to_string(config_path.clone())
+        .map_err(|err| Error::ConfigFileNotFound(config_path, err))?;
     let app_config: AppConfig = serde_json::from_str(&config_str)?;
     storage_data.robot_credentials.robot_id = Some(app_config.cloud.r#id.to_string());
     storage_data.robot_credentials.app_address = Some(app_config.cloud.app_address.to_string());
