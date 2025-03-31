@@ -43,6 +43,8 @@ use thiserror::Error;
 
 use super::tcp::Esp32TLSContext;
 
+// these symbols use to be exported by bindgen but with the update to esp-idf v5 there aren't anymore
+// see https://github.com/esp-rs/esp-idf-sys/issues/361 for context
 const MBEDTLS_ERR_NET_SEND_FAILED: i32 = -0x4E;
 const MBEDTLS_ERR_NET_RECV_FAILED: i32 = -0x4C;
 
@@ -120,7 +122,6 @@ unsafe extern "C" fn mbedtls_net_read_with_timeout<S: AsyncRead>(
             match state.error.as_ref().unwrap().kind() {
                 std::io::ErrorKind::WouldBlock => MBEDTLS_ERR_SSL_WANT_READ,
                 std::io::ErrorKind::TimedOut => MBEDTLS_ERR_SSL_TIMEOUT,
-                // TODO(RSDK-10189): This constant is not exported in ESP-IDF 5
                 _ => MBEDTLS_ERR_NET_RECV_FAILED,
             }
         }
@@ -230,7 +231,6 @@ extern "C" fn mbedtls_timing_dtls_set_delay<S>(
         ctx.reset_delay();
     } else if let Some(ssl_ctx) = ctx.ssl_ctx {
         let (_, cx) = unsafe {
-            // TODO(RSDK-10196): The `p_bio` field doesn't exist in ESP-IDF 5. Maybe it should be `private_p_bio`?
             let state = SSLStreamInner::<S>::from_raw((*ssl_ctx).private_p_bio);
             state.as_parts()
         };
@@ -253,7 +253,6 @@ extern "C" fn mbedtls_timing_get_delay<S>(data: *mut c_void) -> c_int {
 
     if let Some(ssl_ctx) = ctx.ssl_ctx {
         let (_, cx) = unsafe {
-            // TODO(RSDK-10196): The `p_bio` field doesn't exist in ESP-IDF 5. Maybe it should be `private_p_bio`?
             let state = SSLStreamInner::<S>::from_raw((*ssl_ctx).private_p_bio);
             state.as_parts()
         };
@@ -327,7 +326,6 @@ impl DtlsSSLContext {
             return Err(SSLError::SSLCertParseFail(ret));
         }
 
-        // TODO(RSDK-10197): This is missing two arguments in ESP-IDF 5
         let ret = unsafe {
             mbedtls_pk_parse_key(
                 self.pk_ctx.as_mut(),
@@ -514,7 +512,6 @@ impl SSLContext {
     fn get_ssl_ctx_ptr(&mut self) -> *mut mbedtls_ssl_context {
         match self {
             SSLContext::DtlsSSLContext(context) => context.ssl_ctx.as_mut(),
-            // TODO(RSDK-10198): The `ssl` field here no longer works in ESP-IDF 5
             SSLContext::Esp32TLSContext(context) => unsafe {
                 NonNull::<mbedtls_ssl_context>::new(
                     esp_tls_get_ssl_context(**context) as *mut mbedtls_ssl_context
