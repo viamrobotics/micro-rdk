@@ -41,8 +41,7 @@ use crate::{
         credentials_storage::OtaMetadataStorage,
         exec::Executor,
         grpc_client::H2Timer,
-    },
-    proto::app::v1::ServiceConfig,
+    }, esp32::sys::get_system_lock, proto::app::v1::ServiceConfig
 };
 
 #[cfg(feature = "esp32")]
@@ -301,6 +300,9 @@ impl<S: OtaMetadataStorage> OtaService<S> {
             return Ok(false);
         }
 
+        #[cfg(feature = "esp32")]
+        let _sys_lock = get_system_lock().lock_blocking();
+
         let mut uri = self.parse_uri(&self.url)?;
         let mut response: hyper::Response<hyper::body::Incoming>;
         let mut conn;
@@ -458,6 +460,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 .firmware;
             (ota, fw_info)
         };
+
         #[cfg(feature = "esp32")]
         let mut update_handle = ota.initiate_update().map_err(|_| OtaError::InitError)?;
         #[cfg(not(feature = "esp32"))]
@@ -496,10 +499,10 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                                 let new_fw = loader
                                     .get_info()
                                     .map_err(|e| OtaError::InvalidFirmware(e.to_string()))?;
-                                log::debug!(
-                                    "current firmware app description: {:?}",
-                                    running_fw_info
-                                );
+                                // log::debug!(
+                                //     "current firmware app description: {:?}",
+                                //     running_fw_info
+                                // );
                                 log::debug!("new firmware app description: {:?}", new_fw);
                             }
                             got_info = true;

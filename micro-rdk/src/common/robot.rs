@@ -5,6 +5,7 @@ use async_executor::Task;
 use chrono::{DateTime, FixedOffset};
 use std::{
     collections::HashMap,
+    rc::Rc,
     sync::{Arc, Mutex},
     time::Instant,
 };
@@ -14,10 +15,17 @@ use crate::common::camera::{Camera, CameraType};
 
 use crate::{
     common::{
-        actuator::Actuator, base::Base, board::Board, encoder::Encoder, motor::Motor,
-        movement_sensor::MovementSensor, sensor::Sensor, status::Status,
+        actuator::Actuator,
+        base::Base,
+        board::Board,
+        data_manager::{CollectionAppClientTask, SleepTask},
+        encoder::Encoder,
+        motor::Motor,
+        movement_sensor::MovementSensor,
+        sensor::Sensor,
+        status::Status,
     },
-    google,
+    google::{self, protobuf::value::Kind},
     proto::{
         app::v1::RobotConfig,
         common::{self, v1::ResourceName},
@@ -53,6 +61,7 @@ use super::{
     status::StatusError,
 };
 
+use futures_util::lock::Mutex as AsyncMutex;
 use thiserror::Error;
 
 static NAMESPACE_PREFIX: &str = "rdk:builtin:";
@@ -93,6 +102,46 @@ impl ResourceType {
     }
 }
 
+pub enum FirmwareMode {
+    FullFeaturedServer,
+    LowPowerDataCollection,
+}
+
+impl FirmwareMode {
+    pub fn from_config(config: &RobotConfig) -> Self {
+        if let Some(service) = config
+            .services
+            .iter()
+            .find(|&service| service.model == "rdk:builtin:firmware_mode")
+        {
+            let mode_val = service
+                .attributes
+                .as_ref()
+                .map(|attrs| attrs.fields.get("mode"))
+                .flatten();
+
+            let mode_kind = mode_val.map(|v| v.kind.clone()).flatten();
+
+            let mode_str = mode_kind
+                .map(|k| {
+                    if let Kind::StringValue(m_str) = k {
+                        m_str
+                    } else {
+                        "full_server".to_string()
+                    }
+                })
+                .unwrap_or("full_server".to_string());
+
+            match mode_str.as_str() {
+                "low_power_data_collection" => Self::LowPowerDataCollection,
+                _ => Self::FullFeaturedServer,
+            }
+        } else {
+            Self::FullFeaturedServer
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct CloudMetadata {
     org_id: String,
@@ -114,6 +163,7 @@ pub struct LocalRobot {
     // at some point using settimeofday (or something equivalent) and referenced thereof.
     pub(crate) start_time: Instant,
     cloud_metadata: Option<CloudMetadata>,
+    firmware_mode: FirmwareMode,
 }
 
 #[derive(Error, Debug)]
@@ -189,6 +239,7 @@ impl LocalRobot {
             data_manager_sync_task: Default::default(),
             #[cfg(feature = "data")]
             data_collector_configs: Default::default(),
+            firmware_mode: FirmwareMode::FullFeaturedServer,
         }
     }
     // Inserts components in order of dependency. If a component's dependencies are not satisfied it is
@@ -264,6 +315,7 @@ impl LocalRobot {
         registry: &mut Box<ComponentRegistry>,
         build_time: Option<DateTime<FixedOffset>>,
     ) -> Result<Self, RobotError> {
+        let firmware_mode = FirmwareMode::from_config(config);
         let mut robot = LocalRobot {
             executor: exec,
             part_id,
@@ -282,6 +334,7 @@ impl LocalRobot {
             data_manager_sync_task: None,
             data_manager_collection_task: None,
             start_time: Instant::now(),
+            firmware_mode,
         };
 
         let components: Result<Vec<Option<DynamicComponentConfig>>, AttributeError> = config
@@ -301,14 +354,41 @@ impl LocalRobot {
             // DefaultDataStore in a way that is configurable
             match DataManager::<DefaultDataStore>::from_robot_and_config(&robot, config) {
                 Ok(Some(mut data_manager)) => {
-                    if let Some(task) = data_manager.get_sync_task(robot.start_time) {
-                        let _ = robot.data_manager_sync_task.insert(Box::new(task));
+                    match robot.firmware_mode {
+                        FirmwareMode::FullFeaturedServer => {
+                            log::info!("RUNNING IN FULL-FEATURE SERVER MODE");
+                            if let Some(task) = data_manager.get_sync_task(robot.start_time) {
+                                let _ = robot.data_manager_sync_task.insert(Box::new(task));
+                            }
+                            let _ =
+                                robot
+                                    .data_manager_collection_task
+                                    .replace(robot.executor.spawn(async move {
+                                        data_manager.data_collection_task(robot.start_time).await;
+                                    }));
+                        }
+                        FirmwareMode::LowPowerDataCollection => {
+                            log::info!("RUNNING IN LOW POWER DATA COLLECTION MODE");
+                            let wrapped_manager = Rc::new(AsyncMutex::new(data_manager));
+                            let low_power_collection_task = CollectionAppClientTask::new(
+                                wrapped_manager,
+                                SleepTask {},
+                                robot.start_time,
+                            );
+                            let _ = robot
+                                .data_manager_sync_task
+                                .insert(Box::new(low_power_collection_task));
+                        }
                     }
-                    let _ = robot
-                        .data_manager_collection_task
-                        .replace(robot.executor.spawn(async move {
-                            data_manager.data_collection_task(robot.start_time).await;
-                        }));
+
+                    // if let Some(task) = data_manager.get_sync_task(robot.start_time) {
+                    //     let _ = robot.data_manager_sync_task.insert(Box::new(task));
+                    // }
+                    // let _ = robot
+                    //     .data_manager_collection_task
+                    //     .replace(robot.executor.spawn(async move {
+                    //         data_manager.data_collection_task(robot.start_time).await;
+                    //     }));
                 }
                 Ok(None) => {}
                 Err(err) => {

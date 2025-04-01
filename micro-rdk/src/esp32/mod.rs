@@ -21,6 +21,7 @@ pub mod pwm;
 pub mod single_encoded_motor;
 #[cfg(feature = "builtin-components")]
 pub mod single_encoder;
+pub mod sleep;
 pub mod tcp;
 pub mod utils;
 pub mod conn {

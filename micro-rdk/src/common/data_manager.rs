@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 
 use crate::common::data_collector::{DataCollectionError, DataCollector};
 use crate::common::data_store::DataStore;
+use crate::esp32::sys::get_system_lock;
 use crate::google::protobuf::value::Kind;
 use crate::google::protobuf::{Struct, Timestamp};
 use crate::proto::app::data_sync::v1::{
@@ -237,6 +238,92 @@ where
         Ok(())
     }
 
+    pub async fn collect_data_inner2(
+        &mut self,
+        robot_start_time: Instant,
+    ) -> Option<DataSyncTask<StoreType>> {
+        let min_interval_ms = self.min_interval_ms();
+        let mut collectors_to_sync = Vec::new();
+        let readings: CollectedReadings = self
+            .collectors
+            .iter_mut()
+            .filter_map(|collector| {
+                let snapped_interval_ms = (collector.time_interval().as_millis() as u64
+                    / min_interval_ms)
+                    * min_interval_ms;
+                let now = Instant::now();
+                let elapsed_ms = (now - robot_start_time).as_millis() as u64;
+                let collection_iterations_floor = elapsed_ms / snapped_interval_ms;
+                let collection_iterations_float =
+                    (elapsed_ms as f64) / (snapped_interval_ms as f64);
+                if collection_iterations_float - (collection_iterations_floor as f64) < 0.25 {
+                    Some((
+                        collector.resource_method_key(),
+                        collector.call_method(robot_start_time),
+                    ))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let mut store_guard = self.store.lock().await;
+        for (collector_key, reading) in readings {
+            match reading {
+                Err(e) => log::error!(
+                    "collector {} failed to collect data reason {:?}",
+                    &collector_key,
+                    e
+                ),
+                Ok(data) => {
+                    match store_guard.write_message(&collector_key, data, WriteMode::PreserveOrFail)
+                    {
+                        Ok(_) => {}
+                        Err(DataStoreError::DataBufferFull(c_key)) => {
+                            collectors_to_sync.push(c_key);
+                        }
+                        Err(err) => {
+                            log::error!(
+                                "couldn't store data for collector {:?} error : {:?}",
+                                collector_key,
+                                err
+                            );
+                        }
+                    };
+                }
+            }
+        }
+        let snapped_sync_interval_ms =
+            (self.sync_interval_ms() / min_interval_ms) * min_interval_ms;
+        let now = Instant::now();
+        let elapsed_ms = (now - robot_start_time).as_millis() as u64;
+        let sync_iterations_floor = elapsed_ms / snapped_sync_interval_ms;
+        let sync_iterations_float = (elapsed_ms as f64) / (snapped_sync_interval_ms as f64);
+        if sync_iterations_float - (sync_iterations_floor as f64) < 0.25 {
+            let resource_method_keys: Vec<ResourceMethodKey> = self
+                .collectors
+                .iter()
+                .map(|coll| coll.resource_method_key())
+                .collect();
+            Some(DataSyncTask {
+                store: self.store.clone(),
+                resource_method_keys,
+                sync_interval: Duration::new(0, 0),
+                part_id: self.part_id(),
+                robot_start_time,
+            })
+        } else if collectors_to_sync.is_empty() {
+            None
+        } else {
+            Some(DataSyncTask {
+                store: self.store.clone(),
+                resource_method_keys: collectors_to_sync,
+                sync_interval: Duration::new(0, 0),
+                part_id: self.part_id(),
+                robot_start_time,
+            })
+        }
+    }
+
     async fn collect_and_store_readings(
         &mut self,
         time_interval_ms: u64,
@@ -314,6 +401,106 @@ where
         } else {
             None
         }
+    }
+}
+
+pub trait DataCollectionWaitTask {
+    fn wait_task(
+        &self,
+        wait_duration: Duration,
+    ) -> Pin<Box<dyn Future<Output = Result<(), AppClientError>>>>;
+}
+
+pub struct SleepTask;
+
+impl DataCollectionWaitTask for SleepTask {
+    fn wait_task(
+        &self,
+        wait_duration: Duration,
+    ) -> Pin<Box<dyn Future<Output = Result<(), AppClientError>>>> {
+        #[cfg(not(feature = "esp32"))]
+        let res = Box::pin(async move {
+            Timer::after(wait_duration).await;
+            Ok(())
+        });
+        #[cfg(feature = "esp32")]
+        let res = Box::pin(async move {
+            let dur_micros = wait_duration.as_micros() as u64;
+            let result: crate::esp32::esp_idf_svc::sys::esp_err_t;
+            unsafe {
+                result = crate::esp32::esp_idf_svc::sys::esp_sleep_enable_timer_wakeup(dur_micros);
+            }
+            if result != crate::esp32::esp_idf_svc::sys::ESP_OK {
+                // return Err(BoardError::BoardUnsupportedArgument("duration too long"));
+                log::error!("wait duration too long for light sleep: {} us", dur_micros);
+            } else {
+                log::warn!(
+                    "Esp32 entering light sleep for {} microseconds!",
+                    dur_micros
+                );
+
+                let _sys_lock = get_system_lock().lock().await;
+
+                unsafe {
+                    crate::esp32::esp_idf_svc::sys::esp_light_sleep_start();
+                }
+            }
+            Err(AppClientError::AppClientRequestTimeout)
+        });
+        res
+    }
+}
+
+pub struct CollectionAppClientTask<StoreType, WaitTaskType> {
+    data_manager: Rc<AsyncMutex<DataManager<StoreType>>>,
+    wait_task: WaitTaskType,
+    robot_start_time: Instant,
+}
+
+impl<StoreType, WaitTaskType> CollectionAppClientTask<StoreType, WaitTaskType>
+where
+    StoreType: DataStore,
+    WaitTaskType: DataCollectionWaitTask,
+{
+    pub fn new(
+        data_manager: Rc<AsyncMutex<DataManager<StoreType>>>,
+        wait_task: WaitTaskType,
+        robot_start_time: Instant,
+    ) -> Self {
+        CollectionAppClientTask {
+            data_manager,
+            wait_task,
+            robot_start_time,
+        }
+    }
+}
+
+impl<StoreType, WaitTaskType> PeriodicAppClientTask
+    for CollectionAppClientTask<StoreType, WaitTaskType>
+where
+    StoreType: DataStore,
+    WaitTaskType: DataCollectionWaitTask,
+{
+    fn invoke<'b, 'a: 'b>(
+        &'a self,
+        app_client: &'b AppClient,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'b>> {
+        Box::pin(async move {
+            let robot_start_time = self.robot_start_time;
+            log::info!("starting data collection");
+            let mut manager = self.data_manager.lock().await;
+            if let Some(task) = manager.collect_data_inner2(robot_start_time).await {
+                let _ = task.run(app_client).await;
+            }
+            let _ = self.wait_task.wait_task(manager.min_interval).await?;
+            Ok(None)
+        })
+    }
+    fn name(&self) -> &str {
+        "CollectionAppClientTask"
+    }
+    fn get_default_period(&self) -> Duration {
+        Duration::new(0, 0)
     }
 }
 
