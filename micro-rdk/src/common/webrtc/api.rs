@@ -543,10 +543,10 @@ pub struct WebRtcApi<C, E> {
     ice_agent: AtomicSync,
 }
 
-impl<'a, C, E> WebRtcApi<C, E>
+impl<C, E> WebRtcApi<C, E>
 where
     C: Certificate,
-    E: WebRtcExecutor<Pin<Box<dyn Future<Output = ()>>>> + Clone + 'a,
+    E: WebRtcExecutor<Pin<Box<dyn Future<Output = ()>>>> + Clone,
 {
     pub(crate) fn new(
         executor: E,

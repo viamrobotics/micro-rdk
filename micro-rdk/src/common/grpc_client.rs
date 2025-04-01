@@ -335,7 +335,7 @@ impl GrpcClient {
         let (part, body) = response.into_parts();
 
         if part.status != status::StatusCode::OK {
-            log::error!("received status code {}", part.status.to_string());
+            log::error!("received status code {}", part.status);
             return Err(GrpcClientError::HttpStatusError(part.status));
         }
 
