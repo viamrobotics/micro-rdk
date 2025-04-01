@@ -303,11 +303,7 @@ impl WifiManager for Esp32WifiNetwork {
         password: &'a str,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), WifiManagerError>> + 'a>>
     {
-        Box::pin(async {
-            self.try_connect_to(ssid, password)
-                .await
-                .map_err(Into::into)
-        })
+        Box::pin(async { self.try_connect_to(ssid, password).await })
     }
     fn get_ap_ip(&self) -> Ipv4Addr {
         let guard = esp32_get_wifi().map_or(None, |wifi| wifi.try_lock());

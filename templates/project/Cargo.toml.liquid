@@ -4,7 +4,7 @@ version = "0.0.1"
 edition = "2021"
 authors = ["{{authors}}"]
 resolver = "2"
-rust-version = "1.83"
+rust-version = "1.85"
 
 [profile.release]
 debug = true
@@ -39,7 +39,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 [package.metadata.esp-idf-sys]
-esp_idf_version = "v5.4"
+esp_idf_version = "v5.4.1"
 esp_idf_tools_install_dir = "custom:target/.embuild/espressif"
 esp_idf_sdkconfig_defaults = [
   "sdkconfig.defaults",
