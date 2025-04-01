@@ -97,8 +97,7 @@ prost-types = "0.13.4"
 quote = "1.0.37"
 # TODO(RSDK-10202): Update `rand` to latest release
 rand = "~0.8"
-# TODO(RSDK-8996): Upgrade `rcgen` to latest release
-rcgen = "~0.12"
+rcgen = "~0.13"
 regex = "1.11"
 reqwest = "0.12.9"
 reqwless = "0.13.0"
