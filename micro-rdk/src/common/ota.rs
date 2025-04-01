@@ -41,7 +41,9 @@ use crate::{
         credentials_storage::OtaMetadataStorage,
         exec::Executor,
         grpc_client::H2Timer,
-    }, esp32::sys::get_system_lock, proto::app::v1::ServiceConfig
+    },
+    esp32::sys::get_system_lock,
+    proto::app::v1::ServiceConfig,
 };
 
 #[cfg(feature = "esp32")]
