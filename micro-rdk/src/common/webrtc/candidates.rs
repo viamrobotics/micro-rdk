@@ -165,7 +165,7 @@ impl Candidate {
         if let Some(p) = self.priority {
             return p;
         }
-        u32::from(self.candidate_type.preference()) << 24
+        (u32::from(self.candidate_type.preference()) << 24)
             | (u32::from(0xFFFF_u16) << 8)
             | (256 - u32::from(self.component))
     }
