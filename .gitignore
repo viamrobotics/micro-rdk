@@ -4,5 +4,6 @@ Cargo.lock
 /micro-rdk-server/viam.json
 /canary/.venv/*
 .vscode
+components_esp32*.lock
 .envrc
 /build

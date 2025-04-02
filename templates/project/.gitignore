@@ -2,3 +2,4 @@
 .*.swp
 .vscode
 .micro-rdk-docker-caches
+components_esp32.lock

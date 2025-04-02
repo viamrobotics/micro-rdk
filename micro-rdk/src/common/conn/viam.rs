@@ -418,10 +418,8 @@ where
     pub fn run_forever(&mut self) -> ! {
         #[cfg(feature = "esp32")]
         {
-            use crate::esp32::esp_idf_svc::sys::{
-                esp_task_wdt_config_t, CONFIG_FREERTOS_NUMBER_OF_CORES,
-            };
-            let wdt_cfg = esp_task_wdt_config_t {
+            use esp_idf_svc::sys::{esp_task_wdt_config_t, CONFIG_FREERTOS_NUMBER_OF_CORES};
+            let wdt_cfg = crate::esp32::esp_idf_svc::sys::esp_task_wdt_config_t {
                 timeout_ms: (180 * 10_u32.pow(3)), // 180 seconds in milliseconds
                 trigger_panic: true,
                 idle_core_mask: (1 << CONFIG_FREERTOS_NUMBER_OF_CORES) - 1,
@@ -885,7 +883,7 @@ pub(crate) enum IncomingConnection {
     WebRTCConnection(Result<Box<WebRtcSignalingChannel>, WebRtcError>),
 }
 
-impl<M> RobotServer<'_, M>
+impl<'a, M> RobotServer<'a, M>
 where
     M: Mdns,
 {

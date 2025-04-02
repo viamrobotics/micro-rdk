@@ -28,7 +28,7 @@ impl Motor for SingleEncodedMotor {
         let dir = match power_pct {
             x if x > 0.0 => Direction::Forwards,
             x if x < 0.0 => Direction::Backwards,
-            0.0 => {
+            x if x == 0.0 => {
                 let prev_dir = self.encoder.get_direction()?;
                 match prev_dir {
                     Direction::Backwards | Direction::StoppedBackwards => {
