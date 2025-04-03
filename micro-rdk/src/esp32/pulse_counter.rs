@@ -25,7 +25,7 @@ static NEXT_UNIT: LazyLock<Arc<AtomicI32>> = LazyLock::new(|| Arc::new(AtomicI32
 static ISR_INSTALLED: LazyLock<Arc<AtomicBool>> =
     LazyLock::new(|| Arc::new(AtomicBool::new(false)));
 
-static NUMBER_OF_UNITS: LazyLock<Arc<AtomicBool>> = LazyLock::new(|| Arc::new(AtomicU32::new(0)));
+static NUMBER_OF_UNITS: LazyLock<Arc<AtomicU32>> = LazyLock::new(|| Arc::new(AtomicU32::new(0)));
 
 pub(crate) fn get_unit() -> i32 {
     NUMBER_OF_UNITS.fetch_add(0, Ordering::Relaxed);
