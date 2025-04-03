@@ -1,4 +1,4 @@
-use secrecy::{ExposeSecret, Secret};
+use secrecy::{ExposeSecret, SecretString};
 
 use super::super::error::Error;
 use super::partition::{NVSEntry, NVSKeyValuePair, NVSValue};
@@ -6,14 +6,14 @@ use super::partition::{NVSEntry, NVSKeyValuePair, NVSValue};
 #[derive(Clone, Debug)]
 pub struct WifiCredentials {
     pub ssid: String,
-    pub password: Secret<String>,
+    pub password: SecretString,
 }
 
 impl Default for WifiCredentials {
     fn default() -> Self {
         Self {
             ssid: "".to_string(),
-            password: Secret::new("".to_string()),
+            password: "".to_string().into(),
         }
     }
 }
@@ -21,7 +21,7 @@ impl Default for WifiCredentials {
 #[derive(Default, Debug)]
 pub struct RobotCredentials {
     pub robot_id: Option<String>,
-    pub robot_secret: Option<Secret<String>>,
+    pub robot_secret: Option<SecretString>,
     pub robot_name: Option<String>,
     pub app_address: Option<String>,
 }

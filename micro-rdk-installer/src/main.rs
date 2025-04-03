@@ -26,7 +26,7 @@ use micro_rdk_installer::{
         request::download_micro_rdk_release,
     },
 };
-use secrecy::Secret;
+use secrecy::SecretString;
 use serde::Deserialize;
 use tokio::runtime::Runtime;
 
@@ -43,7 +43,7 @@ const DEFAULT_BAUD: u32 = 115_200;
 struct AppCloudConfig {
     r#id: String,
     app_address: String,
-    secret: Secret<String>,
+    secret: SecretString,
 }
 
 #[derive(Deserialize, Debug)]
@@ -98,7 +98,7 @@ struct WriteCredentialsArgs {
     /// Wi-Fi password to write to NVS partition of binary. If not provided, user will be
     /// prompted for it
     #[arg(long = "wifi-password")]
-    wifi_password: Option<Secret<String>>,
+    wifi_password: Option<SecretString>,
 }
 
 /// Flash a pre-compiled binary with the micro-RDK, the robot config, and wifi info
@@ -131,7 +131,7 @@ struct WriteFlashArgs {
     /// Wi-Fi password to write to NVS partition of binary. If not provided, user will be
     /// prompted for it
     #[arg(long = "wifi-password")]
-    wifi_password: Option<Secret<String>>,
+    wifi_password: Option<SecretString>,
 }
 
 /// Generate a binary of a complete NVS data partition that conatins Wi-Fi and security
@@ -154,7 +154,7 @@ struct CreateNVSPartitionArgs {
     /// Wi-Fi password to write to NVS partition of binary. If not provided, user will be
     /// prompted for it
     #[arg(long = "wifi-password")]
-    wifi_password: Option<Secret<String>>,
+    wifi_password: Option<SecretString>,
 }
 
 #[derive(Parser)]
@@ -187,7 +187,7 @@ fn validate_version(version: &str) -> Result<String, String> {
 
 fn request_wifi(
     wifi_ssid: Option<String>,
-    wifi_password: Option<Secret<String>>,
+    wifi_password: Option<SecretString>,
 ) -> Result<WifiCredentials, Error> {
     let ssid: String = if let Some(ssid) = wifi_ssid {
         ssid
@@ -197,23 +197,22 @@ fn request_wifi(
             .interact_text()
             .unwrap()
     };
-    let password: Secret<String> = if let Some(password) = wifi_password {
+    let password: SecretString = if let Some(password) = wifi_password {
         password
     } else {
-        Secret::new(
-            Password::with_theme(&ColorfulTheme::default())
-                .with_prompt("Please enter WiFi Password")
-                .validate_with(|input: &String| -> Result<(), Error> {
-                    if input.len() > 64 {
-                        return Err(Error::WifiPasswordTooLongError(
-                            "password length limited to 64 characters or less".to_string(),
-                        ));
-                    }
-                    Ok(())
-                })
-                .interact()
-                .map_err(Error::WifiCredentialsError)?,
-        )
+        Password::with_theme(&ColorfulTheme::default())
+            .with_prompt("Please enter WiFi Password")
+            .validate_with(|input: &String| -> Result<(), Error> {
+                if input.len() > 64 {
+                    return Err(Error::WifiPasswordTooLongError(
+                        "password length limited to 64 characters or less".to_string(),
+                    ));
+                }
+                Ok(())
+            })
+            .interact()
+            .map_err(Error::WifiCredentialsError)?
+            .into()
     };
     Ok(WifiCredentials { ssid, password })
 }
@@ -222,7 +221,7 @@ fn create_nvs_partition_binary(
     config_path: String,
     size: usize,
     wifi_ssid: Option<String>,
-    wifi_password: Option<Secret<String>>,
+    wifi_password: Option<SecretString>,
 ) -> Result<Vec<u8>, Error> {
     let mut storage_data = ViamFlashStorageData::default();
     let config_str = fs::read_to_string(config_path.clone())
