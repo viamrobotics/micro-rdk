@@ -71,7 +71,7 @@ where
         app_client: &'c AppClient,
     ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'c>> {
         Box::pin(async move {
-            #[cfg(feature="esp32")]
+            #[allow(unused_mut)]
             let mut reboot = false;
             let (new_config, _cfg_received_datetime) = app_client
                 .get_app_config(None)
