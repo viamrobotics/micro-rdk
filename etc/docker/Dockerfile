@@ -1,4 +1,4 @@
-FROM rust:1.85-bookworm AS builder
+FROM rust:1.83-bookworm AS builder
 RUN apt update && apt-get install -y --no-install-recommends git libudev-dev make bzip2 gcc libgcrypt20 libgcrypt20-dev  ninja-build libudev-dev sudo wget git flex bison gperf ccache libffi-dev libssl-dev dfu-util libusb-1.0-0 cmake pkg-config libglib2.0-dev libpixman-1-dev software-properties-common openssh-client libslirp-dev python3-venv
 
 RUN export TARGET=$(rustc -vV | sed -En 's/^host: //p') && \
@@ -17,12 +17,12 @@ RUN cd qemu && mkdir build && cd build && ../configure --target-list=xtensa-soft
 WORKDIR /esp
 
 # TODO(RSDK-8998): Upgrade ESP-IDF to latest stable
-RUN git clone --depth 1 -b v5.4.1 --single-branch --recurse-submodules --shallow-submodules https://github.com/espressif/esp-idf/
+RUN git clone --depth 1 -b v4.4.8 --single-branch --recurse-submodules --shallow-submodules https://github.com/espressif/esp-idf/
 
 
 FROM debian:bookworm
 
-ARG RUST_VERSION=1.85.0
+ARG RUST_VERSION=1.83.0
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DEBCONF_NOWARNINGS="yes"

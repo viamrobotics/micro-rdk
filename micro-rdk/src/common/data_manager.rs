@@ -394,7 +394,7 @@ where
         Ok(msg)
     }
 
-    async fn run(&self, app_client: &AppClient) -> Result<(), AppClientError> {
+    async fn run<'b>(&self, app_client: &'b AppClient) -> Result<(), AppClientError> {
         for collector_key in self.resource_method_keys.iter() {
             // Since a write may occur in between uploading consecutive chunks of data, we want to make
             // sure only to process the messages initially present in this region of the store.
