@@ -23,8 +23,9 @@ jobs:
       with:
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: 2
-    - uses: dtolnay/rust-toolchain@1.85
+    - uses: dtolnay/rust-toolchain@1.83
       with:
         components: rustfmt
     - name: Format
       run: cargo fmt --all --check
+      

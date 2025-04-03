@@ -202,7 +202,7 @@ impl LocalRobot {
     ) -> Result<(), RobotError> {
         let config = components
             .iter_mut()
-            .find(|cfg| cfg.as_ref().is_some_and(|cfg| cfg.r#type == "board"));
+            .find(|cfg| cfg.as_ref().map_or(false, |cfg| cfg.r#type == "board"));
         let (board, board_key) = if let Some(Some(config)) = config {
             let model = get_model_without_namespace_prefix(&mut config.model.to_owned())?;
             let board_key = Some(ResourceKey::new(
