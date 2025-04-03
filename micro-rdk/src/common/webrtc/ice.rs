@@ -13,8 +13,8 @@ use thiserror::Error;
 
 use futures_lite::{Future, FutureExt};
 use rand::{
-    distributions::{Alphanumeric, DistString},
-    thread_rng,
+    distr::{Alphanumeric, SampleString},
+    rng,
 };
 
 use stun_codec::{
@@ -40,8 +40,8 @@ pub struct ICECredentials {
 impl Default for ICECredentials {
     fn default() -> Self {
         Self {
-            u_frag: Alphanumeric.sample_string(&mut thread_rng(), 8),
-            pwd: Alphanumeric.sample_string(&mut thread_rng(), 22),
+            u_frag: Alphanumeric.sample_string(&mut rng(), 8),
+            pwd: Alphanumeric.sample_string(&mut rng(), 22),
         }
     }
 }
