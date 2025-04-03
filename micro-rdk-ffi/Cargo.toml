@@ -33,7 +33,6 @@ micro-rdk-nmea = { workspace = true, features = ["esp32"], optional = true }
 
 [dependencies]
 base64.workspace = true
-lazy_static.workspace = true
 log.workspace = true
 thiserror.workspace = true
 
