@@ -109,8 +109,7 @@ rustls-pemfile = { version = "2.2" }
 scopeguard = "1.2.0"
 sctp-proto = "0.3.0"
 sdp = "0.6.2"
-# TODO(RSDK-9138): Upgrade to latest secrecy crate
-secrecy = { version = "~0.8.0", features = ["serde"] }
+secrecy = { version = "0.10.3", features = ["serde"] }
 serde = { version = "1.0.215", features = ["derive"] }
 serde_json = "1.0.133"
 sha2 = "0.10.8"
