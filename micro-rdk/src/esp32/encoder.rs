@@ -27,7 +27,7 @@ use crate::common::registry::{ComponentRegistry, Dependency};
 use crate::common::status::{Status, StatusError};
 use crate::google;
 
-use embedded_hal::digital::v2::InputPin;
+use embedded_hal::digital::InputPin;
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
