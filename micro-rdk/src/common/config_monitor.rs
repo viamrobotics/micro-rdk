@@ -71,7 +71,7 @@ where
         app_client: &'c AppClient,
     ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'c>> {
         Box::pin(async move {
-            #[allow(unused_mut)] // for native
+            #[cfg(feature="esp32")]
             let mut reboot = false;
             let (new_config, _cfg_received_datetime) = app_client
                 .get_app_config(None)
@@ -150,6 +150,7 @@ where
                 }
             }
 
+            #[cfg(feature="esp32")]
             if reboot {
                 log::info!("rebooting from config monitor...");
                 // TODO(RSDK-9464): flush logs to app.viam before restarting
