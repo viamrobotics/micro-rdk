@@ -150,6 +150,7 @@ where
                 }
             }
 
+            #[cfg(feature="esp32")]
             if reboot {
                 log::info!("rebooting from config monitor...");
                 // TODO(RSDK-9464): flush logs to app.viam before restarting
