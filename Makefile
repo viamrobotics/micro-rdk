@@ -85,6 +85,20 @@ build-esp32-bin:
 		--merge \
 		target/xtensa-esp32-espidf/release/micro-rdk-server-esp32.bin
 
+build-esp32c6-bin:
+	cargo +nightly espflash save-image \
+		--skip-update-check \
+		--package=micro-rdk-server \
+		--chip=esp32c6 \
+		--bin=micro-rdk-server-esp32 \
+		--partition-table=micro-rdk-server/esp32/partitions.csv \
+		--target=riscv32imac-esp-espidf \
+		-Zbuild-std=std,panic_abort \
+		--release \
+		--flash-size=8mb \
+		--merge \
+		target/riscv32imac-esp-espidf/release/micro-rdk-server-esp32.bin
+
 build-esp32-ota:
 	cargo +esp espflash save-image \
 		--skip-update-check \
@@ -96,8 +110,32 @@ build-esp32-ota:
 		-Zbuild-std=std,panic_abort \
 		--release \
 		target/xtensa-esp32-espidf/release/micro-rdk-server-esp32-ota.bin
+
+build-esp32c6-ota:
+	cargo +nightly espflash save-image \
+		--skip-update-check \
+		--package=micro-rdk-server \
+		--chip=esp32c6 \
+		--bin=micro-rdk-server-esp32 \
+		--partition-table=micro-rdk-server/esp32/partitions.csv \
+		--target=riscv32imac-esp-espidf \
+		-Zbuild-std=std,panic_abort \
+		--release \
+		target/riscv32imac-esp-espidf/release/micro-rdk-server-esp32-ota.bin
+
 build-qemu-bin:
-	cargo +esp espflash save-image --release --package micro-rdk-server --features qemu --merge --chip esp32 target/xtensa-esp32-espidf/release/qemu.bin -T micro-rdk-server/esp32/partitions.csv -s 8mb  --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort
+	cargo +esp espflash save-image \
+		--skip-update-check \
+		--package=micro-rdk-server --features qemu \
+		--chip=esp32 \
+		--bin=micro-rdk-server-esp32 \
+		--partition-table=micro-rdk-server/esp32/partitions.csv \
+		--target=xtensa-esp32-espidf \
+		-Zbuild-std=std,panic_abort \
+		--release \
+		--flash-size=8mb \
+		--merge \
+		target/xtensa-esp32-espidf/release/qemu.bin
 
 serve-ota:
 	cargo r --package ota-dev-server

@@ -72,7 +72,8 @@ struct Esp32ServerConfig {
 
 impl Esp32ServerConfig {
     fn new(srv_cert: &[u8], srv_key: &[u8]) -> Self {
-        let mut alpn_proto: Vec<_> = vec![ALPN_PROTOCOLS.as_ptr() as *const i8, std::ptr::null()];
+        let mut alpn_proto: Vec<_> =
+            vec![ALPN_PROTOCOLS.as_ptr() as *const c_char, std::ptr::null()];
         let cfg = Box::new(esp_tls_cfg_server {
             alpn_protos: alpn_proto.as_mut_ptr(),
             __bindgen_anon_1: crate::esp32::esp_idf_svc::sys::esp_tls_cfg_server__bindgen_ty_1 {
@@ -114,7 +115,7 @@ struct Esp32ClientConfig {
 
 impl Esp32ClientConfig {
     fn new() -> Self {
-        let mut alpn_proto = vec![ALPN_PROTOCOLS.as_ptr() as *const i8, std::ptr::null()];
+        let mut alpn_proto = vec![ALPN_PROTOCOLS.as_ptr() as *const c_char, std::ptr::null()];
         let cfg = Box::new(esp_tls_cfg {
             alpn_protos: alpn_proto.as_mut_ptr(),
             __bindgen_anon_1: crate::esp32::esp_idf_svc::sys::esp_tls_cfg__bindgen_ty_1 {
