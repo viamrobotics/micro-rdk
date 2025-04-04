@@ -616,7 +616,7 @@ mod tests {
     use std::collections::HashMap;
     use std::mem::MaybeUninit;
     use std::rc::Rc;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, LazyLock, Mutex};
     use std::time::{Duration, Instant};
 
     use bytes::BytesMut;
@@ -988,9 +988,7 @@ mod tests {
         }
     }
 
-    lazy_static::lazy_static! {
-        static ref READ_MESSAGES: Mutex<Vec<SensorData>> = Mutex::new(vec![]);
-    }
+    static READ_MESSAGES: LazyLock<Mutex<Vec<SensorData>>> = LazyLock::new(|| Mutex::new(vec![]));
 
     struct ReadSavingStoreReader {
         store: Rc<RefCell<LocalRb<SensorData, Vec<MaybeUninit<SensorData>>>>>,
