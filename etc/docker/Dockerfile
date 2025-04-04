@@ -21,7 +21,6 @@ RUN apt-get install -y --no-install-recommends make build-essential pkg-config g
 
 RUN set -eux; \
     dpkgArch="$(dpkg --print-architecture)"; \
-    qemuSha="https://github.com/espressif/qemu/releases/download/esp-develop-9.0.0-20240606/qemu-esp_develop_9.0.0_20240606-checksum.sha256"; \
     case "${dpkgArch##*-}" in \
         amd64) qemuSha='071d117c44a6e9a1bc8664ab63b592d3e17ceb779119dcb46c59571a4a7a88c9'; qemuUrl='https://github.com/espressif/qemu/releases/download/esp-develop-9.0.0-20240606/qemu-xtensa-softmmu-esp_develop_9.0.0_20240606-x86_64-linux-gnu.tar.xz' ;; \
         arm64) qemuSha='43552f32b303a6820d0d9551903e54fc221aca98ccbd04e5cbccbca881548008';qemuUrl='https://github.com/espressif/qemu/releases/download/esp-develop-9.0.0-20240606/qemu-xtensa-softmmu-esp_develop_9.0.0_20240606-aarch64-linux-gnu.tar.xz' ;; \
