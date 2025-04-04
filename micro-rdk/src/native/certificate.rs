@@ -16,15 +16,12 @@ impl WebRtcCertificate {
         param.not_before = date_time_ymd(2021, 5, 19);
         param.not_after = date_time_ymd(4096, 1, 1);
         param.distinguished_name = DistinguishedName::new();
-        param.alg = &rcgen::PKCS_ECDSA_P256_SHA256;
 
-        let kp = rcgen::KeyPair::generate(&rcgen::PKCS_ECDSA_P256_SHA256).unwrap();
+        let kp = rcgen::KeyPair::generate().unwrap();
         let kp_der = kp.serialize_der();
 
-        param.key_pair = Some(kp);
-
-        let cert = rcgen::Certificate::from_params(param).unwrap();
-        let cert_der = cert.serialize_der().unwrap();
+        let cert = param.self_signed(&kp).unwrap();
+        let cert_der = cert.der();
 
         let fp_hashed = Sha256::new_with_prefix(&cert_der)
             .finalize()
@@ -35,7 +32,7 @@ impl WebRtcCertificate {
         let fingerprint = Fingerprint::new("sha-256".to_owned(), fp_hashed);
 
         Self {
-            serialized_der: cert_der,
+            serialized_der: cert_der.to_vec(),
             key_pair: kp_der,
             fingerprint,
         }
