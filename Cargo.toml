@@ -92,8 +92,7 @@ proc-macro2 = "1.0.92"
 prost = "0.13.4"
 prost-types = "0.13.4"
 quote = "1.0.37"
-# TODO(RSDK-10202): Update `rand` to latest release
-rand = "~0.8"
+rand = "0.9.0"
 # TODO(RSDK-8996): Upgrade `rcgen` to latest release
 rcgen = "~0.12"
 regex = "1.11"
