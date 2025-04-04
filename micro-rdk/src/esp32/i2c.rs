@@ -4,8 +4,11 @@ use crate::common::config::{AttributeError, Kind};
 use crate::common::i2c::{I2CErrors, I2CHandle};
 use crate::esp32::esp_idf_svc::hal::delay::BLOCK;
 use crate::esp32::esp_idf_svc::hal::gpio::AnyIOPin;
-use crate::esp32::esp_idf_svc::hal::i2c::{I2cConfig, I2cDriver, I2C0, I2C1};
+use crate::esp32::esp_idf_svc::hal::i2c::{I2cConfig, I2cDriver, I2C0};
 use crate::esp32::esp_idf_svc::hal::units::Hertz;
+
+#[cfg(not(any(esp32c3, esp32c2, esp32c6)))]
+use crate::esp32::esp_idf_svc::hal::i2c::I2C1;
 
 #[derive(Clone, Debug)]
 pub struct Esp32I2cConfig {
@@ -93,6 +96,7 @@ impl Esp32I2C<'_> {
                     timeout_ns,
                 })
             }
+            #[cfg(not(any(esp32c3, esp32c2, esp32c6)))]
             "i2c1" => {
                 let i2c1 = unsafe { I2C1::new() };
                 let driver = I2cDriver::new(i2c1, sda, scl, &driver_conf)

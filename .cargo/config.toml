@@ -13,6 +13,11 @@ linker = "ldproxy"
 runner = "espflash --monitor"
 rustflags = ["--cfg", "espidf_time64"]
 
+[target.riscv32imac-esp-espidf]
+linker = "ldproxy"
+runner = "espflash --monitor"
+rustflags = ["--cfg", "espidf_time64"]
+
 [env]
 CARGO_WORKSPACE_DIR = { value = "", relative = true }
 ESP_IDF_SYS_ROOT_CRATE = { value = "micro-rdk-server" }

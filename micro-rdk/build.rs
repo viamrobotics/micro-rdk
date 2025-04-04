@@ -2,6 +2,12 @@ use regex::Regex;
 
 fn main() {
     println!("cargo::rustc-check-cfg=cfg(esp32)");
+    println!("cargo::rustc-check-cfg=cfg(esp32s2)");
+    println!("cargo::rustc-check-cfg=cfg(esp32s3)");
+    println!("cargo::rustc-check-cfg=cfg(esp32c2)");
+    println!("cargo::rustc-check-cfg=cfg(esp32c3)");
+    println!("cargo::rustc-check-cfg=cfg(esp32c6)");
+
     if Regex::new(r"\w+-esp3?2?s?\d?-espidf")
         .unwrap()
         .is_match(&std::env::var("TARGET").unwrap())
