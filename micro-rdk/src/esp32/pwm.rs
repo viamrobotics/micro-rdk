@@ -2,9 +2,9 @@ use crate::esp32::esp_idf_svc::hal::gpio::AnyIOPin;
 use crate::esp32::esp_idf_svc::hal::gpio::Pin;
 use crate::esp32::esp_idf_svc::hal::ledc::{
     config::TimerConfig, LedcDriver, LedcTimer, LedcTimerDriver, LowSpeed, SpeedMode, CHANNEL0,
-    CHANNEL1, CHANNEL2, CHANNEL3, CHANNEL4, CHANNEL5, CHANNEL6, CHANNEL7, TIMER0, TIMER1, TIMER2,
-    TIMER3,
+    CHANNEL1, CHANNEL2, CHANNEL3, CHANNEL4, CHANNEL5, TIMER0, TIMER1, TIMER2, TIMER3,
 };
+
 use crate::esp32::esp_idf_svc::hal::peripheral::Peripheral;
 use crate::esp32::esp_idf_svc::hal::prelude::FromValueType;
 use crate::esp32::esp_idf_svc::sys::{
@@ -16,6 +16,9 @@ use std::cell::OnceCell;
 use std::fmt::Debug;
 use std::sync::Mutex;
 use thiserror::Error;
+
+#[cfg(any(esp32, esp32s2, esp32s3))]
+use crate::esp32::esp_idf_svc::hal::ledc::{CHANNEL6, CHANNEL7};
 
 static LEDC_MANAGER: Lazy<Mutex<LedcManager>> = Lazy::new(|| Mutex::new(LedcManager::new()));
 
@@ -53,7 +56,11 @@ enum PwmChannel {
     C3,
     C4,
     C5,
+
+    #[cfg(any(esp32, esp32s2, esp32s3))]
     C6,
+
+    #[cfg(any(esp32, esp32s2, esp32s3))]
     C7,
 }
 
@@ -75,7 +82,11 @@ impl PwmChannel {
             Self::C3 => LedcDriver::new(unsafe { CHANNEL3::new() }, timer, pin)?,
             Self::C4 => LedcDriver::new(unsafe { CHANNEL4::new() }, timer, pin)?,
             Self::C5 => LedcDriver::new(unsafe { CHANNEL5::new() }, timer, pin)?,
+
+            #[cfg(any(esp32, esp32s2, esp32s3))]
             Self::C6 => LedcDriver::new(unsafe { CHANNEL6::new() }, timer, pin)?,
+
+            #[cfg(any(esp32, esp32s2, esp32s3))]
             Self::C7 => LedcDriver::new(unsafe { CHANNEL7::new() }, timer, pin)?,
         })
     }
@@ -109,8 +120,13 @@ impl From<u8> for PwmChannel {
             3 => PwmChannel::C3,
             4 => PwmChannel::C4,
             5 => PwmChannel::C5,
+
+            #[cfg(any(esp32, esp32s2, esp32s3))]
             6 => PwmChannel::C6,
+
+            #[cfg(any(esp32, esp32s2, esp32s3))]
             7 => PwmChannel::C7,
+
             _ => unreachable!(),
         }
     }
@@ -125,7 +141,10 @@ impl From<PwmChannel> for usize {
             PwmChannel::C3 => 3,
             PwmChannel::C4 => 4,
             PwmChannel::C5 => 5,
+            #[cfg(any(esp32, esp32s2, esp32s3))]
             PwmChannel::C6 => 6,
+
+            #[cfg(any(esp32, esp32s2, esp32s3))]
             PwmChannel::C7 => 7,
         }
     }
