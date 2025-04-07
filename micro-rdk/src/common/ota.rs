@@ -464,6 +464,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
         let mut update_handle = Vec::new();
         let mut nwritten: usize = 0;
         let mut total_downloaded: usize = 0;
+        #[allow(unused_mut)]
         let mut got_info = false;
 
         log::info!("writing new firmware to address `{:#x}`", self.address,);
