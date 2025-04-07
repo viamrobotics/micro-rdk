@@ -43,7 +43,8 @@ fn is_valid_gpio_pin(pin: i32) -> Result<(), BoardError> {
     if !(0..64).contains(&pin) {
         return Err(BoardError::InvalidGpioNumber(pin as u32));
     }
-    match (1_u64 << (pin as u64)) & SOC_GPIO_VALID_OUTPUT_GPIO_MASK {
+    #[allow(clippy::unnecessary_cast)]
+    match (1_u64 << (pin as u64)) & (SOC_GPIO_VALID_OUTPUT_GPIO_MASK as u64) {
         0 => Err(BoardError::InvalidGpioNumber(pin as u32)),
         _ => Ok(()),
     }
