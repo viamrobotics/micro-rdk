@@ -2,8 +2,10 @@ use crate::common::encoder::EncoderError;
 use crate::esp32::esp_idf_svc::sys::{
     pcnt_isr_service_install, pcnt_isr_service_uninstall, ESP_OK,
 };
-use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering},
+    Arc, LazyLock,
+};
 
 /*
 This module exists because we want to ensure uniqueness of unit number
@@ -18,13 +20,12 @@ accomplishes for us. Potentially only use this module when on chips on v4.
 
 */
 
-lazy_static::lazy_static! {
-    static ref NEXT_UNIT: Arc<AtomicI32> = Arc::new(AtomicI32::new(0));
+static NEXT_UNIT: LazyLock<Arc<AtomicI32>> = LazyLock::new(|| Arc::new(AtomicI32::new(0)));
 
-    static ref ISR_INSTALLED: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+static ISR_INSTALLED: LazyLock<Arc<AtomicBool>> =
+    LazyLock::new(|| Arc::new(AtomicBool::new(false)));
 
-    static ref NUMBER_OF_UNITS: Arc<AtomicU32> = Arc::new(AtomicU32::new(0));
-}
+static NUMBER_OF_UNITS: LazyLock<Arc<AtomicU32>> = LazyLock::new(|| Arc::new(AtomicU32::new(0)));
 
 pub(crate) fn get_unit() -> i32 {
     NUMBER_OF_UNITS.fetch_add(0, Ordering::Relaxed);
