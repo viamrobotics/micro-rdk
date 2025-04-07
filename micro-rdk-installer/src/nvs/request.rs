@@ -14,18 +14,21 @@ const BINARY_NAME: &str = "micro-rdk-server-esp32.bin";
 pub async fn download_micro_rdk_release(
     path: &Path,
     version: Option<String>,
+    url: Option<String>,
 ) -> Result<PathBuf, Error> {
-    let release_url = if version.is_none() || version.clone().unwrap() == "latest" {
-        format!(
-            "{}/{}/{}",
-            RELEASES_BASE_URL, "latest/download", BINARY_NAME
-        )
-    } else {
+    let release_url = if let Some(url) = url {
+        url
+    } else if version.is_some() && version.clone().unwrap() != "latest" {
         format!(
             "{}/download/{}/{}",
             RELEASES_BASE_URL,
             version.unwrap(),
             BINARY_NAME
+        )
+    } else {
+        format!(
+            "{}/{}/{}",
+            RELEASES_BASE_URL, "latest/download", BINARY_NAME
         )
     };
 
