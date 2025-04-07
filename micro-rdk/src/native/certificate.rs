@@ -26,7 +26,7 @@ impl WebRtcCertificate {
         let cert = rcgen::Certificate::from_params(param).unwrap();
         let cert_der = cert.serialize_der().unwrap();
 
-        let fp_hashed = Sha256::new_with_prefix(&cert_der)
+        let fp_hashed = Sha256::new_with_prefix(cert_der.clone())
             .finalize()
             .iter()
             .map(|b| format!("{b:02X}"))

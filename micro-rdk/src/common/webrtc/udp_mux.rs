@@ -477,11 +477,11 @@ mod tests {
                 let stun = muxer.get_stun_mux();
                 assert!(stun.is_some());
                 for _ in 0..dtls_msg_interleaved {
-                    let stun_pkt = stun_packet(rand::thread_rng().gen_range(35..250), 2);
+                    let stun_pkt = stun_packet(rand::rng().random_range(35..250), 2);
                     let r = client_socket.send_to(&stun_pkt, addr).await;
                     assert!(r.is_ok());
 
-                    let dtls_pkt = dtls_packet(rand::thread_rng().gen_range(35..800), 23);
+                    let dtls_pkt = dtls_packet(rand::rng().random_range(35..800), 23);
                     assert!(c_dtls_tx.try_send(dtls_pkt.clone()).is_ok());
                     let r = client_socket.send_to(&dtls_pkt, addr).await;
                     assert!(r.is_ok());

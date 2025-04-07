@@ -330,7 +330,7 @@ mod tests {
     use crate::proto::app::data_sync::v1::sensor_data::Data;
     use crate::proto::app::data_sync::v1::{MimeType, SensorData, SensorMetadata};
     use prost::{length_delimiter_len, Message};
-    use rand::distributions::Alphanumeric;
+    use rand::distr::Alphanumeric;
     use rand::Rng;
 
     #[test_log::test]
@@ -760,7 +760,7 @@ mod tests {
         let time = Instant::now();
         let mut fields = HashMap::new();
         for i in 0..100 {
-            let value: String = rand::thread_rng()
+            let value: String = rand::rng()
                 .sample_iter(&Alphanumeric)
                 .take(300)
                 .map(char::from)
