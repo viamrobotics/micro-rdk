@@ -23,7 +23,7 @@ impl WebRtcCertificate {
         let cert = param.self_signed(&kp).unwrap();
         let cert_der = cert.der();
 
-        let fp_hashed = Sha256::new_with_prefix(&cert_der)
+        let fp_hashed = Sha256::new_with_prefix(cert_der)
             .finalize()
             .iter()
             .map(|b| format!("{b:02X}"))
