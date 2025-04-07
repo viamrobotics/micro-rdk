@@ -1270,8 +1270,8 @@ mod tests {
         fn certificates(&self, _body: Bytes) -> Bytes {
             let self_signed =
                 rcgen::generate_simple_self_signed(["localhost".to_string()]).unwrap();
-            let tls_certificate = self_signed.serialize_pem().unwrap();
-            let tls_private_key = self_signed.serialize_private_key_pem();
+            let tls_certificate = self_signed.cert.pem();
+            let tls_private_key = self_signed.key_pair.serialize_pem();
             let resp = CertificateResponse {
                 id: "".to_owned(),
                 tls_certificate,
