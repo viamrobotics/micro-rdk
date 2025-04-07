@@ -698,7 +698,7 @@ mod tests {
     };
     use mdns_sd::ServiceEvent;
     use prost::Message;
-    use rand::{distributions::Alphanumeric, Rng};
+    use rand::{distr::Alphanumeric, Rng};
 
     use super::ProvisioningService;
 
@@ -1005,7 +1005,7 @@ mod tests {
             _ => panic!(),
         };
 
-        let hostname = rand::thread_rng()
+        let hostname = rand::rng()
             .sample_iter(&Alphanumeric)
             .take(8)
             .map(char::from)
