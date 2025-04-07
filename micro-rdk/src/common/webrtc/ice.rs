@@ -638,7 +638,7 @@ impl ICEAgent {
             rfc5245::attributes::IceControlled::new(0),
         ));
         message.add_attribute(IceAttribute::Priority(rfc5245::attributes::Priority::new(
-            5_u32 << 24 | (u32::from(0xFFFF_u16) << 8) | (256 - 1_u32),
+            (5_u32 << 24) | (u32::from(0xFFFF_u16) << 8) | (256 - 1_u32),
         )));
         message.add_attribute(IceAttribute::MessageIntegrity(
             rfc5389::attributes::MessageIntegrity::new_short_term_credential(

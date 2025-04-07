@@ -243,7 +243,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                 let e = OtaError::UpdateError(
                     "failed to obtain a handle to the next OTA update partition, device may not be partitioned properly for OTA".to_string(),
                 );
-                log::warn!("{}", e.to_string());
+                log::warn!("{}", e);
                 return Err(e);
             }
             let size = unsafe { (*ptr).size } as usize;
@@ -464,6 +464,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
         let mut update_handle = Vec::new();
         let mut nwritten: usize = 0;
         let mut total_downloaded: usize = 0;
+
         #[allow(unused_mut)]
         let mut got_info = false;
 

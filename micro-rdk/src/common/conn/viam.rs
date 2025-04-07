@@ -885,7 +885,7 @@ pub(crate) enum IncomingConnection {
     WebRTCConnection(Result<Box<WebRtcSignalingChannel>, WebRtcError>),
 }
 
-impl<'a, M> RobotServer<'a, M>
+impl<M> RobotServer<'_, M>
 where
     M: Mdns,
 {

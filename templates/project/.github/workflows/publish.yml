@@ -22,7 +22,7 @@ jobs:
         # will use bash to run each command, bash will source /etc/profile which will give us the environment to build for esp32
         shell: bash --norc  -leo pipefail {0}
     container:
-      image: ghcr.io/viamrobotics/micro-rdk-dev-env:1.83.0-amd64
+      image: ghcr.io/viamrobotics/micro-rdk-dev-env:1.85.0-amd64
     steps:
     - name : Checkout main branch code
       uses: actions/checkout@v3
