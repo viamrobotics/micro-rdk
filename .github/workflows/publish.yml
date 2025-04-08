@@ -7,9 +7,6 @@ on:
       - "v*"
 
 jobs:
-  tests:
-    uses: ./.github/workflows/test.yml
-
   build-installer:
     strategy:
       fail-fast: false
