@@ -81,9 +81,6 @@ jobs:
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:1.83.0-arm64
     needs: tests
-    defaults:
-      run:
-        shell: bash
     steps:
     - name: Checkout main branch code
       uses: actions/checkout@v4
