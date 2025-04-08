@@ -193,6 +193,9 @@ pub(crate) struct AppSignaling {
     pub(crate) rx: GrpcMessageStream<AnswerRequest>,
 }
 
+#[cfg(feature = "esp32")]
+static CLOCK_SET: std::sync::Once = std::sync::Once::new();
+
 impl AppClient {
     pub async fn get_certificates(&self) -> Result<CertificateResponse, AppClientError> {
         let req = CertificateRequest {
@@ -295,20 +298,18 @@ impl AppClient {
 
         #[cfg(feature = "esp32")]
         {
-            // If the current datetime has not already been set, we use the datetime from
-            // the config response to set the time of day on the device. This may be replaced
-            // by calls to an NTP server in the future
-            let local_dt = Local::now().fixed_offset();
+            // In many cases when the ESP32 reboots the RTC clock will not be cleared and will retain the previous
+            // time. If the reboot was caused by a WDT timeout there is a chance the clock would drift significantly
+            // The new logic is to always set the clock once per boot
 
-            // Viam does not pre-exist the year 2020, so if the year is before that
-            // at the very least the current time is wrong and needs to be corrected
-            if local_dt.year() < VIAM_FOUNDING_YEAR {
-                if let Some(current_dt) = datetime {
+            if let Some(current_dt) = datetime {
+                CLOCK_SET.call_once(|| {
                     use esp_idf_svc::sys::{settimeofday, timeval};
                     let tv_sec = current_dt.timestamp() as i32;
                     let tv_usec = current_dt.timestamp_subsec_micros() as i32;
                     let current_timeval = timeval { tv_sec, tv_usec };
                     crate::esp32::esp_idf_svc::sys::esp!(unsafe {
+                        // I don't believe this call can fail under most condition (timeval is valid and we have the permission to set the time)
                         settimeofday(&current_timeval as *const timeval, std::ptr::null())
                     })
                     .inspect_err(|err| {
@@ -324,8 +325,8 @@ impl AppClient {
                             Local::now().fixed_offset()
                         );
                     });
-                }
-            }
+                })
+            };
         }
 
         if r.is_empty() {
