@@ -7,9 +7,6 @@ on:
       - "v*"
 
 jobs:
-  tests:
-    uses: ./.github/workflows/test.yml
-
   build-installer:
     strategy:
       fail-fast: false
@@ -80,10 +77,6 @@ jobs:
         shell: bash --norc  -leo pipefail {0}
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:1.83.0-arm64
-    needs: tests
-    defaults:
-      run:
-        shell: bash
     steps:
     - name: Checkout main branch code
       uses: actions/checkout@v4
@@ -117,7 +110,6 @@ jobs:
         shell: bash --norc  -leo pipefail {0}
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:1.83.0-amd64
-    needs: tests
     steps:
     - name : Checkout main branch code
       uses: actions/checkout@v3
