@@ -390,7 +390,11 @@ fn main() -> Result<(), Error> {
                     }
 
                     let rt = Runtime::new().map_err(Error::AsyncError)?;
-                    rt.block_on(download_micro_rdk_release(&tmp_path, args.version.clone(), args.url.clone()))?
+                    rt.block_on(download_micro_rdk_release(
+                        &tmp_path,
+                        args.version.clone(),
+                        args.url.clone(),
+                    ))?
                 }
             };
             let config = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
@@ -468,7 +472,11 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
         Some(path) => PathBuf::from(path),
         None => {
             let rt = Runtime::new().map_err(Error::AsyncError)?;
-            rt.block_on(download_micro_rdk_release(&tmp_new, args.version.clone(), args.url.clone()))?
+            rt.block_on(download_micro_rdk_release(
+                &tmp_new,
+                args.version.clone(),
+                args.url.clone(),
+            ))?
         }
     };
 
