@@ -553,11 +553,6 @@ where
                     #[cfg(not(test))]
                     panic!("erased credentials restart robot"); // TODO bubble up error and go back in provisioning
                 }
-                log::error!(
-                    "couldn't connect to {} reason {:?}",
-                    robot_creds.app_address(),
-                    error
-                );
             })
             .ok();
 
