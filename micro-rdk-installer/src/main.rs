@@ -26,6 +26,7 @@ use micro_rdk_installer::{
         request::download_micro_rdk_release,
     },
 };
+use reqwest::Url;
 use secrecy::Secret;
 use serde::Deserialize;
 use tokio::runtime::Runtime;
@@ -72,12 +73,18 @@ struct AppImageArgs {
     /// data partition will be edited with Wi-Fi and robot credentials
     #[arg(long = "binary-path")]
     #[clap(conflicts_with = "version")]
+    #[clap(conflicts_with = "url")]
     binary_path: Option<PathBuf>,
 
     /// Version of the compiled micro-RDK server to download.
     /// See https://github.com/viamrobotics/micro-rdk/releases for the version options
     #[arg(long = "version", value_parser = validate_version)]
     version: Option<String>,
+
+    /// Download URL to a compiled, full micro-RDK binary.
+    #[clap(conflicts_with = "version")]
+    #[arg(long = "url", value_parser = Url::parse)]
+    url: Option<Url>,
 }
 
 /// Write Wi-Fi and robot credentials to the NVS storage portion of a pre-compiled
@@ -115,15 +122,23 @@ struct WriteFlashArgs {
     /// data partition will be edited with Wi-Fi and robot credentials
     #[arg(long = "binary-path")]
     #[clap(conflicts_with = "version")]
+    #[clap(conflicts_with = "url")]
     binary_path: Option<PathBuf>,
 
-    /// File path to the JSON config of the robot, downloaded from app.viam.com
-    #[arg(long = "app-config", required = true)]
-    config: Option<String>,
     /// Version of the compiled micro-RDK server to download (ex. v0.2.3, latest).
     /// See https://github.com/viamrobotics/micro-rdk/releases for available versions
     #[arg(long = "version", value_parser = validate_version)]
     version: Option<String>,
+
+    /// Download URL to a compiled, full micro-RDK binary.
+    #[clap(conflicts_with = "version")]
+    #[arg(long = "url", value_parser = Url::parse)]
+    url: Option<Url>,
+
+    /// File path to the JSON config of the robot, downloaded from app.viam.com
+    #[arg(long = "app-config", required = true)]
+    config: Option<String>,
+
     /// Wi-Fi SSID to write to NVS partition of binary. If not provided, user will be
     /// prompted for it
     #[arg(long = "wifi-ssid", required = true)]
@@ -364,7 +379,7 @@ fn main() -> Result<(), Error> {
             let app_path = match &args.binary_path {
                 Some(path) => PathBuf::from(path),
                 None => {
-                    if args.version.is_none() {
+                    if args.version.is_none() && args.url.is_none() {
                         let use_latest = dialoguer::Confirm::new()
                             .with_prompt("Download and flash the latest Micro-RDK release?")
                             .default(false)
@@ -376,7 +391,11 @@ fn main() -> Result<(), Error> {
                     }
 
                     let rt = Runtime::new().map_err(Error::AsyncError)?;
-                    rt.block_on(download_micro_rdk_release(&tmp_path, args.version.clone()))?
+                    rt.block_on(download_micro_rdk_release(
+                        &tmp_path,
+                        args.version.clone(),
+                        args.url.clone(),
+                    ))?
                 }
             };
             let config = Config::load().map_err(|err| Error::SerialConfigError(err.to_string()))?;
@@ -454,7 +473,11 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
         Some(path) => PathBuf::from(path),
         None => {
             let rt = Runtime::new().map_err(Error::AsyncError)?;
-            rt.block_on(download_micro_rdk_release(&tmp_new, args.version.clone()))?
+            rt.block_on(download_micro_rdk_release(
+                &tmp_new,
+                args.version.clone(),
+                args.url.clone(),
+            ))?
         }
     };
 
