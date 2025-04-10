@@ -26,6 +26,7 @@ use micro_rdk_installer::{
         request::download_micro_rdk_release,
     },
 };
+use reqwest::Url;
 use secrecy::Secret;
 use serde::Deserialize;
 use tokio::runtime::Runtime;
@@ -82,8 +83,8 @@ struct AppImageArgs {
 
     /// Download URL to a compiled, full micro-RDK binary.
     #[clap(conflicts_with = "version")]
-    #[arg(long = "url", value_parser = reqwest::Url::parse)]
-    url: Option<String>,
+    #[arg(long = "url", value_parser = Url::parse)]
+    url: Option<Url>,
 }
 
 /// Write Wi-Fi and robot credentials to the NVS storage portion of a pre-compiled
@@ -131,8 +132,8 @@ struct WriteFlashArgs {
 
     /// Download URL to a compiled, full micro-RDK binary.
     #[clap(conflicts_with = "version")]
-    #[arg(long = "url", value_parser = reqwest::Url::parse)]
-    url: Option<String>,
+    #[arg(long = "url", value_parser = Url::parse)]
+    url: Option<Url>,
 
     /// File path to the JSON config of the robot, downloaded from app.viam.com
     #[arg(long = "app-config", required = true)]

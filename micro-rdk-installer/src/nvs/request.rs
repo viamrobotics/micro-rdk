@@ -14,10 +14,10 @@ const BINARY_NAME: &str = "micro-rdk-server-esp32.bin";
 pub async fn download_micro_rdk_release(
     path: &Path,
     version: Option<String>,
-    url: Option<String>,
+    url: Option<reqwest::Url>,
 ) -> Result<PathBuf, Error> {
     let release_url = if let Some(url) = url {
-        url
+        url.to_string()
     } else if version.is_some() && version.clone().unwrap() != "latest" {
         format!(
             "{}/download/{}/{}",
