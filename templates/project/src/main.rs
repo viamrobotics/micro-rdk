@@ -85,13 +85,12 @@ fn main() {
                     &RobotCredentials::new(
                         ROBOT_ID.unwrap().to_string(),
                         ROBOT_SECRET.unwrap().to_string(),
+                        ROBOT_APP_ADDRESS.unwrap().to_string(),
                     )
+                    .expect("failed to parse app address")
                     .into(),
                 )
-                .expect("failed to store machine credentials to storage");
-            storage
-                .store_app_address(ROBOT_APP_ADDRESS.unwrap())
-                .expect("failed to store app address to storage")
+                .expect("failed to store robot credentials to NVS");
         }
     }
 
