@@ -1,25 +1,3 @@
-FROM rust:1.85-bookworm AS builder
-RUN apt update && apt-get install -y --no-install-recommends git libudev-dev make bzip2 gcc libgcrypt20 libgcrypt20-dev  ninja-build libudev-dev sudo wget git flex bison gperf ccache libffi-dev libssl-dev dfu-util libusb-1.0-0 cmake pkg-config libglib2.0-dev libpixman-1-dev software-properties-common openssh-client libslirp-dev python3-venv
-
-RUN export TARGET=$(rustc -vV | sed -En 's/^host: //p') && \
-    curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash && \
-    cargo binstall --pkg-url='https://github.com/esp-rs/espflash/releases/download/v{ version }/{ name }-{ target }{ archive-suffix }' --pkg-fmt='zip' cargo-espflash@3.2.0 --install-path /usr -y --target $TARGET && \
-    cargo binstall --pkg-url='https://github.com/esp-rs/espup/releases/download/v{ version }/{ name }-{ target }{ archive-suffix }' --pkg-fmt='zip' espup@0.11 --install-path /usr -y --target $TARGET && \
-    cargo binstall --pkg-url='https://github.com/esp-rs/embuild/releases/download/{ name }-v{ version }/{ name }-{ target }{ archive-suffix }' --pkg-fmt='zip' ldproxy@0.3.2 --install-path /usr -y --target $TARGET && \
-    cargo binstall --pkg-url='https://github.com/mozilla/sccache/releases/download/v{ version }/{ name }-v{ version }-{ target }{ archive-suffix }' --pkg-fmt='tgz' sccache@0.7.7 --install-path /usr -y --target $TARGET
-
-WORKDIR /qemu
-RUN git clone --depth 1 --branch esp-develop https://github.com/espressif/qemu
-RUN cd qemu && mkdir build && cd build && ../configure --target-list=xtensa-softmmu  --enable-gcrypt --enable-slirp \
-    --disable-strip --disable-user \
-    --disable-capstone --disable-vnc --disable-sdl --disable-gtk && ninja qemu-system-xtensa
-
-WORKDIR /esp
-
-# TODO(RSDK-8998): Upgrade ESP-IDF to latest stable
-RUN git clone --depth 1 -b v5.4.1 --single-branch --recurse-submodules --shallow-submodules https://github.com/espressif/esp-idf/
-
-
 FROM debian:bookworm
 
 ARG RUST_VERSION=1.85.0
@@ -36,13 +14,22 @@ ENV RUSTUP_HOME=/opt/rust/rustup \
 
 RUN apt update && apt dist-upgrade -y
 
-RUN apt update
-
-RUN apt-get install -y --no-install-recommends git wget flex bison gperf python3 python3-pip python3-virtualenv cmake ninja-build ccache libffi-dev libssl-dev libudev-dev dfu-util libusb-1.0-0 openssh-client software-properties-common python3-venv sudo curl && \
+RUN apt-get install -y --no-install-recommends make build-essential pkg-config git wget flex bison gperf python3 python3-pip python3-virtualenv cmake ninja-build ccache libffi-dev libssl-dev libudev-dev dfu-util libusb-1.0-0 openssh-client software-properties-common python3-venv sudo curl libpixman-1-0 libslirp0 libsdl2-2.0-0 xz-utils && \
     apt-get install -y --no-install-recommends cmake && \
     apt-get install -y --no-install-recommends jq && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3 10
 
+RUN set -eux; \
+    dpkgArch="$(dpkg --print-architecture)"; \
+    case "${dpkgArch##*-}" in \
+        amd64) qemuSha='071d117c44a6e9a1bc8664ab63b592d3e17ceb779119dcb46c59571a4a7a88c9'; qemuUrl='https://github.com/espressif/qemu/releases/download/esp-develop-9.0.0-20240606/qemu-xtensa-softmmu-esp_develop_9.0.0_20240606-x86_64-linux-gnu.tar.xz' ;; \
+        arm64) qemuSha='43552f32b303a6820d0d9551903e54fc221aca98ccbd04e5cbccbca881548008';qemuUrl='https://github.com/espressif/qemu/releases/download/esp-develop-9.0.0-20240606/qemu-xtensa-softmmu-esp_develop_9.0.0_20240606-aarch64-linux-gnu.tar.xz' ;; \
+        *) echo >&2 "unsupported architecture: ${dpkgArch}"; exit 1 ;; \
+    esac; \
+    wget "$qemuUrl" -O qemu; \
+    echo "${qemuSha} *qemu" | sha256sum -c -; \
+    tar -C /usr  --strip-components=1 -xf qemu ; \
+    rm  qemu
 
 RUN RUST_VERSION=$RUST_VERSION \
     set -eux; \
@@ -62,10 +49,12 @@ RUN RUST_VERSION=$RUST_VERSION \
     rm rustup-init; \
     chmod -R a+w $RUSTUP_HOME $CARGO_HOME
 
-COPY --from=builder /usr/cargo-espflash /usr/bin
-COPY --from=builder /usr/ldproxy /usr/bin
-COPY --from=builder /usr/espup /usr/bin
-COPY --from=builder /usr/sccache /usr/bin
+RUN export TARGET=$(rustc -vV | sed -En 's/^host: //p') && \
+    curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash && \
+    cargo binstall --pkg-url='https://github.com/esp-rs/espflash/releases/download/v{ version }/{ name }-{ target }{ archive-suffix }' --pkg-fmt='zip' cargo-espflash@3.2.0 --install-path /usr/bin/ -y --target $TARGET && \
+    cargo binstall --pkg-url='https://github.com/esp-rs/espup/releases/download/v{ version }/{ name }-{ target }{ archive-suffix }' --pkg-fmt='zip' espup@0.11 --install-path /usr/bin/ -y --target $TARGET && \
+    cargo binstall --pkg-url='https://github.com/esp-rs/embuild/releases/download/{ name }-v{ version }/{ name }-{ target }{ archive-suffix }' --pkg-fmt='zip' ldproxy@0.3.2 --install-path /usr/bin/ -y --target $TARGET && \
+    cargo binstall --pkg-url='https://github.com/mozilla/sccache/releases/download/v{ version }/{ name }-v{ version }-{ target }{ archive-suffix }' --pkg-fmt='tgz' sccache@0.7.7 --install-path /usr/bin/ -y --target $TARGET
 
 WORKDIR /host/
 
@@ -84,7 +73,7 @@ RUN apt-get install -y ruby && gem install license_finder
 
 USER testbot
 
-COPY --from=builder /esp $ESP_ROOT/
+RUN git clone --depth 1 -b v5.4.1 --single-branch --recurse-submodules --shallow-submodules https://github.com/espressif/esp-idf/ $ESP_ROOT/esp-idf
 
 ENV IDF_PATH=$ESP_ROOT/esp-idf
 
@@ -93,8 +82,6 @@ RUN $IDF_PATH/tools/idf_tools.py --non-interactive install required  && $IDF_PAT
 RUN espup install -s -f $ESP_ROOT/export-esp.sh -v ${RUST_VERSION}
 RUN rustup component add clippy-preview
 RUN rustup component add rustfmt
-
-RUN git config --global --add safe.directory '*'
 
 RUN rm -rf $CARGO_HOME/registry
 
@@ -108,12 +95,7 @@ RUN echo "PATH=$PATH" >> /etc/profile && \
     echo "[[ -v SCCACHE ]] && export RUSTC_WRAPPER=/usr/bin/sccache" >> /etc/profile && \
     echo "[[ -v SCCACHE ]] && export SCCACHE_DIR=/host/.micro-rdk-docker-caches/sccache" >> /etc/profile
 
-RUN apt-get install make build-essential pkg-config -y && apt-get autoremove -y && \
+RUN apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
-
-COPY --from=builder /qemu/qemu/build/qemu-system-xtensa /usr/bin
-
-RUN chmod -R a+rwx $ESP_ROOT && \
-    chown -R testbot:testbot $ESP_ROOT
 
 RUN git config --global --add safe.directory '*'

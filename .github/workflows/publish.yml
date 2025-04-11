@@ -1,15 +1,9 @@
-name: publish
+name: Publish
 
 on:
-  workflow_dispatch:
-  push:
-    tags:
-      - "v*"
+  workflow_call:
 
 jobs:
-  tests:
-    uses: ./.github/workflows/test.yml
-
   build-installer:
     strategy:
       fail-fast: false
@@ -80,10 +74,6 @@ jobs:
         shell: bash --norc  -leo pipefail {0}
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:1.85.0-arm64
-    needs: tests
-    defaults:
-      run:
-        shell: bash
     steps:
     - name: Checkout main branch code
       uses: actions/checkout@v4
@@ -117,12 +107,12 @@ jobs:
         shell: bash --norc  -leo pipefail {0}
     container:
       image: ghcr.io/viamrobotics/micro-rdk-dev-env:1.85.0-amd64
-    needs: tests
     steps:
     - name : Checkout main branch code
       uses: actions/checkout@v3
       with:
         fetch-depth: 2
+        ref: '${{ github.ref_name }}'
     - name: Build esp32 binary
       run: |
         git config --global --add safe.directory "$ESP_ROOT"/esp-idf

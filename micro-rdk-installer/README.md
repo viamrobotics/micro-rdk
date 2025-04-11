@@ -16,8 +16,8 @@ Only necessary as an alternative to the previous Download step
 
 1. `git clone https://github.com/viamrobotics/micro-rdk.git`
 2. cd micro-rdk/micro-rdk-installer
-2.`cargo build`
-3. Executable (`micro-rdk-installer`) will be under target/debug
+3. `cargo build`
+4. Executable (`micro-rdk-installer`) will be under target/debug
 
 ## Usage
 

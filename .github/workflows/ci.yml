@@ -1,3 +1,4 @@
+
 name: Micro-RDK CI
 
 on:
@@ -8,8 +9,8 @@ on:
   push:
     branches:
       - '**'
-    tags-ignore:
-      - '**'
+    tags:
+      - "v*"
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -30,4 +31,10 @@ jobs:
     name: Run CI Esp32
     needs: [format]
     uses: ./.github/workflows/esp32.yml
+
+  ci-publish:
+    name: Publish
+    needs: [format,ci-native,ci-esp32]
+    if: startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/publish.yml
 
