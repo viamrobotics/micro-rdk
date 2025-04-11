@@ -19,14 +19,20 @@ use thiserror::Error;
 pub struct RobotCredentials {
     pub(crate) robot_id: String,
     pub(crate) robot_secret: String,
+    pub(crate) app_address: Uri,
 }
 
 impl RobotCredentials {
-    pub fn new(robot_id: String, robot_secret: String) -> Self {
-        Self {
+    pub fn new(
+        robot_id: String,
+        robot_secret: String,
+        app_address: String,
+    ) -> Result<Self, <Uri as FromStr>::Err> {
+        Ok(Self {
             robot_secret,
             robot_id,
-        }
+            app_address: app_address.parse::<Uri>()?,
+        })
     }
 
     pub(crate) fn robot_id(&self) -> &str {
@@ -36,6 +42,10 @@ impl RobotCredentials {
     pub(crate) fn robot_secret(&self) -> &str {
         &self.robot_secret
     }
+
+    pub(crate) fn app_address(&self) -> Uri {
+        self.app_address.clone()
+    }
 }
 
 impl TryFrom<CloudConfig> for RobotCredentials {
@@ -44,6 +54,7 @@ impl TryFrom<CloudConfig> for RobotCredentials {
         Ok(Self {
             robot_id: value.id,
             robot_secret: value.secret,
+            app_address: value.app_address.parse::<Uri>()?,
         })
     }
 }
@@ -51,7 +62,7 @@ impl TryFrom<CloudConfig> for RobotCredentials {
 impl From<RobotCredentials> for CloudConfig {
     fn from(value: RobotCredentials) -> Self {
         Self {
-            app_address: "".to_string(),
+            app_address: value.app_address.to_string(),
             id: value.robot_id,
             secret: value.robot_secret,
         }
@@ -144,11 +155,6 @@ pub trait RobotConfigurationStorage {
     fn get_robot_credentials(&self) -> Result<RobotCredentials, Self::Error>;
     fn reset_robot_credentials(&self) -> Result<(), Self::Error>;
 
-    fn has_app_address(&self) -> bool;
-    fn store_app_address(&self, uri: &str) -> Result<(), Self::Error>;
-    fn get_app_address(&self) -> Result<Uri, Self::Error>;
-    fn reset_app_address(&self) -> Result<(), Self::Error>;
-
     fn has_robot_configuration(&self) -> bool;
     fn store_robot_configuration(&self, cfg: &RobotConfig) -> Result<(), Self::Error>;
     fn get_robot_configuration(&self) -> Result<RobotConfig, Self::Error>;
@@ -184,7 +190,6 @@ struct RAMCredentialStorageInner {
     default_network: Option<NetworkSetting>,
     network_settings: Option<Vec<NetworkSetting>>,
     tls_cert: Option<TlsCertificate>,
-    app_address: Option<String>,
     #[cfg(feature = "ota")]
     ota_metadata: Option<OtaMetadata>,
 }
@@ -216,7 +221,6 @@ impl RAMStorage {
             robot_config: None,
             default_network: None,
             tls_cert: None,
-            app_address: None,
             network_settings: None,
             #[cfg(feature = "ota")]
             ota_metadata: None,
@@ -464,28 +468,6 @@ impl RobotConfigurationStorage for RAMStorage {
         let _ = inner_ref.tls_cert.take();
         Ok(())
     }
-    fn store_app_address(&self, uri: &str) -> Result<(), Self::Error> {
-        let mut inner_ref = self.0.lock().unwrap();
-        let _ = inner_ref.app_address.insert(uri.to_string());
-        Ok(())
-    }
-    fn get_app_address(&self) -> Result<Uri, Self::Error> {
-        let inner_ref = self.0.lock().unwrap();
-        Ok(inner_ref
-            .app_address
-            .clone()
-            .unwrap_or_default()
-            .parse::<Uri>()?)
-    }
-    fn reset_app_address(&self) -> Result<(), Self::Error> {
-        let mut inner_ref = self.0.lock().unwrap();
-        let _ = inner_ref.app_address.take();
-        Ok(())
-    }
-    fn has_app_address(&self) -> bool {
-        let inner_ref = self.0.lock().unwrap();
-        inner_ref.app_address.is_some()
-    }
 }
 
 impl<Iterable, Storage: RobotConfigurationStorage> RobotConfigurationStorage for Iterable
@@ -502,10 +484,6 @@ where
         self.into_iter()
             .any(RobotConfigurationStorage::has_tls_certificate)
     }
-    fn has_app_address(&self) -> bool {
-        self.into_iter()
-            .any(RobotConfigurationStorage::has_app_address)
-    }
     fn has_robot_configuration(&self) -> bool {
         self.into_iter()
             .any(RobotConfigurationStorage::has_robot_configuration)
@@ -520,18 +498,6 @@ where
         self.into_iter().fold(
             Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
             |val, s| val.or_else(|_| s.get_tls_certificate()),
-        )
-    }
-    fn get_app_address(&self) -> Result<Uri, Self::Error> {
-        self.into_iter().fold(
-            Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
-            |val, s| val.or_else(|_| s.get_app_address()),
-        )
-    }
-    fn store_app_address(&self, uri: &str) -> Result<(), Self::Error> {
-        self.into_iter().fold(
-            Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
-            |val, s| val.or_else(|_| s.store_app_address(uri)),
         )
     }
     fn store_tls_certificate(&self, creds: &TlsCertificate) -> Result<(), Self::Error> {
@@ -556,12 +522,6 @@ where
         self.into_iter().fold(
             Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
             |val, s| val.or_else(|_| s.get_robot_configuration()),
-        )
-    }
-    fn reset_app_address(&self) -> Result<(), Self::Error> {
-        self.into_iter().fold(
-            Err::<_, Self::Error>(EmptyStorageCollectionError.into()),
-            |val, s| val.or(s.reset_app_address()),
         )
     }
     fn reset_robot_configuration(&self) -> Result<(), Self::Error> {
