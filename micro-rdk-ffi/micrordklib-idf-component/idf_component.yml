@@ -3,4 +3,4 @@ description: "Micro-RDK lib"
 dependencies:
   ## Required IDF version
   idf:
-    version: ">=4.4.7,<5.0.0"
+    version: ">=5.4.1,<6.0.0"
