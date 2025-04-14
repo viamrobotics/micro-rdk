@@ -214,7 +214,7 @@ It requires both a `board` configured with an `analog` attribute and the `moistu
 
 ```json
     {
-      "name": "my-board",
+      "name": "board-1",
       "api": "rdk:component:board",
       "model": "rdk:builtin:esp32",
       "attributes": {
@@ -251,7 +251,7 @@ The `water_pump` is a `motor` that is driven by a single `pin`. It optionally ta
 
 ```json
     {
-      "name": "my-board",
+      "name": "board-1",
       "api": "rdk:component:board",
       "model": "rdk:builtin:esp32",
       "attributes": {
@@ -270,7 +270,7 @@ The `water_pump` is a `motor` that is driven by a single `pin`. It optionally ta
       "model": "water_pump",
       "attributes": {},
       "depends_on": [
-	    "my-board"
+	    "board-1"
       ]
 	}
 ```
