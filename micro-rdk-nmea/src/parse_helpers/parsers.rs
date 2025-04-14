@@ -1,10 +1,10 @@
 use std::marker::PhantomData;
 
 use chrono::{DateTime, Utc};
-use micro_rdk::common::sensor::GenericReadingsResult;
+use micro_rdk::{common::sensor::GenericReadingsResult, google::protobuf::Value};
 
 use super::{
-    enums::NmeaEnumeratedField,
+    enums::{NmeaEnumeratedField, SimnetBacklightLevel},
     errors::{NmeaParseError, NumberFieldError},
 };
 
@@ -80,6 +80,21 @@ impl<T> NumberField<T> {
     }
 }
 
+pub struct NumberFieldWithScale<T> {
+    number_field: NumberField<T>,
+    scale: f64,
+}
+
+impl<T> NumberFieldWithScale<T> {
+    pub fn new(bit_size: usize, scale: f64) -> Result<Self, NumberFieldError> {
+        let number_field = NumberField::<T>::new(bit_size)?;
+        Ok(Self {
+            number_field,
+            scale,
+        })
+    }
+}
+
 impl<T> Default for NumberField<T>
 where
     T: Sized,
@@ -107,6 +122,20 @@ macro_rules! generate_number_field_readers {
                         data.resize(max_size, 0);
                         Ok(<$t>::from_le_bytes(data[..].try_into()?))
                     }
+                }
+            }
+
+            impl FieldReader for NumberFieldWithScale<$t> {
+                type FieldType = f64;
+                fn read_from_cursor(&self, cursor: &mut DataCursor) -> Result<Self::FieldType, NmeaParseError> {
+                    self.number_field.read_from_cursor(cursor).and_then(|x| {
+                        match x {
+                            x if x == <$t>::MAX => { return Err(NumberFieldError::FieldNotPresent("type unavailable".to_string()).into()); },
+                            x => {
+                                Ok((x as f64) * self.scale)
+                            }
+                        }
+                    })
                 }
             }
         )*
@@ -222,6 +251,123 @@ where
     }
 }
 
+pub trait PolymorphicDataType: Sized {
+    type EnumType: NmeaEnumeratedField + Copy;
+    fn from_data(
+        cursor: &mut DataCursor,
+        enum_type: Self::EnumType,
+    ) -> Result<Self, NmeaParseError>;
+    fn to_value(self) -> Value;
+}
+
+pub struct PolymorphicDataTypeReader<T: PolymorphicDataType> {
+    _marker: PhantomData<T>,
+    lookup_value: T::EnumType,
+}
+
+impl<T> PolymorphicDataTypeReader<T>
+where
+    T: PolymorphicDataType,
+{
+    pub fn new(lookup_value: T::EnumType) -> Self {
+        Self {
+            _marker: PhantomData,
+            lookup_value,
+        }
+    }
+}
+
+impl<T> FieldReader for PolymorphicDataTypeReader<T>
+where
+    T: PolymorphicDataType,
+{
+    type FieldType = T;
+    fn read_from_cursor(&self, cursor: &mut DataCursor) -> Result<Self::FieldType, NmeaParseError> {
+        T::from_data(cursor, self.lookup_value)
+    }
+}
+
+macro_rules! polymorphic_type {
+    ($name:ident, $enumname:ident, $(($value:expr, $var:ident, $reader:expr, $field_type:ty)),*, $errorlabel:ident) => {
+
+        #[derive(Debug, Clone)]
+        pub enum $name {
+            $($var($field_type)),*,
+        }
+
+        #[derive(Debug, Clone, Copy)]
+        pub enum $enumname {
+            $($var),*,
+            $errorlabel
+        }
+
+        impl From<u32> for $enumname {
+            fn from(value: u32) -> Self {
+                match value {
+                    $($value => Self::$var),*,
+                    _ => Self::$errorlabel
+                }
+            }
+        }
+
+        impl std::fmt::Display for $enumname {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}", match self {
+                    $(Self::$var => stringify!($var)),*,
+                    Self::$errorlabel => "could not parse"
+                }.to_string())
+            }
+        }
+
+        impl NmeaEnumeratedField for $enumname {}
+
+        impl PolymorphicDataType for $name {
+            type EnumType = $enumname;
+
+            fn from_data(cursor: &mut DataCursor, enum_type: Self::EnumType) -> Result<Self, NmeaParseError> {
+                match enum_type {
+                    $(
+                        $enumname::$var => {
+                            Ok(Self::$var($reader.read_from_cursor(cursor)?))
+                        }
+                    ),*,
+                    $enumname::$errorlabel => {
+                        Err(NmeaParseError::UnknownPolymorphicLookupValue)
+                    }
+                }
+            }
+
+            fn to_value(self) -> Value {
+                Value { kind: None }
+            }
+        }
+    };
+}
+
+polymorphic_type!(
+    SimnetKeyValue,
+    SimnetKey,
+    (
+        0,
+        HeadingOffset,
+        NumberFieldWithScale::<i16>::new(16, 0.0001)?,
+        f64
+    ),
+    (
+        41,
+        TimezoneOffset,
+        NumberFieldWithScale::<i16>::new(16, 60.0)?,
+        f64
+    ),
+    (
+        4863,
+        BacklightLevel,
+        LookupField::<SimnetBacklightLevel>::new(8)?,
+        SimnetBacklightLevel
+    ),
+    UnknownLookupField
+);
+
 // The first 32 bytes of the unparsed message stores metadata appearing in the header
 // of an NMEA message (the library assumes that a previous process has correctly serialized
 // this data from the CAN frame).
@@ -288,13 +434,16 @@ mod tests {
     use crate::{
         messages::pgns::MESSAGE_DATA_OFFSET,
         parse_helpers::{
-            enums::MagneticVariationSource,
+            enums::{MagneticVariationSource, SimnetBacklightLevel},
             errors::NmeaParseError,
-            parsers::{DataCursor, FieldReader, NmeaMessageMetadata},
+            parsers::{DataCursor, FieldReader, NmeaMessageMetadata, SimnetKeyValue},
         },
     };
 
-    use super::{ArrayField, FieldSet, FieldSetList, LookupField, NumberField};
+    use super::{
+        ArrayField, FieldSet, FieldSetList, LookupField, NumberField, PolymorphicDataTypeReader,
+        SimnetKey,
+    };
 
     #[test]
     fn parse_metadata() {
@@ -443,5 +592,35 @@ mod tests {
 
         assert_eq!(res[0], expected_at_0);
         assert_eq!(res[1], expected_at_1);
+    }
+
+    #[test]
+    fn polymorphic_field_test() {
+        let data_vec: Vec<u8> = vec![32, 78, 99, 3, 0];
+        let mut cursor = DataCursor::new(data_vec);
+
+        let lookup_value = SimnetKey::HeadingOffset;
+        let reader = PolymorphicDataTypeReader::<SimnetKeyValue>::new(lookup_value);
+        let res = reader.read_from_cursor(&mut cursor);
+        assert!(res.is_ok());
+        assert!(matches!(res.unwrap(), SimnetKeyValue::HeadingOffset(2.0)));
+
+        let lookup_value = SimnetKey::BacklightLevel;
+        let reader = PolymorphicDataTypeReader::<SimnetKeyValue>::new(lookup_value);
+        let res = reader.read_from_cursor(&mut cursor);
+        assert!(res.is_ok());
+        assert!(matches!(
+            res.unwrap(),
+            SimnetKeyValue::BacklightLevel(SimnetBacklightLevel::Max)
+        ));
+
+        let lookup_value = SimnetKey::TimezoneOffset;
+        let reader = PolymorphicDataTypeReader::<SimnetKeyValue>::new(lookup_value);
+        let res = reader.read_from_cursor(&mut cursor);
+        assert!(res.is_ok());
+        assert!(matches!(
+            res.unwrap(),
+            SimnetKeyValue::TimezoneOffset(180.0)
+        ))
     }
 }

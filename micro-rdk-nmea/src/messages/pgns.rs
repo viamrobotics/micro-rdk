@@ -10,11 +10,11 @@ use micro_rdk_nmea_macros::{FieldsetDerive, PgnMessageDerive};
 use super::message::{Message, UnparsedNmeaMessageBody};
 use crate::parse_helpers::{
     enums::{
-        DirectionReference, Gns, GnsIntegrity, GnsMethod, RangeResidualMode, SatelliteStatus,
-        TemperatureSource, WaterReference,
+        DirectionReference, Gns, GnsIntegrity, GnsMethod, IndustryCode, ManufacturerCode,
+        RangeResidualMode, SatelliteStatus, SimnetDisplayGroup, TemperatureSource, WaterReference,
     },
     errors::NmeaParseError,
-    parsers::{DataCursor, FieldSet, NmeaMessageMetadata},
+    parsers::{DataCursor, FieldSet, NmeaMessageMetadata, SimnetKey, SimnetKeyValue},
 };
 
 #[derive(PgnMessageDerive, Clone, Debug)]
@@ -275,6 +275,40 @@ pub struct Attitude {
     #[scale = 0.0001]
     #[unit = "deg"]
     roll: i16,
+}
+
+#[derive(PgnMessageDerive, Clone, Debug)]
+pub struct SimnetParameterSet {
+    #[pgn = 130846]
+    _pgn: PhantomData<u32>,
+
+    #[lookup]
+    #[bits = 11]
+    manufacturer_code: ManufacturerCode,
+
+    #[lookup]
+    #[bits = 3]
+    #[offset = 2]
+    industry_code: IndustryCode,
+
+    address: u8,
+
+    b: u8,
+
+    #[lookup]
+    #[bits = 8]
+    display_group: SimnetDisplayGroup,
+
+    d: u16,
+
+    #[lookup]
+    #[bits = 16]
+    key: SimnetKey,
+
+    #[polymorphic]
+    #[offset = 16]
+    #[lookup_field = "key"]
+    value: SimnetKeyValue,
 }
 
 macro_rules! define_pgns {

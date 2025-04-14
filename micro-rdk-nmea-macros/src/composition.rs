@@ -93,6 +93,8 @@ impl PgnComposition {
                     .any(|seg| seg.ident.to_string().as_str() == "fieldset")
             }) {
                 handle_fieldset(name, field, &macro_attrs, purpose)?
+            } else if macro_attrs.is_polymorphic {
+                handle_polymorphic_field(name, field, &macro_attrs, purpose)?
             } else {
                 let err_msg = format!(
                     "field type for {:?} unsupported for PGN message, macro attributes: {:?}",
@@ -445,6 +447,51 @@ fn handle_fieldset(
             };
             readings.insert(#label.to_string(), value);
         });
+        Ok(new_statements)
+    } else {
+        Err(error_tokens("msg"))
+    }
+}
+
+fn handle_polymorphic_field(
+    name: &Ident,
+    field: &Field,
+    macro_attrs: &MacroAttributes,
+    purpose: CodeGenPurpose,
+) -> Result<PgnComposition, TokenStream> {
+    let mut new_statements = PgnComposition::new();
+    if field.attrs.iter().any(|attr| {
+        attr.path()
+            .segments
+            .iter()
+            .any(|seg| seg.ident.to_string().as_str() == "polymorphic")
+    }) {
+        let lookup_field_token = macro_attrs.lookup_field.as_ref().ok_or(error_tokens(
+            "lookup_field field must be specified for fieldset",
+        ))?;
+
+        let nmea_crate = get_micro_nmea_crate_ident();
+        let read_statement = get_read_statement(name, purpose);
+        let f_type = &field.ty;
+
+        new_statements.parsing_logic.push(quote! {
+            let reader = #nmea_crate::parse_helpers::parsers::PolymorphicDataTypeReader::<#f_type>::new(#lookup_field_token);
+            #read_statement
+        });
+
+        new_statements.attribute_getters.push(quote! {
+            pub fn #name(&self) -> #f_type { self.f_type.clone() }
+        });
+
+        new_statements.struct_initialization.push(quote! {#name,});
+
+        let prop_name = name.to_string();
+        let label = macro_attrs.label.clone().unwrap_or(quote! {#prop_name});
+        new_statements.proto_conversion_logic.push(quote! {
+            let value = self.#name().to_value();
+            readings.insert(#label.to_string(), value);
+        });
+
         Ok(new_statements)
     } else {
         Err(error_tokens("msg"))
