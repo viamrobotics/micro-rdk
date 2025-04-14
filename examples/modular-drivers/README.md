@@ -12,7 +12,7 @@ and demonstrates how to produce modular resources for the Micro-RDK.
 - [Usage](#usage)
   - [Setup](#setup)
   - [Installation](#installation)
-  - [Configuration](#configuation)
+  - [Configuration](#configuration)
 - [Project Walkthrough](#project-walkthrough)
 - [Module Implementation](#module-implementation)
 - [Example Modules](#example-modules)
