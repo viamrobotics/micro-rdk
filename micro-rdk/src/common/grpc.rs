@@ -249,6 +249,8 @@ impl<'a> GrpcServerInner<'a> {
                 self.board_set_power_mode(payload)
             }
             "/viam.component.board.v1.BoardService/DoCommand" => self.board_do_command(payload),
+            "/viam.component.button.v1.ButtonService/Push" => self.button_push(payload),
+            "/viam.component.button.v1.ButtonService/DoCommand" => self.button_do_command(payload),
             "/viam.component.generic.v1.GenericService/DoCommand" => {
                 self.generic_component_do_command(payload)
             }
@@ -788,6 +790,36 @@ impl<'a> GrpcServerInner<'a> {
             None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         let res = board
+            .lock()
+            .unwrap()
+            .do_command(req.command)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let resp = proto::common::v1::DoCommandResponse { result: res };
+        GrpcServerInner::encode_message(resp)
+    }
+
+    fn button_push(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
+        let req = component::button::v1::PushRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let button = match self.robot.lock().unwrap().get_button_by_name(req.name) {
+            Some(b) => b,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+
+        // TODO map to grpc server error
+        button.lock().unwrap().push().unwrap();
+        let resp = component::button::v1::PushResponse {};
+        GrpcServerInner::encode_message(resp)
+    }
+
+    fn button_do_command(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
+        let req = proto::common::v1::DoCommandRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let button = match self.robot.lock().unwrap().get_button_by_name(req.name) {
+            Some(m) => m,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        let res = button
             .lock()
             .unwrap()
             .do_command(req.command)

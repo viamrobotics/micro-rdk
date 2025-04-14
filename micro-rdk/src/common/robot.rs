@@ -14,8 +14,8 @@ use crate::common::camera::{Camera, CameraType};
 
 use crate::{
     common::{
-        actuator::Actuator, base::Base, board::Board, encoder::Encoder, motor::Motor,
-        movement_sensor::MovementSensor, sensor::Sensor, status::Status,
+        actuator::Actuator, base::Base, board::Board, button::Button, encoder::Encoder,
+        motor::Motor, movement_sensor::MovementSensor, sensor::Sensor, status::Status,
     },
     google,
     proto::{
@@ -38,6 +38,7 @@ use super::{
     app_client::PeriodicAppClientTask,
     base::BaseType,
     board::BoardType,
+    button::ButtonType,
     config::{AttributeError, Component, ConfigType, DynamicComponentConfig},
     encoder::EncoderType,
     exec::Executor,
@@ -62,6 +63,7 @@ pub enum ResourceType {
     Motor(MotorType),
     Board(BoardType),
     Base(BaseType),
+    Button(ButtonType),
     Sensor(SensorType),
     MovementSensor(MovementSensorType),
     Encoder(EncoderType),
@@ -79,6 +81,7 @@ impl ResourceType {
         match self {
             Self::Base(_) => "rdk:component:base",
             Self::Board(_) => "rdk:component:board",
+            Self::Button(_) => "rdk:component:button",
             Self::Encoder(_) => "rdk:component:encoder",
             Self::Generic(_) => "rdk:component:generic",
             Self::Motor(_) => "rdk:component:motor",
@@ -547,6 +550,14 @@ impl LocalRobot {
                             status,
                         });
                     }
+                    ResourceType::Button(b) => {
+                        let status = b.get_status()?;
+                        vec.push(robot::v1::Status {
+                            name: Some(name.clone()),
+                            last_reconfigured: last_reconfigured_proto.clone(),
+                            status,
+                        });
+                    }
                     ResourceType::Base(b) => {
                         let status = b.get_status()?;
                         vec.push(robot::v1::Status {
@@ -631,6 +642,14 @@ impl LocalRobot {
                             });
                         }
                         ResourceType::Board(b) => {
+                            let status = b.get_status()?;
+                            vec.push(robot::v1::Status {
+                                name: Some(name),
+                                last_reconfigured: last_reconfigured_proto.clone(),
+                                status,
+                            });
+                        }
+                        ResourceType::Button(b) => {
                             let status = b.get_status()?;
                             vec.push(robot::v1::Status {
                                 name: Some(name),
@@ -774,6 +793,22 @@ impl LocalRobot {
         };
         match self.resources.get(&name) {
             Some(ResourceType::Board(r)) => Some(r.clone()),
+            Some(_) => None,
+            None => None,
+        }
+    }
+
+    pub fn get_button_by_name(&self, name: String) -> Option<Arc<Mutex<dyn Button>>> {
+        let name = ResourceName {
+            namespace: "rdk".to_string(),
+            r#type: "component".to_string(),
+            subtype: "button".to_string(),
+            local_name: name.clone(),
+            remote_path: vec![],
+            name,
+        };
+        match self.resources.get(&name) {
+            Some(ResourceType::Button(r)) => Some(r.clone()),
             Some(_) => None,
             None => None,
         }
@@ -941,6 +976,7 @@ mod tests {
         common::{
             analog::AnalogReader,
             board::Board,
+            button::Button,
             config::{DynamicComponentConfig, Kind},
             encoder::{Encoder, EncoderPositionType},
             exec::Executor,
