@@ -31,7 +31,7 @@ async def main():
     tag_name = os.environ["ESP32_CANARY_OTA_VERSION_TAG"]
     bin_name = os.environ["ESP32_OTA_BINARY_NAME"]
 
-    url = f"https://github.com/viamrobotics/micro-rdk/releases/download/{tag-name}/{bin_name}"
+    url = f"https://github.com/viamrobotics/micro-rdk/releases/download/{tag_name}/{bin_name}"
 
     print(f"connecting ViamClient ...")
 
