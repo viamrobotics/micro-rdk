@@ -1,14 +1,25 @@
 # Viam Micro-RDK Modular Driver Examples
 
+This project in this repository was generated from the
+[Micro-RDK Module Template](/templates/module),
+and demonstrates how to produce modular resources for the Micro-RDK.
+
 ## (In)stability Notice
 
 > **Warning** The Viam Micro-RDK is currently in beta.
 
-## Overview
-
-This project in this repository was generated from the
-[Micro-RDK Module Template](/templates/module),
-and demonstrates how to produce modular resources for the Micro-RDK.
+## Table of Contents
+- [Usage](#usage)
+  - [Setup](#setup)
+  - [Installation](#installation)
+  - [Configuration](#configuation)
+- [Project Walkthrough](#project-walkthrough)
+- [Module Implementation](#module-implementation)
+- [Example Modules](#example-modules)
+  - [`free_heap_sensor`](#free_heap_sensor)
+  - [`wifi_rssi_sensor`](#wifi_rssi_sensor)
+  - [`moisture_sensor`](#moisture_sensor)
+  - [`water_pump`](#water_pump)
 
 ## Usage
 
@@ -42,9 +53,9 @@ Rebuild the project per the above Micro-RDK Development Setup
 instructions and reflash the board. We will be using the Wifi
 RSSI Sensor and free heap sensor for this example.
 
-### Instantiating the Sensors
+### Configuration
 
-You can now instantiate the sensors by adding them as new `components`
+You can now instantiate and configure the sensors by adding them as new `components`
 in your robot configuration on app.viam.com.
 
 To instantiate the Wifi RSSI Sensor, add the following to the
@@ -91,7 +102,7 @@ can find this code on the `Code Sample` page for your robot):
     print(f"free-heap-sensor get_readings return value: {free_heap_sensor_return_value}")
 ```
 
-## Implementation Walkthrough
+## Project Walkthrough
 
 This project was created by using the [Micro-RDK Module
 Template](/templates/module)
@@ -142,7 +153,7 @@ just by adding it as an ordinary dependency in the `dependencies`
 section of the project's `Cargo.toml` file, as noted in the
 `Installation` section above.
 
-## Related Reading
+## Module Implementation
 
 Please see the [moisture sensor](src/moisture_sensor.rs) and [water pump](src/water_pump.rs) for
 more examples of modular Micro-RDK drivers.
