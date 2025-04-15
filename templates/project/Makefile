@@ -51,6 +51,7 @@ build-esp32-ota:
 		--target=xtensa-esp32-espidf \
 		-Zbuild-std=std,panic_abort \
 		--release \
+		--flash-size=${FLASHSIZE} \
 		target/xtensa-esp32-espidf/release/{{project-name}}-ota.bin
 
 flash-esp32-bin:
