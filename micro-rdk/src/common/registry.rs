@@ -86,7 +86,7 @@ pub struct Dependency(pub ResourceKey, pub Resource);
 /// Fn that returns a `BoardType`, `Arc<Mutex<dyn Board>>`
 type BoardConstructor = dyn Fn(ConfigType) -> Result<BoardType, BoardError>;
 
-type ButtonConstructor = dyn Fn(ConfigType) -> Result<ButtonType, ButtonError>;
+type ButtonConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<ButtonType, ButtonError>;
 
 /// Fn that returns a `MotorType`, `Arc<Mutex<dyn Motor>>`
 type MotorConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<MotorType, MotorError>;
@@ -396,6 +396,16 @@ impl ComponentRegistry {
         model: &str,
     ) -> Result<&'static BoardConstructor, RegistryError> {
         if let Some(ctor) = self.board.get(model) {
+            return Ok(*ctor);
+        }
+        Err(RegistryError::ModelNotFound(model.into()))
+    }
+
+    pub(crate) fn get_button_constructor(
+        &self,
+        model: &str,
+    ) -> Result<&'static ButtonConstructor, RegistryError> {
+        if let Some(ctor) = self.buttons.get(model) {
             return Ok(*ctor);
         }
         Err(RegistryError::ModelNotFound(model.into()))

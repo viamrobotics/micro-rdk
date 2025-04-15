@@ -1,7 +1,7 @@
 use super::{
     config::ConfigType,
     generic::DoCommand,
-    registry::ComponentRegistry,
+    registry::{ComponentRegistry, Dependency},
     status::{Status, StatusError},
 };
 use crate::google;
@@ -67,7 +67,10 @@ impl FakeButton {
     fn new() -> Self {
         Self { count: 0 }
     }
-    pub(crate) fn from_config(cfg: ConfigType) -> Result<ButtonType, ButtonError> {
+    pub(crate) fn from_config(
+        cfg: ConfigType,
+        _deps: Vec<Dependency>,
+    ) -> Result<ButtonType, ButtonError> {
         if cfg.get_attribute::<bool>("fail_new").unwrap_or(false) {
             return Err(ButtonError::TestError);
         }

@@ -451,6 +451,14 @@ impl LocalRobot {
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
                 )
             }
+            "button" => {
+                let ctor = registry
+                    .get_button_constructor(&model)
+                    .map_err(RobotError::RobotRegistryError)?;
+                ResourceType::Button(
+                    ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
+                )
+            }
             #[cfg(feature = "camera")]
             "camera" => {
                 let ctor = registry
