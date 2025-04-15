@@ -1,15 +1,19 @@
-use super::{
-    config::ConfigType,
-    generic::DoCommand,
-    registry::{ComponentRegistry, Dependency},
-    status::{Status, StatusError},
-};
-use crate::google;
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use super::{generic::DoCommand, status::Status};
+
+use std::sync::{Arc, Mutex};
 use thiserror::Error;
+#[cfg(feature = "builtin-components")]
+use {
+    crate::{
+        common::{
+            config::ConfigType,
+            registry::{ComponentRegistry, Dependency},
+            status::StatusError,
+        },
+        google,
+    },
+    std::collections::HashMap,
+};
 
 pub static COMPONENT_NAME: &str = "button";
 
@@ -24,6 +28,7 @@ pub enum ButtonError {
     #[error(transparent)]
     Other(#[from] Box<dyn std::error::Error + Send + Sync>),
 }
+
 #[cfg(feature = "builtin-components")]
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
