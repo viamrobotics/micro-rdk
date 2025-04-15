@@ -202,7 +202,7 @@ The [`wifi_rssi_sensor`](src/wifi_rssi_sensor.rs) is a wrapper around [`esp_wifi
 
 #### Configure
 
-The [`moisture_sensor`](moisture_sensor.rs) module is a wrapper around the `board`'s analogue reader.
+The [`moisture_sensor`](src/moisture_sensor.rs) module is a wrapper around the `board`'s analogue reader.
 It requires both a `board` configured with an `analog` attribute and the `moisture_sensor` itself.
 
 ```json
