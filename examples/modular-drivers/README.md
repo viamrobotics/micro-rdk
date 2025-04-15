@@ -14,7 +14,6 @@ and demonstrates how to produce modular resources for the Micro-RDK.
   - [Installation](#installation)
   - [Configuration](#configuration)
 - [Project Walkthrough](#project-walkthrough)
-- [Module Implementation](#module-implementation)
 - [Example Modules](#example-modules)
   - [`free_heap_sensor`](#free_heap_sensor)
   - [`wifi_rssi_sensor`](#wifi_rssi_sensor)
@@ -153,10 +152,6 @@ just by adding it as an ordinary dependency in the `dependencies`
 section of the project's `Cargo.toml` file, as noted in the
 `Installation` section above.
 
-## Module Implementation
-
-Please see the [moisture sensor](src/moisture_sensor.rs) and [water pump](src/water_pump.rs) for
-more examples of modular Micro-RDK drivers.
 
 ## Example Modules 
 
@@ -164,7 +159,7 @@ more examples of modular Micro-RDK drivers.
 
 #### Configure
 
-The `free_heap_sensor` is a wrapper around [`esp_get_free_heap_size`](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/misc_system_api.html#_CPPv422esp_get_free_heap_sizev) and does not require additional attributes.
+The [`free_heap_sensor`](src/free_heap_sensor.rs) is a wrapper around [`esp_get_free_heap_size`](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/misc_system_api.html#_CPPv422esp_get_free_heap_sizev) and does not require additional attributes.
 
 ``` json
     {
@@ -182,10 +177,9 @@ The `free_heap_sensor` is a wrapper around [`esp_get_free_heap_size`](https://do
 | bytes | int | Available heap size, in bytes. |
 
 
-
 ### `wifi_rssi_sensor`
 
-The `wifi_rssi_sensor` is a wrapper around [`esp_wifi_sta_get_ap_info`](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/network/esp_wifi.html#_CPPv424esp_wifi_sta_get_ap_infoP16wifi_ap_record_t) and does not require additional attributes.
+The [`wifi_rssi_sensor`](src/wifi_rssi_sensor.rs) is a wrapper around [`esp_wifi_sta_get_ap_info`](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/network/esp_wifi.html#_CPPv424esp_wifi_sta_get_ap_infoP16wifi_ap_record_t) and does not require additional attributes.
 
 #### Configure
 ```json
@@ -204,12 +198,11 @@ The `wifi_rssi_sensor` is a wrapper around [`esp_wifi_sta_get_ap_info`](https://
 | rssi | int | Signal strength of AP. Note that in some rare cases where signal strength is very strong, RSSI values can be slightly positive |
 
 
-
 ### `moisture_sensor`
 
 #### Configure
 
-The `moisture_sensor` module is a wrapper around the `board`'s analogue reader.
+The [`moisture_sensor`](moisture_sensor.rs) module is a wrapper around the `board`'s analogue reader.
 It requires both a `board` configured with an `analog` attribute and the `moisture_sensor` itself.
 
 ```json
@@ -227,15 +220,15 @@ It requires both a `board` configured with an `analog` attribute and the `moistu
         ]
       }
     },
-	{
-	  "name": "moisture",
-	  "api": "rdk:component:sensor",
+    {
+      "name": "moisture",
+      "api": "rdk:component:sensor",
       "model": "moisture_sensor",
       "attributes": {},
       "depends_on": [
 	    "board-1"
       ]
-	}
+    }
 ```
 
 #### Returned Values
@@ -243,11 +236,12 @@ It requires both a `board` configured with an `analog` attribute and the `moistu
 |------------|-------|--------------------------------------------|
 | millivolts | float | Dryness as a raw value between 0 and 3,300 |
 
+
 ### `water_pump`
 
 #### Configure
 
-The `water_pump` is a `motor` that is driven by a single `pin`. It optionally takes an `led` attribute which is another GPIO pin that controls an LED.
+The [`water_pump`](src/water_pump.rs) is a `motor` that is driven by a single `pin`. It optionally takes an `led` attribute which is another GPIO pin that controls an LED.
 
 ```json
     {
