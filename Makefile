@@ -109,6 +109,7 @@ build-esp32-ota:
 		--target=xtensa-esp32-espidf \
 		-Zbuild-std=std,panic_abort \
 		--release \
+		--flash-size=8mb \
 		target/xtensa-esp32-espidf/release/micro-rdk-server-esp32-ota.bin
 
 build-esp32c6-ota:
@@ -121,6 +122,7 @@ build-esp32c6-ota:
 		--target=riscv32imac-esp-espidf \
 		-Zbuild-std=std,panic_abort \
 		--release \
+		--flash-size=8mb \
 		target/riscv32imac-esp-espidf/release/micro-rdk-server-esp32-ota.bin
 
 build-qemu-bin:
