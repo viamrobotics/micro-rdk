@@ -1,6 +1,7 @@
 use super::{
     config::ConfigType,
     generic::DoCommand,
+    registry::ComponentRegistry,
     status::{Status, StatusError},
 };
 use crate::google;
@@ -10,6 +11,8 @@ use std::{
 };
 use thiserror::Error;
 
+pub static COMPONENT_NAME: &str = "button";
+
 pub type ButtonType = Arc<Mutex<dyn Button>>;
 
 #[derive(Debug, Error)]
@@ -18,9 +21,20 @@ pub enum ButtonError {
     FailedPress,
     #[error("test error")]
     TestError,
+    #[error(transparent)]
+    Other(#[from] Box<dyn std::error::Error + Send + Sync>),
+}
+#[cfg(feature = "builtin-components")]
+pub(crate) fn register_models(registry: &mut ComponentRegistry) {
+    if registry
+        .register_button("fake", &FakeButton::from_config)
+        .is_err()
+    {
+        log::error!("fake type is already registered");
+    }
 }
 
-pub trait Button: Status + DoCommand {
+pub trait Button: Status + DoCommand + Send {
     fn push(&mut self) -> Result<(), ButtonError>;
 }
 
@@ -42,11 +56,13 @@ where
     }
 }
 
+#[cfg(feature = "builtin-components")]
 #[derive(DoCommand)]
 pub struct FakeButton {
     count: u32,
 }
 
+#[cfg(feature = "builtin-components")]
 impl FakeButton {
     fn new() -> Self {
         Self { count: 0 }
@@ -59,6 +75,7 @@ impl FakeButton {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl Button for FakeButton {
     fn push(&mut self) -> Result<(), ButtonError> {
         self.count += 1;
@@ -66,6 +83,7 @@ impl Button for FakeButton {
     }
 }
 
+#[cfg(feature = "builtin-components")]
 impl Status for FakeButton {
     fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
         let mut hm = HashMap::new();
