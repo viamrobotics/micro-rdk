@@ -354,6 +354,17 @@ impl<'a> GrpcServerInner<'a> {
             "/viam.component.servo.v1.ServoService/IsMoving" => self.servo_is_moving(payload),
             "/viam.component.servo.v1.ServoService/Stop" => self.servo_stop(payload),
             "/viam.component.servo.v1.ServoService/DoCommand" => self.servo_do_command(payload),
+
+            "/viam.component.switch.v1.SwitchService/SetPosition" => {
+                self.switch_set_position(payload)
+            }
+            "/viam.component.switch.v1.SwitchService/GetPosition" => {
+                self.switch_get_position(payload)
+            }
+            "/viam.component.switch.v1.SwitchService/GetNumberOfPositions" => {
+                self.switch_get_num_positions(payload)
+            }
+            "/viam.component.switch.v1.SwitchService/DoCommand" => self.switch_do_command(payload),
             _ => Err(ServerError::from(GrpcError::RpcUnimplemented)),
         }
     }
@@ -1268,6 +1279,75 @@ impl<'a> GrpcServerInner<'a> {
             None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
         let res = power_sensor
+            .lock()
+            .unwrap()
+            .do_command(req.command)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let resp = proto::common::v1::DoCommandResponse { result: res };
+        GrpcServerInner::encode_message(resp)
+    }
+
+    fn switch_set_position(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
+        let req = component::switch::v1::SetPositionRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let switch = match self.robot.lock().unwrap().get_switch_by_name(req.name) {
+            Some(m) => m,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        let _res = switch
+            .lock()
+            .unwrap()
+            .set_position(req.position)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let resp = component::switch::v1::SetPositionResponse{};
+        GrpcServerInner::encode_message(resp)
+    }
+
+    fn switch_get_position(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
+        let req = component::switch::v1::GetPositionRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let switch = match self.robot.lock().unwrap().get_switch_by_name(req.name) {
+            Some(m) => m,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        let position = switch
+            .lock()
+            .unwrap()
+            .get_position()
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let resp = component::switch::v1::GetPositionResponse { position };
+        GrpcServerInner::encode_message(resp)
+    }
+
+    fn switch_get_num_positions(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
+        let req = component::switch::v1::GetNumberOfPositionsRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let switch = match self.robot.lock().unwrap().get_switch_by_name(req.name) {
+            Some(m) => m,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        let number_of_positions = switch
+            .lock()
+            .unwrap()
+            .get_num_positions()
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let resp = component::switch::v1::GetNumberOfPositionsResponse { number_of_positions };
+        GrpcServerInner::encode_message(resp)
+    }
+
+    fn switch_do_command(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
+        let req = proto::common::v1::DoCommandRequest::decode(message)
+            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+        let switch = match self
+            .robot
+            .lock()
+            .unwrap()
+            .get_switch_by_name(req.name)
+        {
+            Some(m) => m,
+            None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
+        };
+        let res = switch
             .lock()
             .unwrap()
             .do_command(req.command)

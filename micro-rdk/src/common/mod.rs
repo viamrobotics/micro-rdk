@@ -66,6 +66,7 @@ pub mod robot;
 pub mod sensor;
 pub mod servo;
 pub mod status;
+pub mod switch;
 #[cfg(feature = "builtin-components")]
 pub mod wheeled_base;
 pub mod webrtc {
