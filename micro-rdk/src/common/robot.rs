@@ -623,7 +623,7 @@ impl LocalRobot {
                             status,
                         });
                     }
-                    _ => continue
+                    _ => continue,
                 };
             }
             return Ok(vec);
@@ -715,7 +715,7 @@ impl LocalRobot {
                                 status,
                             });
                         }
-                        _ => continue
+                        _ => continue,
                     };
                 }
                 None => continue,
