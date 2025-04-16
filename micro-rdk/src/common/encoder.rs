@@ -32,7 +32,7 @@ pub enum EncoderError {
     #[error("encoder error code: {0}")]
     EncoderCodeError(i32),
     #[error("configuration error: {0}")]
-    EncoderConfigurationError(String)
+    EncoderConfigurationError(String),
 }
 
 pub static COMPONENT_NAME: &str = "encoder";
