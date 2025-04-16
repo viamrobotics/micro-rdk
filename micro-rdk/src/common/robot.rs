@@ -14,8 +14,8 @@ use crate::common::camera::{Camera, CameraType};
 
 use crate::{
     common::{
-        actuator::Actuator, base::Base, board::Board, button::Button, encoder::Encoder,
-        motor::Motor, movement_sensor::MovementSensor, sensor::Sensor, status::Status,
+        actuator::Actuator, base::Base, board::Board, encoder::Encoder, motor::Motor,
+        movement_sensor::MovementSensor, sensor::Sensor, status::Status,
     },
     google,
     proto::{
