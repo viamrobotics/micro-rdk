@@ -1294,7 +1294,7 @@ impl<'a> GrpcServerInner<'a> {
             Some(m) => m,
             None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
-        let _res = switch
+        switch
             .lock()
             .unwrap()
             .set_position(req.position)
