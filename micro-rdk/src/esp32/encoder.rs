@@ -57,6 +57,43 @@ pub struct Esp32Encoder<A, B> {
     b: B,
 }
 
+pub struct Esp32EncoderConfig {
+    pub(crate) a: Option<i32>,
+    pub(crate) b: Option<i32>,
+}
+
+use crate::common::config::{AttributeError, Kind};
+impl TryFrom<&Kind> for Esp32EncoderConfig {
+    type Error = AttributeError;
+    fn try_from(value: &Kind) -> Result<Self, Self::Error> {
+        let a = match value.get("a") {
+            Ok(opt) => match opt {
+                Some(val) => Some(val.try_into()?),
+                None => None,
+            },
+            Err(err) => match err {
+                AttributeError::KeyNotFound(_) => None,
+                _ => {
+                    return Err(err);
+                }
+            },
+        };
+        let b = match value.get("b") {
+            Ok(opt) => match opt {
+                Some(val) => Some(val.try_into()?),
+                None => None,
+            },
+            Err(err) => match err {
+                AttributeError::KeyNotFound(_) => None,
+                _ => {
+                    return Err(err);
+                }
+            },
+        };
+        Ok(Self { a, b })
+    }
+}
+
 impl<A, B> Esp32Encoder<A, B>
 where
     A: InputPin + PinExt,
@@ -94,9 +131,16 @@ where
         cfg: ConfigType,
         _: Vec<Dependency>,
     ) -> Result<EncoderType, EncoderError> {
-        let pin_a_num = cfg.get_attribute::<i32>("a")?;
+        let pins = cfg
+            .get_attribute::<Esp32EncoderConfig>("pins")
+            .map_err(|e| EncoderError::EncoderConfigAttributeError(e.into()))?;
 
-        let pin_b_num = cfg.get_attribute::<i32>("b")?;
+        let pin_a_num = pins.a.ok_or(EncoderError::EncoderConfigurationError(
+            "no 'a' pin specified".to_string(),
+        ))?;
+        let pin_b_num = pins.b.ok_or(EncoderError::EncoderConfigurationError(
+            "no 'b' pin specified".to_string(),
+        ))?;
         let a = match PinDriver::input(unsafe { AnyInputPin::new(pin_a_num) }) {
             Ok(a) => a,
             Err(err) => return Err(EncoderError::EncoderCodeError(err.code())),

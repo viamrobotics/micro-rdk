@@ -31,6 +31,8 @@ pub enum EncoderError {
     EncoderConfigAttributeError(#[from] AttributeError),
     #[error("encoder error code: {0}")]
     EncoderCodeError(i32),
+    #[error("configuration error: {0}")]
+    EncoderConfigurationError(String)
 }
 
 pub static COMPONENT_NAME: &str = "encoder";
