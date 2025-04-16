@@ -133,7 +133,7 @@ where
     ) -> Result<EncoderType, EncoderError> {
         let pins = cfg
             .get_attribute::<Esp32EncoderConfig>("pins")
-            .map_err(|e| EncoderError::EncoderConfigAttributeError(e.into()))?;
+            .map_err(|e| EncoderError::EncoderConfigAttributeError(e))?;
 
         let pin_a_num = pins.a.ok_or(EncoderError::EncoderConfigurationError(
             "no 'a' pin specified".to_string(),
