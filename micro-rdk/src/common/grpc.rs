@@ -806,8 +806,11 @@ impl<'a> GrpcServerInner<'a> {
             None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
 
-        // TODO map to grpc server error
-        button.lock().unwrap().push().unwrap();
+        button
+            .lock()
+            .unwrap()
+            .push()
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::button::v1::PushResponse {};
         GrpcServerInner::encode_message(resp)
     }
