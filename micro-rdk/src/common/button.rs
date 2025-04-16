@@ -1,19 +1,12 @@
-use super::{generic::DoCommand, status::Status};
+use super::generic::DoCommand;
 
+#[cfg(feature = "builtin-components")]
+use crate::common::{
+    config::ConfigType,
+    registry::{ComponentRegistry, Dependency},
+};
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
-#[cfg(feature = "builtin-components")]
-use {
-    crate::{
-        common::{
-            config::ConfigType,
-            registry::{ComponentRegistry, Dependency},
-            status::StatusError,
-        },
-        google,
-    },
-    std::collections::HashMap,
-};
 
 pub static COMPONENT_NAME: &str = "button";
 
@@ -39,7 +32,7 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     }
 }
 
-pub trait Button: Status + DoCommand + Send {
+pub trait Button: DoCommand + Send {
     fn push(&mut self) -> Result<(), ButtonError>;
 }
 
@@ -89,23 +82,5 @@ impl Button for FakeButton {
         self.count += 1;
         log::info!("count: {}", self.count);
         Ok(())
-    }
-}
-
-#[cfg(feature = "builtin-components")]
-impl Status for FakeButton {
-    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
-        let mut hm = HashMap::new();
-
-        hm.insert(
-            "count".to_string(),
-            google::protobuf::Value {
-                kind: Some(google::protobuf::value::Kind::NumberValue(
-                    self.count.into(),
-                )),
-            },
-        );
-
-        Ok(Some(google::protobuf::Struct { fields: hm }))
     }
 }

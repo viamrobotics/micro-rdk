@@ -558,14 +558,6 @@ impl LocalRobot {
                             status,
                         });
                     }
-                    ResourceType::Button(b) => {
-                        let status = b.get_status()?;
-                        vec.push(robot::v1::Status {
-                            name: Some(name.clone()),
-                            last_reconfigured: last_reconfigured_proto.clone(),
-                            status,
-                        });
-                    }
                     ResourceType::Base(b) => {
                         let status = b.get_status()?;
                         vec.push(robot::v1::Status {
@@ -631,6 +623,7 @@ impl LocalRobot {
                             status,
                         });
                     }
+                    _ => continue
                 };
             }
             return Ok(vec);
@@ -650,14 +643,6 @@ impl LocalRobot {
                             });
                         }
                         ResourceType::Board(b) => {
-                            let status = b.get_status()?;
-                            vec.push(robot::v1::Status {
-                                name: Some(name),
-                                last_reconfigured: last_reconfigured_proto.clone(),
-                                status,
-                            });
-                        }
-                        ResourceType::Button(b) => {
                             let status = b.get_status()?;
                             vec.push(robot::v1::Status {
                                 name: Some(name),
@@ -730,6 +715,7 @@ impl LocalRobot {
                                 status,
                             });
                         }
+                        _ => continue
                     };
                 }
                 None => continue,
