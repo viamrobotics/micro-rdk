@@ -38,7 +38,7 @@ use super::{
     app_client::PeriodicAppClientTask,
     base::BaseType,
     board::BoardType,
-    button::ButtonType,
+    button::{Button, ButtonType},
     config::{AttributeError, Component, ConfigType, DynamicComponentConfig},
     encoder::EncoderType,
     exec::Executor,
