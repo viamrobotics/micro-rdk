@@ -7,7 +7,7 @@ use micro_rdk::{
 };
 use micro_rdk_nmea_macros::{FieldsetDerive, PgnMessageDerive};
 
-use super::message::{Message, UnparsedNmeaMessageBody};
+use super::message::{Message, MessageVariant, PolymorphicPgnParent, UnparsedNmeaMessageBody};
 use crate::parse_helpers::{
     enums::{
         DirectionReference, Gns, GnsIntegrity, GnsMethod, IndustryCode, ManufacturerCode,
@@ -279,11 +279,8 @@ pub struct Attitude {
     roll: i16,
 }
 
-#[derive(PgnMessageDerive, Clone, Debug)]
+#[derive(FieldsetDerive, Clone, Debug)]
 pub struct SimnetParameterSet {
-    #[pgn = 130846]
-    _pgn: PhantomData<u32>,
-
     #[lookup]
     #[bits = 11]
     manufacturer_code: ManufacturerCode,
@@ -312,6 +309,148 @@ pub struct SimnetParameterSet {
     #[lookup_field = "key"]
     value: SimnetKeyValue,
 }
+
+#[derive(FieldsetDerive, Clone, Debug)]
+pub struct SimnetParameterSetCopy {
+    #[lookup]
+    #[bits = 11]
+    manufacturer_code: ManufacturerCode,
+
+    #[lookup]
+    #[bits = 3]
+    #[offset = 2]
+    industry_code: IndustryCode,
+
+    address: u8,
+
+    b: u8,
+
+    #[lookup]
+    #[bits = 8]
+    display_group: SimnetDisplayGroup,
+
+    d: u16,
+
+    #[lookup]
+    #[bits = 16]
+    key: SimnetKey,
+
+    #[polymorphic]
+    #[offset = 16]
+    #[lookup_field = "key"]
+    value: SimnetKeyValue,
+}
+
+#[derive(PartialEq)]
+pub struct Pgn130846MatchValue {
+    manufacturer_code: ManufacturerCode,
+    industry_code: IndustryCode,
+}
+
+#[derive(FieldsetDerive, Clone, Debug)]
+pub struct Pgn130846Parent {
+    #[lookup]
+    #[bits = 11]
+    manufacturer_code: ManufacturerCode,
+
+    #[lookup]
+    #[bits = 3]
+    #[offset = 2]
+    industry_code: IndustryCode,
+}
+
+macro_rules! impl_match {
+    ( $matchtype:ident, $parent:ty, ($($prop:ident),*), $(($variant:ty, $(($prop2:ident, $val:expr)),*)),* ) => {
+        impl PolymorphicPgnParent<$matchtype> for $parent {
+            fn read_match_value(&self) -> $matchtype {
+                $matchtype {
+                    $($prop: self.$prop(),)*
+                }
+            }
+        }
+
+        $(
+            impl MessageVariant<$matchtype> for $variant {
+                const MATCH_VALUE: $matchtype = $matchtype {
+                    $($prop2: $val,)*
+                };
+            }
+        )*
+    };
+}
+
+impl_match!(
+    Pgn130846MatchValue,
+    Pgn130846Parent,
+    (manufacturer_code, industry_code),
+    (
+        SimnetParameterSet,
+        (manufacturer_code, ManufacturerCode::Simrad),
+        (industry_code, IndustryCode::Marine)
+    ),
+    (
+        SimnetParameterSetCopy,
+        (manufacturer_code, ManufacturerCode::Simrad),
+        (industry_code, IndustryCode::Industrial)
+    )
+);
+
+macro_rules! define_proprietary_pgn {
+    ( $pgn:expr, $messagelabel:ident, $parent:ident, $variantlabel:ident, $matchval:ty, $($varianttylabel:ident, $variantty:ty),* ) => {
+
+        #[derive(Debug, Clone)]
+        pub enum $variantlabel {
+            $($varianttylabel($variantty)),*,
+        }
+
+        #[derive(Debug, Clone)]
+        pub struct $messagelabel {
+            base: $parent,
+            variant: $variantlabel
+        }
+
+        impl Message for $messagelabel {
+            const PGN: u32 = $pgn;
+            fn from_cursor(mut cursor: DataCursor) -> Result<Self, NmeaParseError> {
+                let base = $parent::from_data(&mut cursor)?;
+                let match_value = base.read_match_value();
+                let variant = match match_value {
+                    $(
+                        <$variantty>::MATCH_VALUE => {
+                            Ok($variantlabel::$varianttylabel(<$variantty>::from_data(&mut cursor)?))
+                        }
+                    ),*
+                    _ => Err(NmeaParseError::UnsupportedMatchValue)
+                }?;
+                Ok(Self { base, variant })
+            }
+            fn to_readings(self) -> Result<GenericReadingsResult, NmeaParseError> {
+                let mut base_readings = self.base.to_readings()?;
+                let variant_readings = match &self.variant {
+                    $(
+                        $variantlabel::$varianttylabel(var) => {
+                            var.to_readings()
+                        }
+                    ),*
+                }?;
+                base_readings.extend(variant_readings);
+                Ok(base_readings)
+            }
+        }
+    };
+}
+
+define_proprietary_pgn!(
+    130846,
+    Pgn130846Message,
+    Pgn130846Parent,
+    Pgn130846Variant,
+    Pgn130846MatchValue,
+    A,
+    SimnetParameterSet,
+    B,
+    SimnetParameterSetCopy
+);
 
 macro_rules! define_pgns {
     ( $($pgndef:ident),* ) => {
@@ -360,7 +499,8 @@ define_pgns!(
     VesselHeading,
     Attitude,
     Speed,
-    DistanceLog
+    DistanceLog,
+    Pgn130846Message
 );
 
 pub struct NmeaMessage {

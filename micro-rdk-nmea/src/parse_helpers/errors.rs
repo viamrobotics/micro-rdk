@@ -24,4 +24,6 @@ pub enum NmeaParseError {
     UnsupportedPgn(u32),
     #[error("unknown lookup value for polymorphic field")]
     UnknownPolymorphicLookupValue,
+    #[error("unsupported match value encountered")]
+    UnsupportedMatchValue,
 }
