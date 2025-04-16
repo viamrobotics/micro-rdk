@@ -480,7 +480,7 @@ fn handle_polymorphic_field(
         });
 
         new_statements.attribute_getters.push(quote! {
-            pub fn #name(&self) -> #f_type { self.f_type.clone() }
+            pub fn #name(&self) -> #f_type { self.#name.clone() }
         });
 
         new_statements.struct_initialization.push(quote! {#name,});

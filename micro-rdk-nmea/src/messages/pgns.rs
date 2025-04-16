@@ -14,7 +14,9 @@ use crate::parse_helpers::{
         RangeResidualMode, SatelliteStatus, SimnetDisplayGroup, TemperatureSource, WaterReference,
     },
     errors::NmeaParseError,
-    parsers::{DataCursor, FieldSet, NmeaMessageMetadata, SimnetKey, SimnetKeyValue},
+    parsers::{
+        DataCursor, FieldSet, NmeaMessageMetadata, PolymorphicDataType, SimnetKey, SimnetKeyValue,
+    },
 };
 
 #[derive(PgnMessageDerive, Clone, Debug)]
