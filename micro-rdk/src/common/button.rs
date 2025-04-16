@@ -78,7 +78,7 @@ impl FakeButton {
 impl Button for FakeButton {
     fn push(&mut self) -> Result<(), ButtonError> {
         self.count += 1;
-        log::info!("count: {}", self.count);
+        log::info!("push count: {}", self.count);
         Ok(())
     }
 }
