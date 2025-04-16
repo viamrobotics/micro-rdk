@@ -1298,7 +1298,7 @@ impl<'a> GrpcServerInner<'a> {
             .lock()
             .unwrap()
             .set_position(req.position)
-            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::switch::v1::SetPositionResponse {};
         GrpcServerInner::encode_message(resp)
     }
