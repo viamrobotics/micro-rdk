@@ -14,8 +14,6 @@ pub type ButtonType = Arc<Mutex<dyn Button>>;
 
 #[derive(Debug, Error)]
 pub enum ButtonError {
-    #[error("failed to press button")]
-    FailedPress,
     #[error("test error")]
     TestError,
     #[error(transparent)]
