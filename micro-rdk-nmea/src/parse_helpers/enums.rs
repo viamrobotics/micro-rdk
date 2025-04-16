@@ -8,7 +8,7 @@ pub trait NmeaEnumeratedField: Sized + From<u32> + ToString {}
 /// written in Go does not fail on unrecognized lookups.
 macro_rules! define_nmea_enum {
     ( $name:ident, $(($value:expr, $var:ident, $label:expr)),*, $default:ident) => {
-        #[derive(Copy, Clone, Debug)]
+        #[derive(Copy, Clone, Debug, PartialEq)]
         pub enum $name {
             $($var),*,
             $default
