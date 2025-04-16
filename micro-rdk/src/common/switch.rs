@@ -1,19 +1,12 @@
-use super::{generic::DoCommand, status::Status};
+use super::generic::DoCommand;
 
+#[cfg(feature = "builtin-components")]
+use crate::common::{
+    config::ConfigType,
+    registry::{ComponentRegistry, Dependency},
+};
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
-#[cfg(feature = "builtin-components")]
-use {
-    crate::{
-        common::{
-            config::ConfigType,
-            registry::{ComponentRegistry, Dependency},
-            status::StatusError,
-        },
-        google,
-    },
-    std::collections::HashMap,
-};
 
 pub static COMPONENT_NAME: &str = "switch";
 
@@ -21,10 +14,8 @@ pub type SwitchType = Arc<Mutex<dyn Switch>>;
 
 #[derive(Debug, Error)]
 pub enum SwitchError {
-    #[error("failed to flip switch")]
-    FailedFlip,
-    #[error("`{0}` is not a valid position")]
-    InvalidPosition(u32),
+    #[error("index `{0}` is out of bounds; range is 0-{1}")]
+    InvalidPosition(u32, u32),
     #[error("test error")]
     TestError,
     #[error(transparent)]
@@ -41,7 +32,7 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     }
 }
 
-pub trait Switch: Status + DoCommand + Send {
+pub trait Switch: DoCommand + Send {
     fn set_position(&mut self, pos: u32) -> Result<(), SwitchError>;
     fn get_position(&self) -> Result<u32, SwitchError>;
     fn get_num_positions(&self) -> Result<u32, SwitchError>;
@@ -105,7 +96,7 @@ impl FakeSwitch {
 impl Switch for FakeSwitch {
     fn set_position(&mut self, pos: u32) -> Result<(), SwitchError> {
         if pos >= self.num_pos {
-            return Err(SwitchError::InvalidPosition(pos));
+            return Err(SwitchError::InvalidPosition(pos, self.num_pos));
         }
         self.curr_pos = pos;
         Ok(())
@@ -115,30 +106,5 @@ impl Switch for FakeSwitch {
     }
     fn get_num_positions(&self) -> Result<u32, SwitchError> {
         Ok(self.num_pos)
-    }
-}
-
-#[cfg(feature = "builtin-components")]
-impl Status for FakeSwitch {
-    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
-        let mut hm = HashMap::new();
-        hm.insert(
-            "curr_pos".to_string(),
-            google::protobuf::Value {
-                kind: Some(google::protobuf::value::Kind::NumberValue(
-                    self.curr_pos.into(),
-                )),
-            },
-        );
-        hm.insert(
-            "num_pos".to_string(),
-            google::protobuf::Value {
-                kind: Some(google::protobuf::value::Kind::NumberValue(
-                    self.num_pos.into(),
-                )),
-            },
-        );
-
-        Ok(Some(google::protobuf::Struct { fields: hm }))
     }
 }

@@ -606,14 +606,6 @@ impl LocalRobot {
                             status,
                         });
                     }
-                    ResourceType::Switch(b) => {
-                        let status = b.get_status()?;
-                        vec.push(robot::v1::Status {
-                            name: Some(name.clone()),
-                            last_reconfigured: last_reconfigured_proto.clone(),
-                            status,
-                        })
-                    }
                     ResourceType::Generic(b) => {
                         let status = b.get_status()?;
                         vec.push(robot::v1::Status {
@@ -631,6 +623,7 @@ impl LocalRobot {
                             status,
                         });
                     }
+                    _ => continue,
                 };
             }
             return Ok(vec);
@@ -705,14 +698,6 @@ impl LocalRobot {
                                 status,
                             });
                         }
-                        ResourceType::Switch(b) => {
-                            let status = b.get_status()?;
-                            vec.push(robot::v1::Status {
-                                name: Some(name),
-                                last_reconfigured: last_reconfigured_proto.clone(),
-                                status,
-                            });
-                        }
                         ResourceType::Generic(b) => {
                             let status = b.get_status()?;
                             vec.push(robot::v1::Status {
@@ -730,6 +715,7 @@ impl LocalRobot {
                                 status,
                             });
                         }
+                        _ => continue,
                     };
                 }
                 None => continue,
