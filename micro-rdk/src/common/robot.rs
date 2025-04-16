@@ -970,7 +970,6 @@ mod tests {
         common::{
             analog::AnalogReader,
             board::Board,
-            button::Button,
             config::{DynamicComponentConfig, Kind},
             encoder::{Encoder, EncoderPositionType},
             exec::Executor,
