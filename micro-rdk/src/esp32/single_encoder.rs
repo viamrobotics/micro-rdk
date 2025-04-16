@@ -9,7 +9,6 @@ use crate::common::encoder::{
     EncoderSupportedRepresentations, EncoderType, SingleEncoder,
 };
 use crate::common::registry::{ComponentRegistry, Dependency};
-use crate::google;
 
 use crate::esp32::esp_idf_svc::hal::gpio::{AnyInputPin, PinDriver};
 use crate::esp32::esp_idf_svc::sys::pcnt_channel_edge_action_t_PCNT_CHANNEL_EDGE_ACTION_DECREASE as pcnt_count_dec;
@@ -22,11 +21,8 @@ use crate::esp32::esp_idf_svc::sys::pcnt_evt_type_t_PCNT_EVT_L_LIM as pcnt_evt_l
 use crate::esp32::esp_idf_svc::sys::{esp, ESP_OK};
 use core::ffi::{c_short, c_ulong};
 
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Arc, Mutex};
-
-use crate::common::status::{Status, StatusError};
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
@@ -348,14 +344,6 @@ impl SingleEncoder for Esp32SingleEncoder {
             }
         }
         Ok(())
-    }
-}
-
-impl Status for Esp32SingleEncoder {
-    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
-        Ok(Some(google::protobuf::Struct {
-            fields: HashMap::new(),
-        }))
     }
 }
 

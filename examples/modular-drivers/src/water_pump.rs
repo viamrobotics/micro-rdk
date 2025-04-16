@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use micro_rdk::DoCommand;
 
@@ -11,7 +8,6 @@ use micro_rdk::common::{
     config::ConfigType,
     motor::{Motor, MotorError, MotorSupportedProperties, MotorType},
     registry::{self, ComponentRegistry, Dependency, RegistryError},
-    status::{Status, StatusError},
 };
 
 unsafe impl Send for WaterPump {}
@@ -104,13 +100,5 @@ impl Actuator for WaterPump {
     }
     fn stop(&mut self) -> Result<(), ActuatorError> {
         self.set_power(0.0).map_err(|_| ActuatorError::CouldntStop)
-    }
-}
-
-impl Status for WaterPump {
-    fn get_status(&self) -> Result<Option<micro_rdk::google::protobuf::Struct>, StatusError> {
-        Ok(Some(micro_rdk::google::protobuf::Struct {
-            fields: HashMap::new(),
-        }))
     }
 }

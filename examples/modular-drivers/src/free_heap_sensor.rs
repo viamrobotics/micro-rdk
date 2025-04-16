@@ -11,7 +11,6 @@ use micro_rdk::{
             GenericReadingsResult, Readings, Sensor, SensorError, SensorResult, SensorT,
             SensorType, TypedReadingsResult,
         },
-        status::{Status, StatusError},
     },
     esp32::esp_idf_svc::sys::esp_get_free_heap_size,
     DoCommand,
@@ -55,14 +54,5 @@ impl SensorT<f64> for FreeHeapSensor {
         x.insert("bytes".to_string(), reading as f64);
         log::debug!("free-heap sensor - get readings OK");
         Ok(x)
-    }
-}
-
-impl Status for FreeHeapSensor {
-    fn get_status(&self) -> Result<Option<micro_rdk::google::protobuf::Struct>, StatusError> {
-        log::debug!("free-heap sensor - get status called");
-        Ok(Some(micro_rdk::google::protobuf::Struct {
-            fields: HashMap::new(),
-        }))
     }
 }

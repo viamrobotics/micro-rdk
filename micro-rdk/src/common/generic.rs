@@ -2,8 +2,6 @@ use std::sync::{Arc, Mutex};
 
 use crate::google::protobuf::Struct;
 
-use super::status::Status;
-
 #[cfg(feature = "builtin-components")]
 use {
     super::{
@@ -70,7 +68,7 @@ where
     }
 }
 
-pub trait GenericComponent: DoCommand + Status {}
+pub trait GenericComponent: DoCommand {}
 
 pub type GenericComponentType = Arc<Mutex<dyn GenericComponent>>;
 
@@ -120,16 +118,5 @@ impl DoCommand for FakeGenericComponent {
             }
         }
         Ok(Some(Struct { fields: res }))
-    }
-}
-
-#[cfg(feature = "builtin-components")]
-impl Status for FakeGenericComponent {
-    fn get_status(
-        &self,
-    ) -> Result<Option<crate::google::protobuf::Struct>, crate::common::status::StatusError> {
-        Ok(Some(Struct {
-            fields: HashMap::new(),
-        }))
     }
 }

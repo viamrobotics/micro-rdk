@@ -18,7 +18,6 @@
 use crate::common::i2c::I2cHandleType;
 use crate::common::math_utils::Vector3;
 use crate::common::movement_sensor::{MovementSensor, MovementSensorSupportedMethods};
-use crate::google;
 
 use super::board::Board;
 use super::config::ConfigType;
@@ -26,9 +25,7 @@ use super::i2c::I2CHandle;
 use super::movement_sensor::MovementSensorType;
 use super::registry::{get_board_from_dependencies, ComponentRegistry, Dependency};
 use super::sensor::SensorError;
-use super::status::{Status, StatusError};
 
-use std::collections::HashMap;
 use std::mem::size_of;
 use std::sync::{Arc, Mutex};
 
@@ -181,14 +178,6 @@ impl MovementSensor for MPU6050 {
         Err(SensorError::SensorMethodUnimplemented(
             "get_compass_heading",
         ))
-    }
-}
-
-impl Status for MPU6050 {
-    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
-        Ok(Some(google::protobuf::Struct {
-            fields: HashMap::new(),
-        }))
     }
 }
 

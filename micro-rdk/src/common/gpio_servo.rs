@@ -22,7 +22,6 @@
 //!
 //! ```
 
-use crate::common::status::StatusError;
 use std::sync::{Arc, Mutex};
 
 use super::{
@@ -31,7 +30,6 @@ use super::{
     config::ConfigType,
     registry::{get_board_from_dependencies, ComponentRegistry, Dependency},
     servo::{Servo, ServoError, ServoType},
-    status::Status,
 };
 
 /// Minimum and maximum period widths that should be safe limits for
@@ -203,15 +201,6 @@ where
     }
     fn stop(&mut self) -> Result<(), ActuatorError> {
         Ok(self.board.set_pwm_duty(self.pin, 0.0)?)
-    }
-}
-
-impl<B> Status for GpioServo<B>
-where
-    B: Board,
-{
-    fn get_status(&self) -> Result<Option<crate::google::protobuf::Struct>, StatusError> {
-        Ok(None)
     }
 }
 

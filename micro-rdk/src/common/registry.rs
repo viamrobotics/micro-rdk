@@ -490,10 +490,7 @@ mod tests {
             GenericReadingsResult, Readings, Sensor, SensorResult, SensorT, SensorType,
             TypedReadingsResult,
         },
-        status::Status,
     };
-
-    use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
 
     pub struct TestSensor {}
@@ -532,16 +529,6 @@ mod tests {
             let mut x = std::collections::HashMap::new();
             x.insert("test_sensor".to_string(), 42.0);
             Ok(x)
-        }
-    }
-
-    impl Status for TestSensor {
-        fn get_status(
-            &self,
-        ) -> Result<Option<google::protobuf::Struct>, crate::common::status::StatusError> {
-            Ok(Some(google::protobuf::Struct {
-                fields: HashMap::new(),
-            }))
         }
     }
 

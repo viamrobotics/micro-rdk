@@ -10,9 +10,7 @@ use micro_rdk::{
         config::ConfigType,
         registry::{get_board_from_dependencies, ComponentRegistry, Dependency, RegistryError},
         sensor::{GenericReadingsResult, Readings, Sensor, SensorError, SensorResult, SensorType},
-        status::{Status, StatusError},
     },
-    google::protobuf,
     DoCommand,
 };
 
@@ -55,13 +53,5 @@ impl<T: AnalogReader<u16, Error = AnalogError>> Readings for MoistureSensor<T> {
         Ok(x.into_iter()
             .map(|v| (v.0, SensorResult::<f64> { value: v.1 }.into()))
             .collect())
-    }
-}
-
-impl<T: AnalogReader<u16, Error = AnalogError>> Status for MoistureSensor<T> {
-    fn get_status(&self) -> Result<Option<micro_rdk::google::protobuf::Struct>, StatusError> {
-        Ok(Some(protobuf::Struct {
-            fields: HashMap::new(),
-        }))
     }
 }

@@ -11,7 +11,6 @@ use micro_rdk::{
             GenericReadingsResult, Readings, Sensor, SensorError, SensorResult, SensorT,
             SensorType, TypedReadingsResult,
         },
-        status::{Status, StatusError},
     },
     esp32::esp_idf_svc::sys::{esp, esp_wifi_sta_get_ap_info, wifi_ap_record_t},
     DoCommand,
@@ -58,14 +57,5 @@ impl SensorT<f64> for WifiRSSISensor {
         x.insert("rssi".to_string(), ap_info.rssi as f64);
         log::debug!("wifi-rssi sensor - get readings OK");
         Ok(x)
-    }
-}
-
-impl Status for WifiRSSISensor {
-    fn get_status(&self) -> Result<Option<micro_rdk::google::protobuf::Struct>, StatusError> {
-        log::debug!("wifi-rssi sensor - get status called");
-        Ok(Some(micro_rdk::google::protobuf::Struct {
-            fields: HashMap::new(),
-        }))
     }
 }

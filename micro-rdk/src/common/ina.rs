@@ -13,7 +13,6 @@
 /// The calibration register is programmed to measure current and power properly.
 /// The calibration register is set to: calibratescale / (current_lsb * sense_resistor)
 use crate::common::i2c::I2CHandle;
-use crate::common::status::StatusError;
 
 use core::fmt;
 use std::sync::{Arc, Mutex};
@@ -25,7 +24,6 @@ use super::{
     power_sensor::{Current, PowerSensor, PowerSensorType, PowerSupplyType, Voltage},
     registry::{get_board_from_dependencies, ComponentRegistry, Dependency},
     sensor::SensorError,
-    status::Status,
 };
 
 const DEFAULT_I2C_ADDRESS: u8 = 0x40;
@@ -226,11 +224,5 @@ impl<H: I2CHandle> PowerSensor for Ina<H> {
             .write_read_i2c(self.i2c_address, &POWER_REGISTER, &mut power_bytes)?;
         let power_nano_watts = (i16::from_be_bytes(power_bytes) as i64) * self.power_reading_lsb;
         Ok((power_nano_watts as f64) * 1e-9)
-    }
-}
-
-impl<H: I2CHandle> Status for Ina<H> {
-    fn get_status(&self) -> Result<Option<crate::google::protobuf::Struct>, StatusError> {
-        Ok(None)
     }
 }

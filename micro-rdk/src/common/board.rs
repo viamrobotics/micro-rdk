@@ -1,12 +1,7 @@
 //! Abstraction of a general-purpose compute board
 
 #![allow(dead_code)]
-use crate::{
-    common::status::StatusError,
-    common::{analog::AnalogReader, status::Status},
-    google,
-    proto::component,
-};
+use crate::{common::analog::AnalogReader, proto::component};
 
 use log::*;
 use std::{collections::HashMap, sync::Arc, sync::Mutex, time::Duration};
@@ -62,7 +57,7 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 }
 
 /// Represents the functionality of a general purpose compute board that contains various components such as analog readers and digital interrupts.
-pub trait Board: Status + DoCommand {
+pub trait Board: DoCommand {
     /// Set a pin to high or low
     fn set_gpio_pin_level(&mut self, pin: i32, is_high: bool) -> Result<(), BoardError>;
 
@@ -231,35 +226,6 @@ impl Board for FakeBoard {
     fn set_pwm_frequency(&mut self, pin: i32, frequency_hz: u64) -> Result<(), BoardError> {
         self.pin_pwm_freq.insert(pin, frequency_hz);
         Ok(())
-    }
-}
-
-impl Status for FakeBoard {
-    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
-        let mut hm = HashMap::new();
-        let mut analogs = HashMap::new();
-        self.analogs.iter().for_each(|a| {
-            let mut analog = a.clone();
-            analogs.insert(
-                analog.name(),
-                google::protobuf::Value {
-                    kind: Some(google::protobuf::value::Kind::NumberValue(
-                        analog.read().unwrap_or(0).into(),
-                    )),
-                },
-            );
-        });
-        if !analogs.is_empty() {
-            hm.insert(
-                "analogs".to_string(),
-                google::protobuf::Value {
-                    kind: Some(google::protobuf::value::Kind::StructValue(
-                        google::protobuf::Struct { fields: analogs },
-                    )),
-                },
-            );
-        }
-        Ok(Some(google::protobuf::Struct { fields: hm }))
     }
 }
 

@@ -1,8 +1,6 @@
 use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
 use micro_rdk::DoCommand;
 use micro_rdk::common::config::ConfigType;
-use micro_rdk::common::status::{Status, StatusError};
 use micro_rdk::common::registry::{ComponentRegistry, RegistryError, Dependency};
 {% if starting_component == "Motor" %}
 use micro_rdk::common::{actuator::Actuator, motor::{Motor, MotorType}};
@@ -41,11 +39,4 @@ impl My{{starting_component}} {
     }
 }
 
-impl Status for My{{starting_component}} {
-    fn get_status(&self) -> Result<Option<micro_rdk::google::protobuf::Struct>, StatusError> {
-        Ok(Some(micro_rdk::google::protobuf::Struct {
-            fields: HashMap::new(),
-        }))
-    }
-}
 {% endif %}

@@ -1,4 +1,4 @@
-use super::{actuator::Actuator, config::AttributeError, generic::DoCommand, status::Status};
+use super::{actuator::Actuator, config::AttributeError, generic::DoCommand};
 use crate::common::board::BoardError;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
@@ -13,7 +13,7 @@ pub enum ServoError {
     ServoConfigAttributeError(#[from] AttributeError),
 }
 
-pub trait Servo: Status + Actuator + DoCommand {
+pub trait Servo: Actuator + DoCommand {
     /// Moves the servo to an angular position of `angle_deg` away
     /// from the home position
     fn move_to(&mut self, angle_deg: u32) -> Result<(), ServoError>;
