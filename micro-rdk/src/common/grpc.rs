@@ -826,7 +826,7 @@ impl<'a> GrpcServerInner<'a> {
             .lock()
             .unwrap()
             .do_command(req.command)
-            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = proto::common::v1::DoCommandResponse { result: res };
         GrpcServerInner::encode_message(resp)
     }
