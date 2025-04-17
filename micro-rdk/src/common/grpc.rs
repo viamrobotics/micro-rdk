@@ -1314,7 +1314,7 @@ impl<'a> GrpcServerInner<'a> {
             .lock()
             .unwrap()
             .get_position()
-            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = component::switch::v1::GetPositionResponse { position };
         GrpcServerInner::encode_message(resp)
     }
@@ -1330,7 +1330,8 @@ impl<'a> GrpcServerInner<'a> {
             .lock()
             .unwrap()
             .get_num_positions()
-            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
+
         let resp = component::switch::v1::GetNumberOfPositionsResponse {
             number_of_positions,
         };
@@ -1348,7 +1349,7 @@ impl<'a> GrpcServerInner<'a> {
             .lock()
             .unwrap()
             .do_command(req.command)
-            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
+            .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
         let resp = proto::common::v1::DoCommandResponse { result: res };
         GrpcServerInner::encode_message(resp)
     }
