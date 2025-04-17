@@ -80,7 +80,9 @@ impl FakeSwitch {
         _deps: Vec<Dependency>,
     ) -> Result<SwitchType, SwitchError> {
         if cfg.get_attribute::<bool>("fail_new").unwrap_or(false) {
-            return Err(SwitchError::Other("`fail_new` attribute is set".to_string()));
+            return Err(SwitchError::Other(
+                "`fail_new` attribute is set".to_string(),
+            ));
         }
         let num_pos = cfg.get_attribute::<u32>("position_count").unwrap_or(2);
         Ok(Arc::new(Mutex::new(Self {
