@@ -14,10 +14,8 @@ pub type ButtonType = Arc<Mutex<dyn Button>>;
 
 #[derive(Debug, Error)]
 pub enum ButtonError {
-    #[error("test error")]
-    TestError,
-    #[error(transparent)]
-    Other(#[from] Box<dyn std::error::Error + Send + Sync>),
+    #[error("{0}")]
+    Other(String),
 }
 
 #[cfg(feature = "builtin-components")]
@@ -68,7 +66,9 @@ impl FakeButton {
         _deps: Vec<Dependency>,
     ) -> Result<ButtonType, ButtonError> {
         if cfg.get_attribute::<bool>("fail_new").unwrap_or(false) {
-            return Err(ButtonError::TestError);
+            return Err(ButtonError::Other(
+                "`fail_new` attribute is set".to_string(),
+            ));
         }
         Ok(Arc::new(Mutex::new(Self::new())))
     }
