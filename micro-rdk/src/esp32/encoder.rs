@@ -58,38 +58,26 @@ pub struct Esp32Encoder<A, B> {
 }
 
 pub struct Esp32EncoderConfig {
-    pub(crate) a: Option<i32>,
-    pub(crate) b: Option<i32>,
+    pub(crate) a: i32,
+    pub(crate) b: i32,
 }
 
 use crate::common::config::{AttributeError, Kind};
 impl TryFrom<&Kind> for Esp32EncoderConfig {
     type Error = AttributeError;
     fn try_from(value: &Kind) -> Result<Self, Self::Error> {
-        let a = match value.get("a") {
-            Ok(opt) => match opt {
-                Some(val) => Some(val.try_into()?),
-                None => None,
-            },
-            Err(err) => match err {
-                AttributeError::KeyNotFound(_) => None,
-                _ => {
-                    return Err(err);
-                }
-            },
-        };
-        let b = match value.get("b") {
-            Ok(opt) => match opt {
-                Some(val) => Some(val.try_into()?),
-                None => None,
-            },
-            Err(err) => match err {
-                AttributeError::KeyNotFound(_) => None,
-                _ => {
-                    return Err(err);
-                }
-            },
-        };
+        let a = value
+            .get("a")?
+            .map(|v| v.try_into())
+            .ok_or(AttributeError::ValidationError(
+                "failed to get attribute `a` from `pins`".to_string(),
+            ))??;
+        let b = value
+            .get("b")?
+            .map(|v| v.try_into())
+            .ok_or(AttributeError::ValidationError(
+                "failed to get attribute `b` from pins".to_string(),
+            ))??;
         Ok(Self { a, b })
     }
 }
@@ -135,17 +123,11 @@ where
             .get_attribute::<Esp32EncoderConfig>("pins")
             .map_err(EncoderError::EncoderConfigAttributeError)?;
 
-        let pin_a_num = pins.a.ok_or(EncoderError::EncoderConfigurationError(
-            "no 'a' pin specified".to_string(),
-        ))?;
-        let pin_b_num = pins.b.ok_or(EncoderError::EncoderConfigurationError(
-            "no 'b' pin specified".to_string(),
-        ))?;
-        let a = match PinDriver::input(unsafe { AnyInputPin::new(pin_a_num) }) {
+        let a = match PinDriver::input(unsafe { AnyInputPin::new(pins.a) }) {
             Ok(a) => a,
             Err(err) => return Err(EncoderError::EncoderCodeError(err.code())),
         };
-        let b = match PinDriver::input(unsafe { AnyInputPin::new(pin_b_num) }) {
+        let b = match PinDriver::input(unsafe { AnyInputPin::new(pins.b) }) {
             Ok(b) => b,
             Err(err) => return Err(EncoderError::EncoderCodeError(err.code())),
         };
