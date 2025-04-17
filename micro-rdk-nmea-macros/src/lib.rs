@@ -12,7 +12,19 @@ use proc_macro::TokenStream;
 /// annotating the struct fields to customize the parsing/deserializing logic
 #[proc_macro_derive(
     PgnMessageDerive,
-    attributes(label, scale, lookup, bits, offset, fieldset, length_field, unit, pgn)
+    attributes(
+        label,
+        scale,
+        lookup,
+        bits,
+        offset,
+        fieldset,
+        length_field,
+        unit,
+        pgn,
+        polymorphic,
+        lookup_field
+    )
 )]
 pub fn pgn_message_derive(item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as syn::DeriveInput);
@@ -30,7 +42,18 @@ pub fn pgn_message_derive(item: TokenStream) -> TokenStream {
 /// data found in a repeated field in a NMEA message via the `FieldSet` trait
 #[proc_macro_derive(
     FieldsetDerive,
-    attributes(label, scale, lookup, bits, offset, fieldset, length_field, unit)
+    attributes(
+        label,
+        scale,
+        lookup,
+        bits,
+        offset,
+        fieldset,
+        length_field,
+        unit,
+        polymorphic,
+        lookup_field
+    )
 )]
 pub fn fieldset_derive(item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as syn::DeriveInput);

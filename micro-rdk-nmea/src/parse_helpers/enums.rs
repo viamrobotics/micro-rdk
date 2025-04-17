@@ -356,3 +356,42 @@ define_nmea_enum!(
     (5, UsedDiff, "Used+Diff"),
     UnknownLookupField
 );
+
+define_nmea_enum!(
+    SimnetBacklightLevel,
+    (0, Min, "Min"),
+    (1, DayMode, "Day mode"),
+    (4, NightMode, "Night mode"),
+    (99, Max, "Max"),
+    UnknownLookupField
+);
+
+define_nmea_enum!(
+    ManufacturerCode,
+    (1857, Simrad, "Simrad"),
+    (1855, Furuno, "Furuno"),
+    UnknownLookupField
+);
+
+define_nmea_enum!(
+    IndustryCode,
+    (0, Global, "Global"),
+    (1, Highway, "Highway"),
+    (2, Agriculture, "Agriculture"),
+    (3, Construction, "Construction"),
+    (4, Marine, "Marine"),
+    (5, Industrial, "Industrial"),
+    UnknownLookupField
+);
+
+define_nmea_enum!(
+    SimnetDisplayGroup,
+    (1, Default, "Default"),
+    (2, Group1, "Group 1"),
+    (3, Group2, "Group 2"),
+    (4, Group3, "Group 3"),
+    (5, Group4, "Group 4"),
+    (6, Group5, "Group 5"),
+    (7, Group6, "Group 6"),
+    UnknownLookupField
+);
