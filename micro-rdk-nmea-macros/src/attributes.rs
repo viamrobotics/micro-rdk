@@ -229,7 +229,9 @@ impl MacroAttributes {
                             Meta::NameValue(named) => {
                                 if let Expr::Lit(ref expr_lit) = named.value {
                                     if let Lit::Str(lit_str) = &expr_lit.lit {
-                                        lit_str.parse().map_err(|_| error_tokens("uh oh"))?
+                                        lit_str
+                                            .parse()
+                                            .map_err(|_| error_tokens("length_field unparseable"))?
                                     } else {
                                         return Err(error_tokens(
                                             "length_field parameter must be string",
@@ -261,7 +263,9 @@ impl MacroAttributes {
                             Meta::NameValue(named) => {
                                 if let Expr::Lit(ref expr_lit) = named.value {
                                     if let Lit::Str(lit_str) = &expr_lit.lit {
-                                        lit_str.parse().map_err(|_| error_tokens("uh oh"))?
+                                        lit_str
+                                            .parse()
+                                            .map_err(|_| error_tokens("lookup_field unparseable"))?
                                     } else {
                                         return Err(error_tokens(
                                             "lookup_field parameter must be string",
