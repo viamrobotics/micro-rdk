@@ -6,6 +6,7 @@ pub trait NmeaEnumeratedField: Sized + From<u32> + ToString {}
 ///
 /// Note: we implement From<u32> rather than TryFrom<u32> because our equivalent library
 /// written in Go does not fail on unrecognized lookups.
+#[macro_export]
 macro_rules! define_nmea_enum {
     ( $name:ident, $(($value:expr, $var:ident, $label:expr)),*, $default:ident) => {
         #[derive(Copy, Clone, Debug)]

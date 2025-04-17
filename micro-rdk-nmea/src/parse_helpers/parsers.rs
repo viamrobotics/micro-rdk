@@ -4,9 +4,10 @@ use chrono::{DateTime, Utc};
 use micro_rdk::{common::sensor::GenericReadingsResult, google::protobuf::Value};
 
 use super::{
-    enums::{NmeaEnumeratedField, SimnetBacklightLevel},
+    enums::NmeaEnumeratedField,
     errors::{NmeaParseError, NumberFieldError},
 };
+use crate::gen::enums::SimnetBacklightLevelLookup;
 
 /// Cursor that consumes can consume bytes from a data vector by bit size.
 pub struct DataCursor {
@@ -362,8 +363,8 @@ polymorphic_type!(
     (
         4863,
         BacklightLevel,
-        LookupField::<SimnetBacklightLevel>::new(8)?,
-        SimnetBacklightLevel
+        LookupField::<SimnetBacklightLevelLookup>::new(8)?,
+        SimnetBacklightLevelLookup
     ),
     UnknownLookupField
 );
@@ -432,9 +433,9 @@ mod tests {
     use base64::{engine::general_purpose, Engine};
 
     use crate::{
+        gen::enums::{MagneticVariationLookup, SimnetBacklightLevelLookup},
         messages::pgns::MESSAGE_DATA_OFFSET,
         parse_helpers::{
-            enums::{MagneticVariationSource, SimnetBacklightLevel},
             errors::NmeaParseError,
             parsers::{DataCursor, FieldReader, NmeaMessageMetadata, SimnetKeyValue},
         },
@@ -505,7 +506,7 @@ mod tests {
 
     #[test]
     fn lookup_field_test() {
-        let reader = LookupField::<MagneticVariationSource>::new(4);
+        let reader = LookupField::<MagneticVariationLookup>::new(4);
         assert!(reader.is_ok());
         let reader = reader.unwrap();
 
@@ -515,7 +516,7 @@ mod tests {
         assert!(cursor.read(24).is_ok());
         let res = reader.read_from_cursor(&mut cursor);
         assert!(res.is_ok());
-        assert!(matches!(res.unwrap(), MagneticVariationSource::Wmm2020));
+        assert!(matches!(res.unwrap(), MagneticVariationLookup::Wmm2020));
     }
 
     #[test]
@@ -611,7 +612,7 @@ mod tests {
         assert!(res.is_ok());
         assert!(matches!(
             res.unwrap(),
-            SimnetKeyValue::BacklightLevel(SimnetBacklightLevel::Max)
+            SimnetKeyValue::BacklightLevel(SimnetBacklightLevelLookup::UnformattableVariantB)
         ));
 
         let lookup_value = SimnetKey::TimezoneOffset;

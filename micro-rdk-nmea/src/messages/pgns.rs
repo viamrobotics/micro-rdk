@@ -8,11 +8,12 @@ use micro_rdk::{
 use micro_rdk_nmea_macros::{FieldsetDerive, PgnMessageDerive};
 
 use super::message::{Message, UnparsedNmeaMessageBody};
+use crate::gen::enums::{
+    DirectionReferenceLookup, GnsIntegrityLookup, GnsLookup, GnsMethodLookup, IndustryCodeLookup,
+    ManufacturerCodeLookup, RangeResidualModeLookup, SatelliteStatusLookup,
+    SimnetDisplayGroupLookup, TemperatureSourceLookup, WaterReferenceLookup,
+};
 use crate::parse_helpers::{
-    enums::{
-        DirectionReference, Gns, GnsIntegrity, GnsMethod, IndustryCode, ManufacturerCode,
-        RangeResidualMode, SatelliteStatus, SimnetDisplayGroup, TemperatureSource, WaterReference,
-    },
     errors::NmeaParseError,
     parsers::{
         DataCursor, FieldSet, NmeaMessageMetadata, PolymorphicDataType, SimnetKey, SimnetKeyValue,
@@ -35,7 +36,7 @@ pub struct Speed {
 
     #[lookup]
     #[bits = 8]
-    speed_water_referenced_type: WaterReference,
+    speed_water_referenced_type: WaterReferenceLookup,
 
     #[bits = 4]
     speed_direction: u8,
@@ -85,7 +86,7 @@ pub struct TemperatureExtendedRange {
     instance: u8,
 
     #[lookup]
-    source: TemperatureSource,
+    source: TemperatureSourceLookup,
 
     #[bits = 24]
     #[scale = 0.001]
@@ -127,15 +128,15 @@ pub struct GnssPositionData {
 
     #[lookup]
     #[bits = 4]
-    gnss_type: Gns,
+    gnss_type: GnsLookup,
 
     #[lookup]
     #[bits = 4]
-    method: GnsMethod,
+    method: GnsMethodLookup,
 
     #[lookup]
     #[bits = 2]
-    integrity: GnsIntegrity,
+    integrity: GnsIntegrityLookup,
 
     #[offset = 6]
     number_of_svs: u8,
@@ -175,7 +176,7 @@ pub struct Satellite {
 
     #[lookup]
     #[bits = 4]
-    status: SatelliteStatus,
+    status: SatelliteStatusLookup,
 
     // normally we would handle "reserved" fields by using the offset attribute
     // on the next field, but in the edge case of a reserved field being the last
@@ -193,7 +194,7 @@ pub struct GnssSatsInView {
 
     #[lookup]
     #[bits = 2]
-    range_residual_mode: RangeResidualMode,
+    range_residual_mode: RangeResidualModeLookup,
 
     #[offset = 6]
     sats_in_view: u8,
@@ -224,7 +225,7 @@ pub struct CogSog {
 
     #[lookup]
     #[bits = 2]
-    cog_reference: DirectionReference,
+    cog_reference: DirectionReferenceLookup,
 
     #[offset = 6]
     #[unit = "deg"]
@@ -256,7 +257,7 @@ pub struct VesselHeading {
 
     #[lookup]
     #[bits = 2]
-    reference: DirectionReference,
+    reference: DirectionReferenceLookup,
 }
 
 #[derive(PgnMessageDerive, Clone, Debug)]
@@ -286,12 +287,12 @@ pub struct SimnetParameterSet {
 
     #[lookup]
     #[bits = 11]
-    manufacturer_code: ManufacturerCode,
+    manufacturer_code: ManufacturerCodeLookup,
 
     #[lookup]
     #[bits = 3]
     #[offset = 2]
-    industry_code: IndustryCode,
+    industry_code: IndustryCodeLookup,
 
     address: u8,
 
@@ -299,7 +300,7 @@ pub struct SimnetParameterSet {
 
     #[lookup]
     #[bits = 8]
-    display_group: SimnetDisplayGroup,
+    display_group: SimnetDisplayGroupLookup,
 
     d: u16,
 

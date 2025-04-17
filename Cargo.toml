@@ -58,6 +58,7 @@ cbindgen = "0.27.0"
 chrono = "0.4.38"
 chrono-tz = "0.10.0"
 clap = "4.5.23"
+convert_case = "0.8.0"
 crc32fast = "1.4.2"
 dialoguer = "0.11.0"
 dns-message-parser = { version = "0.7", default-features = false}
