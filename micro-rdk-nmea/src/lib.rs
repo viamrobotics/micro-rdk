@@ -1,18 +1,30 @@
 use micro_rdk::common::registry::{ComponentRegistry, RegistryError};
 
+pub mod gen;
 pub mod messages;
 pub mod parse_helpers;
+#[cfg(autogen_definitions)]
 pub mod viamboat;
 
+#[allow(unused_variables)]
 pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {
-    viamboat::register_models(registry)
+    #[cfg(autogen_definitions)]
+    let res = viamboat::register_models(registry);
+    #[cfg(not(autogen_definitions))]
+    let res = Ok(());
+    res
 }
 
+#[cfg(autogen_definitions)]
 #[cfg(test)]
 mod tests {
     use base64::{engine::general_purpose, Engine};
 
     use crate::{
+        gen::enums::{
+            GnsIntegrityLookup, GnsLookup, GnsMethodLookup, RangeResidualModeLookup,
+            SatelliteStatusLookup, TemperatureSourceLookup,
+        },
         messages::{
             message::Message,
             pgns::{
@@ -20,13 +32,7 @@ mod tests {
                 WaterDepth, MESSAGE_DATA_OFFSET,
             },
         },
-        parse_helpers::{
-            enums::{
-                Gns, GnsIntegrity, GnsMethod, RangeResidualMode, SatelliteStatus, TemperatureSource,
-            },
-            errors::NumberFieldError,
-            parsers::DataCursor,
-        },
+        parse_helpers::{errors::NumberFieldError, parsers::DataCursor},
     };
 
     // The strings in the below test represent base64-encoded data examples taken from raw results
@@ -107,7 +113,7 @@ mod tests {
         assert_eq!(instance, 0);
         assert!(matches!(
             message.source(),
-            TemperatureSource::SeaTemperature
+            TemperatureSourceLookup::SeaTemperature
         ));
     }
 
@@ -132,7 +138,7 @@ mod tests {
         assert_eq!(altitude, -24.295043999999997);
 
         let gnss_type = message.gnss_type();
-        assert!(matches!(gnss_type, Gns::GpsSbasWaasGlonass));
+        assert!(matches!(gnss_type, GnsLookup::Gpssbaswaasglonass));
 
         // could not find an example containing any reference stations
         let ref_stations = message.reference_station_structs();
@@ -149,10 +155,10 @@ mod tests {
         assert_eq!(longitude, -74.0096336282232);
 
         let method = message.method();
-        assert!(matches!(method, GnsMethod::DgnssFix));
+        assert!(matches!(method, GnsMethodLookup::DgnssFix));
 
         let integrity = message.integrity();
-        assert!(matches!(integrity, GnsIntegrity::NoIntegrityChecking));
+        assert!(matches!(integrity, GnsIntegrityLookup::NoIntegrityChecking));
     }
 
     #[test]
@@ -183,7 +189,7 @@ mod tests {
         println!("range_residual_mode: {:?}", range_residual_mode);
         assert!(matches!(
             range_residual_mode,
-            RangeResidualMode::PostCalculation
+            RangeResidualModeLookup::RangeResidualsWereCalculatedAfterThePosition
         ));
 
         let sats_in_view = message.sats_in_view();
@@ -217,7 +223,7 @@ mod tests {
         assert_eq!(snr_1, 34.37);
 
         let status_1 = sats[1].status();
-        assert!(matches!(status_1, SatelliteStatus::Tracked));
+        assert!(matches!(status_1, SatelliteStatusLookup::Tracked));
 
         let azimuth_2 = sats[2].azimuth();
         assert!(azimuth_2.is_ok());
@@ -240,6 +246,6 @@ mod tests {
         assert_eq!(snr_2, 43.81);
 
         let status_2 = sats[2].status();
-        assert!(matches!(status_2, SatelliteStatus::UsedDiff));
+        assert!(matches!(status_2, SatelliteStatusLookup::UsedDiff));
     }
 }
