@@ -74,7 +74,7 @@ fn main() {
     }
 
     if !storage.has_robot_credentials() {
-        log::warn!("no machine configuration was found in storage");
+        log::warn!("no machine credentials were found in storage");
 
         // check if any were statically compiled
         // TODO(RSDK-9148): update with app address storage logic when version is incremented
@@ -90,7 +90,7 @@ fn main() {
                     .expect("failed to parse app address")
                     .into(),
                 )
-                .expect("failed to store robot credentials to NVS");
+                .expect("failed to store machine credentials to storage");
         }
     }
 
