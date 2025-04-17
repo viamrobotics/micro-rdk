@@ -47,6 +47,8 @@ pub(crate) struct MacroAttributes {
     pub(crate) is_fieldset: bool,
     pub(crate) length_field: Option<Ident>,
     pub(crate) pgn: Option<u32>,
+    pub(crate) is_polymorphic: bool,
+    pub(crate) lookup_field: Option<Ident>,
 }
 
 // Attempt to deduce the bit size from the data type
@@ -94,6 +96,8 @@ impl MacroAttributes {
             unit: None,
             is_fieldset: false,
             pgn: None,
+            is_polymorphic: false,
+            lookup_field: None,
         };
 
         for attr in field.attrs.iter() {
@@ -225,7 +229,9 @@ impl MacroAttributes {
                             Meta::NameValue(named) => {
                                 if let Expr::Lit(ref expr_lit) = named.value {
                                     if let Lit::Str(lit_str) = &expr_lit.lit {
-                                        lit_str.parse().map_err(|_| error_tokens("uh oh"))?
+                                        lit_str
+                                            .parse()
+                                            .map_err(|_| error_tokens("length_field unparseable"))?
                                     } else {
                                         return Err(error_tokens(
                                             "length_field parameter must be string",
@@ -248,6 +254,40 @@ impl MacroAttributes {
                                 .get_ident()
                                 .ok_or(error_tokens(
                                     "length_field did not resolve to Ident properly",
+                                ))?
+                                .clone(),
+                        );
+                    }
+                    "lookup_field" => {
+                        let lookup_field_path: syn::Path = match &attr.meta {
+                            Meta::NameValue(named) => {
+                                if let Expr::Lit(ref expr_lit) = named.value {
+                                    if let Lit::Str(lit_str) = &expr_lit.lit {
+                                        lit_str
+                                            .parse()
+                                            .map_err(|_| error_tokens("lookup_field unparseable"))?
+                                    } else {
+                                        return Err(error_tokens(
+                                            "lookup_field parameter must be string",
+                                        ));
+                                    }
+                                } else {
+                                    return Err(error_tokens(
+                                        "lookup_field parameter must be string",
+                                    ));
+                                }
+                            }
+                            _ => {
+                                return Err(error_tokens(
+                                    "lookup_field received unexpected attribute value",
+                                ));
+                            }
+                        };
+                        macro_attrs.lookup_field = Some(
+                            lookup_field_path
+                                .get_ident()
+                                .ok_or(error_tokens(
+                                    "lookup_field did not resolve to Ident properly",
                                 ))?
                                 .clone(),
                         );
@@ -278,6 +318,7 @@ impl MacroAttributes {
                         })
                     }
                     "fieldset" => macro_attrs.is_fieldset = true,
+                    "polymorphic" => macro_attrs.is_polymorphic = true,
                     _ => {}
                 };
             }

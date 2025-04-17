@@ -22,4 +22,6 @@ pub enum NmeaParseError {
     MalformedTimestamp,
     #[error("found unsupported PGN {0}")]
     UnsupportedPgn(u32),
+    #[error("unknown lookup value for polymorphic field")]
+    UnknownPolymorphicLookupValue,
 }
