@@ -16,10 +16,8 @@ pub type SwitchType = Arc<Mutex<dyn Switch>>;
 pub enum SwitchError {
     #[error("index `{0}` is out of bounds; range is 0-{1}")]
     InvalidPosition(u32, u32),
-    #[error("test error")]
-    TestError,
-    #[error(transparent)]
-    Other(#[from] Box<dyn std::error::Error + Send + Sync>),
+    #[error("{0}")]
+    Other(String),
 }
 
 #[cfg(feature = "builtin-components")]
@@ -82,7 +80,7 @@ impl FakeSwitch {
         _deps: Vec<Dependency>,
     ) -> Result<SwitchType, SwitchError> {
         if cfg.get_attribute::<bool>("fail_new").unwrap_or(false) {
-            return Err(SwitchError::TestError);
+            return Err(SwitchError::Other("`fail_new` attribute is set".to_string()));
         }
         let num_pos = cfg.get_attribute::<u32>("position_count").unwrap_or(2);
         Ok(Arc::new(Mutex::new(Self {
