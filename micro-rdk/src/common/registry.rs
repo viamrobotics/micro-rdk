@@ -5,6 +5,7 @@ use thiserror::Error;
 use super::{
     base::{BaseError, BaseType},
     board::{BoardError, BoardType},
+    button::{ButtonError, ButtonType},
     config::ConfigType,
     encoder::{EncoderError, EncoderType},
     generic::{GenericComponentType, GenericError},
@@ -62,6 +63,7 @@ impl TryFrom<ResourceName> for ResourceKey {
     fn try_from(value: ResourceName) -> Result<Self, Self::Error> {
         let comp_type: &str = &value.subtype;
         let comp_name = match comp_type {
+            "button" => crate::common::button::COMPONENT_NAME,
             "motor" => crate::common::motor::COMPONENT_NAME,
             "sensor" => crate::common::sensor::COMPONENT_NAME,
             #[cfg(feature = "camera")]
@@ -85,6 +87,8 @@ pub struct Dependency(pub ResourceKey, pub Resource);
 
 /// Fn that returns a `BoardType`, `Arc<Mutex<dyn Board>>`
 type BoardConstructor = dyn Fn(ConfigType) -> Result<BoardType, BoardError>;
+
+type ButtonConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<ButtonType, ButtonError>;
 
 /// Fn that returns a `MotorType`, `Arc<Mutex<dyn Motor>>`
 type MotorConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<MotorType, MotorError>;
@@ -125,6 +129,7 @@ type DependenciesFromConfig = dyn Fn(ConfigType) -> Vec<ResourceKey>;
 pub struct ComponentRegistry {
     motors: Map<String, &'static MotorConstructor>,
     board: Map<String, &'static BoardConstructor>,
+    buttons: Map<String, &'static ButtonConstructor>,
     #[cfg(feature = "camera")]
     camera: Map<String, &'static CameraConstructor>,
     sensor: Map<String, &'static SensorConstructor>,
@@ -144,6 +149,7 @@ impl Default for ComponentRegistry {
         crate::common::board::register_models(&mut r);
         #[cfg(feature = "builtin-components")]
         {
+            crate::common::button::register_models(&mut r);
             crate::common::encoder::register_models(&mut r);
             crate::common::motor::register_models(&mut r);
             crate::common::gpio_motor::register_models(&mut r);
@@ -196,6 +202,7 @@ impl ComponentRegistry {
         Self {
             motors: Map::new(),
             board: Map::new(),
+            buttons: Map::new(),
             #[cfg(feature = "camera")]
             camera: Map::new(),
             sensor: Map::new(),
@@ -208,6 +215,18 @@ impl ComponentRegistry {
             generic_components: Map::new(),
             dependencies: dependency_func_map,
         }
+    }
+    pub fn register_button(
+        &mut self,
+        model: impl Into<String>,
+        constructor: &'static ButtonConstructor,
+    ) -> Result<(), RegistryError> {
+        let model = model.into();
+        if self.buttons.contains_key(&model) {
+            return Err(RegistryError::ModelAlreadyRegistered(model));
+        }
+        let _ = self.buttons.insert(model, constructor);
+        Ok(())
     }
     #[cfg(feature = "camera")]
     pub fn register_camera(
@@ -397,6 +416,16 @@ impl ComponentRegistry {
         model: &str,
     ) -> Result<&'static BoardConstructor, RegistryError> {
         if let Some(ctor) = self.board.get(model) {
+            return Ok(*ctor);
+        }
+        Err(RegistryError::ModelNotFound(model.into()))
+    }
+
+    pub(crate) fn get_button_constructor(
+        &self,
+        model: &str,
+    ) -> Result<&'static ButtonConstructor, RegistryError> {
+        if let Some(ctor) = self.buttons.get(model) {
             return Ok(*ctor);
         }
         Err(RegistryError::ModelNotFound(model.into()))

@@ -33,6 +33,7 @@ pub mod analog;
 pub mod app_client;
 pub mod base;
 pub mod board;
+pub mod button;
 #[cfg(feature = "camera")]
 pub mod camera;
 pub mod config;

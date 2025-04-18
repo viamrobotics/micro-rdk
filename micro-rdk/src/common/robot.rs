@@ -38,6 +38,7 @@ use super::{
     app_client::PeriodicAppClientTask,
     base::BaseType,
     board::BoardType,
+    button::{Button, ButtonType},
     config::{AttributeError, Component, ConfigType, DynamicComponentConfig},
     encoder::EncoderType,
     exec::Executor,
@@ -63,6 +64,7 @@ pub enum ResourceType {
     Motor(MotorType),
     Board(BoardType),
     Base(BaseType),
+    Button(ButtonType),
     Sensor(SensorType),
     MovementSensor(MovementSensorType),
     Encoder(EncoderType),
@@ -81,6 +83,7 @@ impl ResourceType {
         match self {
             Self::Base(_) => "rdk:component:base",
             Self::Board(_) => "rdk:component:board",
+            Self::Button(_) => "rdk:component:button",
             Self::Encoder(_) => "rdk:component:encoder",
             Self::Generic(_) => "rdk:component:generic",
             Self::Motor(_) => "rdk:component:motor",
@@ -451,6 +454,14 @@ impl LocalRobot {
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
                 )
             }
+            "button" => {
+                let ctor = registry
+                    .get_button_constructor(&model)
+                    .map_err(RobotError::RobotRegistryError)?;
+                ResourceType::Button(
+                    ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
+                )
+            }
             #[cfg(feature = "camera")]
             "camera" => {
                 let ctor = registry
@@ -787,6 +798,22 @@ impl LocalRobot {
         };
         match self.resources.get(&name) {
             Some(ResourceType::Board(r)) => Some(r.clone()),
+            Some(_) => None,
+            None => None,
+        }
+    }
+
+    pub fn get_button_by_name(&self, name: String) -> Option<Arc<Mutex<dyn Button>>> {
+        let name = ResourceName {
+            namespace: "rdk".to_string(),
+            r#type: "component".to_string(),
+            subtype: "button".to_string(),
+            local_name: name.clone(),
+            remote_path: vec![],
+            name,
+        };
+        match self.resources.get(&name) {
+            Some(ResourceType::Button(r)) => Some(r.clone()),
             Some(_) => None,
             None => None,
         }
