@@ -12,7 +12,7 @@ pub enum StatusError {
 
 #[deprecated(
     since = "0.5.0",
-    note = "Status trait is slated for removal and is not used or needed anymore"
+    note = "Status trait is slated for removal and is not used or required anymore"
 )]
 pub trait Status {
     fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError>;
