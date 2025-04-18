@@ -15,6 +15,7 @@ use super::{
     robot::Resource,
     sensor::{SensorError, SensorType},
     servo::{ServoError, ServoType},
+    switch::{SwitchError, SwitchType},
 };
 
 #[cfg(feature = "camera")]
@@ -71,6 +72,7 @@ impl TryFrom<ResourceName> for ResourceKey {
             "encoder" => crate::common::encoder::COMPONENT_NAME,
             "base" => crate::common::base::COMPONENT_NAME,
             "servo" => crate::common::servo::COMPONENT_NAME,
+            "switch" => crate::common::switch::COMPONENT_NAME,
             "power_sensor" => crate::common::power_sensor::COMPONENT_NAME,
             "generic" => crate::common::generic::COMPONENT_NAME,
             _ => {
@@ -111,6 +113,8 @@ type CameraConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<CameraTyp
 /// Fn that returns a `ServoType`, `Arc<Mutex<dyn Servo>>`
 type ServoConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<ServoType, ServoError>;
 
+type SwitchConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<SwitchType, SwitchError>;
+
 /// Fn that returns a `PowerSensorType`, `Arc<Mutex<dyn PowerSensor>>`
 type PowerSensorConstructor =
     dyn Fn(ConfigType, Vec<Dependency>) -> Result<PowerSensorType, SensorError>;
@@ -133,6 +137,7 @@ pub struct ComponentRegistry {
     encoders: Map<String, &'static EncoderConstructor>,
     bases: Map<String, &'static BaseConstructor>,
     servos: Map<String, &'static ServoConstructor>,
+    switches: Map<String, &'static SwitchConstructor>,
     power_sensors: Map<String, &'static PowerSensorConstructor>,
     generic_components: Map<String, &'static GenericComponentConstructor>,
     dependencies: Map<String, Map<String, &'static DependenciesFromConfig>>,
@@ -150,6 +155,7 @@ impl Default for ComponentRegistry {
             crate::common::gpio_motor::register_models(&mut r);
             crate::common::gpio_servo::register_models(&mut r);
             crate::common::sensor::register_models(&mut r);
+            crate::common::switch::register_models(&mut r);
             crate::common::movement_sensor::register_models(&mut r);
             crate::common::mpu6050::register_models(&mut r);
             crate::common::adxl345::register_models(&mut r);
@@ -204,6 +210,7 @@ impl ComponentRegistry {
             encoders: Map::new(),
             bases: Map::new(),
             servos: Map::new(),
+            switches: Map::new(),
             power_sensors: Map::new(),
             generic_components: Map::new(),
             dependencies: dependency_func_map,
@@ -335,6 +342,19 @@ impl ComponentRegistry {
             return Err(RegistryError::ModelAlreadyRegistered(model));
         }
         let _ = self.servos.insert(model, constructor);
+        Ok(())
+    }
+
+    pub fn register_switch(
+        &mut self,
+        model: impl Into<String>,
+        constructor: &'static SwitchConstructor,
+    ) -> Result<(), RegistryError> {
+        let model = model.into();
+        if self.switches.contains_key(&model) {
+            return Err(RegistryError::ModelAlreadyRegistered(model));
+        }
+        let _ = self.switches.insert(model, constructor);
         Ok(())
     }
 
@@ -487,6 +507,16 @@ impl ComponentRegistry {
         model: &str,
     ) -> Result<&'static ServoConstructor, RegistryError> {
         if let Some(ctor) = self.servos.get(model) {
+            return Ok(*ctor);
+        }
+        Err(RegistryError::ModelNotFound(model.to_string()))
+    }
+
+    pub(crate) fn get_switch_constructor(
+        &self,
+        model: &str,
+    ) -> Result<&'static SwitchConstructor, RegistryError> {
+        if let Some(ctor) = self.switches.get(model) {
             return Ok(*ctor);
         }
         Err(RegistryError::ModelNotFound(model.to_string()))

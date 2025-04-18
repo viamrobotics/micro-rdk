@@ -173,6 +173,12 @@ pub mod proto {
             }
         }
 
+        pub mod switch {
+            pub mod v1 {
+                include!("gen/viam.component.switch.v1.rs");
+            }
+        }
+
         pub mod power_sensor {
             pub mod v1 {
                 include!("gen/viam.component.powersensor.v1.rs");

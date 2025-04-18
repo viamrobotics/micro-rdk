@@ -15,7 +15,7 @@ use crate::common::camera::{Camera, CameraType};
 use crate::{
     common::{
         actuator::Actuator, base::Base, board::Board, encoder::Encoder, motor::Motor,
-        movement_sensor::MovementSensor, sensor::Sensor, status::Status,
+        movement_sensor::MovementSensor, sensor::Sensor, status::Status, switch::Switch,
     },
     google,
     proto::{
@@ -52,6 +52,7 @@ use super::{
     sensor::SensorType,
     servo::{Servo, ServoType},
     status::StatusError,
+    switch::SwitchType,
 };
 
 use thiserror::Error;
@@ -69,6 +70,7 @@ pub enum ResourceType {
     Encoder(EncoderType),
     PowerSensor(PowerSensorType),
     Servo(ServoType),
+    Switch(SwitchType),
     Generic(GenericComponentType),
     #[cfg(feature = "camera")]
     Camera(CameraType),
@@ -89,6 +91,7 @@ impl ResourceType {
             Self::PowerSensor(_) => "rdk:component:power_sensor",
             Self::Sensor(_) => "rdk:component:sensor",
             Self::Servo(_) => "rdk:component:servo",
+            Self::Switch(_) => "rdk:component:switch",
             #[cfg(feature = "camera")]
             Self::Camera(_) => "rdk:component:camera",
         }
@@ -484,6 +487,14 @@ impl LocalRobot {
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
                 )
             }
+            "switch" => {
+                let ctor = registry
+                    .get_switch_constructor(&model)
+                    .map_err(RobotError::RobotRegistryError)?;
+                ResourceType::Switch(
+                    ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
+                )
+            }
             "generic" => {
                 let ctor = registry
                     .get_generic_component_constructor(&model)
@@ -818,6 +829,22 @@ impl LocalRobot {
         };
         match self.resources.get(&name) {
             Some(ResourceType::Sensor(r)) => Some(r.clone()),
+            Some(_) => None,
+            None => None,
+        }
+    }
+
+    pub fn get_switch_by_name(&self, name: String) -> Option<Arc<Mutex<dyn Switch>>> {
+        let name = ResourceName {
+            namespace: "rdk".to_string(),
+            r#type: "component".to_string(),
+            subtype: "switch".to_string(),
+            local_name: name.clone(),
+            remote_path: vec![],
+            name,
+        };
+        match self.resources.get(&name) {
+            Some(ResourceType::Switch(r)) => Some(r.clone()),
             Some(_) => None,
             None => None,
         }
