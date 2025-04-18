@@ -6,7 +6,6 @@ use {
     super::registry::{ComponentRegistry, Dependency},
 };
 
-use crate::common::status::Status;
 use crate::google;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -112,7 +111,7 @@ pub trait Readings {
     }
 }
 
-pub trait Sensor: Readings + Status + DoCommand + Send {}
+pub trait Sensor: Readings + DoCommand + Send {}
 
 pub type SensorType = Arc<Mutex<dyn Sensor>>;
 
@@ -206,16 +205,5 @@ where
 {
     fn get_generic_readings(&mut self) -> Result<GenericReadingsResult, SensorError> {
         self.lock().unwrap().get_generic_readings()
-    }
-}
-
-#[cfg(feature = "builtin-components")]
-impl Status for FakeSensor {
-    fn get_status(
-        &self,
-    ) -> Result<Option<google::protobuf::Struct>, crate::common::status::StatusError> {
-        Ok(Some(google::protobuf::Struct {
-            fields: HashMap::new(),
-        }))
     }
 }

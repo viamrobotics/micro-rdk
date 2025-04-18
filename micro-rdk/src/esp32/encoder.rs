@@ -14,7 +14,6 @@ use crate::esp32::esp_idf_svc::sys::pcnt_evt_type_t_PCNT_EVT_L_LIM as pcnt_evt_l
 use crate::esp32::esp_idf_svc::sys::{esp, ESP_OK};
 use core::ffi::{c_short, c_ulong};
 
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -24,8 +23,6 @@ use crate::common::encoder::{
     EncoderType,
 };
 use crate::common::registry::{ComponentRegistry, Dependency};
-use crate::common::status::{Status, StatusError};
-use crate::google;
 
 use embedded_hal::digital::InputPin;
 
@@ -259,18 +256,6 @@ where
     }
     fn reset_position(&mut self) -> Result<(), EncoderError> {
         self.reset()
-    }
-}
-
-impl<A, B> Status for Esp32Encoder<A, B>
-where
-    A: InputPin + PinExt,
-    B: InputPin + PinExt,
-{
-    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
-        Ok(Some(google::protobuf::Struct {
-            fields: HashMap::new(),
-        }))
     }
 }
 

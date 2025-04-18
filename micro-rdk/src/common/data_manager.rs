@@ -626,7 +626,6 @@ mod tests {
     use super::DataManager;
     use crate::common::data_collector::DataCollectionError;
     use crate::common::data_store::{DataStoreReader, WriteMode};
-    use crate::common::encoder::EncoderError;
     use crate::common::{
         data_collector::{
             CollectionMethod, DataCollector, ResourceMethodKey, DEFAULT_CACHE_SIZE_KB,
@@ -637,10 +636,8 @@ mod tests {
             GenericReadingsResult, Readings, Sensor, SensorError, SensorResult, SensorT,
             TypedReadingsResult,
         },
-        status::{Status, StatusError},
     };
     use crate::google::protobuf::value::Kind;
-    use crate::google::protobuf::Struct;
     use crate::proto::app::data_sync::v1::{sensor_data::Data, SensorData};
 
     #[derive(DoCommand)]
@@ -652,14 +649,6 @@ mod tests {
         fn get_generic_readings(&mut self) -> Result<GenericReadingsResult, SensorError> {
             Err(SensorError::SensorMethodUnimplemented(
                 "test sensor failure",
-            ))
-        }
-    }
-
-    impl Status for TestSensorFailure {
-        fn get_status(&self) -> Result<Option<Struct>, StatusError> {
-            Err(StatusError::EncoderError(
-                EncoderError::EncoderMethodUnimplemented,
             ))
         }
     }
@@ -684,14 +673,6 @@ mod tests {
             let mut x = HashMap::new();
             x.insert("thing".to_string(), 42.42);
             Ok(x)
-        }
-    }
-
-    impl Status for TestSensor {
-        fn get_status(&self) -> Result<Option<Struct>, StatusError> {
-            Err(StatusError::EncoderError(
-                EncoderError::EncoderMethodUnimplemented,
-            ))
         }
     }
 
@@ -977,14 +958,6 @@ mod tests {
             let mut x = HashMap::new();
             x.insert("thing".to_string(), 24.24);
             Ok(x)
-        }
-    }
-
-    impl Status for TestSensor2 {
-        fn get_status(&self) -> Result<Option<Struct>, StatusError> {
-            Err(StatusError::EncoderError(
-                EncoderError::EncoderMethodUnimplemented,
-            ))
         }
     }
 

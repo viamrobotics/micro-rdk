@@ -2,15 +2,11 @@ use micro_rdk::{
     common::{
         config::Kind,
         sensor::{GenericReadingsResult, Readings, Sensor, SensorError},
-        status::Status,
     },
     google::protobuf::{value, ListValue, Struct, Value},
     DoCommand,
 };
-use std::{
-    collections::HashMap,
-    ffi::{c_char, c_int, c_uchar, c_uint, c_void, CStr},
-};
+use std::ffi::{c_char, c_int, c_uchar, c_uint, c_void, CStr};
 
 use super::{
     config::{config_context, raw_attributes},
@@ -132,17 +128,6 @@ impl Readings for generic_c_sensor {
             return Err(SensorError::SensorCodeError(ret));
         }
         Ok(ctx.readings)
-    }
-}
-
-impl Status for generic_c_sensor {
-    fn get_status(
-        &self,
-    ) -> Result<Option<micro_rdk::google::protobuf::Struct>, micro_rdk::common::status::StatusError>
-    {
-        Ok(Some(micro_rdk::google::protobuf::Struct {
-            fields: HashMap::new(),
-        }))
     }
 }
 

@@ -8,7 +8,6 @@ use crate::{
 use super::{
     generic::DoCommand,
     sensor::{GenericReadingsResult, Readings, SensorError},
-    status::Status,
 };
 
 pub static COMPONENT_NAME: &str = "power_sensor";
@@ -55,7 +54,7 @@ impl From<Current> for component::power_sensor::v1::GetCurrentResponse {
     }
 }
 
-pub trait PowerSensor: Status + Readings + DoCommand {
+pub trait PowerSensor: Readings + DoCommand {
     fn get_voltage(&mut self) -> Result<Voltage, SensorError>;
 
     fn get_current(&mut self) -> Result<Current, SensorError>;

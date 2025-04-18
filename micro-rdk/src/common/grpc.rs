@@ -190,13 +190,10 @@ impl<'a> GrpcServerInner<'a> {
 
     pub(crate) fn handle_rpc_stream(
         &mut self,
-        path: &str,
-        payload: &[u8],
+        _: &str,
+        _: &[u8],
     ) -> Result<(Bytes, std::time::Instant), ServerError> {
-        match path {
-            "/viam.robot.v1.RobotService/StreamStatus" => self.robot_status_stream(payload),
-            _ => Err(ServerError::from(GrpcError::RpcUnavailable)),
-        }
+        Err(ServerError::from(GrpcError::RpcUnavailable))
     }
 
     pub(crate) fn handle_request(
@@ -279,7 +276,6 @@ impl<'a> GrpcServerInner<'a> {
             "/viam.component.motor.v1.MotorService/DoCommand" => self.motor_do_command(payload),
             "/viam.robot.v1.RobotService/GetVersion" => self.get_version(),
             "/viam.robot.v1.RobotService/ResourceNames" => self.resource_names(payload),
-            "/viam.robot.v1.RobotService/GetStatus" => self.robot_status(payload),
             "/viam.robot.v1.RobotService/GetOperations" => self.robot_get_operations(payload),
             "/viam.robot.v1.RobotService/Shutdown" => self.robot_shutdown(payload),
             "/viam.robot.v1.RobotService/GetCloudMetadata" => self.robot_get_cloud_metadata(),
@@ -1389,30 +1385,6 @@ impl<'a> GrpcServerInner<'a> {
         GrpcServerInner::encode_message(resp)
     }
 
-    fn robot_status_stream(
-        &mut self,
-        message: &[u8],
-    ) -> Result<(Bytes, std::time::Instant), ServerError> {
-        let req = robot::v1::StreamStatusRequest::decode(message)
-            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
-        let duration = Instant::now()
-            + TryInto::<Duration>::try_into(req.every.unwrap())
-                .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
-        // fake a GetStatusRequest because local robot expect this
-        let req = robot::v1::GetStatusRequest {
-            resource_names: req.resource_names,
-        };
-        let status = robot::v1::StreamStatusResponse {
-            status: self
-                .robot
-                .lock()
-                .unwrap()
-                .get_status(req)
-                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?,
-        };
-        GrpcServerInner::encode_message(status).map(|b| (b, duration))
-    }
-
     // robot_get_operations returns an empty response since operations are not yet
     // supported on micro-rdk
     fn robot_get_operations(&mut self, _: &[u8]) -> Result<Bytes, ServerError> {
@@ -1428,20 +1400,6 @@ impl<'a> GrpcServerInner<'a> {
         unsafe {
             crate::esp32::esp_idf_svc::sys::esp_restart();
         }
-    }
-
-    fn robot_status(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
-        let req = robot::v1::GetStatusRequest::decode(message)
-            .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
-        let status = robot::v1::GetStatusResponse {
-            status: self
-                .robot
-                .lock()
-                .unwrap()
-                .get_status(req)
-                .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?,
-        };
-        GrpcServerInner::encode_message(status)
     }
 
     fn robot_get_cloud_metadata(&mut self) -> Result<Bytes, ServerError> {
