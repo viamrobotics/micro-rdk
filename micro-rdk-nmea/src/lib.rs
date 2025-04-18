@@ -3,12 +3,19 @@ use micro_rdk::common::registry::{ComponentRegistry, RegistryError};
 pub mod gen;
 pub mod messages;
 pub mod parse_helpers;
+#[cfg(autogen_definitions)]
 pub mod viamboat;
 
+#[allow(unused_variables)]
 pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {
-    viamboat::register_models(registry)
+    #[cfg(autogen_definitions)]
+    let res = viamboat::register_models(registry);
+    #[cfg(not(autogen_definitions))]
+    let res = Ok(());
+    res
 }
 
+#[cfg(autogen_definitions)]
 #[cfg(test)]
 mod tests {
     use base64::{engine::general_purpose, Engine};

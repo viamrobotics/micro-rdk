@@ -42,12 +42,29 @@ fn clean_string_for_rust(input: &str, counter: usize) -> String {
 }
 
 fn main() {
-    // println!("cargo:rerun-if-changed=definitions.json");
+    println!("cargo:rerun-if-changed=definitions.json");
+    println!("cargo::rustc-check-cfg=cfg(autogen_definitions)");
+
+    let enums_path = "src/gen/enums_gen.rs";
+
+    let mut enums_file = OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .read(true)
+        .open(enums_path)
+        .expect("could not create new enums_gen.rs");
+
+    enums_file
+        .write_all("// AUTO-GENERATED CODE; DO NOT DELETE OR EDIT\n".as_bytes())
+        .expect("failed to write warning statement");
 
     let file_path = "definitions.json";
     if !Path::new(file_path).exists() {
         println!("No definitions file, skipping auto-generation...");
         return;
+    } else {
+        println!("cargo:rustc-cfg=autogen_definitions");
     }
     let file = File::open(file_path).expect("Failed to open file");
     let reader = BufReader::new(file);
@@ -61,20 +78,6 @@ fn main() {
             panic!("failed to parse JSON as initial object");
         }
     };
-
-    let enums_path = "src/gen/enums.rs";
-
-    let mut enums_file = OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .read(true)
-        .open(enums_path)
-        .expect("could not create new enums.rs");
-
-    enums_file
-        .write_all("// AUTO-GENERATED CODE; DO NOT DELETE OR EDIT\n".as_bytes())
-        .expect("failed to write warning statement");
 
     let enum_import_line_1 = "use crate::parse_helpers::enums::NmeaEnumeratedField;\n";
     let enum_import_line_2 = "use crate::define_nmea_enum;\n\n";
