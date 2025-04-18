@@ -15,7 +15,7 @@ upload:
 		--erase-parts nvs \
 		--monitor \
 		--partition-table partitions.csv \
-		--baud 115200 \
+		--baud ${BAUDRATE} \
 		--flash-freq 80mhz \
 		--release $(ESPFLASH_FLASH_ARGS)
 
