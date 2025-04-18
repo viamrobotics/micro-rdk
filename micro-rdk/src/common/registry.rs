@@ -5,6 +5,7 @@ use thiserror::Error;
 use super::{
     base::{BaseError, BaseType},
     board::{BoardError, BoardType},
+    button::{ButtonError, ButtonType},
     config::ConfigType,
     encoder::{EncoderError, EncoderType},
     generic::{GenericComponentType, GenericError},
@@ -14,6 +15,7 @@ use super::{
     robot::Resource,
     sensor::{SensorError, SensorType},
     servo::{ServoError, ServoType},
+    switch::{SwitchError, SwitchType},
 };
 
 #[cfg(feature = "camera")]
@@ -61,6 +63,7 @@ impl TryFrom<ResourceName> for ResourceKey {
     fn try_from(value: ResourceName) -> Result<Self, Self::Error> {
         let comp_type: &str = &value.subtype;
         let comp_name = match comp_type {
+            "button" => crate::common::button::COMPONENT_NAME,
             "motor" => crate::common::motor::COMPONENT_NAME,
             "sensor" => crate::common::sensor::COMPONENT_NAME,
             #[cfg(feature = "camera")]
@@ -69,6 +72,7 @@ impl TryFrom<ResourceName> for ResourceKey {
             "encoder" => crate::common::encoder::COMPONENT_NAME,
             "base" => crate::common::base::COMPONENT_NAME,
             "servo" => crate::common::servo::COMPONENT_NAME,
+            "switch" => crate::common::switch::COMPONENT_NAME,
             "power_sensor" => crate::common::power_sensor::COMPONENT_NAME,
             "generic" => crate::common::generic::COMPONENT_NAME,
             _ => {
@@ -83,6 +87,8 @@ pub struct Dependency(pub ResourceKey, pub Resource);
 
 /// Fn that returns a `BoardType`, `Arc<Mutex<dyn Board>>`
 type BoardConstructor = dyn Fn(ConfigType) -> Result<BoardType, BoardError>;
+
+type ButtonConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<ButtonType, ButtonError>;
 
 /// Fn that returns a `MotorType`, `Arc<Mutex<dyn Motor>>`
 type MotorConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<MotorType, MotorError>;
@@ -107,6 +113,8 @@ type CameraConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<CameraTyp
 /// Fn that returns a `ServoType`, `Arc<Mutex<dyn Servo>>`
 type ServoConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<ServoType, ServoError>;
 
+type SwitchConstructor = dyn Fn(ConfigType, Vec<Dependency>) -> Result<SwitchType, SwitchError>;
+
 /// Fn that returns a `PowerSensorType`, `Arc<Mutex<dyn PowerSensor>>`
 type PowerSensorConstructor =
     dyn Fn(ConfigType, Vec<Dependency>) -> Result<PowerSensorType, SensorError>;
@@ -121,6 +129,7 @@ type DependenciesFromConfig = dyn Fn(ConfigType) -> Vec<ResourceKey>;
 pub struct ComponentRegistry {
     motors: Map<String, &'static MotorConstructor>,
     board: Map<String, &'static BoardConstructor>,
+    buttons: Map<String, &'static ButtonConstructor>,
     #[cfg(feature = "camera")]
     camera: Map<String, &'static CameraConstructor>,
     sensor: Map<String, &'static SensorConstructor>,
@@ -128,6 +137,7 @@ pub struct ComponentRegistry {
     encoders: Map<String, &'static EncoderConstructor>,
     bases: Map<String, &'static BaseConstructor>,
     servos: Map<String, &'static ServoConstructor>,
+    switches: Map<String, &'static SwitchConstructor>,
     power_sensors: Map<String, &'static PowerSensorConstructor>,
     generic_components: Map<String, &'static GenericComponentConstructor>,
     dependencies: Map<String, Map<String, &'static DependenciesFromConfig>>,
@@ -139,11 +149,13 @@ impl Default for ComponentRegistry {
         crate::common::board::register_models(&mut r);
         #[cfg(feature = "builtin-components")]
         {
+            crate::common::button::register_models(&mut r);
             crate::common::encoder::register_models(&mut r);
             crate::common::motor::register_models(&mut r);
             crate::common::gpio_motor::register_models(&mut r);
             crate::common::gpio_servo::register_models(&mut r);
             crate::common::sensor::register_models(&mut r);
+            crate::common::switch::register_models(&mut r);
             crate::common::movement_sensor::register_models(&mut r);
             crate::common::mpu6050::register_models(&mut r);
             crate::common::adxl345::register_models(&mut r);
@@ -190,6 +202,7 @@ impl ComponentRegistry {
         Self {
             motors: Map::new(),
             board: Map::new(),
+            buttons: Map::new(),
             #[cfg(feature = "camera")]
             camera: Map::new(),
             sensor: Map::new(),
@@ -197,10 +210,23 @@ impl ComponentRegistry {
             encoders: Map::new(),
             bases: Map::new(),
             servos: Map::new(),
+            switches: Map::new(),
             power_sensors: Map::new(),
             generic_components: Map::new(),
             dependencies: dependency_func_map,
         }
+    }
+    pub fn register_button(
+        &mut self,
+        model: impl Into<String>,
+        constructor: &'static ButtonConstructor,
+    ) -> Result<(), RegistryError> {
+        let model = model.into();
+        if self.buttons.contains_key(&model) {
+            return Err(RegistryError::ModelAlreadyRegistered(model));
+        }
+        let _ = self.buttons.insert(model, constructor);
+        Ok(())
     }
     #[cfg(feature = "camera")]
     pub fn register_camera(
@@ -319,6 +345,19 @@ impl ComponentRegistry {
         Ok(())
     }
 
+    pub fn register_switch(
+        &mut self,
+        model: impl Into<String>,
+        constructor: &'static SwitchConstructor,
+    ) -> Result<(), RegistryError> {
+        let model = model.into();
+        if self.switches.contains_key(&model) {
+            return Err(RegistryError::ModelAlreadyRegistered(model));
+        }
+        let _ = self.switches.insert(model, constructor);
+        Ok(())
+    }
+
     pub fn register_generic_component(
         &mut self,
         model: impl Into<String>,
@@ -377,6 +416,16 @@ impl ComponentRegistry {
         model: &str,
     ) -> Result<&'static BoardConstructor, RegistryError> {
         if let Some(ctor) = self.board.get(model) {
+            return Ok(*ctor);
+        }
+        Err(RegistryError::ModelNotFound(model.into()))
+    }
+
+    pub(crate) fn get_button_constructor(
+        &self,
+        model: &str,
+    ) -> Result<&'static ButtonConstructor, RegistryError> {
+        if let Some(ctor) = self.buttons.get(model) {
             return Ok(*ctor);
         }
         Err(RegistryError::ModelNotFound(model.into()))
@@ -458,6 +507,16 @@ impl ComponentRegistry {
         model: &str,
     ) -> Result<&'static ServoConstructor, RegistryError> {
         if let Some(ctor) = self.servos.get(model) {
+            return Ok(*ctor);
+        }
+        Err(RegistryError::ModelNotFound(model.to_string()))
+    }
+
+    pub(crate) fn get_switch_constructor(
+        &self,
+        model: &str,
+    ) -> Result<&'static SwitchConstructor, RegistryError> {
+        if let Some(ctor) = self.switches.get(model) {
             return Ok(*ctor);
         }
         Err(RegistryError::ModelNotFound(model.to_string()))
