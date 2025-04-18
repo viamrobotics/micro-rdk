@@ -23,11 +23,9 @@ use std::{
 };
 
 use crate::{
+    gen::enums::DirectionReferenceLookup,
     messages::pgns::{NmeaMessage, NmeaMessageBody},
-    parse_helpers::{
-        enums::DirectionReference,
-        errors::{NmeaParseError, NumberFieldError},
-    },
+    parse_helpers::errors::{NmeaParseError, NumberFieldError},
 };
 use base64::{engine::general_purpose, DecodeError, Engine};
 use micro_rdk::{
@@ -239,7 +237,7 @@ struct MovementSensorData {
     speed_over_ground: Option<f64>,
     course_over_ground: Option<f64>,
     heading: Option<f64>,
-    heading_reference: Option<DirectionReference>,
+    heading_reference: Option<DirectionReferenceLookup>,
     yaw: Option<f64>,
     pitch: Option<f64>,
     roll: Option<f64>,

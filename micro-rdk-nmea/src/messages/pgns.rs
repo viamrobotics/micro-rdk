@@ -1,46 +1,30 @@
-use std::collections::HashMap;
-use std::marker::PhantomData;
+#![allow(unused_macros)]
 
+#[cfg(autogen_definitions)]
+use super::message::{Message, UnparsedNmeaMessageBody};
+#[cfg(autogen_definitions)]
+use crate::gen::enums::{
+    DirectionReferenceLookup, GnsIntegrityLookup, GnsLookup, GnsMethodLookup,
+    RangeResidualModeLookup, SatelliteStatusLookup, TemperatureSourceLookup, WaterReferenceLookup,
+};
+#[cfg(autogen_definitions)]
+use crate::parse_helpers::{
+    errors::NmeaParseError,
+    parsers::{DataCursor, FieldSet, NmeaMessageMetadata},
+};
+#[cfg(autogen_definitions)]
 use micro_rdk::{
     common::sensor::GenericReadingsResult,
     google::protobuf::{value::Kind, Struct, Value},
 };
+#[cfg(autogen_definitions)]
 use micro_rdk_nmea_macros::{FieldsetDerive, PgnMessageDerive};
+#[cfg(autogen_definitions)]
+use std::collections::HashMap;
+#[cfg(autogen_definitions)]
+use std::marker::PhantomData;
 
-use super::message::{Message, UnparsedNmeaMessageBody};
-use crate::parse_helpers::{
-    enums::{
-        DirectionReference, Gns, GnsIntegrity, GnsMethod, IndustryCode, ManufacturerCode,
-        RangeResidualMode, SatelliteStatus, SimnetDisplayGroup, TemperatureSource, WaterReference,
-    },
-    errors::NmeaParseError,
-    parsers::{
-        DataCursor, FieldSet, NmeaMessageMetadata, PolymorphicDataType, SimnetKey, SimnetKeyValue,
-    },
-};
-
-#[derive(PgnMessageDerive, Clone, Debug)]
-pub struct Speed {
-    #[pgn = 128259]
-    _pgn: PhantomData<u32>,
-
-    sequence_id: u8,
-
-    #[scale = 0.01]
-    #[unit = "knots"]
-    speed_water_referenced: u16,
-
-    #[scale = 0.01]
-    speed_ground_referenced: u16,
-
-    #[lookup]
-    #[bits = 8]
-    speed_water_referenced_type: WaterReference,
-
-    #[bits = 4]
-    speed_direction: u8,
-}
-
+#[cfg(autogen_definitions)]
 #[derive(PgnMessageDerive, Clone, Debug)]
 pub struct WaterDepth {
     #[pgn = 128267]
@@ -58,23 +42,7 @@ pub struct WaterDepth {
     range: u8,
 }
 
-#[derive(PgnMessageDerive, Clone, Debug)]
-pub struct DistanceLog {
-    #[pgn = 128275]
-    _pgn: PhantomData<u32>,
-
-    date: u16,
-
-    #[scale = 0.0001]
-    time: u32,
-
-    #[unit = "M"]
-    log: u32,
-
-    #[unit = "M"]
-    trip_log: u32,
-}
-
+#[cfg(autogen_definitions)]
 #[derive(PgnMessageDerive, Clone, Debug)]
 pub struct TemperatureExtendedRange {
     #[pgn = 130316]
@@ -85,7 +53,7 @@ pub struct TemperatureExtendedRange {
     instance: u8,
 
     #[lookup]
-    source: TemperatureSource,
+    source: TemperatureSourceLookup,
 
     #[bits = 24]
     #[scale = 0.001]
@@ -96,6 +64,7 @@ pub struct TemperatureExtendedRange {
     set_temperature: u16,
 }
 
+#[cfg(autogen_definitions)]
 #[derive(FieldsetDerive, Clone, Debug)]
 pub struct ReferenceStation {
     #[bits = 12]
@@ -104,6 +73,7 @@ pub struct ReferenceStation {
     age_of_dgnss_corrections: u16,
 }
 
+#[cfg(autogen_definitions)]
 #[derive(PgnMessageDerive, Clone, Debug)]
 pub struct GnssPositionData {
     #[pgn = 129029]
@@ -127,15 +97,15 @@ pub struct GnssPositionData {
 
     #[lookup]
     #[bits = 4]
-    gnss_type: Gns,
+    gnss_type: GnsLookup,
 
     #[lookup]
     #[bits = 4]
-    method: GnsMethod,
+    method: GnsMethodLookup,
 
     #[lookup]
     #[bits = 2]
-    integrity: GnsIntegrity,
+    integrity: GnsIntegrityLookup,
 
     #[offset = 6]
     number_of_svs: u8,
@@ -156,163 +126,6 @@ pub struct GnssPositionData {
     reference_station_structs: Vec<ReferenceStation>,
 }
 
-#[derive(FieldsetDerive, Clone, Debug)]
-pub struct Satellite {
-    prn: u8,
-
-    #[scale = 0.0001]
-    #[unit = "deg"]
-    elevation: i16,
-
-    #[scale = 0.0001]
-    #[unit = "deg"]
-    azimuth: u16,
-
-    #[scale = 0.01]
-    snr: u16,
-
-    range_residuals: i32,
-
-    #[lookup]
-    #[bits = 4]
-    status: SatelliteStatus,
-
-    // normally we would handle "reserved" fields by using the offset attribute
-    // on the next field, but in the edge case of a reserved field being the last
-    // field of a fieldset we need to include it
-    #[bits = 4]
-    reserved: u8,
-}
-
-#[derive(PgnMessageDerive, Clone, Debug)]
-pub struct GnssSatsInView {
-    #[pgn = 129540]
-    _pgn: PhantomData<u32>,
-
-    sequence_id: u8,
-
-    #[lookup]
-    #[bits = 2]
-    range_residual_mode: RangeResidualMode,
-
-    #[offset = 6]
-    sats_in_view: u8,
-
-    #[fieldset]
-    #[length_field = "sats_in_view"]
-    satellites: Vec<Satellite>,
-}
-
-#[derive(PgnMessageDerive, Clone, Debug)]
-pub struct PositionRapidUpdate {
-    #[pgn = 129025]
-    _pgn: PhantomData<u32>,
-
-    #[scale = 1e-07]
-    latitude: i32,
-
-    #[scale = 1e-07]
-    longitude: i32,
-}
-
-#[derive(PgnMessageDerive, Clone, Debug)]
-pub struct CogSog {
-    #[pgn = 129026]
-    _pgn: PhantomData<u32>,
-
-    sequence_id: u8,
-
-    #[lookup]
-    #[bits = 2]
-    cog_reference: DirectionReference,
-
-    #[offset = 6]
-    #[unit = "deg"]
-    #[scale = 0.0001]
-    course_over_ground: u16,
-
-    #[scale = 0.01]
-    speed_over_ground: u16,
-}
-
-#[derive(PgnMessageDerive, Clone, Debug)]
-pub struct VesselHeading {
-    #[pgn = 127250]
-    _pgn: PhantomData<u32>,
-
-    sequence_id: u8,
-
-    #[scale = 0.0001]
-    #[unit = "deg"]
-    heading: u16,
-
-    #[scale = 0.0001]
-    #[unit = "deg"]
-    deviation: i16,
-
-    #[scale = 0.0001]
-    #[unit = "deg"]
-    variation: i16,
-
-    #[lookup]
-    #[bits = 2]
-    reference: DirectionReference,
-}
-
-#[derive(PgnMessageDerive, Clone, Debug)]
-pub struct Attitude {
-    #[pgn = 127257]
-    _pgn: PhantomData<u32>,
-
-    sequence_id: u8,
-
-    #[scale = 0.0001]
-    #[unit = "deg"]
-    yaw: i16,
-
-    #[scale = 0.0001]
-    #[unit = "deg"]
-    pitch: i16,
-
-    #[scale = 0.0001]
-    #[unit = "deg"]
-    roll: i16,
-}
-
-#[derive(PgnMessageDerive, Clone, Debug)]
-pub struct SimnetParameterSet {
-    #[pgn = 130846]
-    _pgn: PhantomData<u32>,
-
-    #[lookup]
-    #[bits = 11]
-    manufacturer_code: ManufacturerCode,
-
-    #[lookup]
-    #[bits = 3]
-    #[offset = 2]
-    industry_code: IndustryCode,
-
-    address: u8,
-
-    b: u8,
-
-    #[lookup]
-    #[bits = 8]
-    display_group: SimnetDisplayGroup,
-
-    d: u16,
-
-    #[lookup]
-    #[bits = 16]
-    key: SimnetKey,
-
-    #[polymorphic]
-    #[offset = 16]
-    #[lookup_field = "key"]
-    value: SimnetKeyValue,
-}
-
 macro_rules! define_pgns {
     ( $($pgndef:ident),* ) => {
         #[derive(Clone, Debug)]
@@ -329,7 +142,7 @@ macro_rules! define_pgns {
                 }
             }
 
-            pub fn from_bytes(pgn: u32, bytes: Vec<u8>) -> Result<Self, crate::parse_helpers::errors::NmeaParseError> {
+            pub fn from_bytes(pgn: u32, bytes: Vec<u8>) -> Result<Self, $crate::parse_helpers::errors::NmeaParseError> {
                 Ok(match pgn {
                     $($pgndef::PGN => {
                         let cursor = DataCursor::new(bytes);
@@ -339,7 +152,7 @@ macro_rules! define_pgns {
                 })
             }
 
-            pub fn to_readings(self) -> Result<GenericReadingsResult, crate::parse_helpers::errors::NmeaParseError> {
+            pub fn to_readings(self) -> Result<GenericReadingsResult, $crate::parse_helpers::errors::NmeaParseError> {
                 match self {
                     $(Self::$pgndef(msg) => msg.to_readings()),*,
                     Self::Unsupported(msg) => msg.to_readings()
@@ -351,23 +164,16 @@ macro_rules! define_pgns {
 
 pub const MESSAGE_DATA_OFFSET: usize = 32;
 
-define_pgns!(
-    WaterDepth,
-    TemperatureExtendedRange,
-    GnssSatsInView,
-    CogSog,
-    PositionRapidUpdate,
-    VesselHeading,
-    Attitude,
-    Speed,
-    DistanceLog
-);
+#[cfg(autogen_definitions)]
+define_pgns!(WaterDepth, TemperatureExtendedRange, GnssSatsInView);
 
+#[cfg(autogen_definitions)]
 pub struct NmeaMessage {
     pub(crate) metadata: NmeaMessageMetadata,
     pub(crate) data: NmeaMessageBody,
 }
 
+#[cfg(autogen_definitions)]
 impl TryFrom<Vec<u8>> for NmeaMessage {
     type Error = NmeaParseError;
     fn try_from(mut value: Vec<u8>) -> Result<Self, Self::Error> {
@@ -378,6 +184,7 @@ impl TryFrom<Vec<u8>> for NmeaMessage {
     }
 }
 
+#[cfg(autogen_definitions)]
 impl NmeaMessage {
     pub fn to_readings(self) -> Result<GenericReadingsResult, NmeaParseError> {
         Ok(HashMap::from([
