@@ -791,7 +791,7 @@ dependencies = [
 [[package]]
 name = "concurrent-queue"
 version = "2.5.0"
-source = "git+https://github.com/npmenard/concurrent-queue?rev=a98a84c2ecb099020ac66434589af6ecfd81f6ca#a98a84c2ecb099020ac66434589af6ecfd81f6ca"
+source = "git+https://github.com/npmenard/concurrent-queue?rev=ffdd176#ffdd1766d1fa8479a57036525b247001c78a52e4"
 dependencies = [
  "crossbeam-utils",
 ]
