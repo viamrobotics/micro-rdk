@@ -54,6 +54,31 @@ pub struct Esp32Encoder<A, B> {
     b: B,
 }
 
+pub struct Esp32EncoderConfig {
+    pub(crate) a: i32,
+    pub(crate) b: i32,
+}
+
+use crate::common::config::{AttributeError, Kind};
+impl TryFrom<&Kind> for Esp32EncoderConfig {
+    type Error = AttributeError;
+    fn try_from(value: &Kind) -> Result<Self, Self::Error> {
+        let a = value
+            .get("a")?
+            .map(|v| v.try_into())
+            .ok_or(AttributeError::ValidationError(
+                "failed to get attribute `a` from `pins`".to_string(),
+            ))??;
+        let b = value
+            .get("b")?
+            .map(|v| v.try_into())
+            .ok_or(AttributeError::ValidationError(
+                "failed to get attribute `b` from pins".to_string(),
+            ))??;
+        Ok(Self { a, b })
+    }
+}
+
 impl<A, B> Esp32Encoder<A, B>
 where
     A: InputPin + PinExt,
@@ -91,14 +116,15 @@ where
         cfg: ConfigType,
         _: Vec<Dependency>,
     ) -> Result<EncoderType, EncoderError> {
-        let pin_a_num = cfg.get_attribute::<i32>("a")?;
+        let pins = cfg
+            .get_attribute::<Esp32EncoderConfig>("pins")
+            .map_err(EncoderError::EncoderConfigAttributeError)?;
 
-        let pin_b_num = cfg.get_attribute::<i32>("b")?;
-        let a = match PinDriver::input(unsafe { AnyInputPin::new(pin_a_num) }) {
+        let a = match PinDriver::input(unsafe { AnyInputPin::new(pins.a) }) {
             Ok(a) => a,
             Err(err) => return Err(EncoderError::EncoderCodeError(err.code())),
         };
-        let b = match PinDriver::input(unsafe { AnyInputPin::new(pin_b_num) }) {
+        let b = match PinDriver::input(unsafe { AnyInputPin::new(pins.b) }) {
             Ok(b) => b,
             Err(err) => return Err(EncoderError::EncoderCodeError(err.code())),
         };
