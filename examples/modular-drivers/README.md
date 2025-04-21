@@ -64,7 +64,7 @@ mode):
 ``` json
     {
       "name": "my-wifi-sensor",
-      "type": "sensor",
+      "api": "rdk:component:sensor",
       "model": "wifi-rssi",
       "attributes": {},
       "depends_on": []
@@ -77,7 +77,7 @@ To instantiate the free heap sensor, add the following:
     {
       "attributes": {},
       "depends_on": [],
-      "type": "sensor",
+      "api": "rdk:component:sensor",
       "model": "free-heap",
       "name": "my-free-heap-sensor"
     }
@@ -165,7 +165,7 @@ The [`free_heap_sensor`](src/free_heap_sensor.rs) is a wrapper around [`esp_get_
     {
       "attributes": {},
       "depends_on": [],
-      "type": "sensor",
+      "api": "rdk:component:sensor",
       "model": "free-heap",
       "name": "my-free-heap-sensor"
     }
@@ -185,8 +185,7 @@ The [`wifi_rssi_sensor`](src/wifi_rssi_sensor.rs) is a wrapper around [`esp_wifi
 ```json
     {
       "name": "my-wifi-sensor",
-      "namespace": "rdk",
-      "type": "sensor",
+      "api": "rdk:component:sensor",
       "model": "wifi-rssi",
       "attributes": {}
     }
@@ -250,22 +249,22 @@ The [`water_pump`](src/water_pump.rs) is a `motor` that is driven by a single `p
       "model": "rdk:builtin:esp32",
       "attributes": {
         "pins": [
-		  15, 
-		  16
-	    ],
+          15, 
+	  16
+        ],
         "analogs": [
           {}
         ]
       }
     },
-	{
-	  "name": "moisture",
-	  "api": "rdk:component:motor",
+    {
+      "name": "moisture",
+      "api": "rdk:component:motor",
       "model": "water_pump",
       "attributes": {},
       "depends_on": [
-	    "board-1"
+        "board-1"
       ]
-	}
+    }
 ```
 
