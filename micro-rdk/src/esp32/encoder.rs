@@ -67,11 +67,11 @@ impl TryFrom<&Kind> for Esp32EncoderConfig {
     fn try_from(value: &Kind) -> Result<Self, Self::Error> {
         let a = value
             .get("a")?
-            .ok_or(AttributeError::KeyNotFound("a".to_string()))
+            .ok_or(AttributeError::KeyNotFound("a".to_string()))?
             .try_into()?;
         let b = value
             .get("b")?
-            .ok_or(AttributeError::KeyNotFound("b".to_string()))
+            .ok_or(AttributeError::KeyNotFound("b".to_string()))?
             .try_into()?;
 
         Ok(Self { a, b })
