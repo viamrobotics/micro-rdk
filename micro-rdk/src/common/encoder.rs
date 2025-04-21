@@ -2,8 +2,6 @@
 use {
     super::config::ConfigType,
     super::registry::{ComponentRegistry, Dependency},
-    crate::google,
-    std::collections::HashMap,
 };
 
 use std::sync::Arc;
@@ -15,7 +13,6 @@ use crate::proto::component::encoder::v1::PositionType;
 
 use super::config::AttributeError;
 use super::generic::DoCommand;
-use super::status::Status;
 
 use thiserror::Error;
 
@@ -116,7 +113,7 @@ impl From<EncoderPosition> for GetPositionResponse {
     }
 }
 
-pub trait Encoder: Status + DoCommand {
+pub trait Encoder: DoCommand {
     fn get_properties(&mut self) -> EncoderSupportedRepresentations;
     fn get_position(
         &self,
@@ -204,17 +201,6 @@ impl Encoder for FakeIncrementalEncoder {
 }
 
 #[cfg(feature = "builtin-components")]
-impl Status for FakeIncrementalEncoder {
-    fn get_status(
-        &self,
-    ) -> Result<Option<google::protobuf::Struct>, crate::common::status::StatusError> {
-        Ok(Some(google::protobuf::Struct {
-            fields: HashMap::new(),
-        }))
-    }
-}
-
-#[cfg(feature = "builtin-components")]
 #[derive(DoCommand)]
 pub struct FakeEncoder {
     pub angle_degrees: f32,
@@ -272,17 +258,6 @@ impl Encoder for FakeEncoder {
                 Ok(position_type.wrap_value(value))
             }
         }
-    }
-}
-
-#[cfg(feature = "builtin-components")]
-impl Status for FakeEncoder {
-    fn get_status(
-        &self,
-    ) -> Result<Option<google::protobuf::Struct>, crate::common::status::StatusError> {
-        Ok(Some(google::protobuf::Struct {
-            fields: HashMap::new(),
-        }))
     }
 }
 

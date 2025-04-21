@@ -1,17 +1,16 @@
 #![allow(dead_code)]
 #[cfg(feature = "builtin-components")]
-use {super::actuator::ActuatorError, crate::google, log::*, std::collections::HashMap};
+use {super::actuator::ActuatorError, log::*};
 
 use super::{config::AttributeError, generic::DoCommand, motor::MotorError};
 use crate::common::actuator::Actuator;
-use crate::common::status::Status;
 use crate::proto::common::v1::Vector3;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
 pub static COMPONENT_NAME: &str = "base";
 
-pub trait Base: Status + Actuator + DoCommand {
+pub trait Base: Actuator + DoCommand {
     fn set_power(&mut self, lin: &Vector3, ang: &Vector3) -> Result<(), BaseError>;
 }
 
@@ -82,21 +81,5 @@ impl Actuator for FakeBase {
     fn stop(&mut self) -> Result<(), ActuatorError> {
         debug!("Stopping base");
         Ok(())
-    }
-}
-
-#[cfg(feature = "builtin-components")]
-impl Status for FakeBase {
-    fn get_status(
-        &self,
-    ) -> Result<Option<google::protobuf::Struct>, crate::common::status::StatusError> {
-        let mut hm = HashMap::new();
-        hm.insert(
-            "is_moving".to_string(),
-            google::protobuf::Value {
-                kind: Some(google::protobuf::value::Kind::BoolValue(false)),
-            },
-        );
-        Ok(Some(google::protobuf::Struct { fields: hm }))
     }
 }

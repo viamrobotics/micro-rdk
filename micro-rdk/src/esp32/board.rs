@@ -14,9 +14,7 @@ use crate::{
         digital_interrupt::DigitalInterruptConfig,
         i2c::I2cHandleType,
         registry::ComponentRegistry,
-        status::{Status, StatusError},
     },
-    google,
     proto::component,
 };
 
@@ -366,34 +364,5 @@ impl Board for EspBoard {
             return Ok(p.get_event_count());
         }
         Err(BoardError::GpioPinError(pin as u32, "not configured"))
-    }
-}
-
-impl Status for EspBoard {
-    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
-        let mut hm = HashMap::new();
-        let mut analogs = HashMap::new();
-        self.analogs.iter().for_each(|a| {
-            let mut analog = a.clone();
-            analogs.insert(
-                analog.name(),
-                google::protobuf::Value {
-                    kind: Some(google::protobuf::value::Kind::NumberValue(
-                        analog.read().unwrap_or(0).into(),
-                    )),
-                },
-            );
-        });
-        if !analogs.is_empty() {
-            hm.insert(
-                "analogs".to_string(),
-                google::protobuf::Value {
-                    kind: Some(google::protobuf::value::Kind::StructValue(
-                        google::protobuf::Struct { fields: analogs },
-                    )),
-                },
-            );
-        }
-        Ok(Some(google::protobuf::Struct { fields: hm }))
     }
 }

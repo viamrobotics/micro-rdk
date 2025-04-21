@@ -15,9 +15,8 @@ use crate::common::camera::{Camera, CameraType};
 use crate::{
     common::{
         actuator::Actuator, base::Base, board::Board, encoder::Encoder, motor::Motor,
-        movement_sensor::MovementSensor, sensor::Sensor, status::Status,
+        movement_sensor::MovementSensor, sensor::Sensor, switch::Switch,
     },
-    google,
     proto::{
         app::v1::RobotConfig,
         common::{self, v1::ResourceName},
@@ -38,6 +37,7 @@ use super::{
     app_client::PeriodicAppClientTask,
     base::BaseType,
     board::BoardType,
+    button::{Button, ButtonType},
     config::{AttributeError, Component, ConfigType, DynamicComponentConfig},
     encoder::EncoderType,
     exec::Executor,
@@ -50,7 +50,7 @@ use super::{
     },
     sensor::SensorType,
     servo::{Servo, ServoType},
-    status::StatusError,
+    switch::SwitchType,
 };
 
 use thiserror::Error;
@@ -62,11 +62,13 @@ pub enum ResourceType {
     Motor(MotorType),
     Board(BoardType),
     Base(BaseType),
+    Button(ButtonType),
     Sensor(SensorType),
     MovementSensor(MovementSensorType),
     Encoder(EncoderType),
     PowerSensor(PowerSensorType),
     Servo(ServoType),
+    Switch(SwitchType),
     Generic(GenericComponentType),
     #[cfg(feature = "camera")]
     Camera(CameraType),
@@ -79,6 +81,7 @@ impl ResourceType {
         match self {
             Self::Base(_) => "rdk:component:base",
             Self::Board(_) => "rdk:component:board",
+            Self::Button(_) => "rdk:component:button",
             Self::Encoder(_) => "rdk:component:encoder",
             Self::Generic(_) => "rdk:component:generic",
             Self::Motor(_) => "rdk:component:motor",
@@ -86,6 +89,7 @@ impl ResourceType {
             Self::PowerSensor(_) => "rdk:component:power_sensor",
             Self::Sensor(_) => "rdk:component:sensor",
             Self::Servo(_) => "rdk:component:servo",
+            Self::Switch(_) => "rdk:component:switch",
             #[cfg(feature = "camera")]
             Self::Camera(_) => "rdk:component:camera",
         }
@@ -448,6 +452,14 @@ impl LocalRobot {
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
                 )
             }
+            "button" => {
+                let ctor = registry
+                    .get_button_constructor(&model)
+                    .map_err(RobotError::RobotRegistryError)?;
+                ResourceType::Button(
+                    ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
+                )
+            }
             #[cfg(feature = "camera")]
             "camera" => {
                 let ctor = registry
@@ -470,6 +482,14 @@ impl LocalRobot {
                     .get_servo_constructor(&model)
                     .map_err(RobotError::RobotRegistryError)?;
                 ResourceType::Servo(
+                    ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
+                )
+            }
+            "switch" => {
+                let ctor = registry
+                    .get_switch_constructor(&model)
+                    .map_err(RobotError::RobotRegistryError)?;
+                ResourceType::Switch(
                     ctor(cfg, deps).map_err(|e| RobotError::RobotResourceBuildError(e.into()))?,
                 )
             }
@@ -519,197 +539,6 @@ impl LocalRobot {
         tasks
     }
 
-    pub fn get_status(
-        &mut self,
-        mut msg: robot::v1::GetStatusRequest,
-    ) -> Result<Vec<robot::v1::Status>, StatusError> {
-        let last_reconfigured_proto = self.build_time.map(|bt| google::protobuf::Timestamp {
-            seconds: bt.timestamp(),
-            nanos: bt.timestamp_subsec_nanos() as i32,
-        });
-        if msg.resource_names.is_empty() {
-            let mut vec = Vec::with_capacity(self.resources.len());
-            for (name, val) in self.resources.iter_mut() {
-                match val {
-                    ResourceType::Motor(m) => {
-                        let status = m.get_status()?;
-                        vec.push(robot::v1::Status {
-                            name: Some(name.clone()),
-                            last_reconfigured: last_reconfigured_proto.clone(),
-                            status,
-                        });
-                    }
-                    ResourceType::Board(b) => {
-                        let status = b.get_status()?;
-                        vec.push(robot::v1::Status {
-                            name: Some(name.clone()),
-                            last_reconfigured: last_reconfigured_proto.clone(),
-                            status,
-                        });
-                    }
-                    ResourceType::Base(b) => {
-                        let status = b.get_status()?;
-                        vec.push(robot::v1::Status {
-                            name: Some(name.clone()),
-                            last_reconfigured: last_reconfigured_proto.clone(),
-                            status,
-                        });
-                    }
-                    ResourceType::Sensor(b) => {
-                        let status = b.get_status()?;
-                        vec.push(robot::v1::Status {
-                            name: Some(name.clone()),
-                            last_reconfigured: last_reconfigured_proto.clone(),
-                            status,
-                        });
-                    }
-                    ResourceType::MovementSensor(b) => {
-                        let status = b.get_status()?;
-                        vec.push(robot::v1::Status {
-                            name: Some(name.clone()),
-                            last_reconfigured: last_reconfigured_proto.clone(),
-                            status,
-                        });
-                    }
-                    ResourceType::Encoder(b) => {
-                        let status = b.get_status()?;
-                        vec.push(robot::v1::Status {
-                            name: Some(name.clone()),
-                            last_reconfigured: last_reconfigured_proto.clone(),
-                            status,
-                        });
-                    }
-                    ResourceType::PowerSensor(b) => {
-                        let status = b.get_status()?;
-                        vec.push(robot::v1::Status {
-                            name: Some(name.clone()),
-                            last_reconfigured: last_reconfigured_proto.clone(),
-                            status,
-                        });
-                    }
-                    ResourceType::Servo(b) => {
-                        let status = b.get_status()?;
-                        vec.push(robot::v1::Status {
-                            name: Some(name.clone()),
-                            last_reconfigured: last_reconfigured_proto.clone(),
-                            status,
-                        });
-                    }
-                    ResourceType::Generic(b) => {
-                        let status = b.get_status()?;
-                        vec.push(robot::v1::Status {
-                            name: Some(name.clone()),
-                            last_reconfigured: last_reconfigured_proto.clone(),
-                            status,
-                        });
-                    }
-                    #[cfg(feature = "camera")]
-                    ResourceType::Camera(b) => {
-                        let status = b.get_status()?;
-                        vec.push(robot::v1::Status {
-                            name: Some(name.clone()),
-                            last_reconfigured: last_reconfigured_proto.clone(),
-                            status,
-                        });
-                    }
-                };
-            }
-            return Ok(vec);
-        }
-        let mut vec = Vec::with_capacity(msg.resource_names.len());
-        for name in msg.resource_names.drain(0..) {
-            debug!("processing {:?}", name);
-            match self.resources.get_mut(&name) {
-                Some(val) => {
-                    match val {
-                        ResourceType::Motor(m) => {
-                            let status = m.get_status()?;
-                            vec.push(robot::v1::Status {
-                                name: Some(name),
-                                last_reconfigured: last_reconfigured_proto.clone(),
-                                status,
-                            });
-                        }
-                        ResourceType::Board(b) => {
-                            let status = b.get_status()?;
-                            vec.push(robot::v1::Status {
-                                name: Some(name),
-                                last_reconfigured: last_reconfigured_proto.clone(),
-                                status,
-                            });
-                        }
-                        ResourceType::Base(b) => {
-                            let status = b.get_status()?;
-                            vec.push(robot::v1::Status {
-                                name: Some(name),
-                                last_reconfigured: last_reconfigured_proto.clone(),
-                                status,
-                            });
-                        }
-                        ResourceType::Sensor(b) => {
-                            let status = b.get_status()?;
-                            vec.push(robot::v1::Status {
-                                name: Some(name),
-                                last_reconfigured: last_reconfigured_proto.clone(),
-                                status,
-                            });
-                        }
-                        ResourceType::MovementSensor(b) => {
-                            let status = b.get_status()?;
-                            vec.push(robot::v1::Status {
-                                name: Some(name),
-                                last_reconfigured: last_reconfigured_proto.clone(),
-                                status,
-                            });
-                        }
-                        ResourceType::Encoder(b) => {
-                            let status = b.get_status()?;
-                            vec.push(robot::v1::Status {
-                                name: Some(name),
-                                last_reconfigured: last_reconfigured_proto.clone(),
-                                status,
-                            });
-                        }
-                        ResourceType::PowerSensor(b) => {
-                            let status = b.get_status()?;
-                            vec.push(robot::v1::Status {
-                                name: Some(name),
-                                last_reconfigured: last_reconfigured_proto.clone(),
-                                status,
-                            });
-                        }
-                        ResourceType::Servo(b) => {
-                            let status = b.get_status()?;
-                            vec.push(robot::v1::Status {
-                                name: Some(name),
-                                last_reconfigured: last_reconfigured_proto.clone(),
-                                status,
-                            });
-                        }
-                        ResourceType::Generic(b) => {
-                            let status = b.get_status()?;
-                            vec.push(robot::v1::Status {
-                                name: Some(name),
-                                last_reconfigured: last_reconfigured_proto.clone(),
-                                status,
-                            });
-                        }
-                        #[cfg(feature = "camera")]
-                        ResourceType::Camera(b) => {
-                            let status = b.get_status()?;
-                            vec.push(robot::v1::Status {
-                                name: Some(name),
-                                last_reconfigured: last_reconfigured_proto.clone(),
-                                status,
-                            });
-                        }
-                    };
-                }
-                None => continue,
-            };
-        }
-        Ok(vec)
-    }
     pub fn get_resource_names(&self) -> Result<Vec<common::v1::ResourceName>, RobotError> {
         let mut name = Vec::with_capacity(self.resources.len());
         for k in self.resources.keys() {
@@ -778,6 +607,22 @@ impl LocalRobot {
             None => None,
         }
     }
+
+    pub fn get_button_by_name(&self, name: String) -> Option<Arc<Mutex<dyn Button>>> {
+        let name = ResourceName {
+            namespace: "rdk".to_string(),
+            r#type: "component".to_string(),
+            subtype: "button".to_string(),
+            local_name: name.clone(),
+            remote_path: vec![],
+            name,
+        };
+        match self.resources.get(&name) {
+            Some(ResourceType::Button(r)) => Some(r.clone()),
+            Some(_) => None,
+            None => None,
+        }
+    }
     pub fn get_sensor_by_name(&self, name: String) -> Option<Arc<Mutex<dyn Sensor>>> {
         let name = ResourceName {
             namespace: "rdk".to_string(),
@@ -789,6 +634,22 @@ impl LocalRobot {
         };
         match self.resources.get(&name) {
             Some(ResourceType::Sensor(r)) => Some(r.clone()),
+            Some(_) => None,
+            None => None,
+        }
+    }
+
+    pub fn get_switch_by_name(&self, name: String) -> Option<Arc<Mutex<dyn Switch>>> {
+        let name = ResourceName {
+            namespace: "rdk".to_string(),
+            r#type: "component".to_string(),
+            subtype: "switch".to_string(),
+            local_name: name.clone(),
+            remote_path: vec![],
+            name,
+        };
+        match self.resources.get(&name) {
+            Some(ResourceType::Switch(r)) => Some(r.clone()),
             Some(_) => None,
             None => None,
         }

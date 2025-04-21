@@ -33,6 +33,7 @@ pub mod analog;
 pub mod app_client;
 pub mod base;
 pub mod board;
+pub mod button;
 #[cfg(feature = "camera")]
 pub mod camera;
 pub mod config;
@@ -66,6 +67,7 @@ pub mod robot;
 pub mod sensor;
 pub mod servo;
 pub mod status;
+pub mod switch;
 #[cfg(feature = "builtin-components")]
 pub mod wheeled_base;
 pub mod webrtc {

@@ -134,6 +134,11 @@ pub mod proto {
                 include!("gen/viam.component.board.v1.rs");
             }
         }
+        pub mod button {
+            pub mod v1 {
+                include!("gen/viam.component.button.v1.rs");
+            }
+        }
         pub mod motor {
             pub mod v1 {
                 include!("gen/viam.component.motor.v1.rs");
@@ -165,6 +170,12 @@ pub mod proto {
         pub mod servo {
             pub mod v1 {
                 include!("gen/viam.component.servo.v1.rs");
+            }
+        }
+
+        pub mod switch {
+            pub mod v1 {
+                include!("gen/viam.component.switch.v1.rs");
             }
         }
 

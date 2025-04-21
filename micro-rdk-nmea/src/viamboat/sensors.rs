@@ -43,7 +43,6 @@ use micro_rdk::{
             GenericReadingsResult, Readings, Sensor, SensorError, SensorType,
             COMPONENT_NAME as SensorCompName,
         },
-        status::Status,
     },
     google::protobuf::{value::Kind, ListValue, Struct, Value},
     DoCommand, MovementSensorReadings,
@@ -215,15 +214,6 @@ impl Readings for DepthSensor {
                 kind: Some(Kind::NumberValue(depth)),
             },
         )]))
-    }
-}
-
-impl Status for DepthSensor {
-    fn get_status(
-        &self,
-    ) -> Result<Option<micro_rdk::google::protobuf::Struct>, micro_rdk::common::status::StatusError>
-    {
-        Ok(None)
     }
 }
 
@@ -428,15 +418,6 @@ impl MovementSensor for ViamboatMovementSensor {
     }
 }
 
-impl Status for ViamboatMovementSensor {
-    fn get_status(
-        &self,
-    ) -> Result<Option<micro_rdk::google::protobuf::Struct>, micro_rdk::common::status::StatusError>
-    {
-        Ok(None)
-    }
-}
-
 /// PgnSensor provides message data for a list of PGNs and sources. If no PGNs are provided,
 /// the messages will encompass all PGNs. If no sources are provided, the messages will encompass
 /// all sources
@@ -508,15 +489,6 @@ impl Readings for PgnSensor {
     }
 }
 
-impl Status for PgnSensor {
-    fn get_status(
-        &self,
-    ) -> Result<Option<micro_rdk::google::protobuf::Struct>, micro_rdk::common::status::StatusError>
-    {
-        Ok(None)
-    }
-}
-
 /// DebugPgnSensor provides the complete raw and parsed data, meant to be used for
 /// debugging purposes.
 #[derive(DoCommand)]
@@ -568,14 +540,5 @@ impl Readings for DebugPgnSensor {
                 },
             ),
         ]))
-    }
-}
-
-impl Status for DebugPgnSensor {
-    fn get_status(
-        &self,
-    ) -> Result<Option<micro_rdk::google::protobuf::Struct>, micro_rdk::common::status::StatusError>
-    {
-        Ok(None)
     }
 }

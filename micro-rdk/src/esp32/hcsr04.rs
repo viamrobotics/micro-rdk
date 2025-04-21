@@ -55,9 +55,8 @@ use crate::{
             GenericReadingsResult, Readings, Sensor, SensorError, SensorResult, SensorT,
             SensorType, TypedReadingsResult,
         },
-        status::{Status, StatusError},
     },
-    google, DoCommand,
+    DoCommand,
 };
 
 use crate::esp32::esp_idf_svc::hal::{
@@ -318,13 +317,5 @@ impl SensorT<f64> for HCSR04Sensor {
                 "HCSR04Sensor no echo heard obstacle may be out of range",
             )),
         }
-    }
-}
-
-impl Status for HCSR04Sensor {
-    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
-        Ok(Some(google::protobuf::Struct {
-            fields: HashMap::new(),
-        }))
     }
 }

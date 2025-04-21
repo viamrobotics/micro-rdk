@@ -9,7 +9,6 @@ use {
 use super::generic::DoCommand;
 use super::math_utils::Vector3;
 use super::sensor::{GenericReadingsResult, Readings, SensorError};
-use super::status::Status;
 use crate::google;
 use crate::google::protobuf::{value::Kind, Struct, Value};
 use crate::proto::common::v1::GeoPoint;
@@ -106,7 +105,7 @@ impl From<GeoPosition> for movement_sensor::v1::GetPositionResponse {
 
 // A trait for implementing a movement sensor component driver. TODO: add
 // get_orientation and get_accuracy if/when they become supportable.
-pub trait MovementSensor: Status + Readings + DoCommand {
+pub trait MovementSensor: Readings + DoCommand {
     fn get_position(&mut self) -> Result<GeoPosition, SensorError>;
     fn get_linear_velocity(&mut self) -> Result<Vector3, SensorError>;
     fn get_angular_velocity(&mut self) -> Result<Vector3, SensorError>;
@@ -253,17 +252,6 @@ impl MovementSensor for FakeMovementSensor {
         Err(SensorError::SensorMethodUnimplemented(
             "get_compass_heading",
         ))
-    }
-}
-
-#[cfg(feature = "builtin-components")]
-impl Status for FakeMovementSensor {
-    fn get_status(
-        &self,
-    ) -> Result<Option<google::protobuf::Struct>, crate::common::status::StatusError> {
-        Ok(Some(google::protobuf::Struct {
-            fields: HashMap::new(),
-        }))
     }
 }
 

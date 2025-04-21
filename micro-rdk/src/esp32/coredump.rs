@@ -17,7 +17,6 @@ use crate::{
         generic::{DoCommand, GenericError},
         registry::{ComponentRegistry, Dependency},
         sensor::{GenericReadingsResult, Readings, Sensor, SensorError, SensorType},
-        status::Status,
     },
     google::protobuf::{self, value::Kind, Struct, Value},
 };
@@ -94,16 +93,6 @@ impl Readings for Coredump {
             },
         )]);
         Ok(res)
-    }
-}
-
-impl Status for Coredump {
-    fn get_status(
-        &self,
-    ) -> Result<Option<crate::google::protobuf::Struct>, crate::common::status::StatusError> {
-        Ok(Some(protobuf::Struct {
-            fields: HashMap::new(),
-        }))
     }
 }
 

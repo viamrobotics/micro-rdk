@@ -5,10 +5,7 @@ use crate::common::encoder::{
     Direction, Encoder, EncoderPositionType, EncoderSupportedRepresentations, SingleEncoder,
 };
 use crate::common::motor::{Motor, MotorError, MotorSupportedProperties, MotorType};
-use crate::common::status::{Status, StatusError};
-use crate::google;
 
-use std::collections::HashMap;
 use std::time::Duration;
 
 #[derive(DoCommand)]
@@ -80,22 +77,5 @@ impl Actuator for SingleEncodedMotor {
     }
     fn stop(&mut self) -> Result<(), ActuatorError> {
         self.motor.stop()
-    }
-}
-
-impl Status for SingleEncodedMotor {
-    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
-        let mut hm = HashMap::new();
-        let pos = self
-            .encoder
-            .get_position(EncoderPositionType::UNSPECIFIED)?
-            .value as f64;
-        hm.insert(
-            "position".to_string(),
-            google::protobuf::Value {
-                kind: Some(google::protobuf::value::Kind::NumberValue(pos)),
-            },
-        );
-        Ok(Some(google::protobuf::Struct { fields: hm }))
     }
 }

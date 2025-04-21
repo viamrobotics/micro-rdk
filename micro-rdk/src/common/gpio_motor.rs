@@ -37,7 +37,6 @@
 //! ```
 //!
 
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -54,10 +53,6 @@ use super::motor::{
 };
 use super::registry::{get_board_from_dependencies, ComponentRegistry, Dependency, ResourceKey};
 use super::robot::Resource;
-use super::status::Status;
-use crate::common::status::StatusError;
-
-use crate::google;
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
@@ -178,27 +173,6 @@ where
     }
 }
 
-impl<M, Enc> Status for EncodedMotor<M, Enc>
-where
-    M: Motor,
-    Enc: Encoder,
-{
-    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
-        let mut hm = HashMap::new();
-        let pos = self
-            .enc
-            .get_position(EncoderPositionType::UNSPECIFIED)?
-            .value as f64;
-        hm.insert(
-            "position".to_string(),
-            google::protobuf::Value {
-                kind: Some(google::protobuf::value::Kind::NumberValue(pos)),
-            },
-        );
-        Ok(Some(google::protobuf::Struct { fields: hm }))
-    }
-}
-
 // Represents a motor using a A, B, and PWM pins
 #[derive(DoCommand)]
 pub(crate) struct PwmABMotor<B> {
@@ -314,23 +288,6 @@ where
     }
 }
 
-impl<B> Status for PwmABMotor<B>
-where
-    B: Board,
-{
-    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
-        let mut hm = HashMap::new();
-        let pos = 0.0;
-        hm.insert(
-            "position".to_string(),
-            google::protobuf::Value {
-                kind: Some(google::protobuf::value::Kind::NumberValue(pos)),
-            },
-        );
-        Ok(Some(google::protobuf::Struct { fields: hm }))
-    }
-}
-
 impl<B> Actuator for PwmABMotor<B>
 where
     B: Board,
@@ -429,23 +386,6 @@ where
         MotorSupportedProperties {
             position_reporting: false,
         }
-    }
-}
-
-impl<B> Status for PwmDirectionMotor<B>
-where
-    B: Board,
-{
-    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
-        let mut hm = HashMap::new();
-        let pos = 0.0;
-        hm.insert(
-            "position".to_string(),
-            google::protobuf::Value {
-                kind: Some(google::protobuf::value::Kind::NumberValue(pos)),
-            },
-        );
-        Ok(Some(google::protobuf::Struct { fields: hm }))
     }
 }
 
@@ -567,23 +507,6 @@ where
         MotorSupportedProperties {
             position_reporting: false,
         }
-    }
-}
-
-impl<B> Status for AbMotor<B>
-where
-    B: Board,
-{
-    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
-        let mut hm = HashMap::new();
-        let pos = 0.0;
-        hm.insert(
-            "position".to_string(),
-            google::protobuf::Value {
-                kind: Some(google::protobuf::value::Kind::NumberValue(pos)),
-            },
-        );
-        Ok(Some(google::protobuf::Struct { fields: hm }))
     }
 }
 

@@ -20,7 +20,7 @@ upload:
 		--release $(ESPFLASH_FLASH_ARGS)
 
 monitor:
-	espflash monitor --baud ${BAUDRATE}
+	espflash monitor --baud 115200
 
 info:
 	cargo espflash board-info --baud ${BAUDRATE}
@@ -61,7 +61,7 @@ ifneq (,$(wildcard target/xtensa-esp32-espidf/release/{{project-name}}))
 		--partition-table partitions.csv \
 		--flash-size ${FLASHSIZE} \
 		--baud ${BAUDRATE} \
-		target/xtensa-esp32-espidf/release/{{project-name}} && sleep 2 && espflash monitor --baud ${BAUDRATE}
+		target/xtensa-esp32-espidf/release/{{project-name}} && sleep 2 && espflash monitor --baud 115200
 else
 	$(error target/xtensa-esp32-espidf/release/{{project-name}} not found, run build-esp32-bin first)
 endif

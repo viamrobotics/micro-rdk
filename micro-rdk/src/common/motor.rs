@@ -11,12 +11,8 @@ use {
         registry::{ComponentRegistry, Dependency, ResourceKey},
         robot::Resource,
     },
-    crate::common::status::StatusError,
-    crate::google,
-    std::collections::HashMap,
 };
 
-use crate::common::status::Status;
 use crate::proto::component::motor::v1::GetPropertiesResponse;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -92,7 +88,7 @@ impl From<MotorSupportedProperties> for GetPropertiesResponse {
     }
 }
 
-pub trait Motor: Status + Actuator + DoCommand {
+pub trait Motor: Actuator + DoCommand {
     /// Sets the percentage of the motor's total power that should be employed.
     /// expressed a value between `-1.0` and `1.0` where negative values indicate a backwards
     /// direction and positive values a forward direction.
@@ -311,27 +307,6 @@ impl Motor for FakeMotor {
 }
 
 #[cfg(feature = "builtin-components")]
-impl Status for FakeMotor {
-    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
-        let mut hm = HashMap::new();
-        hm.insert(
-            "position".to_string(),
-            google::protobuf::Value {
-                kind: Some(google::protobuf::value::Kind::NumberValue(self.pos)),
-            },
-        );
-        hm.insert(
-            "position_reporting".to_string(),
-            google::protobuf::Value {
-                kind: Some(google::protobuf::value::Kind::BoolValue(true)),
-            },
-        );
-
-        Ok(Some(google::protobuf::Struct { fields: hm }))
-    }
-}
-
-#[cfg(feature = "builtin-components")]
 impl Actuator for FakeMotor {
     fn stop(&mut self) -> Result<(), ActuatorError> {
         log::debug!("stopping motor");
@@ -408,14 +383,6 @@ impl Motor for FakeMotorWithDependency {
         MotorSupportedProperties {
             position_reporting: true,
         }
-    }
-}
-
-#[cfg(feature = "builtin-components")]
-impl Status for FakeMotorWithDependency {
-    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
-        let hm = HashMap::new();
-        Ok(Some(google::protobuf::Struct { fields: hm }))
     }
 }
 
