@@ -65,18 +65,20 @@ pub struct Esp32EncoderConfig {
 impl TryFrom<&Kind> for Esp32EncoderConfig {
     type Error = AttributeError;
     fn try_from(value: &Kind) -> Result<Self, Self::Error> {
-        let a = value
-            .get("a")?
+        let a = value.get("a")?;
+        let a = a
             .map(|v| v.try_into())
-            .ok_or(AttributeError::ValidationError(
-                "failed to get attribute `a` from `pins`".to_string(),
-            ))??;
-        let b = value
-            .get("b")?
+            .ok_or(AttributeError::ValidationError(format!(
+                "`{:?}` is an invalid value for pin `a",
+                a
+            )))??;
+        let b = value.get("b")?;
+        let b = b
             .map(|v| v.try_into())
-            .ok_or(AttributeError::ValidationError(
-                "failed to get attribute `b` from pins".to_string(),
-            ))??;
+            .ok_or(AttributeError::ValidationError(format!(
+                "`{:?}` is an invalid value for pin `b`",
+                b
+            )))??;
         Ok(Self { a, b })
     }
 }
