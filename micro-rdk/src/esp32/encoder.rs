@@ -18,7 +18,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::{Arc, Mutex};
 
-use crate::common::config::ConfigType;
+use crate::common::config::{AttributeError, ConfigType, Kind};
 use crate::common::encoder::{
     Encoder, EncoderError, EncoderPosition, EncoderPositionType, EncoderSupportedRepresentations,
     EncoderType,
@@ -62,7 +62,6 @@ pub struct Esp32EncoderConfig {
     pub(crate) b: i32,
 }
 
-use crate::common::config::{AttributeError, Kind};
 impl TryFrom<&Kind> for Esp32EncoderConfig {
     type Error = AttributeError;
     fn try_from(value: &Kind) -> Result<Self, Self::Error> {
