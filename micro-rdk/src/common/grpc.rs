@@ -1394,12 +1394,7 @@ impl<'a> GrpcServerInner<'a> {
 
     // robot_shutdown will not return anything because will restart
     fn robot_shutdown(&mut self, _: &[u8]) -> ! {
-        #[cfg(feature = "native")]
-        std::process::exit(0);
-        #[cfg(feature = "esp32")]
-        unsafe {
-            crate::esp32::esp_idf_svc::sys::esp_restart();
-        }
+        crate::common::runtime::terminate()
     }
 
     fn robot_get_cloud_metadata(&mut self) -> Result<Bytes, ServerError> {

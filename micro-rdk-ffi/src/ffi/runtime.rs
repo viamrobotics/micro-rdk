@@ -267,6 +267,12 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
         .unwrap();
     }
 
+    log::info!("viam_server_start called");
+    #[cfg(target_os = "espidf")]
+    log::info!("esp restarted due to esp_reset_reason_t{{{}}}", unsafe {
+        micro_rdk::esp32::esp_idf_svc::sys::esp_reset_reason()
+    });
+
     let network = {
         #[cfg(not(target_os = "espidf"))]
         {
