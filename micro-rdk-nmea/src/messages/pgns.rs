@@ -279,86 +279,6 @@ pub struct Attitude {
     roll: i16,
 }
 
-#[derive(FieldsetDerive, Clone, Debug)]
-pub struct SimnetParameterSet {
-    #[lookup]
-    #[bits = 11]
-    manufacturer_code: ManufacturerCode,
-
-    #[lookup]
-    #[bits = 3]
-    #[offset = 2]
-    industry_code: IndustryCode,
-
-    address: u8,
-
-    b: u8,
-
-    #[lookup]
-    #[bits = 8]
-    display_group: SimnetDisplayGroup,
-
-    d: u16,
-
-    #[lookup]
-    #[bits = 16]
-    key: SimnetKey,
-
-    #[polymorphic]
-    #[offset = 16]
-    #[lookup_field = "key"]
-    value: SimnetKeyValue,
-}
-
-#[derive(FieldsetDerive, Clone, Debug)]
-pub struct SimnetParameterSetCopy {
-    #[lookup]
-    #[bits = 11]
-    manufacturer_code: ManufacturerCode,
-
-    #[lookup]
-    #[bits = 3]
-    #[offset = 2]
-    industry_code: IndustryCode,
-
-    address: u8,
-
-    b: u8,
-
-    #[lookup]
-    #[bits = 8]
-    display_group: SimnetDisplayGroup,
-
-    d: u16,
-
-    #[lookup]
-    #[bits = 16]
-    key: SimnetKey,
-
-    #[polymorphic]
-    #[offset = 16]
-    #[lookup_field = "key"]
-    value: SimnetKeyValue,
-}
-
-#[derive(PartialEq)]
-pub struct Pgn130846MatchValue {
-    manufacturer_code: ManufacturerCode,
-    industry_code: IndustryCode,
-}
-
-#[derive(FieldsetDerive, Clone, Debug)]
-pub struct Pgn130846Parent {
-    #[lookup]
-    #[bits = 11]
-    manufacturer_code: ManufacturerCode,
-
-    #[lookup]
-    #[bits = 3]
-    #[offset = 2]
-    industry_code: IndustryCode,
-}
-
 macro_rules! impl_match {
     ( $matchtype:ident, $parent:ty, ($($prop:ident),*), $(($variant:ty, $(($prop2:ident, $val:expr)),*)),* ) => {
         impl PolymorphicPgnParent<$matchtype> for $parent {
@@ -378,22 +298,6 @@ macro_rules! impl_match {
         )*
     };
 }
-
-impl_match!(
-    Pgn130846MatchValue,
-    Pgn130846Parent,
-    (manufacturer_code, industry_code),
-    (
-        SimnetParameterSet,
-        (manufacturer_code, ManufacturerCode::Simrad),
-        (industry_code, IndustryCode::Marine)
-    ),
-    (
-        SimnetParameterSetCopy,
-        (manufacturer_code, ManufacturerCode::Simrad),
-        (industry_code, IndustryCode::Industrial)
-    )
-);
 
 macro_rules! define_proprietary_pgn {
     ( $pgn:expr, $messagelabel:ident, $parent:ident, $variantlabel:ident, $matchval:ty, $($varianttylabel:ident, $variantty:ty),* ) => {
@@ -439,18 +343,6 @@ macro_rules! define_proprietary_pgn {
         }
     };
 }
-
-define_proprietary_pgn!(
-    130846,
-    Pgn130846Message,
-    Pgn130846Parent,
-    Pgn130846Variant,
-    Pgn130846MatchValue,
-    A,
-    SimnetParameterSet,
-    B,
-    SimnetParameterSetCopy
-);
 
 macro_rules! define_pgns {
     ( $($pgndef:ident),* ) => {
@@ -499,8 +391,7 @@ define_pgns!(
     VesselHeading,
     Attitude,
     Speed,
-    DistanceLog,
-    Pgn130846Message
+    DistanceLog
 );
 
 pub struct NmeaMessage {
