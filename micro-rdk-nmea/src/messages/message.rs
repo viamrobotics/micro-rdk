@@ -6,7 +6,10 @@ use micro_rdk::{
     google::protobuf::{value::Kind, Value},
 };
 
-use crate::parse_helpers::{errors::NmeaParseError, parsers::DataCursor};
+use crate::parse_helpers::{
+    errors::NmeaParseError,
+    parsers::{DataCursor, FieldSet},
+};
 
 pub trait Message: Sized + Clone {
     const PGN: u32;
@@ -49,4 +52,12 @@ impl UnparsedNmeaMessageBody {
     pub fn pgn(&self) -> u32 {
         self.pgn
     }
+}
+
+pub trait PolymorphicPgnParent<T> {
+    fn read_match_value(&self) -> T;
+}
+
+pub trait MessageVariant<T>: FieldSet {
+    const MATCH_VALUE: T;
 }

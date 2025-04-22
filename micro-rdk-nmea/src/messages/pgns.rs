@@ -1,3 +1,4 @@
+#![allow(unused_macros)]
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
@@ -10,13 +11,11 @@ use micro_rdk_nmea_macros::{FieldsetDerive, PgnMessageDerive};
 use super::message::{Message, UnparsedNmeaMessageBody};
 use crate::parse_helpers::{
     enums::{
-        DirectionReference, Gns, GnsIntegrity, GnsMethod, IndustryCode, ManufacturerCode,
-        RangeResidualMode, SatelliteStatus, SimnetDisplayGroup, TemperatureSource, WaterReference,
+        DirectionReference, Gns, GnsIntegrity, GnsMethod, RangeResidualMode, SatelliteStatus,
+        TemperatureSource, WaterReference,
     },
     errors::NmeaParseError,
-    parsers::{
-        DataCursor, FieldSet, NmeaMessageMetadata, PolymorphicDataType, SimnetKey, SimnetKeyValue,
-    },
+    parsers::{DataCursor, FieldSet, NmeaMessageMetadata},
 };
 
 #[derive(PgnMessageDerive, Clone, Debug)]
@@ -279,38 +278,69 @@ pub struct Attitude {
     roll: i16,
 }
 
-#[derive(PgnMessageDerive, Clone, Debug)]
-pub struct SimnetParameterSet {
-    #[pgn = 130846]
-    _pgn: PhantomData<u32>,
+macro_rules! impl_match {
+    ( $matchtype:ident, $parent:ty, ($($prop:ident),*), $(($variant:ty, $(($prop2:ident, $val:expr)),*)),* ) => {
+        impl PolymorphicPgnParent<$matchtype> for $parent {
+            fn read_match_value(&self) -> $matchtype {
+                $matchtype {
+                    $($prop: self.$prop(),)*
+                }
+            }
+        }
 
-    #[lookup]
-    #[bits = 11]
-    manufacturer_code: ManufacturerCode,
+        $(
+            impl MessageVariant<$matchtype> for $variant {
+                const MATCH_VALUE: $matchtype = $matchtype {
+                    $($prop2: $val,)*
+                };
+            }
+        )*
+    };
+}
 
-    #[lookup]
-    #[bits = 3]
-    #[offset = 2]
-    industry_code: IndustryCode,
+macro_rules! define_proprietary_pgn {
+    ( $pgn:expr, $messagelabel:ident, $parent:ident, $variantlabel:ident, $matchval:ty, $($varianttylabel:ident, $variantty:ty),* ) => {
 
-    address: u8,
+        #[derive(Debug, Clone)]
+        pub enum $variantlabel {
+            $($varianttylabel($variantty)),*,
+        }
 
-    b: u8,
+        #[derive(Debug, Clone)]
+        pub struct $messagelabel {
+            base: $parent,
+            variant: $variantlabel
+        }
 
-    #[lookup]
-    #[bits = 8]
-    display_group: SimnetDisplayGroup,
-
-    d: u16,
-
-    #[lookup]
-    #[bits = 16]
-    key: SimnetKey,
-
-    #[polymorphic]
-    #[offset = 16]
-    #[lookup_field = "key"]
-    value: SimnetKeyValue,
+        impl Message for $messagelabel {
+            const PGN: u32 = $pgn;
+            fn from_cursor(mut cursor: DataCursor) -> Result<Self, NmeaParseError> {
+                let base = $parent::from_data(&mut cursor)?;
+                let match_value = base.read_match_value();
+                let variant = match match_value {
+                    $(
+                        <$variantty>::MATCH_VALUE => {
+                            Ok($variantlabel::$varianttylabel(<$variantty>::from_data(&mut cursor)?))
+                        }
+                    ),*
+                    _ => Err(NmeaParseError::UnsupportedMatchValue)
+                }?;
+                Ok(Self { base, variant })
+            }
+            fn to_readings(self) -> Result<GenericReadingsResult, NmeaParseError> {
+                let mut base_readings = self.base.to_readings()?;
+                let variant_readings = match &self.variant {
+                    $(
+                        $variantlabel::$varianttylabel(var) => {
+                            var.to_readings()
+                        }
+                    ),*
+                }?;
+                base_readings.extend(variant_readings);
+                Ok(base_readings)
+            }
+        }
+    };
 }
 
 macro_rules! define_pgns {
