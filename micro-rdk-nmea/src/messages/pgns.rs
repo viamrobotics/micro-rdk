@@ -1,3 +1,4 @@
+#![allow(unused_macros)]
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
@@ -7,16 +8,14 @@ use micro_rdk::{
 };
 use micro_rdk_nmea_macros::{FieldsetDerive, PgnMessageDerive};
 
-use super::message::{Message, MessageVariant, PolymorphicPgnParent, UnparsedNmeaMessageBody};
+use super::message::{Message, UnparsedNmeaMessageBody};
 use crate::parse_helpers::{
     enums::{
-        DirectionReference, Gns, GnsIntegrity, GnsMethod, IndustryCode, ManufacturerCode,
-        RangeResidualMode, SatelliteStatus, SimnetDisplayGroup, TemperatureSource, WaterReference,
+        DirectionReference, Gns, GnsIntegrity, GnsMethod, RangeResidualMode, SatelliteStatus,
+        TemperatureSource, WaterReference,
     },
     errors::NmeaParseError,
-    parsers::{
-        DataCursor, FieldSet, NmeaMessageMetadata, PolymorphicDataType, SimnetKey, SimnetKeyValue,
-    },
+    parsers::{DataCursor, FieldSet, NmeaMessageMetadata},
 };
 
 #[derive(PgnMessageDerive, Clone, Debug)]
