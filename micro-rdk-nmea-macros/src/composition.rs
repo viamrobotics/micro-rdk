@@ -4,7 +4,9 @@ use quote::{format_ident, quote, ToTokens};
 use syn::{DeriveInput, Field, GenericArgument, Ident, PathArguments, Type};
 
 use crate::attributes::MacroAttributes;
-use crate::utils::{error_tokens, get_micro_nmea_crate_ident, is_supported_integer_type};
+use crate::utils::{
+    error_tokens, get_micro_nmea_crate_ident, is_string_type, is_supported_integer_type,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum CodeGenPurpose {
@@ -84,6 +86,8 @@ impl PgnComposition {
 
             let new_statements = if is_supported_integer_type(&field.ty) {
                 handle_number_field(name, field, &macro_attrs, purpose)?
+            } else if is_string_type(&field.ty) {
+                handle_string_field(name, &macro_attrs, purpose)
             } else if macro_attrs.is_lookup {
                 handle_lookup_field(name, &field.ty, &macro_attrs, purpose)?
             } else if field.attrs.iter().any(|attr| {
@@ -320,14 +324,25 @@ fn handle_number_field(
         }
     });
 
-    new_statements.proto_conversion_logic.push(quote! {
-        let value = #proto_import_prefix::Value {
-            kind: Some(#proto_import_prefix::value::Kind::NumberValue(
-                self.#name()? as f64
-            ))
-        };
-        readings.insert(#label.to_string(), value);
-    });
+    if macro_attrs.is_mmsi {
+        new_statements.proto_conversion_logic.push(quote! {
+            let value = #proto_import_prefix::Value {
+                kind: Some(#proto_import_prefix::value::Kind::StringValue(
+                    self.#name()?.to_string()
+                ))
+            };
+            readings.insert(#label.to_string(), value);
+        });
+    } else {
+        new_statements.proto_conversion_logic.push(quote! {
+            let value = #proto_import_prefix::Value {
+                kind: Some(#proto_import_prefix::value::Kind::NumberValue(
+                    self.#name()? as f64
+                ))
+            };
+            readings.insert(#label.to_string(), value);
+        });
+    }
 
     let nmea_crate = get_micro_nmea_crate_ident();
     let read_statement = get_read_statement(name, purpose);
@@ -338,6 +353,39 @@ fn handle_number_field(
 
     new_statements.struct_initialization.push(quote! {#name,});
     Ok(new_statements)
+}
+
+fn handle_string_field(
+    name: &Ident,
+    macro_attrs: &MacroAttributes,
+    purpose: CodeGenPurpose,
+) -> PgnComposition {
+    let mut new_statements = PgnComposition::new();
+    let nmea_crate = get_micro_nmea_crate_ident();
+    let read_statement = get_read_statement(name, purpose);
+    let reader = if let Some(length_field) = macro_attrs.length_field.as_ref() {
+        quote! { #nmea_crate::parse_helpers::parsers::FixedSizeStringField::new(#length_field as usize); }
+    } else if macro_attrs.encoding_is_variable {
+        quote! { #nmea_crate::parse_helpers::parsers::VariableLengthAndEncodingStringField; }
+    } else {
+        quote! { #nmea_crate::parse_helpers::parsers::VariableLengthStringField; }
+    };
+    new_statements.parsing_logic.push(quote! {
+        let reader = #reader
+        #read_statement
+    });
+    new_statements.struct_initialization.push(quote! {#name,});
+    let proto_import_prefix = crate::utils::get_proto_import_prefix();
+    let prop_name = name.to_string();
+    let label = macro_attrs.label.clone().unwrap_or(quote! {#prop_name});
+    new_statements.proto_conversion_logic.push(quote! {
+        let value = self.#name();
+        let value = #proto_import_prefix::Value {
+            kind: Some(#proto_import_prefix::value::Kind::StringValue(value))
+        };
+        readings.insert(#label.to_string(), value);
+    });
+    new_statements
 }
 
 fn handle_lookup_field(
