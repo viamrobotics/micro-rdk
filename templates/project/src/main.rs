@@ -46,6 +46,9 @@ fn main() {
     initialize_logger::<EspLogger>();
 
     log::info!("{} started (esp32)", env!("CARGO_PKG_NAME"));
+    log::info!("esp restarted due to esp_reset_reason_t{{{}}}", unsafe {
+        esp_idf_svc::sys::esp_reset_reason()
+    });
 
     esp_idf_svc::sys::esp!(unsafe {
         esp_idf_svc::sys::esp_vfs_eventfd_register(&esp_idf_svc::sys::esp_vfs_eventfd_config_t {

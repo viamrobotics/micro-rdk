@@ -64,6 +64,7 @@ pub mod power_sensor;
 pub mod registry;
 pub mod restart_monitor;
 pub mod robot;
+pub mod runtime;
 pub mod sensor;
 pub mod servo;
 pub mod status;
