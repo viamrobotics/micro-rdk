@@ -11,13 +11,6 @@ jobs:
   license_finder:
     name: Audit 3rd-Party Licenses
     runs-on: ubuntu-latest
-    # by default github use sh as shell
-    defaults:
-      run:
-        # will use bash to run each command, bash will source /etc/profile which will give us the environment to build for esp32
-        shell: bash --norc  -leo pipefail {0}
-    container:
-      image: ghcr.io/viamrobotics/micro-rdk-dev-env:1.85.0-amd64
     timeout-minutes: 10
 
     steps:
