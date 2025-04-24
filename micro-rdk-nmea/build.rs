@@ -1,5 +1,5 @@
 use serde_json::Value;
-use std::fs::{File, OpenOptions};
+use std::fs::{create_dir_all, File, OpenOptions};
 use std::io::{BufReader, Write};
 use std::path::Path;
 
@@ -11,11 +11,17 @@ use convert_case::{Case, Casing};
 fn clean_string_for_rust(input: &str, counter: usize) -> String {
     let filtered: String = input
         .chars()
-        .filter(|c| c.is_alphanumeric() || c.is_whitespace())
+        .map(|c| {
+            if c.is_alphanumeric() || c.is_whitespace() {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     if filtered
         .chars()
-        .position(|c| c.is_numeric())
+        .position(|c| (c.is_numeric() || (c == '_')))
         .map(|idx| idx == 0)
         .unwrap_or_default()
     {
@@ -43,9 +49,15 @@ fn clean_string_for_rust(input: &str, counter: usize) -> String {
 
 fn main() {
     println!("cargo:rerun-if-changed=definitions.json");
-    println!("cargo::rustc-check-cfg=cfg(autogen_definitions)");
+    println!("cargo::rustc-check-cfg=cfg(generate_nmea_definitions)");
 
-    let enums_path = "src/gen/enums_gen.rs";
+    let out_dir = std::env::var("OUT_DIR").expect("no OUT_DIR defined");
+
+    let gen_path = format!("{}/nmea_gen", out_dir);
+
+    create_dir_all(&gen_path).expect("failed to create nmea_gen directory");
+
+    let enums_path = format!("{gen_path}/enums.rs");
 
     let mut enums_file = OpenOptions::new()
         .create(true)
@@ -64,7 +76,7 @@ fn main() {
         println!("No definitions file, skipping auto-generation...");
         return;
     } else {
-        println!("cargo:rustc-cfg=autogen_definitions");
+        println!("cargo:rustc-cfg=generate_nmea_definitions");
     }
     let file = File::open(file_path).expect("Failed to open file");
     let reader = BufReader::new(file);

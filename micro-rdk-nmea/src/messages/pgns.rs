@@ -1,30 +1,30 @@
 #![allow(unused_macros)]
 
-#[cfg(autogen_definitions)]
+#[cfg(generate_nmea_definitions)]
 use super::message::{Message, UnparsedNmeaMessageBody};
-#[cfg(autogen_definitions)]
+#[cfg(generate_nmea_definitions)]
 use crate::gen::enums::{
     DirectionReferenceLookup, GnsIntegrityLookup, GnsLookup, GnsMethodLookup,
     RangeResidualModeLookup, SatelliteStatusLookup, TemperatureSourceLookup, WaterReferenceLookup,
 };
-#[cfg(autogen_definitions)]
+#[cfg(generate_nmea_definitions)]
 use crate::parse_helpers::{
     errors::NmeaParseError,
     parsers::{DataCursor, FieldSet, NmeaMessageMetadata},
 };
-#[cfg(autogen_definitions)]
+#[cfg(generate_nmea_definitions)]
 use micro_rdk::{
     common::sensor::GenericReadingsResult,
     google::protobuf::{value::Kind, Struct, Value},
 };
-#[cfg(autogen_definitions)]
+#[cfg(generate_nmea_definitions)]
 use micro_rdk_nmea_macros::{FieldsetDerive, PgnMessageDerive};
-#[cfg(autogen_definitions)]
+#[cfg(generate_nmea_definitions)]
 use std::collections::HashMap;
-#[cfg(autogen_definitions)]
+#[cfg(generate_nmea_definitions)]
 use std::marker::PhantomData;
 
-#[cfg(autogen_definitions)]
+#[cfg(generate_nmea_definitions)]
 #[derive(PgnMessageDerive, Clone, Debug)]
 pub struct WaterDepth {
     #[pgn = 128267]
@@ -42,7 +42,7 @@ pub struct WaterDepth {
     range: u8,
 }
 
-#[cfg(autogen_definitions)]
+#[cfg(generate_nmea_definitions)]
 #[derive(PgnMessageDerive, Clone, Debug)]
 pub struct TemperatureExtendedRange {
     #[pgn = 130316]
@@ -64,7 +64,7 @@ pub struct TemperatureExtendedRange {
     set_temperature: u16,
 }
 
-#[cfg(autogen_definitions)]
+#[cfg(generate_nmea_definitions)]
 #[derive(FieldsetDerive, Clone, Debug)]
 pub struct ReferenceStation {
     #[bits = 12]
@@ -73,7 +73,7 @@ pub struct ReferenceStation {
     age_of_dgnss_corrections: u16,
 }
 
-#[cfg(autogen_definitions)]
+#[cfg(generate_nmea_definitions)]
 #[derive(PgnMessageDerive, Clone, Debug)]
 pub struct GnssPositionData {
     #[pgn = 129029]
@@ -261,16 +261,16 @@ macro_rules! define_pgns {
 
 pub const MESSAGE_DATA_OFFSET: usize = 32;
 
-#[cfg(autogen_definitions)]
+#[cfg(generate_nmea_definitions)]
 define_pgns!(WaterDepth, TemperatureExtendedRange, GnssSatsInView);
 
-#[cfg(autogen_definitions)]
+#[cfg(generate_nmea_definitions)]
 pub struct NmeaMessage {
     pub(crate) metadata: NmeaMessageMetadata,
     pub(crate) data: NmeaMessageBody,
 }
 
-#[cfg(autogen_definitions)]
+#[cfg(generate_nmea_definitions)]
 impl TryFrom<Vec<u8>> for NmeaMessage {
     type Error = NmeaParseError;
     fn try_from(mut value: Vec<u8>) -> Result<Self, Self::Error> {
@@ -281,7 +281,7 @@ impl TryFrom<Vec<u8>> for NmeaMessage {
     }
 }
 
-#[cfg(autogen_definitions)]
+#[cfg(generate_nmea_definitions)]
 impl NmeaMessage {
     pub fn to_readings(self) -> Result<GenericReadingsResult, NmeaParseError> {
         Ok(HashMap::from([

@@ -3,19 +3,19 @@ use micro_rdk::common::registry::{ComponentRegistry, RegistryError};
 pub mod gen;
 pub mod messages;
 pub mod parse_helpers;
-#[cfg(autogen_definitions)]
+#[cfg(generate_nmea_definitions)]
 pub mod viamboat;
 
 #[allow(unused_variables)]
 pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {
-    #[cfg(autogen_definitions)]
+    #[cfg(generate_nmea_definitions)]
     let res = viamboat::register_models(registry);
-    #[cfg(not(autogen_definitions))]
+    #[cfg(not(generate_nmea_definitions))]
     let res = Ok(());
     res
 }
 
-#[cfg(autogen_definitions)]
+#[cfg(generate_nmea_definitions)]
 #[cfg(test)]
 mod tests {
     use base64::{engine::general_purpose, Engine};
@@ -138,7 +138,7 @@ mod tests {
         assert_eq!(altitude, -24.295043999999997);
 
         let gnss_type = message.gnss_type();
-        assert!(matches!(gnss_type, GnsLookup::Gpssbaswaasglonass));
+        assert!(matches!(gnss_type, GnsLookup::GpsSbasWaasGlonass));
 
         // could not find an example containing any reference stations
         let ref_stations = message.reference_station_structs();
