@@ -405,7 +405,7 @@ macro_rules! polymorphic_type {
         impl $crate::parse_helpers::parsers::PolymorphicDataType for $name {
             type EnumType = $enumname;
 
-            fn from_data(cursor: &mut DataCursor, enum_type: Self::EnumType) -> Result<Self, NmeaParseError> {
+            fn from_data(cursor: &mut $crate::parse_helpers::parsers::DataCursor, enum_type: Self::EnumType) -> Result<Self, $crate::parse_helpers::errors::NmeaParseError> {
                 match enum_type {
                     $(
                         $enumname::$var => {
@@ -413,13 +413,13 @@ macro_rules! polymorphic_type {
                         }
                     ),*,
                     $enumname::$errorlabel => {
-                        Err(NmeaParseError::UnknownPolymorphicLookupValue)
+                        Err($crate::parse_helpers::errors::NmeaParseError::UnknownPolymorphicLookupValue)
                     }
                 }
             }
 
-            fn to_value(self) -> Value {
-                Value { kind: None }
+            fn to_value(self) -> micro_rdk::google::protobuf::Value {
+                micro_rdk::google::protobuf::Value { kind: None }
             }
         }
     };

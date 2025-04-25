@@ -16,6 +16,7 @@ native = ['micro-rdk/native']
 
 [build-dependencies]
 serde_json = { workspace = true }
+serde = { workspace = true }
 convert_case = { workspace = true }
 
 [dependencies]
