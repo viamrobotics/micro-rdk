@@ -493,7 +493,7 @@ mod tests {
         parse_helpers::{
             enums::NmeaEnumeratedField,
             errors::NmeaParseError,
-            parsers::{DataCursor, FieldReader, NmeaMessageMetadata, Value},
+            parsers::{DataCursor, FieldReader, NmeaMessageMetadata},
         },
     };
 
