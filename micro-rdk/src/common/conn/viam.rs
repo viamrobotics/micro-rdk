@@ -315,11 +315,10 @@ where
     }
 
     pub fn with_default_tasks(&mut self) -> &mut Self {
-        let restart_monitor = Box::new(RestartMonitor::new(|| std::process::exit(0)));
+        let restart_monitor = Box::new(RestartMonitor::new(|| crate::common::runtime::terminate()));
         let log_upload = Box::new(LogUploadTask);
         self.with_app_client_task(restart_monitor)
-            .with_app_client_task(log_upload);
-        self
+            .with_app_client_task(log_upload)
     }
 }
 impl<Storage> ViamServerBuilder<Storage, WantsNetwork>
@@ -607,7 +606,7 @@ where
             self.storage.clone(),
             #[cfg(feature = "ota")]
             self.executor.clone(),
-            || std::process::exit(0),
+            || crate::common::runtime::terminate(),
         ));
         self.app_client_tasks.push(config_monitor_task);
 

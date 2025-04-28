@@ -48,6 +48,9 @@ mod esp32 {
         initialize_logger::<EspLogger>();
 
         log::info!("micro-rdk-server started (esp32)");
+        log::info!("esp restarted due to esp_reset_reason_t{{{}}}", unsafe {
+            esp_idf_svc::sys::esp_reset_reason()
+        });
 
         esp_idf_svc::sys::esp!(unsafe {
             esp_idf_svc::sys::esp_vfs_eventfd_register(
