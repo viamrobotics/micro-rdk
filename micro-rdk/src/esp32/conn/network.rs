@@ -1,7 +1,9 @@
 use std::{
     cell::RefCell,
+    collections::HashSet,
     ffi::CString,
     fmt::Display,
+    iter::FromIterator,
     net::Ipv4Addr,
     ops::{Index, IndexMut},
     sync::{
@@ -268,10 +270,31 @@ impl Esp32WifiNetwork {
         &self,
         mut networks: Vec<NetworkSetting>,
     ) -> Result<(), WifiManagerError> {
-        // TODO(RSDK-10184): scan available networks first
-        // attempt to connect only if available
+        log::info!("initializing wifi module");
+        // `set_station_mode` ends by calling `connect`, which will error here
+        let _err = self
+            .set_station_mode(NetworkSetting::new("".to_string(), "".to_string(), -999))
+            .await;
+
+        log::info!("scanning available networks");
+        let available: HashSet<String> = HashSet::from_iter(
+            self.scan_networks()
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .map(|net| net.0.ssid),
+        );
+
+        log::info!("establishing WiFi connection...");
+
         networks.sort();
         for network in networks.iter() {
+            if !available.contains(&network.ssid) {
+                log::info!(
+                    "`{}` network not found in initial scan, skipping...",
+                    network.ssid
+                );
+            }
             if let Err(e) = self.set_station_mode(network.clone()).await {
                 log::error!("failed to connect to `{}`: {}", network.ssid, e);
             } else {
