@@ -23,7 +23,9 @@ use proc_macro::TokenStream;
         unit,
         pgn,
         polymorphic,
-        lookup_field
+        lookup_field,
+        mmsi,
+        variable_encoding
     )
 )]
 pub fn pgn_message_derive(item: TokenStream) -> TokenStream {
@@ -52,7 +54,9 @@ pub fn pgn_message_derive(item: TokenStream) -> TokenStream {
         length_field,
         unit,
         polymorphic,
-        lookup_field
+        lookup_field,
+        mmsi,
+        variable_encoding
     )
 )]
 pub fn fieldset_derive(item: TokenStream) -> TokenStream {

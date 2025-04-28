@@ -59,7 +59,7 @@ pub trait FieldReader {
 
 /// A field reader for parsing a basic number type. A reader with bit_size n will read its value
 /// as the first n bits of `size_of::<T>()` bytes with the remaining bits as zeroes (the resulting bytes
-/// will be parsed as Little-Endian). See invocation of the generate_number_field_readers macro below
+/// will be parsed as Little-Endian). See invocation of the generate_integer_field_readers macro below
 /// for the currently supported number types.
 pub struct NumberField<T> {
     bit_size: usize,
@@ -107,7 +107,7 @@ where
     }
 }
 
-macro_rules! generate_number_field_readers {
+macro_rules! generate_integer_field_readers {
     ($($t:ty),*) => {
         $(
             impl FieldReader for NumberField<$t> {
@@ -142,7 +142,87 @@ macro_rules! generate_number_field_readers {
     };
 }
 
-generate_number_field_readers!(u8, i8, u16, i16, u32, i32, u64, i64);
+generate_integer_field_readers!(u8, i8, u16, i16, u32, i32, u64, i64);
+
+impl FieldReader for NumberField<f32> {
+    type FieldType = f32;
+
+    fn read_from_cursor(&self, cursor: &mut DataCursor) -> Result<Self::FieldType, NmeaParseError> {
+        if self.bit_size != 32 {
+            return Err(NumberFieldError::SizeNotAllowedforF32.into());
+        }
+        let data = cursor.read(self.bit_size)?;
+        Ok(f32::from_le_bytes(data[..].try_into()?))
+    }
+}
+
+pub struct FixedSizeStringField {
+    bit_size: usize,
+}
+
+impl FixedSizeStringField {
+    pub fn new(bit_size: usize) -> Self {
+        Self { bit_size }
+    }
+}
+
+fn trim_string_bytes(string_data: &mut Vec<u8>) {
+    let last_index = string_data
+        .iter()
+        .position(|byte| {
+            if (*byte == 0xFF) || (*byte == 0) {
+                return true;
+            }
+            let char_at = *byte as char;
+            (char_at == '@') || (char_at == ' ')
+        })
+        .unwrap_or(string_data.len());
+    let _ = string_data.split_off(last_index);
+}
+
+impl FieldReader for FixedSizeStringField {
+    type FieldType = String;
+    fn read_from_cursor(&self, cursor: &mut DataCursor) -> Result<Self::FieldType, NmeaParseError> {
+        let mut string_data = cursor.read(self.bit_size)?;
+        trim_string_bytes(&mut string_data);
+        Ok(String::from_utf8(string_data)?)
+    }
+}
+
+pub struct VariableLengthStringField;
+
+impl FieldReader for VariableLengthStringField {
+    type FieldType = String;
+    fn read_from_cursor(&self, cursor: &mut DataCursor) -> Result<Self::FieldType, NmeaParseError> {
+        let length = cursor.read(8)?[0];
+        let mut string_data = cursor.read((length * 8) as usize)?;
+        trim_string_bytes(&mut string_data);
+        Ok(String::from_utf8(string_data)?)
+    }
+}
+
+pub struct VariableLengthAndEncodingStringField;
+
+impl FieldReader for VariableLengthAndEncodingStringField {
+    type FieldType = String;
+    fn read_from_cursor(&self, cursor: &mut DataCursor) -> Result<Self::FieldType, NmeaParseError> {
+        let length = cursor.read(8)?[0];
+        let encoding = cursor.read(8)?[0];
+        let mut string_data = cursor.read((length * 8) as usize)?;
+        trim_string_bytes(&mut string_data);
+        Ok(match encoding {
+            0 => {
+                let utf16_vec: Vec<u16> = string_data
+                    .chunks_exact(2)
+                    .map(|a| u16::from_ne_bytes([a[0], a[1]]))
+                    .collect();
+                String::from_utf16(utf16_vec.as_slice())?
+            }
+            1 => String::from_utf8(string_data)?,
+            x => return Err(NmeaParseError::UnexpectedEncoding(x)),
+        })
+    }
+}
 
 /// A field reader for parsing data into a field type that implements the `Lookup` trait.
 /// The `bit_size` property is used to parse a raw number value first with a methodology similar to the one
@@ -419,7 +499,7 @@ mod tests {
 
     use super::{
         ArrayField, FieldSet, FieldSetList, LookupField, NumberField, NumberFieldWithScale,
-        PolymorphicDataTypeReader,
+        PolymorphicDataTypeReader, VariableLengthStringField,
     };
 
     pub const MESSAGE_DATA_OFFSET: usize = 32;
@@ -638,5 +718,23 @@ mod tests {
             res.unwrap(),
             TestSeedPolymorphism::NumberTypeB(180.0)
         ))
+    }
+
+    #[test]
+    fn string_field_test() {
+        let test_str_bytes = b"ffreghorsgeuilf@ @  ".to_vec();
+        let result_str = "ffreghorsgeuilf".to_string();
+
+        let mut bytes_to_read: Vec<u8> = vec![test_str_bytes.len() as u8];
+        bytes_to_read.extend(test_str_bytes);
+        bytes_to_read.extend(b"other garbage afterwards".to_vec());
+        let mut cursor = DataCursor::new(bytes_to_read);
+
+        let reader = VariableLengthStringField {};
+        let res = reader.read_from_cursor(&mut cursor);
+
+        assert!(res.is_ok());
+        let res = res.unwrap();
+        assert_eq!(res, result_str);
     }
 }

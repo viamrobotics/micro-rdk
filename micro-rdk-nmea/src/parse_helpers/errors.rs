@@ -1,9 +1,13 @@
+use std::string::{FromUtf16Error, FromUtf8Error};
+
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum NumberFieldError {
     #[error("field bit size {0} too large for max size {0}")]
     ImproperBitSize(usize, usize),
+    #[error("Only 32 bits allowed as size for floats")]
+    SizeNotAllowedforF32,
     #[error("{0} field not present in message")]
     FieldNotPresent(String),
     #[error("{0} field was error value")]
@@ -26,4 +30,10 @@ pub enum NmeaParseError {
     UnknownPolymorphicLookupValue,
     #[error("unsupported match value encountered")]
     UnsupportedMatchValue,
+    #[error(transparent)]
+    FromUtf8Error(#[from] FromUtf8Error),
+    #[error(transparent)]
+    FromUtf16Error(#[from] FromUtf16Error),
+    #[error("unexpected encoding byte {0} encountered when parsing string")]
+    UnexpectedEncoding(u8),
 }

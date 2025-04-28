@@ -49,6 +49,8 @@ pub(crate) struct MacroAttributes {
     pub(crate) pgn: Option<u32>,
     pub(crate) is_polymorphic: bool,
     pub(crate) lookup_field: Option<Ident>,
+    pub(crate) is_mmsi: bool,
+    pub(crate) encoding_is_variable: bool,
 }
 
 // Attempt to deduce the bit size from the data type
@@ -60,6 +62,7 @@ fn get_bits(field_ty: &Type) -> Result<usize, TokenStream> {
         Type::Path(type_path) if type_path.path.is_ident("i16") => 16,
         Type::Path(type_path) if type_path.path.is_ident("u32") => 32,
         Type::Path(type_path) if type_path.path.is_ident("i32") => 32,
+        Type::Path(type_path) if type_path.path.is_ident("f32") => 32,
         Type::Path(type_path) if type_path.path.is_ident("u64") => 64,
         Type::Path(type_path) if type_path.path.is_ident("i64") => 64,
         Type::Array(type_array) => {
@@ -98,6 +101,8 @@ impl MacroAttributes {
             pgn: None,
             is_polymorphic: false,
             lookup_field: None,
+            is_mmsi: false,
+            encoding_is_variable: false,
         };
 
         for attr in field.attrs.iter() {
@@ -319,6 +324,8 @@ impl MacroAttributes {
                     }
                     "fieldset" => macro_attrs.is_fieldset = true,
                     "polymorphic" => macro_attrs.is_polymorphic = true,
+                    "mmsi" => macro_attrs.is_mmsi = true,
+                    "variable_encoding" => macro_attrs.encoding_is_variable = true,
                     _ => {}
                 };
             }
