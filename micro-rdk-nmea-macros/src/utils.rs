@@ -105,3 +105,10 @@ pub(crate) fn is_supported_integer_type(field_type: &Type) -> bool {
         _ => false,
     }
 }
+
+pub(crate) fn is_string_type(field_type: &Type) -> bool {
+    match field_type {
+        Type::Path(type_path) => type_path.path.is_ident("String"),
+        _ => false,
+    }
+}
