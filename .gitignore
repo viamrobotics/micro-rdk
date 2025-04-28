@@ -2,6 +2,7 @@
 .*.swp
 Cargo.lock
 /micro-rdk-server/viam.json
+/micro-rdk-nmea/definitions.json
 /canary/.venv/*
 .vscode
 components_esp32*.lock
