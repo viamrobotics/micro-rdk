@@ -273,7 +273,7 @@ impl Esp32WifiNetwork {
         log::info!("initializing wifi module");
         // `set_station_mode` ends by calling `connect`, which will error here
         let _err = self
-            .set_station_mode(NetworkSetting::new("".to_string(), "".to_string(), -999))
+            .set_station_mode(NetworkSetting::new("".to_string(), "".to_string(), 0))
             .await;
 
         log::info!("scanning available networks");
