@@ -290,6 +290,7 @@ impl Esp32WifiNetwork {
         for network in networks.iter() {
             if !available.contains(&network.ssid) {
                 log::info!("network `{}` not found in scan, skipping...", network.ssid);
+                continue;
             }
             log::info!("attempting connection to network `{}`", network.ssid);
             if let Err(e) = self.set_station_mode(network.clone()).await {
