@@ -291,7 +291,7 @@ impl Esp32WifiNetwork {
         for network in networks.iter() {
             if !available.contains(&network.ssid) {
                 log::info!(
-                    "`{}` network not found in initial scan, skipping...",
+                    "`{}` network not found in scan, skipping...",
                     network.ssid
                 );
             }
