@@ -499,7 +499,7 @@ mod tests {
 
     use super::{
         ArrayField, FieldSet, FieldSetList, LookupField, NumberField, NumberFieldWithScale,
-        PolymorphicDataTypeReader, VariableLengthStringField
+        PolymorphicDataTypeReader, VariableLengthStringField,
     };
 
     pub const MESSAGE_DATA_OFFSET: usize = 32;
