@@ -279,8 +279,7 @@ impl Esp32WifiNetwork {
         log::info!("scanning available networks");
         let available: HashSet<String> = HashSet::from_iter(
             self.scan_networks()
-                .await
-                .unwrap_or_default()
+                .await?
                 .into_iter()
                 .map(|net| net.0.ssid),
         );
