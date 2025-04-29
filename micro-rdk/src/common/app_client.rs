@@ -296,39 +296,6 @@ impl AppClient {
             None
         };
 
-        #[cfg(feature = "esp32")]
-        {
-            // In many cases when the ESP32 reboots the RTC clock will not be cleared and will retain the previous
-            // time. If the reboot was caused by a WDT timeout there is a chance the clock would drift significantly
-            // The new logic is to always set the clock once per boot
-
-            if let Some(current_dt) = datetime {
-                CLOCK_SET.call_once(|| {
-                    use esp_idf_svc::sys::{settimeofday, timeval};
-                    let tv_sec = current_dt.timestamp();
-                    let tv_usec = current_dt.timestamp_subsec_micros() as i32;
-                    let current_timeval = timeval { tv_sec, tv_usec };
-                    crate::esp32::esp_idf_svc::sys::esp!(unsafe {
-                        // I don't believe this call can fail under most condition (timeval is valid and we have the permission to set the time)
-                        settimeofday(&current_timeval as *const timeval, std::ptr::null())
-                    })
-                    .inspect_err(|err| {
-                        log::error!(
-                            "could not set time of day for timestamp {:?}: {:?}",
-                            current_dt,
-                            err
-                        );
-                    })
-                    .inspect(|_| {
-                        log::info!(
-                            "time of day has been set to to {}",
-                            Local::now().fixed_offset()
-                        );
-                    });
-                })
-            };
-        }
-
         if r.is_empty() {
             return Err(AppClientError::AppClientEmptyBody);
         }

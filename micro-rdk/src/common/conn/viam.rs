@@ -523,6 +523,23 @@ where
             {}
         }
 
+        // Initiate SNTP
+        #[cfg(feature = "esp32")]
+        unsafe {
+            use crate::esp32::esp_idf_svc::sys;
+            log::info!("initializing SNTP service");
+            sys::esp_sntp_setoperatingmode(sys::esp_sntp_operatingmode_t_ESP_SNTP_OPMODE_POLL);
+            let ntp_addr = std::ffi::CString::new("pool.ntp.org").expect("stsr");
+            sys::esp_sntp_setservername(0, ntp_addr.as_ptr());
+            sys::esp_sntp_init();
+
+            while sys::sntp_get_sync_status() != sys::sntp_sync_status_t_SNTP_SYNC_STATUS_COMPLETED
+            {
+                Timer::after(Duration::from_secs(1)).await;
+            }
+            log::info!("clock successfully set by NTP");
+        }
+
         let network = self.network.as_ref().map_or_else(
             || self.wifi_manager.as_ref().as_ref().unwrap().as_network(),
             |network| network.as_network(),
