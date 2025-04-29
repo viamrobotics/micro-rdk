@@ -19,7 +19,7 @@ use crate::{
     },
     proto::{
         app::v1::RobotConfig,
-        common::{self, v1::ResourceName},
+        common::{self},
         robot,
     },
 };
@@ -38,7 +38,8 @@ use super::{
     base::BaseType,
     board::BoardType,
     button::{Button, ButtonType},
-    config::{AttributeError, Component, ConfigType, DynamicComponentConfig},
+    config::ResourceName,
+    config::{AttributeError, ConfigType, DynamicComponentConfig},
     encoder::EncoderType,
     exec::Executor,
     generic::{GenericComponent, GenericComponentType},
@@ -54,8 +55,6 @@ use super::{
 };
 
 use thiserror::Error;
-
-static NAMESPACE_PREFIX: &str = "rdk:builtin:";
 
 #[derive(Clone)]
 pub enum ResourceType {
@@ -149,31 +148,6 @@ pub enum RobotError {
     DataCollectorInitError(#[from] DataCollectionError),
 }
 
-fn resource_name_from_component_cfg(cfg: &DynamicComponentConfig) -> ResourceName {
-    ResourceName {
-        namespace: cfg.namespace.to_string(),
-        r#type: "component".to_string(),
-        subtype: cfg.r#type.to_string(),
-        name: cfg.name.to_string(),
-        local_name: cfg.name.to_string(),
-        remote_path: vec![],
-    }
-}
-
-// Extracts model string from the full namespace provided by incoming instances of ComponentConfig.
-// TODO: This prefix requirement was put in place due to model names sent from app being otherwise
-// prefixed with "rdk:builtin:". A more ideal and robust method of namespacing is preferred.
-fn get_model_without_namespace_prefix(full_model: &mut String) -> Result<String, RobotError> {
-    if !full_model.starts_with(NAMESPACE_PREFIX) {
-        return Err(RobotError::RobotModelWrongPrefix(full_model.to_string()));
-    }
-    let model = full_model.split_off(NAMESPACE_PREFIX.len());
-    if model.is_empty() {
-        return Err(RobotError::RobotModelAbsent);
-    }
-    Ok(model)
-}
-
 impl Default for LocalRobot {
     fn default() -> Self {
         Self::new()
@@ -204,17 +178,18 @@ impl LocalRobot {
         mut components: Vec<Option<DynamicComponentConfig>>,
         registry: &mut Box<ComponentRegistry>,
     ) -> Result<(), RobotError> {
-        let config = components
-            .iter_mut()
-            .find(|cfg| cfg.as_ref().is_some_and(|cfg| cfg.r#type == "board"));
+        let config = components.iter_mut().find(|cfg| {
+            cfg.as_ref()
+                .is_some_and(|cfg| cfg.get_resource_name().get_subtype() == "board")
+        });
         let (board, board_key) = if let Some(Some(config)) = config {
-            let model = get_model_without_namespace_prefix(&mut config.model.to_owned())?;
+            let model = config.get_model().get_model();
             let board_key = Some(ResourceKey::new(
                 crate::common::board::COMPONENT_NAME,
-                &config.name,
+                config.get_resource_name().get_name(),
             ));
             let constructor = registry
-                .get_board_constructor(&model)
+                .get_board_constructor(model)
                 .map_err(RobotError::RobotRegistryError)?;
             let board = constructor(ConfigType::Dynamic(config))
                 .map_err(|e| RobotError::RobotResourceBuildError(e.into()))?;
@@ -230,13 +205,19 @@ impl LocalRobot {
             num_iteration += 1;
             let cfg_outer = &mut components[iter.next().unwrap()];
             if let Some(cfg) = cfg_outer.as_ref() {
+                log::info!(
+                    "building component name {}, api {:?}, model {:?}",
+                    cfg.get_resource_name().get_name(),
+                    cfg.get_resource_name(),
+                    cfg.get_model()
+                );
                 // capture the error and make it available to LocalRobot so it can be pushed in the logs?
                 if let Err(e) = self.build_resource(cfg, board.clone(), board_key.clone(), registry)
                 {
                     log::error!(
                         "Failed to build resource `{}` of type `{}`: {:?}",
-                        cfg.name,
-                        cfg.r#type,
+                        cfg.get_resource_name().get_name(),
+                        cfg.get_resource_name().get_subtype(),
                         e
                     );
                     continue;
@@ -249,10 +230,10 @@ impl LocalRobot {
             log::error!(
                 "These components couldn't be built {:?}. Check for errors, missing or circular dependencies in the config.",
                 components
-                    .into_iter()
+                    .iter()
                     .flatten()
-                    .map(|x| x.name)
-                    .collect::<Vec<String>>()
+                    .map(|x| x.get_resource_name().get_name())
+                    .collect::<Vec<&str>>()
             )
         }
         Ok(())
@@ -331,11 +312,10 @@ impl LocalRobot {
         board_name: Option<ResourceKey>,
         registry: &mut ComponentRegistry,
     ) -> Result<(), RobotError> {
-        let new_resource_name = resource_name_from_component_cfg(config);
-        let model = get_model_without_namespace_prefix(&mut config.get_model().to_owned())?;
+        let new_resource_name = config.get_resource_name().clone();
+        let model = config.get_model().get_model().to_owned();
 
         let mut dependencies = self.get_config_dependencies(config, registry)?;
-
         if let Some(b) = board.as_ref() {
             dependencies.push(Dependency(
                 board_name.as_ref().unwrap().clone(),
@@ -364,29 +344,22 @@ impl LocalRobot {
         config: &DynamicComponentConfig,
         registry: &mut ComponentRegistry,
     ) -> Result<Vec<Dependency>, RobotError> {
-        let model = get_model_without_namespace_prefix(&mut config.get_model().to_owned())?;
+        let model = config.get_model().get_model();
         let deps_keys = registry
-            .get_dependency_function(config.get_type(), &model)
+            .get_dependency_function(config.get_resource_name().get_subtype(), model)
             .map_or(Vec::new(), |dep_fn| dep_fn(ConfigType::Dynamic(config)));
 
         deps_keys
             .into_iter()
             .map(|key| {
-                let r_name = ResourceName {
-                    namespace: config.namespace.clone(),
-                    r#type: "component".to_owned(),
-                    subtype: key.0.to_owned(),
-                    name: key.1.clone(),
-                    local_name: key.1.clone().to_string(),
-                    remote_path: vec![],
-                };
+                let r_name = ResourceName::new_builtin(key.1.clone(), key.0.clone());
 
                 let res = match self.resources.get(&r_name) {
                     Some(r) => r.clone(),
                     None => {
                         return Err(RobotError::RobotDependencyMissing(
                             key.1,
-                            config.name.to_owned(),
+                            config.get_resource_name().get_subtype().to_owned(),
                         ));
                     }
                 };
@@ -403,7 +376,7 @@ impl LocalRobot {
         deps: Vec<Dependency>,
         registry: &mut ComponentRegistry,
     ) -> Result<(), RobotError> {
-        let r_type = cfg.get_type();
+        let r_type = cfg.get_subtype();
         let res = match r_type {
             "motor" => {
                 let ctor = registry
@@ -516,10 +489,13 @@ impl LocalRobot {
         let mut res = Vec::new();
         for (r_name, conf) in &self.data_collector_configs {
             let resource = self.resources.get(r_name).ok_or_else(|| {
-                RobotError::ResourceNotFound(r_name.name.clone(), r_name.r#type.clone())
+                RobotError::ResourceNotFound(
+                    r_name.get_name().to_owned(),
+                    r_name.get_type().to_owned(),
+                )
             })?;
             res.push(DataCollector::from_config(
-                r_name.name.clone(),
+                r_name.get_name().to_owned(),
                 resource.clone(),
                 conf,
             )?);
@@ -540,21 +516,15 @@ impl LocalRobot {
     }
 
     pub fn get_resource_names(&self) -> Result<Vec<common::v1::ResourceName>, RobotError> {
-        let mut name = Vec::with_capacity(self.resources.len());
-        for k in self.resources.keys() {
-            name.push(k.clone());
-        }
-        Ok(name)
+        let names = self
+            .resources
+            .keys()
+            .map(ResourceName::to_proto_resource_name)
+            .collect();
+        Ok(names)
     }
     pub fn get_motor_by_name(&self, name: String) -> Option<Arc<Mutex<dyn Motor>>> {
-        let name = ResourceName {
-            namespace: "rdk".to_string(),
-            r#type: "component".to_string(),
-            subtype: "motor".to_string(),
-            local_name: name.clone(),
-            remote_path: vec![],
-            name,
-        };
+        let name = ResourceName::new_builtin(name, "motor".to_owned());
         match self.resources.get(&name) {
             Some(ResourceType::Motor(r)) => Some(r.clone()),
             Some(_) => None,
@@ -563,14 +533,7 @@ impl LocalRobot {
     }
     #[cfg(feature = "camera")]
     pub fn get_camera_by_name(&self, name: String) -> Option<Arc<Mutex<dyn Camera>>> {
-        let name = ResourceName {
-            namespace: "rdk".to_string(),
-            r#type: "component".to_string(),
-            subtype: "camera".to_string(),
-            local_name: name.clone(),
-            remote_path: vec![],
-            name,
-        };
+        let name = ResourceName::new_builtin(name, "camera".to_owned());
         match self.resources.get(&name) {
             Some(ResourceType::Camera(r)) => Some(r.clone()),
             Some(_) => None,
@@ -578,14 +541,7 @@ impl LocalRobot {
         }
     }
     pub fn get_base_by_name(&self, name: String) -> Option<Arc<Mutex<dyn Base>>> {
-        let name = ResourceName {
-            namespace: "rdk".to_string(),
-            r#type: "component".to_string(),
-            subtype: "base".to_string(),
-            local_name: name.clone(),
-            remote_path: vec![],
-            name,
-        };
+        let name = ResourceName::new_builtin(name, "base".to_owned());
         match self.resources.get(&name) {
             Some(ResourceType::Base(r)) => Some(r.clone()),
             Some(_) => None,
@@ -593,14 +549,7 @@ impl LocalRobot {
         }
     }
     pub fn get_board_by_name(&self, name: String) -> Option<Arc<Mutex<dyn Board>>> {
-        let name = ResourceName {
-            namespace: "rdk".to_string(),
-            r#type: "component".to_string(),
-            subtype: "board".to_string(),
-            local_name: name.clone(),
-            remote_path: vec![],
-            name,
-        };
+        let name = ResourceName::new_builtin(name, "board".to_owned());
         match self.resources.get(&name) {
             Some(ResourceType::Board(r)) => Some(r.clone()),
             Some(_) => None,
@@ -609,14 +558,7 @@ impl LocalRobot {
     }
 
     pub fn get_button_by_name(&self, name: String) -> Option<Arc<Mutex<dyn Button>>> {
-        let name = ResourceName {
-            namespace: "rdk".to_string(),
-            r#type: "component".to_string(),
-            subtype: "button".to_string(),
-            local_name: name.clone(),
-            remote_path: vec![],
-            name,
-        };
+        let name = ResourceName::new_builtin(name, "button".to_owned());
         match self.resources.get(&name) {
             Some(ResourceType::Button(r)) => Some(r.clone()),
             Some(_) => None,
@@ -624,14 +566,11 @@ impl LocalRobot {
         }
     }
     pub fn get_sensor_by_name(&self, name: String) -> Option<Arc<Mutex<dyn Sensor>>> {
-        let name = ResourceName {
-            namespace: "rdk".to_string(),
-            r#type: "component".to_string(),
-            subtype: "sensor".to_string(),
-            local_name: name.clone(),
-            remote_path: vec![],
-            name,
-        };
+        let name = ResourceName::new_builtin(name, "sensor".to_owned());
+        log::info!("name {:?}", name);
+        for keys in self.resources.keys() {
+            log::info!("keys {:?}", keys);
+        }
         match self.resources.get(&name) {
             Some(ResourceType::Sensor(r)) => Some(r.clone()),
             Some(_) => None,
@@ -640,14 +579,7 @@ impl LocalRobot {
     }
 
     pub fn get_switch_by_name(&self, name: String) -> Option<Arc<Mutex<dyn Switch>>> {
-        let name = ResourceName {
-            namespace: "rdk".to_string(),
-            r#type: "component".to_string(),
-            subtype: "switch".to_string(),
-            local_name: name.clone(),
-            remote_path: vec![],
-            name,
-        };
+        let name = ResourceName::new_builtin(name, "switch".to_owned());
         match self.resources.get(&name) {
             Some(ResourceType::Switch(r)) => Some(r.clone()),
             Some(_) => None,
@@ -659,14 +591,7 @@ impl LocalRobot {
         &self,
         name: String,
     ) -> Option<Arc<Mutex<dyn MovementSensor>>> {
-        let name = ResourceName {
-            namespace: "rdk".to_string(),
-            r#type: "component".to_string(),
-            subtype: "movement_sensor".to_string(),
-            local_name: name.clone(),
-            remote_path: vec![],
-            name,
-        };
+        let name = ResourceName::new_builtin(name, "movement_sensor".to_owned());
         match self.resources.get(&name) {
             Some(ResourceType::MovementSensor(r)) => Some(r.clone()),
             Some(_) => None,
@@ -675,14 +600,7 @@ impl LocalRobot {
     }
 
     pub fn get_encoder_by_name(&self, name: String) -> Option<Arc<Mutex<dyn Encoder>>> {
-        let name = ResourceName {
-            namespace: "rdk".to_string(),
-            r#type: "component".to_string(),
-            subtype: "encoder".to_string(),
-            local_name: name.clone(),
-            remote_path: vec![],
-            name,
-        };
+        let name = ResourceName::new_builtin(name, "encoder".to_owned());
         match self.resources.get(&name) {
             Some(ResourceType::Encoder(r)) => Some(r.clone()),
             Some(_) => None,
@@ -691,14 +609,7 @@ impl LocalRobot {
     }
 
     pub fn get_power_sensor_by_name(&self, name: String) -> Option<Arc<Mutex<dyn PowerSensor>>> {
-        let name = ResourceName {
-            namespace: "rdk".to_string(),
-            r#type: "component".to_string(),
-            subtype: "power_sensor".to_string(),
-            local_name: name.clone(),
-            remote_path: vec![],
-            name,
-        };
+        let name = ResourceName::new_builtin(name, "power_sensor".to_owned());
         match self.resources.get(&name) {
             Some(ResourceType::PowerSensor(r)) => Some(r.clone()),
             Some(_) => None,
@@ -707,14 +618,7 @@ impl LocalRobot {
     }
 
     pub fn get_servo_by_name(&self, name: String) -> Option<Arc<Mutex<dyn Servo>>> {
-        let name = ResourceName {
-            namespace: "rdk".to_string(),
-            r#type: "component".to_string(),
-            subtype: "servo".to_string(),
-            local_name: name.clone(),
-            remote_path: vec![],
-            name,
-        };
+        let name = ResourceName::new_builtin(name, "servo".to_owned());
         match self.resources.get(&name) {
             Some(ResourceType::Servo(r)) => Some(r.clone()),
             Some(_) => None,
@@ -726,14 +630,7 @@ impl LocalRobot {
         &self,
         name: String,
     ) -> Option<Arc<Mutex<dyn GenericComponent>>> {
-        let name = ResourceName {
-            namespace: "rdk".to_string(),
-            r#type: "component".to_string(),
-            subtype: "generic".to_string(),
-            local_name: name.clone(),
-            remote_path: vec![],
-            name,
-        };
+        let name = ResourceName::new_builtin(name, "generic".to_owned());
         match self.resources.get(&name) {
             Some(ResourceType::Generic(r)) => Some(r.clone()),
             Some(_) => None,
@@ -802,7 +699,7 @@ mod tests {
         common::{
             analog::AnalogReader,
             board::Board,
-            config::{DynamicComponentConfig, Kind},
+            config::{DynamicComponentConfig, Kind, Model, ResourceName},
             encoder::{Encoder, EncoderPositionType},
             exec::Executor,
             i2c::I2CHandle,
@@ -837,10 +734,9 @@ mod tests {
 
         let robot_config: Vec<Option<DynamicComponentConfig>> = vec![
             Some(DynamicComponentConfig {
-                name: "board".to_owned(),
-                namespace: "rdk".to_owned(),
-                r#type: "board".to_owned(),
-                model: "rdk:builtin:fake".to_owned(),
+                name: ResourceName::new_builtin("board".to_owned(), "board".to_owned()),
+                model: Model::new_builtin("fake".to_owned()),
+                data_collector_configs: vec![],
                 attributes: Some(HashMap::from([
                     (
                         "pins".to_owned(),
@@ -872,13 +768,11 @@ mod tests {
                         ]),
                     ),
                 ])),
-                ..Default::default()
             }),
             Some(DynamicComponentConfig {
-                name: "motor".to_owned(),
-                namespace: "rdk".to_owned(),
-                r#type: "motor".to_owned(),
-                model: "rdk:builtin:fake".to_owned(),
+                name: ResourceName::new_builtin("motor".to_owned(), "motor".to_owned()),
+                model: Model::new_builtin("fake".to_owned()),
+                data_collector_configs: vec![],
                 attributes: Some(HashMap::from([
                     ("max_rpm".to_owned(), Kind::StringValue("100".to_owned())),
                     (
@@ -895,32 +789,30 @@ mod tests {
                         ])),
                     ),
                 ])),
-                ..Default::default()
             }),
             Some(DynamicComponentConfig {
-                name: "sensor".to_owned(),
-                namespace: "rdk".to_owned(),
-                r#type: "sensor".to_owned(),
-                model: "rdk:builtin:fake".to_owned(),
+                name: ResourceName::new_builtin("sensor".to_owned(), "sensor".to_owned()),
+                model: Model::new_builtin("fake".to_owned()),
+                data_collector_configs: vec![],
                 attributes: Some(HashMap::from([(
                     "fake_value".to_owned(),
                     Kind::StringValue("11.12".to_owned()),
                 )])),
-                ..Default::default()
             }),
             #[cfg(all(feature = "camera", feature = "builtin-components"))]
             Some(DynamicComponentConfig {
-                name: "camera".to_owned(),
-                namespace: "rdk".to_owned(),
-                r#type: "camera".to_owned(),
-                model: "rdk:builtin:fake".to_owned(),
-                ..Default::default()
+                name: ResourceName::new_builtin("camera".to_owned(), "camera".to_owned()),
+                model: Model::new_builtin("fake".to_owned()),
+                data_collector_configs: vec![],
+                attributes: None,
             }),
             Some(DynamicComponentConfig {
-                name: "m_sensor".to_owned(),
-                namespace: "rdk".to_owned(),
-                r#type: "movement_sensor".to_owned(),
-                model: "rdk:builtin:fake".to_owned(),
+                name: ResourceName::new_builtin(
+                    "m_sensor".to_owned(),
+                    "movement_sensor".to_owned(),
+                ),
+                model: Model::new_builtin("fake".to_owned()),
+                data_collector_configs: vec![],
                 attributes: Some(HashMap::from([
                     ("fake_lat".to_owned(), Kind::StringValue("68.86".to_owned())),
                     (
@@ -944,14 +836,14 @@ mod tests {
                         Kind::StringValue("100.4".to_owned()),
                     ),
                 ])),
-                ..Default::default()
             }),
             #[cfg(feature = "data")]
             Some(DynamicComponentConfig {
-                name: "m_sensor_2".to_owned(),
-                namespace: "rdk".to_owned(),
-                r#type: "movement_sensor".to_owned(),
-                model: "rdk:builtin:fake".to_owned(),
+                name: ResourceName::new_builtin(
+                    "m_sensor_2".to_owned(),
+                    "movement_sensor".to_owned(),
+                ),
+                model: Model::new_builtin("fake".to_owned()),
                 attributes: Some(HashMap::from([
                     ("fake_lat".to_owned(), Kind::StringValue("68.86".to_owned())),
                     (
@@ -978,10 +870,9 @@ mod tests {
                 data_collector_configs: vec![conf],
             }),
             Some(DynamicComponentConfig {
-                name: "enc1".to_owned(),
-                namespace: "rdk".to_owned(),
-                r#type: "encoder".to_owned(),
-                model: "rdk:builtin:fake".to_owned(),
+                name: ResourceName::new_builtin("enc1".to_owned(), "encoder".to_owned()),
+                model: Model::new_builtin("fake".to_owned()),
+                data_collector_configs: vec![],
                 attributes: Some(HashMap::from([
                     ("fake_deg".to_owned(), Kind::StringValue("45.0".to_owned())),
                     (
@@ -989,18 +880,15 @@ mod tests {
                         Kind::StringValue("2".to_owned()),
                     ),
                 ])),
-                ..Default::default()
             }),
             Some(DynamicComponentConfig {
-                name: "enc2".to_owned(),
-                namespace: "rdk".to_owned(),
-                r#type: "encoder".to_owned(),
-                model: "rdk:builtin:fake_incremental".to_owned(),
+                name: ResourceName::new_builtin("enc2".to_owned(), "encoder".to_owned()),
+                model: Model::new_builtin("fake_incremental".to_owned()),
+                data_collector_configs: vec![],
                 attributes: Some(HashMap::from([(
                     "fake_ticks".to_owned(),
                     Kind::StringValue("3.0".to_owned()),
                 )])),
-                ..Default::default()
             }),
         ];
 
@@ -1202,12 +1090,10 @@ mod tests {
         let comp = ComponentConfig {
             name: "enc1".to_string(),
             model: "rdk:builtin:fake".to_string(),
-            r#type: "encoder".to_string(),
-            namespace: "rdk".to_string(),
             frame: None,
             depends_on: Vec::new(),
             service_configs: Vec::new(),
-            api: "blah".to_string(),
+            api: "rdk:component:encoder".to_string(),
             attributes: Some(Struct {
                 fields: HashMap::from([(
                     "fake_deg".to_string(),
@@ -1223,12 +1109,10 @@ mod tests {
         let comp2 = ComponentConfig {
             name: "m1".to_string(),
             model: "rdk:builtin:fake_with_dep".to_string(),
-            r#type: "motor".to_string(),
-            namespace: "rdk".to_string(),
             frame: None,
             depends_on: Vec::new(),
             service_configs: Vec::new(),
-            api: "blah".to_string(),
+            api: "rdk:component:motor".to_string(),
             attributes: Some(Struct {
                 fields: HashMap::from([(
                     "encoder".to_string(),
@@ -1246,12 +1130,10 @@ mod tests {
         let comp3: ComponentConfig = ComponentConfig {
             name: "m2".to_string(),
             model: "rdk:builtin:fake_with_dep".to_string(),
-            r#type: "motor".to_string(),
-            namespace: "rdk".to_string(),
             frame: None,
             depends_on: Vec::new(),
             service_configs: Vec::new(),
-            api: "blah".to_string(),
+            api: "rdk:component:motor".to_string(),
             attributes: Some(Struct {
                 fields: HashMap::from([(
                     "encoder".to_string(),
@@ -1269,12 +1151,10 @@ mod tests {
         let comp4 = ComponentConfig {
             name: "enc2".to_string(),
             model: "rdk:builtin:fake".to_string(),
-            r#type: "encoder".to_string(),
-            namespace: "rdk".to_string(),
             frame: None,
             depends_on: Vec::new(),
             service_configs: Vec::new(),
-            api: "blah".to_string(),
+            api: "rdk:component:encoder".to_string(),
             attributes: Some(Struct {
                 fields: HashMap::from([(
                     "fake_deg".to_string(),
@@ -1332,12 +1212,10 @@ mod tests {
         let comp2 = ComponentConfig {
             name: "m1".to_string(),
             model: "rdk:builtin:fake_with_dep".to_string(),
-            r#type: "motor".to_string(),
-            namespace: "rdk".to_string(),
             frame: None,
             depends_on: Vec::new(),
             service_configs: Vec::new(),
-            api: "blah".to_string(),
+            api: "rdk:component:motor".to_string(),
             attributes: Some(Struct {
                 fields: HashMap::from([(
                     "encoder".to_string(),
@@ -1355,12 +1233,10 @@ mod tests {
         let comp3: ComponentConfig = ComponentConfig {
             name: "m2".to_string(),
             model: "rdk:builtin:fake_with_dep".to_string(),
-            r#type: "motor".to_string(),
-            namespace: "rdk".to_string(),
             frame: None,
             depends_on: Vec::new(),
             service_configs: Vec::new(),
-            api: "blah".to_string(),
+            api: "rdk:component:motor".to_string(),
             attributes: Some(Struct {
                 fields: HashMap::from([(
                     "encoder".to_string(),
@@ -1378,12 +1254,10 @@ mod tests {
         let comp4 = ComponentConfig {
             name: "enc2".to_string(),
             model: "rdk:builtin:fake".to_string(),
-            r#type: "encoder".to_string(),
-            namespace: "rdk".to_string(),
             frame: None,
             depends_on: Vec::new(),
             service_configs: Vec::new(),
-            api: "blah".to_string(),
+            api: "rdk:component:encoder".to_string(),
             attributes: Some(Struct {
                 fields: HashMap::from([(
                     "fake_deg".to_string(),

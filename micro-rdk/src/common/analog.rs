@@ -99,16 +99,14 @@ pub type AnalogReaderType<W, E = AnalogError> = Arc<Mutex<dyn AnalogReader<W, Er
 mod tests {
     use std::collections::HashMap;
 
-    use crate::common::config::{Component, DynamicComponentConfig, Kind};
+    use crate::common::config::{Component, DynamicComponentConfig, Kind, Model, ResourceName};
 
     use super::AnalogReaderConfig;
     #[test_log::test]
     fn test_analog_reader_config() {
         let robot_config: &[DynamicComponentConfig] = &[DynamicComponentConfig {
-            name: "board".to_owned(),
-            namespace: "rdk".to_owned(),
-            r#type: "board".to_owned(),
-            model: "fake".to_owned(),
+            name: ResourceName::new_builtin("board".to_owned(), "board".to_owned()),
+            model: Model::new_builtin("fake".to_owned()),
             attributes: Some(HashMap::from([
                 (
                     "pins".to_owned(),
@@ -132,7 +130,7 @@ mod tests {
                     ]),
                 ),
             ])),
-            ..Default::default()
+            data_collector_configs: vec![],
         }];
 
         let val = robot_config[0].get_attribute::<Vec<AnalogReaderConfig>>("analogs");
