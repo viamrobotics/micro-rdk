@@ -529,7 +529,7 @@ where
             use crate::esp32::esp_idf_svc::sys;
             log::info!("initializing SNTP service");
             sys::esp_sntp_setoperatingmode(sys::esp_sntp_operatingmode_t_ESP_SNTP_OPMODE_POLL);
-            let ntp_addr = std::ffi::CString::new("pool.ntp.org").expect("stsr");
+            let ntp_addr = std::ffi::CString::new("pool.ntp.org").unwrap();
             sys::esp_sntp_setservername(0, ntp_addr.as_ptr());
             sys::esp_sntp_init();
 
