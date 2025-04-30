@@ -302,13 +302,11 @@ impl Esp32WifiNetwork {
                     network.ssid,
                     e
                 );
+            } else if let Err(e) = self.connect().await {
+                log::error!("failed to connect to network `{}`: {}", network.ssid, e);
             } else {
-                if let Err(e) = self.connect().await {
-                    log::error!("failed to connect to network `{}`: {}", network.ssid, e);
-                } else {
-                    log::info!("successfully connected to network `{}`", network.ssid);
-                    return Ok(());
-                }
+                log::info!("successfully connected to network `{}`", network.ssid);
+                return Ok(());
             }
         }
         Err(WifiManagerError::OtherError(
