@@ -523,21 +523,13 @@ where
             {}
         }
 
-        // Initiate SNTP
+        let _sntp: Box<_>;
         #[cfg(feature = "esp32")]
-        unsafe {
-            use crate::esp32::esp_idf_svc::sys;
-            log::info!("initializing SNTP service");
-            sys::esp_sntp_setoperatingmode(sys::esp_sntp_operatingmode_t_ESP_SNTP_OPMODE_POLL);
-            let ntp_addr = std::ffi::CString::new("pool.ntp.org").unwrap();
-            sys::esp_sntp_setservername(0, ntp_addr.as_ptr());
-            sys::esp_sntp_init();
-
-            while sys::sntp_get_sync_status() != sys::sntp_sync_status_t_SNTP_SYNC_STATUS_COMPLETED
-            {
-                Timer::after(Duration::from_secs(1)).await;
-            }
-            log::info!("clock successfully set by NTP");
+        {
+            use crate::common::app_client::CLOCK_SET;
+            use esp_idf_svc::sntp::{EspSntp, SntpConf};
+            let conf = SntpConf::default();
+            _sntp = Box::new(EspSntp::new_with_callback(&conf, |_| CLOCK_SET.call_once(|| {})));
         }
 
         let network = self.network.as_ref().map_or_else(

@@ -194,7 +194,7 @@ pub(crate) struct AppSignaling {
 }
 
 #[cfg(feature = "esp32")]
-static CLOCK_SET: std::sync::Once = std::sync::Once::new();
+pub(crate) static CLOCK_SET: std::sync::Once = std::sync::Once::new();
 
 impl AppClient {
     pub async fn get_certificates(&self) -> Result<CertificateResponse, AppClientError> {
