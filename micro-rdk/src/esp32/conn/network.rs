@@ -186,9 +186,12 @@ impl Esp32WifiNetwork {
         wifi.stop().await?;
         wifi.set_configuration(&config)?;
 
-        drop(wifi);
-        self.connect().await?;
         Ok(())
+    }
+
+    async fn start(&self) -> Result<(), NetworkError> {
+        let mut wifi = esp32_get_wifi()?.lock().await;
+        wifi.start().await?
     }
 
     async fn connect(&self) -> Result<(), NetworkError> {
@@ -270,11 +273,9 @@ impl Esp32WifiNetwork {
         &self,
         mut networks: Vec<NetworkSetting>,
     ) -> Result<(), WifiManagerError> {
-        log::info!("initializing wifi module");
-        // `set_station_mode` ends by calling `connect`, which will error here
-        let _err = self
-            .set_station_mode(NetworkSetting::new("".to_string(), "".to_string(), 0))
-            .await;
+        self.set_station_mode(NetworkSetting::new("".to_string(), "".to_string(), 0))
+            .await?;
+        self.start().await?;
 
         log::info!("scanning available networks");
         let available: HashSet<String> = HashSet::from_iter(
@@ -286,6 +287,7 @@ impl Esp32WifiNetwork {
 
         log::info!("establishing WiFi connection...");
 
+        // TODO(RSDK-10612): include signal strength when sorting networks
         networks.sort();
         for network in networks.iter() {
             if !available.contains(&network.ssid) {
@@ -294,10 +296,18 @@ impl Esp32WifiNetwork {
             }
             log::info!("attempting connection to network `{}`", network.ssid);
             if let Err(e) = self.set_station_mode(network.clone()).await {
-                log::error!("failed to connect to network `{}`: {}", network.ssid, e);
+                log::error!(
+                    "failed to set station config to network `{}`: {}",
+                    network.ssid,
+                    e
+                );
             } else {
-                log::info!("successfully connected to network `{}`", network.ssid);
-                return Ok(());
+                if let Err(e) = self.connect().await {
+                    log::error!("failed to connect to network `{}`: {}", network.ssid, e);
+                } else {
+                    log::info!("successfully connected to network `{}`", network.ssid);
+                    return Ok(());
+                }
             }
         }
         Err(WifiManagerError::OtherError(
