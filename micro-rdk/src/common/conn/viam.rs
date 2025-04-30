@@ -529,7 +529,9 @@ where
             use crate::common::app_client::CLOCK_SET;
             use esp_idf_svc::sntp::{EspSntp, SntpConf};
             let conf = SntpConf::default();
-            _sntp = Box::new(EspSntp::new_with_callback(&conf, |_| CLOCK_SET.call_once(|| {})));
+            _sntp = Box::new(EspSntp::new_with_callback(&conf, |_| {
+                CLOCK_SET.call_once(|| {})
+            }));
         }
 
         let network = self.network.as_ref().map_or_else(
