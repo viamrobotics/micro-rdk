@@ -191,7 +191,8 @@ impl Esp32WifiNetwork {
 
     async fn start(&self) -> Result<(), NetworkError> {
         let mut wifi = esp32_get_wifi()?.lock().await;
-        wifi.start().await?
+        wifi.start().await?;
+        Ok(())
     }
 
     async fn connect(&self) -> Result<(), NetworkError> {
