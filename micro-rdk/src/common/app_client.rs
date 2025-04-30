@@ -321,7 +321,7 @@ impl AppClient {
                     })
                     .inspect(|_| {
                         log::info!(
-                            "time of day has been set to to {}",
+                            "time of day has been set by config metadata to to {}",
                             Local::now().fixed_offset()
                         );
                     });

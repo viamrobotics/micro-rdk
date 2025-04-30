@@ -530,7 +530,12 @@ where
             use esp_idf_svc::sntp::{EspSntp, SntpConf};
             let conf = SntpConf::default();
             _sntp = Box::new(EspSntp::new_with_callback(&conf, |_| {
-                CLOCK_SET.call_once(|| {})
+                CLOCK_SET.call_once(|| {
+                    log::info!(
+                        "time of day has been set by sntp service to {}",
+                        chrono::Local::now().fixed_offset()
+                    );
+                })
             }));
         }
 
