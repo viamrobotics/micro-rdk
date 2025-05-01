@@ -417,38 +417,30 @@ where
     pub fn run_forever(&mut self) -> ! {
         #[cfg(feature = "esp32")]
         {
-            use crate::esp32::esp_idf_svc::sys::{
-                esp_task_wdt_config_t, CONFIG_FREERTOS_NUMBER_OF_CORES,
-            };
-            let wdt_cfg = esp_task_wdt_config_t {
-                timeout_ms: (180 * 10_u32.pow(3)), // 180 seconds in milliseconds
-                trigger_panic: true,
-                idle_core_mask: (1 << CONFIG_FREERTOS_NUMBER_OF_CORES) - 1,
+            use crate::esp32::esp_idf_svc::hal::task::watchdog::{TWDTConfig, TWDTDriver, TWDT};
+            let watchdog_config = TWDTConfig {
+                duration: Duration::from_secs(180),
+                panic_on_trigger: true,
+                ..Default::default()
             };
 
-            // set the TWDT to expire after 3 minutes
-            crate::esp32::esp_idf_svc::sys::esp!(unsafe {
-                crate::esp32::esp_idf_svc::sys::esp_task_wdt_init(&wdt_cfg)
-            })
-            .unwrap();
-
-            // Register the current task on the TWDT. The TWDT runs in the IDLE Task.
-            crate::esp32::esp_idf_svc::sys::esp!(unsafe {
-                crate::esp32::esp_idf_svc::sys::esp_task_wdt_add(
-                    crate::esp32::esp_idf_svc::sys::xTaskGetCurrentTaskHandle(),
-                )
-            })
-            .unwrap();
-
-            self.executor
-                .spawn(async {
-                    loop {
-                        Timer::after(Duration::from_secs(90)).await;
-                        unsafe { crate::esp32::esp_idf_svc::sys::esp_task_wdt_reset() };
-                    }
-                })
-                .detach();
+            let twdt = unsafe { TWDT::new() };
+            let _ = TWDTDriver::new(twdt, &watchdog_config).inspect_err(|err| log::error!("couldn't initialize the watchdog driver cause : {} the watchdog will be disabled for the viam server task",err)).map(|mut drv| {
+                self.executor
+                    .spawn(async move {
+                        let watch = drv.watch_current_task();
+			match watch {
+			    Err(err) => log::error!("couldn't initialize the watchdog driver cause : {} the watchdog will be disabled for the viam server task",err),
+			    Ok(mut watch) => loop {
+				Timer::after(Duration::from_secs(90)).await;
+				let _ = watch.feed().inspect_err(|err| log::error!("couldn't feed the watchdog timer for viam task {}", err));
+			    }
+			};
+		    })
+                    .detach();
+            });
         }
+
         let exec = self.executor.clone();
         exec.block_on(Box::pin(self.run()));
     }
