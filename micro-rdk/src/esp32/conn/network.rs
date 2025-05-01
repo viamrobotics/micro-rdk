@@ -275,7 +275,7 @@ impl Esp32WifiNetwork {
         &self,
         mut networks: Vec<NetworkSetting>,
     ) -> Result<(), WifiManagerError> {
-        self.set_station_mode(NetworkSetting::new("".to_string(), "".to_string(), 0))
+        self.set_station_mode(NetworkSetting::default())
             .await?;
         self.start().await?;
 
