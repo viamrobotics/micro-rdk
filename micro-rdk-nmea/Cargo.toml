@@ -14,6 +14,11 @@ rust-version.workspace = true
 esp32 = ['micro-rdk/esp32']
 native = ['micro-rdk/native']
 
+[build-dependencies]
+serde_json = { workspace = true }
+serde = { workspace = true }
+convert_case = { workspace = true }
+
 [dependencies]
 base64 = { workspace = true }
 chrono = { workspace = true }

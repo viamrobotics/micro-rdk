@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use micro_rdk::{common::sensor::GenericReadingsResult, google::protobuf::Value};
 
 use super::{
-    enums::{NmeaEnumeratedField, SimnetBacklightLevel},
+    enums::NmeaEnumeratedField,
     errors::{NmeaParseError, NumberFieldError},
 };
 
@@ -59,7 +59,7 @@ pub trait FieldReader {
 
 /// A field reader for parsing a basic number type. A reader with bit_size n will read its value
 /// as the first n bits of `size_of::<T>()` bytes with the remaining bits as zeroes (the resulting bytes
-/// will be parsed as Little-Endian). See invocation of the generate_number_field_readers macro below
+/// will be parsed as Little-Endian). See invocation of the generate_integer_field_readers macro below
 /// for the currently supported number types.
 pub struct NumberField<T> {
     bit_size: usize,
@@ -107,7 +107,7 @@ where
     }
 }
 
-macro_rules! generate_number_field_readers {
+macro_rules! generate_integer_field_readers {
     ($($t:ty),*) => {
         $(
             impl FieldReader for NumberField<$t> {
@@ -142,7 +142,87 @@ macro_rules! generate_number_field_readers {
     };
 }
 
-generate_number_field_readers!(u8, i8, u16, i16, u32, i32, u64, i64);
+generate_integer_field_readers!(u8, i8, u16, i16, u32, i32, u64, i64);
+
+impl FieldReader for NumberField<f32> {
+    type FieldType = f32;
+
+    fn read_from_cursor(&self, cursor: &mut DataCursor) -> Result<Self::FieldType, NmeaParseError> {
+        if self.bit_size != 32 {
+            return Err(NumberFieldError::SizeNotAllowedforF32.into());
+        }
+        let data = cursor.read(self.bit_size)?;
+        Ok(f32::from_le_bytes(data[..].try_into()?))
+    }
+}
+
+pub struct FixedSizeStringField {
+    bit_size: usize,
+}
+
+impl FixedSizeStringField {
+    pub fn new(bit_size: usize) -> Self {
+        Self { bit_size }
+    }
+}
+
+fn trim_string_bytes(string_data: &mut Vec<u8>) {
+    let last_index = string_data
+        .iter()
+        .position(|byte| {
+            if (*byte == 0xFF) || (*byte == 0) {
+                return true;
+            }
+            let char_at = *byte as char;
+            (char_at == '@') || (char_at == ' ')
+        })
+        .unwrap_or(string_data.len());
+    let _ = string_data.split_off(last_index);
+}
+
+impl FieldReader for FixedSizeStringField {
+    type FieldType = String;
+    fn read_from_cursor(&self, cursor: &mut DataCursor) -> Result<Self::FieldType, NmeaParseError> {
+        let mut string_data = cursor.read(self.bit_size)?;
+        trim_string_bytes(&mut string_data);
+        Ok(String::from_utf8(string_data)?)
+    }
+}
+
+pub struct VariableLengthStringField;
+
+impl FieldReader for VariableLengthStringField {
+    type FieldType = String;
+    fn read_from_cursor(&self, cursor: &mut DataCursor) -> Result<Self::FieldType, NmeaParseError> {
+        let length = cursor.read(8)?[0];
+        let mut string_data = cursor.read((length * 8) as usize)?;
+        trim_string_bytes(&mut string_data);
+        Ok(String::from_utf8(string_data)?)
+    }
+}
+
+pub struct VariableLengthAndEncodingStringField;
+
+impl FieldReader for VariableLengthAndEncodingStringField {
+    type FieldType = String;
+    fn read_from_cursor(&self, cursor: &mut DataCursor) -> Result<Self::FieldType, NmeaParseError> {
+        let length = cursor.read(8)?[0];
+        let encoding = cursor.read(8)?[0];
+        let mut string_data = cursor.read((length * 8) as usize)?;
+        trim_string_bytes(&mut string_data);
+        Ok(match encoding {
+            0 => {
+                let utf16_vec: Vec<u16> = string_data
+                    .chunks_exact(2)
+                    .map(|a| u16::from_ne_bytes([a[0], a[1]]))
+                    .collect();
+                String::from_utf16(utf16_vec.as_slice())?
+            }
+            1 => String::from_utf8(string_data)?,
+            x => return Err(NmeaParseError::UnexpectedEncoding(x)),
+        })
+    }
+}
 
 /// A field reader for parsing data into a field type that implements the `Lookup` trait.
 /// The `bit_size` property is used to parse a raw number value first with a methodology similar to the one
@@ -287,6 +367,7 @@ where
     }
 }
 
+#[macro_export]
 macro_rules! polymorphic_type {
     ($name:ident, $enumname:ident, $(($value:expr, $var:ident, $reader:expr, $field_type:ty)),*, $errorlabel:ident) => {
 
@@ -319,12 +400,12 @@ macro_rules! polymorphic_type {
             }
         }
 
-        impl NmeaEnumeratedField for $enumname {}
+        impl $crate::parse_helpers::enums::NmeaEnumeratedField for $enumname {}
 
-        impl PolymorphicDataType for $name {
+        impl $crate::parse_helpers::parsers::PolymorphicDataType for $name {
             type EnumType = $enumname;
 
-            fn from_data(cursor: &mut DataCursor, enum_type: Self::EnumType) -> Result<Self, NmeaParseError> {
+            fn from_data(cursor: &mut $crate::parse_helpers::parsers::DataCursor, enum_type: Self::EnumType) -> Result<Self, $crate::parse_helpers::errors::NmeaParseError> {
                 match enum_type {
                     $(
                         $enumname::$var => {
@@ -332,41 +413,17 @@ macro_rules! polymorphic_type {
                         }
                     ),*,
                     $enumname::$errorlabel => {
-                        Err(NmeaParseError::UnknownPolymorphicLookupValue)
+                        Err($crate::parse_helpers::errors::NmeaParseError::UnknownPolymorphicLookupValue)
                     }
                 }
             }
 
-            fn to_value(self) -> Value {
-                Value { kind: None }
+            fn to_value(self) -> micro_rdk::google::protobuf::Value {
+                micro_rdk::google::protobuf::Value { kind: None }
             }
         }
     };
 }
-
-polymorphic_type!(
-    SimnetKeyValue,
-    SimnetKey,
-    (
-        0,
-        HeadingOffset,
-        NumberFieldWithScale::<i16>::new(16, 0.0001)?,
-        f64
-    ),
-    (
-        41,
-        TimezoneOffset,
-        NumberFieldWithScale::<i16>::new(16, 60.0)?,
-        f64
-    ),
-    (
-        4863,
-        BacklightLevel,
-        LookupField::<SimnetBacklightLevel>::new(8)?,
-        SimnetBacklightLevel
-    ),
-    UnknownLookupField
-);
 
 // The first 32 bytes of the unparsed message stores metadata appearing in the header
 // of an NMEA message (the library assumes that a previous process has correctly serialized
@@ -432,18 +489,20 @@ mod tests {
     use base64::{engine::general_purpose, Engine};
 
     use crate::{
-        messages::pgns::MESSAGE_DATA_OFFSET,
+        define_nmea_enum,
         parse_helpers::{
-            enums::{MagneticVariationSource, SimnetBacklightLevel},
+            enums::NmeaEnumeratedField,
             errors::NmeaParseError,
-            parsers::{DataCursor, FieldReader, NmeaMessageMetadata, SimnetKeyValue},
+            parsers::{DataCursor, FieldReader, NmeaMessageMetadata},
         },
     };
 
     use super::{
-        ArrayField, FieldSet, FieldSetList, LookupField, NumberField, PolymorphicDataTypeReader,
-        SimnetKey,
+        ArrayField, FieldSet, FieldSetList, LookupField, NumberField, NumberFieldWithScale,
+        PolymorphicDataTypeReader, VariableLengthStringField,
     };
+
+    pub const MESSAGE_DATA_OFFSET: usize = 32;
 
     #[test]
     fn parse_metadata() {
@@ -503,9 +562,11 @@ mod tests {
         assert_eq!(res.unwrap(), 2);
     }
 
+    define_nmea_enum!(TestLookup, (0, A, "A"), (8, B, "B"), UnknownLookupField);
+
     #[test]
     fn lookup_field_test() {
-        let reader = LookupField::<MagneticVariationSource>::new(4);
+        let reader = LookupField::<TestLookup>::new(4);
         assert!(reader.is_ok());
         let reader = reader.unwrap();
 
@@ -515,7 +576,7 @@ mod tests {
         assert!(cursor.read(24).is_ok());
         let res = reader.read_from_cursor(&mut cursor);
         assert!(res.is_ok());
-        assert!(matches!(res.unwrap(), MagneticVariationSource::Wmm2020));
+        assert!(matches!(res.unwrap(), TestLookup::B));
     }
 
     #[test]
@@ -594,33 +655,86 @@ mod tests {
         assert_eq!(res[1], expected_at_1);
     }
 
+    define_nmea_enum!(
+        TestSeedLookup,
+        (0, A, "A"),
+        (99, B, "B"),
+        (11, C, "C"),
+        UnknownLookupField
+    );
+
+    polymorphic_type!(
+        TestSeedPolymorphism,
+        TestKey,
+        (
+            0,
+            NumberTypeA,
+            NumberFieldWithScale::<i16>::new(16, 0.0001)?,
+            f64
+        ),
+        (
+            41,
+            NumberTypeB,
+            NumberFieldWithScale::<i16>::new(16, 60.0)?,
+            f64
+        ),
+        (
+            4863,
+            LookupType,
+            LookupField::<TestSeedLookup>::new(8)?,
+            TestSeedLookup
+        ),
+        UnknownLookupField
+    );
+
     #[test]
     fn polymorphic_field_test() {
         let data_vec: Vec<u8> = vec![32, 78, 99, 3, 0];
         let mut cursor = DataCursor::new(data_vec);
 
-        let lookup_value = SimnetKey::HeadingOffset;
-        let reader = PolymorphicDataTypeReader::<SimnetKeyValue>::new(lookup_value);
-        let res = reader.read_from_cursor(&mut cursor);
-        assert!(res.is_ok());
-        assert!(matches!(res.unwrap(), SimnetKeyValue::HeadingOffset(2.0)));
-
-        let lookup_value = SimnetKey::BacklightLevel;
-        let reader = PolymorphicDataTypeReader::<SimnetKeyValue>::new(lookup_value);
+        let lookup_value = TestKey::NumberTypeA;
+        let reader = PolymorphicDataTypeReader::<TestSeedPolymorphism>::new(lookup_value);
         let res = reader.read_from_cursor(&mut cursor);
         assert!(res.is_ok());
         assert!(matches!(
             res.unwrap(),
-            SimnetKeyValue::BacklightLevel(SimnetBacklightLevel::Max)
+            TestSeedPolymorphism::NumberTypeA(2.0)
         ));
 
-        let lookup_value = SimnetKey::TimezoneOffset;
-        let reader = PolymorphicDataTypeReader::<SimnetKeyValue>::new(lookup_value);
+        let lookup_value = TestKey::LookupType;
+        let reader = PolymorphicDataTypeReader::<TestSeedPolymorphism>::new(lookup_value);
         let res = reader.read_from_cursor(&mut cursor);
         assert!(res.is_ok());
         assert!(matches!(
             res.unwrap(),
-            SimnetKeyValue::TimezoneOffset(180.0)
+            TestSeedPolymorphism::LookupType(TestSeedLookup::B)
+        ));
+
+        let lookup_value = TestKey::NumberTypeB;
+        let reader = PolymorphicDataTypeReader::<TestSeedPolymorphism>::new(lookup_value);
+        let res = reader.read_from_cursor(&mut cursor);
+        assert!(res.is_ok());
+        assert!(matches!(
+            res.unwrap(),
+            TestSeedPolymorphism::NumberTypeB(180.0)
         ))
+    }
+
+    #[test]
+    fn string_field_test() {
+        let test_str_bytes = b"ffreghorsgeuilf@ @  ".to_vec();
+        let result_str = "ffreghorsgeuilf".to_string();
+
+        let mut bytes_to_read: Vec<u8> = vec![test_str_bytes.len() as u8];
+        bytes_to_read.extend(test_str_bytes);
+        bytes_to_read.extend(b"other garbage afterwards".to_vec());
+        let mut cursor = DataCursor::new(bytes_to_read);
+
+        let reader = VariableLengthStringField {};
+        let res = reader.read_from_cursor(&mut cursor);
+
+        assert!(res.is_ok());
+        let res = res.unwrap();
+        assert_eq!(res, result_str);
     }
 }
