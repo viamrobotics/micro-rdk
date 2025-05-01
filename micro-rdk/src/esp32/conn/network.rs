@@ -1,7 +1,9 @@
 use std::{
     cell::RefCell,
+    collections::HashSet,
     ffi::CString,
     fmt::Display,
+    iter::FromIterator,
     net::Ipv4Addr,
     ops::{Index, IndexMut},
     sync::{
@@ -181,18 +183,23 @@ impl Esp32WifiNetwork {
         });
         let mut wifi = esp32_get_wifi()?.lock().await;
 
-        wifi.stop().await?;
         wifi.set_configuration(&config)?;
 
-        drop(wifi);
-        self.connect().await?;
         Ok(())
     }
 
+    async fn start(&self) -> Result<(), NetworkError> {
+        let mut wifi = esp32_get_wifi()?.lock().await;
+        if !wifi.is_started()? {
+            wifi.start().await?;
+        }
+        Ok(())
+    }
+
+    /// WiFi must be started before calling this function
     async fn connect(&self) -> Result<(), NetworkError> {
         // TODO check you are in station mode only
         let mut wifi = esp32_get_wifi()?.lock().await;
-        wifi.start().await?;
         wifi.connect().await?;
         wifi.wait_netif_up().await?;
 
@@ -268,12 +275,35 @@ impl Esp32WifiNetwork {
         &self,
         mut networks: Vec<NetworkSetting>,
     ) -> Result<(), WifiManagerError> {
-        // TODO(RSDK-10184): scan available networks first
-        // attempt to connect only if available
+        self.set_station_mode(NetworkSetting::default()).await?;
+        self.start().await?;
+
+        log::info!("scanning available networks");
+        let available: HashSet<String> = HashSet::from_iter(
+            self.scan_networks()
+                .await?
+                .into_iter()
+                .map(|net| net.0.ssid),
+        );
+
+        log::info!("establishing WiFi connection...");
+
+        // TODO(RSDK-10612): include signal strength when sorting networks
         networks.sort();
         for network in networks.iter() {
+            if !available.contains(&network.ssid) {
+                log::info!("network `{}` not found in scan, skipping...", network.ssid);
+                continue;
+            }
+            log::info!("attempting connection to network `{}`", network.ssid);
             if let Err(e) = self.set_station_mode(network.clone()).await {
-                log::error!("failed to connect to `{}`: {}", network.ssid, e);
+                log::error!(
+                    "failed to set station config to network `{}`: {}",
+                    network.ssid,
+                    e
+                );
+            } else if let Err(e) = self.connect().await {
+                log::error!("failed to connect to network `{}`: {}", network.ssid, e);
             } else {
                 log::info!("successfully connected to network `{}`", network.ssid);
                 return Ok(());
