@@ -772,8 +772,91 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::common::config::{
-        AttributeError, Component, DynamicComponentConfig, Kind, Model, ResourceName,
+        AttributeError, Component, ConfigModelError, DynamicComponentConfig, Kind, Model,
+        ResourceName,
     };
+
+    use super::{ConfigApiError, API};
+
+    #[test_log::test]
+    fn test_model_api() {
+        let model1: Result<Model, ConfigModelError> = "rdk:builtin:sensor".try_into();
+        assert!(model1.is_ok());
+
+        let model1: Result<Model, ConfigModelError> = "rdk:builtin_b:sensor".try_into();
+        assert!(model1.is_ok());
+
+        let model1: Result<Model, ConfigModelError> = "rdk:builtin:sensor-d".try_into();
+        assert!(model1.is_ok());
+
+        let model1: Result<Model, ConfigModelError> = "rdk:builtin:movement_sensor".try_into();
+        assert!(model1.is_ok());
+
+        let model1: Result<Model, ConfigModelError> = "rdk::sensor".try_into();
+        assert!(model1.is_err());
+        assert!(matches!(
+            model1.unwrap_err(),
+            ConfigModelError::ConfigModelErrorInvalidFamilly(_)
+        ));
+
+        let model1: Result<Model, ConfigModelError> = "rdk:ok:sensor+g".try_into();
+        assert!(model1.is_err());
+        assert!(matches!(
+            model1.unwrap_err(),
+            ConfigModelError::ConfigModelErrorInvalidModel(_)
+        ));
+
+        let model1: Result<Model, ConfigModelError> = ":".try_into();
+        assert!(model1.is_err());
+        assert!(matches!(
+            model1.unwrap_err(),
+            ConfigModelError::ConfigModelErrorInvalidNamespace(_)
+        ));
+
+        let model1: Result<Model, ConfigModelError> = "aa:bb:vv:dd".try_into();
+        assert!(model1.is_err());
+        assert!(matches!(
+            model1.unwrap_err(),
+            ConfigModelError::ConfigModelErrorInvalidModelString(_)
+        ));
+
+        let api1: Result<API, ConfigApiError> = "rdk:component:acon".try_into();
+        assert!(api1.is_ok());
+
+        let api1: Result<API, ConfigApiError> = "rdk:component:acon_p".try_into();
+        assert!(api1.is_ok());
+
+        let api1: Result<API, ConfigApiError> = "rdk:component:acon-d".try_into();
+        assert!(api1.is_ok());
+
+        let api1: Result<API, ConfigApiError> = "rdk:component:acon-d:DD".try_into();
+        assert!(api1.is_err());
+        assert!(matches!(
+            api1.unwrap_err(),
+            ConfigApiError::ConfigApiErrorInvalidApiString(_)
+        ));
+
+        let api1: Result<API, ConfigApiError> = "rdk:component:acon@@".try_into();
+        assert!(api1.is_err());
+        assert!(matches!(
+            api1.unwrap_err(),
+            ConfigApiError::ConfigApiErrorResourceSubType(_)
+        ));
+
+        let api1: Result<API, ConfigApiError> = "rdk::acon@@".try_into();
+        assert!(api1.is_err());
+        assert!(matches!(
+            api1.unwrap_err(),
+            ConfigApiError::ConfigApiErrorResourceType(_)
+        ));
+
+        let api1: Result<API, ConfigApiError> = "rdk&&::".try_into();
+        assert!(api1.is_err());
+        assert!(matches!(
+            api1.unwrap_err(),
+            ConfigApiError::ConfigApiErrorResourceNamespace(_)
+        ));
+    }
 
     #[test_log::test]
     fn test_config_component() {
