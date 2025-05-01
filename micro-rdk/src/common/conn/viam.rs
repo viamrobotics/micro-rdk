@@ -523,20 +523,19 @@ where
             {}
         }
 
-        let _sntp: Box<_>;
         #[cfg(feature = "esp32")]
-        {
+        let _sntp = {
             use crate::common::app_client::CLOCK_SET;
             use esp_idf_svc::sntp::{EspSntp, SntpConf};
             let conf = SntpConf::default();
-            _sntp = Box::new(EspSntp::new_with_callback(&conf, |_| {
+            Box::new(EspSntp::new_with_callback(&conf, |_| {
                 CLOCK_SET.call_once(|| {
                     log::info!(
                         "time of day has been set by sntp service to {}",
                         chrono::Local::now().fixed_offset()
                     );
                 })
-            }));
+            }))
         }
 
         let network = self.network.as_ref().map_or_else(
