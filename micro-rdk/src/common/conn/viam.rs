@@ -536,7 +536,7 @@ where
                     );
                 })
             }))
-        }
+        };
 
         let network = self.network.as_ref().map_or_else(
             || self.wifi_manager.as_ref().as_ref().unwrap().as_network(),
