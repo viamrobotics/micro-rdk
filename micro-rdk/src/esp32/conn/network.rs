@@ -183,7 +183,6 @@ impl Esp32WifiNetwork {
         });
         let mut wifi = esp32_get_wifi()?.lock().await;
 
-        wifi.stop().await?;
         wifi.set_configuration(&config)?;
 
         Ok(())
@@ -191,14 +190,16 @@ impl Esp32WifiNetwork {
 
     async fn start(&self) -> Result<(), NetworkError> {
         let mut wifi = esp32_get_wifi()?.lock().await;
-        wifi.start().await?;
+        if !wifi.is_started()? {
+            wifi.start().await?;
+        }
         Ok(())
     }
 
+    /// WiFi must be started before calling this function
     async fn connect(&self) -> Result<(), NetworkError> {
         // TODO check you are in station mode only
         let mut wifi = esp32_get_wifi()?.lock().await;
-        wifi.start().await?;
         wifi.connect().await?;
         wifi.wait_netif_up().await?;
 
