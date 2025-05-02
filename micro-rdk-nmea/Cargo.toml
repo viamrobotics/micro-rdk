@@ -18,6 +18,8 @@ native = ['micro-rdk/native']
 serde_json = { workspace = true }
 serde = { workspace = true }
 convert_case = { workspace = true }
+num2words = { workspace = true }
+check_keyword = { workspace = true }
 
 [dependencies]
 base64 = { workspace = true }
