@@ -205,12 +205,6 @@ impl LocalRobot {
             num_iteration += 1;
             let cfg_outer = &mut components[iter.next().unwrap()];
             if let Some(cfg) = cfg_outer.as_ref() {
-                log::info!(
-                    "building component name {}, api {:?}, model {:?}",
-                    cfg.get_resource_name().get_name(),
-                    cfg.get_resource_name(),
-                    cfg.get_model()
-                );
                 // capture the error and make it available to LocalRobot so it can be pushed in the logs?
                 if let Err(e) = self.build_resource(cfg, board.clone(), board_key.clone(), registry)
                 {
