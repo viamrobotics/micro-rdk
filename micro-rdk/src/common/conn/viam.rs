@@ -430,7 +430,7 @@ where
                     .spawn(async move {
                         let watch = drv.watch_current_task();
 			match watch {
-			    Err(err) => log::error!("couldn't initialize the watchdog driver cause : {} the watchdog will be disabled for the viam server task",err),
+			    Err(err) => log::error!("couldn't watch viam task cause : {} the watchdog will be disabled for the viam server task",err),
 			    Ok(mut watch) => loop {
 				Timer::after(Duration::from_secs(90)).await;
 				let _ = watch.feed().inspect_err(|err| log::error!("couldn't feed the watchdog timer for viam task {}", err));
