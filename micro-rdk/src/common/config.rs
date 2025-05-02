@@ -691,7 +691,7 @@ impl TryFrom<&DeviceAgentConfigResponse> for AgentConfig {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NetworkSetting {
     pub(crate) ssid: String,
     pub(crate) password: String,

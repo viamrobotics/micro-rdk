@@ -2852,6 +2852,7 @@ dependencies = [
  "log",
  "micro-rdk",
  "micro-rdk-nmea-macros",
+ "serde",
  "serde_json",
  "thiserror 2.0.12",
 ]
