@@ -319,7 +319,7 @@ fn handle_number_field(
             return_type = quote! {f64};
         }
     } else if let Some(value_offset) = macro_attrs.value_offset {
-        let offset_token = Literal::i32_suffixed(value_offset * -1);
+        let offset_token = Literal::i32_suffixed(-value_offset);
         unit_conversion_logic = quote! {
             let result = if result <= (u32::MAX / 2) {
                 (result as i32) + #offset_token

@@ -107,7 +107,7 @@ enum SimplifiedNumberType {
 }
 
 impl SimplifiedNumberType {
-    fn to_string(&self) -> String {
+    fn get_string(&self) -> String {
         match self {
             Self::Int8 => "i8",
             Self::Uint8 => "u8",
@@ -146,25 +146,25 @@ impl NumberFieldParameters {
     }
 
     fn to_polymorphic_type_parameters(&self) -> (String, String) {
-        let mut final_type: String = self.num_type.to_string();
+        let mut final_type: String = self.num_type.get_string();
         let reader_instance = if self.scale == 1.0 {
             format!(
                 "NumberField::<{}>::new({})?",
-                self.num_type.to_string(),
+                self.num_type.get_string(),
                 self.size
             )
         } else {
             let res = if self.scale.fract() == 0.0 {
                 format!(
                     "NumberFieldWithScale::<{}>::new({}, {:.1})?",
-                    self.num_type.to_string(),
+                    self.num_type.get_string(),
                     self.size,
                     self.scale
                 )
             } else {
                 format!(
                     "NumberFieldWithScale::<{}>::new({}, {})?",
-                    self.num_type.to_string(),
+                    self.num_type.get_string(),
                     self.size,
                     self.scale
                 )
@@ -237,30 +237,29 @@ struct PolymorphicParameters {
 }
 
 enum FieldParameters {
-    NumberFieldParameters(NumberFieldParameters),
-    StringFieldParameters(StringFieldParameters),
-    BinaryFieldParameters(BinaryFieldParameters),
-    ReservedFieldParameters(ReservedField),
-    LookupFieldParameters(LookupJson),
-    PolymorphicParameters(PolymorphicParameters),
-    DecimalFieldParameters(DecimalFieldParameters),
+    NumberField(NumberFieldParameters),
+    StringField(StringFieldParameters),
+    BinaryField(BinaryFieldParameters),
+    ReservedField(ReservedField),
+    LookupField(LookupJson),
+    Polymorphic(PolymorphicParameters),
+    DecimalField(DecimalFieldParameters),
 }
 
 struct Field {
     name: String,
     params: FieldParameters,
-    // field_type: String,
 }
 
 impl Field {
     fn from_polymorphic_parameters(name: String, params: PolymorphicParameters) -> Self {
         Self {
             name,
-            params: FieldParameters::PolymorphicParameters(params),
+            params: FieldParameters::Polymorphic(params),
         }
     }
 
-    fn to_field_string(self, offset: usize) -> String {
+    fn into_field_string(self, offset: usize) -> String {
         let field_name_cleaned = clean_string_for_rust(self.name.as_str(), Case::Snake).into_safe();
         let offset_tag = if offset != 0 {
             format!("\t#[offset = {}]\n", offset)
@@ -278,20 +277,18 @@ impl Field {
 
     fn tags(&self) -> String {
         match &self.params {
-            FieldParameters::LookupFieldParameters(lookup_info) => {
+            FieldParameters::LookupField(lookup_info) => {
                 let size = lookup_info.size;
                 format!("\t#[lookup]\n\t#[bits = {}]\n", size)
             }
-            FieldParameters::StringFieldParameters(params) => match params.string_field_type {
+            FieldParameters::StringField(params) => match params.string_field_type {
                 StringFieldType::Fixed => {
                     format!("\t#[bits = {}]\n", params.size)
                 }
                 StringFieldType::VarLength => "".to_string(),
-                StringFieldType::VarLengthWithEncoding => {
-                    format!("\t#[variable_encoding]\n")
-                }
+                StringFieldType::VarLengthWithEncoding => "\t#[variable_encoding]\n".to_string(),
             },
-            FieldParameters::NumberFieldParameters(params) => {
+            FieldParameters::NumberField(params) => {
                 let mut tags = "".to_string();
                 if params.scale != 1.0 {
                     let scale_tag = if params.scale.fract() == 0.0 {
@@ -318,10 +315,10 @@ impl Field {
                 }
                 tags
             }
-            FieldParameters::DecimalFieldParameters(params) => {
+            FieldParameters::DecimalField(params) => {
                 format!("\t#[bits = {}]\n", params.size)
             }
-            FieldParameters::PolymorphicParameters(params) => {
+            FieldParameters::Polymorphic(params) => {
                 format!(
                     "\t#[polymorphic]\n\t#[lookup_field = \"{}\"]\n",
                     params.key_field
@@ -333,19 +330,19 @@ impl Field {
 
     fn r#type(&self) -> String {
         match &self.params {
-            FieldParameters::LookupFieldParameters(lookup_info) => {
+            FieldParameters::LookupField(lookup_info) => {
                 let lookup_name = lookup_info.name.clone().to_case(Case::Pascal);
                 format!("{}Lookup", lookup_name)
             }
-            FieldParameters::BinaryFieldParameters(params) => {
+            FieldParameters::BinaryField(params) => {
                 format!("[u8; {}]", params.size)
             }
-            FieldParameters::StringFieldParameters(_) => "String".to_string(),
-            FieldParameters::NumberFieldParameters(params) => params.num_type.to_string(),
-            FieldParameters::PolymorphicParameters(params) => {
+            FieldParameters::StringField(_) => "String".to_string(),
+            FieldParameters::NumberField(params) => params.num_type.get_string(),
+            FieldParameters::Polymorphic(params) => {
                 params.lookup_name.clone().to_case(Case::Pascal)
             }
-            FieldParameters::DecimalFieldParameters(_) => "u128".to_string(),
+            FieldParameters::DecimalField(_) => "u128".to_string(),
             _ => "".to_string(),
         }
     }
@@ -367,19 +364,17 @@ impl TryFrom<&FieldParametersJson> for FieldParameters {
         if value.lookup.name.as_str() != "" {
             let mut val = value.lookup.clone();
             val.size = value.size;
-            Ok(Self::LookupFieldParameters(val))
+            Ok(Self::LookupField(val))
         } else {
             Ok(match value.field_type.as_str() {
-                "BINARY" => Self::BinaryFieldParameters(BinaryFieldParameters { size: value.size }),
+                "BINARY" => Self::BinaryField(BinaryFieldParameters { size: value.size }),
                 "STRING_FIX" | "STRING_LZ" | "STRING_LAU" => {
-                    Self::StringFieldParameters(StringFieldParameters {
+                    Self::StringField(StringFieldParameters {
                         string_field_type: StringFieldType::try_from(value.field_type.as_str())?,
                         size: value.size,
                     })
                 }
-                "RESERVED" | "SPARE" => {
-                    Self::ReservedFieldParameters(ReservedField { size: value.size })
-                }
+                "RESERVED" | "SPARE" => Self::ReservedField(ReservedField { size: value.size }),
                 "INTEGER" | "UNSIGNED_INTEGER" => {
                     let params = match (value.size, value.has_sign) {
                         x if (x.0 <= 8) && x.1 => NumberFieldParameters {
@@ -448,14 +443,10 @@ impl TryFrom<&FieldParametersJson> for FieldParameters {
                         },
                         _ => unreachable!(),
                     };
-                    Self::NumberFieldParameters(params)
+                    Self::NumberField(params)
                 }
-                "DECIMAL" => {
-                    Self::DecimalFieldParameters(DecimalFieldParameters { size: value.size })
-                }
-                _ => Self::NumberFieldParameters(field_type_to_number_field_params(
-                    &value.field_type,
-                )?),
+                "DECIMAL" => Self::DecimalField(DecimalFieldParameters { size: value.size }),
+                _ => Self::NumberField(field_type_to_number_field_params(&value.field_type)?),
             })
         }
     }
@@ -472,7 +463,7 @@ struct MessageJson {
 }
 
 impl MessageJson {
-    fn to_bytes(self) -> Result<Option<(String, Vec<u8>)>, String> {
+    fn into_bytes(self) -> Result<Option<(String, Vec<u8>)>, String> {
         // NOTE: This code is inactive because the full range of PGNs causes a greater than 4MB binary. Some
         // refactoring of the code gen is needed. For now, we whitelist the message formats used by the sensors
         // in viamboat
@@ -1582,6 +1573,7 @@ fn write_fieldset_struct(
     Ok(fieldset_struct_bytes)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn write_field_segments(
     message_struct_bytes: &mut Vec<u8>,
     field_objs: Iter<'_, FieldParametersJson>,
@@ -1618,17 +1610,15 @@ fn write_field_segments(
             message_struct_bytes.append(&mut fieldset_tag);
             message_struct_bytes.append(&mut length_field_tag);
             message_struct_bytes.append(&mut field);
-        } else if (i < a_end) && (i > a_start) {
-            continue;
-        } else if (i < b_end) && (i > b_start) {
+        } else if ((i < a_end) && (i > a_start)) || ((i < b_end) && (i > b_start)) {
             continue;
         } else {
             let field_name = &obj.name;
             let field_name_cleaned = clean_string_for_rust(field_name, Case::Snake);
-            if previous_field != "n_items".to_string() {
+            if previous_field != *"n_items" {
                 previous_field = field_name_cleaned.clone();
             }
-            let field = if obj.field_type == "FIELDTYPE_LOOKUP".to_string() {
+            let field = if obj.field_type == *"FIELDTYPE_LOOKUP" {
                 polymorphic_params = Some(PolymorphicParameters {
                     key_field: field_name_cleaned,
                     lookup_name: obj.lookup.name.clone(),
@@ -1644,10 +1634,10 @@ fn write_field_segments(
                 Field::try_from(obj)?
             };
 
-            if let FieldParameters::ReservedFieldParameters(params) = &field.params {
+            if let FieldParameters::ReservedField(params) = &field.params {
                 offset = params.size
             } else {
-                writeln!(message_struct_bytes, "{}", field.to_field_string(offset))
+                writeln!(message_struct_bytes, "{}", field.into_field_string(offset))
                     .expect("failed to write field to struct");
                 offset = 0;
             }
@@ -1750,8 +1740,7 @@ fn main() {
         .write_all(polymorphic_type_import_line2.as_bytes())
         .expect("failed to write import statement");
 
-    let messages_imports_1 =
-        "use super::enums::*;\nuse micro_rdk_nmea_macros::{PgnMessageDerive, FieldsetDerive};\n";
+    let messages_imports_1 = "use super::enums::*;\n#[allow(unused_imports)]\nuse micro_rdk_nmea_macros::{PgnMessageDerive, FieldsetDerive};\n";
     messages_file
         .write_all(messages_imports_1.as_bytes())
         .expect("failed to write import statement for messages.rs");
@@ -1806,7 +1795,7 @@ fn main() {
         serde_json::from_value(messages_value).expect("could not parse messages");
     for msg_json in message_formats {
         let pgn = msg_json.pgn;
-        match msg_json.to_bytes() {
+        match msg_json.into_bytes() {
             Ok(Some((struct_name, struct_bytes))) => {
                 pgn_struct_names.push(struct_name);
                 message_structs.push(struct_bytes);

@@ -465,7 +465,7 @@ macro_rules! polymorphic_type {
 #[derive(Debug, Clone)]
 pub struct NmeaMessageMetadata {
     pgn: u32,
-    // timestamp: DateTime<Utc>,
+    timestamp: Option<DateTime<Utc>>,
     dst: u16,
     src: u16,
     priority: u16,
@@ -484,9 +484,9 @@ impl NmeaMessageMetadata {
         self.priority
     }
 
-    // pub fn timestamp(&self) -> DateTime<Utc> {
-    //     self.timestamp
-    // }
+    pub fn timestamp(&self) -> Option<DateTime<Utc>> {
+        self.timestamp
+    }
 
     pub fn pgn(&self) -> u32 {
         self.pgn
@@ -500,16 +500,15 @@ impl TryFrom<Vec<u8>> for NmeaMessageMetadata {
             return Err(NmeaParseError::NotEnoughData);
         }
         let pgn = u32::from_le_bytes(value[0..4].try_into()?);
-        let _seconds = u64::from_le_bytes(value[8..16].try_into()?) as i64;
-        let _millis = u64::from_le_bytes(value[16..24].try_into()?);
-        // let timestamp = DateTime::from_timestamp(seconds, (millis * 1000) as u32)
-        //     .ok_or(NmeaParseError::MalformedTimestamp)?;
+        let seconds = u64::from_le_bytes(value[8..16].try_into()?) as i64;
+        let millis = u64::from_le_bytes(value[16..24].try_into()?);
+        let timestamp = DateTime::from_timestamp(seconds, (millis * 1000) as u32);
 
         let dst = u16::from_le_bytes(value[26..28].try_into()?);
         let src = u16::from_le_bytes(value[28..30].try_into()?);
         let priority = u16::from_le_bytes(value[30..32].try_into()?);
         Ok(Self {
-            // timestamp,
+            timestamp,
             priority,
             src,
             dst,

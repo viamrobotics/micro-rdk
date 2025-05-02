@@ -21,16 +21,7 @@ mod tests {
     use base64::{engine::general_purpose, Engine};
 
     use crate::{
-        gen::{
-            enums::{
-                GnsIntegrityLookup, GnsLookup, GnsMethodLookup, RangeResidualModeLookup,
-                SatelliteStatusLookup, TemperatureSourceLookup,
-            },
-            messages::{
-                NmeaMessage, NmeaMessageBody, Pgn127250Message, Pgn127257Message, Pgn128267Message,
-                Pgn129025Message, Pgn129026Message, MESSAGE_DATA_OFFSET,
-            },
-        },
+        gen::messages::{Pgn128267Message, MESSAGE_DATA_OFFSET},
         messages::message::Message,
         parse_helpers::{errors::NumberFieldError, parsers::DataCursor},
     };
