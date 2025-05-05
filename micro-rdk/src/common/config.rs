@@ -300,7 +300,7 @@ impl TryFrom<&google::protobuf::value::Kind> for Kind {
 }
 
 pub struct Model {
-    familly: String,
+    family: String,
     model: String,
     namespace: String,
 }
@@ -308,7 +308,7 @@ pub struct Model {
 impl Model {
     pub fn new_builtin(model: String) -> Self {
         Self {
-            familly: "builtin".to_owned(),
+            family: "builtin".to_owned(),
             namespace: "rdk".to_owned(),
             model,
         }
@@ -317,7 +317,7 @@ impl Model {
         &self.model
     }
     pub fn get_familly(&self) -> &str {
-        &self.familly
+        &self.family
     }
     pub fn get_namespace(&self) -> &str {
         &self.namespace
@@ -327,7 +327,7 @@ impl Debug for Model {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
             "Model({}:{}:{})",
-            self.namespace, self.familly, self.model
+            self.namespace, self.family, self.model
         ))
     }
 }
@@ -384,7 +384,7 @@ impl TryFrom<&str> for Model {
         })?;
         Ok(Self {
             namespace: namespace.to_owned(),
-            familly: familly.to_owned(),
+            family: familly.to_owned(),
             model: model.to_owned(),
         })
     }
