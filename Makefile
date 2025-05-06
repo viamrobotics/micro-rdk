@@ -60,7 +60,7 @@ clippy-native:
 
 clippy-esp32:
 	cargo +esp clippy -p micro-rdk-server --bin micro-rdk-server-esp32 --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --release -- -Dwarnings
-	cargo +esp clippy -p micro-rdk-ffi --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --release -- -Dwarnings
+	cargo +esp clippy -p micro-rdk-ffi --features viamboat --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --release -- -Dwarnings
 
 format:
 	cargo fmt --all -- --check

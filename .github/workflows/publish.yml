@@ -118,7 +118,7 @@ jobs:
         git config --global --add safe.directory "$ESP_ROOT"/esp-idf
         make build-esp32-bin
         make build-esp32-ota
-        cargo +esp build -p micro-rdk-ffi --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --locked --profile release
+        cargo +esp build -p micro-rdk-ffi --features viamboat --target=xtensa-esp32-espidf -Zbuild-std=std,panic_abort --locked --profile release
         cp target/xtensa-esp32-espidf/release/micro-rdk-server-esp32 micro-rdk-server-esp32.elf
         cp target/xtensa-esp32-espidf/release/micro-rdk-server-esp32.bin micro-rdk-server-esp32.bin
         cp target/xtensa-esp32-espidf/release/micro-rdk-server-esp32-ota.bin micro-rdk-server-esp32-ota.bin
