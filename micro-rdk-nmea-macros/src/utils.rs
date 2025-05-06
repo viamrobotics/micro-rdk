@@ -6,8 +6,6 @@ use syn::{Ident, Type};
 
 // Our Golang variant of this library currently automatically performs standard conversions
 // for particular units. `UnitConversion` auto-generates this logic for a given supported result unit.
-// The source unit is assumed (for example, "C" for Celsius indicates that the parsed value is in
-// Kelvin and should be converted into Celsius, so "C" => UnitConversion::KelvinToCelsius)
 #[derive(Debug)]
 pub(crate) enum UnitConversion {
     KelvinToCelsius,
@@ -16,23 +14,19 @@ pub(crate) enum UnitConversion {
     RadianToDegree,
     RadPerSecToDegPerSec,
     MetersPerSecToKnots,
-    MetersToNauticalMiles,
+    NoConversionNecessary,
 }
 
-impl TryFrom<&str> for UnitConversion {
-    type Error = TokenStream;
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+impl From<&str> for UnitConversion {
+    fn from(value: &str) -> Self {
         match value {
-            "Ah" => Ok(Self::CoulombToAmpereHour),
-            "bar" => Ok(Self::PascalToBar),
-            "C" => Ok(Self::KelvinToCelsius),
-            "deg" => Ok(Self::RadianToDegree),
-            "deg/s" => Ok(Self::RadPerSecToDegPerSec),
-            "knots" => Ok(Self::MetersPerSecToKnots),
-            "M" => Ok(Self::MetersToNauticalMiles),
-            x => Err(error_tokens(
-                format!("encountered unsupported unit {:?}", x).as_str(),
-            )),
+            "Coulomb" => Self::CoulombToAmpereHour,
+            "Pa" => Self::PascalToBar,
+            "K" => Self::KelvinToCelsius,
+            "rad" => Self::RadianToDegree,
+            "rad/s" => Self::RadPerSecToDegPerSec,
+            "m/s" => Self::MetersPerSecToKnots,
+            _ => Self::NoConversionNecessary,
         }
     }
 }
@@ -44,7 +38,7 @@ impl UnitConversion {
                 let result = (result as f64) - 273.15;
             },
             Self::CoulombToAmpereHour => quote! {
-                let result = (result as f64) / 3600;
+                let result = (result as f64) / 3600.0;
             },
             Self::PascalToBar => quote! {
                 let result = (result as f64) / 100000.0;
@@ -55,9 +49,7 @@ impl UnitConversion {
             Self::MetersPerSecToKnots => quote! {
                 let result = (result as f64) * 1.94384;
             },
-            Self::MetersToNauticalMiles => quote! {
-                let result = (result as f64) * 0.000539957;
-            },
+            Self::NoConversionNecessary => quote! {},
         }
     }
 }
@@ -90,7 +82,7 @@ pub(crate) fn get_proto_import_prefix() -> TokenStream2 {
     quote! {#crate_ident::google::protobuf}
 }
 
-pub(crate) fn is_supported_integer_type(field_type: &Type) -> bool {
+pub(crate) fn is_supported_numeric_type(field_type: &Type) -> bool {
     match field_type {
         Type::Path(type_path) => {
             type_path.path.is_ident("u32")
@@ -101,6 +93,8 @@ pub(crate) fn is_supported_integer_type(field_type: &Type) -> bool {
                 || type_path.path.is_ident("i64")
                 || type_path.path.is_ident("u64")
                 || type_path.path.is_ident("i8")
+                || type_path.path.is_ident("u128")
+                || type_path.path.is_ident("f32")
         }
         _ => false,
     }
@@ -109,6 +103,16 @@ pub(crate) fn is_supported_integer_type(field_type: &Type) -> bool {
 pub(crate) fn is_string_type(field_type: &Type) -> bool {
     match field_type {
         Type::Path(type_path) => type_path.path.is_ident("String"),
+        _ => false,
+    }
+}
+
+pub(crate) fn is_supported_array_type(field_type: &Type) -> bool {
+    match field_type {
+        Type::Array(array_ty) => match &(*array_ty.elem) {
+            Type::Path(type_path) => type_path.path.is_ident("u8"),
+            _ => false,
+        },
         _ => false,
     }
 }
