@@ -51,6 +51,7 @@ pub(crate) struct MacroAttributes {
     pub(crate) lookup_field: Option<Ident>,
     pub(crate) is_mmsi: bool,
     pub(crate) encoding_is_variable: bool,
+    pub(crate) value_offset: Option<i32>,
 }
 
 // Attempt to deduce the bit size from the data type
@@ -103,6 +104,7 @@ impl MacroAttributes {
             lookup_field: None,
             is_mmsi: false,
             encoding_is_variable: false,
+            value_offset: None,
         };
 
         for attr in field.attrs.iter() {
@@ -151,6 +153,34 @@ impl MacroAttributes {
                             _ => {
                                 return Err(error_tokens(
                                     "bits received unexpected attribute value",
+                                ));
+                            }
+                        };
+                    }
+                    "value_offset" => {
+                        macro_attrs.value_offset = match &attr.meta {
+                            Meta::NameValue(named) => {
+                                if let Expr::Lit(ref expr_lit) = named.value {
+                                    let value_offset_lit = expr_lit.lit.clone();
+                                    if let Lit::Int(value_offset_lit) = value_offset_lit {
+                                        match value_offset_lit.base10_parse::<i32>() {
+                                            Ok(value_offset) => Some(value_offset),
+                                            Err(err) => {
+                                                return Err(error_tokens(err.to_string().as_str()));
+                                            }
+                                        }
+                                    } else {
+                                        return Err(error_tokens(
+                                            "value_offset parameter must be int",
+                                        ));
+                                    }
+                                } else {
+                                    return Err(error_tokens("value_offset parameter must be int"));
+                                }
+                            }
+                            _ => {
+                                return Err(error_tokens(
+                                    "value_offset received unexpected attribute value",
                                 ));
                             }
                         };
@@ -305,9 +335,7 @@ impl MacroAttributes {
                                     if let Lit::Str(unit_lit) = unit_lit {
                                         let unit_token = unit_lit.token();
                                         let unit_str = unit_token.to_string();
-                                        UnitConversion::try_from(
-                                            unit_str.as_str().trim_matches('"'),
-                                        )?
+                                        UnitConversion::from(unit_str.as_str().trim_matches('"'))
                                     } else {
                                         return Err(error_tokens("unit parameter must be str"));
                                     }

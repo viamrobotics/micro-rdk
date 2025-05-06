@@ -15,7 +15,7 @@ pub trait Message: Sized + Clone {
     const PGN: u32;
     fn from_cursor(cursor: DataCursor) -> Result<Self, NmeaParseError>;
     fn to_readings(self) -> Result<GenericReadingsResult, NmeaParseError>;
-    fn pgn(&self) -> u32 {
+    fn pgn_id(&self) -> u32 {
         Self::PGN
     }
 }
@@ -49,7 +49,7 @@ impl UnparsedNmeaMessageBody {
         ]))
     }
 
-    pub fn pgn(&self) -> u32 {
+    pub fn pgn_id(&self) -> u32 {
         self.pgn
     }
 }

@@ -23,8 +23,10 @@ use std::{
 };
 
 use crate::{
-    gen::enums::DirectionReferenceLookup,
-    messages::pgns::{NmeaMessage, NmeaMessageBody},
+    gen::{
+        enums::DirectionReferenceLookup,
+        messages::{NmeaMessage, NmeaMessageBody},
+    },
     parse_helpers::errors::{NmeaParseError, NumberFieldError},
 };
 use base64::{engine::general_purpose, DecodeError, Engine};
@@ -202,7 +204,7 @@ impl Readings for DepthSensor {
 
         let first_message = &messages[0];
         let depth = match &first_message.data {
-            NmeaMessageBody::WaterDepth(msg) => msg
+            NmeaMessageBody::Pgn128267Message(msg) => msg
                 .depth()
                 .map_err(|err| SensorError::SensorDriverError(err.to_string()))?,
             _ => unreachable!(),
@@ -282,7 +284,7 @@ impl ViamboatMovementSensor {
 
         for msg in messages {
             match msg.data {
-                NmeaMessageBody::PositionRapidUpdate(data) => {
+                NmeaMessageBody::Pgn129025Message(data) => {
                     if res.point.is_none() {
                         match data.latitude() {
                             Ok(lat) => match data.longitude() {
@@ -299,8 +301,8 @@ impl ViamboatMovementSensor {
                         }
                     }
                 }
-                NmeaMessageBody::CogSog(data) => {
-                    match data.speed_over_ground() {
+                NmeaMessageBody::Pgn129026Message(data) => {
+                    match data.sog() {
                         Ok(sog) => {
                             let _ = res.speed_over_ground.get_or_insert(sog);
                         }
@@ -308,7 +310,7 @@ impl ViamboatMovementSensor {
                             log::error!("error acquiring speed over ground: {:?}", err);
                         }
                     };
-                    match data.course_over_ground() {
+                    match data.cog() {
                         Ok(cog) => {
                             let _ = res.course_over_ground.get_or_insert(cog);
                         }
@@ -317,7 +319,7 @@ impl ViamboatMovementSensor {
                         }
                     };
                 }
-                NmeaMessageBody::VesselHeading(data) => {
+                NmeaMessageBody::Pgn127250Message(data) => {
                     match data.heading() {
                         Ok(heading) => {
                             let _ = res.heading.get_or_insert(heading);
@@ -328,7 +330,7 @@ impl ViamboatMovementSensor {
                     };
                     let _ = res.heading_reference.get_or_insert(data.reference());
                 }
-                NmeaMessageBody::Attitude(data) => {
+                NmeaMessageBody::Pgn127257Message(data) => {
                     match data.yaw() {
                         Ok(yaw_deg) => {
                             let _ = res.yaw.get_or_insert(yaw_deg * (PI / 180.0));
