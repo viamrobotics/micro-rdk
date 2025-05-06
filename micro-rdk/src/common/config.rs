@@ -5,11 +5,12 @@ use crate::{
     google,
     proto::{
         app::{agent::v1::DeviceAgentConfigResponse, v1::ComponentConfig},
-        common::v1::ResourceName,
+        common,
         provisioning::v1::SetNetworkCredentialsRequest,
     },
 };
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 use std::{
     collections::HashMap,
     num::{ParseFloatError, ParseIntError},
@@ -26,6 +27,34 @@ pub enum AttributeError {
     KeyNotFound(String),
     #[error("{0}")]
     ValidationError(String),
+    #[error(transparent)]
+    ConfigApiErr(#[from] ConfigApiError),
+    #[error(transparent)]
+    ConfigModelErr(#[from] ConfigModelError),
+}
+
+#[derive(Error, Debug, Eq, PartialEq)]
+pub enum ConfigApiError {
+    #[error("invalid api string {0}")]
+    ConfigApiErrorInvalidApiString(String),
+    #[error("type: {0} is empty or not an alphanumeric string")]
+    ConfigApiErrorResourceType(String),
+    #[error("subtype: {0} is empty or not an alphanumeric string")]
+    ConfigApiErrorResourceSubType(String),
+    #[error("namespace: {0} is empty or not an alphanumeric string")]
+    ConfigApiErrorResourceNamespace(String),
+}
+
+#[derive(Error, Debug, Eq, PartialEq)]
+pub enum ConfigModelError {
+    #[error("invalid model familly string {0}")]
+    ConfigModelErrorInvalidModelString(String),
+    #[error("model: {0} is empty or not an alphanumeric string")]
+    ConfigModelErrorInvalidModel(String),
+    #[error("familly: {0} is empty or not an alphanumeric string")]
+    ConfigModelErrorInvalidFamilly(String),
+    #[error("namespace: {0} is empty or not an alphanumeric string")]
+    ConfigModelErrorInvalidNamespace(String),
 }
 
 impl From<ParseIntError> for AttributeError {
@@ -270,15 +299,223 @@ impl TryFrom<&google::protobuf::value::Kind> for Kind {
     }
 }
 
-#[derive(Debug, Default)]
+pub struct Model {
+    family: String,
+    model: String,
+    namespace: String,
+}
+
+impl Model {
+    pub fn new_builtin(model: String) -> Self {
+        Self {
+            family: "builtin".to_owned(),
+            namespace: "rdk".to_owned(),
+            model,
+        }
+    }
+    pub fn get_model(&self) -> &str {
+        &self.model
+    }
+    pub fn get_familly(&self) -> &str {
+        &self.family
+    }
+    pub fn get_namespace(&self) -> &str {
+        &self.namespace
+    }
+}
+impl Debug for Model {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "Model({}:{}:{})",
+            self.namespace, self.family, self.model
+        ))
+    }
+}
+// this is equivalent to the regex \w-
+fn is_valid_api_model_char(c: char) -> bool {
+    c.is_alphanumeric() || c == '_' || c == '-'
+}
+
+// for both model and api we follow the triplet constrains of RDK
+impl TryFrom<&str> for Model {
+    type Error = ConfigModelError;
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        // we split the string at ':' if we get three elements that match is_valid_api_model_char we have a valid triplet
+        let mut iter = value.split(":");
+        let namespace = iter
+            .next()
+            .ok_or(ConfigModelError::ConfigModelErrorInvalidModelString(
+                value.to_owned(),
+            ))
+            .and_then(|s| {
+                (!s.is_empty() && s.chars().all(is_valid_api_model_char))
+                    .then_some(s)
+                    .ok_or(ConfigModelError::ConfigModelErrorInvalidNamespace(
+                        s.to_owned(),
+                    ))
+            })?;
+        let familly = iter
+            .next()
+            .ok_or(ConfigModelError::ConfigModelErrorInvalidFamilly(
+                value.to_owned(),
+            ))
+            .and_then(|s| {
+                (!s.is_empty() && s.chars().all(is_valid_api_model_char))
+                    .then_some(s)
+                    .ok_or(ConfigModelError::ConfigModelErrorInvalidFamilly(
+                        s.to_owned(),
+                    ))
+            })?;
+        let model = iter
+            .next()
+            .ok_or(ConfigModelError::ConfigModelErrorInvalidModel(
+                value.to_owned(),
+            ))
+            .and_then(|s| {
+                (!s.is_empty() && s.chars().all(is_valid_api_model_char))
+                    .then_some(s)
+                    .ok_or(ConfigModelError::ConfigModelErrorInvalidModel(s.to_owned()))
+            })?;
+        // if there is extra stuff after the third word we return an error
+        iter.next().map_or(Ok(()), |_| {
+            Err(ConfigModelError::ConfigModelErrorInvalidModelString(
+                value.to_owned(),
+            ))
+        })?;
+        Ok(Self {
+            namespace: namespace.to_owned(),
+            family: familly.to_owned(),
+            model: model.to_owned(),
+        })
+    }
+}
+
+#[derive(PartialEq, Eq, Hash, Clone)]
+pub struct API {
+    r#type: String,
+    subtype: String,
+    namespace: String,
+}
+
+impl Debug for API {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "API({}:{}:{})",
+            self.namespace, self.r#type, self.subtype
+        ))
+    }
+}
+
+impl TryFrom<&str> for API {
+    type Error = ConfigApiError;
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let mut iter = value.split(":");
+        let namespace = iter
+            .next()
+            .ok_or(ConfigApiError::ConfigApiErrorInvalidApiString(
+                value.to_owned(),
+            ))
+            .and_then(|s| {
+                (!s.is_empty() && s.chars().all(is_valid_api_model_char))
+                    .then_some(s)
+                    .ok_or(ConfigApiError::ConfigApiErrorResourceNamespace(
+                        s.to_owned(),
+                    ))
+            })?;
+        let r#type = iter
+            .next()
+            .ok_or(ConfigApiError::ConfigApiErrorResourceType(value.to_owned()))
+            .and_then(|s| {
+                (!s.is_empty() && s.chars().all(is_valid_api_model_char))
+                    .then_some(s)
+                    .ok_or(ConfigApiError::ConfigApiErrorResourceType(s.to_owned()))
+            })?;
+        let subtype = iter
+            .next()
+            .ok_or(ConfigApiError::ConfigApiErrorResourceSubType(
+                value.to_owned(),
+            ))
+            .and_then(|s| {
+                (!s.is_empty() && s.chars().all(is_valid_api_model_char))
+                    .then_some(s)
+                    .ok_or(ConfigApiError::ConfigApiErrorResourceSubType(s.to_owned()))
+            })?;
+        iter.next().map_or(Ok(()), |_| {
+            Err(ConfigApiError::ConfigApiErrorInvalidApiString(
+                value.to_owned(),
+            ))
+        })?;
+        Ok(Self {
+            namespace: namespace.to_owned(),
+            subtype: subtype.to_owned(),
+            r#type: r#type.to_owned(),
+        })
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+pub struct ResourceName {
+    name: String,
+    api: API,
+}
+
+impl ResourceName {
+    pub fn new(name: String, api: API) -> Self {
+        Self { name, api }
+    }
+    // as opposite the RDK we only support rdk:component:xxxx api triplets (external module will not have their own namespace)
+    pub fn new_builtin(name: String, subtype: String) -> Self {
+        let api = API {
+            namespace: "rdk".to_owned(),
+            r#type: "component".to_owned(),
+            subtype,
+        };
+        Self { api, name }
+    }
+    pub fn get_api(&self) -> &API {
+        &self.api
+    }
+    pub fn get_type(&self) -> &str {
+        &self.api.r#type
+    }
+    pub fn get_subtype(&self) -> &str {
+        &self.api.subtype
+    }
+    pub fn get_namespace(&self) -> &str {
+        &self.api.namespace
+    }
+    pub fn get_name(&self) -> &str {
+        &self.name
+    }
+    // rpc GetResourceNames doesn't use the api string
+    pub fn to_proto_resource_name(&self) -> common::v1::ResourceName {
+        common::v1::ResourceName {
+            namespace: self.api.namespace.to_string(),
+            r#type: self.api.r#type.to_string(),
+            subtype: self.api.subtype.to_string(),
+            name: self.name.to_string(),
+            local_name: self.name.to_string(),
+            remote_path: vec![],
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct DynamicComponentConfig {
-    pub name: String,
-    pub namespace: String,
-    pub r#type: String,
-    pub model: String,
+    pub(crate) name: ResourceName,
+    pub(crate) model: Model,
     pub attributes: Option<HashMap<String, Kind>>,
     #[cfg(feature = "data")]
     pub data_collector_configs: Vec<DataCollectorConfig>,
+}
+
+impl DynamicComponentConfig {
+    pub fn get_resource_name(&self) -> &ResourceName {
+        &self.name
+    }
+    pub fn get_model(&self) -> &Model {
+        &self.model
+    }
 }
 
 impl TryFrom<&ComponentConfig> for DynamicComponentConfig {
@@ -328,11 +565,10 @@ impl TryFrom<&ComponentConfig> for DynamicComponentConfig {
         } else {
             vec![]
         };
+        let api: API = value.api.as_str().try_into()?;
         Ok(Self {
-            name: value.name.to_string(),
-            namespace: value.namespace.to_string(),
-            r#type: value.r#type.to_string(),
-            model: value.model.to_string(),
+            name: ResourceName::new(value.name.clone(), api),
+            model: value.model.as_str().try_into()?,
             attributes: attrs_opt,
             #[cfg(feature = "data")]
             data_collector_configs,
@@ -354,50 +590,66 @@ impl<'a> ConfigType<'a> {
             Self::Dynamic(cfg) => cfg.get_attribute::<T>(key),
         }
     }
+    #[deprecated(since = "0.5.1", note = "get_type() is deprecated use get_subtype()")]
     pub fn get_type(&self) -> &str {
         match self {
-            Self::Dynamic(cfg) => cfg.get_type(),
+            Self::Dynamic(cfg) => cfg.get_resource_name().get_subtype(),
+        }
+    }
+    pub fn get_subtype(&self) -> &str {
+        match self {
+            Self::Dynamic(cfg) => cfg.get_resource_name().get_subtype(),
         }
     }
 }
 
 pub trait Component {
+    fn get_resource_name(&self) -> &ResourceName;
+    fn get_model(&self) -> &Model;
+    #[deprecated(
+        since = "0.5.1",
+        note = "get_name() is deprecated use get_resource_name().get_name()"
+    )]
     fn get_name(&self) -> &str;
-    fn get_model(&self) -> &str;
+    #[deprecated(
+        since = "0.5.1",
+        note = "get_type() is deprecated use get_resource_name().get_type()"
+    )]
     fn get_type(&self) -> &str;
+    #[deprecated(
+        since = "0.5.1",
+        note = "get_subtype() is deprecated use get_resource_name().get_subtype()"
+    )]
+    fn get_subtype(&self) -> &str;
+    #[deprecated(
+        since = "0.5.1",
+        note = "get_namespace() is deprecated use get_resource_name().get_namespace()"
+    )]
     fn get_namespace(&self) -> &str;
-    fn get_resource_name(&self) -> ResourceName {
-        ResourceName {
-            namespace: self.get_namespace().to_string(),
-            r#type: "component".to_string(),
-            subtype: self.get_type().to_string(),
-            name: self.get_name().to_string(),
-            local_name: self.get_name().to_string(),
-            remote_path: vec![],
-        }
-    }
     fn get_attribute<'a, T>(&'a self, key: &str) -> Result<T, AttributeError>
     where
         T: std::convert::TryFrom<&'a Kind, Error = AttributeError>;
 }
 
 impl Component for DynamicComponentConfig {
-    fn get_name(&self) -> &str {
+    fn get_resource_name(&self) -> &ResourceName {
         &self.name
     }
-
-    fn get_model(&self) -> &str {
+    fn get_model(&self) -> &Model {
         &self.model
     }
-
-    fn get_namespace(&self) -> &str {
-        &self.namespace
+    fn get_name(&self) -> &str {
+        self.name.get_name()
     }
-
     fn get_type(&self) -> &str {
-        &self.r#type
+        self.name.get_type()
     }
-
+    fn get_subtype(&self) -> &str {
+        self.name.get_subtype()
+    }
+    fn get_namespace(&self) -> &str {
+        self.name.get_namespace()
+    }
     fn get_attribute<'a, T>(&'a self, key: &str) -> Result<T, AttributeError>
     where
         T: std::convert::TryFrom<&'a Kind, Error = AttributeError>,
@@ -519,16 +771,100 @@ impl PartialOrd for NetworkSetting {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::common::config::{AttributeError, Component, DynamicComponentConfig, Kind};
+    use crate::common::config::{
+        AttributeError, Component, ConfigModelError, DynamicComponentConfig, Kind, Model,
+        ResourceName,
+    };
+
+    use super::{ConfigApiError, API};
+
+    #[test_log::test]
+    fn test_model_api() {
+        let model1: Result<Model, ConfigModelError> = "rdk:builtin:sensor".try_into();
+        assert!(model1.is_ok());
+
+        let model1: Result<Model, ConfigModelError> = "rdk:builtin_b:sensor".try_into();
+        assert!(model1.is_ok());
+
+        let model1: Result<Model, ConfigModelError> = "rdk:builtin:sensor-d".try_into();
+        assert!(model1.is_ok());
+
+        let model1: Result<Model, ConfigModelError> = "rdk:builtin:movement_sensor".try_into();
+        assert!(model1.is_ok());
+
+        let model1: Result<Model, ConfigModelError> = "rdk::sensor".try_into();
+        assert!(model1.is_err());
+        assert!(matches!(
+            model1.unwrap_err(),
+            ConfigModelError::ConfigModelErrorInvalidFamilly(_)
+        ));
+
+        let model1: Result<Model, ConfigModelError> = "rdk:ok:sensor+g".try_into();
+        assert!(model1.is_err());
+        assert!(matches!(
+            model1.unwrap_err(),
+            ConfigModelError::ConfigModelErrorInvalidModel(_)
+        ));
+
+        let model1: Result<Model, ConfigModelError> = ":".try_into();
+        assert!(model1.is_err());
+        assert!(matches!(
+            model1.unwrap_err(),
+            ConfigModelError::ConfigModelErrorInvalidNamespace(_)
+        ));
+
+        let model1: Result<Model, ConfigModelError> = "aa:bb:vv:dd".try_into();
+        assert!(model1.is_err());
+        assert!(matches!(
+            model1.unwrap_err(),
+            ConfigModelError::ConfigModelErrorInvalidModelString(_)
+        ));
+
+        let api1: Result<API, ConfigApiError> = "rdk:component:acon".try_into();
+        assert!(api1.is_ok());
+
+        let api1: Result<API, ConfigApiError> = "rdk:component:acon_p".try_into();
+        assert!(api1.is_ok());
+
+        let api1: Result<API, ConfigApiError> = "rdk:component:acon-d".try_into();
+        assert!(api1.is_ok());
+
+        let api1: Result<API, ConfigApiError> = "rdk:component:acon-d:DD".try_into();
+        assert!(api1.is_err());
+        assert!(matches!(
+            api1.unwrap_err(),
+            ConfigApiError::ConfigApiErrorInvalidApiString(_)
+        ));
+
+        let api1: Result<API, ConfigApiError> = "rdk:component:acon@@".try_into();
+        assert!(api1.is_err());
+        assert!(matches!(
+            api1.unwrap_err(),
+            ConfigApiError::ConfigApiErrorResourceSubType(_)
+        ));
+
+        let api1: Result<API, ConfigApiError> = "rdk::acon@@".try_into();
+        assert!(api1.is_err());
+        assert!(matches!(
+            api1.unwrap_err(),
+            ConfigApiError::ConfigApiErrorResourceType(_)
+        ));
+
+        let api1: Result<API, ConfigApiError> = "rdk&&::".try_into();
+        assert!(api1.is_err());
+        assert!(matches!(
+            api1.unwrap_err(),
+            ConfigApiError::ConfigApiErrorResourceNamespace(_)
+        ));
+    }
 
     #[test_log::test]
     fn test_config_component() {
         let robot_config: [DynamicComponentConfig; 3] = [
             DynamicComponentConfig {
-                name: "board".to_owned(),
-                namespace: "rdk".to_owned(),
-                r#type: "board".to_owned(),
-                model: "pi".to_owned(),
+                name: ResourceName::new_builtin("board".to_owned(), "board".to_owned()),
+                model: Model::new_builtin("pi".to_owned()),
+                data_collector_configs: vec![],
                 attributes: Some(HashMap::from([(
                     "pins".to_owned(),
                     Kind::VecValue(vec![
@@ -537,13 +873,11 @@ mod tests {
                         Kind::StringValue("13".to_owned()),
                     ]),
                 )])),
-                ..Default::default()
             },
             DynamicComponentConfig {
-                name: "motor".to_owned(),
-                namespace: "rdk".to_owned(),
-                r#type: "motor".to_owned(),
-                model: "gpio".to_owned(),
+                name: ResourceName::new_builtin("motor".to_owned(), "motor".to_owned()),
+                model: Model::new_builtin("gpio".to_owned()),
+                data_collector_configs: vec![],
                 attributes: Some(HashMap::from([
                     (
                         "pins".to_owned(),
@@ -555,13 +889,11 @@ mod tests {
                     ),
                     ("board".to_owned(), Kind::StringValue("board".to_owned())),
                 ])),
-                ..Default::default()
             },
             DynamicComponentConfig {
-                name: "motor".to_owned(),
-                namespace: "rdk".to_owned(),
-                r#type: "motor".to_owned(),
-                model: "gpio".to_owned(),
+                name: ResourceName::new_builtin("motor".to_owned(), "motor".to_owned()),
+                model: Model::new_builtin("gpio".to_owned()),
+                data_collector_configs: vec![],
                 attributes: Some(HashMap::from([
                     ("float".to_owned(), Kind::NumberValue(10.556)),
                     ("float2".to_owned(), Kind::StringValue("10.564".to_owned())),
@@ -585,26 +917,25 @@ mod tests {
                         )])),
                     ),
                 ])),
-                ..Default::default()
             },
         ];
 
-        let val = robot_config[0].get_name();
+        let val = robot_config[0].get_resource_name().get_name();
         assert_eq!(val, "board");
 
-        let val = robot_config[0].get_model();
+        let val = robot_config[0].get_model().get_model();
         assert_eq!(val, "pi");
 
-        let val = robot_config[0].get_type();
+        let val = robot_config[0].get_resource_name().get_subtype();
         assert_eq!(val, "board");
 
-        let val = robot_config[1].get_name();
+        let val = robot_config[1].get_resource_name().get_name();
         assert_eq!(val, "motor");
 
-        let val = robot_config[1].get_model();
+        let val = robot_config[1].get_model().get_model();
         assert_eq!(val, "gpio");
 
-        let val = robot_config[1].get_type();
+        let val = robot_config[1].get_resource_name().get_subtype();
         assert_eq!(val, "motor");
 
         let val = robot_config[1].get_attribute::<u32>("board");
@@ -685,6 +1016,9 @@ mod tests {
         };
 
         let comp_config = ComponentConfig {
+            name: "component".to_owned(),
+            api: "rdk:builtin:sensor".to_owned(),
+            model: "rdk:builtin:sensor".to_owned(),
             service_configs: vec![
                 ResourceLevelServiceConfig {
                     r#type: "rdk:service:some_service".to_string(),

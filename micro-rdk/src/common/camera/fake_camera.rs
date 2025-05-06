@@ -1,15 +1,6 @@
-use crate::{
-    common::{
-        camera::{Camera, CameraError, CameraType},
-        status::{Status, StatusError},
-    },
-    google,
-};
+use crate::common::camera::{Camera, CameraError, CameraType};
 use bytes::Bytes;
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use crate::common::{config::ConfigType, registry::ComponentRegistry, registry::Dependency};
 
@@ -51,14 +42,6 @@ impl Camera for FakeCamera {
     }
 }
 
-impl Status for FakeCamera {
-    fn get_status(&self) -> Result<Option<google::protobuf::Struct>, StatusError> {
-        Ok(Some(google::protobuf::Struct {
-            fields: HashMap::new(),
-        }))
-    }
-}
-
 #[cfg(all(test, feature = "native"))]
 mod tests {
     use std::{
@@ -74,7 +57,7 @@ mod tests {
     use crate::{
         common::{
             app_client::encode_request,
-            config::DynamicComponentConfig,
+            config::{DynamicComponentConfig, Model, ResourceName},
             exec::Executor,
             grpc::{GrpcBody, GrpcError, GrpcServer},
             registry::ComponentRegistry,
@@ -104,12 +87,10 @@ mod tests {
 
         #[cfg(feature = "camera")]
         conf.push(Some(DynamicComponentConfig {
-            name: "camera".to_string(),
-            namespace: "rdk".to_string(),
-            r#type: "camera".to_string(),
-            model: "rdk:builtin:fake".to_string(),
+            name: ResourceName::new_builtin("camera".to_owned(), "camera".to_owned()),
+            model: Model::new_builtin("fake".to_owned()),
             attributes: None,
-            ..Default::default()
+            data_collector_configs: vec![],
         }));
         let mut registry: Box<ComponentRegistry> = Box::default();
 

@@ -1,4 +1,4 @@
-use super::{generic::DoCommand, registry::ComponentRegistry, status::Status};
+use super::{generic::DoCommand, registry::ComponentRegistry};
 use bytes::Bytes;
 use prost::EncodeError;
 use std::sync::{Arc, Mutex};
@@ -39,7 +39,7 @@ pub enum CameraError {
     MessageEncodeError(#[from] EncodeError),
 }
 
-pub trait Camera: Status + DoCommand {
+pub trait Camera: DoCommand {
     /// Returns a structured image response from a camera of the underlying robot.
     /// A specific MIME type can be requested but may not necessarily be the same one returned
     fn get_image(&mut self) -> Result<Bytes, CameraError> {

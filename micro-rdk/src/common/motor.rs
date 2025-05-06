@@ -402,15 +402,15 @@ impl Actuator for FakeMotorWithDependency {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::common::config::{Component, DynamicComponentConfig, Kind};
+    use crate::common::config::{Component, DynamicComponentConfig, Kind, Model, ResourceName};
     use crate::common::motor::{ConfigType, FakeMotor, MotorPinType, MotorPinsConfig};
     #[test_log::test]
     fn test_motor_config() {
         let robot_config: [Option<DynamicComponentConfig>; 1] = [Some(DynamicComponentConfig {
-            name: "motor".to_owned(),
-            namespace: "rdk".to_owned(),
-            r#type: "motor".to_owned(),
-            model: "gpio".to_owned(),
+            name: ResourceName::new_builtin("motor".to_owned(), "motor".to_owned()),
+            model: Model::new_builtin("gpio".to_owned()),
+            data_collector_configs: vec![],
+
             attributes: Some(HashMap::from([
                 ("max_rpm".to_owned(), Kind::NumberValue(10000f64)),
                 ("fake_position".to_owned(), Kind::NumberValue(10f64)),
@@ -425,7 +425,6 @@ mod tests {
                     ])),
                 ),
             ])),
-            ..Default::default()
         })];
 
         let val = robot_config[0]
@@ -453,10 +452,9 @@ mod tests {
     fn test_detect_motor_type_from_cfg() {
         let robot_config: [Option<DynamicComponentConfig>; 4] = [
             Some(DynamicComponentConfig {
-                name: "motor".to_owned(),
-                namespace: "rdk".to_owned(),
-                r#type: "motor".to_owned(),
-                model: "gpio".to_owned(),
+                name: ResourceName::new_builtin("motor".to_owned(), "motor".to_owned()),
+                model: Model::new_builtin("gpio".to_owned()),
+                data_collector_configs: vec![],
                 attributes: Some(HashMap::from([
                     ("max_rpm".to_owned(), Kind::NumberValue(10000f64)),
                     ("fake_position".to_owned(), Kind::NumberValue(10f64)),
@@ -470,13 +468,11 @@ mod tests {
                         ])),
                     ),
                 ])),
-                ..Default::default()
             }),
             Some(DynamicComponentConfig {
-                name: "motor".to_owned(),
-                namespace: "rdk".to_owned(),
-                r#type: "motor".to_owned(),
-                model: "gpio".to_owned(),
+                name: ResourceName::new_builtin("motor".to_owned(), "motor".to_owned()),
+                model: Model::new_builtin("gpio".to_owned()),
+                data_collector_configs: vec![],
                 attributes: Some(HashMap::from([
                     ("max_rpm".to_owned(), Kind::NumberValue(10000f64)),
                     ("fake_position".to_owned(), Kind::NumberValue(10f64)),
@@ -489,13 +485,11 @@ mod tests {
                         ])),
                     ),
                 ])),
-                ..Default::default()
             }),
             Some(DynamicComponentConfig {
-                name: "motor2".to_owned(),
-                namespace: "rdk".to_owned(),
-                r#type: "motor".to_owned(),
-                model: "gpio".to_owned(),
+                name: ResourceName::new_builtin("motor2".to_owned(), "motor".to_owned()),
+                model: Model::new_builtin("gpio".to_owned()),
+                data_collector_configs: vec![],
                 attributes: Some(HashMap::from([
                     ("max_rpm".to_owned(), Kind::NumberValue(10000f64)),
                     ("fake_position".to_owned(), Kind::NumberValue(10f64)),
@@ -508,13 +502,11 @@ mod tests {
                         )])),
                     ),
                 ])),
-                ..Default::default()
             }),
             Some(DynamicComponentConfig {
-                name: "motor3".to_owned(),
-                namespace: "rdk".to_owned(),
-                r#type: "motor".to_owned(),
-                model: "gpio".to_owned(),
+                name: ResourceName::new_builtin("motor3".to_owned(), "motor".to_owned()),
+                model: Model::new_builtin("gpio".to_owned()),
+                data_collector_configs: vec![],
                 attributes: Some(HashMap::from([
                     ("max_rpm".to_owned(), Kind::NumberValue(10000f64)),
                     ("fake_position".to_owned(), Kind::NumberValue(10f64)),
@@ -527,7 +519,6 @@ mod tests {
                         ])),
                     ),
                 ])),
-                ..Default::default()
             }),
         ];
 
