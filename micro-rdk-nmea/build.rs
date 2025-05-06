@@ -464,18 +464,14 @@ struct MessageJson {
 
 impl MessageJson {
     fn into_bytes(self) -> Result<Option<(String, Vec<u8>)>, String> {
-        // NOTE: This code is inactive because the full range of PGNs causes a greater than 4MB binary. Some
-        // refactoring of the code gen is needed. For now, we whitelist the message formats used by the sensors
-        // in viamboat
-
-        // let standard_pgn_range_1 = 61440..65279;
-        // let standard_pgn_range_2 = 126976..130815;
+        let standard_pgn_range_1 = 61440..65279;
+        let standard_pgn_range_2 = 126976..130815;
         // excluded until we support variable length fieldsets and indirect lookups (also there are two 129808 representations which follows the pattern for proprietary messages)
-        // let exclude_pgns: Vec<u32> = vec![126464, 129805, 129808, 60928, 65240];
+        let exclude_pgns: Vec<u32> = vec![126464, 129805, 129808, 60928, 65240];
 
-        let whitelisted_pgns: Vec<u32> = vec![128267, 129025, 129026, 127250, 127257, 130311];
-
-        if whitelisted_pgns.contains(&self.pgn) {
+        if (standard_pgn_range_1.contains(&self.pgn) || standard_pgn_range_2.contains(&self.pgn))
+            && !exclude_pgns.contains(&self.pgn)
+        {
             let mut message_struct_bytes: Vec<u8> = Vec::new();
 
             let (fieldset_name_a, repeating_start_1, repeating_end_1) =
