@@ -1,11 +1,12 @@
 use proc_macro::TokenStream;
-use proc_macro2::{Span, TokenStream as TokenStream2};
+use proc_macro2::{Literal, Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens};
 use syn::{DeriveInput, Field, GenericArgument, Ident, PathArguments, Type};
 
 use crate::attributes::MacroAttributes;
 use crate::utils::{
-    error_tokens, get_micro_nmea_crate_ident, is_string_type, is_supported_integer_type,
+    error_tokens, get_micro_nmea_crate_ident, is_string_type, is_supported_array_type,
+    is_supported_numeric_type, UnitConversion,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -84,8 +85,10 @@ impl PgnComposition {
                     .push(quote! { let _ = cursor.read(#offset)?; });
             }
 
-            let new_statements = if is_supported_integer_type(&field.ty) {
+            let new_statements = if is_supported_numeric_type(&field.ty) {
                 handle_number_field(name, field, &macro_attrs, purpose)?
+            } else if is_supported_array_type(&field.ty) {
+                handle_array_field(name, field, purpose)
             } else if is_string_type(&field.ty) {
                 handle_string_field(name, &macro_attrs, purpose)
             } else if macro_attrs.is_lookup {
@@ -311,8 +314,20 @@ fn handle_number_field(
     }
 
     if let Some(unit) = unit {
-        unit_conversion_logic = unit.tokens();
-        return_type = quote! {f64};
+        if !matches!(unit, UnitConversion::NoConversionNecessary) {
+            unit_conversion_logic = unit.tokens();
+            return_type = quote! {f64};
+        }
+    } else if let Some(value_offset) = macro_attrs.value_offset {
+        let offset_token = Literal::i32_suffixed(-value_offset);
+        unit_conversion_logic = quote! {
+            let result = if result <= (u32::MAX / 2) {
+                (result as i32) + #offset_token
+            } else {
+                (result - (#offset_token.abs() as u32)) as i32
+            };
+        };
+        return_type = quote! {i32}
     }
 
     new_statements.attribute_getters.push(quote! {
@@ -346,13 +361,50 @@ fn handle_number_field(
 
     let nmea_crate = get_micro_nmea_crate_ident();
     let read_statement = get_read_statement(name, purpose);
+    let is_decimal = if let Type::Path(type_path) = &field.ty {
+        type_path.path.is_ident("u128")
+    } else {
+        false
+    };
+    if is_decimal {
+        new_statements.parsing_logic.push(quote! {
+            let reader = #nmea_crate::parse_helpers::parsers::BinaryCodedDecimalField::new(#bits_size)?;
+            #read_statement
+        });
+    } else if macro_attrs.value_offset.is_some() {
+        new_statements.parsing_logic.push(quote! {
+            let reader = #nmea_crate::parse_helpers::parsers::NumberField::<u32>::new(#bits_size)?;
+            #read_statement
+        });
+    } else {
+        new_statements.parsing_logic.push(quote! {
+            let reader = #nmea_crate::parse_helpers::parsers::NumberField::<#num_ty>::new(#bits_size)?;
+            #read_statement
+        });
+    }
+
+    new_statements.struct_initialization.push(quote! {#name,});
+    Ok(new_statements)
+}
+
+fn handle_array_field(name: &Ident, field: &Field, purpose: CodeGenPurpose) -> PgnComposition {
+    let mut new_statements = PgnComposition::new();
+    let nmea_crate = get_micro_nmea_crate_ident();
+    let read_statement = get_read_statement(name, purpose);
+    let field_type = &field.ty;
+    let len = match field_type {
+        Type::Array(array_ty) => array_ty.len.clone(),
+        _ => unreachable!(),
+    };
+
     new_statements.parsing_logic.push(quote! {
-        let reader = #nmea_crate::parse_helpers::parsers::NumberField::<#num_ty>::new(#bits_size)?;
+        let reader = #nmea_crate::parse_helpers::parsers::ArrayField::<u8, #len>::new();
         #read_statement
     });
 
     new_statements.struct_initialization.push(quote! {#name,});
-    Ok(new_statements)
+
+    new_statements
 }
 
 fn handle_string_field(
@@ -375,6 +427,11 @@ fn handle_string_field(
         #read_statement
     });
     new_statements.struct_initialization.push(quote! {#name,});
+
+    new_statements.attribute_getters.push(quote! {
+        pub fn #name(&self) -> String { self.#name.clone() }
+    });
+
     let proto_import_prefix = crate::utils::get_proto_import_prefix();
     let prop_name = name.to_string();
     let label = macro_attrs.label.clone().unwrap_or(quote! {#prop_name});

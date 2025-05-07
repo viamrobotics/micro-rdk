@@ -4,7 +4,7 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum NumberFieldError {
-    #[error("field bit size {0} too large for max size {0}")]
+    #[error("field bit size {0} too large for max size {1}")]
     ImproperBitSize(usize, usize),
     #[error("Only 32 bits allowed as size for floats")]
     SizeNotAllowedforF32,
@@ -22,8 +22,6 @@ pub enum NmeaParseError {
     TryFromSliceError(#[from] std::array::TryFromSliceError),
     #[error("not enough data to parse next field")]
     NotEnoughData,
-    #[error("could not parse timestamp")]
-    MalformedTimestamp,
     #[error("found unsupported PGN {0}")]
     UnsupportedPgn(u32),
     #[error("unknown lookup value for polymorphic field")]

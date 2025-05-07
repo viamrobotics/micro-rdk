@@ -156,6 +156,40 @@ impl FieldReader for NumberField<f32> {
     }
 }
 
+pub struct BinaryCodedDecimalField {
+    bit_size: usize,
+}
+
+impl BinaryCodedDecimalField {
+    pub fn new(bit_size: usize) -> Self {
+        Self { bit_size }
+    }
+}
+
+impl FieldReader for BinaryCodedDecimalField {
+    type FieldType = u128;
+
+    fn read_from_cursor(&self, cursor: &mut DataCursor) -> Result<Self::FieldType, NmeaParseError> {
+        let data = cursor.read(self.bit_size)?;
+        let mut value = u64::from_le_bytes(data[..].try_into()?) as u128;
+        if value == 0 {
+            return Ok(0);
+        }
+
+        let mut res: u128 = 0;
+        let mut mult: u128 = 1;
+
+        while value > 0 {
+            let digit = value % 10;
+            res += digit * mult;
+            value /= 10;
+            mult <<= 4;
+        }
+
+        Ok(res)
+    }
+}
+
 pub struct FixedSizeStringField {
     bit_size: usize,
 }
@@ -405,7 +439,7 @@ macro_rules! polymorphic_type {
         impl $crate::parse_helpers::parsers::PolymorphicDataType for $name {
             type EnumType = $enumname;
 
-            fn from_data(cursor: &mut DataCursor, enum_type: Self::EnumType) -> Result<Self, NmeaParseError> {
+            fn from_data(cursor: &mut $crate::parse_helpers::parsers::DataCursor, enum_type: Self::EnumType) -> Result<Self, $crate::parse_helpers::errors::NmeaParseError> {
                 match enum_type {
                     $(
                         $enumname::$var => {
@@ -413,13 +447,13 @@ macro_rules! polymorphic_type {
                         }
                     ),*,
                     $enumname::$errorlabel => {
-                        Err(NmeaParseError::UnknownPolymorphicLookupValue)
+                        Err($crate::parse_helpers::errors::NmeaParseError::UnknownPolymorphicLookupValue)
                     }
                 }
             }
 
-            fn to_value(self) -> Value {
-                Value { kind: None }
+            fn to_value(self) -> micro_rdk::google::protobuf::Value {
+                micro_rdk::google::protobuf::Value { kind: None }
             }
         }
     };
@@ -431,7 +465,7 @@ macro_rules! polymorphic_type {
 #[derive(Debug, Clone)]
 pub struct NmeaMessageMetadata {
     pgn: u32,
-    timestamp: DateTime<Utc>,
+    timestamp: Option<DateTime<Utc>>,
     dst: u16,
     src: u16,
     priority: u16,
@@ -450,7 +484,7 @@ impl NmeaMessageMetadata {
         self.priority
     }
 
-    pub fn timestamp(&self) -> DateTime<Utc> {
+    pub fn timestamp(&self) -> Option<DateTime<Utc>> {
         self.timestamp
     }
 
@@ -468,8 +502,7 @@ impl TryFrom<Vec<u8>> for NmeaMessageMetadata {
         let pgn = u32::from_le_bytes(value[0..4].try_into()?);
         let seconds = u64::from_le_bytes(value[8..16].try_into()?) as i64;
         let millis = u64::from_le_bytes(value[16..24].try_into()?);
-        let timestamp = DateTime::from_timestamp(seconds, (millis * 1000) as u32)
-            .ok_or(NmeaParseError::MalformedTimestamp)?;
+        let timestamp = DateTime::from_timestamp(seconds, (millis * 1000) as u32);
 
         let dst = u16::from_le_bytes(value[26..28].try_into()?);
         let src = u16::from_le_bytes(value[28..30].try_into()?);
@@ -493,7 +526,7 @@ mod tests {
         parse_helpers::{
             enums::NmeaEnumeratedField,
             errors::NmeaParseError,
-            parsers::{DataCursor, FieldReader, NmeaMessageMetadata, Value},
+            parsers::{DataCursor, FieldReader, NmeaMessageMetadata},
         },
     };
 

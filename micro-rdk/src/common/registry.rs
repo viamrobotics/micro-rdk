@@ -542,7 +542,7 @@ mod tests {
     use crate::common::sensor::SensorError;
     use crate::common::{
         self,
-        config::{ConfigType, DynamicComponentConfig},
+        config::{ConfigType, DynamicComponentConfig, Model, ResourceName},
         registry::{ComponentRegistry, Dependency, RegistryError},
         robot::LocalRobot,
         sensor::{
@@ -599,16 +599,14 @@ mod tests {
         let components = vec![
             ComponentConfig {
                 name: "board".to_string(),
-                namespace: "rdk".to_string(),
-                r#type: "board".to_string(),
+                api: "rdk:component:board".to_string(),
                 model: "rdk:builtin:fake".to_string(),
                 attributes: None,
                 ..Default::default()
             },
             ComponentConfig {
                 name: "test_sensor".to_string(),
-                namespace: "rdk".to_string(),
-                r#type: "sensor".to_string(),
+                api: "rdk:component:sensor".to_string(),
                 model: "rdk:builtin:test_sensor".to_string(),
                 attributes: None,
                 ..Default::default()
@@ -733,7 +731,15 @@ mod tests {
         assert!(ctor.is_ok());
 
         let ret = ctor.unwrap()(
-            ConfigType::Dynamic(&DynamicComponentConfig::default()),
+            ConfigType::Dynamic(&DynamicComponentConfig {
+                name: ResourceName::new_builtin(
+                    "unimplemented".to_owned(),
+                    "unimplemented".to_owned(),
+                ),
+                model: Model::new_builtin("unimplemented".to_owned()),
+                data_collector_configs: vec![],
+                attributes: None,
+            }),
             Vec::new(),
         );
 
@@ -743,7 +749,12 @@ mod tests {
         let ctor = registry.get_board_constructor("fake2");
         assert!(ctor.is_ok());
 
-        let ret = ctor.unwrap()(ConfigType::Dynamic(&DynamicComponentConfig::default()));
+        let ret = ctor.unwrap()(ConfigType::Dynamic(&DynamicComponentConfig {
+            name: ResourceName::new_builtin("unimplemented".to_owned(), "unimplemented".to_owned()),
+            model: Model::new_builtin("unimplemented".to_owned()),
+            data_collector_configs: vec![],
+            attributes: None,
+        }));
 
         assert!(ret.is_err());
         assert_eq!(format!("{}", ret.err().unwrap()), "method:  not supported");
