@@ -194,7 +194,7 @@ pub(crate) struct AppSignaling {
 }
 
 #[cfg(feature = "esp32")]
-static CLOCK_SET: std::sync::Once = std::sync::Once::new();
+pub(crate) static CLOCK_SET: std::sync::Once = std::sync::Once::new();
 
 impl AppClient {
     pub async fn get_certificates(&self) -> Result<CertificateResponse, AppClientError> {
@@ -321,7 +321,7 @@ impl AppClient {
                     })
                     .inspect(|_| {
                         log::info!(
-                            "time of day has been set to to {}",
+                            "time of day has been set by config metadata to {}",
                             Local::now().fixed_offset()
                         );
                     });

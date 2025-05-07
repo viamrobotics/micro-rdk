@@ -515,6 +515,22 @@ where
             {}
         }
 
+        #[cfg(feature = "esp32")]
+        let _sntp = {
+            // TODO(RSDK-10655): sync system time on network reconnection
+            use crate::common::app_client::CLOCK_SET;
+            use esp_idf_svc::sntp::{EspSntp, SntpConf};
+            let conf = SntpConf::default();
+            Box::new(EspSntp::new_with_callback(&conf, |_| {
+                CLOCK_SET.call_once(|| {
+                    log::info!(
+                        "time of day has been set by sntp service to {}",
+                        chrono::Local::now().fixed_offset()
+                    );
+                })
+            }))
+        };
+
         let network = self.network.as_ref().map_or_else(
             || self.wifi_manager.as_ref().as_ref().unwrap().as_network(),
             |network| network.as_network(),
