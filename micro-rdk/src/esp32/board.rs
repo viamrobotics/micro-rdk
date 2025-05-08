@@ -365,4 +365,17 @@ impl Board for EspBoard {
         }
         Err(BoardError::GpioPinError(pin as u32, "not configured"))
     }
+
+    fn add_digital_interrupt_callback(
+        &mut self,
+        _pin: i32,
+        _cb: Option<unsafe extern "C" fn(arg: *mut core::ffi::c_void)>,
+        _arg: *mut core::ffi::c_void,
+    ) -> Result<(), BoardError>{
+        Ok(())
+    }
+
+    fn remove_digital_interrupt_callback(&mut self, _pin: i32) -> Result<(), BoardError> {
+        Ok(())
+    }
 }
