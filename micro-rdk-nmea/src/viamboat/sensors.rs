@@ -110,30 +110,34 @@ fn readings_to_messages(
         }
     });
 
-    let res: Result<Vec<NmeaMessage>, ViamboatSensorError> = filtered_on_src
-        .map(|(_, v)| {
-            let inner = v
-                .kind
-                .as_ref()
-                .ok_or(ViamboatSensorError::EmptyValueError)?;
+    let msgs: Vec<NmeaMessage> = filtered_on_src
+        .filter_map(|(_, v)| {
+            let inner = v.kind.as_ref();
             match inner {
-                Kind::StringValue(value_str) => {
+                Some(Kind::StringValue(value_str)) => {
                     let mut data = Vec::<u8>::new();
-                    general_purpose::STANDARD.decode_vec(value_str.as_str(), &mut data)?;
-                    Ok(NmeaMessage::try_from(data)?)
+                    if let Ok(()) =
+                        general_purpose::STANDARD.decode_vec(value_str.as_str(), &mut data)
+                    {
+                        NmeaMessage::try_from(data)
+                            .inspect_err(|err| {
+                                log::error!("message parsing failure: {:?}", err);
+                            })
+                            .ok()
+                    } else {
+                        None
+                    }
                 }
-                _ => Err(ViamboatSensorError::ValueTypeError),
+                _ => None,
             }
         })
         .collect();
 
-    res.and_then(|msgs| {
-        if msgs.is_empty() {
-            Err(ViamboatSensorError::NoAvailableReadings)
-        } else {
-            Ok(msgs)
-        }
-    })
+    if msgs.is_empty() {
+        Err(ViamboatSensorError::NoAvailableReadings)
+    } else {
+        Ok(msgs)
+    }
 }
 
 impl PgnGateway {

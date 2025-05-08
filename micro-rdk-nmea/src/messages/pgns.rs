@@ -102,7 +102,7 @@ macro_rules! define_pgns {
     ( $($pgndef:ident),* ) => {
         #[derive(Clone, Debug)]
         pub enum NmeaMessageBody {
-            $($pgndef($pgndef)),*,
+            $($pgndef(Box<$pgndef>)),*,
             Unsupported($crate::messages::message::UnparsedNmeaMessageBody)
         }
 
@@ -118,7 +118,7 @@ macro_rules! define_pgns {
                 Ok(match pgn {
                     $($pgndef::PGN => {
                         let cursor = DataCursor::new(bytes);
-                        Self::$pgndef($pgndef::from_cursor(cursor)?)
+                        Self::$pgndef(Box::new($pgndef::from_cursor(cursor)?))
                     }),*,
                     x => Self::Unsupported($crate::messages::message::UnparsedNmeaMessageBody::from_bytes(bytes, x)?)
                 })
