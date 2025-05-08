@@ -4,7 +4,10 @@ use super::{
 };
 use crate::{
     common::{
-        config::AgentConfig, credentials_storage::RobotConfigurationStorage, grpc::ServerError,
+        config::AgentConfig,
+        credentials_storage::RobotConfigurationStorage,
+        grpc::ServerError,
+        system::{send_system_change, SystemEvent},
     },
     proto::app::v1::RobotConfig,
 };
@@ -15,15 +18,14 @@ use std::{fmt::Debug, pin::Pin, time::Duration};
 #[cfg(feature = "ota")]
 use crate::common::{exec::Executor, ota};
 
-pub struct ConfigMonitor<'a, Storage> {
+pub struct ConfigMonitor<Storage> {
     curr_config: Box<RobotConfig>, //config for robot gotten from last robot startup, aka inputted from entry
     storage: Storage,
     #[cfg(feature = "ota")]
     executor: Executor,
-    restart_hook: Box<dyn Fn() + 'a>,
 }
 
-impl<'a, Storage> ConfigMonitor<'a, Storage>
+impl<Storage> ConfigMonitor<Storage>
 where
     Storage: ViamServerStorage,
     <Storage as RobotConfigurationStorage>::Error: Debug,
@@ -33,24 +35,21 @@ where
         curr_config: Box<RobotConfig>,
         storage: Storage,
         #[cfg(feature = "ota")] executor: Executor,
-        restart_hook: impl Fn() + 'a,
     ) -> Self {
         Self {
             curr_config,
             storage,
             #[cfg(feature = "ota")]
             executor,
-            restart_hook: Box::new(restart_hook),
         }
     }
 
-    fn restart(&self) -> ! {
+    async fn restart(&self) {
         log::warn!("machine configuration change detected - restarting micro-rdk");
-        (self.restart_hook)();
-        unreachable!();
+        send_system_change(SystemEvent::Restart).await;
     }
 }
-impl<Storage> PeriodicAppClientTask for ConfigMonitor<'_, Storage>
+impl<Storage> PeriodicAppClientTask for ConfigMonitor<Storage>
 where
     Storage: ViamServerStorage,
     <Storage as RobotConfigurationStorage>::Error: Debug,
@@ -153,7 +152,7 @@ where
             if reboot {
                 log::info!("rebooting from config monitor...");
                 // TODO(RSDK-9464): flush logs to app.viam before restarting
-                self.restart();
+                self.restart().await;
             }
 
             Ok(Some(self.get_default_period()))

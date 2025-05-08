@@ -1,7 +1,6 @@
 use async_channel::Receiver;
 use async_executor::Task;
 use async_io::{Async, Timer};
-use either::Either;
 
 use futures_lite::{FutureExt, StreamExt};
 use futures_util::stream::FuturesUnordered;
@@ -15,6 +14,7 @@ use crate::common::app_client::{
     AppClient, AppClientBuilder, AppClientError, PeriodicAppClientTask,
 };
 use crate::common::credentials_storage::{StorageDiagnostic, TlsCertificate};
+use crate::common::system::{force_shutdown, shutdown_requested_nonblocking};
 use crate::common::webrtc::signaling_server::SignalingServer;
 use std::marker::PhantomData;
 use std::net::{SocketAddr, TcpListener};
@@ -41,6 +41,7 @@ use crate::common::webrtc::dtls::DtlsBuilder;
 use crate::common::{
     credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage},
     exec::Executor,
+    system::shutdown_requested,
 };
 use crate::proto;
 use crate::proto::app::v1::RobotConfig;
@@ -315,7 +316,7 @@ where
     }
 
     pub fn with_default_tasks(&mut self) -> &mut Self {
-        let restart_monitor = Box::new(RestartMonitor::new(|| crate::common::runtime::terminate()));
+        let restart_monitor = Box::new(RestartMonitor);
         let log_upload = Box::new(LogUploadTask);
         self.with_app_client_task(restart_monitor)
             .with_app_client_task(log_upload)
@@ -390,6 +391,86 @@ where
         }
     }
 }
+
+pin_project_lite::pin_project! {
+    struct SystemTask<A, S> {
+        app_client_tasks: A,
+        server_task: S,
+        force_shutdown_wait_time: Duration,
+        timer: Option<Timer>,
+    }
+}
+
+impl<A, S> SystemTask<A, S> {
+    fn new(
+        server_task: S,
+        app_client_tasks: A,
+        force_shutdown_wait_time: Duration,
+    ) -> Pin<Box<Self>> {
+        Box::pin(SystemTask {
+            app_client_tasks,
+            server_task,
+            force_shutdown_wait_time,
+            timer: None,
+        })
+    }
+}
+
+impl<A, S> Future for SystemTask<A, S>
+where
+    A: Future<Output = Result<(), errors::ServerError>> + std::marker::Unpin,
+    S: Future<Output = Result<(), errors::ServerError>> + std::marker::Unpin,
+{
+    type Output = (A::Output, S::Output);
+    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        let pinned = self.project();
+        if shutdown_requested() && pinned.timer.is_none() {
+            let dur = pinned.force_shutdown_wait_time;
+            *pinned.timer = Some(Timer::after(*dur));
+            return Poll::Pending;
+        }
+
+        if let Some(timer) = pinned.timer {
+            match timer.poll(cx) {
+                Poll::Pending => match pinned.app_client_tasks.poll(cx) {
+                    Poll::Pending => Poll::Pending,
+                    Poll::Ready(app_client_task_state) => {
+                        log::info!("app client tasks gracefully finished");
+                        match pinned.server_task.poll(cx) {
+                            Poll::Pending => Poll::Pending,
+                            Poll::Ready(server_task_state) => {
+                                Poll::Ready((app_client_task_state, server_task_state))
+                            }
+                        }
+                    }
+                },
+                // maybe error if anything unfinished?
+                Poll::Ready(_) => {
+                    let app_tasks_res = match pinned.app_client_tasks.poll(cx) {
+                        Poll::Pending => Err(errors::ServerError::ServerTaskShutdownTimeout),
+                        Poll::Ready(res) => res,
+                    };
+                    let server_task_res = match pinned.server_task.poll(cx) {
+                        Poll::Pending => Err(errors::ServerError::ServerTaskShutdownTimeout),
+                        Poll::Ready(res) => res,
+                    };
+                    Poll::Ready((app_tasks_res, server_task_res))
+                }
+            }
+        } else {
+            match pinned.app_client_tasks.poll(cx) {
+                Poll::Pending => Poll::Pending,
+                Poll::Ready(app_client_task_state) => match pinned.server_task.poll(cx) {
+                    Poll::Pending => Poll::Pending,
+                    Poll::Ready(server_task_state) => {
+                        Poll::Ready((app_client_task_state, server_task_state))
+                    }
+                },
+            }
+        }
+    }
+}
+
 pub struct ViamServer<Storage, C, M> {
     executor: Executor,
     storage: Storage,
@@ -614,7 +695,7 @@ where
             self.storage.clone(),
             #[cfg(feature = "ota")]
             self.executor.clone(),
-            || crate::common::runtime::terminate(),
+            // || crate::common::runtime::terminate(),
         ));
         self.app_client_tasks.push(config_monitor_task);
 
@@ -716,19 +797,34 @@ where
             self.app_client_tasks
                 .push(Box::new(SignalingTask::new(tx.clone(), cfg.fqdn.clone())));
         }
+        let system_task = SystemTask::new(
+            Box::pin(inner.run()),
+            Box::pin(self.run_app_client_tasks(app_client.clone())),
+            Duration::from_secs(120),
+        );
 
-        let mut tasks: FuturesUnordered<_> = FuturesUnordered::new();
-        tasks.push(Either::Right(Box::pin(
-            self.run_app_client_tasks(app_client),
-        )));
-        tasks.push(Either::Left(Box::pin(inner.run())));
-
-        log::info!("viam server started");
-        while let Some(ret) = tasks.next().await {
-            log::error!("task ran returned {:?}", ret);
+        let (app_client_tasks_result, server_task_result) = system_task.await;
+        log::info!("returned from system task");
+        match app_client_tasks_result {
+            Ok(()) => {}
+            Err(errors::ServerError::ServerTaskShutdownTimeout) => {
+                log::info!("app client tasks cancelled from timeout")
+            }
+            Err(err) => {
+                log::error!("app client tasks returned with error: {:?}", err);
+            }
         }
-        // TODO better define the fact that we should never return from run
-        unreachable!()
+        match server_task_result {
+            Ok(()) => {}
+            Err(errors::ServerError::ServerTaskShutdownTimeout) => {
+                log::info!("server task cancelled from timeout")
+            }
+            Err(err) => {
+                log::error!("server task returned with error: {:?}", err);
+            }
+        }
+        force_shutdown(app_client.clone()).await;
+        unreachable!();
     }
 
     async fn connect_to_app(&self) -> Result<AppClient, AppClientError> {
@@ -763,8 +859,9 @@ where
         mut app_client: Option<AppClient>,
     ) -> Result<(), errors::ServerError> {
         let wait = Duration::from_secs(1); // should do exponential back off
+        let num_tasks = self.app_client_tasks.len();
         loop {
-            if let Some(app_client) = &app_client {
+            let returned_tasks = if let Some(app_client) = &app_client {
                 let mut app_client_tasks: FuturesUnordered<AppClientTaskRunner> =
                     FuturesUnordered::new();
                 log::info!("starting execution of app client tasks");
@@ -777,16 +874,26 @@ where
                         },
                     });
                 }
+                let shutdown_was_requested = shutdown_requested_nonblocking().await;
+
+                let mut returned_tasks: usize = 0;
                 while let Some(res) = app_client_tasks.next().await {
                     if let Err(err) = res {
                         log::error!(
                             "an app client task returned an error {:?} - dropping app client",
                             err
                         );
-                        break;
+                        if !shutdown_was_requested {
+                            returned_tasks = 0;
+                            break;
+                        }
                     }
+                    returned_tasks += 1;
                 }
-            }
+                returned_tasks
+            } else {
+                0
+            };
 
             // Explicitly release the app_client resources before sleeping, and before
             // trying to construct a new one with `connect_to_app` below.
@@ -817,6 +924,15 @@ where
 
                 })
                 .ok();
+
+            if returned_tasks == num_tasks {
+                if shutdown_requested_nonblocking().await {
+                    return Ok(());
+                } else {
+                    log::error!("reached state of completed tasks without shutdown request, additional investigation required");
+                    return Err(errors::ServerError::ServerInvalidCompletedState);
+                }
+            }
         }
     }
 
@@ -1022,6 +1138,10 @@ where
         };
 
         loop {
+            if shutdown_requested_nonblocking().await {
+                log::info!("server received shutdown request, refusing new connections");
+                return Ok(());
+            }
             let h2_conn: Pin<Box<dyn Future<Output = IncomingConnection>>> =
                 if let HTTP2Server::Empty = self.http2_server {
                     Box::pin(async {
@@ -1066,6 +1186,7 @@ pin_project_lite::pin_project! {
     enum TaskRunnerState<'a> {
     Sleep{#[pin]timer : Timer},
     Run{ task: std::pin::Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'a>>},
+    Finished
     }
 }
 
@@ -1081,6 +1202,7 @@ impl Future for TaskRunnerState<'_> {
                 let _ = futures_lite::ready!(timer.poll(cx));
                 Poll::Ready(Ok(None))
             }
+            TaskRunnerStateProj::Finished => Poll::Ready(Ok(None)),
         }
     }
 }
@@ -1100,6 +1222,7 @@ impl Future for AppClientTaskRunner<'_> {
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
+        let name = self.invoker.name();
         let res = {
             let this = self.as_mut().project();
             futures_lite::ready!(this.state.poll(cx))?
@@ -1118,15 +1241,23 @@ impl Future for AppClientTaskRunner<'_> {
             // moved self.state back or put a default value.
             let old = std::ptr::read(&self.state);
             let next = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match old {
-                TaskRunnerState::Run { task: _ } => TaskRunnerState::Sleep {
-                    timer: res.map_or(
-                        Timer::after(self.invoker.get_default_period()),
-                        Timer::after,
-                    ),
-                },
+                TaskRunnerState::Run { task: _ } => {
+                    if shutdown_requested() {
+                        log::info!("task runner for {:?} received shutdown signal", name);
+                        TaskRunnerState::Finished
+                    } else {
+                        TaskRunnerState::Sleep {
+                            timer: res.map_or(
+                                Timer::after(self.invoker.get_default_period()),
+                                Timer::after,
+                            ),
+                        }
+                    }
+                }
                 TaskRunnerState::Sleep { timer: _ } => TaskRunnerState::Run {
                     task: self.invoker.invoke(self.app_client),
                 },
+                TaskRunnerState::Finished => TaskRunnerState::Finished,
             }))
             .unwrap_or_else(|_| std::process::abort());
             // move the new value into self.state, the old value will be dropped when leaving the unsafe block
@@ -1885,7 +2016,7 @@ mod tests {
 
         let cc = NativeH2Connector::default();
         a.with_http2_server(cc, 12346);
-        a.with_app_client_task(Box::new(RestartMonitor::new(|| {})));
+        a.with_app_client_task(Box::new(RestartMonitor));
         a.with_app_client_task(Box::new(LogUploadTask {}));
 
         let cert = Rc::new(Box::new(WebRtcCertificate::new()) as Box<dyn Certificate>);

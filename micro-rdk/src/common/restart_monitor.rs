@@ -1,27 +1,11 @@
 use super::app_client::{AppClient, AppClientError, PeriodicAppClientTask};
+use super::system::{send_system_change, SystemEvent};
 use futures_lite::Future;
 use std::pin::Pin;
 use std::time::Duration;
+pub struct RestartMonitor;
 
-pub struct RestartMonitor<'a> {
-    restart_hook: Box<dyn Fn() + 'a>,
-}
-
-impl<'a> RestartMonitor<'a> {
-    pub fn new(restart_hook: impl Fn() + 'a) -> Self {
-        Self {
-            restart_hook: Box::new(restart_hook),
-        }
-    }
-
-    fn restart(&self) -> ! {
-        log::warn!("Restart request received - restarting or terminating now...");
-        (self.restart_hook)();
-        unreachable!();
-    }
-}
-
-impl PeriodicAppClientTask for RestartMonitor<'_> {
+impl PeriodicAppClientTask for RestartMonitor {
     fn name(&self) -> &str {
         "RestartMonitor"
     }
@@ -30,13 +14,16 @@ impl PeriodicAppClientTask for RestartMonitor<'_> {
         Duration::from_secs(5)
     }
 
-    fn invoke<'c, 'b: 'c>(
-        &'b self,
-        app_client: &'c AppClient,
-    ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'c>> {
+    fn invoke<'b, 'a: 'b>(
+        &'a self,
+        app_client: &'b AppClient,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'b>> {
         Box::pin(async move {
             match app_client.check_for_restart().await {
-                Ok(None) => self.restart(),
+                Ok(None) => {
+                    send_system_change(SystemEvent::Restart).await;
+                    Ok(None)
+                }
                 other => other,
             }
         })
