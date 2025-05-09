@@ -444,7 +444,6 @@ where
                         }
                     }
                 },
-                // maybe error if anything unfinished?
                 Poll::Ready(_) => {
                     let app_tasks_res = match pinned.app_client_tasks.poll(cx) {
                         Poll::Pending => Err(errors::ServerError::ServerTaskShutdownTimeout),
