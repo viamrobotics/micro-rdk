@@ -22,6 +22,8 @@ pub(crate) type IsrCb = crate::esp32::esp_idf_svc::sys::gpio_isr_t;
 #[cfg(not(feature = "esp32"))]
 pub(crate) type IsrCb = Option<unsafe extern "C" fn(arg: *mut core::ffi::c_void)>;
 
+pub(crate) type IsrCbArg = Option<core::ffi::c_void>;
+
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -96,7 +98,7 @@ pub trait Board: DoCommand {
         _pin: i32,
         _intr_type: crate::esp32::esp_idf_svc::hal::gpio::InterruptType,
         _cb: IsrCb,
-        _arg: *mut core::ffi::c_void,
+        _arg: IsrCbArg,
     ) -> Result<(), BoardError> {
         unimplemented!();
     }

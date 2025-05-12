@@ -247,24 +247,13 @@ impl EspBoard {
             cfg.get_attribute::<Vec<DigitalInterruptConfig>>("digital_interrupts")
         {
             for conf in interrupt_confs {
-                let p = board
-                    .pins
-                    .iter()
-                    .find(|p| p.pin() == conf.pin)
-                    .map(|p| p.pin());
-                if let Some(p) = p {
-                    // RSDK-4763: make event type configurable
-                    board.add_digital_interrupt_callback(
-                        p,
-                        InterruptType::PosEdge,
-                        None,
-                        std::ptr::null_mut(),
-                        //&mut p.event_count as *mut Arc<std::sync::atomic::AtomicU32> as *mut _,
-                    )?;
-                    // https://viam.atlassian.net/browse/RSDK-4763
-                } else {
-                    // panic, should have been initialized earlier
-                }
+                // RSDK-4763: make event type configurable
+                board.add_digital_interrupt_callback(
+                    conf.pin,
+                    InterruptType::PosEdge,
+                    None,
+                    None,
+                )?;
             }
         }
         Ok(Arc::new(Mutex::new(board)))
@@ -393,22 +382,20 @@ impl Board for EspBoard {
         pin: i32,
         intr_type: InterruptType,
         cb: crate::common::board::IsrCb,
-        arg: *mut core::ffi::c_void,
+        arg: crate::common::board::IsrCbArg,
     ) -> Result<(), BoardError> {
         let p = self.pins.iter_mut().find(|p| p.pin() == pin);
         if p.is_none() {
-            return Err(BoardError::GpioPinError(pin as u32, "pin not found"));
-            // return pin not found
+            return Err(BoardError::GpioPinError(
+                pin as u32,
+                "pin not found, failed to register interrupt callback",
+            ));
         }
 
         let p = p.unwrap();
 
-        if !p.is_interrupt() {
-            return Err(BoardError::GpioPinError(pin as u32, "not an interrupt"));
-        }
-
         if let Some(cb) = cb {
-            p.setup_interrupt(intr_type, Some(cb), arg)?;
+            p.setup_interrupt(intr_type, Some(cb), &mut arg.unwrap() as *mut _)?;
         } else {
             let ptr = &mut p.event_count as *mut Arc<std::sync::atomic::AtomicU32> as *mut _;
             p.setup_interrupt(

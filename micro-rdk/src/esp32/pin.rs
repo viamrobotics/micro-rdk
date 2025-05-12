@@ -191,16 +191,7 @@ impl Esp32GPIOPin {
         cb: crate::common::board::IsrCb,
         arg: *mut core::ffi::c_void,
     ) -> Result<(), BoardError> {
-        match &self.interrupt_type {
-            Some(existing_type) => {
-                if *existing_type == intr_type {
-                    return Ok(());
-                }
-            }
-            None => {
-                self.interrupt_type = Some(intr_type);
-            }
-        };
+        self.interrupt_type = Some(intr_type);
         install_gpio_isr_service()
             .map_err(|e| BoardError::GpioPinOtherError(self.pin as u32, Box::new(e)))?;
         self.driver
