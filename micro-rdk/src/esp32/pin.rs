@@ -58,7 +58,7 @@ pub struct Esp32GPIOPin {
     pin: i32,
     driver: PinDriver<'static, AnyIOPin, InputOutput>,
     interrupt_type: Option<InterruptType>,
-    event_count: Arc<AtomicU32>,
+    pub(crate) event_count: Arc<AtomicU32>,
     pwm_driver: Option<PwmDriver<'static>>,
 }
 
@@ -185,7 +185,12 @@ impl Esp32GPIOPin {
         self.interrupt_type.is_some()
     }
 
-    pub fn setup_interrupt(&mut self, intr_type: InterruptType) -> Result<(), BoardError> {
+    pub fn setup_interrupt(
+        &mut self,
+        intr_type: InterruptType,
+        cb: crate::common::board::IsrCb,
+        arg: *mut core::ffi::c_void,
+    ) -> Result<(), BoardError> {
         match &self.interrupt_type {
             Some(existing_type) => {
                 if *existing_type == intr_type {
@@ -207,12 +212,15 @@ impl Esp32GPIOPin {
             // because it requires an FnMut with a static lifetime. A possible follow-up
             // would be to lazily initialize a Esp32GPIOPin for every possible pin (delineated by feature)
             // in a global state which an EspBoard instance would be able to access
+            /*
             esp!(gpio_isr_handler_add(
                 self.pin,
                 Some(Self::interrupt),
                 &mut self.event_count as *mut Arc<AtomicU32> as *mut _
-            ))
-            .map_err(|e| BoardError::GpioPinOtherError(self.pin as u32, Box::new(e)))?;
+            ))*/
+
+            esp!(gpio_isr_handler_add(self.pin, cb, arg,))
+                .map_err(|e| BoardError::GpioPinOtherError(self.pin as u32, Box::new(e)))?;
         }
         Ok(())
     }
@@ -223,7 +231,7 @@ impl Esp32GPIOPin {
 
     #[inline(always)]
     #[link_section = ".iram1.intr_srv"]
-    unsafe extern "C" fn interrupt(arg: *mut core::ffi::c_void) {
+    pub(crate) unsafe extern "C" fn default_interrupt(arg: *mut core::ffi::c_void) {
         let arg: &mut Arc<AtomicU32> = &mut *(arg as *mut _);
         arg.fetch_add(1, Ordering::Relaxed);
     }

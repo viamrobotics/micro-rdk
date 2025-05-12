@@ -94,14 +94,15 @@ pub trait Board: DoCommand {
     fn add_digital_interrupt_callback(
         &mut self,
         _pin: i32,
+        _intr_type: crate::esp32::esp_idf_svc::hal::gpio::InterruptType,
         _cb: IsrCb,
         _arg: *mut core::ffi::c_void,
     ) -> Result<(), BoardError> {
-        unimplemented!()
+        unimplemented!();
     }
 
     fn remove_digital_interrupt_callback(&mut self, _pin: i32) -> Result<(), BoardError> {
-        unimplemented!()
+        unimplemented!();
     }
 
     /// Get the pin's given duty cycle, returns percentage as float between 0.0 and 1.0

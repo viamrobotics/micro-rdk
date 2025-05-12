@@ -225,27 +225,49 @@ impl EspBoard {
             let i2c_wrapped: I2cHandleType = Arc::new(Mutex::new(i2c));
             i2cs.insert(name.to_string(), i2c_wrapped);
         }
+
+        if let Ok(interrupt_confs) =
+            cfg.get_attribute::<Vec<DigitalInterruptConfig>>("digital_interrupts")
+        {
+            // I don't think we should include these.
+            for conf in interrupt_confs {
+                if !pins.iter().any(|p| p.pin() == conf.pin) {
+                    let pin = Esp32GPIOPin::new(conf.pin, None)?;
+                    pins.push(pin);
+                }
+            }
+        }
+        let mut board = Self {
+            pins,
+            analogs,
+            i2cs,
+        };
+
         if let Ok(interrupt_confs) =
             cfg.get_attribute::<Vec<DigitalInterruptConfig>>("digital_interrupts")
         {
             for conf in interrupt_confs {
-                let p = pins.iter_mut().find(|p| p.pin() == conf.pin);
+                let p = board
+                    .pins
+                    .iter()
+                    .find(|p| p.pin() == conf.pin)
+                    .map(|p| p.pin());
                 if let Some(p) = p {
                     // RSDK-4763: make event type configurable
+                    board.add_digital_interrupt_callback(
+                        p,
+                        InterruptType::PosEdge,
+                        None,
+                        std::ptr::null_mut(),
+                        //&mut p.event_count as *mut Arc<std::sync::atomic::AtomicU32> as *mut _,
+                    )?;
                     // https://viam.atlassian.net/browse/RSDK-4763
-                    p.setup_interrupt(InterruptType::PosEdge)?
                 } else {
-                    let mut p = Esp32GPIOPin::new(conf.pin, None)?;
-                    p.setup_interrupt(InterruptType::PosEdge)?;
-                    pins.push(p);
+                    // panic, should have been initialized earlier
                 }
             }
         }
-        Ok(Arc::new(Mutex::new(Self {
-            pins,
-            analogs,
-            i2cs,
-        })))
+        Ok(Arc::new(Mutex::new(board)))
     }
 }
 
@@ -368,14 +390,44 @@ impl Board for EspBoard {
 
     fn add_digital_interrupt_callback(
         &mut self,
-        _pin: i32,
-        _cb: Option<unsafe extern "C" fn(arg: *mut core::ffi::c_void)>,
-        _arg: *mut core::ffi::c_void,
-    ) -> Result<(), BoardError>{
+        pin: i32,
+        intr_type: InterruptType,
+        cb: crate::common::board::IsrCb,
+        arg: *mut core::ffi::c_void,
+    ) -> Result<(), BoardError> {
+        let p = self.pins.iter_mut().find(|p| p.pin() == pin);
+        if p.is_none() {
+            return Err(BoardError::GpioPinError(pin as u32, "pin not found"));
+            // return pin not found
+        }
+
+        let p = p.unwrap();
+
+        if !p.is_interrupt() {
+            return Err(BoardError::GpioPinError(pin as u32, "not an interrupt"));
+        }
+
+        if let Some(cb) = cb {
+            p.setup_interrupt(intr_type, Some(cb), arg)?;
+        } else {
+            let ptr = &mut p.event_count as *mut Arc<std::sync::atomic::AtomicU32> as *mut _;
+            p.setup_interrupt(
+                InterruptType::PosEdge,
+                Some(Esp32GPIOPin::default_interrupt),
+                ptr,
+            )?;
+        }
+
         Ok(())
     }
 
-    fn remove_digital_interrupt_callback(&mut self, _pin: i32) -> Result<(), BoardError> {
+    fn remove_digital_interrupt_callback(&mut self, pin: i32) -> Result<(), BoardError> {
+        unsafe {
+            crate::esp32::esp_idf_svc::sys::esp!(
+                crate::esp32::esp_idf_svc::sys::gpio_isr_handler_remove(pin)
+            )
+            .map_err(|e| BoardError::GpioPinOtherError(pin as u32, Box::new(e)))?;
+        }
         Ok(())
     }
 }
