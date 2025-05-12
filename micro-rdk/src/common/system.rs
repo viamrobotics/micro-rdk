@@ -1,6 +1,8 @@
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
+#[cfg(not(feature = "esp32"))]
+use async_io::Timer;
 use async_lock::Mutex as AsyncMutex;
 
 use super::app_client::{AppClient, PeriodicAppClientTask};
@@ -12,15 +14,24 @@ pub(crate) static SHUTDOWN_EVENT: LazyLock<Arc<AsyncMutex<Option<SystemEvent>>>>
 
 pub(crate) enum SystemEvent {
     Restart,
-    // LightSleep(Duration),
     #[allow(dead_code)]
     DeepSleep(Option<Duration>),
 }
 
+impl SystemEvent {
+    fn action_string(&self) -> String {
+        match self {
+            Self::Restart => "restart".to_string(),
+            Self::DeepSleep(dur) => dur.as_ref().map_or("enter deep sleep".to_string(), |d| {
+                format!("enter deep sleep for {} microseconds", d.as_micros())
+            }),
+        }
+    }
+}
+
 pub(crate) async fn send_system_change(event: SystemEvent) {
-    log::info!("system event set");
+    log::info!("received call to {:?}", event.action_string());
     let _ = SHUTDOWN_EVENT.lock().await.insert(event);
-    // SHUTDOWN_REQUESTED.store(true, Ordering::Relaxed);
 }
 
 pub(crate) fn shutdown_requested() -> bool {
@@ -59,6 +70,17 @@ pub(crate) async fn force_shutdown(app_client: Option<AppClient>) {
                 unsafe {
                     crate::esp32::esp_idf_svc::sys::esp_deep_sleep_start();
                 }
+            }
+            #[cfg(not(feature = "esp32"))]
+            if let Some(dur) = dur {
+                log::warn!(
+                    "Simulating deep sleep for {} microseconds!",
+                    dur.as_micros()
+                );
+                async_io::block_on(Timer::after(dur));
+                terminate();
+            } else {
+                log::error!("sleep from wake up not supported for native builds")
             }
         }
         None => {}

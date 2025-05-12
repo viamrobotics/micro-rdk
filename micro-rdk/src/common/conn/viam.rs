@@ -694,7 +694,6 @@ where
             self.storage.clone(),
             #[cfg(feature = "ota")]
             self.executor.clone(),
-            // || crate::common::runtime::terminate(),
         ));
         self.app_client_tasks.push(config_monitor_task);
 

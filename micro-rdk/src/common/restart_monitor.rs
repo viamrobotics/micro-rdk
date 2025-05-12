@@ -3,6 +3,7 @@ use super::system::{send_system_change, SystemEvent};
 use futures_lite::Future;
 use std::pin::Pin;
 use std::time::Duration;
+
 pub struct RestartMonitor;
 
 impl PeriodicAppClientTask for RestartMonitor {
