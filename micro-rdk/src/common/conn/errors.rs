@@ -23,7 +23,7 @@ pub enum ServerError {
     ServerIoError(#[from] std::io::Error),
     #[error(transparent)]
     ServerDtlsError(#[from] DtlsError),
-    #[error("invalid completed state")]
+    #[error("tasks completed but no restart or shutdown was requested")]
     ServerInvalidCompletedState,
     #[error("task did not finish in time, will be force quit")]
     ServerTaskShutdownTimeout,
