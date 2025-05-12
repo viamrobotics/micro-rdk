@@ -1,6 +1,8 @@
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
+#[cfg(not(feature = "esp32"))]
+use async_io::Timer;
 use async_lock::Mutex as AsyncMutex;
 
 use super::app_client::{AppClient, PeriodicAppClientTask};
@@ -48,28 +50,38 @@ pub(crate) async fn force_shutdown(app_client: Option<AppClient>) {
     }
     match *SHUTDOWN_EVENT.lock().await {
         Some(SystemEvent::Restart) => terminate(),
-        #[cfg(feature = "esp32")]
         Some(SystemEvent::DeepSleep(dur)) => {
-            if let Some(dur) = dur {
-                let dur_micros = dur.as_micros() as u64;
-                let result: crate::esp32::esp_idf_svc::sys::esp_err_t;
-                unsafe {
-                    result =
-                        crate::esp32::esp_idf_svc::sys::esp_sleep_enable_timer_wakeup(dur_micros);
+            #[cfg(feature = "esp32")]
+            {
+                if let Some(dur) = dur {
+                    let dur_micros = dur.as_micros() as u64;
+                    let result: crate::esp32::esp_idf_svc::sys::esp_err_t;
+                    unsafe {
+                        result = crate::esp32::esp_idf_svc::sys::esp_sleep_enable_timer_wakeup(
+                            dur_micros,
+                        );
+                    }
+                    if result != crate::esp32::esp_idf_svc::sys::ESP_OK {
+                        unreachable!("duration requested too long")
+                    }
+                    log::warn!("Esp32 entering deep sleep for {} microseconds!", dur_micros);
                 }
-                if result != crate::esp32::esp_idf_svc::sys::ESP_OK {
-                    unreachable!("duration requested too long")
-                }
-                log::warn!("Esp32 entering deep sleep for {} microseconds!", dur_micros);
-            }
 
-            unsafe {
-                crate::esp32::esp_idf_svc::sys::esp_deep_sleep_start();
+                unsafe {
+                    crate::esp32::esp_idf_svc::sys::esp_deep_sleep_start();
+                }
             }
-        }
-        #[cfg(not(feature = "esp32"))]
-        Some(SystemEvent::DeepSleep(_)) => {
-            log::error!("deep sleep unsupported for native builds")
+            #[cfg(not(feature = "esp32"))]
+            if let Some(dur) = dur {
+                log::warn!(
+                    "Simulating deep sleep for {} microseconds!",
+                    dur.as_micros()
+                );
+                async_io::block_on(Timer::after(dur));
+                terminate();
+            } else {
+                log::error!("sleep from wake up not supported for native builds")
+            }
         }
         None => {}
     }
