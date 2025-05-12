@@ -432,18 +432,17 @@ where
 
         if let Some(timer) = pinned.timer {
             match timer.poll(cx) {
-                Poll::Pending => match pinned.app_client_tasks.poll(cx) {
-                    Poll::Pending => Poll::Pending,
-                    Poll::Ready(app_client_task_state) => {
-                        log::info!("app client tasks gracefully finished");
-                        match pinned.server_task.poll(cx) {
+                Poll::Pending => {
+                    let app_result = pinned.app_client_tasks.poll(cx);
+                    let server_result = pinned.server_task.poll(cx);
+                    match app_result {
+                        Poll::Ready(app_res) => match server_result {
                             Poll::Pending => Poll::Pending,
-                            Poll::Ready(server_task_state) => {
-                                Poll::Ready((app_client_task_state, server_task_state))
-                            }
-                        }
+                            Poll::Ready(server_res) => Poll::Ready((app_res, server_res)),
+                        },
+                        Poll::Pending => Poll::Pending,
                     }
-                },
+                }
                 Poll::Ready(_) => {
                     let app_tasks_res = match pinned.app_client_tasks.poll(cx) {
                         Poll::Pending => Err(errors::ServerError::ServerTaskShutdownTimeout),
@@ -457,14 +456,14 @@ where
                 }
             }
         } else {
-            match pinned.app_client_tasks.poll(cx) {
-                Poll::Pending => Poll::Pending,
-                Poll::Ready(app_client_task_state) => match pinned.server_task.poll(cx) {
+            let app_result = pinned.app_client_tasks.poll(cx);
+            let server_result = pinned.server_task.poll(cx);
+            match app_result {
+                Poll::Ready(app_res) => match server_result {
                     Poll::Pending => Poll::Pending,
-                    Poll::Ready(server_task_state) => {
-                        Poll::Ready((app_client_task_state, server_task_state))
-                    }
+                    Poll::Ready(server_res) => Poll::Ready((app_res, server_res)),
                 },
+                Poll::Pending => Poll::Pending,
             }
         }
     }
@@ -802,7 +801,6 @@ where
         );
 
         let (app_client_tasks_result, server_task_result) = system_task.await;
-        log::info!("returned from system task");
         match app_client_tasks_result {
             Ok(()) => {}
             Err(errors::ServerError::ServerTaskShutdownTimeout) => {
@@ -1436,6 +1434,9 @@ mod tests {
                 "/viam.app.v1.RobotService/Log" => self.log(body.split_off(5)),
                 "/viam.app.v1.RobotService/NeedsRestart" => self.needs_restart(body.split_off(5)),
                 "/viam.app.v1.RobotService/Config" => self.get_config(),
+                "/viam.app.agent.v1.AgentDeviceService/DeviceAgentConfig" => {
+                    return Err(ServerError::new(GrpcError::RpcInternal, None));
+                }
                 _ => panic!("unsupported uri {:?}", parts.uri.path()),
             };
             Ok(out)
@@ -1923,7 +1924,6 @@ mod tests {
         let receiver = receiver.unwrap();
         loop {
             let record = receiver.recv_async().await;
-
             if let ServiceEvent::ServiceResolved(srv) = record? {
                 if srv.get_property(prop).is_some() && srv.get_hostname().contains(name) {
                     return Ok(srv);
