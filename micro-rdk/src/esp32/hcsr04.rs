@@ -61,14 +61,11 @@ use crate::{
 
 use crate::esp32::esp_idf_svc::hal::{
     delay::TickType,
-    gpio::{
-        enable_isr_service, init_isr_alloc_flags, AnyIOPin, Input, InterruptType, Output,
-        PinDriver, Pull,
-    },
+    gpio::{AnyIOPin, Input, InterruptType, Output, PinDriver, Pull},
     task::notification::{Notification, Notifier},
 };
 
-use crate::esp32::esp_idf_svc::sys::{esp, gpio_isr_handler_add, gpio_isr_handler_remove};
+use crate::esp32::esp_idf_svc::sys::{esp, gpio_isr_handler_remove};
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
@@ -125,7 +122,10 @@ pub struct HCSR04Sensor {
 unsafe impl Send for HCSR04Sensor {}
 
 impl HCSR04Sensor {
-    pub fn from_config(cfg: ConfigType, _deps: Vec<Dependency>) -> Result<SensorType, SensorError> {
+    pub fn from_config(cfg: ConfigType, deps: Vec<Dependency>) -> Result<SensorType, SensorError> {
+        let board = crate::common::registry::get_board_from_dependencies(deps)
+            .expect("failed to get board from dependencies");
+
         let trigger_pin = cfg
             .get_attribute::<i32>("trigger_pin")
             .map_err(|_| SensorError::ConfigError("HCSR04Sensor: missing `trigger_pin`"))?;
@@ -148,6 +148,7 @@ impl HCSR04Sensor {
             trigger_pin,
             echo_interrupt_pin,
             timeout,
+            board,
         )?)))
     }
 
@@ -155,11 +156,11 @@ impl HCSR04Sensor {
         trigger_pin: i32,
         echo_interrupt_pin: i32,
         timeout: Option<Duration>,
+        board: crate::common::board::BoardType,
     ) -> Result<HCSR04Sensor, SensorError> {
         // TODO(RSDK-6279): Unify with esp32/pin.rs.
-        init_isr_alloc_flags(crate::esp32::esp_idf_svc::hal::interrupt::InterruptType::Iram.into());
-        enable_isr_service().map_err(|err| SensorError::SensorCodeError(err.code()))?;
 
+        let mut board = board.lock().unwrap();
         let notification = Notification::new();
         let notifier = notification.notifier();
 
@@ -200,21 +201,13 @@ impl HCSR04Sensor {
             .set_high()
             .map_err(|err| SensorError::SensorCodeError(err.code()))?;
 
-        sensor
-            .echo_interrupt_pin
-            .borrow_mut()
-            .set_interrupt_type(InterruptType::AnyEdge)
-            .map_err(|err| SensorError::SensorCodeError(err.code()))?;
-
-        unsafe {
-            esp!(gpio_isr_handler_add(
-                echo_interrupt_pin,
-                Some(Self::subscription_interrupt),
-                Arc::as_ptr(&sensor.isr_shared_state) as *mut _,
-            ))
-            .map_err(|err| SensorError::SensorCodeError(err.code()))?;
-        }
-
+        let cb_arg = Arc::as_ptr(&sensor.isr_shared_state) as *mut _;
+        board.add_digital_interrupt_callback(
+            echo_interrupt_pin,
+            InterruptType::AnyEdge,
+            Some(Self::subscription_interrupt),
+            Some(cb_arg),
+        )?;
         Ok(sensor)
     }
 

@@ -395,7 +395,7 @@ impl Board for EspBoard {
         let p = p.unwrap();
 
         if let Some(cb) = cb {
-            p.setup_interrupt(intr_type, Some(cb), &mut arg.unwrap() as *mut _)?;
+            p.setup_interrupt(intr_type, Some(cb), arg.unwrap())?;
         } else {
             let ptr = &mut p.event_count as *mut Arc<std::sync::atomic::AtomicU32> as *mut _;
             p.setup_interrupt(
