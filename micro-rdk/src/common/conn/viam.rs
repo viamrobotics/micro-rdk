@@ -398,6 +398,8 @@ pin_project_lite::pin_project! {
         server_task: S,
         force_shutdown_wait_time: Duration,
         timer: Option<Timer>,
+        app_tasks_result: Option<Result<(), errors::ServerError>>,
+        server_task_result: Option<Result<(), errors::ServerError>>
     }
 }
 
@@ -412,6 +414,8 @@ impl<A, S> SystemTask<A, S> {
             server_task,
             force_shutdown_wait_time,
             timer: None,
+            app_tasks_result: None,
+            server_task_result: None,
         })
     }
 }
@@ -430,41 +434,42 @@ where
             return Poll::Pending;
         }
 
+        let app_result = pinned
+            .app_tasks_result
+            .take()
+            .map(Poll::Ready)
+            .unwrap_or(pinned.app_client_tasks.poll(cx));
+        let server_result = pinned
+            .server_task_result
+            .take()
+            .map(Poll::Ready)
+            .unwrap_or(pinned.server_task.poll(cx));
+
         if let Some(timer) = pinned.timer {
-            match timer.poll(cx) {
-                Poll::Pending => {
-                    let app_result = pinned.app_client_tasks.poll(cx);
-                    let server_result = pinned.server_task.poll(cx);
-                    match app_result {
-                        Poll::Ready(app_res) => match server_result {
-                            Poll::Pending => Poll::Pending,
-                            Poll::Ready(server_res) => Poll::Ready((app_res, server_res)),
-                        },
-                        Poll::Pending => Poll::Pending,
-                    }
-                }
-                Poll::Ready(_) => {
-                    let app_tasks_res = match pinned.app_client_tasks.poll(cx) {
-                        Poll::Pending => Err(errors::ServerError::ServerTaskShutdownTimeout),
-                        Poll::Ready(res) => res,
-                    };
-                    let server_task_res = match pinned.server_task.poll(cx) {
-                        Poll::Pending => Err(errors::ServerError::ServerTaskShutdownTimeout),
-                        Poll::Ready(res) => res,
-                    };
-                    Poll::Ready((app_tasks_res, server_task_res))
-                }
+            if timer.poll(cx).is_ready() {
+                let app_tasks_res = match app_result {
+                    Poll::Pending => Err(errors::ServerError::ServerTaskShutdownTimeout),
+                    Poll::Ready(res) => res,
+                };
+                let server_task_res = match server_result {
+                    Poll::Pending => Err(errors::ServerError::ServerTaskShutdownTimeout),
+                    Poll::Ready(res) => res,
+                };
+                return Poll::Ready((app_tasks_res, server_task_res));
             }
-        } else {
-            let app_result = pinned.app_client_tasks.poll(cx);
-            let server_result = pinned.server_task.poll(cx);
-            match app_result {
-                Poll::Ready(app_res) => match server_result {
-                    Poll::Pending => Poll::Pending,
-                    Poll::Ready(server_res) => Poll::Ready((app_res, server_res)),
-                },
-                Poll::Pending => Poll::Pending,
+        }
+
+        match (app_result, server_result) {
+            (Poll::Pending, Poll::Pending) => Poll::Pending,
+            (Poll::Pending, Poll::Ready(res)) => {
+                let _ = pinned.server_task_result.insert(res);
+                Poll::Pending
             }
+            (Poll::Ready(res), Poll::Pending) => {
+                let _ = pinned.app_tasks_result.insert(res);
+                Poll::Pending
+            }
+            (Poll::Ready(app_res), Poll::Ready(server_res)) => Poll::Ready((app_res, server_res)),
         }
     }
 }
