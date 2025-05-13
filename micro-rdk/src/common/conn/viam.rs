@@ -14,7 +14,7 @@ use crate::common::app_client::{
     AppClient, AppClientBuilder, AppClientError, PeriodicAppClientTask,
 };
 use crate::common::credentials_storage::{StorageDiagnostic, TlsCertificate};
-use crate::common::system::{force_shutdown, shutdown_requested_nonblocking};
+use crate::common::system::{force_shutdown, shutdown_requested, shutdown_requested_nonblocking};
 use crate::common::webrtc::signaling_server::SignalingServer;
 use std::marker::PhantomData;
 use std::net::{SocketAddr, TcpListener};
@@ -41,7 +41,6 @@ use crate::common::webrtc::dtls::DtlsBuilder;
 use crate::common::{
     credentials_storage::{RobotConfigurationStorage, WifiCredentialStorage},
     exec::Executor,
-    system::shutdown_requested,
 };
 use crate::proto;
 use crate::proto::app::v1::RobotConfig;
