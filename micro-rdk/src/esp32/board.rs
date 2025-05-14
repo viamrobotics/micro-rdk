@@ -201,6 +201,12 @@ impl EspBoard {
                 };
 
             let mut pins = if let Ok(mut pins) = cfg.get_attribute::<Vec<i32>>("pins") {
+                if let Ok(interrupt_confs) =
+                    cfg.get_attribute::<Vec<DigitalInterruptConfig>>("digital_interrupts")
+                {
+                    pins.extend(interrupt_confs.iter().map(|conf| conf.pin));
+                }
+
                 pins.sort();
                 pins.dedup();
                 pins.iter()
@@ -215,17 +221,6 @@ impl EspBoard {
             } else {
                 vec![]
             };
-
-            if let Ok(interrupt_confs) =
-                cfg.get_attribute::<Vec<DigitalInterruptConfig>>("digital_interrupts")
-            {
-                for conf in interrupt_confs {
-                    if !pins.iter().any(|p| p.pin() == conf.pin) {
-                        let pin = Esp32GPIOPin::new(conf.pin, None)?;
-                        pins.push(pin);
-                    }
-                }
-            }
 
             let i2c_confs = cfg
                 .get_attribute::<Vec<Esp32I2cConfig>>("i2cs")
