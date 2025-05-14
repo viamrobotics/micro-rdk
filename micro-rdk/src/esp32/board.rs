@@ -200,7 +200,7 @@ impl EspBoard {
                     vec![]
                 };
 
-            let mut pins = if let Ok(mut pins) = cfg.get_attribute::<Vec<i32>>("pins") {
+            let pins = if let Ok(mut pins) = cfg.get_attribute::<Vec<i32>>("pins") {
                 if let Ok(interrupt_confs) =
                     cfg.get_attribute::<Vec<DigitalInterruptConfig>>("digital_interrupts")
                 {
