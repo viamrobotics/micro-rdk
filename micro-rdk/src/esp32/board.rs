@@ -40,10 +40,7 @@ use crate::esp32::esp_idf_svc::hal::adc::{
     ADC1,
 };
 
-use crate::esp32::esp_idf_svc::{
-    hal::gpio::InterruptType,
-    sys::{esp, gpio_isr_handler_remove, gpio_isr_t},
-};
+use crate::esp32::esp_idf_svc::{hal::gpio::InterruptType, sys::gpio_isr_t};
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
