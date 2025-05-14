@@ -40,7 +40,10 @@ use crate::esp32::esp_idf_svc::hal::adc::{
     ADC1,
 };
 
-use crate::esp32::esp_idf_svc::hal::gpio::InterruptType;
+use crate::esp32::esp_idf_svc::{
+    hal::gpio::InterruptType,
+    sys::{esp, gpio_isr_handler_remove, gpio_isr_t},
+};
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
@@ -382,8 +385,8 @@ impl Board for EspBoard {
         &mut self,
         pin: i32,
         intr_type: InterruptType,
-        cb: crate::common::board::IsrCb,
-        arg: crate::common::board::IsrCbArg,
+        cb: gpio_isr_t,
+        arg: Option<*mut core::ffi::c_void>,
     ) -> Result<(), BoardError> {
         let p = self
             .pins
@@ -396,8 +399,8 @@ impl Board for EspBoard {
                 )
             })?;
 
-        if let Some(cb) = cb {
-            p.setup_interrupt(intr_type, Some(cb), arg.unwrap())?;
+        if cb.is_some() {
+            p.setup_interrupt(intr_type, cb, arg.unwrap_or_else(|| core::ptr::null_mut()))?;
         } else {
             let ptr = &mut p.event_count as *mut Arc<std::sync::atomic::AtomicU32> as *mut _;
             p.setup_interrupt(
@@ -412,10 +415,8 @@ impl Board for EspBoard {
 
     fn remove_digital_interrupt_callback(&mut self, pin: i32) -> Result<(), BoardError> {
         unsafe {
-            crate::esp32::esp_idf_svc::sys::esp!(
-                crate::esp32::esp_idf_svc::sys::gpio_isr_handler_remove(pin)
-            )
-            .map_err(|e| BoardError::GpioPinOtherError(pin as u32, Box::new(e)))?;
+            esp!(gpio_isr_handler_remove(pin))
+                .map_err(|e| BoardError::GpioPinOtherError(pin as u32, Box::new(e)))?;
         }
         Ok(())
     }

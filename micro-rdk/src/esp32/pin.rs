@@ -4,7 +4,7 @@ use crate::esp32::esp_idf_svc::hal::gpio::{
     AnyIOPin, InputOutput, InterruptType, Pin, PinDriver, Pull,
 };
 use crate::esp32::esp_idf_svc::sys::{
-    esp, gpio_install_isr_service, gpio_isr_handler_add, ESP_INTR_FLAG_IRAM,
+    esp, gpio_install_isr_service, gpio_isr_handler_add, gpio_isr_t, ESP_INTR_FLAG_IRAM,
     SOC_GPIO_VALID_OUTPUT_GPIO_MASK,
 };
 use once_cell::sync::{Lazy, OnceCell};
@@ -188,7 +188,7 @@ impl Esp32GPIOPin {
     pub fn setup_interrupt(
         &mut self,
         intr_type: InterruptType,
-        cb: crate::common::board::IsrCb,
+        cb: gpio_isr_t,
         arg: *mut core::ffi::c_void,
     ) -> Result<(), BoardError> {
         self.interrupt_type = Some(intr_type);
@@ -203,7 +203,7 @@ impl Esp32GPIOPin {
             // with `PinDriver::enable_interrupt` needing to be called in a loop after every interrupt notification.
             // A possible follow-up would be to lazily initialize a Esp32GPIOPin for every possible pin (delineated by feature)
             // in a global state which an EspBoard instance would be able to access
-            esp!(gpio_isr_handler_add(self.pin, cb, arg,))
+            esp!(gpio_isr_handler_add(self.pin, cb, arg))
                 .map_err(|e| BoardError::GpioPinOtherError(self.pin as u32, Box::new(e)))?;
         }
         Ok(())

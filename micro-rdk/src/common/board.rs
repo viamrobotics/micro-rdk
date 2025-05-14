@@ -16,14 +16,6 @@ use super::{
 #[cfg(feature = "esp32")]
 use crate::esp32::esp_idf_svc::sys::EspError;
 
-#[cfg(feature = "esp32")]
-pub(crate) type IsrCb = crate::esp32::esp_idf_svc::sys::gpio_isr_t;
-
-#[cfg(not(feature = "esp32"))]
-pub(crate) type IsrCb = Option<unsafe extern "C" fn(arg: *mut core::ffi::c_void)>;
-
-pub(crate) type IsrCbArg = Option<*mut core::ffi::c_void>;
-
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -93,16 +85,18 @@ pub trait Board: DoCommand {
         ))
     }
 
+    #[cfg(feature = "esp32")]
     fn add_digital_interrupt_callback(
         &mut self,
         _pin: i32,
         _intr_type: crate::esp32::esp_idf_svc::hal::gpio::InterruptType,
-        _cb: IsrCb,
-        _arg: IsrCbArg,
+        _cb: crate::esp32::esp_idf_svc::hal::sys::gpio_isr_t,
+        _arg: Option<*mut core::ffi::c_void>,
     ) -> Result<(), BoardError> {
         unimplemented!();
     }
 
+    #[cfg(feature = "esp32")]
     fn remove_digital_interrupt_callback(&mut self, _pin: i32) -> Result<(), BoardError> {
         unimplemented!();
     }
