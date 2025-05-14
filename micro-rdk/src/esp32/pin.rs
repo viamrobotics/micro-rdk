@@ -185,7 +185,7 @@ impl Esp32GPIOPin {
         self.interrupt_type.is_some()
     }
 
-    pub fn setup_interrupt(
+    pub(crate) fn setup_interrupt(
         &mut self,
         intr_type: InterruptType,
         cb: gpio_isr_t,

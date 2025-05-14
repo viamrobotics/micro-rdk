@@ -400,7 +400,7 @@ impl Board for EspBoard {
             })?;
 
         if cb.is_some() {
-            p.setup_interrupt(intr_type, cb, arg.unwrap_or_else(|| core::ptr::null_mut()))?;
+            p.setup_interrupt(intr_type, cb, arg.unwrap_or_else(core::ptr::null_mut))?;
         } else {
             let ptr = &mut p.event_count as *mut Arc<std::sync::atomic::AtomicU32> as *mut _;
             p.setup_interrupt(
