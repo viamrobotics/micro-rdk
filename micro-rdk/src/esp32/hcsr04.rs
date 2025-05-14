@@ -65,8 +65,6 @@ use crate::esp32::esp_idf_svc::hal::{
     task::notification::{Notification, Notifier},
 };
 
-use crate::esp32::esp_idf_svc::sys::{esp, gpio_isr_handler_remove};
-
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
         .register_sensor("ultrasonic", &HCSR04Sensor::from_config)
@@ -235,19 +233,6 @@ impl HCSR04Sensor {
                     arg.notifier.notify_and_yield(nz);
                 }
             }
-        }
-    }
-}
-
-impl Drop for HCSR04Sensor {
-    fn drop(&mut self) {
-        let pin = self.echo_interrupt_pin.borrow_mut().pin();
-        if let Err(error) = unsafe { esp!(gpio_isr_handler_remove(pin)) } {
-            log::warn!(
-                "HCSR04Sensor: failed to remove interrupt handler for pin {}: {}",
-                pin,
-                error
-            )
         }
     }
 }
