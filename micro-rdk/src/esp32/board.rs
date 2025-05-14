@@ -407,12 +407,4 @@ impl Board for EspBoard {
 
         Ok(())
     }
-
-    fn remove_digital_interrupt_callback(&mut self, pin: i32) -> Result<(), BoardError> {
-        unsafe {
-            esp!(gpio_isr_handler_remove(pin))
-                .map_err(|e| BoardError::GpioPinOtherError(pin as u32, Box::new(e)))?;
-        }
-        Ok(())
-    }
 }

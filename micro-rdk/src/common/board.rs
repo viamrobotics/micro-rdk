@@ -96,11 +96,6 @@ pub trait Board: DoCommand {
         unimplemented!();
     }
 
-    #[cfg(feature = "esp32")]
-    fn remove_digital_interrupt_callback(&mut self, _pin: i32) -> Result<(), BoardError> {
-        unimplemented!();
-    }
-
     /// Get the pin's given duty cycle, returns percentage as float between 0.0 and 1.0
     fn get_pwm_duty(&self, pin: i32) -> f64;
 
