@@ -199,17 +199,10 @@ impl Esp32GPIOPin {
             .map_err(|e| BoardError::GpioPinOtherError(self.pin as u32, Box::new(e)))?;
         self.event_count.store(0, Ordering::Relaxed);
         unsafe {
-            // we can't use the subscribe method on PinDriver to add the handler
-            // because it requires an FnMut with a static lifetime. A possible follow-up
-            // would be to lazily initialize a Esp32GPIOPin for every possible pin (delineated by feature)
+            // We don't use the `PinDriver::subscribe` and `PinDriver::subscribe_nonstatic` functions as they are oneshots,
+            // with `PinDriver::enable_interrupt` needing to be called in a loop after every interrupt notification.
+            // A possible follow-up would be to lazily initialize a Esp32GPIOPin for every possible pin (delineated by feature)
             // in a global state which an EspBoard instance would be able to access
-            /*
-            esp!(gpio_isr_handler_add(
-                self.pin,
-                Some(Self::interrupt),
-                &mut self.event_count as *mut Arc<AtomicU32> as *mut _
-            ))*/
-
             esp!(gpio_isr_handler_add(self.pin, cb, arg,))
                 .map_err(|e| BoardError::GpioPinOtherError(self.pin as u32, Box::new(e)))?;
         }

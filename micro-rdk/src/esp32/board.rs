@@ -75,7 +75,7 @@ impl EspBoard {
     /// Down the road we will need to wrap the Esp32Board in a singleton instance owning the peripherals and giving them as requested.
     /// The potential approach is described in esp32/motor.rs:383
     pub(crate) fn from_config(cfg: ConfigType) -> Result<BoardType, BoardError> {
-        let (analogs, mut pins, i2c_confs) = {
+        let (analogs, pins, i2c_confs) = {
             // TODO(RSDK-8451): The logic below is hardcoded for esp32
             // and is not appropriate for esp32s3 (or other boards).
             #[cfg(not(esp32))]
@@ -197,7 +197,7 @@ impl EspBoard {
                     vec![]
                 };
 
-            let pins = if let Ok(mut pins) = cfg.get_attribute::<Vec<i32>>("pins") {
+            let mut pins = if let Ok(mut pins) = cfg.get_attribute::<Vec<i32>>("pins") {
                 pins.sort();
                 pins.dedup();
                 pins.iter()
@@ -213,11 +213,23 @@ impl EspBoard {
                 vec![]
             };
 
+            if let Ok(interrupt_confs) =
+                cfg.get_attribute::<Vec<DigitalInterruptConfig>>("digital_interrupts")
+            {
+                for conf in interrupt_confs {
+                    if !pins.iter().any(|p| p.pin() == conf.pin) {
+                        let pin = Esp32GPIOPin::new(conf.pin, None)?;
+                        pins.push(pin);
+                    }
+                }
+            }
+
             let i2c_confs = cfg
                 .get_attribute::<Vec<Esp32I2cConfig>>("i2cs")
                 .unwrap_or_default();
             (analogs, pins, i2c_confs)
         };
+
         let mut i2cs = HashMap::new();
         for conf in i2c_confs.iter() {
             let name = conf.name.to_string();
@@ -226,17 +238,6 @@ impl EspBoard {
             i2cs.insert(name.to_string(), i2c_wrapped);
         }
 
-        if let Ok(interrupt_confs) =
-            cfg.get_attribute::<Vec<DigitalInterruptConfig>>("digital_interrupts")
-        {
-            // I don't think we should include these.
-            for conf in interrupt_confs {
-                if !pins.iter().any(|p| p.pin() == conf.pin) {
-                    let pin = Esp32GPIOPin::new(conf.pin, None)?;
-                    pins.push(pin);
-                }
-            }
-        }
         let mut board = Self {
             pins,
             analogs,
@@ -384,15 +385,16 @@ impl Board for EspBoard {
         cb: crate::common::board::IsrCb,
         arg: crate::common::board::IsrCbArg,
     ) -> Result<(), BoardError> {
-        let p = self.pins.iter_mut().find(|p| p.pin() == pin);
-        if p.is_none() {
-            return Err(BoardError::GpioPinError(
-                pin as u32,
-                "pin not found, failed to register interrupt callback",
-            ));
-        }
-
-        let p = p.unwrap();
+        let p = self
+            .pins
+            .iter_mut()
+            .find(|p| p.pin() == pin)
+            .ok_or_else(|| {
+                BoardError::GpioPinError(
+                    pin as u32,
+                    "pin not found, failed to register interrupt callback",
+                )
+            })?;
 
         if let Some(cb) = cb {
             p.setup_interrupt(intr_type, Some(cb), arg.unwrap())?;
