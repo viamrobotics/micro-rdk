@@ -108,7 +108,7 @@ where
                     }
                 }
 
-                if *config != *self.curr_config {
+                if config.revision != self.curr_config.revision {
                     if let Err(e) = self.storage.reset_robot_configuration() {
                         log::warn!(
                             "failed to reset machine config after new config detected: {}",
