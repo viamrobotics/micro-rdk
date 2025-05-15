@@ -40,7 +40,20 @@ use crate::esp32::esp_idf_svc::hal::adc::{
     ADC1,
 };
 
-use crate::esp32::esp_idf_svc::{hal::gpio::InterruptType, sys::gpio_isr_t};
+use crate::common::board::InterruptType;
+use crate::esp32::esp_idf_svc::hal::gpio::InterruptType as Esp32InterruptType;
+
+impl From<InterruptType> for Esp32InterruptType {
+    fn from(value: InterruptType) -> Self {
+        match value {
+            InterruptType::PosEdge => Esp32InterruptType::PosEdge,
+            InterruptType::NegEdge => Esp32InterruptType::NegEdge,
+            InterruptType::AnyEdge => Esp32InterruptType::AnyEdge,
+            InterruptType::LowLevel => Esp32InterruptType::LowLevel,
+            InterruptType::HighLevel => Esp32InterruptType::HighLevel,
+        }
+    }
+}
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     if registry
@@ -377,7 +390,7 @@ impl Board for EspBoard {
         &mut self,
         pin: i32,
         intr_type: InterruptType,
-        cb: gpio_isr_t,
+        cb: Option<unsafe extern "C" fn(_: *mut core::ffi::c_void)>,
         arg: Option<*mut core::ffi::c_void>,
     ) -> Result<(), BoardError> {
         let p = self
@@ -392,11 +405,15 @@ impl Board for EspBoard {
             })?;
 
         if cb.is_some() {
-            p.setup_interrupt(intr_type, cb, arg.unwrap_or_else(core::ptr::null_mut))?;
+            p.setup_interrupt(
+                intr_type.into(),
+                cb,
+                arg.unwrap_or_else(core::ptr::null_mut),
+            )?;
         } else {
             let ptr = &mut p.event_count as *mut Arc<std::sync::atomic::AtomicU32> as *mut _;
             p.setup_interrupt(
-                InterruptType::PosEdge,
+                InterruptType::PosEdge.into(),
                 Some(Esp32GPIOPin::default_interrupt),
                 ptr,
             )?;

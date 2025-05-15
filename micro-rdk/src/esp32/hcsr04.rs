@@ -49,6 +49,7 @@ use std::{
 
 use crate::{
     common::{
+        board::InterruptType,
         config::{AttributeError, ConfigType},
         registry::{ComponentRegistry, Dependency},
         sensor::{
@@ -61,7 +62,7 @@ use crate::{
 
 use crate::esp32::esp_idf_svc::hal::{
     delay::TickType,
-    gpio::{AnyIOPin, Input, InterruptType, Output, PinDriver, Pull},
+    gpio::{AnyIOPin, Input, Output, PinDriver, Pull},
     task::notification::{Notification, Notifier},
 };
 

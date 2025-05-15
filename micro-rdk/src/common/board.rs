@@ -85,12 +85,11 @@ pub trait Board: DoCommand {
         ))
     }
 
-    #[cfg(feature = "esp32")]
     fn add_digital_interrupt_callback(
         &mut self,
         _pin: i32,
-        _intr_type: crate::esp32::esp_idf_svc::hal::gpio::InterruptType,
-        _cb: crate::esp32::esp_idf_svc::hal::sys::gpio_isr_t,
+        _intr_type: InterruptType,
+        _cb: Option<unsafe extern "C" fn(_: *mut core::ffi::c_void)>,
         _arg: Option<*mut core::ffi::c_void>,
     ) -> Result<(), BoardError> {
         unimplemented!();
@@ -287,4 +286,18 @@ where
     fn set_pwm_frequency(&mut self, pin: i32, frequency_hz: u64) -> Result<(), BoardError> {
         self.lock().unwrap().set_pwm_frequency(pin, frequency_hz)
     }
+}
+
+pub struct DigitalInterruptConfig {
+    pub intr_type: InterruptType,
+    pub cb:  Option<unsafe extern "C" fn(_: *mut core::ffi::c_void)>,
+    pub arg: Option<*mut core::ffi::c_void>,
+}
+
+pub enum InterruptType {
+    PosEdge,
+    NegEdge,
+    AnyEdge,
+    LowLevel,
+    HighLevel,
 }
