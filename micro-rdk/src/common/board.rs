@@ -290,7 +290,7 @@ where
 
 pub struct DigitalInterruptConfig {
     pub intr_type: InterruptType,
-    pub cb:  Option<unsafe extern "C" fn(_: *mut core::ffi::c_void)>,
+    pub cb: Option<unsafe extern "C" fn(_: *mut core::ffi::c_void)>,
     pub arg: Option<*mut core::ffi::c_void>,
 }
 
