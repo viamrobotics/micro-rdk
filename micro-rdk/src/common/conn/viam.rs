@@ -430,7 +430,6 @@ where
         if shutdown_requested() && pinned.timer.is_none() {
             let dur = pinned.force_shutdown_wait_time;
             *pinned.timer = Some(Timer::after(*dur));
-            return Poll::Pending;
         }
 
         let app_result = pinned
@@ -473,6 +472,12 @@ where
     }
 }
 
+pub(crate) struct RunResult {
+    app_client: Option<AppClient>,
+    app_client_tasks_result: Result<(), errors::ServerError>,
+    server_task_result: Result<(), errors::ServerError>,
+}
+
 pub struct ViamServer<Storage, C, M> {
     executor: Executor,
     storage: Storage,
@@ -497,7 +502,7 @@ where
     C: ViamH2Connector + 'static,
     M: Mdns,
 {
-    pub fn run_forever(&mut self) -> ! {
+    pub fn run_until_complete(&mut self) -> ! {
         #[cfg(feature = "esp32")]
         {
             use crate::esp32::esp_idf_svc::hal::task::watchdog::{TWDTConfig, TWDTDriver, TWDT};
@@ -525,10 +530,30 @@ where
         }
 
         let exec = self.executor.clone();
-        exec.block_on(Box::pin(self.run()));
+        let run_result = exec.block_on(Box::pin(self.run()));
+        match run_result.app_client_tasks_result {
+            Ok(()) => {}
+            Err(errors::ServerError::ServerTaskShutdownTimeout) => {
+                log::info!("app client tasks cancelled from timeout")
+            }
+            Err(err) => {
+                log::error!("app client tasks returned with error: {:?}", err);
+            }
+        }
+        match run_result.server_task_result {
+            Ok(()) => {}
+            Err(errors::ServerError::ServerTaskShutdownTimeout) => {
+                log::info!("server task cancelled from timeout")
+            }
+            Err(err) => {
+                log::error!("server task returned with error: {:?}", err);
+            }
+        }
+        exec.block_on(force_shutdown(run_result.app_client.clone()));
+        unreachable!()
     }
 
-    pub(crate) async fn run(&mut self) -> ! {
+    pub(crate) async fn run(&mut self) -> RunResult {
         log::info!("starting viam server");
 
         self.storage.log_space_diagnostic();
@@ -803,28 +828,12 @@ where
             Box::pin(self.run_app_client_tasks(app_client.clone())),
             Duration::from_secs(120),
         );
-
         let (app_client_tasks_result, server_task_result) = system_task.await;
-        match app_client_tasks_result {
-            Ok(()) => {}
-            Err(errors::ServerError::ServerTaskShutdownTimeout) => {
-                log::info!("app client tasks cancelled from timeout")
-            }
-            Err(err) => {
-                log::error!("app client tasks returned with error: {:?}", err);
-            }
+        RunResult {
+            app_client,
+            app_client_tasks_result,
+            server_task_result,
         }
-        match server_task_result {
-            Ok(()) => {}
-            Err(errors::ServerError::ServerTaskShutdownTimeout) => {
-                log::info!("server task cancelled from timeout")
-            }
-            Err(err) => {
-                log::error!("server task returned with error: {:?}", err);
-            }
-        }
-        force_shutdown(app_client.clone()).await;
-        unreachable!();
     }
 
     async fn connect_to_app(&self) -> Result<AppClient, AppClientError> {
@@ -1543,7 +1552,8 @@ mod tests {
                 run_fake_app_server(other_clone, app).await;
             });
             let _task = cloned_exec.spawn(async move {
-                viam_server.run().await;
+                let _ = viam_server.run().await;
+                unreachable!()
             });
 
             for _ in 0..10 {
@@ -1621,7 +1631,8 @@ mod tests {
             let fake_server_task =
                 cloned_exec.spawn(async move { run_fake_app_server(other_clone, app).await });
             let _task = cloned_exec.spawn(async move {
-                viam_server.run().await;
+                let _ = viam_server.run().await;
+                unreachable!()
             });
             let record = look_for_an_mdns_record("_rpc._tcp.local.", "grpc", "test-bot")
                 .or(async {
@@ -1722,7 +1733,8 @@ mod tests {
         let cloned_exec = exec.clone();
         exec.block_on(async move {
             let _task = cloned_exec.spawn(async move {
-                viam_server.run().await;
+                let _ = viam_server.run().await;
+                unreachable!()
             });
             let record = look_for_an_mdns_record("_rpc._tcp.local.", "grpc", "test-bot")
                 .or(async {
@@ -1868,7 +1880,8 @@ mod tests {
         let cloned_exec = exec.clone();
         exec.block_on(async move {
             let _task = cloned_exec.spawn(async move {
-                viam_server.run().await;
+                let _ = viam_server.run().await;
+                unreachable!()
             });
             let record = look_for_an_mdns_record(
                 "_rpc._tcp.local.",
@@ -2036,7 +2049,7 @@ mod tests {
         exec.block_on(async {
             Timer::after(Duration::from_millis(200)).await;
         });
-        b.run_forever();
+        b.run_until_complete();
     }
 
     async fn run_fake_app_server(exec: Executor, app: AppServerInsecure) {

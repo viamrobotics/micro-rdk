@@ -125,5 +125,5 @@ fn main() {
     let mdns = Esp32Mdns::new("".to_owned()).unwrap();
 
     let mut server = { builder.build(Esp32H2Connector::default(), Executor::new(), mdns) };
-    server.run_forever();
+    server.run_until_complete();
 }
