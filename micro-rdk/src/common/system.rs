@@ -83,6 +83,9 @@ pub(crate) async fn force_shutdown(app_client: Option<AppClient>) {
                 log::error!("sleep from wake up not supported for native builds")
             }
         }
-        None => {}
+        None => {
+            log::error!("call to shutdown/restart without request to system, restarting");
+            terminate()
+        }
     }
 }

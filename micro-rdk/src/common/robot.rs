@@ -677,6 +677,7 @@ impl Drop for LocalRobot {
             log::info!("Stopping data manager collection task");
             self.executor.block_on(task.cancel());
             log::info!("Stopped data manager collection task");
+            log::info!("Dropping robot")
         }
     }
 }
