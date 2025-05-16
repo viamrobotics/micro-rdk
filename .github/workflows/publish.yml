@@ -2,6 +2,9 @@ name: Publish
 
 on:
   workflow_call:
+    secrets:
+      PGN_DEFINITIONS_URL:
+        required: true
 
 jobs:
   build-installer:
@@ -113,6 +116,9 @@ jobs:
       with:
         fetch-depth: 2
         ref: '${{ github.ref_name }}'
+    - name: Download PGN definitions
+      run: |
+        curl ${{ secrets.PGN_DEFINITIONS_URL }} --output micro-rdk-nmea/definitions.json
     - name: Build esp32 binary
       run: |
         git config --global --add safe.directory "$ESP_ROOT"/esp-idf

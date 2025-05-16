@@ -24,5 +24,11 @@ pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryE
         "boat-movement-sensor",
         &sensors::get_raw_sensor_key,
     )?;
+    registry.register_sensor("pgn-sensor", &sensors::PgnSensor::from_config)?;
+    registry.register_dependency_getter(
+        SensorCompName,
+        "pgn-sensor",
+        &sensors::get_raw_sensor_key,
+    )?;
     Ok(())
 }
