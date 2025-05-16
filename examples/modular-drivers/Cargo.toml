@@ -18,6 +18,7 @@ thiserror.workspace = true
 
 [build-dependencies]
 embuild = {workspace = true, features = ["elf", "espidf"]}
+regex.workspace = true
 
 [package.metadata.com.viam]
 module = true

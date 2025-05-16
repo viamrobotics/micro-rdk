@@ -2859,6 +2859,7 @@ dependencies = [
  "embuild 0.32.0",
  "log",
  "micro-rdk",
+ "regex",
  "thiserror 2.0.12",
 ]
 
