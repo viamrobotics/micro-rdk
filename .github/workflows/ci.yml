@@ -37,4 +37,4 @@ jobs:
     needs: [format,ci-native,ci-esp32]
     if: startsWith(github.ref, 'refs/tags/v')
     uses: ./.github/workflows/publish.yml
-
+    secrets: inherit
