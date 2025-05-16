@@ -610,7 +610,7 @@ where
         }
 
         let config_monitor_task = Box::new(ConfigMonitor::new(
-            config.clone(),
+            &config,
             self.storage.clone(),
             #[cfg(feature = "ota")]
             self.executor.clone(),

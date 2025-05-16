@@ -16,7 +16,8 @@ use std::{fmt::Debug, pin::Pin, time::Duration};
 use crate::common::{exec::Executor, ota};
 
 pub struct ConfigMonitor<'a, Storage> {
-    curr_config: Box<RobotConfig>, //config for robot gotten from last robot startup, aka inputted from entry
+    /// revision of running `RobotConfig`
+    revision: String,
     storage: Storage,
     #[cfg(feature = "ota")]
     executor: Executor,
@@ -30,13 +31,13 @@ where
     ServerError: From<<Storage as RobotConfigurationStorage>::Error>,
 {
     pub fn new(
-        curr_config: Box<RobotConfig>,
+        curr_config: &RobotConfig,
         storage: Storage,
         #[cfg(feature = "ota")] executor: Executor,
         restart_hook: impl Fn() + 'a,
     ) -> Self {
         Self {
-            curr_config,
+            revision: curr_config.revision.to_string(),
             storage,
             #[cfg(feature = "ota")]
             executor,
@@ -108,7 +109,7 @@ where
                     }
                 }
 
-                if config.revision != self.curr_config.revision {
+                if config.revision != self.revision {
                     if let Err(e) = self.storage.reset_robot_configuration() {
                         log::warn!(
                             "failed to reset machine config after new config detected: {}",
