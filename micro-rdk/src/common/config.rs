@@ -590,6 +590,11 @@ impl<'a> ConfigType<'a> {
             Self::Dynamic(cfg) => cfg.get_attribute::<T>(key),
         }
     }
+    pub fn has_attribute(&self, key: &str) -> bool {
+        match self {
+            Self::Dynamic(cfg) => cfg.has_attribute(key),
+        }
+    }
     #[deprecated(since = "0.5.1", note = "get_type() is deprecated use get_subtype()")]
     pub fn get_type(&self) -> &str {
         match self {
@@ -629,6 +634,7 @@ pub trait Component {
     fn get_attribute<'a, T>(&'a self, key: &str) -> Result<T, AttributeError>
     where
         T: std::convert::TryFrom<&'a Kind, Error = AttributeError>;
+    fn has_attribute(&self, key: &str) -> bool;
 }
 
 impl Component for DynamicComponentConfig {
@@ -661,6 +667,12 @@ impl Component for DynamicComponentConfig {
             }
         }
         Err(AttributeError::KeyNotFound(key.to_string()))
+    }
+    fn has_attribute(&self, key: &str) -> bool {
+        if let Some(v) = self.attributes.as_ref() {
+            return v.contains_key(key);
+        }
+        false
     }
 }
 

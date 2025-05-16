@@ -41,6 +41,9 @@ mod esp32 {
         if let Err(e) = micro_rdk_modular_driver_example::wifi_rssi_sensor::register_models(r) {
             log::error!("failed to register `wifi_rssi_sensor`: {}", e);
         }
+        if let Err(e) = micro_rdk_modular_driver_example::bme280_ulp::register_models(r) {
+            log::error!("failed to register `bme280_ulp`: {}", e);
+        }
     }
 
     pub(crate) fn main_esp32() {

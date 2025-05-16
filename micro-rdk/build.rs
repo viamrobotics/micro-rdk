@@ -19,5 +19,10 @@ fn main() {
         let link_args = embuild::build::LinkArgs::try_from_env("ESP_IDF_SVC").unwrap();
         link_args.output();
         link_args.propagate();
+
+        // we meed embuild to set the correct env variable so we can use them in the modular-component build script
+        embuild::espidf::sysenv::relay();
+        embuild::espidf::sysenv::env_path();
+        embuild::espidf::sysenv::output();
     }
 }
