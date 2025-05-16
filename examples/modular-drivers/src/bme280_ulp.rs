@@ -29,10 +29,10 @@ static ULP_PROGRAM: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/ulp.bin"))
 struct UnsafeRtcMemory<T>(UnsafeCell<T>);
 unsafe impl<T> Sync for UnsafeRtcMemory<T> {}
 
-static SAMPLE_NUMBER: usize = 32;
+static SAMPLE_ARRAY_SIZE: usize = 32;
 #[unsafe(link_section = ".rtc.force_slow")]
-static SAMPLE_ARRAY: UnsafeRtcMemory<[u32; SAMPLE_NUMBER]> =
-    UnsafeRtcMemory(UnsafeCell::new([0xFFFFFFFF_u32; SAMPLE_NUMBER]));
+static SAMPLE_ARRAY: UnsafeRtcMemory<[u32; SAMPLE_ARRAY_SIZE]> =
+    UnsafeRtcMemory(UnsafeCell::new([0xFFFFFFFF_u32; SAMPLE_ARRAY_SIZE]));
 
 #[derive(Error, Debug)]
 pub enum BME280Error {
@@ -59,8 +59,8 @@ struct ULPResultsMemory<'a> {
     offset: usize,
 }
 
-impl<'a> From<&'a UnsafeRtcMemory<[u32; SAMPLE_NUMBER]>> for ULPResultsMemory<'a> {
-    fn from(value: &'a UnsafeRtcMemory<[u32; SAMPLE_NUMBER]>) -> Self {
+impl<'a> From<&'a UnsafeRtcMemory<[u32; SAMPLE_ARRAY_SIZE]>> for ULPResultsMemory<'a> {
+    fn from(value: &'a UnsafeRtcMemory<[u32; SAMPLE_ARRAY_SIZE]>) -> Self {
         let ptr = unsafe { &*value.0.get() };
         Self {
             memory: ptr,
@@ -163,17 +163,17 @@ impl TryFrom<&Kind> for ULPConfig {
                                 "sample should not be 0".to_owned(),
                             ))
                         } else {
-			    if (*smp as u32) > (SAMPLE_NUMBER as u32)/8 {
-				log::warn!("bme280 ulp setting max number of samples to {}", SAMPLE_NUMBER/8);
+			    if (*smp as u32) > (SAMPLE_ARRAY_SIZE as u32)/8 {
+				log::warn!("bme280 ulp setting max number of samples to {}", SAMPLE_ARRAY_SIZE/8);
 			    }
-                            Ok((*smp as u32).min(SAMPLE_NUMBER as u32)/8)
+                            Ok((*smp as u32).min((SAMPLE_ARRAY_SIZE as u32)/8))
                         }
                     } else {
                         Err(AttributeError::ValidationError(
                             "sample should be a number".to_owned(),
                         ))
                     }
-                }).inspect_err(|err| log::warn!("sample number wasn't set or is invalid reason : {} ulp will collect {} in deep sleep", err, SAMPLE_NUMBER/8)).unwrap_or((SAMPLE_NUMBER as u32)/8);
+                }).inspect_err(|err| log::warn!("sample number wasn't set or is invalid reason : {} ulp will collect {} samples in deep sleep", err, SAMPLE_ARRAY_SIZE/8)).unwrap_or((SAMPLE_ARRAY_SIZE as u32)/8);
             Ok(Self {
                 pin_scl,
                 pin_sda,
