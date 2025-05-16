@@ -17,7 +17,7 @@ use crate::common::{exec::Executor, ota};
 
 pub struct ConfigMonitor<'a, Storage> {
     /// revision of running `RobotConfig`
-    revision: String,
+    config_revision: String,
     storage: Storage,
     #[cfg(feature = "ota")]
     executor: Executor,
@@ -37,7 +37,7 @@ where
         restart_hook: impl Fn() + 'a,
     ) -> Self {
         Self {
-            revision: curr_config.revision.to_string(),
+            config_revision: curr_config.revision.to_string(),
             storage,
             #[cfg(feature = "ota")]
             executor,
@@ -109,7 +109,7 @@ where
                     }
                 }
 
-                if config.revision != self.revision {
+                if config.revision != self.config_revision {
                     if let Err(e) = self.storage.reset_robot_configuration() {
                         log::warn!(
                             "failed to reset machine config after new config detected: {}",
