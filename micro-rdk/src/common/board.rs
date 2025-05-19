@@ -87,13 +87,11 @@ pub trait Board: DoCommand {
 
     fn add_digital_interrupt_callback(
         &mut self,
-        _pin: i32,
-        _intr_type: InterruptType,
-        _cb: Option<unsafe extern "C" fn(_: *mut core::ffi::c_void)>,
-        _arg: Option<*mut core::ffi::c_void>,
-    ) -> Result<(), BoardError> {
-        unimplemented!();
-    }
+        pin: i32,
+        intr_type: InterruptType,
+        cb: Option<unsafe extern "C" fn(_: *mut core::ffi::c_void)>,
+        arg: Option<*mut core::ffi::c_void>,
+    ) -> Result<(), BoardError>;
 
     /// Get the pin's given duty cycle, returns percentage as float between 0.0 and 1.0
     fn get_pwm_duty(&self, pin: i32) -> f64;
@@ -112,6 +110,14 @@ pub trait Board: DoCommand {
 
 /// An alias for a thread-safe handle to a struct that implements the [Board] trait
 pub type BoardType = Arc<Mutex<dyn Board>>;
+
+pub enum InterruptType {
+    PosEdge,
+    NegEdge,
+    AnyEdge,
+    LowLevel,
+    HighLevel,
+}
 
 #[doc(hidden)]
 /// A test implementation of a generic compute board
@@ -220,6 +226,16 @@ impl Board for FakeBoard {
         Err(BoardError::I2CBusNotFound(name))
     }
 
+    fn add_digital_interrupt_callback(
+        &mut self,
+        _pin: i32,
+        _intr_type: InterruptType,
+        _cb: Option<unsafe extern "C" fn(_: *mut core::ffi::c_void)>,
+        _arg: Option<*mut core::ffi::c_void>,
+    ) -> Result<(), BoardError> {
+        unimplemented!();
+    }
+
     fn get_pwm_duty(&self, pin: i32) -> f64 {
         *self.pin_pwms.get(&pin).unwrap_or(&0.0)
     }
@@ -267,6 +283,18 @@ where
         self.lock().unwrap().get_i2c_by_name(name)
     }
 
+    fn add_digital_interrupt_callback(
+        &mut self,
+        pin: i32,
+        intr_type: InterruptType,
+        cb: Option<unsafe extern "C" fn(_: *mut core::ffi::c_void)>,
+        arg: Option<*mut core::ffi::c_void>,
+    ) -> Result<(), BoardError> {
+        self.lock()
+            .unwrap()
+            .add_digital_interrupt_callback(pin, intr_type, cb, arg)
+    }
+
     fn get_digital_interrupt_value(&self, pin: i32) -> Result<u32, BoardError> {
         self.lock().unwrap().get_digital_interrupt_value(pin)
     }
@@ -286,18 +314,4 @@ where
     fn set_pwm_frequency(&mut self, pin: i32, frequency_hz: u64) -> Result<(), BoardError> {
         self.lock().unwrap().set_pwm_frequency(pin, frequency_hz)
     }
-}
-
-pub struct DigitalInterruptConfig {
-    pub intr_type: InterruptType,
-    pub cb: Option<unsafe extern "C" fn(_: *mut core::ffi::c_void)>,
-    pub arg: Option<*mut core::ffi::c_void>,
-}
-
-pub enum InterruptType {
-    PosEdge,
-    NegEdge,
-    AnyEdge,
-    LowLevel,
-    HighLevel,
 }

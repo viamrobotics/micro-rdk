@@ -191,6 +191,23 @@ impl Esp32GPIOPin {
         cb: gpio_isr_t,
         arg: *mut core::ffi::c_void,
     ) -> Result<(), BoardError> {
+        if cb.is_none() {
+            return Err(BoardError::GpioPinOtherError(
+                self.pin as u32,
+                "interrupt callback cannot be `None`".to_string().into(),
+            ));
+        }
+
+        if self.pin == 36 || self.pin == 39 {
+            // When ADC or WiFi and Bluetooth with sleep mode enabled are powered on,
+            // pins 36 and 39 are pulled down for approx 80ns. See Section 3.11
+            // https://www.espressif.com/sites/default/files/documentation/eco_and_workarounds_for_bugs_in_esp32_en.pdf
+            return Err(BoardError::GpioPinOtherError(
+                self.pin as u32,
+                "cannot use pin as digital interrupt".to_string().into(),
+            ));
+        }
+
         self.interrupt_type = Some(intr_type);
         install_gpio_isr_service()
             .map_err(|e| BoardError::GpioPinOtherError(self.pin as u32, Box::new(e)))?;
