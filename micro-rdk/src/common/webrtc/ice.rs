@@ -343,7 +343,7 @@ impl ICEAgent {
                     let decoded = match decoder.decode_from_bytes(&buf[..len]).unwrap() {
                         Ok(e) => e,
                         Err(e) => {
-                            log::error!("dropping stun msg {:?}", e);
+                            log::warn!("dropping stun msg {:?}", e);
                             buf.clear();
                             continue;
                         }
@@ -362,17 +362,17 @@ impl ICEAgent {
                         MessageClass::SuccessResponse => {
                             if let Err(e) = self.process_stun_response(Instant::now(), decoded) {
                                 // could be caused by multiple response for one request
-                                log::error!("unable to properly process stun response {:?}", e);
+                                log::warn!("unable to properly process stun response {:?}", e);
                             }
                         }
 
                         MessageClass::ErrorResponse => {
                             //TODO(RSDK-3064)
-                            log::error!("received a stun error");
+                            log::warn!("received a stun error");
                         }
                         MessageClass::Indication => {
                             //TODO(RSDK-3064)
-                            log::error!("received a stun indication")
+                            log::warn!("received a stun indication")
                         }
                     }
                 }
