@@ -403,10 +403,10 @@ impl Board for EspBoard {
                 )
             })?;
 
-        if cb.is_some() {
+        if callback.is_some() {
             p.setup_interrupt(
                 intr_type.into(),
-                cb,
+                callback,
                 arg.unwrap_or_else(core::ptr::null_mut),
             )?;
         } else {

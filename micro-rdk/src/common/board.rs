@@ -294,7 +294,7 @@ where
     ) -> Result<(), BoardError> {
         self.lock()
             .unwrap()
-            .add_digital_interrupt_callback(pin, intr_type, cb, arg)
+            .add_digital_interrupt_callback(pin, intr_type, callback, arg)
     }
 
     fn get_digital_interrupt_value(&self, pin: i32) -> Result<u32, BoardError> {
