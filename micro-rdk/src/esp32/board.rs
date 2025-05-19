@@ -251,7 +251,6 @@ impl EspBoard {
             analogs,
             i2cs,
         };
-
         if let Ok(interrupt_confs) =
             cfg.get_attribute::<Vec<DigitalInterruptConfig>>("digital_interrupts")
         {
@@ -390,7 +389,7 @@ impl Board for EspBoard {
         &mut self,
         pin: i32,
         intr_type: InterruptType,
-        cb: Option<unsafe extern "C" fn(_: *mut core::ffi::c_void)>,
+        callback: Option<unsafe extern "C" fn(_: *mut core::ffi::c_void)>,
         arg: Option<*mut core::ffi::c_void>,
     ) -> Result<(), BoardError> {
         let p = self

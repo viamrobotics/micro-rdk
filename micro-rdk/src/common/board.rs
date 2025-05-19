@@ -85,11 +85,13 @@ pub trait Board: DoCommand {
         ))
     }
 
+    /// Registers a callback with the associated argument that will be exectuted
+    /// when a specified `InterruptType` is detected on the given `pin`.
     fn add_digital_interrupt_callback(
         &mut self,
         pin: i32,
         intr_type: InterruptType,
-        cb: Option<unsafe extern "C" fn(_: *mut core::ffi::c_void)>,
+        callback: Option<unsafe extern "C" fn(_: *mut core::ffi::c_void)>,
         arg: Option<*mut core::ffi::c_void>,
     ) -> Result<(), BoardError>;
 
@@ -230,7 +232,7 @@ impl Board for FakeBoard {
         &mut self,
         _pin: i32,
         _intr_type: InterruptType,
-        _cb: Option<unsafe extern "C" fn(_: *mut core::ffi::c_void)>,
+        _callback: Option<unsafe extern "C" fn(_: *mut core::ffi::c_void)>,
         _arg: Option<*mut core::ffi::c_void>,
     ) -> Result<(), BoardError> {
         unimplemented!();
@@ -287,7 +289,7 @@ where
         &mut self,
         pin: i32,
         intr_type: InterruptType,
-        cb: Option<unsafe extern "C" fn(_: *mut core::ffi::c_void)>,
+        callback: Option<unsafe extern "C" fn(_: *mut core::ffi::c_void)>,
         arg: Option<*mut core::ffi::c_void>,
     ) -> Result<(), BoardError> {
         self.lock()

@@ -200,12 +200,12 @@ impl HCSR04Sensor {
             .set_high()
             .map_err(|err| SensorError::SensorCodeError(err.code()))?;
 
-        let cb_arg = Arc::as_ptr(&sensor.isr_shared_state) as *mut _;
+        let arg = Arc::as_ptr(&sensor.isr_shared_state) as *mut _;
         board.add_digital_interrupt_callback(
             echo_interrupt_pin,
             InterruptType::AnyEdge,
             Some(Self::subscription_interrupt),
-            Some(cb_arg),
+            Some(arg),
         )?;
         Ok(sensor)
     }
