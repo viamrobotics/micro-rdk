@@ -158,9 +158,9 @@ impl TryFrom<&Kind> for ULPConfig {
                 .ok_or(AttributeError::KeyNotFound("sample".to_owned()))
                 .and_then(|kind| {
                     if let Kind::NumberValue(smp) = kind {
-                        if *smp == 0.0 {
+                        if *smp <= 0.0 {
                             Err(AttributeError::ValidationError(
-                                "sample should not be 0".to_owned(),
+                                "sample should ne strictly positive".to_owned(),
                             ))
                         } else {
 			    if (*smp as u32) > (SAMPLE_ARRAY_SIZE as u32)/8 {
