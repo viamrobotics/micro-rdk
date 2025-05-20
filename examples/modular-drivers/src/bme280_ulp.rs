@@ -652,13 +652,13 @@ struct RawMeasurement {
 
 impl From<[u8; 8]> for RawMeasurement {
     fn from(data: [u8; 8]) -> Self {
-        let presure = ((data[0] as u32) << 12) | ((data[1] as u32) << 4) | ((data[2] as u32) >> 4);
+        let pressure = ((data[0] as u32) << 12) | ((data[1] as u32) << 4) | ((data[2] as u32) >> 4);
         let temperature =
             ((data[3] as u32) << 12) | ((data[4] as u32) << 4) | ((data[5] as u32) >> 4);
         let humidity = ((data[6] as u32) << 8) | (data[7] as u32);
         Self {
             temp: temperature.ne(&BME280_INACTIVE_MEAS).then_some(temperature),
-            pressure: presure.ne(&BME280_INACTIVE_MEAS).then_some(presure),
+            pressure: pressure.ne(&BME280_INACTIVE_MEAS).then_some(pressure),
             humidity: humidity
                 .ne(&(BME280_INACTIVE_MEAS >> 2))
                 .then_some(humidity),
