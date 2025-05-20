@@ -692,62 +692,43 @@ impl CompensatedMeasurement {
     }
 
     fn compensate_temperature(temp: i32, calib: &mut CalibrationData) -> f64 {
-        let var1: i32 =
-            (((temp >> 3) - ((calib.dig_t1 as i32) << 1)) * (calib.dig_t2 as i32)) >> 11;
-
-        let var2: i32 = (((((temp >> 4) - (calib.dig_t1 as i32))
-            * ((temp >> 4) - (calib.dig_t1 as i32)))
-            >> 12)
-            * (calib.dig_t3 as i32))
-            >> 14;
-
-        calib.t_fine = var1 + var2;
-        (((calib.t_fine * 5 + 128) >> 8) as f64) / 100.0
+        let var1: f64 =
+            ((temp as f64) / 16384.0 - (calib.dig_t1 as f64) / 1024.0) * (calib.dig_t2 as f64);
+        let mut var2: f64 = (temp as f64) / 131072.0 - (calib.dig_t1 as f64) / 8192.0;
+        var2 = (var2 * var2) * (calib.dig_t3 as f64);
+        calib.t_fine = (var1 + var2) as i32;
+        let temp: f64 = (var1 + var2) / 5120.0;
+        temp.clamp(-40.0, 85.0)
     }
     fn compensate_humidity(hum: i32, calib: &CalibrationData) -> f64 {
-        let mut v_x1_u32r: i32 = calib.t_fine - (76800_i32);
-        v_x1_u32r =
-            (((hum << 14) - ((calib.dig_h4 as i32) << 20) - ((calib.dig_h5 as i32) * v_x1_u32r))
-                + (16384_i32))
-                >> (15
-                    * (((((((v_x1_u32r * (calib.dig_h6 as i32)) >> 10)
-                        * (((v_x1_u32r * (calib.dig_h3 as i32)) >> 11) + (32768_i32)))
-                        >> 10)
-                        + (2097152_i32))
-                        * (calib.dig_h2 as i32)
-                        + 8192)
-                        >> 14));
-        v_x1_u32r = v_x1_u32r
-            - (((((v_x1_u32r >> 15) * (v_x1_u32r >> 15)) >> 7) * (calib.dig_h1 as i32)) >> 4);
-        v_x1_u32r = if v_x1_u32r < 0 { 0 } else { v_x1_u32r };
-        v_x1_u32r = if v_x1_u32r > 419430400 {
-            419430400
-        } else {
-            v_x1_u32r
-        };
-        ((v_x1_u32r >> 12) as f64) / 1024.0
+        let var1: f64 = (calib.t_fine as f64) - 76800.0;
+        let var2 = (calib.dig_h4 as f64) * 64.0 + ((calib.dig_h5 as f64) / 16384.0) * var1;
+        let var3 = (hum as f64) - var2;
+        let var4 = (calib.dig_h2 as f64) / 65536.0;
+        let var5 = 1.0 + ((calib.dig_h3 as f64) / 67108864.0) * var1;
+
+        let mut var6 = 1.0 + ((calib.dig_h6 as f64) / 67108864.0) * var1 * var5;
+        var6 = var3 * var4 * (var5 * var6);
+        let humidity = var6 * (1.0 - (calib.dig_h1 as f64) * var6 / 524288.0);
+        humidity.clamp(0.0, 100.0)
     }
     fn compensate_pressure(pres: i32, calib: &CalibrationData) -> Option<f64> {
-        let mut var1: i64;
-        let mut var2: i64;
-        let mut p: i64;
-        var1 = (calib.t_fine as i64) - 128000;
-        var2 = var1 * var1 * (calib.dig_p6 as i64);
-        var2 += (var1 * (calib.dig_p5 as i64)) << 17;
-        var2 += (calib.dig_p4 as i64) << 35;
-        var1 =
-            ((var1 * var1 * (calib.dig_p3 as i64)) >> 8) + ((var1 * (calib.dig_p2 as i64)) << 12);
-        var1 = ((((1_i64) << 47) + var1) * (calib.dig_p1 as i64)) >> 33;
-        if var1 == 0 {
-            return None; // avoid exception caused by division by zero
+        let mut var1 = (calib.t_fine as f64 / 2.0) - 64000.0;
+        let mut var2 = var1 * var1 * (calib.dig_p6 as f64) / 32768.0;
+        var2 += var1 * (calib.dig_p5 as f64) * 2.0;
+        var2 = (var2 / 4.0) + ((calib.dig_p4 as f64) * 65536.0);
+        let var3 = (calib.dig_p3 as f64) * var1 * var1 / 524288.0;
+        var1 = (var3 + (calib.dig_p2 as f64) * var1) / 524288.0;
+        var1 = (1.0 + var1 / 32768.0) * (calib.dig_p1 as f64);
+        if var1 <= 0.0 {
+            return None;
         }
-        p = 1048576_i64 - (pres as i64);
-        p = (((p << 31) - var2) * 3125) / var1;
-        var1 = ((calib.dig_p9 as i64) * (p >> 13) * (p >> 13)) >> 25;
-        var2 = ((calib.dig_p8 as i64) * p) >> 19;
-        p = ((p + var1 + var2) >> 8) + ((calib.dig_p7 as i64) << 4);
-        p >>= 8; // /256
-        Some((p as f64) / 100.0)
+        let mut pressure = 1048576.0 - (pres as f64);
+        pressure = (pressure - (var2 / 4096.0)) * 6250.0 / var1;
+        var1 = (calib.dig_p9 as f64) * pressure * pressure / 2147483648.0;
+        var2 = pressure * (calib.dig_p8 as f64) / 32768.0;
+        pressure += (var1 + var2 + (calib.dig_p7 as f64)) / 16.0;
+        Some(pressure.clamp(30000.0, 110000.0))
     }
 }
 
