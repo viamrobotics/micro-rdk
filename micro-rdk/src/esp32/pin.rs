@@ -4,7 +4,7 @@ use crate::esp32::esp_idf_svc::hal::gpio::{
     AnyIOPin, InputOutput, InterruptType, Pin, PinDriver, Pull,
 };
 use crate::esp32::esp_idf_svc::sys::{
-    esp, gpio_install_isr_service, gpio_isr_handler_add, ESP_INTR_FLAG_IRAM,
+    esp, gpio_install_isr_service, gpio_isr_handler_add, gpio_isr_t, ESP_INTR_FLAG_IRAM,
     SOC_GPIO_VALID_OUTPUT_GPIO_MASK,
 };
 use once_cell::sync::{Lazy, OnceCell};
@@ -58,7 +58,7 @@ pub struct Esp32GPIOPin {
     pin: i32,
     driver: PinDriver<'static, AnyIOPin, InputOutput>,
     interrupt_type: Option<InterruptType>,
-    event_count: Arc<AtomicU32>,
+    pub(crate) event_count: Arc<AtomicU32>,
     pwm_driver: Option<PwmDriver<'static>>,
 }
 
@@ -185,17 +185,20 @@ impl Esp32GPIOPin {
         self.interrupt_type.is_some()
     }
 
-    pub fn setup_interrupt(&mut self, intr_type: InterruptType) -> Result<(), BoardError> {
-        match &self.interrupt_type {
-            Some(existing_type) => {
-                if *existing_type == intr_type {
-                    return Ok(());
-                }
-            }
-            None => {
-                self.interrupt_type = Some(intr_type);
-            }
-        };
+    pub(crate) fn setup_interrupt(
+        &mut self,
+        intr_type: InterruptType,
+        cb: gpio_isr_t,
+        arg: *mut core::ffi::c_void,
+    ) -> Result<(), BoardError> {
+        if cb.is_none() {
+            return Err(BoardError::GpioPinOtherError(
+                self.pin as u32,
+                "interrupt callback cannot be `None`".to_string().into(),
+            ));
+        }
+
+        self.interrupt_type = Some(intr_type);
         install_gpio_isr_service()
             .map_err(|e| BoardError::GpioPinOtherError(self.pin as u32, Box::new(e)))?;
         self.driver
@@ -203,16 +206,12 @@ impl Esp32GPIOPin {
             .map_err(|e| BoardError::GpioPinOtherError(self.pin as u32, Box::new(e)))?;
         self.event_count.store(0, Ordering::Relaxed);
         unsafe {
-            // we can't use the subscribe method on PinDriver to add the handler
-            // because it requires an FnMut with a static lifetime. A possible follow-up
-            // would be to lazily initialize a Esp32GPIOPin for every possible pin (delineated by feature)
+            // We don't use the `PinDriver::subscribe` and `PinDriver::subscribe_nonstatic` functions as they are oneshots,
+            // with `PinDriver::enable_interrupt` needing to be called in a loop after every interrupt notification.
+            // A possible follow-up would be to lazily initialize a Esp32GPIOPin for every possible pin (delineated by feature)
             // in a global state which an EspBoard instance would be able to access
-            esp!(gpio_isr_handler_add(
-                self.pin,
-                Some(Self::interrupt),
-                &mut self.event_count as *mut Arc<AtomicU32> as *mut _
-            ))
-            .map_err(|e| BoardError::GpioPinOtherError(self.pin as u32, Box::new(e)))?;
+            esp!(gpio_isr_handler_add(self.pin, cb, arg))
+                .map_err(|e| BoardError::GpioPinOtherError(self.pin as u32, Box::new(e)))?;
         }
         Ok(())
     }
@@ -223,7 +222,7 @@ impl Esp32GPIOPin {
 
     #[inline(always)]
     #[link_section = ".iram1.intr_srv"]
-    unsafe extern "C" fn interrupt(arg: *mut core::ffi::c_void) {
+    pub(crate) unsafe extern "C" fn default_interrupt(arg: *mut core::ffi::c_void) {
         let arg: &mut Arc<AtomicU32> = &mut *(arg as *mut _);
         arg.fetch_add(1, Ordering::Relaxed);
     }

@@ -85,6 +85,16 @@ pub trait Board: DoCommand {
         ))
     }
 
+    /// Registers a callback with the associated argument that will be exectuted
+    /// when a specified `InterruptType` is detected on the given `pin`.
+    fn add_digital_interrupt_callback(
+        &mut self,
+        pin: i32,
+        intr_type: InterruptType,
+        callback: Option<unsafe extern "C" fn(_: *mut core::ffi::c_void)>,
+        arg: Option<*mut core::ffi::c_void>,
+    ) -> Result<(), BoardError>;
+
     /// Get the pin's given duty cycle, returns percentage as float between 0.0 and 1.0
     fn get_pwm_duty(&self, pin: i32) -> f64;
 
@@ -102,6 +112,14 @@ pub trait Board: DoCommand {
 
 /// An alias for a thread-safe handle to a struct that implements the [Board] trait
 pub type BoardType = Arc<Mutex<dyn Board>>;
+
+pub enum InterruptType {
+    PosEdge,
+    NegEdge,
+    AnyEdge,
+    LowLevel,
+    HighLevel,
+}
 
 #[doc(hidden)]
 /// A test implementation of a generic compute board
@@ -210,6 +228,16 @@ impl Board for FakeBoard {
         Err(BoardError::I2CBusNotFound(name))
     }
 
+    fn add_digital_interrupt_callback(
+        &mut self,
+        _pin: i32,
+        _intr_type: InterruptType,
+        _callback: Option<unsafe extern "C" fn(_: *mut core::ffi::c_void)>,
+        _arg: Option<*mut core::ffi::c_void>,
+    ) -> Result<(), BoardError> {
+        Err(BoardError::OtherBoardError("method not supported".into()))
+    }
+
     fn get_pwm_duty(&self, pin: i32) -> f64 {
         *self.pin_pwms.get(&pin).unwrap_or(&0.0)
     }
@@ -255,6 +283,18 @@ where
 
     fn get_i2c_by_name(&self, name: String) -> Result<I2cHandleType, BoardError> {
         self.lock().unwrap().get_i2c_by_name(name)
+    }
+
+    fn add_digital_interrupt_callback(
+        &mut self,
+        pin: i32,
+        intr_type: InterruptType,
+        callback: Option<unsafe extern "C" fn(_: *mut core::ffi::c_void)>,
+        arg: Option<*mut core::ffi::c_void>,
+    ) -> Result<(), BoardError> {
+        self.lock()
+            .unwrap()
+            .add_digital_interrupt_callback(pin, intr_type, callback, arg)
     }
 
     fn get_digital_interrupt_value(&self, pin: i32) -> Result<u32, BoardError> {
