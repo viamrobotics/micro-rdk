@@ -124,8 +124,8 @@ impl Display for CollectionMethod {
                 Self::AngularVelocity => "AngularVelocity",
                 Self::LinearAcceleration => "LinearAcceleration",
                 Self::LinearVelocity => "LinearVelocity",
-                Self::Analogs(_reader_name) => "Analogs",
-                Self::Gpios(_pin_name) => "Gpios",
+                Self::Analogs(_) => "Analogs",
+                Self::Gpios(_) => "Gpios",
             },
             f,
         )
