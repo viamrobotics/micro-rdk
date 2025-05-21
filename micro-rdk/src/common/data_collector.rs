@@ -64,12 +64,29 @@ impl TryFrom<&Kind> for DataCollectorConfig {
                 "cache size must be at least 1KB".to_string(),
             ));
         }
+        let additional_params = value.get("additional_params")?;
         // TODO: RSDK-7127 - Collectors that take arguments (ex. Board Analogs)
         let method = match method_str.as_str() {
             "Readings" => CollectionMethod::Readings,
             "AngularVelocity" => CollectionMethod::AngularVelocity,
             "LinearAcceleration" => CollectionMethod::LinearAcceleration,
             "LinearVelocity" => CollectionMethod::LinearVelocity,
+            "Analogs" => {
+                let reader: String = additional_params
+                    .ok_or(AttributeError::KeyNotFound("additional_params".to_string()))?
+                    .get("reader_name")?
+                    .ok_or(AttributeError::KeyNotFound("reader_name".to_string()))?
+                    .try_into()?;
+                CollectionMethod::Analogs(reader.to_string())
+            }
+            "Gpios" => {
+                let pin: i32 = additional_params
+                    .ok_or(AttributeError::KeyNotFound("additional_params".to_string()))?
+                    .get("pin_name")?
+                    .ok_or(AttributeError::KeyNotFound("pin_name".to_string()))?
+                    .try_into()?;
+                CollectionMethod::Gpios(pin)
+            }
             _ => {
                 return Err(AttributeError::ConversionImpossibleError);
             }
@@ -93,7 +110,7 @@ pub enum CollectionMethod {
     LinearAcceleration,
     LinearVelocity,
     Analogs(String),
-    Gpios(String),
+    Gpios(i32),
     // TODO: RSDK-7127 - Implement collectors for all other applicable components/methods
 }
 
@@ -170,6 +187,12 @@ fn resource_method_pair_is_valid(resource: &ResourceType, method: &CollectionMet
                 | CollectionMethod::LinearAcceleration
                 | CollectionMethod::LinearVelocity
         ),
+        ResourceType::Board(_) => {
+            matches!(
+                method,
+                CollectionMethod::Analogs(_) | CollectionMethod::Gpios(_)
+            )
+        }
         _ => false,
     }
 }
@@ -259,7 +282,7 @@ impl DataCollector {
                     })
                 }
                 CollectionMethod::Gpios(pin_number) => {
-                    let value = res.get_gpio_level(pin_number.parse::<i32>().unwrap())?;
+                    let value = res.get_gpio_level(*pin_number)?;
                     Data::Struct(Struct {
                         fields: HashMap::from([(
                             "high".to_string(),
