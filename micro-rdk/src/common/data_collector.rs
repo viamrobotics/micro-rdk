@@ -1,16 +1,22 @@
-use std::fmt::Display;
-use std::time::{Duration, Instant};
+use std::{
+    collections::HashMap,
+    fmt::Display,
+    time::{Duration, Instant},
+};
 
-use crate::google::protobuf::Timestamp;
-use crate::proto::app::data_sync::v1::{MimeType, SensorData, SensorMetadata};
+use crate::{
+    google::protobuf::{value::Kind as ProtoKind, Struct, Timestamp, Value},
+    proto::app::data_sync::v1::{sensor_data::Data, MimeType, SensorData, SensorMetadata},
+};
 
 use super::{
+    analog::AnalogError,
+    board::{Board, BoardError},
     config::{AttributeError, Kind},
     movement_sensor::MovementSensor,
     robot::ResourceType,
     sensor::{Readings, SensorError},
 };
-
 use thiserror::Error;
 
 pub(crate) const DEFAULT_CACHE_SIZE_KB: f64 = 8.0;
@@ -86,6 +92,8 @@ pub enum CollectionMethod {
     AngularVelocity,
     LinearAcceleration,
     LinearVelocity,
+    Analogs(String),
+    Gpios(String),
     // TODO: RSDK-7127 - Implement collectors for all other applicable components/methods
 }
 
@@ -99,6 +107,8 @@ impl Display for CollectionMethod {
                 Self::AngularVelocity => "AngularVelocity",
                 Self::LinearAcceleration => "LinearAcceleration",
                 Self::LinearVelocity => "LinearVelocity",
+                Self::Analogs(_reader_name) => "Analogs",
+                Self::Gpios(_pin_name) => "Gpios",
             },
             f,
         )
@@ -130,6 +140,10 @@ pub enum DataCollectionError {
     NoSupportedMethods,
     #[error("capture frequency cannot be 0.0")]
     UnsupportedCaptureFrequency,
+    #[error(transparent)]
+    AnalogCollectionError(#[from] AnalogError),
+    #[error(transparent)]
+    BoardCollectionError(#[from] BoardError),
     #[error(transparent)]
     SensorCollectionError(#[from] SensorError),
 }
@@ -231,6 +245,38 @@ impl DataCollector {
     ) -> Result<SensorData, DataCollectionError> {
         let reading_requested_ts = robot_start_time.elapsed();
         let data = match &mut self.resource {
+            ResourceType::Board(ref mut res) => match &self.method {
+                CollectionMethod::Analogs(reader_name) => {
+                    let reader = res.get_analog_reader_by_name(reader_name.to_string())?;
+                    let value = reader.lock().unwrap().read()?;
+                    Data::Struct(Struct {
+                        fields: HashMap::from([(
+                            "value".to_string(),
+                            Value {
+                                kind: Some(ProtoKind::NumberValue(value.into())),
+                            },
+                        )]),
+                    })
+                }
+                CollectionMethod::Gpios(pin_number) => {
+                    let value = res.get_gpio_level(pin_number.parse::<i32>().unwrap())?;
+                    Data::Struct(Struct {
+                        fields: HashMap::from([(
+                            "high".to_string(),
+                            Value {
+                                kind: Some(ProtoKind::BoolValue(value)),
+                            },
+                        )]),
+                    })
+                }
+                _ => {
+                    return Err(DataCollectionError::UnsupportedMethod(
+                        self.method.clone(),
+                        "board".to_string(),
+                    ))
+                }
+            },
+
             ResourceType::Sensor(ref mut res) => match self.method {
                 CollectionMethod::Readings => res.get_generic_readings()?.into(),
                 _ => {
@@ -240,6 +286,7 @@ impl DataCollector {
                     ))
                 }
             },
+
             ResourceType::MovementSensor(ref mut res) => match self.method {
                 CollectionMethod::Readings => res.get_generic_readings()?.into(),
                 CollectionMethod::AngularVelocity => res
