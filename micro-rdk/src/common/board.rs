@@ -235,7 +235,9 @@ impl Board for FakeBoard {
         _callback: Option<unsafe extern "C" fn(_: *mut core::ffi::c_void)>,
         _arg: Option<*mut core::ffi::c_void>,
     ) -> Result<(), BoardError> {
-        Err(BoardError::OtherBoardError("method not supported".into()))
+        Err(BoardError::BoardMethodNotSupported(
+            "add_digital_interrupt_callback".into(),
+        ))
     }
 
     fn get_pwm_duty(&self, pin: i32) -> f64 {
