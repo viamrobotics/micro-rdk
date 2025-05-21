@@ -236,7 +236,7 @@ impl Board for FakeBoard {
         _arg: Option<*mut core::ffi::c_void>,
     ) -> Result<(), BoardError> {
         Err(BoardError::BoardMethodNotSupported(
-            "add_digital_interrupt_callback".into(),
+            "add_digital_interrupt_callback",
         ))
     }
 
