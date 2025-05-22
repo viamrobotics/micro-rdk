@@ -15,6 +15,7 @@ use super::app_client::{AppClient, AppClientError, PeriodicAppClientTask, VIAM_F
 use super::data_collector::ResourceMethodKey;
 use super::data_store::{DataStoreError, DataStoreReader, WriteMode};
 use super::robot::{LocalRobot, RobotError};
+use super::system::{send_system_event, SystemEvent};
 use async_io::Timer;
 use bytes::BytesMut;
 use chrono::offset::Local;
@@ -64,6 +65,10 @@ pub enum DataManagerError {
     MultipleConfigError,
     #[error(transparent)]
     InitializationRobotError(#[from] RobotError),
+    #[error("sync_interval required for collection and immediate data sync")]
+    MissingSyncInterval,
+    #[error("all collection intervals required to be equal to sync interval ({0} secs) for this mode of data collection")]
+    CollectionSyncIntervalUnequal(u64),
 }
 
 fn get_data_service_config(
@@ -111,6 +116,32 @@ fn get_data_sync_interval(attrs: &Struct) -> Result<Option<Duration>, DataManage
     )
 }
 
+fn get_collectors_and_settings_from_robot_and_config(
+    robot: &LocalRobot,
+    cfg: &ServiceConfig,
+) -> Result<(Vec<DataCollector>, Option<Duration>, String), DataManagerError> {
+    let attrs = cfg
+        .attributes
+        .as_ref()
+        .ok_or(DataManagerError::ConfigError)?;
+    let sync_interval = get_data_sync_interval(attrs)?;
+    let collectors = if attrs
+        .fields
+        .get("capture_disabled")
+        .map(|v| match v.kind {
+            Some(Kind::BoolValue(b)) => b,
+            _ => false,
+        })
+        .unwrap_or(false)
+    {
+        vec![]
+    } else {
+        robot.data_collectors()?
+    };
+
+    Ok((collectors, sync_interval, robot.part_id.clone()))
+}
+
 pub struct DataManager<StoreType> {
     collectors: Vec<DataCollector>,
     store: Rc<AsyncMutex<StoreType>>,
@@ -145,21 +176,8 @@ where
         cfg: &RobotConfig,
     ) -> Result<Option<Self>, DataManagerError> {
         if let Some(cfg) = get_data_service_config(cfg)? {
-            let attrs = cfg.attributes.ok_or(DataManagerError::ConfigError)?;
-            let sync_interval = get_data_sync_interval(&attrs)?;
-            let collectors = if attrs
-                .fields
-                .get("capture_disabled")
-                .map(|v| match v.kind {
-                    Some(Kind::BoolValue(b)) => b,
-                    _ => false,
-                })
-                .unwrap_or(false)
-            {
-                vec![]
-            } else {
-                robot.data_collectors()?
-            };
+            let (collectors, sync_interval, part_id) =
+                get_collectors_and_settings_from_robot_and_config(robot, &cfg)?;
 
             // if there are no collectors and cloud sync is off, simply don't create a DataManager
             if collectors.is_empty() && sync_interval.is_none() {
@@ -170,8 +188,7 @@ where
                     .map(|c| (c.resource_method_key(), c.capacity()))
                     .collect();
                 let store = StoreType::from_resource_method_settings(collector_settings)?;
-                let data_manager_svc =
-                    DataManager::new(collectors, store, sync_interval, robot.part_id.clone())?;
+                let data_manager_svc = DataManager::new(collectors, store, sync_interval, part_id)?;
                 Ok(Some(data_manager_svc))
             }
         } else {
@@ -329,6 +346,54 @@ pub enum DataSyncError {
     NoCurrentTime,
 }
 
+fn get_time_to_subtract(
+    robot_start_time: Instant,
+    stored_time: Timestamp,
+) -> Result<chrono::Duration, DataSyncError> {
+    let stored_time_dur = Duration::new(stored_time.seconds as u64, stored_time.nanos as u32);
+    let time_to_subtract = robot_start_time.elapsed() - stored_time_dur;
+    let time_to_subtract = chrono::Duration::new(
+        time_to_subtract.as_secs() as i64,
+        time_to_subtract.subsec_nanos(),
+    )
+    .ok_or(DataSyncError::TimeOutOfBoundsError)?;
+    Ok(time_to_subtract)
+}
+
+fn time_correct_reading(
+    robot_start_time: Instant,
+    msg: &mut SensorData,
+) -> Result<(), DataSyncError> {
+    // the timestamps of the stored data are measured as offsets from a starting
+    // instant (robot_start_time, acquired from DataSyncTask), so we adjust the
+    // timestamps on the parsed message based on the current time (if it is now available)
+    if let Some(metadata) = msg.metadata.as_mut() {
+        let current_dt = Local::now().fixed_offset();
+        // Viam was founded in 2020, so if the current time is set to any time before that
+        // we know that settimeofday was never called, or called with an improper datetime
+        if current_dt.year() < VIAM_FOUNDING_YEAR {
+            return Err(DataSyncError::NoCurrentTime);
+        }
+        if let Some(time_received) = metadata.time_received.clone() {
+            let time_to_subtract = get_time_to_subtract(robot_start_time, time_received)?;
+            let time_received = current_dt - time_to_subtract;
+            metadata.time_received = Some(Timestamp {
+                seconds: time_received.timestamp(),
+                nanos: time_received.timestamp_subsec_nanos() as i32,
+            });
+        }
+        if let Some(time_requested) = metadata.time_requested.clone() {
+            let time_to_subtract = get_time_to_subtract(robot_start_time, time_requested)?;
+            let time_requested = current_dt - time_to_subtract;
+            metadata.time_requested = Some(Timestamp {
+                seconds: time_requested.timestamp(),
+                nanos: time_requested.timestamp_subsec_nanos() as i32,
+            });
+        }
+    }
+    Ok(())
+}
+
 pub struct DataSyncTask<StoreType> {
     store: Rc<AsyncMutex<StoreType>>,
     resource_method_keys: Vec<ResourceMethodKey>,
@@ -348,49 +413,9 @@ where
         self.store.lock().await
     }
 
-    fn get_time_to_subtract(
-        &self,
-        stored_time: Timestamp,
-    ) -> Result<chrono::Duration, DataSyncError> {
-        let stored_time_dur = Duration::new(stored_time.seconds as u64, stored_time.nanos as u32);
-        let time_to_subtract = self.robot_start_time.elapsed() - stored_time_dur;
-        let time_to_subtract = chrono::Duration::new(
-            time_to_subtract.as_secs() as i64,
-            time_to_subtract.subsec_nanos(),
-        )
-        .ok_or(DataSyncError::TimeOutOfBoundsError)?;
-        Ok(time_to_subtract)
-    }
-
     fn get_time_corrected_reading(&self, raw_msg: BytesMut) -> Result<SensorData, DataSyncError> {
         let mut msg = SensorData::decode(raw_msg)?;
-        // the timestamps of the stored data are measured as offsets from a starting
-        // instant (robot_start_time, acquired from DataSyncTask), so we adjust the
-        // timestamps on the parsed message based on the current time (if it is now available)
-        if let Some(metadata) = msg.metadata.as_mut() {
-            let current_dt = Local::now().fixed_offset();
-            // Viam was founded in 2020, so if the current time is set to any time before that
-            // we know that settimeofday was never called, or called with an improper datetime
-            if current_dt.year() < VIAM_FOUNDING_YEAR {
-                return Err(DataSyncError::NoCurrentTime);
-            }
-            if let Some(time_received) = metadata.time_received.clone() {
-                let time_to_subtract = self.get_time_to_subtract(time_received)?;
-                let time_received = current_dt - time_to_subtract;
-                metadata.time_received = Some(Timestamp {
-                    seconds: time_received.timestamp(),
-                    nanos: time_received.timestamp_subsec_nanos() as i32,
-                });
-            }
-            if let Some(time_requested) = metadata.time_requested.clone() {
-                let time_to_subtract = self.get_time_to_subtract(time_requested)?;
-                let time_requested = current_dt - time_to_subtract;
-                metadata.time_requested = Some(Timestamp {
-                    seconds: time_requested.timestamp(),
-                    nanos: time_requested.timestamp_subsec_nanos() as i32,
-                });
-            }
-        }
+        time_correct_reading(self.robot_start_time, &mut msg)?;
         Ok(msg)
     }
 
@@ -601,6 +626,125 @@ where
     }
     fn get_default_period(&self) -> Duration {
         self.sync_interval
+    }
+    fn invoke<'b, 'a: 'b>(
+        &'a self,
+        app_client: &'b AppClient,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'b>> {
+        Box::pin(async move { self.run(app_client).await.map(|_| None) })
+    }
+}
+
+// TODO: Unify DataCollectAndSyncTask and DataSyncTask into a single task to minimize divergence
+// due to different firmware modes
+pub struct DataCollectAndSyncTask {
+    collectors: Vec<DataCollector>,
+    sync_interval: Duration,
+    robot_start_time: Instant,
+    part_id: String,
+}
+
+impl DataCollectAndSyncTask {
+    async fn run(&self, app_client: &AppClient) -> Result<(), AppClientError> {
+        let collectors_len = self.collectors.len();
+        for (idx, collector) in self.collectors.iter().enumerate() {
+            let collector_key = collector.resource_method_key();
+            let readings = collector
+                .call_method(self.robot_start_time)
+                .inspect_err(|err| {
+                    log::error!(
+                        "failed to collect readings for {:?}: {:?}",
+                        collector_key,
+                        err
+                    )
+                });
+            if let Ok(mut readings) = readings {
+                match time_correct_reading(self.robot_start_time, &mut readings) {
+                    Ok(_) => {
+                        let upload_request = DataCaptureUploadRequest {
+                            metadata: Some(UploadMetadata {
+                                part_id: self.part_id.clone(),
+                                component_type: collector_key.component_type.clone(),
+                                r#type: DataType::TabularSensor.into(),
+                                component_name: collector_key.r_name.clone(),
+                                method_name: collector_key.method.to_string(),
+                                ..Default::default()
+                            }),
+                            sensor_contents: vec![readings],
+                        };
+                        match app_client.upload_data(upload_request).await {
+                            Ok(_) => {
+                                #[cfg(feature = "data-upload-hook-unstable")]
+                                unsafe {
+                                    micro_rdk_data_manager_post_upload_hook();
+                                }
+                            }
+                            // if we can't upload, don't try again until after the next sleep
+                            Err(err) => {
+                                log::error!("error uploading data, failed to upload {:?} readings on this attempt: {}", collectors_len - idx, err);
+                            }
+                        };
+                    }
+                    Err(err) => {
+                        log::error!(
+                            "unable to time correct reading for collector {:?}, {:?}",
+                            collector_key,
+                            err
+                        )
+                    }
+                };
+            }
+        }
+        let _ = send_system_event(SystemEvent::DeepSleep(Some(self.sync_interval)), true).await;
+        Ok(())
+    }
+
+    pub fn from_robot_and_config(
+        robot: &LocalRobot,
+        cfg: &RobotConfig,
+        robot_start_time: Instant,
+    ) -> Result<Self, DataManagerError> {
+        if let Some(cfg) = get_data_service_config(cfg)? {
+            let (collectors, sync_interval, part_id) =
+                get_collectors_and_settings_from_robot_and_config(robot, &cfg)?;
+            match sync_interval {
+                None => Err(DataManagerError::MissingSyncInterval),
+                Some(sync_interval) => {
+                    // we validate here that the number of seconds configured between collections is
+                    // the same as the interval between data syncs (this is all we can currently support
+                    // and raising an error here avoids confusion)
+                    if collectors.iter().any(|c| {
+                        // due to discrepancies introduced by float division, we test that the difference
+                        // between the collection and sync intervals is less than 0.001 seconds rather
+                        // than checking for strict equality
+                        (c.time_interval().as_secs_f32() - sync_interval.as_secs_f32()).abs()
+                            > 0.001
+                    }) {
+                        Err(DataManagerError::CollectionSyncIntervalUnequal(
+                            sync_interval.as_secs(),
+                        ))
+                    } else {
+                        Ok(Self {
+                            collectors,
+                            sync_interval,
+                            robot_start_time,
+                            part_id,
+                        })
+                    }
+                }
+            }
+        } else {
+            Err(DataManagerError::ConfigError)
+        }
+    }
+}
+
+impl PeriodicAppClientTask for DataCollectAndSyncTask {
+    fn name(&self) -> &str {
+        "DataCollectAndSync"
+    }
+    fn get_default_period(&self) -> Duration {
+        Duration::from_secs(0)
     }
     fn invoke<'b, 'a: 'b>(
         &'a self,

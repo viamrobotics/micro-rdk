@@ -650,6 +650,7 @@ mod tests {
             &config,
             &mut Box::new(registry),
             None,
+            common::system::FirmwareMode::Normal,
         );
         assert!(robot.is_ok());
         let robot = robot.unwrap();
