@@ -745,15 +745,15 @@ mod tests {
                         Kind::VecValue(vec![
                             Kind::StructValue(HashMap::from([(
                                 "pin".to_owned(),
-                                Kind::StringValue("13".to_owned()),
+                                Kind::NumberValue(13.),
                             )])),
                             Kind::StructValue(HashMap::from([(
                                 "pin".to_owned(),
-                                Kind::StringValue("14".to_owned()),
+                                Kind::NumberValue(14.),
                             )])),
                             Kind::StructValue(HashMap::from([(
                                 "pin".to_owned(),
-                                Kind::StringValue("15".to_owned()),
+                                Kind::NumberValue(15.),
                             )])),
                         ]),
                     ),
@@ -1106,15 +1106,15 @@ mod tests {
                     Kind::VecValue(vec![
                         Kind::StructValue(HashMap::from([(
                             "pin".to_owned(),
-                            Kind::StringValue("13".to_owned()),
+                            Kind::NumberValue(13.),
                         )])),
                         Kind::StructValue(HashMap::from([(
                             "pin".to_owned(),
-                            Kind::StringValue("14".to_owned()),
+                            Kind::NumberValue(14.),
                         )])),
                         Kind::StructValue(HashMap::from([(
                             "pin".to_owned(),
-                            Kind::StringValue("15".to_owned()),
+                            Kind::NumberValue(15.),
                         )])),
                     ]),
                 )])),
