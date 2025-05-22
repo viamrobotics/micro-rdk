@@ -4,7 +4,7 @@ use async_io::{Async, Timer};
 
 use futures_lite::{FutureExt, StreamExt};
 use futures_util::stream::FuturesUnordered;
-use futures_util::TryFutureExt;
+use futures_util::{select, FutureExt as FuturesUtilExt, TryFutureExt};
 use hyper::server::conn::http2;
 use hyper::{rt, Uri};
 use std::cell::RefCell;
@@ -824,7 +824,7 @@ where
                 .push(Box::new(SignalingTask::new(tx.clone(), cfg.fqdn.clone())));
         }
         let system_task = SystemTask::new(
-            Box::pin(inner.run()),
+            Box::pin(inner.run().fuse()),
             Box::pin(self.run_app_client_tasks(app_client.clone())),
             Duration::from_secs(120),
         );
@@ -875,6 +875,7 @@ where
                     FuturesUnordered::new();
                 log::info!("starting execution of app client tasks");
                 for task in &self.app_client_tasks {
+                    log::info!("queueing {:?} task", task.name());
                     app_client_tasks.push(AppClientTaskRunner {
                         app_client,
                         invoker: task,
@@ -1087,6 +1088,7 @@ where
                         ip,
                         conf.dtls.make()?,
                     );
+
                     let (answer, prio) = api.answer(0).await?;
                     let robot = self.robot.clone();
 
@@ -1105,6 +1107,7 @@ where
                             log::warn!("WebRTC connection task ended with an error: {}", e);
                         }),
                     );
+
                     self.incomming_connection_manager
                         .insert_new_conn(task, prio)
                         .await;
@@ -1171,9 +1174,10 @@ where
                         IncomingConnection::HTTP2Connection(futures_lite::future::pending().await)
                     })
                 } else {
-                    Box::pin(async {
+                    let signaling = self.webrtc_signaling.clone();
+                    Box::pin(async move {
                         IncomingConnection::WebRTCConnection(
-                            self.webrtc_signaling
+                            signaling
                                 .recv()
                                 .await
                                 .map_err(|e| WebRtcError::SignalingError(e.to_string())),
@@ -1182,9 +1186,37 @@ where
                 };
 
             log::info!("machine server waiting for a new incoming connection");
-            let incoming = Box::pin(futures_lite::future::or(h2_conn, webrtc_conn)).await;
-            if let Err(e) = self.serve_incoming_connection(incoming).await {
-                log::error!("failed to serve incoming connection: {:?}", e)
+
+            let mut connection_future =
+                Box::pin(futures_lite::future::or(h2_conn, webrtc_conn).fuse());
+
+            let mut shutdown_poll_future = Box::pin(
+                async {
+                    loop {
+                        if shutdown_requested_nonblocking().await {
+                            return;
+                        }
+                        async_io::Timer::after(Duration::from_secs(5)).await;
+                    }
+                }
+                .fuse(),
+            );
+
+            let should_return = select! {
+                incoming = connection_future => {
+                    if let Err(e) = self.serve_incoming_connection(incoming).await {
+                        log::error!("failed to serve incoming connection: {:?}", e);
+                    }
+                    false
+                },
+                _ = shutdown_poll_future => {
+                    log::info!("server received shutdown signal, canceling existing connections");
+                    true
+                }
+            };
+
+            if should_return {
+                return Ok(());
             }
         }
     }
@@ -1234,6 +1266,10 @@ impl Future for AppClientTaskRunner<'_> {
         let name = self.invoker.name();
         let res = {
             let this = self.as_mut().project();
+            if matches!(*this.state, TaskRunnerState::Finished) {
+                log::info!("returning from task {:?}", name);
+                return Poll::Ready(Ok(()));
+            }
             futures_lite::ready!(this.state.poll(cx))?
         };
         // we need to swap the state between Run,Sleep such as Run -> Sleep or Sleep -> Run
