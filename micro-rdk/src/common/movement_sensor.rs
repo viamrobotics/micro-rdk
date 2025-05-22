@@ -232,7 +232,7 @@ impl MovementSensor for FakeMovementSensor {
             linear_acceleration_supported: true,
             linear_velocity_supported: false,
             angular_velocity_supported: false,
-            compass_heading_supported: false,
+            compass_heading_supported: true,
         }
     }
 
@@ -249,9 +249,7 @@ impl MovementSensor for FakeMovementSensor {
     }
 
     fn get_compass_heading(&mut self) -> Result<f64, SensorError> {
-        Err(SensorError::SensorMethodUnimplemented(
-            "get_compass_heading",
-        ))
+        Ok(42.)
     }
 }
 
