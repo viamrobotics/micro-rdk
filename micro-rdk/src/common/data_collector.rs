@@ -274,9 +274,6 @@ impl DataCollector {
         &mut self,
         robot_start_time: Instant,
     ) -> Result<SensorData, DataCollectionError> {
-        use crate::google::protobuf::{value::Kind as ProtoKind, Struct, Value};
-        use crate::proto::app::data_sync::v1::sensor_data::Data;
-        use std::collections::HashMap;
         let reading_requested_ts = robot_start_time.elapsed();
         let data = match &mut self.resource {
             ResourceType::Board(ref mut res) => match &self.method {
