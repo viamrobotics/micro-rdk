@@ -64,6 +64,8 @@ impl TryFrom<&Kind> for DataCollectorConfig {
             "AngularVelocity" => CollectionMethod::AngularVelocity,
             "LinearAcceleration" => CollectionMethod::LinearAcceleration,
             "LinearVelocity" => CollectionMethod::LinearVelocity,
+            "Position" => CollectionMethod::Position,
+            "CompassHeading" => CollectionMethod::CompassHeading,
             _ => {
                 return Err(AttributeError::ConversionImpossibleError);
             }
