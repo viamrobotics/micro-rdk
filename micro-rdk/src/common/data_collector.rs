@@ -65,7 +65,6 @@ impl TryFrom<&Kind> for DataCollectorConfig {
             ));
         }
         let additional_params = value.get("additional_params")?;
-        // TODO: RSDK-7127 - Collectors that take arguments (ex. Board Analogs)
         let method = match method_str.as_str() {
             "Readings" => CollectionMethod::Readings,
             "AngularVelocity" => CollectionMethod::AngularVelocity,
@@ -109,6 +108,7 @@ pub enum CollectionMethod {
     AngularVelocity,
     LinearAcceleration,
     LinearVelocity,
+    // Board methods
     Analogs(String),
     Gpios(i32),
     // TODO: RSDK-7127 - Implement collectors for all other applicable components/methods
