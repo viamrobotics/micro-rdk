@@ -86,6 +86,8 @@ pub enum CollectionMethod {
     AngularVelocity,
     LinearAcceleration,
     LinearVelocity,
+    Position,
+    CompassHeading,
     // TODO: RSDK-7127 - Implement collectors for all other applicable components/methods
 }
 
@@ -99,6 +101,8 @@ impl Display for CollectionMethod {
                 Self::AngularVelocity => "AngularVelocity",
                 Self::LinearAcceleration => "LinearAcceleration",
                 Self::LinearVelocity => "LinearVelocity",
+                Self::Position => "Position",
+                Self::CompassHeading => "CompassHeading",
             },
             f,
         )
@@ -155,6 +159,8 @@ fn resource_method_pair_is_valid(resource: &ResourceType, method: &CollectionMet
                 | CollectionMethod::AngularVelocity
                 | CollectionMethod::LinearAcceleration
                 | CollectionMethod::LinearVelocity
+                | CollectionMethod::Position
+                | CollectionMethod::CompassHeading
         ),
         _ => false,
     }
@@ -229,6 +235,9 @@ impl DataCollector {
         &mut self,
         robot_start_time: Instant,
     ) -> Result<SensorData, DataCollectionError> {
+        use crate::google::protobuf::{value::Kind as ProtoKind, Struct, Value};
+        use crate::proto::app::data_sync::v1::sensor_data::Data;
+        use std::collections::HashMap;
         let reading_requested_ts = robot_start_time.elapsed();
         let data = match &mut self.resource {
             ResourceType::Sensor(ref mut res) => match self.method {
@@ -250,6 +259,51 @@ impl DataCollector {
                     .to_data_struct("linear_acceleration"),
                 CollectionMethod::LinearVelocity => {
                     res.get_linear_velocity()?.to_data_struct("linear_velocity")
+                }
+                CollectionMethod::Position => {
+                    let value = res.get_position()?;
+                    Data::Struct(Struct {
+                        fields: HashMap::from([
+                            (
+                                "coordinate".to_string(),
+                                Value {
+                                    kind: Some(ProtoKind::StructValue(Struct {
+                                        fields: HashMap::from([
+                                            (
+                                                "latitude".to_string(),
+                                                Value {
+                                                    kind: Some(ProtoKind::NumberValue(value.lat)),
+                                                },
+                                            ),
+                                            (
+                                                "longitude".to_string(),
+                                                Value {
+                                                    kind: Some(ProtoKind::NumberValue(value.lon)),
+                                                },
+                                            ),
+                                        ]),
+                                    })),
+                                },
+                            ),
+                            (
+                                "altitude_m".to_string(),
+                                Value {
+                                    kind: Some(ProtoKind::NumberValue(value.alt.into())),
+                                },
+                            ),
+                        ]),
+                    })
+                }
+                CollectionMethod::CompassHeading => {
+                    let value = res.get_compass_heading()?;
+                    Data::Struct(Struct {
+                        fields: HashMap::from([(
+                            "value".to_string(),
+                            Value {
+                                kind: Some(ProtoKind::NumberValue(value)),
+                            },
+                        )]),
+                    })
                 }
                 #[allow(unreachable_patterns)]
                 // TODO: RSDK-7127 - remove when methods for other components are implemented
