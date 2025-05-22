@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
@@ -18,19 +19,23 @@ pub(crate) enum SystemEvent {
     DeepSleep(Option<Duration>),
 }
 
-impl SystemEvent {
-    fn action_string(&self) -> String {
-        match self {
-            Self::Restart => "restart".to_string(),
-            Self::DeepSleep(dur) => dur.as_ref().map_or("enter deep sleep".to_string(), |d| {
-                format!("enter deep sleep for {} microseconds", d.as_micros())
-            }),
-        }
+impl Display for SystemEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Restart => "restart".to_string(),
+                Self::DeepSleep(dur) => dur.as_ref().map_or("enter deep sleep".to_string(), |d| {
+                    format!("enter deep sleep for {} microseconds", d.as_micros())
+                }),
+            }
+        )
     }
 }
 
 pub(crate) async fn send_system_change(event: SystemEvent) {
-    log::info!("received call to {:?}", event.action_string());
+    log::info!("received call to {}", event);
     let _ = SHUTDOWN_EVENT.lock().await.insert(event);
 }
 
