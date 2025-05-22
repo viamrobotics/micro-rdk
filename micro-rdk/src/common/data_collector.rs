@@ -88,7 +88,6 @@ impl TryFrom<&Kind> for DataCollectorConfig {
                     .try_into()?;
                 CollectionMethod::Gpios(pin)
             }
->>>>>>> main
             _ => {
                 return Err(AttributeError::ConversionImpossibleError);
             }
