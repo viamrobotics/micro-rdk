@@ -187,32 +187,28 @@ impl FakeMovementSensor {
         cfg: ConfigType,
         _: Vec<Dependency>,
     ) -> Result<MovementSensorType, SensorError> {
-        let mut fake_pos: GeoPosition = Default::default();
+        let mut sensor = Self::new();
         if let Ok(fake_lat) = cfg.get_attribute::<f64>("fake_lat") {
-            fake_pos.lat = fake_lat
+            sensor.pos.lat = fake_lat
         }
         if let Ok(fake_lon) = cfg.get_attribute::<f64>("fake_lon") {
-            fake_pos.lon = fake_lon
+            sensor.pos.lon = fake_lon
         }
         if let Ok(fake_alt) = cfg.get_attribute::<f32>("fake_alt") {
-            fake_pos.alt = fake_alt
+            sensor.pos.alt = fake_alt
         }
 
-        let mut lin_acc: Vector3 = Default::default();
         if let Ok(x) = cfg.get_attribute::<f64>("lin_acc_x") {
-            lin_acc.x = x
+            sensor.linear_acc.x = x
         }
         if let Ok(y) = cfg.get_attribute::<f64>("lin_acc_y") {
-            lin_acc.y = y
+            sensor.linear_acc.y = y
         }
         if let Ok(z) = cfg.get_attribute::<f64>("lin_acc_z") {
-            lin_acc.z = z
+            sensor.linear_acc.z = z
         }
 
-        Ok(Arc::new(Mutex::new(FakeMovementSensor {
-            pos: fake_pos,
-            linear_acc: lin_acc,
-        })))
+        Ok(Arc::new(Mutex::new(sensor)))
     }
 }
 
