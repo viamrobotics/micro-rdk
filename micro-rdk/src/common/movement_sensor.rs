@@ -1,20 +1,28 @@
 #![allow(dead_code)]
 
 #[cfg(feature = "builtin-components")]
-use {
-    super::config::ConfigType,
-    super::registry::{ComponentRegistry, Dependency},
+use super::{
+    config::ConfigType,
+    registry::{ComponentRegistry, Dependency},
 };
 
-use super::generic::DoCommand;
-use super::math_utils::Vector3;
-use super::sensor::{GenericReadingsResult, Readings, SensorError};
-use crate::google::protobuf::{value::Kind, Struct, Value};
-use crate::proto::common::v1::GeoPoint;
-use crate::proto::component::movement_sensor;
+#[cfg(feature = "data")]
+use crate::proto::app::data_sync::v1::sensor_data::Data;
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
+
+use crate::{
+    common::{
+        generic::DoCommand,
+        math_utils::Vector3,
+        sensor::{GenericReadingsResult, Readings, SensorError},
+    },
+    google::protobuf::{value::Kind, Struct, Value},
+    proto::{common::v1::GeoPoint, component::movement_sensor},
+};
 
 pub static COMPONENT_NAME: &str = "movement_sensor";
 
@@ -59,8 +67,9 @@ pub struct GeoPosition {
     pub lon: f64,
     pub alt: f32,
 }
-use crate::proto::app::data_sync::v1::sensor_data::Data;
+
 impl GeoPosition {
+    #[cfg(feature = "data")]
     pub(crate) fn to_data_struct(self) -> Data {
         Data::Struct(Struct {
             fields: HashMap::from([
