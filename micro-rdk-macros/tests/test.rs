@@ -101,14 +101,23 @@ fn movement_sensor_readings_derive() {
     assert!(pos.is_some());
     let pos = pos.as_ref().unwrap();
     if let Kind::StructValue(pos_struct) = pos {
-        let lat_val = pos_struct.fields.get("lat");
-        assert!(lat_val.is_some());
-        if let Some(Kind::NumberValue(lat)) = lat_val.unwrap().kind {
-            assert_eq!(lat, 1.0);
+        let coord_val = pos_struct.fields.get("coordinate");
+        assert!(coord_val.is_some());
+        if let Some(Kind::StructValue(coord)) = &coord_val.unwrap().kind {
+            let lat_val = coord.fields.get("latitude");
+            assert!(lat_val.is_some());
+            if let Some(Kind::NumberValue(lat)) = lat_val.unwrap().kind {
+                assert_eq!(lat, 1.0);
+            } else {
+                panic!(
+                    "expected a Kind::NumberValue have {:?}",
+                    lat_val.unwrap().kind
+                );
+            }
         } else {
             panic!(
-                "expected a Kind::NumberValue have {:?}",
-                lat_val.unwrap().kind
+                "expected a Kind::StructValue have {:?}",
+                coord_val.unwrap().kind
             );
         }
     } else {
