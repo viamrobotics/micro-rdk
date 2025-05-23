@@ -329,40 +329,7 @@ impl DataCollector {
                 CollectionMethod::LinearVelocity => {
                     res.get_linear_velocity()?.to_data_struct("linear_velocity")
                 }
-                CollectionMethod::Position => {
-                    let value = res.get_position()?;
-                    Data::Struct(Struct {
-                        fields: HashMap::from([
-                            (
-                                "coordinate".to_string(),
-                                Value {
-                                    kind: Some(ProtoKind::StructValue(Struct {
-                                        fields: HashMap::from([
-                                            (
-                                                "latitude".to_string(),
-                                                Value {
-                                                    kind: Some(ProtoKind::NumberValue(value.lat)),
-                                                },
-                                            ),
-                                            (
-                                                "longitude".to_string(),
-                                                Value {
-                                                    kind: Some(ProtoKind::NumberValue(value.lon)),
-                                                },
-                                            ),
-                                        ]),
-                                    })),
-                                },
-                            ),
-                            (
-                                "altitude_m".to_string(),
-                                Value {
-                                    kind: Some(ProtoKind::NumberValue(value.alt.into())),
-                                },
-                            ),
-                        ]),
-                    })
-                }
+                CollectionMethod::Position => res.get_position()?.to_data_struct(),
                 CollectionMethod::CompassHeading => {
                     let value = res.get_compass_heading()?;
                     Data::Struct(Struct {

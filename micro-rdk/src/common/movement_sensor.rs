@@ -9,7 +9,6 @@ use {
 use super::generic::DoCommand;
 use super::math_utils::Vector3;
 use super::sensor::{GenericReadingsResult, Readings, SensorError};
-use crate::google;
 use crate::google::protobuf::{value::Kind, Struct, Value};
 use crate::proto::common::v1::GeoPoint;
 use crate::proto::component::movement_sensor;
@@ -60,32 +59,76 @@ pub struct GeoPosition {
     pub lon: f64,
     pub alt: f32,
 }
+use crate::proto::app::data_sync::v1::sensor_data::Data;
+impl GeoPosition {
+    pub(crate) fn to_data_struct(self) -> Data {
+        Data::Struct(Struct {
+            fields: HashMap::from([
+                (
+                    "coordinate".to_string(),
+                    Value {
+                        kind: Some(Kind::StructValue(Struct {
+                            fields: HashMap::from([
+                                (
+                                    "latitude".to_string(),
+                                    Value {
+                                        kind: Some(Kind::NumberValue(self.lat)),
+                                    },
+                                ),
+                                (
+                                    "longitude".to_string(),
+                                    Value {
+                                        kind: Some(Kind::NumberValue(self.lon)),
+                                    },
+                                ),
+                            ]),
+                        })),
+                    },
+                ),
+                (
+                    "altitude_m".to_string(),
+                    Value {
+                        kind: Some(Kind::NumberValue(self.alt.into())),
+                    },
+                ),
+            ]),
+        })
+    }
+}
 
 impl From<GeoPosition> for Value {
     fn from(value: GeoPosition) -> Self {
-        let mut fields = HashMap::new();
-        fields.insert(
-            "lat".to_string(),
-            Value {
-                kind: Some(google::protobuf::value::Kind::NumberValue(value.lat)),
-            },
-        );
-        fields.insert(
-            "lon".to_string(),
-            Value {
-                kind: Some(google::protobuf::value::Kind::NumberValue(value.lon)),
-            },
-        );
-        fields.insert(
-            "alt".to_string(),
-            Value {
-                kind: Some(google::protobuf::value::Kind::NumberValue(value.alt as f64)),
-            },
-        );
-        Value {
-            kind: Some(google::protobuf::value::Kind::StructValue(Struct {
-                fields,
-            })),
+        let fields = HashMap::from([
+            (
+                "coordinate".to_string(),
+                Value {
+                    kind: Some(Kind::StructValue(Struct {
+                        fields: HashMap::from([
+                            (
+                                "latitude".to_string(),
+                                Value {
+                                    kind: Some(Kind::NumberValue(value.lat)),
+                                },
+                            ),
+                            (
+                                "longitude".to_string(),
+                                Value {
+                                    kind: Some(Kind::NumberValue(value.lon)),
+                                },
+                            ),
+                        ]),
+                    })),
+                },
+            ),
+            (
+                "altitude_m".to_string(),
+                Value {
+                    kind: Some(Kind::NumberValue(value.alt.into())),
+                },
+            ),
+        ]);
+        Self {
+            kind: Some(Kind::StructValue(Struct { fields })),
         }
     }
 }
