@@ -90,5 +90,5 @@ trackable.workspace = true
 uuid = { workspace = true, features = ["v4"]}
 
 [build-dependencies]
-embuild.workspace = true
+embuild = {workspace = true, features = ["elf", "espidf"]}
 regex.workspace = true
