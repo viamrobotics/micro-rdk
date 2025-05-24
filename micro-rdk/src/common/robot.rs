@@ -561,10 +561,6 @@ impl LocalRobot {
     }
     pub fn get_sensor_by_name(&self, name: String) -> Option<Arc<Mutex<dyn Sensor>>> {
         let name = ResourceName::new_builtin(name, "sensor".to_owned());
-        log::info!("name {:?}", name);
-        for keys in self.resources.keys() {
-            log::info!("keys {:?}", keys);
-        }
         match self.resources.get(&name) {
             Some(ResourceType::Sensor(r)) => Some(r.clone()),
             Some(_) => None,
@@ -681,6 +677,7 @@ impl Drop for LocalRobot {
             log::info!("Stopping data manager collection task");
             self.executor.block_on(task.cancel());
             log::info!("Stopped data manager collection task");
+            log::info!("Dropping robot")
         }
     }
 }

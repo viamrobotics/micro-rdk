@@ -392,5 +392,5 @@ pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> via
             Box::new(network),
         )
     };
-    server.run_forever();
+    server.run_until_complete();
 }
