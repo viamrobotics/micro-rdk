@@ -8,6 +8,7 @@ use std::{
     time::Duration,
 };
 
+use chrono::{DateTime, TimeDelta};
 use micro_rdk::google::protobuf::{value, Value};
 use micro_rdk::{
     common::{
@@ -29,10 +30,12 @@ static ULP_PROGRAM: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/ulp.bin"))
 struct UnsafeRtcMemory<T>(UnsafeCell<T>);
 unsafe impl<T> Sync for UnsafeRtcMemory<T> {}
 
-static SAMPLE_ARRAY_SIZE: usize = 32;
+static SAMPLE_ARRAY_SIZE: usize = 1024;
 #[unsafe(link_section = ".rtc.force_slow")]
 static SAMPLE_ARRAY: UnsafeRtcMemory<[u32; SAMPLE_ARRAY_SIZE]> =
     UnsafeRtcMemory(UnsafeCell::new([0xFFFFFFFF_u32; SAMPLE_ARRAY_SIZE]));
+#[unsafe(link_section = ".rtc.force_slow")]
+static RTC_TIME_START: UnsafeRtcMemory<i64> = UnsafeRtcMemory(UnsafeCell::new(0_i64));
 
 #[derive(Error, Debug)]
 pub enum BME280Error {
@@ -78,7 +81,7 @@ impl Iterator for ULPResultsMemory<'_> {
         }
         let raw: [u8; 8] = self.memory[self.offset..next_offset]
             .iter()
-            .map(|v| (*v & 0xF) as u8)
+            .map(|v| (*v & 0xFF) as u8)
             .collect::<Vec<u8>>()
             .try_into()
             .unwrap();
@@ -301,6 +304,22 @@ impl ULP {
                 / 4;
 
             *sample = self.cfg.sample; // each measurement takes 8 word of memory
+
+            (*RTC_TIME_START.0.get()) = chrono::Local::now().fixed_offset().timestamp_millis();
+
+            // ULP program starts as soon as start is called doing the first measurement, it will wake the cpu right
+            // after the last sample was gathered. There the rendez-vous can be calculated as (sample - 1)*(period) + now
+            log::info!(
+                "ULP is configured to gather {} samples every {} s will wake up at {}",
+                self.cfg.sample,
+                self.cfg.period.as_secs(),
+                DateTime::from_timestamp_millis(*(RTC_TIME_START.0.get()))
+                    .unwrap()
+                    .checked_add_signed(TimeDelta::milliseconds(
+                        (self.cfg.period.as_millis() * ((self.cfg.sample - 1) as u128)) as i64
+                    ))
+                    .unwrap()
+            );
 
             cfg.mode = Mode::FORCED;
             *ulp_ctrl_meas = cfg.ctrl_meas_value() as u32;

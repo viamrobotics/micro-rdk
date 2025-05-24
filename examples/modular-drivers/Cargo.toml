@@ -12,6 +12,8 @@ version.workspace = true
 esp32 = ['micro-rdk/esp32']
 
 [dependencies]
+chrono.workspace  = true
+chrono-tz.workspace = true
 log.workspace = true
 micro-rdk = { workspace = true }
 thiserror.workspace = true

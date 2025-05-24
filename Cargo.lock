@@ -2856,6 +2856,8 @@ dependencies = [
 name = "micro-rdk-modular-driver-example"
 version = "0.5.0"
 dependencies = [
+ "chrono",
+ "chrono-tz",
  "embuild 0.32.0",
  "log",
  "micro-rdk",
