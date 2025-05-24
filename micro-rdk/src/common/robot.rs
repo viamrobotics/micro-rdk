@@ -741,6 +741,23 @@ mod tests {
                         ]),
                     ),
                     (
+                        "digital_interrupts".to_owned(),
+                        Kind::VecValue(vec![
+                            Kind::StructValue(HashMap::from([(
+                                "pin".to_owned(),
+                                Kind::NumberValue(13.),
+                            )])),
+                            Kind::StructValue(HashMap::from([(
+                                "pin".to_owned(),
+                                Kind::NumberValue(14.),
+                            )])),
+                            Kind::StructValue(HashMap::from([(
+                                "pin".to_owned(),
+                                Kind::NumberValue(15.),
+                            )])),
+                        ]),
+                    ),
+                    (
                         "analogs".to_owned(),
                         Kind::StructValue(HashMap::from([(
                             "1".to_owned(),
@@ -1075,6 +1092,48 @@ mod tests {
             .unwrap()
             .get_position(EncoderPositionType::DEGREES);
         assert!(pos_deg.is_err());
+    }
+
+    #[test_log::test]
+    fn test_digital_interrupt_pins_only() {
+        let robot_config: Vec<Option<DynamicComponentConfig>> =
+            vec![Some(DynamicComponentConfig {
+                name: ResourceName::new_builtin("board".to_owned(), "board".to_owned()),
+                model: Model::new_builtin("fake".to_owned()),
+                data_collector_configs: vec![],
+                attributes: Some(HashMap::from([(
+                    "digital_interrupts".to_owned(),
+                    Kind::VecValue(vec![
+                        Kind::StructValue(HashMap::from([(
+                            "pin".to_owned(),
+                            Kind::NumberValue(13.),
+                        )])),
+                        Kind::StructValue(HashMap::from([(
+                            "pin".to_owned(),
+                            Kind::NumberValue(14.),
+                        )])),
+                        Kind::StructValue(HashMap::from([(
+                            "pin".to_owned(),
+                            Kind::NumberValue(15.),
+                        )])),
+                    ]),
+                )])),
+            })];
+
+        let mut robot = LocalRobot::default();
+
+        let ret = robot.process_components(robot_config, &mut Box::default());
+        ret.unwrap();
+
+        let board = robot.get_board_by_name("board".to_string());
+
+        assert!(board.is_some());
+
+        assert!(board.as_ref().unwrap().get_gpio_level(13).is_ok());
+
+        assert!(board.as_ref().unwrap().get_gpio_level(14).is_ok());
+
+        assert!(board.as_ref().unwrap().get_gpio_level(15).is_ok());
     }
 
     #[test_log::test]

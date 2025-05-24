@@ -1,21 +1,28 @@
 #![allow(dead_code)]
 
 #[cfg(feature = "builtin-components")]
-use {
-    super::config::ConfigType,
-    super::registry::{ComponentRegistry, Dependency},
+use super::{
+    config::ConfigType,
+    registry::{ComponentRegistry, Dependency},
 };
 
-use super::generic::DoCommand;
-use super::math_utils::Vector3;
-use super::sensor::{GenericReadingsResult, Readings, SensorError};
-use crate::google;
-use crate::google::protobuf::{value::Kind, Struct, Value};
-use crate::proto::common::v1::GeoPoint;
-use crate::proto::component::movement_sensor;
+#[cfg(feature = "data")]
+use crate::proto::app::data_sync::v1::sensor_data::Data;
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
+
+use crate::{
+    common::{
+        generic::DoCommand,
+        math_utils::Vector3,
+        sensor::{GenericReadingsResult, Readings, SensorError},
+    },
+    google::protobuf::{value::Kind, Struct, Value},
+    proto::{common::v1::GeoPoint, component::movement_sensor},
+};
 
 pub static COMPONENT_NAME: &str = "movement_sensor";
 
@@ -61,31 +68,76 @@ pub struct GeoPosition {
     pub alt: f32,
 }
 
+impl GeoPosition {
+    #[cfg(feature = "data")]
+    pub(crate) fn to_data_struct(self) -> Data {
+        Data::Struct(Struct {
+            fields: HashMap::from([
+                (
+                    "coordinate".to_string(),
+                    Value {
+                        kind: Some(Kind::StructValue(Struct {
+                            fields: HashMap::from([
+                                (
+                                    "latitude".to_string(),
+                                    Value {
+                                        kind: Some(Kind::NumberValue(self.lat)),
+                                    },
+                                ),
+                                (
+                                    "longitude".to_string(),
+                                    Value {
+                                        kind: Some(Kind::NumberValue(self.lon)),
+                                    },
+                                ),
+                            ]),
+                        })),
+                    },
+                ),
+                (
+                    "altitude_m".to_string(),
+                    Value {
+                        kind: Some(Kind::NumberValue(self.alt.into())),
+                    },
+                ),
+            ]),
+        })
+    }
+}
+
 impl From<GeoPosition> for Value {
     fn from(value: GeoPosition) -> Self {
-        let mut fields = HashMap::new();
-        fields.insert(
-            "lat".to_string(),
-            Value {
-                kind: Some(google::protobuf::value::Kind::NumberValue(value.lat)),
-            },
-        );
-        fields.insert(
-            "lon".to_string(),
-            Value {
-                kind: Some(google::protobuf::value::Kind::NumberValue(value.lon)),
-            },
-        );
-        fields.insert(
-            "alt".to_string(),
-            Value {
-                kind: Some(google::protobuf::value::Kind::NumberValue(value.alt as f64)),
-            },
-        );
-        Value {
-            kind: Some(google::protobuf::value::Kind::StructValue(Struct {
-                fields,
-            })),
+        let fields = HashMap::from([
+            (
+                "coordinate".to_string(),
+                Value {
+                    kind: Some(Kind::StructValue(Struct {
+                        fields: HashMap::from([
+                            (
+                                "latitude".to_string(),
+                                Value {
+                                    kind: Some(Kind::NumberValue(value.lat)),
+                                },
+                            ),
+                            (
+                                "longitude".to_string(),
+                                Value {
+                                    kind: Some(Kind::NumberValue(value.lon)),
+                                },
+                            ),
+                        ]),
+                    })),
+                },
+            ),
+            (
+                "altitude_m".to_string(),
+                Value {
+                    kind: Some(Kind::NumberValue(value.alt.into())),
+                },
+            ),
+        ]);
+        Self {
+            kind: Some(Kind::StructValue(Struct { fields })),
         }
     }
 }
@@ -187,32 +239,28 @@ impl FakeMovementSensor {
         cfg: ConfigType,
         _: Vec<Dependency>,
     ) -> Result<MovementSensorType, SensorError> {
-        let mut fake_pos: GeoPosition = Default::default();
+        let mut sensor = Self::new();
         if let Ok(fake_lat) = cfg.get_attribute::<f64>("fake_lat") {
-            fake_pos.lat = fake_lat
+            sensor.pos.lat = fake_lat
         }
         if let Ok(fake_lon) = cfg.get_attribute::<f64>("fake_lon") {
-            fake_pos.lon = fake_lon
+            sensor.pos.lon = fake_lon
         }
         if let Ok(fake_alt) = cfg.get_attribute::<f32>("fake_alt") {
-            fake_pos.alt = fake_alt
+            sensor.pos.alt = fake_alt
         }
 
-        let mut lin_acc: Vector3 = Default::default();
         if let Ok(x) = cfg.get_attribute::<f64>("lin_acc_x") {
-            lin_acc.x = x
+            sensor.linear_acc.x = x
         }
         if let Ok(y) = cfg.get_attribute::<f64>("lin_acc_y") {
-            lin_acc.y = y
+            sensor.linear_acc.y = y
         }
         if let Ok(z) = cfg.get_attribute::<f64>("lin_acc_z") {
-            lin_acc.z = z
+            sensor.linear_acc.z = z
         }
 
-        Ok(Arc::new(Mutex::new(FakeMovementSensor {
-            pos: fake_pos,
-            linear_acc: lin_acc,
-        })))
+        Ok(Arc::new(Mutex::new(sensor)))
     }
 }
 
@@ -232,7 +280,7 @@ impl MovementSensor for FakeMovementSensor {
             linear_acceleration_supported: true,
             linear_velocity_supported: false,
             angular_velocity_supported: false,
-            compass_heading_supported: false,
+            compass_heading_supported: true,
         }
     }
 
@@ -249,9 +297,7 @@ impl MovementSensor for FakeMovementSensor {
     }
 
     fn get_compass_heading(&mut self) -> Result<f64, SensorError> {
-        Err(SensorError::SensorMethodUnimplemented(
-            "get_compass_heading",
-        ))
+        Ok(42.)
     }
 }
 

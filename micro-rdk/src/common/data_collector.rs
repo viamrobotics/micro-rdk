@@ -1,16 +1,22 @@
-use std::fmt::Display;
-use std::time::{Duration, Instant};
+use std::{
+    collections::HashMap,
+    fmt::Display,
+    time::{Duration, Instant},
+};
 
-use crate::google::protobuf::Timestamp;
-use crate::proto::app::data_sync::v1::{MimeType, SensorData, SensorMetadata};
+use crate::{
+    google::protobuf::{value::Kind as ProtoKind, Struct, Timestamp, Value},
+    proto::app::data_sync::v1::{sensor_data::Data, MimeType, SensorData, SensorMetadata},
+};
 
 use super::{
+    analog::AnalogError,
+    board::{Board, BoardError},
     config::{AttributeError, Kind},
     movement_sensor::MovementSensor,
     robot::ResourceType,
     sensor::{Readings, SensorError},
 };
-
 use thiserror::Error;
 
 pub(crate) const DEFAULT_CACHE_SIZE_KB: f64 = 8.0;
@@ -58,12 +64,30 @@ impl TryFrom<&Kind> for DataCollectorConfig {
                 "cache size must be at least 1KB".to_string(),
             ));
         }
-        // TODO: RSDK-7127 - Collectors that take arguments (ex. Board Analogs)
+        let additional_params = value.get("additional_params")?;
         let method = match method_str.as_str() {
             "Readings" => CollectionMethod::Readings,
             "AngularVelocity" => CollectionMethod::AngularVelocity,
             "LinearAcceleration" => CollectionMethod::LinearAcceleration,
             "LinearVelocity" => CollectionMethod::LinearVelocity,
+            "Position" => CollectionMethod::Position,
+            "CompassHeading" => CollectionMethod::CompassHeading,
+            "Analogs" => {
+                let reader: String = additional_params
+                    .ok_or(AttributeError::KeyNotFound("additional_params".to_string()))?
+                    .get("reader_name")?
+                    .ok_or(AttributeError::KeyNotFound("reader_name".to_string()))?
+                    .try_into()?;
+                CollectionMethod::Analogs(reader.to_string())
+            }
+            "Gpios" => {
+                let pin: i32 = additional_params
+                    .ok_or(AttributeError::KeyNotFound("additional_params".to_string()))?
+                    .get("pin_name")?
+                    .ok_or(AttributeError::KeyNotFound("pin_name".to_string()))?
+                    .try_into()?;
+                CollectionMethod::Gpios(pin)
+            }
             _ => {
                 return Err(AttributeError::ConversionImpossibleError);
             }
@@ -86,6 +110,11 @@ pub enum CollectionMethod {
     AngularVelocity,
     LinearAcceleration,
     LinearVelocity,
+    Position,
+    CompassHeading,
+    // Board methods
+    Analogs(String),
+    Gpios(i32),
     // TODO: RSDK-7127 - Implement collectors for all other applicable components/methods
 }
 
@@ -99,6 +128,10 @@ impl Display for CollectionMethod {
                 Self::AngularVelocity => "AngularVelocity",
                 Self::LinearAcceleration => "LinearAcceleration",
                 Self::LinearVelocity => "LinearVelocity",
+                Self::Position => "Position",
+                Self::CompassHeading => "CompassHeading",
+                Self::Analogs(_) => "Analogs",
+                Self::Gpios(_) => "Gpios",
             },
             f,
         )
@@ -131,6 +164,10 @@ pub enum DataCollectionError {
     #[error("capture frequency cannot be 0.0")]
     UnsupportedCaptureFrequency,
     #[error(transparent)]
+    AnalogCollectionError(#[from] AnalogError),
+    #[error(transparent)]
+    BoardCollectionError(#[from] BoardError),
+    #[error(transparent)]
     SensorCollectionError(#[from] SensorError),
 }
 
@@ -155,7 +192,15 @@ fn resource_method_pair_is_valid(resource: &ResourceType, method: &CollectionMet
                 | CollectionMethod::AngularVelocity
                 | CollectionMethod::LinearAcceleration
                 | CollectionMethod::LinearVelocity
+                | CollectionMethod::Position
+                | CollectionMethod::CompassHeading
         ),
+        ResourceType::Board(_) => {
+            matches!(
+                method,
+                CollectionMethod::Analogs(_) | CollectionMethod::Gpios(_)
+            )
+        }
         _ => false,
     }
 }
@@ -231,6 +276,38 @@ impl DataCollector {
     ) -> Result<SensorData, DataCollectionError> {
         let reading_requested_ts = robot_start_time.elapsed();
         let data = match &mut self.resource {
+            ResourceType::Board(ref mut res) => match &self.method {
+                CollectionMethod::Analogs(reader_name) => {
+                    let reader = res.get_analog_reader_by_name(reader_name.to_string())?;
+                    let value = reader.lock().unwrap().read()?;
+                    Data::Struct(Struct {
+                        fields: HashMap::from([(
+                            "value".to_string(),
+                            Value {
+                                kind: Some(ProtoKind::NumberValue(value.into())),
+                            },
+                        )]),
+                    })
+                }
+                CollectionMethod::Gpios(pin_number) => {
+                    let value = res.get_gpio_level(*pin_number)?;
+                    Data::Struct(Struct {
+                        fields: HashMap::from([(
+                            "high".to_string(),
+                            Value {
+                                kind: Some(ProtoKind::BoolValue(value)),
+                            },
+                        )]),
+                    })
+                }
+                _ => {
+                    return Err(DataCollectionError::UnsupportedMethod(
+                        self.method.clone(),
+                        "board".to_string(),
+                    ))
+                }
+            },
+
             ResourceType::Sensor(ref mut res) => match self.method {
                 CollectionMethod::Readings => res.get_generic_readings()?.into(),
                 _ => {
@@ -240,6 +317,7 @@ impl DataCollector {
                     ))
                 }
             },
+
             ResourceType::MovementSensor(ref mut res) => match self.method {
                 CollectionMethod::Readings => res.get_generic_readings()?.into(),
                 CollectionMethod::AngularVelocity => res
@@ -250,6 +328,18 @@ impl DataCollector {
                     .to_data_struct("linear_acceleration"),
                 CollectionMethod::LinearVelocity => {
                     res.get_linear_velocity()?.to_data_struct("linear_velocity")
+                }
+                CollectionMethod::Position => res.get_position()?.to_data_struct(),
+                CollectionMethod::CompassHeading => {
+                    let value = res.get_compass_heading()?;
+                    Data::Struct(Struct {
+                        fields: HashMap::from([(
+                            "value".to_string(),
+                            Value {
+                                kind: Some(ProtoKind::NumberValue(value)),
+                            },
+                        )]),
+                    })
                 }
                 #[allow(unreachable_patterns)]
                 // TODO: RSDK-7127 - remove when methods for other components are implemented
