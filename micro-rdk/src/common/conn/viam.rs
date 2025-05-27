@@ -883,8 +883,12 @@ where
                         },
                     });
                 }
-                let shutdown_was_requested = shutdown_requested_nonblocking().await;
 
+                // the graceful interruption of tasks is handled by the `poll` implementation
+                // for `AppTaskRunner`. Here we merely check whether that logic has successfully
+                // completed for every task before moving on to potentially shutting down (which should be
+                // handled by the caller of this function) at the end of the loop
+                let shutdown_was_requested = shutdown_requested_nonblocking().await;
                 let mut returned_tasks: usize = 0;
                 while let Some(res) = app_client_tasks.next().await {
                     if let Err(err) = res {
