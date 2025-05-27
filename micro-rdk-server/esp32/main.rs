@@ -149,7 +149,7 @@ mod esp32 {
         };
         #[cfg(not(feature = "qemu"))]
         let mut server = { builder.build(Esp32H2Connector::default(), Executor::new(), mdns) };
-        server.run_forever();
+        server.run_until_complete();
     }
 }
 

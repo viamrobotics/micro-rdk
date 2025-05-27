@@ -1,6 +1,7 @@
 use super::errors::ServerError;
 use crate::common::{
     grpc::GrpcServer,
+    system::shutdown_requested_nonblocking,
     webrtc::{
         api::{AtomicSync, WebRtcError},
         certificate::Certificate,
@@ -59,6 +60,10 @@ impl WebRTCConnection {
     }
     pub(crate) async fn run(&mut self) -> Result<(), ServerError> {
         loop {
+            if shutdown_requested_nonblocking().await {
+                log::info!("recieved shutdown signal, exiting WebRTCConnection");
+                return Ok(());
+            }
             let req = self
                 .server
                 .next_request()
