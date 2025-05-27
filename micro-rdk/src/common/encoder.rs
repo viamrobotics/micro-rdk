@@ -4,16 +4,11 @@ use {
     super::registry::{ComponentRegistry, Dependency},
 };
 
-use std::sync::Arc;
-use std::sync::Mutex;
-
-use crate::proto::component::encoder::v1::GetPositionResponse;
-use crate::proto::component::encoder::v1::GetPropertiesResponse;
-use crate::proto::component::encoder::v1::PositionType;
-
-use super::config::AttributeError;
-use super::generic::DoCommand;
-
+use crate::{
+    common::{config::AttributeError, generic::DoCommand},
+    proto::component::encoder::v1::{GetPositionResponse, GetPropertiesResponse, PositionType},
+};
+use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -115,7 +110,7 @@ pub struct EncoderPosition {
 impl EncoderPosition {
     #[cfg(feature = "data")]
     pub fn to_data_struct(self) -> Data {
-        HashMap::from([
+        let data: Data = HashMap::from([
             (
                 "position_type".to_string(),
                 Value {
@@ -131,7 +126,9 @@ impl EncoderPosition {
                 },
             ),
         ])
-        .into()
+            .into();
+        log::info!("mperez - DATA struct {:?}", data);
+        data
     }
 }
 
@@ -235,7 +232,7 @@ impl Encoder for FakeIncrementalEncoder {
 #[derive(DoCommand)]
 pub struct FakeEncoder {
     pub angle_degrees: f32,
-    pub ticks_per_rotation: u32,
+    pub ticks_per_rotation: AtomicU32,
 }
 
 #[cfg(feature = "builtin-components")]
@@ -249,7 +246,7 @@ impl Default for FakeEncoder {
 impl FakeEncoder {
     pub fn new() -> Self {
         Self {
-            angle_degrees: 0.0,
+            angle_degrees: Arc::new(Mutex::new(0.0)),
             ticks_per_rotation: 1,
         }
     }
@@ -283,10 +280,16 @@ impl Encoder for FakeEncoder {
     ) -> Result<EncoderPosition, EncoderError> {
         match position_type {
             EncoderPositionType::UNSPECIFIED => Err(EncoderError::EncoderUnspecified),
-            EncoderPositionType::DEGREES => Ok(position_type.wrap_value(self.angle_degrees)),
+            EncoderPositionType::DEGREES => {
+                let wrapped = position_type.wrap_value(self.angle_degrees);
+                // increment ticks_count
+                Ok(wrapped)
+            }
             EncoderPositionType::TICKS => {
                 let value: f32 = (self.angle_degrees / 360.0) * (self.ticks_per_rotation as f32);
-                Ok(position_type.wrap_value(value))
+                let wrapped = position_type.wrap_value(value);
+                // increment ticks_count
+                Ok(wrapped)
             }
         }
     }
