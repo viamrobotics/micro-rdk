@@ -70,6 +70,8 @@ impl TryFrom<&Kind> for DataCollectorConfig {
             "AngularVelocity" => CollectionMethod::AngularVelocity,
             "LinearAcceleration" => CollectionMethod::LinearAcceleration,
             "LinearVelocity" => CollectionMethod::LinearVelocity,
+            "Position" => CollectionMethod::Position,
+            "CompassHeading" => CollectionMethod::CompassHeading,
             "Analogs" => {
                 let reader: String = additional_params
                     .ok_or(AttributeError::KeyNotFound("additional_params".to_string()))?
@@ -108,6 +110,8 @@ pub enum CollectionMethod {
     AngularVelocity,
     LinearAcceleration,
     LinearVelocity,
+    Position,
+    CompassHeading,
     // Board methods
     Analogs(String),
     Gpios(i32),
@@ -124,6 +128,8 @@ impl Display for CollectionMethod {
                 Self::AngularVelocity => "AngularVelocity",
                 Self::LinearAcceleration => "LinearAcceleration",
                 Self::LinearVelocity => "LinearVelocity",
+                Self::Position => "Position",
+                Self::CompassHeading => "CompassHeading",
                 Self::Analogs(_) => "Analogs",
                 Self::Gpios(_) => "Gpios",
             },
@@ -186,6 +192,8 @@ fn resource_method_pair_is_valid(resource: &ResourceType, method: &CollectionMet
                 | CollectionMethod::AngularVelocity
                 | CollectionMethod::LinearAcceleration
                 | CollectionMethod::LinearVelocity
+                | CollectionMethod::Position
+                | CollectionMethod::CompassHeading
         ),
         ResourceType::Board(_) => {
             matches!(
@@ -320,6 +328,18 @@ impl DataCollector {
                     .to_data_struct("linear_acceleration"),
                 CollectionMethod::LinearVelocity => {
                     res.get_linear_velocity()?.to_data_struct("linear_velocity")
+                }
+                CollectionMethod::Position => res.get_position()?.to_data_struct(),
+                CollectionMethod::CompassHeading => {
+                    let value = res.get_compass_heading()?;
+                    Data::Struct(Struct {
+                        fields: HashMap::from([(
+                            "value".to_string(),
+                            Value {
+                                kind: Some(ProtoKind::NumberValue(value)),
+                            },
+                        )]),
+                    })
                 }
                 #[allow(unreachable_patterns)]
                 // TODO: RSDK-7127 - remove when methods for other components are implemented

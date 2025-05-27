@@ -81,7 +81,9 @@ impl Esp32I2C<'_> {
     pub fn new_from_config(conf: &Esp32I2cConfig) -> Result<Self, I2CErrors> {
         let name = conf.name.to_string();
         let timeout_ns = conf.timeout_ns;
+        unsafe { esp_idf_svc::sys::gpio_reset_pin(conf.data_pin) };
         let sda = unsafe { AnyIOPin::new(conf.data_pin) };
+        unsafe { esp_idf_svc::sys::gpio_reset_pin(conf.clock_pin) };
         let scl = unsafe { AnyIOPin::new(conf.clock_pin) };
         let driver_conf = I2cConfig::from(conf);
 
