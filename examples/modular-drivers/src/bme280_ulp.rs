@@ -85,6 +85,8 @@ impl Iterator for ULPResultsMemory<'_> {
             .collect::<Vec<u8>>()
             .try_into()
             .unwrap();
+        // not exactly correct because one could read some measurement (less than stored) but this code
+        // will make it impossible to read again unless user keep the iterator around
         self.memory[self.offset] = 0xFFFFFFFF;
         self.offset = next_offset;
         Some(raw.into())
