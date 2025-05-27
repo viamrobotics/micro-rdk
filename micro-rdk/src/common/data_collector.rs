@@ -203,7 +203,7 @@ fn resource_method_pair_is_valid(resource: &ResourceType, method: &CollectionMet
                 method,
                 CollectionMethod::Analogs(_) | CollectionMethod::Gpios(_)
             )
-        },
+        }
         ResourceType::Servo(_) => matches!(method, CollectionMethod::Position),
         _ => false,
     }
