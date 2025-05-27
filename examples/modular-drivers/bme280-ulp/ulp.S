@@ -75,6 +75,7 @@ next:
 	halt
 
 BM280_wait_meas_done:
+	wait 6000
 	move r1, BME280_ADDR
 	push r1
 	move r1, BME280_STATUS
