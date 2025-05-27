@@ -7,7 +7,7 @@ use crate::{
         config::AgentConfig,
         credentials_storage::RobotConfigurationStorage,
         grpc::ServerError,
-        system::{send_system_change, SystemEvent},
+        system::{send_system_event, SystemEvent},
     },
     proto::app::v1::RobotConfig,
 };
@@ -46,8 +46,11 @@ where
     }
 
     async fn restart(&self) {
-        log::warn!("machine configuration change detected - restarting micro-rdk");
-        send_system_change(SystemEvent::Restart).await;
+        if let Err(err) = send_system_event(SystemEvent::Restart).await {
+            log::warn!("skipping restart action from monitor: {:?}", err);
+        } else {
+            log::warn!("machine configuration change detected - restarting micro-rdk");
+        };
     }
 }
 impl<Storage> PeriodicAppClientTask for ConfigMonitor<Storage>

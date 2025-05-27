@@ -1,5 +1,5 @@
 use super::app_client::{AppClient, AppClientError, PeriodicAppClientTask};
-use super::system::{send_system_change, SystemEvent};
+use super::system::{send_system_event, SystemEvent};
 use futures_lite::Future;
 use std::pin::Pin;
 use std::time::Duration;
@@ -22,7 +22,9 @@ impl PeriodicAppClientTask for RestartMonitor {
         Box::pin(async move {
             match app_client.check_for_restart().await {
                 Ok(None) => {
-                    send_system_change(SystemEvent::Restart).await;
+                    if let Err(err) = send_system_event(SystemEvent::Restart).await {
+                        log::warn!("skipping action from restart monitor: {:?}", err);
+                    };
                     Ok(None)
                 }
                 other => other,

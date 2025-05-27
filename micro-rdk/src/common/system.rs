@@ -5,18 +5,27 @@ use std::time::Duration;
 #[cfg(not(feature = "esp32"))]
 use async_io::Timer;
 use async_lock::Mutex as AsyncMutex;
+use thiserror::Error;
 
 use super::app_client::{AppClient, PeriodicAppClientTask};
 use super::log::LogUploadTask;
 use super::runtime::terminate;
 
-pub(crate) static SHUTDOWN_EVENT: LazyLock<Arc<AsyncMutex<Option<SystemEvent>>>> =
+// TODO: Find a way to do this without introducing mutable global state
+static SHUTDOWN_EVENT: LazyLock<Arc<AsyncMutex<Option<SystemEvent>>>> =
     LazyLock::new(|| Arc::new(AsyncMutex::new(None)));
 
-pub(crate) enum SystemEvent {
+#[derive(Debug, Clone)]
+pub enum SystemEvent {
     Restart,
     #[allow(dead_code)]
     DeepSleep(Option<Duration>),
+}
+
+#[derive(Debug, Error)]
+pub enum SystemEventError {
+    #[error("tried to request system event {0} but event {1} already requested")]
+    SystemEventAlreadyRequested(SystemEvent, SystemEvent),
 }
 
 impl Display for SystemEvent {
@@ -34,9 +43,19 @@ impl Display for SystemEvent {
     }
 }
 
-pub(crate) async fn send_system_change(event: SystemEvent) {
+pub(crate) async fn send_system_event(event: SystemEvent) -> Result<(), SystemEventError> {
     log::info!("received call to {}", event);
-    let _ = SHUTDOWN_EVENT.lock().await.insert(event);
+    let mut current_event = SHUTDOWN_EVENT.lock().await;
+    if current_event.is_none() {
+        let _ = current_event.insert(event);
+        Ok(())
+    } else {
+        let current_event_clone = (*current_event).clone().unwrap();
+        Err(SystemEventError::SystemEventAlreadyRequested(
+            event,
+            current_event_clone,
+        ))
+    }
 }
 
 pub(crate) fn shutdown_requested() -> bool {
@@ -85,11 +104,11 @@ pub(crate) async fn force_shutdown(app_client: Option<AppClient>) {
                 async_io::block_on(Timer::after(dur));
                 terminate();
             } else {
-                log::error!("sleep from wake up not supported for native builds")
+                log::error!("native builds do not support alternate wake up sources and can only sleep for a duration")
             }
         }
         None => {
-            log::error!("call to shutdown/restart without request to system, restarting");
+            log::error!("call to shutdown/restart without request to system, terminating");
             terminate()
         }
     }

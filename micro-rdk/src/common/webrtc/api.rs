@@ -575,8 +575,8 @@ pub struct WebRtcApi<C, E> {
 
 impl<C, E> WebRtcApi<C, E>
 where
-    C: Certificate + 'static,
-    E: WebRtcExecutor<Pin<Box<dyn Future<Output = ()>>>> + Clone + 'static,
+    C: Certificate,
+    E: WebRtcExecutor<Pin<Box<dyn Future<Output = ()>>>> + Clone,
 {
     pub(crate) fn new(
         executor: E,

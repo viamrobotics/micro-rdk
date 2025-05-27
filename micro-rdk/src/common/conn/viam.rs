@@ -875,7 +875,6 @@ where
                     FuturesUnordered::new();
                 log::info!("starting execution of app client tasks");
                 for task in &self.app_client_tasks {
-                    log::info!("queueing {:?} task", task.name());
                     app_client_tasks.push(AppClientTaskRunner {
                         app_client,
                         invoker: task,
@@ -1484,7 +1483,7 @@ mod tests {
                 "/viam.app.v1.RobotService/NeedsRestart" => self.needs_restart(body.split_off(5)),
                 "/viam.app.v1.RobotService/Config" => self.get_config(),
                 "/viam.app.agent.v1.AgentDeviceService/DeviceAgentConfig" => {
-                    return Err(ServerError::new(GrpcError::RpcInternal, None));
+                    return Err(ServerError::new(GrpcError::RpcUnimplemented, None));
                 }
                 _ => panic!("unsupported uri {:?}", parts.uri.path()),
             };
