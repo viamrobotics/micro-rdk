@@ -133,6 +133,7 @@ pub struct ComponentRegistry {
     #[cfg(feature = "camera")]
     camera: Map<String, &'static CameraConstructor>,
     sensor: Map<String, &'static SensorConstructor>,
+    servo: Map<String, &'static ServoConstructor>,
     movement_sensors: Map<String, &'static MovementSensorConstructor>,
     encoders: Map<String, &'static EncoderConstructor>,
     bases: Map<String, &'static BaseConstructor>,
@@ -155,6 +156,7 @@ impl Default for ComponentRegistry {
             crate::common::gpio_motor::register_models(&mut r);
             crate::common::gpio_servo::register_models(&mut r);
             crate::common::sensor::register_models(&mut r);
+            crate::common::servo::register_models(&mut r);
             crate::common::switch::register_models(&mut r);
             crate::common::movement_sensor::register_models(&mut r);
             crate::common::mpu6050::register_models(&mut r);
@@ -206,6 +208,7 @@ impl ComponentRegistry {
             #[cfg(feature = "camera")]
             camera: Map::new(),
             sensor: Map::new(),
+            servo: Map::new(),
             movement_sensors: Map::new(),
             encoders: Map::new(),
             bases: Map::new(),
