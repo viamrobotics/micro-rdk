@@ -133,7 +133,6 @@ pub struct ComponentRegistry {
     #[cfg(feature = "camera")]
     camera: Map<String, &'static CameraConstructor>,
     sensor: Map<String, &'static SensorConstructor>,
-    servo: Map<String, &'static ServoConstructor>,
     movement_sensors: Map<String, &'static MovementSensorConstructor>,
     encoders: Map<String, &'static EncoderConstructor>,
     bases: Map<String, &'static BaseConstructor>,
@@ -208,7 +207,6 @@ impl ComponentRegistry {
             #[cfg(feature = "camera")]
             camera: Map::new(),
             sensor: Map::new(),
-            servo: Map::new(),
             movement_sensors: Map::new(),
             encoders: Map::new(),
             bases: Map::new(),
