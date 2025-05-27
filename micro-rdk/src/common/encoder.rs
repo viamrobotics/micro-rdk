@@ -69,6 +69,14 @@ pub enum EncoderPositionType {
     DEGREES,
 }
 
+#[cfg(feature = "data")]
+use crate::{
+    google::protobuf::{value::Kind, Value},
+    proto::app::data_sync::v1::sensor_data::Data,
+};
+#[cfg(feature = "data")]
+use std::collections::HashMap;
+
 impl EncoderPositionType {
     pub fn wrap_value(self, value: f32) -> EncoderPosition {
         EncoderPosition {
@@ -102,6 +110,29 @@ impl From<PositionType> for EncoderPositionType {
 pub struct EncoderPosition {
     pub position_type: EncoderPositionType,
     pub value: f32,
+}
+
+impl EncoderPosition {
+    #[cfg(feature = "data")]
+    pub fn to_data_struct(self) -> Data {
+        HashMap::from([
+            (
+                "position_type".to_string(),
+                Value {
+                    kind: Some(Kind::NumberValue(
+                        i32::from(PositionType::from(self.position_type)) as f64,
+                    )),
+                },
+            ),
+            (
+                "value".to_string(),
+                Value {
+                    kind: Some(Kind::NumberValue(self.value.into())),
+                },
+            ),
+        ])
+        .into()
+    }
 }
 
 impl From<EncoderPosition> for GetPositionResponse {
@@ -188,10 +219,10 @@ impl Encoder for FakeIncrementalEncoder {
         position_type: EncoderPositionType,
     ) -> Result<EncoderPosition, EncoderError> {
         match position_type {
-            EncoderPositionType::TICKS | EncoderPositionType::UNSPECIFIED => {
+            EncoderPositionType::TICKS | EncoderPositionType::DEGREES => {
                 Ok(EncoderPositionType::TICKS.wrap_value(self.ticks))
             }
-            EncoderPositionType::DEGREES => Err(EncoderError::EncoderAngularNotSupported),
+            EncoderPositionType::UNSPECIFIED => Err(EncoderError::EncoderUnspecified),
         }
     }
     fn reset_position(&mut self) -> Result<(), EncoderError> {

@@ -13,6 +13,7 @@ use super::{
     analog::AnalogError,
     board::{Board, BoardError},
     config::{AttributeError, Kind},
+    encoder::{EncoderError, EncoderPositionType},
     movement_sensor::MovementSensor,
     robot::ResourceType,
     sensor::{Readings, SensorError},
@@ -88,6 +89,7 @@ impl TryFrom<&Kind> for DataCollectorConfig {
                     .try_into()?;
                 CollectionMethod::Gpios(pin)
             }
+            "TicksCount" => CollectionMethod::TicksCount,
             _ => {
                 return Err(AttributeError::ConversionImpossibleError);
             }
@@ -115,6 +117,8 @@ pub enum CollectionMethod {
     // Board methods
     Analogs(String),
     Gpios(i32),
+    // Encoder methods
+    TicksCount,
     // TODO: RSDK-7127 - Implement collectors for all other applicable components/methods
 }
 
@@ -132,6 +136,7 @@ impl Display for CollectionMethod {
                 Self::CompassHeading => "CompassHeading",
                 Self::Analogs(_) => "Analogs",
                 Self::Gpios(_) => "Gpios",
+                Self::TicksCount => "TicksCount",
             },
             f,
         )
@@ -169,6 +174,8 @@ pub enum DataCollectionError {
     BoardCollectionError(#[from] BoardError),
     #[error(transparent)]
     SensorCollectionError(#[from] SensorError),
+    #[error(transparent)]
+    EncoderCollectionError(#[from] EncoderError),
 }
 
 /// A DataCollector represents an association between a data collection method and
@@ -201,6 +208,7 @@ fn resource_method_pair_is_valid(resource: &ResourceType, method: &CollectionMet
                 CollectionMethod::Analogs(_) | CollectionMethod::Gpios(_)
             )
         }
+        ResourceType::Encoder(_) => matches!(method, CollectionMethod::TicksCount),
         _ => false,
     }
 }
@@ -314,6 +322,20 @@ impl DataCollector {
                     return Err(DataCollectionError::UnsupportedMethod(
                         self.method.clone(),
                         "sensor".to_string(),
+                    ))
+                }
+            },
+
+            ResourceType::Encoder(ref mut res) => match self.method {
+                CollectionMethod::TicksCount => res
+                    .lock()
+                    .unwrap()
+                    .get_position(EncoderPositionType::TICKS)?
+                    .to_data_struct(),
+                _ => {
+                    return Err(DataCollectionError::UnsupportedMethod(
+                        self.method.clone(),
+                        "encoder".to_string(),
                     ))
                 }
             },
