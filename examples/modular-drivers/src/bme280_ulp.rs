@@ -58,13 +58,13 @@ pub enum BME280Error {
 }
 
 struct ULPResultsMemory<'a> {
-    memory: &'a [u32],
+    memory: &'a mut [u32],
     offset: usize,
 }
 
 impl<'a> From<&'a UnsafeRtcMemory<[u32; SAMPLE_ARRAY_SIZE]>> for ULPResultsMemory<'a> {
     fn from(value: &'a UnsafeRtcMemory<[u32; SAMPLE_ARRAY_SIZE]>) -> Self {
-        let ptr = unsafe { &*value.0.get() };
+        let ptr = unsafe { &mut *value.0.get() };
         Self {
             memory: ptr,
             offset: 0,
@@ -85,6 +85,7 @@ impl Iterator for ULPResultsMemory<'_> {
             .collect::<Vec<u8>>()
             .try_into()
             .unwrap();
+        self.memory[self.offset] = 0xFFFFFFFF;
         self.offset = next_offset;
         Some(raw.into())
     }
