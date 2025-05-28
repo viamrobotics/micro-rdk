@@ -1,7 +1,13 @@
 #[cfg(feature = "builtin-components")]
 use {
-    super::config::ConfigType,
-    super::registry::{ComponentRegistry, Dependency},
+    crate::{
+        common::{
+            config::ConfigType,
+            registry::{ComponentRegistry, Dependency},
+        },
+        google::protobuf::Struct,
+    },
+    std::sync::atomic::{AtomicU32, Ordering},
 };
 
 use crate::{
@@ -110,25 +116,14 @@ pub struct EncoderPosition {
 impl EncoderPosition {
     #[cfg(feature = "data")]
     pub fn to_data_struct(self) -> Data {
-        let data: Data = HashMap::from([
-            (
-                "position_type".to_string(),
-                Value {
-                    kind: Some(Kind::NumberValue(
-                        i32::from(PositionType::from(self.position_type)) as f64,
-                    )),
-                },
-            ),
-            (
-                "value".to_string(),
+        Data::Struct(Struct {
+            fields: HashMap::from([(
+                "ticks".to_string(),
                 Value {
                     kind: Some(Kind::NumberValue(self.value.into())),
                 },
-            ),
-        ])
-            .into();
-        log::info!("mperez - DATA struct {:?}", data);
-        data
+            )]),
+        })
     }
 }
 
@@ -232,7 +227,7 @@ impl Encoder for FakeIncrementalEncoder {
 #[derive(DoCommand)]
 pub struct FakeEncoder {
     pub angle_degrees: f32,
-    pub ticks_per_rotation: AtomicU32,
+    pub ticks: AtomicU32,
 }
 
 #[cfg(feature = "builtin-components")]
@@ -246,8 +241,8 @@ impl Default for FakeEncoder {
 impl FakeEncoder {
     pub fn new() -> Self {
         Self {
-            angle_degrees: Arc::new(Mutex::new(0.0)),
-            ticks_per_rotation: 1,
+            angle_degrees: 360.0,
+            ticks: AtomicU32::new(0),
         }
     }
 
@@ -256,9 +251,6 @@ impl FakeEncoder {
         _: Vec<Dependency>,
     ) -> Result<EncoderType, EncoderError> {
         let mut enc: FakeEncoder = Default::default();
-        if let Ok(ticks_per_rotation) = cfg.get_attribute::<u32>("ticks_per_rotation") {
-            enc.ticks_per_rotation = ticks_per_rotation;
-        }
         if let Ok(fake_deg) = cfg.get_attribute::<f32>("fake_deg") {
             enc.angle_degrees = fake_deg;
         }
@@ -281,15 +273,12 @@ impl Encoder for FakeEncoder {
         match position_type {
             EncoderPositionType::UNSPECIFIED => Err(EncoderError::EncoderUnspecified),
             EncoderPositionType::DEGREES => {
-                let wrapped = position_type.wrap_value(self.angle_degrees);
-                // increment ticks_count
-                Ok(wrapped)
+                Ok(position_type.wrap_value(self.ticks.fetch_add(1, Ordering::Relaxed) as f32))
             }
             EncoderPositionType::TICKS => {
-                let value: f32 = (self.angle_degrees / 360.0) * (self.ticks_per_rotation as f32);
-                let wrapped = position_type.wrap_value(value);
-                // increment ticks_count
-                Ok(wrapped)
+                let value: f32 = (self.angle_degrees / 360.0)
+                    * (self.ticks.fetch_add(1, Ordering::Relaxed) as f32);
+                Ok(position_type.wrap_value(value))
             }
         }
     }
