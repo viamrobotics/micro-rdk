@@ -211,10 +211,10 @@ impl Encoder for FakeIncrementalEncoder {
         position_type: EncoderPositionType,
     ) -> Result<EncoderPosition, EncoderError> {
         match position_type {
-            EncoderPositionType::TICKS | EncoderPositionType::DEGREES => {
+            EncoderPositionType::TICKS | EncoderPositionType::UNSPECIFIED => {
                 Ok(EncoderPositionType::TICKS.wrap_value(self.ticks))
             }
-            EncoderPositionType::UNSPECIFIED => Err(EncoderError::EncoderUnspecified),
+            EncoderPositionType::DEGREES => Err(EncoderError::EncoderAngularNotSupported),
         }
     }
     fn reset_position(&mut self) -> Result<(), EncoderError> {
