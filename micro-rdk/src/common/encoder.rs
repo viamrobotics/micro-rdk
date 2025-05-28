@@ -273,7 +273,7 @@ impl Encoder for FakeEncoder {
         match position_type {
             EncoderPositionType::UNSPECIFIED => Err(EncoderError::EncoderUnspecified),
             EncoderPositionType::DEGREES => {
-                Ok(position_type.wrap_value(self.ticks.fetch_add(1, Ordering::Relaxed) as f32))
+                Ok(position_type.wrap_value(self.angle_degrees))
             }
             EncoderPositionType::TICKS => {
                 let value: f32 = (self.angle_degrees / 360.0)
