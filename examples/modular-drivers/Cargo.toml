@@ -12,8 +12,19 @@ version.workspace = true
 esp32 = ['micro-rdk/esp32']
 
 [dependencies]
+chrono.workspace  = true
+chrono-tz.workspace = true
 log.workspace = true
 micro-rdk = { workspace = true }
+thiserror.workspace = true
+
+[build-dependencies]
+embuild = {workspace = true, features = ["elf", "espidf"]}
+regex.workspace = true
 
 [package.metadata.com.viam]
 module = true
+
+# we need some peripherals address definitions that are not included by default for ULP operation
+[[package.metadata.esp-idf-sys.extra_components]]
+bindings_header = "bindings.h"

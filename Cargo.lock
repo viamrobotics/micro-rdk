@@ -1435,9 +1435,18 @@ dependencies = [
  "anyhow",
  "bitflags 1.3.2",
  "filetime",
+ "home",
  "log",
+ "regex",
+ "remove_dir_all",
+ "serde",
+ "serde_json",
  "shlex",
+ "strum 0.24.1",
+ "tempfile",
  "thiserror 1.0.69",
+ "which",
+ "xmas-elf",
 ]
 
 [[package]]
@@ -2847,8 +2856,13 @@ dependencies = [
 name = "micro-rdk-modular-driver-example"
 version = "0.5.0"
 dependencies = [
+ "chrono",
+ "chrono-tz",
+ "embuild 0.32.0",
  "log",
  "micro-rdk",
+ "regex",
+ "thiserror 2.0.12",
 ]
 
 [[package]]

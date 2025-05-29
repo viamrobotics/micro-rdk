@@ -1,11 +1,10 @@
 use async_channel::Receiver;
 use async_executor::Task;
 use async_io::{Async, Timer};
-use either::Either;
 
 use futures_lite::{FutureExt, StreamExt};
 use futures_util::stream::FuturesUnordered;
-use futures_util::TryFutureExt;
+use futures_util::{select, FutureExt as FuturesUtilExt, TryFutureExt};
 use hyper::server::conn::http2;
 use hyper::{rt, Uri};
 use std::cell::RefCell;
@@ -15,6 +14,7 @@ use crate::common::app_client::{
     AppClient, AppClientBuilder, AppClientError, PeriodicAppClientTask,
 };
 use crate::common::credentials_storage::{StorageDiagnostic, TlsCertificate};
+use crate::common::system::{force_shutdown, shutdown_requested, shutdown_requested_nonblocking};
 use crate::common::webrtc::signaling_server::SignalingServer;
 use std::marker::PhantomData;
 use std::net::{SocketAddr, TcpListener};
@@ -315,7 +315,7 @@ where
     }
 
     pub fn with_default_tasks(&mut self) -> &mut Self {
-        let restart_monitor = Box::new(RestartMonitor::new(|| crate::common::runtime::terminate()));
+        let restart_monitor = Box::new(RestartMonitor);
         let log_upload = Box::new(LogUploadTask);
         self.with_app_client_task(restart_monitor)
             .with_app_client_task(log_upload)
@@ -390,6 +390,94 @@ where
         }
     }
 }
+
+pin_project_lite::pin_project! {
+    struct SystemTask<A, S> {
+        app_client_tasks: A,
+        server_task: S,
+        force_shutdown_wait_time: Duration,
+        timer: Option<Timer>,
+        app_tasks_result: Option<Result<(), errors::ServerError>>,
+        server_task_result: Option<Result<(), errors::ServerError>>
+    }
+}
+
+impl<A, S> SystemTask<A, S> {
+    fn new(
+        server_task: S,
+        app_client_tasks: A,
+        force_shutdown_wait_time: Duration,
+    ) -> Pin<Box<Self>> {
+        Box::pin(SystemTask {
+            app_client_tasks,
+            server_task,
+            force_shutdown_wait_time,
+            timer: None,
+            app_tasks_result: None,
+            server_task_result: None,
+        })
+    }
+}
+
+impl<A, S> Future for SystemTask<A, S>
+where
+    A: Future<Output = Result<(), errors::ServerError>> + std::marker::Unpin,
+    S: Future<Output = Result<(), errors::ServerError>> + std::marker::Unpin,
+{
+    type Output = (A::Output, S::Output);
+    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        let pinned = self.project();
+        if shutdown_requested() && pinned.timer.is_none() {
+            let dur = pinned.force_shutdown_wait_time;
+            *pinned.timer = Some(Timer::after(*dur));
+        }
+
+        let app_result = pinned
+            .app_tasks_result
+            .take()
+            .map(Poll::Ready)
+            .unwrap_or(pinned.app_client_tasks.poll(cx));
+        let server_result = pinned
+            .server_task_result
+            .take()
+            .map(Poll::Ready)
+            .unwrap_or(pinned.server_task.poll(cx));
+
+        if let Some(timer) = pinned.timer {
+            if timer.poll(cx).is_ready() {
+                let app_tasks_res = match app_result {
+                    Poll::Pending => Err(errors::ServerError::ServerTaskShutdownTimeout),
+                    Poll::Ready(res) => res,
+                };
+                let server_task_res = match server_result {
+                    Poll::Pending => Err(errors::ServerError::ServerTaskShutdownTimeout),
+                    Poll::Ready(res) => res,
+                };
+                return Poll::Ready((app_tasks_res, server_task_res));
+            }
+        }
+
+        match (app_result, server_result) {
+            (Poll::Pending, Poll::Pending) => Poll::Pending,
+            (Poll::Pending, Poll::Ready(res)) => {
+                let _ = pinned.server_task_result.insert(res);
+                Poll::Pending
+            }
+            (Poll::Ready(res), Poll::Pending) => {
+                let _ = pinned.app_tasks_result.insert(res);
+                Poll::Pending
+            }
+            (Poll::Ready(app_res), Poll::Ready(server_res)) => Poll::Ready((app_res, server_res)),
+        }
+    }
+}
+
+pub(crate) struct RunResult {
+    app_client: Option<AppClient>,
+    app_client_tasks_result: Result<(), errors::ServerError>,
+    server_task_result: Result<(), errors::ServerError>,
+}
+
 pub struct ViamServer<Storage, C, M> {
     executor: Executor,
     storage: Storage,
@@ -414,7 +502,7 @@ where
     C: ViamH2Connector + 'static,
     M: Mdns,
 {
-    pub fn run_forever(&mut self) -> ! {
+    pub fn run_until_complete(&mut self) -> ! {
         #[cfg(feature = "esp32")]
         {
             use crate::esp32::esp_idf_svc::hal::task::watchdog::{TWDTConfig, TWDTDriver, TWDT};
@@ -442,10 +530,30 @@ where
         }
 
         let exec = self.executor.clone();
-        exec.block_on(Box::pin(self.run()));
+        let run_result = exec.block_on(Box::pin(self.run()));
+        match run_result.app_client_tasks_result {
+            Ok(()) => {}
+            Err(errors::ServerError::ServerTaskShutdownTimeout) => {
+                log::info!("app client tasks cancelled from timeout")
+            }
+            Err(err) => {
+                log::error!("app client tasks returned with error: {:?}", err);
+            }
+        }
+        match run_result.server_task_result {
+            Ok(()) => {}
+            Err(errors::ServerError::ServerTaskShutdownTimeout) => {
+                log::info!("server task cancelled from timeout")
+            }
+            Err(err) => {
+                log::error!("server task returned with error: {:?}", err);
+            }
+        }
+        exec.block_on(force_shutdown(run_result.app_client.clone()));
+        unreachable!()
     }
 
-    pub(crate) async fn run(&mut self) -> ! {
+    pub(crate) async fn run(&mut self) -> RunResult {
         log::info!("starting viam server");
 
         self.storage.log_space_diagnostic();
@@ -614,7 +722,6 @@ where
             self.storage.clone(),
             #[cfg(feature = "ota")]
             self.executor.clone(),
-            || crate::common::runtime::terminate(),
         ));
         self.app_client_tasks.push(config_monitor_task);
 
@@ -716,19 +823,17 @@ where
             self.app_client_tasks
                 .push(Box::new(SignalingTask::new(tx.clone(), cfg.fqdn.clone())));
         }
-
-        let mut tasks: FuturesUnordered<_> = FuturesUnordered::new();
-        tasks.push(Either::Right(Box::pin(
-            self.run_app_client_tasks(app_client),
-        )));
-        tasks.push(Either::Left(Box::pin(inner.run())));
-
-        log::info!("viam server started");
-        while let Some(ret) = tasks.next().await {
-            log::error!("task ran returned {:?}", ret);
+        let system_task = SystemTask::new(
+            Box::pin(inner.run().fuse()),
+            Box::pin(self.run_app_client_tasks(app_client.clone())),
+            Duration::from_secs(120),
+        );
+        let (app_client_tasks_result, server_task_result) = system_task.await;
+        RunResult {
+            app_client,
+            app_client_tasks_result,
+            server_task_result,
         }
-        // TODO better define the fact that we should never return from run
-        unreachable!()
     }
 
     async fn connect_to_app(&self) -> Result<AppClient, AppClientError> {
@@ -763,8 +868,9 @@ where
         mut app_client: Option<AppClient>,
     ) -> Result<(), errors::ServerError> {
         let wait = Duration::from_secs(1); // should do exponential back off
+        let num_tasks = self.app_client_tasks.len();
         loop {
-            if let Some(app_client) = &app_client {
+            let returned_tasks = if let Some(app_client) = &app_client {
                 let mut app_client_tasks: FuturesUnordered<AppClientTaskRunner> =
                     FuturesUnordered::new();
                 log::info!("starting execution of app client tasks");
@@ -777,16 +883,30 @@ where
                         },
                     });
                 }
+
+                // the graceful interruption of tasks is handled by the `poll` implementation
+                // for `AppTaskRunner`. Here we merely check whether that logic has successfully
+                // completed for every task before moving on to potentially shutting down (which should be
+                // handled by the caller of this function) at the end of the loop
+                let shutdown_was_requested = shutdown_requested_nonblocking().await;
+                let mut returned_tasks: usize = 0;
                 while let Some(res) = app_client_tasks.next().await {
                     if let Err(err) = res {
                         log::error!(
                             "an app client task returned an error {:?} - dropping app client",
                             err
                         );
-                        break;
+                        if !shutdown_was_requested {
+                            returned_tasks = 0;
+                            break;
+                        }
                     }
+                    returned_tasks += 1;
                 }
-            }
+                returned_tasks
+            } else {
+                0
+            };
 
             // Explicitly release the app_client resources before sleeping, and before
             // trying to construct a new one with `connect_to_app` below.
@@ -817,6 +937,15 @@ where
 
                 })
                 .ok();
+
+            if returned_tasks == num_tasks {
+                if shutdown_requested_nonblocking().await {
+                    return Ok(());
+                } else {
+                    log::error!("reached state of completed tasks without shutdown request, additional investigation required");
+                    return Err(errors::ServerError::ServerInvalidCompletedState);
+                }
+            }
         }
     }
 
@@ -962,6 +1091,7 @@ where
                         ip,
                         conf.dtls.make()?,
                     );
+
                     let (answer, prio) = api.answer(0).await?;
                     let robot = self.robot.clone();
 
@@ -980,6 +1110,7 @@ where
                             log::warn!("WebRTC connection task ended with an error: {}", e);
                         }),
                     );
+
                     self.incomming_connection_manager
                         .insert_new_conn(task, prio)
                         .await;
@@ -1022,6 +1153,10 @@ where
         };
 
         loop {
+            if shutdown_requested_nonblocking().await {
+                log::info!("server received shutdown request, refusing new connections");
+                return Ok(());
+            }
             let h2_conn: Pin<Box<dyn Future<Output = IncomingConnection>>> =
                 if let HTTP2Server::Empty = self.http2_server {
                     Box::pin(async {
@@ -1042,9 +1177,10 @@ where
                         IncomingConnection::HTTP2Connection(futures_lite::future::pending().await)
                     })
                 } else {
-                    Box::pin(async {
+                    let signaling = self.webrtc_signaling.clone();
+                    Box::pin(async move {
                         IncomingConnection::WebRTCConnection(
-                            self.webrtc_signaling
+                            signaling
                                 .recv()
                                 .await
                                 .map_err(|e| WebRtcError::SignalingError(e.to_string())),
@@ -1053,9 +1189,37 @@ where
                 };
 
             log::info!("machine server waiting for a new incoming connection");
-            let incoming = Box::pin(futures_lite::future::or(h2_conn, webrtc_conn)).await;
-            if let Err(e) = self.serve_incoming_connection(incoming).await {
-                log::error!("failed to serve incoming connection: {:?}", e)
+
+            let mut connection_future =
+                Box::pin(futures_lite::future::or(h2_conn, webrtc_conn).fuse());
+
+            let mut shutdown_poll_future = Box::pin(
+                async {
+                    loop {
+                        if shutdown_requested_nonblocking().await {
+                            return;
+                        }
+                        async_io::Timer::after(Duration::from_secs(5)).await;
+                    }
+                }
+                .fuse(),
+            );
+
+            let should_return = select! {
+                incoming = connection_future => {
+                    if let Err(e) = self.serve_incoming_connection(incoming).await {
+                        log::error!("failed to serve incoming connection: {:?}", e);
+                    }
+                    false
+                },
+                _ = shutdown_poll_future => {
+                    log::info!("server received shutdown signal, canceling existing connections");
+                    true
+                }
+            };
+
+            if should_return {
+                return Ok(());
             }
         }
     }
@@ -1066,6 +1230,7 @@ pin_project_lite::pin_project! {
     enum TaskRunnerState<'a> {
     Sleep{#[pin]timer : Timer},
     Run{ task: std::pin::Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'a>>},
+    Finished
     }
 }
 
@@ -1081,6 +1246,7 @@ impl Future for TaskRunnerState<'_> {
                 let _ = futures_lite::ready!(timer.poll(cx));
                 Poll::Ready(Ok(None))
             }
+            TaskRunnerStateProj::Finished => Poll::Ready(Ok(None)),
         }
     }
 }
@@ -1100,8 +1266,13 @@ impl Future for AppClientTaskRunner<'_> {
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
+        let name = self.invoker.name();
         let res = {
             let this = self.as_mut().project();
+            if matches!(*this.state, TaskRunnerState::Finished) {
+                log::info!("returning from task {:?}", name);
+                return Poll::Ready(Ok(()));
+            }
             futures_lite::ready!(this.state.poll(cx))?
         };
         // we need to swap the state between Run,Sleep such as Run -> Sleep or Sleep -> Run
@@ -1118,15 +1289,23 @@ impl Future for AppClientTaskRunner<'_> {
             // moved self.state back or put a default value.
             let old = std::ptr::read(&self.state);
             let next = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match old {
-                TaskRunnerState::Run { task: _ } => TaskRunnerState::Sleep {
-                    timer: res.map_or(
-                        Timer::after(self.invoker.get_default_period()),
-                        Timer::after,
-                    ),
-                },
+                TaskRunnerState::Run { task: _ } => {
+                    if shutdown_requested() {
+                        log::info!("task runner for {:?} received shutdown signal", name);
+                        TaskRunnerState::Finished
+                    } else {
+                        TaskRunnerState::Sleep {
+                            timer: res.map_or(
+                                Timer::after(self.invoker.get_default_period()),
+                                Timer::after,
+                            ),
+                        }
+                    }
+                }
                 TaskRunnerState::Sleep { timer: _ } => TaskRunnerState::Run {
                     task: self.invoker.invoke(self.app_client),
                 },
+                TaskRunnerState::Finished => TaskRunnerState::Finished,
             }))
             .unwrap_or_else(|_| std::process::abort());
             // move the new value into self.state, the old value will be dropped when leaving the unsafe block
@@ -1307,6 +1486,9 @@ mod tests {
                 "/viam.app.v1.RobotService/Log" => self.log(body.split_off(5)),
                 "/viam.app.v1.RobotService/NeedsRestart" => self.needs_restart(body.split_off(5)),
                 "/viam.app.v1.RobotService/Config" => self.get_config(),
+                "/viam.app.agent.v1.AgentDeviceService/DeviceAgentConfig" => {
+                    return Err(ServerError::new(GrpcError::RpcUnimplemented, None));
+                }
                 _ => panic!("unsupported uri {:?}", parts.uri.path()),
             };
             Ok(out)
@@ -1409,7 +1591,8 @@ mod tests {
                 run_fake_app_server(other_clone, app).await;
             });
             let _task = cloned_exec.spawn(async move {
-                viam_server.run().await;
+                let _ = viam_server.run().await;
+                unreachable!()
             });
 
             for _ in 0..10 {
@@ -1487,7 +1670,8 @@ mod tests {
             let fake_server_task =
                 cloned_exec.spawn(async move { run_fake_app_server(other_clone, app).await });
             let _task = cloned_exec.spawn(async move {
-                viam_server.run().await;
+                let _ = viam_server.run().await;
+                unreachable!()
             });
             let record = look_for_an_mdns_record("_rpc._tcp.local.", "grpc", "test-bot")
                 .or(async {
@@ -1588,7 +1772,8 @@ mod tests {
         let cloned_exec = exec.clone();
         exec.block_on(async move {
             let _task = cloned_exec.spawn(async move {
-                viam_server.run().await;
+                let _ = viam_server.run().await;
+                unreachable!()
             });
             let record = look_for_an_mdns_record("_rpc._tcp.local.", "grpc", "test-bot")
                 .or(async {
@@ -1734,7 +1919,8 @@ mod tests {
         let cloned_exec = exec.clone();
         exec.block_on(async move {
             let _task = cloned_exec.spawn(async move {
-                viam_server.run().await;
+                let _ = viam_server.run().await;
+                unreachable!()
             });
             let record = look_for_an_mdns_record(
                 "_rpc._tcp.local.",
@@ -1794,7 +1980,6 @@ mod tests {
         let receiver = receiver.unwrap();
         loop {
             let record = receiver.recv_async().await;
-
             if let ServiceEvent::ServiceResolved(srv) = record? {
                 if srv.get_property(prop).is_some() && srv.get_hostname().contains(name) {
                     return Ok(srv);
@@ -1885,7 +2070,7 @@ mod tests {
 
         let cc = NativeH2Connector::default();
         a.with_http2_server(cc, 12346);
-        a.with_app_client_task(Box::new(RestartMonitor::new(|| {})));
+        a.with_app_client_task(Box::new(RestartMonitor));
         a.with_app_client_task(Box::new(LogUploadTask {}));
 
         let cert = Rc::new(Box::new(WebRtcCertificate::new()) as Box<dyn Certificate>);
@@ -1903,7 +2088,7 @@ mod tests {
         exec.block_on(async {
             Timer::after(Duration::from_millis(200)).await;
         });
-        b.run_forever();
+        b.run_until_complete();
     }
 
     async fn run_fake_app_server(exec: Executor, app: AppServerInsecure) {

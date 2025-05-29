@@ -87,7 +87,7 @@ mod native {
             mdns,
             Box::new(network),
         );
-        server.run_forever();
+        server.run_until_complete();
     }
 }
 

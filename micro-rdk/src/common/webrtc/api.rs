@@ -17,6 +17,7 @@ use crate::{
         grpc::{GrpcError, GrpcServer},
         grpc_client::{GrpcClientError, GrpcMessageStream},
         robot::LocalRobot,
+        system::shutdown_requested_nonblocking,
     },
     google::rpc::{Code, Status},
     proto::rpc::webrtc::v1::{
@@ -34,6 +35,7 @@ use atomic_waker::AtomicWaker;
 use base64::{engine::general_purpose, Engine};
 use either::Either;
 use futures_lite::{Future, FutureExt, StreamExt};
+use futures_util::{select, FutureExt as FuturesUtilExt};
 use prost::{DecodeError, EncodeError};
 use scopeguard::ScopeGuard;
 use sdp::{
@@ -88,6 +90,8 @@ pub enum WebRtcError {
     OperationTimeout,
     #[error(transparent)]
     GrpcClientError(#[from] GrpcClientError),
+    #[error("webrtc cancelled by system event")]
+    CancelledBySystem,
 }
 
 pub(crate) type WebRtcSignaling = Either<AppSignaling, LocalSignaling>;
@@ -280,20 +284,46 @@ impl PeriodicAppClientTask for SignalingTask {
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Option<Duration>, AppClientError>> + 'b>>
     {
         Box::pin(async {
-            let mut sig_pair = app_client.initiate_signaling(self.rpc_host.clone()).await?;
-            let sdp = self.wait_for_sdp(&mut sig_pair.rx).await;
-            if let Some(WebRtcError::GrpcClientError(GrpcClientError::GrpcError { code, .. })) =
-                sdp.as_ref().err()
-            {
-                // silence errors coming from context cancellation
-                if *code == 1 {
-                    return Ok(None);
+            let mut shutdown_poll_future = Box::pin(
+                async {
+                    loop {
+                        if shutdown_requested_nonblocking().await {
+                            return;
+                        }
+                        async_io::Timer::after(Duration::from_secs(5)).await;
+                    }
+                }
+                .fuse(),
+            );
+            let mut signaling_future = Box::pin(
+                async {
+                    let mut sig_pair = app_client.initiate_signaling(self.rpc_host.clone()).await?;
+                    let sdp = self.wait_for_sdp(&mut sig_pair.rx).await;
+                    if let Some(WebRtcError::GrpcClientError(GrpcClientError::GrpcError {
+                        code,
+                        ..
+                    })) = sdp.as_ref().err()
+                    {
+                        // silence errors coming from context cancellation
+                        if *code == 1 {
+                            return Ok(None);
+                        }
+                    }
+                    let sdp = sdp?;
+                    let sig = Box::new(WebRtcSignalingChannel::new(Either::Left(sig_pair), sdp));
+                    let _ret = self.sender.send(sig).await; // TODO deal with result, sending on a close channel will never succeed. The limit here is that SignalingTask will be allocated for the lifetime of the ViamServer.
+                    Ok(None)
+                }
+                .fuse(),
+            );
+
+            select! {
+                res = signaling_future => res,
+                _ = shutdown_poll_future => {
+                    log::info!("signaling received shutdown signal, attempting to cancel");
+                    Ok(None)
                 }
             }
-            let sdp = sdp?;
-            let sig = Box::new(WebRtcSignalingChannel::new(Either::Left(sig_pair), sdp));
-            let _ret = self.sender.send(sig).await; // TODO deal with result, sending on a close channel will never succeed. The limit here is that SignalingTask will be allocated for the lifetime of the ViamServer.
-            Ok(None)
         })
     }
 }
