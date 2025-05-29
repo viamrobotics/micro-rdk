@@ -2,12 +2,14 @@ use super::{actuator::Actuator, board::BoardError, config::AttributeError, gener
 
 #[cfg(feature = "builtin-components")]
 use super::{
+    actuator::ActuatorError,
     config::ConfigType,
     registry::{ComponentRegistry, Dependency},
 };
 
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
+
 pub static COMPONENT_NAME: &str = "servo";
 #[derive(Debug, Error)]
 pub enum ServoError {
@@ -67,22 +69,21 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
 #[cfg(feature = "builtin-components")]
 #[derive(DoCommand)]
 pub struct FakeServo {
-    pos: u32,
-    pow: u32,
+    angle: u32,
 }
 
 #[cfg(feature = "builtin-components")]
 impl FakeServo {
     pub fn new() -> Self {
-        Self { pos: 10, pow: 1 }
+        Self { angle: 0 }
     }
     pub(crate) fn from_config(
         cfg: ConfigType,
         _: Vec<Dependency>,
     ) -> Result<ServoType, ServoError> {
         let mut servo = FakeServo::default();
-        if let Ok(pos) = cfg.get_attribute::<u32>("fake_position") {
-            servo.pos = pos
+        if let Ok(angle) = cfg.get_attribute::<u32>("fake_position") {
+            servo.angle = angle;
         }
         Ok(Arc::new(Mutex::new(servo)))
     }
@@ -97,22 +98,21 @@ impl Default for FakeServo {
 #[cfg(feature = "builtin-components")]
 impl Servo for FakeServo {
     fn get_position(&mut self) -> Result<u32, ServoError> {
-        Ok(self.pos)
+        Ok(self.angle)
     }
 
     fn move_to(&mut self, angle_deg: u32) -> Result<(), ServoError> {
-        self.pos = angle_deg;
+        self.angle = angle_deg;
         Ok(())
     }
 }
 
 #[cfg(feature = "builtin-components")]
 impl Actuator for FakeServo {
-    fn is_moving(&mut self) -> Result<bool, super::actuator::ActuatorError> {
-        Ok(self.pow > 0)
+    fn is_moving(&mut self) -> Result<bool, ActuatorError> {
+        Ok(false)
     }
-    fn stop(&mut self) -> Result<(), super::actuator::ActuatorError> {
-        self.pos = 0;
+    fn stop(&mut self) -> Result<(), ActuatorError> {
         Ok(())
     }
 }
