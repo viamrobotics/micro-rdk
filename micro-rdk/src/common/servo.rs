@@ -1,7 +1,15 @@
-use super::{actuator::Actuator, config::AttributeError, generic::DoCommand};
-use crate::common::board::BoardError;
+use super::{actuator::Actuator, board::BoardError, config::AttributeError, generic::DoCommand};
+
+#[cfg(feature = "builtin-components")]
+use super::{
+    actuator::ActuatorError,
+    config::ConfigType,
+    registry::{ComponentRegistry, Dependency},
+};
+
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
+
 pub static COMPONENT_NAME: &str = "servo";
 #[derive(Debug, Error)]
 pub enum ServoError {
@@ -45,5 +53,66 @@ where
     }
     fn get_position(&mut self) -> Result<u32, ServoError> {
         self.lock().unwrap().get_position()
+    }
+}
+
+#[cfg(feature = "builtin-components")]
+pub(crate) fn register_models(registry: &mut ComponentRegistry) {
+    if registry
+        .register_servo("fake", &FakeServo::from_config)
+        .is_err()
+    {
+        log::error!("fake type is already registered");
+    }
+}
+
+#[cfg(feature = "builtin-components")]
+#[derive(DoCommand)]
+pub struct FakeServo {
+    angle: u32,
+}
+
+#[cfg(feature = "builtin-components")]
+impl FakeServo {
+    pub fn new() -> Self {
+        Self { angle: 0 }
+    }
+    pub(crate) fn from_config(
+        cfg: ConfigType,
+        _: Vec<Dependency>,
+    ) -> Result<ServoType, ServoError> {
+        let mut servo = FakeServo::default();
+        if let Ok(angle) = cfg.get_attribute::<u32>("fake_position") {
+            servo.angle = angle;
+        }
+        Ok(Arc::new(Mutex::new(servo)))
+    }
+}
+#[cfg(feature = "builtin-components")]
+impl Default for FakeServo {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(feature = "builtin-components")]
+impl Servo for FakeServo {
+    fn get_position(&mut self) -> Result<u32, ServoError> {
+        Ok(self.angle)
+    }
+
+    fn move_to(&mut self, angle_deg: u32) -> Result<(), ServoError> {
+        self.angle = angle_deg;
+        Ok(())
+    }
+}
+
+#[cfg(feature = "builtin-components")]
+impl Actuator for FakeServo {
+    fn is_moving(&mut self) -> Result<bool, ActuatorError> {
+        Ok(false)
+    }
+    fn stop(&mut self) -> Result<(), ActuatorError> {
+        Ok(())
     }
 }

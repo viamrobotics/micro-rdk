@@ -16,6 +16,7 @@ use super::{
     movement_sensor::MovementSensor,
     robot::ResourceType,
     sensor::{Readings, SensorError},
+    servo::ServoError,
 };
 use thiserror::Error;
 
@@ -110,7 +111,7 @@ pub enum CollectionMethod {
     AngularVelocity,
     LinearAcceleration,
     LinearVelocity,
-    Position,
+    Position, // also Servo
     CompassHeading,
     // Board methods
     Analogs(String),
@@ -169,6 +170,8 @@ pub enum DataCollectionError {
     BoardCollectionError(#[from] BoardError),
     #[error(transparent)]
     SensorCollectionError(#[from] SensorError),
+    #[error(transparent)]
+    ServoCollectionError(#[from] ServoError),
 }
 
 /// A DataCollector represents an association between a data collection method and
@@ -201,6 +204,7 @@ fn resource_method_pair_is_valid(resource: &ResourceType, method: &CollectionMet
                 CollectionMethod::Analogs(_) | CollectionMethod::Gpios(_)
             )
         }
+        ResourceType::Servo(_) => matches!(method, CollectionMethod::Position),
         _ => false,
     }
 }
@@ -314,6 +318,26 @@ impl DataCollector {
                     return Err(DataCollectionError::UnsupportedMethod(
                         self.method.clone(),
                         "sensor".to_string(),
+                    ))
+                }
+            },
+
+            ResourceType::Servo(ref mut res) => match self.method {
+                CollectionMethod::Position => {
+                    let value = res.lock().unwrap().get_position()?;
+                    Data::Struct(Struct {
+                        fields: HashMap::from([(
+                            "position_deg".to_string(),
+                            Value {
+                                kind: Some(ProtoKind::NumberValue(value.into())),
+                            },
+                        )]),
+                    })
+                }
+                _ => {
+                    return Err(DataCollectionError::UnsupportedMethod(
+                        self.method.clone(),
+                        "servo".to_string(),
                     ))
                 }
             },
