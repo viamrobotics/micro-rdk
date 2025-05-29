@@ -272,10 +272,10 @@ impl Encoder for FakeEncoder {
     ) -> Result<EncoderPosition, EncoderError> {
         match position_type {
             EncoderPositionType::UNSPECIFIED => Err(EncoderError::EncoderUnspecified),
-            EncoderPositionType::DEGREES => {
-                Ok(position_type.wrap_value(self.angle_degrees))
-            }
+            EncoderPositionType::DEGREES => Ok(position_type.wrap_value(self.angle_degrees)),
             EncoderPositionType::TICKS => {
+                // In RDK, this is simulated with time and speed.
+                // Here we simplify the calculation to be predictable and test output.
                 let value: f32 = (self.angle_degrees / 360.0)
                     * (self.ticks.fetch_add(1, Ordering::Relaxed) as f32);
                 Ok(position_type.wrap_value(value))
