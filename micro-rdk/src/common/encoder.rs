@@ -118,6 +118,8 @@ impl EncoderPosition {
     pub fn to_data_struct(self) -> Data {
         Data::Struct(Struct {
             fields: HashMap::from([(
+                // using a deprecated format instead of `value` and `position_type` due to
+                // issue with encoder-specific handling in app-side tabular data handler
                 "ticks".to_string(),
                 Value {
                     kind: Some(Kind::NumberValue(self.value.into())),
