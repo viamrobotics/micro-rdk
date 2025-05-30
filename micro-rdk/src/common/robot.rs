@@ -904,13 +904,10 @@ mod tests {
                 name: ResourceName::new_builtin("enc1".to_owned(), "encoder".to_owned()),
                 model: Model::new_builtin("fake".to_owned()),
                 data_collector_configs: vec![],
-                attributes: Some(HashMap::from([
-                    ("fake_deg".to_owned(), Kind::StringValue("45.0".to_owned())),
-                    (
-                        "ticks_per_rotation".to_owned(),
-                        Kind::StringValue("2".to_owned()),
-                    ),
-                ])),
+                attributes: Some(HashMap::from([(
+                    "fake_deg".to_owned(),
+                    Kind::StringValue("45.0".to_owned()),
+                )])),
             }),
             Some(DynamicComponentConfig {
                 name: ResourceName::new_builtin("enc2".to_owned(), "encoder".to_owned()),
@@ -1076,12 +1073,28 @@ mod tests {
         );
         assert_eq!(pos_deg.as_ref().unwrap().value, 45.0);
 
+        // get_position() on FakeEncoder increments the position for the next call
+        let pos_tick = enc1
+            .as_mut()
+            .unwrap()
+            .get_position(EncoderPositionType::TICKS);
+        assert!(pos_tick.is_ok());
+        assert_eq!(pos_tick.as_ref().unwrap().value, 0.0);
+
+        let pos_tick = enc1
+            .as_mut()
+            .unwrap()
+            .get_position(EncoderPositionType::TICKS);
+        assert!(pos_tick.is_ok());
+        assert_eq!(pos_tick.as_ref().unwrap().value, 0.125);
+
         let pos_tick = enc1
             .as_mut()
             .unwrap()
             .get_position(EncoderPositionType::TICKS);
         assert!(pos_tick.is_ok());
         assert_eq!(pos_tick.as_ref().unwrap().value, 0.25);
+
         assert_eq!(
             pos_tick.as_ref().unwrap().position_type,
             EncoderPositionType::TICKS
