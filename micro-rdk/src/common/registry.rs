@@ -155,6 +155,7 @@ impl Default for ComponentRegistry {
             crate::common::gpio_motor::register_models(&mut r);
             crate::common::gpio_servo::register_models(&mut r);
             crate::common::sensor::register_models(&mut r);
+            crate::common::servo::register_models(&mut r);
             crate::common::switch::register_models(&mut r);
             crate::common::movement_sensor::register_models(&mut r);
             crate::common::mpu6050::register_models(&mut r);
@@ -649,6 +650,7 @@ mod tests {
             &config,
             &mut Box::new(registry),
             None,
+            common::system::FirmwareMode::Normal,
         );
         assert!(robot.is_ok());
         let robot = robot.unwrap();

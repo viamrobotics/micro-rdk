@@ -22,7 +22,7 @@ impl PeriodicAppClientTask for RestartMonitor {
         Box::pin(async move {
             match app_client.check_for_restart().await {
                 Ok(None) => {
-                    if let Err(err) = send_system_event(SystemEvent::Restart).await {
+                    if let Err(err) = send_system_event(SystemEvent::Restart, false).await {
                         log::warn!("skipping action from restart monitor: {:?}", err);
                     };
                     Ok(None)

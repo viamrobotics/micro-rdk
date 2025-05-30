@@ -28,7 +28,7 @@ use log::*;
 #[cfg(feature = "data")]
 use super::{
     data_collector::{DataCollectionError, DataCollector, DataCollectorConfig},
-    data_manager::DataManager,
+    data_manager::{DataCollectAndSyncTask, DataManager},
     data_store::DefaultDataStore,
 };
 
@@ -38,8 +38,7 @@ use super::{
     base::BaseType,
     board::BoardType,
     button::{Button, ButtonType},
-    config::ResourceName,
-    config::{AttributeError, ConfigType, DynamicComponentConfig},
+    config::{AttributeError, ConfigType, DynamicComponentConfig, ResourceName},
     encoder::EncoderType,
     exec::Executor,
     generic::{GenericComponent, GenericComponentType},
@@ -52,6 +51,7 @@ use super::{
     sensor::SensorType,
     servo::{Servo, ServoType},
     switch::SwitchType,
+    system::FirmwareMode,
 };
 
 use thiserror::Error;
@@ -242,6 +242,7 @@ impl LocalRobot {
         config: &RobotConfig,
         registry: &mut Box<ComponentRegistry>,
         build_time: Option<DateTime<FixedOffset>>,
+        #[allow(unused_variables)] firmware_mode: FirmwareMode,
     ) -> Result<Self, RobotError> {
         let mut robot = LocalRobot {
             executor: exec,
@@ -276,22 +277,44 @@ impl LocalRobot {
         // TODO: When cfg's on expressions are valid, remove the outer scope.
         #[cfg(feature = "data")]
         {
-            // TODO(RSDK-8125): Support selection of the DataStore trait other than
-            // DefaultDataStore in a way that is configurable
-            match DataManager::<DefaultDataStore>::from_robot_and_config(&robot, config) {
-                Ok(Some(mut data_manager)) => {
-                    if let Some(task) = data_manager.get_sync_task(robot.start_time) {
-                        let _ = robot.data_manager_sync_task.insert(Box::new(task));
+            match firmware_mode {
+                // TODO(RSDK-8125): Support selection of a DataStore trait other than
+                // DefaultDataStore in a way that is configurable
+                FirmwareMode::Normal => {
+                    match DataManager::<DefaultDataStore>::from_robot_and_config(&robot, config) {
+                        Ok(None) => {}
+                        Ok(Some(mut data_manager)) => {
+                            if let Some(task) = data_manager.get_sync_task(robot.start_time) {
+                                let _ = robot.data_manager_sync_task.insert(Box::new(task));
+                            }
+                            let _ =
+                                robot
+                                    .data_manager_collection_task
+                                    .replace(robot.executor.spawn(async move {
+                                        data_manager.data_collection_task(robot.start_time).await;
+                                    }));
+                        }
+                        Err(err) => {
+                            log::error!("Error configuring data management: {:?}", err);
+                        }
                     }
-                    let _ = robot
-                        .data_manager_collection_task
-                        .replace(robot.executor.spawn(async move {
-                            data_manager.data_collection_task(robot.start_time).await;
-                        }));
                 }
-                Ok(None) => {}
-                Err(err) => {
-                    log::error!("Error configuring data management: {:?}", err);
+                FirmwareMode::DeepSleepBetweenDataSyncs => {
+                    match DataCollectAndSyncTask::from_robot_and_config(
+                        &robot,
+                        config,
+                        robot.start_time,
+                    ) {
+                        Ok(sync_task) => {
+                            let _ = robot.data_manager_sync_task.insert(Box::new(sync_task));
+                        }
+                        Err(err) => {
+                            log::error!(
+                                "failed to create data collect and sync task from robot: {:?}",
+                                err
+                            );
+                        }
+                    }
                 }
             };
         }
@@ -677,8 +700,8 @@ impl Drop for LocalRobot {
             log::info!("Stopping data manager collection task");
             self.executor.block_on(task.cancel());
             log::info!("Stopped data manager collection task");
-            log::info!("Dropping robot")
         }
+        log::info!("Dropping robot")
     }
 }
 
@@ -1241,6 +1264,7 @@ mod tests {
             &robot_cfg,
             &mut Box::default(),
             None,
+            crate::common::system::FirmwareMode::Normal,
         );
 
         assert!(robot.is_ok());
@@ -1344,6 +1368,7 @@ mod tests {
             &robot_cfg,
             &mut Box::default(),
             None,
+            crate::common::system::FirmwareMode::Normal,
         );
 
         assert!(robot.is_ok());
