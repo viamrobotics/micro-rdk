@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -12,7 +13,7 @@ use crate::proto::app::data_sync::v1::{
 use crate::proto::app::v1::{RobotConfig, ServiceConfig};
 
 use super::app_client::{AppClient, AppClientError, PeriodicAppClientTask, VIAM_FOUNDING_YEAR};
-use super::data_collector::ResourceMethodKey;
+use super::data_collector::{CollectionMethod, ResourceMethodKey};
 use super::data_store::{DataStoreError, DataStoreReader, WriteMode};
 use super::robot::{LocalRobot, RobotError};
 use super::system::{send_system_event, SystemEvent};
@@ -30,7 +31,7 @@ use thiserror::Error;
 // the smaller amount of available RAM, we've halved it
 static MAX_SENSOR_CONTENTS_SIZE: usize = 32000;
 
-type CollectedReadings = Vec<(ResourceMethodKey, Result<SensorData, DataCollectionError>)>;
+type CollectedReadings = HashMap<ResourceMethodKey, Result<Vec<SensorData>, DataManagerError>>;
 
 /// Allow for a C project using micro-RDK as a library to implement a callback to be run
 /// whenever data has successfully been uploaded. The callback should be identical in signature
@@ -268,15 +269,19 @@ where
                     &collector_key,
                     e
                 ),
-                Ok(data) => {
-                    if let Err(e) =
-                        store_guard.write_message(&collector_key, data, WriteMode::OverwriteOldest)
-                    {
-                        log::error!(
-                            "couldn't store data for collector {:?} error : {:?}",
-                            collector_key,
-                            e
-                        );
+                Ok(data_vec) => {
+                    for data in data_vec {
+                        if let Err(e) = store_guard.write_message(
+                            &collector_key,
+                            data,
+                            WriteMode::OverwriteOldest,
+                        ) {
+                            log::error!(
+                                "couldn't store some data for collector {:?} error : {:?}",
+                                collector_key,
+                                e
+                            );
+                        }
                     }
                 }
             }
@@ -299,19 +304,24 @@ where
                 min_interval_ms,
             ));
         }
-        self.collectors
-            .iter_mut()
-            .filter(|coll| {
-                (coll.time_interval().as_millis() as u64 / min_interval_ms)
-                    == (time_interval_ms / min_interval_ms)
-            })
-            .map(|coll| {
-                Ok((
-                    coll.resource_method_key(),
-                    coll.call_method(robot_start_time),
-                ))
-            })
-            .collect()
+
+        let mut readings_by_collector: HashMap<
+            ResourceMethodKey,
+            Result<Vec<SensorData>, DataManagerError>,
+        > = HashMap::new();
+
+        for coll in self.collectors.iter_mut().filter(|coll| {
+            (coll.time_interval().as_millis() as u64 / min_interval_ms)
+                == (time_interval_ms / min_interval_ms)
+        }) {
+            let resource_method_key = coll.resource_method_key();
+            readings_by_collector.insert(
+                resource_method_key,
+                coll.call_method(robot_start_time)
+                    .map_err(DataManagerError::from),
+            );
+        }
+        Ok(readings_by_collector)
     }
 
     pub fn get_sync_task(&self, robot_start_time: Instant) -> Option<DataSyncTask<StoreType>> {
@@ -649,6 +659,7 @@ impl DataCollectAndSyncTask {
         let collectors_len = self.collectors.len();
         for (idx, collector) in self.collectors.iter().enumerate() {
             let collector_key = collector.resource_method_key();
+            let is_cached_readings = matches!(collector.method(), CollectionMethod::CachedReadings);
             let readings = collector
                 .call_method(self.robot_start_time)
                 .inspect_err(|err| {
@@ -658,41 +669,57 @@ impl DataCollectAndSyncTask {
                         err
                     )
                 });
-            if let Ok(mut readings) = readings {
-                match time_correct_reading(self.robot_start_time, &mut readings) {
-                    Ok(_) => {
-                        let upload_request = DataCaptureUploadRequest {
-                            metadata: Some(UploadMetadata {
-                                part_id: self.part_id.clone(),
-                                component_type: collector_key.component_type.clone(),
-                                r#type: DataType::TabularSensor.into(),
-                                component_name: collector_key.r_name.clone(),
-                                method_name: collector_key.method.to_string(),
-                                ..Default::default()
-                            }),
-                            sensor_contents: vec![readings],
-                        };
-                        match app_client.upload_data(upload_request).await {
-                            Ok(_) => {
-                                #[cfg(feature = "data-upload-hook-unstable")]
-                                unsafe {
-                                    micro_rdk_data_manager_post_upload_hook();
-                                }
+            if let Ok(readings) = readings {
+                let robot_start_time = self.robot_start_time;
+                let readings: Vec<SensorData> = readings
+                    .into_iter()
+                    .filter_map(|mut readings| {
+                        if is_cached_readings {
+                            Some(readings)
+                        } else if let Err(err) =
+                            time_correct_reading(robot_start_time, &mut readings)
+                        {
+                            log::error!(
+                                "unable to time correct reading for collector {:?}, {:?}",
+                                collector_key,
+                                err
+                            );
+                            None
+                        } else {
+                            Some(readings)
+                        }
+                    })
+                    .collect();
+                if !readings.is_empty() {
+                    let upload_request = DataCaptureUploadRequest {
+                        metadata: Some(UploadMetadata {
+                            part_id: self.part_id.clone(),
+                            component_type: collector_key.component_type.clone(),
+                            r#type: DataType::TabularSensor.into(),
+                            component_name: collector_key.r_name.clone(),
+                            method_name: collector_key.method.to_string(),
+                            ..Default::default()
+                        }),
+                        sensor_contents: readings,
+                    };
+                    match app_client.upload_data(upload_request).await {
+                        Ok(_) => {
+                            #[cfg(feature = "data-upload-hook-unstable")]
+                            unsafe {
+                                micro_rdk_data_manager_post_upload_hook();
                             }
-                            // if we can't upload, don't try again until after the next sleep
-                            Err(err) => {
-                                log::error!("error uploading data, failed to upload {:?} readings on this attempt: {}", collectors_len - idx, err);
-                            }
-                        };
-                    }
-                    Err(err) => {
-                        log::error!(
-                            "unable to time correct reading for collector {:?}, {:?}",
-                            collector_key,
-                            err
-                        )
-                    }
-                };
+                        }
+                        // if we can't upload, don't try again until after the next sleep
+                        Err(err) => {
+                            log::error!("error uploading data, failed to upload {:?} readings on this attempt: {}", collectors_len - idx, err);
+                        }
+                    };
+                } else {
+                    log::warn!(
+                        "no readings captured for collector {:?}, skipping upload",
+                        collector_key
+                    );
+                }
             }
         }
         let _ = send_system_event(SystemEvent::DeepSleep(Some(self.sync_interval)), true).await;
@@ -767,8 +794,7 @@ mod tests {
     use prost::Message;
     use ringbuf::{LocalRb, Rb};
 
-    use super::DataManager;
-    use crate::common::data_collector::DataCollectionError;
+    use super::{DataManager, DataManagerError};
     use crate::common::data_store::{DataStoreReader, WriteMode};
     use crate::common::{
         data_collector::{
@@ -963,19 +989,20 @@ mod tests {
         let sensor_data = data_manager.collect_readings_for_interval(100, robot_start_time);
         assert!(sensor_data.is_ok());
         let sensor_data = sensor_data.unwrap();
-        let sensor_data: Vec<(ResourceMethodKey, SensorData)> = sensor_data
+        let mut sensor_data: Vec<(ResourceMethodKey, Vec<SensorData>)> = sensor_data
             .into_iter()
             .try_fold(vec![], |mut out, val| {
                 out.push((val.0, val.1?));
-                Ok::<Vec<(ResourceMethodKey, SensorData)>, DataCollectionError>(out)
+                Ok::<Vec<(ResourceMethodKey, Vec<SensorData>)>, DataManagerError>(out)
             })
             .unwrap();
+        sensor_data.sort_by_key(|(r_key, _)| r_key.r_name.clone());
 
         assert_eq!(sensor_data.len(), 2);
 
         assert_eq!(sensor_data[0].0, method_key_1);
-        assert!(sensor_data[0].1.data.is_some());
-        let data = sensor_data[0].1.data.clone().unwrap();
+        assert!(sensor_data[0].1[0].data.is_some());
+        let data = sensor_data[0].1[0].data.clone().unwrap();
         assert!(matches!(data, Data::Struct(_)));
         match data {
             Data::Struct(data) => {
@@ -1005,8 +1032,8 @@ mod tests {
         };
 
         assert_eq!(sensor_data[1].0, method_key_2);
-        assert!(sensor_data[1].1.data.is_some());
-        let data = sensor_data[1].1.data.clone().unwrap();
+        assert!(sensor_data[1].1[0].data.is_some());
+        let data = sensor_data[1].1[0].data.clone().unwrap();
         assert!(matches!(data, Data::Struct(_)));
         match data {
             Data::Struct(data) => {
@@ -1074,10 +1101,10 @@ mod tests {
         let readings = data_manager
             .collect_readings_for_interval(100, robot_start_time)
             .unwrap();
-        let readings: Result<Vec<(ResourceMethodKey, SensorData)>, DataCollectionError> =
+        let readings: Result<Vec<(ResourceMethodKey, Vec<SensorData>)>, DataManagerError> =
             readings.into_iter().try_fold(vec![], |mut out, val| {
                 out.push((val.0, val.1?));
-                Ok::<Vec<(ResourceMethodKey, SensorData)>, DataCollectionError>(out)
+                Ok::<Vec<(ResourceMethodKey, Vec<SensorData>)>, DataManagerError>(out)
             });
         assert!(readings.is_err());
     }

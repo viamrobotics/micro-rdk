@@ -69,7 +69,28 @@ impl TryFrom<&Kind> for DataCollectorConfig {
         }
         let additional_params = value.get("additional_params")?;
         let method = match method_str.as_str() {
-            "Readings" => CollectionMethod::Readings,
+            "Readings" => {
+                if additional_params
+                    .map(|t| {
+                        t.get("cached")
+                            .ok()
+                            .flatten()
+                            .map(|k| {
+                                if let crate::common::config::Kind::BoolValue(val) = k {
+                                    *val
+                                } else {
+                                    false
+                                }
+                            })
+                            .unwrap_or_default()
+                    })
+                    .unwrap_or_default()
+                {
+                    CollectionMethod::CachedReadings
+                } else {
+                    CollectionMethod::Readings
+                }
+            }
             "AngularVelocity" => CollectionMethod::AngularVelocity,
             "LinearAcceleration" => CollectionMethod::LinearAcceleration,
             "LinearVelocity" => CollectionMethod::LinearVelocity,
@@ -107,9 +128,10 @@ impl TryFrom<&Kind> for DataCollectorConfig {
 
 /// A CollectionMethod is an enum whose values are associated with
 /// a method on one or more component traits
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CollectionMethod {
     Readings,
+    CachedReadings,
     // MovementSensor methods
     AngularVelocity,
     LinearAcceleration,
@@ -131,6 +153,7 @@ impl Display for CollectionMethod {
         std::fmt::Display::fmt(
             match self {
                 Self::Readings => "Readings",
+                Self::CachedReadings => "Readings",
                 Self::AngularVelocity => "AngularVelocity",
                 Self::LinearAcceleration => "LinearAcceleration",
                 Self::LinearVelocity => "LinearVelocity",
@@ -145,7 +168,7 @@ impl Display for CollectionMethod {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ResourceMethodKey {
     pub r_name: String,
     pub component_type: String,
@@ -217,7 +240,10 @@ fn resource_method_pair_is_valid(resource: &ResourceType, method: &CollectionMet
                 | CollectionMethod::Position
                 | CollectionMethod::CompassHeading
         ),
-        ResourceType::Sensor(_) => matches!(method, CollectionMethod::Readings),
+        ResourceType::Sensor(_) => matches!(
+            method,
+            CollectionMethod::Readings | CollectionMethod::CachedReadings
+        ),
         ResourceType::Servo(_) => matches!(method, CollectionMethod::Position),
         _ => false,
     }
@@ -287,12 +313,29 @@ impl DataCollector {
         self.capacity
     }
 
+    pub fn method(&self) -> CollectionMethod {
+        self.method.clone()
+    }
+
     /// calls the method associated with the collector and returns the resulting data
     pub(crate) fn call_method(
         &self,
         robot_start_time: Instant,
-    ) -> Result<SensorData, DataCollectionError> {
+    ) -> Result<Vec<SensorData>, DataCollectionError> {
         let reading_requested_ts = robot_start_time.elapsed();
+
+        // providers of cached readings are supposed to handle timestamp logic, so we
+        // rely on the sensor's `get_cached_readings` implementation
+        if matches!(self.method, CollectionMethod::CachedReadings) {
+            return match self.resource.clone() {
+                ResourceType::Sensor(mut res) => Ok(res.get_cached_readings_data()?),
+                _ => Err(DataCollectionError::UnsupportedMethod(
+                    self.method.clone(),
+                    "board".to_string(),
+                )),
+            };
+        }
+
         let data = match self.resource.clone() {
             ResourceType::Board(res) => match &self.method {
                 CollectionMethod::Analogs(reader_name) => {
@@ -423,7 +466,7 @@ impl DataCollector {
             _ => return Err(DataCollectionError::NoSupportedMethods),
         };
         let reading_received_ts = robot_start_time.elapsed();
-        Ok(SensorData {
+        Ok(vec![SensorData {
             metadata: Some(SensorMetadata {
                 time_received: Some(Timestamp {
                     seconds: reading_received_ts.as_secs() as i64,
@@ -437,7 +480,7 @@ impl DataCollector {
                 mime_type: MimeType::Unspecified.into(),
             }),
             data: Some(data),
-        })
+        }])
     }
 
     pub fn resource_method_key(&self) -> ResourceMethodKey {
@@ -587,7 +630,7 @@ mod tests {
             DataCollectorConfig::try_from(&conf_kind).expect("data collector config parse failed");
         let coll = DataCollector::from_config("fake".to_string(), resource, &conf)?;
         assert_eq!(coll.time_interval(), Duration::from_millis(10));
-        let data = coll.call_method(robot_start_time)?.data;
+        let data = coll.call_method(robot_start_time)?[0].data.clone();
         assert!(data.is_some());
         let data = data.unwrap();
         match data {
