@@ -286,6 +286,9 @@ where
 #[cfg(feature = "builtin-components")]
 impl Motor for FakeMotor {
     fn get_position(&mut self) -> Result<i32, MotorError> {
+        if self.is_moving()? {
+            self.pos += self.power;
+        }
         Ok(self.pos as i32)
     }
     fn set_power(&mut self, pct: f64) -> Result<(), MotorError> {
