@@ -13,6 +13,7 @@ use super::{
     analog::AnalogError,
     board::{Board, BoardError},
     config::{AttributeError, Kind},
+    motor::MotorError,
     movement_sensor::MovementSensor,
     robot::ResourceType,
     sensor::{Readings, SensorError},
@@ -111,7 +112,7 @@ pub enum CollectionMethod {
     AngularVelocity,
     LinearAcceleration,
     LinearVelocity,
-    Position, // also Servo
+    Position, // also Servo,Motor
     CompassHeading,
     // Board methods
     Analogs(String),
@@ -169,6 +170,8 @@ pub enum DataCollectionError {
     #[error(transparent)]
     BoardCollectionError(#[from] BoardError),
     #[error(transparent)]
+    MotorCollectionError(#[from] MotorError),
+    #[error(transparent)]
     SensorCollectionError(#[from] SensorError),
     #[error(transparent)]
     ServoCollectionError(#[from] ServoError),
@@ -203,6 +206,9 @@ fn resource_method_pair_is_valid(resource: &ResourceType, method: &CollectionMet
                 method,
                 CollectionMethod::Analogs(_) | CollectionMethod::Gpios(_)
             )
+        }
+        ResourceType::Motor(_) => {
+            matches!(method, CollectionMethod::Position)
         }
         ResourceType::Servo(_) => matches!(method, CollectionMethod::Position),
         _ => false,
@@ -341,7 +347,25 @@ impl DataCollector {
                     ))
                 }
             },
-
+            ResourceType::Motor(ref mut res) => match self.method {
+                CollectionMethod::Position => {
+                    let position = res.lock().unwrap().get_position()?;
+                    Data::Struct(Struct {
+                        fields: HashMap::from([(
+                            "position".to_string(),
+                            Value {
+                                kind: Some(ProtoKind::NumberValue(position.into())),
+                            },
+                        )]),
+                    })
+                }
+                _ => {
+                    return Err(DataCollectionError::UnsupportedMethod(
+                        self.method.clone(),
+                        "motor".to_string(),
+                    ))
+                }
+            },
             ResourceType::MovementSensor(ref mut res) => match self.method {
                 CollectionMethod::Readings => res.get_generic_readings()?.into(),
                 CollectionMethod::AngularVelocity => res
