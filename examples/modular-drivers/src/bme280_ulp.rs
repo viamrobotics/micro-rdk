@@ -9,7 +9,10 @@ use std::{
 };
 
 use chrono::{DateTime, TimeDelta};
-use micro_rdk::google::protobuf::{value, Value};
+use micro_rdk::{
+    common::sensor::ReadingsTimestamp,
+    google::protobuf::{value, Value},
+};
 use micro_rdk::{
     common::{
         config::{AttributeError, ConfigType, Kind},
@@ -140,7 +143,6 @@ impl TryFrom<&Kind> for ULPConfig {
                         ))
                     }
                 })?;
-
             let period = config
                 .get("frequency_hz")
                 .ok_or(AttributeError::KeyNotFound("frequency_hz".to_owned()))
@@ -933,17 +935,10 @@ impl BME280 {
         let raw: RawMeasurement = raw.into();
         Ok(raw)
     }
-}
 
-impl Sensor for BME280 {}
-
-impl Readings for BME280 {
-    fn get_generic_readings(
-        &mut self,
-    ) -> Result<micro_rdk::common::sensor::GenericReadingsResult, SensorError> {
-        let measurement = self.read_raw_measurement()?;
-        let measurement = CompensatedMeasurement::from_raw(measurement, &mut self.calib);
+    fn get_calibrated_reading(&mut self, raw_measurement: RawMeasurement) -> GenericReadingsResult {
         let mut res = GenericReadingsResult::new();
+        let measurement = CompensatedMeasurement::from_raw(raw_measurement, &mut self.calib);
         if let Some(temperature) = measurement.temperature {
             res.insert(
                 "temperature".to_owned(),
@@ -968,6 +963,58 @@ impl Readings for BME280 {
                 },
             );
         }
-        Ok(res)
+        res
+    }
+}
+
+impl Sensor for BME280 {}
+
+impl Readings for BME280 {
+    fn get_generic_readings(
+        &mut self,
+    ) -> Result<micro_rdk::common::sensor::GenericReadingsResult, SensorError> {
+        let measurement = self.read_raw_measurement()?;
+        Ok(self.get_calibrated_reading(measurement))
+    }
+
+    fn get_cached_readings(
+        &mut self,
+    ) -> Result<Vec<(ReadingsTimestamp, GenericReadingsResult)>, SensorError> {
+        Ok(match self.ulp.as_ref() {
+            None => {
+                return Err(SensorError::SensorDriverError("no ULP".to_string()));
+            }
+            Some(ulp) => {
+                let num_samples = ulp.cfg.sample;
+                let period = ulp.cfg.period;
+                let start_dt = unsafe {
+                    DateTime::from_timestamp_millis(*(RTC_TIME_START.0.get()))
+                        .unwrap()
+                        .fixed_offset()
+                };
+                let res_mem = ULPResultsMemory::from(&SAMPLE_ARRAY);
+
+                let mut samples_read = 0;
+                let mut res = vec![];
+                for raw_measurement in res_mem {
+                    let reading_ts = start_dt + (period * samples_read);
+                    let timestamp = ReadingsTimestamp {
+                        reading_received_dt: reading_ts,
+                        reading_requested_dt: reading_ts,
+                    };
+                    let reading = self.get_calibrated_reading(raw_measurement);
+                    res.push((timestamp, reading));
+                    samples_read += 1;
+                }
+                if samples_read != num_samples {
+                    log::error!(
+                        "expected {} samples, but only found {}",
+                        num_samples,
+                        samples_read
+                    );
+                }
+                res
+            }
+        })
     }
 }
