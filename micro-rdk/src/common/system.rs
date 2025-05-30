@@ -11,6 +11,35 @@ use super::app_client::{AppClient, PeriodicAppClientTask};
 use super::log::LogUploadTask;
 use super::runtime::terminate;
 
+#[derive(Default)]
+pub enum FirmwareMode {
+    #[default]
+    Normal,
+    DeepSleepBetweenDataSyncs,
+}
+
+impl Display for FirmwareMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(
+            match self {
+                Self::Normal => "normal",
+                Self::DeepSleepBetweenDataSyncs => "deep sleep between data syncs",
+            },
+            f,
+        )
+    }
+}
+
+impl From<Option<&str>> for FirmwareMode {
+    fn from(value: Option<&str>) -> Self {
+        match value {
+            Some("deep_sleep_between_data_syncs") => Self::DeepSleepBetweenDataSyncs,
+            Some("normal") => Self::Normal,
+            _ => Self::Normal,
+        }
+    }
+}
+
 // TODO: Find a way to do this without introducing mutable global state
 static SHUTDOWN_EVENT: LazyLock<Arc<AsyncMutex<Option<SystemEvent>>>> =
     LazyLock::new(|| Arc::new(AsyncMutex::new(None)));
@@ -43,10 +72,13 @@ impl Display for SystemEvent {
     }
 }
 
-pub(crate) async fn send_system_event(event: SystemEvent) -> Result<(), SystemEventError> {
+pub(crate) async fn send_system_event(
+    event: SystemEvent,
+    force: bool,
+) -> Result<(), SystemEventError> {
     log::info!("received call to {}", event);
     let mut current_event = SHUTDOWN_EVENT.lock().await;
-    if current_event.is_none() {
+    if current_event.is_none() || force {
         let _ = current_event.insert(event);
         Ok(())
     } else {

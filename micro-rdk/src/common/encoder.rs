@@ -1,19 +1,20 @@
 #[cfg(feature = "builtin-components")]
 use {
-    super::config::ConfigType,
-    super::registry::{ComponentRegistry, Dependency},
+    crate::{
+        common::{
+            config::ConfigType,
+            registry::{ComponentRegistry, Dependency},
+        },
+        google::protobuf::Struct,
+    },
+    std::sync::atomic::{AtomicU32, Ordering},
 };
 
-use std::sync::Arc;
-use std::sync::Mutex;
-
-use crate::proto::component::encoder::v1::GetPositionResponse;
-use crate::proto::component::encoder::v1::GetPropertiesResponse;
-use crate::proto::component::encoder::v1::PositionType;
-
-use super::config::AttributeError;
-use super::generic::DoCommand;
-
+use crate::{
+    common::{config::AttributeError, generic::DoCommand},
+    proto::component::encoder::v1::{GetPositionResponse, GetPropertiesResponse, PositionType},
+};
+use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -69,6 +70,14 @@ pub enum EncoderPositionType {
     DEGREES,
 }
 
+#[cfg(feature = "data")]
+use crate::{
+    google::protobuf::{value::Kind, Value},
+    proto::app::data_sync::v1::sensor_data::Data,
+};
+#[cfg(feature = "data")]
+use std::collections::HashMap;
+
 impl EncoderPositionType {
     pub fn wrap_value(self, value: f32) -> EncoderPosition {
         EncoderPosition {
@@ -102,6 +111,22 @@ impl From<PositionType> for EncoderPositionType {
 pub struct EncoderPosition {
     pub position_type: EncoderPositionType,
     pub value: f32,
+}
+
+impl EncoderPosition {
+    #[cfg(feature = "data")]
+    pub fn to_data_struct(self) -> Data {
+        Data::Struct(Struct {
+            fields: HashMap::from([(
+                // using a deprecated format instead of `value` and `position_type` due to
+                // issue with encoder-specific handling in app-side tabular data handler
+                "ticks".to_string(),
+                Value {
+                    kind: Some(Kind::NumberValue(self.value.into())),
+                },
+            )]),
+        })
+    }
 }
 
 impl From<EncoderPosition> for GetPositionResponse {
@@ -204,7 +229,7 @@ impl Encoder for FakeIncrementalEncoder {
 #[derive(DoCommand)]
 pub struct FakeEncoder {
     pub angle_degrees: f32,
-    pub ticks_per_rotation: u32,
+    pub ticks: AtomicU32,
 }
 
 #[cfg(feature = "builtin-components")]
@@ -218,8 +243,8 @@ impl Default for FakeEncoder {
 impl FakeEncoder {
     pub fn new() -> Self {
         Self {
-            angle_degrees: 0.0,
-            ticks_per_rotation: 1,
+            angle_degrees: 360.0,
+            ticks: AtomicU32::new(0),
         }
     }
 
@@ -228,9 +253,6 @@ impl FakeEncoder {
         _: Vec<Dependency>,
     ) -> Result<EncoderType, EncoderError> {
         let mut enc: FakeEncoder = Default::default();
-        if let Ok(ticks_per_rotation) = cfg.get_attribute::<u32>("ticks_per_rotation") {
-            enc.ticks_per_rotation = ticks_per_rotation;
-        }
         if let Ok(fake_deg) = cfg.get_attribute::<f32>("fake_deg") {
             enc.angle_degrees = fake_deg;
         }
@@ -254,7 +276,10 @@ impl Encoder for FakeEncoder {
             EncoderPositionType::UNSPECIFIED => Err(EncoderError::EncoderUnspecified),
             EncoderPositionType::DEGREES => Ok(position_type.wrap_value(self.angle_degrees)),
             EncoderPositionType::TICKS => {
-                let value: f32 = (self.angle_degrees / 360.0) * (self.ticks_per_rotation as f32);
+                // In RDK, this is simulated with time and speed.
+                // Here we simplify the calculation to be predictable and test output.
+                let value: f32 = (self.angle_degrees / 360.0)
+                    * (self.ticks.fetch_add(1, Ordering::Relaxed) as f32);
                 Ok(position_type.wrap_value(value))
             }
         }

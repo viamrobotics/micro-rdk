@@ -46,7 +46,7 @@ where
     }
 
     async fn restart(&self) {
-        if let Err(err) = send_system_event(SystemEvent::Restart).await {
+        if let Err(err) = send_system_event(SystemEvent::Restart, false).await {
             log::warn!("skipping restart action from monitor: {:?}", err);
         } else {
             log::warn!("machine configuration change detected - restarting micro-rdk");
