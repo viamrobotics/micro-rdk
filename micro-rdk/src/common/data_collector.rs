@@ -275,12 +275,12 @@ impl DataCollector {
 
     /// calls the method associated with the collector and returns the resulting data
     pub(crate) fn call_method(
-        &mut self,
+        &self,
         robot_start_time: Instant,
     ) -> Result<SensorData, DataCollectionError> {
         let reading_requested_ts = robot_start_time.elapsed();
-        let data = match &mut self.resource {
-            ResourceType::Board(ref mut res) => match &self.method {
+        let data = match self.resource.clone() {
+            ResourceType::Board(res) => match &self.method {
                 CollectionMethod::Analogs(reader_name) => {
                     let reader = res.get_analog_reader_by_name(reader_name.to_string())?;
                     let value = reader.lock().unwrap().read()?;
@@ -312,7 +312,7 @@ impl DataCollector {
                 }
             },
 
-            ResourceType::Sensor(ref mut res) => match self.method {
+            ResourceType::Sensor(mut res) => match self.method {
                 CollectionMethod::Readings => res.get_generic_readings()?.into(),
                 _ => {
                     return Err(DataCollectionError::UnsupportedMethod(
@@ -322,7 +322,7 @@ impl DataCollector {
                 }
             },
 
-            ResourceType::Servo(ref mut res) => match self.method {
+            ResourceType::Servo(res) => match self.method {
                 CollectionMethod::Position => {
                     let value = res.lock().unwrap().get_position()?;
                     Data::Struct(Struct {
@@ -539,7 +539,7 @@ mod tests {
         let conf_kind = Kind::StructValue(kind_map);
         let conf =
             DataCollectorConfig::try_from(&conf_kind).expect("data collector config parse failed");
-        let mut coll = DataCollector::from_config("fake".to_string(), resource, &conf)?;
+        let coll = DataCollector::from_config("fake".to_string(), resource, &conf)?;
         assert_eq!(coll.time_interval(), Duration::from_millis(10));
         let data = coll.call_method(robot_start_time)?.data;
         assert!(data.is_some());
