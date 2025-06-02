@@ -40,6 +40,8 @@ pub enum BoardError {
     BoardI2CError(#[from] I2CErrors),
     #[error(transparent)]
     SystemError(#[from] super::system::SystemEventError),
+    #[error("{0}")]
+    PowerModeParsingError(String),
     #[error(transparent)]
     #[cfg(feature = "esp32")]
     EspError(#[from] EspError),
@@ -58,6 +60,48 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
     }
 }
 
+pub struct PowerModeArgs {
+    pub(crate) power_mode: component::board::v1::PowerMode,
+    pub(crate) duration: Option<Duration>,
+    pub(crate) force: bool,
+    pub(crate) interrupt_pin: Option<i32>,
+}
+
+impl TryFrom<crate::proto::component::board::v1::SetPowerModeRequest> for PowerModeArgs {
+    type Error = BoardError;
+    fn try_from(
+        value: crate::proto::component::board::v1::SetPowerModeRequest,
+    ) -> Result<Self, Self::Error> {
+        let power_mode = value.power_mode();
+
+        let duration = match value.duration {
+            Some(dur) => match Duration::try_from(dur) {
+                Ok(converted) => Some(converted),
+                Err(_) => {
+                    return Err(BoardError::PowerModeParsingError(
+                        "failed to parse `duration`".to_string(),
+                    ))
+                }
+            },
+            None => None,
+        };
+
+        let (force, interrupt_pin) = if let Some(_extra) = value.extra {
+            // TODO
+            (false, None)
+        } else {
+            (false, None)
+        };
+
+        Ok(Self {
+            power_mode,
+            duration,
+            force,
+            interrupt_pin,
+        })
+    }
+}
+
 /// Represents the functionality of a general purpose compute board that contains various components such as analog readers and digital interrupts.
 pub trait Board: DoCommand {
     /// Set a pin to high or low
@@ -70,21 +114,17 @@ pub trait Board: DoCommand {
     fn get_analog_reader_by_name(&self, name: String) -> Result<AnalogReaderType<u16>, BoardError>;
 
     /// Set the board to the indicated [PowerMode](component::board::v1::PowerMode)
-    fn set_power_mode(
-        &self,
-        mode: component::board::v1::PowerMode,
-        duration: Option<Duration>,
-    ) -> Result<(), BoardError> {
+    fn set_power_mode(&self, args: PowerModeArgs) -> Result<(), BoardError> {
         info!(
             "Received request to set power mode to {} for {} milliseconds",
-            mode.as_str_name(),
-            match duration {
+            args.power_mode.as_str_name(),
+            match args.duration {
                 Some(dur) => dur.as_millis().to_string(),
                 None => "<forever>".to_string(),
             }
         );
 
-        if mode != component::board::v1::PowerMode::OfflineDeep {
+        if args.power_mode != component::board::v1::PowerMode::OfflineDeep {
             return Err(BoardError::BoardUnsupportedArgument(
                 "only support OfflineDeep mode",
             ));
@@ -92,7 +132,7 @@ pub trait Board: DoCommand {
 
         Ok(async_io::block_on(
             crate::common::system::send_system_event(
-                crate::common::system::SystemEvent::DeepSleep(duration),
+                crate::common::system::SystemEvent::DeepSleep{duration: args.duration, interrupt_pin: args.interrupt_pin},
                 false,
             ),
         )?)
@@ -283,12 +323,8 @@ where
         self.lock().unwrap().get_analog_reader_by_name(name)
     }
 
-    fn set_power_mode(
-        &self,
-        mode: component::board::v1::PowerMode,
-        duration: Option<Duration>,
-    ) -> Result<(), BoardError> {
-        self.lock().unwrap().set_power_mode(mode, duration)
+    fn set_power_mode(&self, args: PowerModeArgs) -> Result<(), BoardError> {
+        self.lock().unwrap().set_power_mode(args)
     }
 
     fn get_i2c_by_name(&self, name: String) -> Result<I2cHandleType, BoardError> {

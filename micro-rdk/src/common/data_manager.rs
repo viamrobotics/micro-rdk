@@ -695,7 +695,14 @@ impl DataCollectAndSyncTask {
                 };
             }
         }
-        let _ = send_system_event(SystemEvent::DeepSleep(Some(self.sync_interval)), true).await;
+        let _ = send_system_event(
+            SystemEvent::DeepSleep {
+                duration: Some(self.sync_interval),
+                interrupt_pin: None,
+            },
+            true,
+        )
+        .await;
         Ok(())
     }
 

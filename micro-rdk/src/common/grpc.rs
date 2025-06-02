@@ -4,7 +4,7 @@ use std::{
     fmt::Debug,
     marker::PhantomData,
     sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 use crate::{
@@ -739,21 +739,14 @@ impl<'a> GrpcServerInner<'a> {
     fn board_set_power_mode(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
         let req = component::board::v1::SetPowerModeRequest::decode(message)
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
-        let pm = req.power_mode();
 
-        if pm == component::board::v1::PowerMode::Unspecified {
-            return Err(ServerError::from(GrpcError::RpcInvalidArgument));
-        }
+        let board_name = req.name.clone();
+        let args: crate::common::board::PowerModeArgs =
+            req.try_into().map_err(|err: super::board::BoardError| {
+                ServerError::new(GrpcError::RpcInternal, Some(err.into()))
+            })?;
 
-        let dur = match req.duration {
-            Some(dur) => match Duration::try_from(dur) {
-                Ok(converted) => Some(converted),
-                Err(_) => return Err(ServerError::from(GrpcError::RpcInvalidArgument)),
-            },
-            None => None,
-        };
-
-        let board = match self.robot.lock().unwrap().get_board_by_name(req.name) {
+        let board = match self.robot.lock().unwrap().get_board_by_name(board_name) {
             Some(b) => b,
             None => return Err(ServerError::from(GrpcError::RpcUnavailable)),
         };
@@ -761,7 +754,7 @@ impl<'a> GrpcServerInner<'a> {
         board
             .lock()
             .unwrap()
-            .set_power_mode(pm, dur)
+            .set_power_mode(args)
             .map_err(|err| ServerError::new(GrpcError::RpcInternal, Some(err.into())))?;
 
         let resp = component::board::v1::SetPowerModeResponse {};

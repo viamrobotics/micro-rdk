@@ -48,7 +48,10 @@ static SHUTDOWN_EVENT: LazyLock<Arc<AsyncMutex<Option<SystemEvent>>>> =
 pub enum SystemEvent {
     Restart,
     #[allow(dead_code)]
-    DeepSleep(Option<Duration>),
+    DeepSleep {
+        duration: Option<Duration>,
+        interrupt_pin: Option<i32>,
+    },
 }
 
 #[derive(Debug, Error)]
@@ -64,9 +67,14 @@ impl Display for SystemEvent {
             "{}",
             match self {
                 Self::Restart => "restart".to_string(),
-                Self::DeepSleep(dur) => dur.as_ref().map_or("enter deep sleep".to_string(), |d| {
-                    format!("enter deep sleep for {} microseconds", d.as_micros())
-                }),
+                Self::DeepSleep {
+                    duration,
+                    interrupt_pin: _,
+                } => duration
+                    .as_ref()
+                    .map_or("enter deep sleep".to_string(), |d| {
+                        format!("enter deep sleep for {} microseconds", d.as_micros())
+                    }),
             }
         )
     }
@@ -106,10 +114,13 @@ pub(crate) async fn force_shutdown(app_client: Option<AppClient>) {
     }
     match *SHUTDOWN_EVENT.lock().await {
         Some(SystemEvent::Restart) => terminate(),
-        Some(SystemEvent::DeepSleep(dur)) => {
+        Some(SystemEvent::DeepSleep {
+            duration,
+            interrupt_pin: _,
+        }) => {
             #[cfg(feature = "esp32")]
             {
-                if let Some(dur) = dur {
+                if let Some(dur) = duration {
                     let dur_micros = dur.as_micros() as u64;
                     let result: crate::esp32::esp_idf_svc::sys::esp_err_t;
                     unsafe {
