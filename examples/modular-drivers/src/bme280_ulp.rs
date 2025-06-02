@@ -10,10 +10,6 @@ use std::{
 
 use chrono::{DateTime, TimeDelta};
 use micro_rdk::{
-    common::sensor::ReadingsTimestamp,
-    google::protobuf::{value, Value},
-};
-use micro_rdk::{
     common::{
         config::{AttributeError, ConfigType, Kind},
         i2c::I2cHandleType,
@@ -22,6 +18,10 @@ use micro_rdk::{
     },
     esp32::esp_idf_svc::{hal::ulp::UlpDriver, sys::EspError},
     DoCommand,
+};
+use micro_rdk::{
+    google::protobuf::{value, Timestamp, Value},
+    proto::app::data_sync::v1::{MimeType, SensorData, SensorMetadata},
 };
 use thiserror::Error;
 
@@ -977,9 +977,7 @@ impl Readings for BME280 {
         Ok(self.get_calibrated_reading(measurement))
     }
 
-    fn get_cached_readings(
-        &mut self,
-    ) -> Result<Vec<(ReadingsTimestamp, GenericReadingsResult)>, SensorError> {
+    fn get_readings_sensor_data(&mut self) -> Result<Vec<SensorData>, SensorError> {
         Ok(match self.ulp.as_ref() {
             None => {
                 return Err(SensorError::SensorDriverError("no ULP".to_string()));
@@ -998,12 +996,22 @@ impl Readings for BME280 {
                 let mut res = vec![];
                 for raw_measurement in res_mem {
                     let reading_ts = start_dt + (period * samples_read);
-                    let timestamp = ReadingsTimestamp {
-                        reading_received_dt: reading_ts,
-                        reading_requested_dt: reading_ts,
-                    };
                     let reading = self.get_calibrated_reading(raw_measurement);
-                    res.push((timestamp, reading));
+                    res.push(SensorData {
+                        metadata: Some(SensorMetadata {
+                            time_received: Some(Timestamp {
+                                seconds: reading_ts.timestamp(),
+                                nanos: reading_ts.timestamp_subsec_nanos() as i32,
+                            }),
+                            time_requested: Some(Timestamp {
+                                seconds: reading_ts.timestamp(),
+                                nanos: reading_ts.timestamp_subsec_nanos() as i32,
+                            }),
+                            annotations: None,
+                            mime_type: MimeType::Unspecified.into(),
+                        }),
+                        data: Some(reading.into()),
+                    });
                     samples_read += 1;
                 }
                 if samples_read != num_samples {

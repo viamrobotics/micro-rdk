@@ -582,20 +582,6 @@ mod tests {
                 .map(|v| (v.0, SensorResult::<f64> { value: v.1 }.into()))
                 .collect())
         }
-
-        fn get_cached_readings(
-            &mut self,
-        ) -> Result<
-            Vec<(
-                crate::common::sensor::ReadingsTimestamp,
-                GenericReadingsResult,
-            )>,
-            SensorError,
-        > {
-            Err(SensorError::SensorMethodUnimplemented(
-                "sensor does not support independent readings caching",
-            ))
-        }
     }
 
     impl SensorT<f64> for TestSensor {

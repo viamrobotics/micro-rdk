@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -13,7 +12,7 @@ use crate::proto::app::data_sync::v1::{
 use crate::proto::app::v1::{RobotConfig, ServiceConfig};
 
 use super::app_client::{AppClient, AppClientError, PeriodicAppClientTask, VIAM_FOUNDING_YEAR};
-use super::data_collector::{CollectionMethod, ResourceMethodKey};
+use super::data_collector::ResourceMethodKey;
 use super::data_store::{DataStoreError, DataStoreReader, WriteMode};
 use super::robot::{LocalRobot, RobotError};
 use super::system::{send_system_event, SystemEvent};
@@ -31,7 +30,10 @@ use thiserror::Error;
 // the smaller amount of available RAM, we've halved it
 static MAX_SENSOR_CONTENTS_SIZE: usize = 32000;
 
-type CollectedReadings = HashMap<ResourceMethodKey, Result<Vec<SensorData>, DataManagerError>>;
+type CollectedReadings = Vec<(
+    ResourceMethodKey,
+    Result<Vec<SensorData>, DataCollectionError>,
+)>;
 
 /// Allow for a C project using micro-RDK as a library to implement a callback to be run
 /// whenever data has successfully been uploaded. The callback should be identical in signature
@@ -305,23 +307,22 @@ where
             ));
         }
 
-        let mut readings_by_collector: HashMap<
-            ResourceMethodKey,
-            Result<Vec<SensorData>, DataManagerError>,
-        > = HashMap::new();
-
-        for coll in self.collectors.iter_mut().filter(|coll| {
-            (coll.time_interval().as_millis() as u64 / min_interval_ms)
-                == (time_interval_ms / min_interval_ms)
-        }) {
-            let resource_method_key = coll.resource_method_key();
-            readings_by_collector.insert(
-                resource_method_key,
-                coll.call_method(robot_start_time)
-                    .map_err(DataManagerError::from),
-            );
-        }
-        Ok(readings_by_collector)
+        Ok(self
+            .collectors
+            .iter_mut()
+            .filter_map(|coll| {
+                if (coll.time_interval().as_millis() as u64 / min_interval_ms)
+                    == (time_interval_ms / min_interval_ms)
+                {
+                    Some((
+                        coll.resource_method_key(),
+                        coll.call_method(robot_start_time),
+                    ))
+                } else {
+                    None
+                }
+            })
+            .collect())
     }
 
     pub fn get_sync_task(&self, robot_start_time: Instant) -> Option<DataSyncTask<StoreType>> {
@@ -659,7 +660,6 @@ impl DataCollectAndSyncTask {
         let collectors_len = self.collectors.len();
         for (idx, collector) in self.collectors.iter().enumerate() {
             let collector_key = collector.resource_method_key();
-            let is_cached_readings = matches!(collector.method(), CollectionMethod::CachedReadings);
             let readings = collector
                 .call_method(self.robot_start_time)
                 .inspect_err(|err| {
@@ -674,11 +674,7 @@ impl DataCollectAndSyncTask {
                 let readings: Vec<SensorData> = readings
                     .into_iter()
                     .filter_map(|mut readings| {
-                        if is_cached_readings {
-                            Some(readings)
-                        } else if let Err(err) =
-                            time_correct_reading(robot_start_time, &mut readings)
-                        {
+                        if let Err(err) = time_correct_reading(robot_start_time, &mut readings) {
                             log::error!(
                                 "unable to time correct reading for collector {:?}, {:?}",
                                 collector_key,
@@ -794,7 +790,8 @@ mod tests {
     use prost::Message;
     use ringbuf::{LocalRb, Rb};
 
-    use super::{DataManager, DataManagerError};
+    use super::DataManager;
+    use crate::common::data_collector::DataCollectionError;
     use crate::common::data_store::{DataStoreReader, WriteMode};
     use crate::common::{
         data_collector::{
@@ -989,14 +986,13 @@ mod tests {
         let sensor_data = data_manager.collect_readings_for_interval(100, robot_start_time);
         assert!(sensor_data.is_ok());
         let sensor_data = sensor_data.unwrap();
-        let mut sensor_data: Vec<(ResourceMethodKey, Vec<SensorData>)> = sensor_data
+        let sensor_data: Vec<(ResourceMethodKey, Vec<SensorData>)> = sensor_data
             .into_iter()
             .try_fold(vec![], |mut out, val| {
                 out.push((val.0, val.1?));
-                Ok::<Vec<(ResourceMethodKey, Vec<SensorData>)>, DataManagerError>(out)
+                Ok::<Vec<(ResourceMethodKey, Vec<SensorData>)>, DataCollectionError>(out)
             })
             .unwrap();
-        sensor_data.sort_by_key(|(r_key, _)| r_key.r_name.clone());
 
         assert_eq!(sensor_data.len(), 2);
 
@@ -1101,10 +1097,10 @@ mod tests {
         let readings = data_manager
             .collect_readings_for_interval(100, robot_start_time)
             .unwrap();
-        let readings: Result<Vec<(ResourceMethodKey, Vec<SensorData>)>, DataManagerError> =
+        let readings: Result<Vec<(ResourceMethodKey, Vec<SensorData>)>, DataCollectionError> =
             readings.into_iter().try_fold(vec![], |mut out, val| {
                 out.push((val.0, val.1?));
-                Ok::<Vec<(ResourceMethodKey, Vec<SensorData>)>, DataManagerError>(out)
+                Ok::<Vec<(ResourceMethodKey, Vec<SensorData>)>, DataCollectionError>(out)
             });
         assert!(readings.is_err());
     }

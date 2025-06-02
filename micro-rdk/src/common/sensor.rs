@@ -17,7 +17,6 @@ use super::config::AttributeError;
 use super::generic::DoCommand;
 use super::i2c::I2CErrors;
 
-use chrono::{DateTime, FixedOffset};
 use thiserror::Error;
 
 #[cfg(feature = "data")]
@@ -86,20 +85,16 @@ impl From<GenericReadingsResult> for Data {
 
 pub type TypedReadingsResult<T> = ::std::collections::HashMap<String, T>;
 
-pub struct ReadingsTimestamp {
-    pub reading_requested_dt: DateTime<FixedOffset>,
-    pub reading_received_dt: DateTime<FixedOffset>,
-}
-
 pub trait Readings {
     fn get_generic_readings(&mut self) -> Result<GenericReadingsResult, SensorError>;
+
     #[cfg(feature = "data")]
-    fn get_readings_data(&mut self) -> Result<SensorData, SensorError> {
+    fn get_readings_sensor_data(&mut self) -> Result<Vec<SensorData>, SensorError> {
         let reading_requested_dt = chrono::offset::Local::now().fixed_offset();
         let readings = self.get_generic_readings()?;
         let reading_received_dt = chrono::offset::Local::now().fixed_offset();
 
-        Ok(SensorData {
+        Ok(vec![SensorData {
             metadata: Some(SensorMetadata {
                 time_received: Some(Timestamp {
                     seconds: reading_requested_dt.timestamp(),
@@ -113,40 +108,7 @@ pub trait Readings {
                 mime_type: MimeType::Unspecified.into(),
             }),
             data: Some(readings.into()),
-        })
-    }
-
-    /// Optional
-    fn get_cached_readings(
-        &mut self,
-    ) -> Result<Vec<(ReadingsTimestamp, GenericReadingsResult)>, SensorError> {
-        Err(SensorError::SensorMethodUnimplemented(
-            "sensor does not support independent readings caching",
-        ))
-    }
-
-    #[cfg(feature = "data")]
-    fn get_cached_readings_data(&mut self) -> Result<Vec<SensorData>, SensorError> {
-        let cached_readings: Vec<SensorData> = self
-            .get_cached_readings()?
-            .into_iter()
-            .map(|(ts, readings)| SensorData {
-                metadata: Some(SensorMetadata {
-                    time_received: Some(Timestamp {
-                        seconds: ts.reading_requested_dt.timestamp(),
-                        nanos: ts.reading_requested_dt.timestamp_subsec_nanos() as i32,
-                    }),
-                    time_requested: Some(Timestamp {
-                        seconds: ts.reading_received_dt.timestamp(),
-                        nanos: ts.reading_received_dt.timestamp_subsec_nanos() as i32,
-                    }),
-                    annotations: None,
-                    mime_type: MimeType::Unspecified.into(),
-                }),
-                data: Some(readings.into()),
-            })
-            .collect();
-        Ok(cached_readings)
+        }])
     }
 }
 
@@ -236,10 +198,10 @@ where
     fn get_generic_readings(&mut self) -> Result<GenericReadingsResult, SensorError> {
         self.get_mut().unwrap().get_generic_readings()
     }
-    fn get_cached_readings(
-        &mut self,
-    ) -> Result<Vec<(ReadingsTimestamp, GenericReadingsResult)>, SensorError> {
-        self.get_mut().unwrap().get_cached_readings()
+
+    #[cfg(feature = "data")]
+    fn get_readings_sensor_data(&mut self) -> Result<Vec<SensorData>, SensorError> {
+        self.get_mut().unwrap().get_readings_sensor_data()
     }
 }
 
@@ -251,9 +213,8 @@ where
         self.lock().unwrap().get_generic_readings()
     }
 
-    fn get_cached_readings(
-        &mut self,
-    ) -> Result<Vec<(ReadingsTimestamp, GenericReadingsResult)>, SensorError> {
-        self.lock().unwrap().get_cached_readings()
+    #[cfg(feature = "data")]
+    fn get_readings_sensor_data(&mut self) -> Result<Vec<SensorData>, SensorError> {
+        self.lock().unwrap().get_readings_sensor_data()
     }
 }

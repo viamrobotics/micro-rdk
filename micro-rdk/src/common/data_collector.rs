@@ -69,28 +69,7 @@ impl TryFrom<&Kind> for DataCollectorConfig {
         }
         let additional_params = value.get("additional_params")?;
         let method = match method_str.as_str() {
-            "Readings" => {
-                if additional_params
-                    .map(|t| {
-                        t.get("cached")
-                            .ok()
-                            .flatten()
-                            .map(|k| {
-                                if let crate::common::config::Kind::BoolValue(val) = k {
-                                    *val
-                                } else {
-                                    false
-                                }
-                            })
-                            .unwrap_or_default()
-                    })
-                    .unwrap_or_default()
-                {
-                    CollectionMethod::CachedReadings
-                } else {
-                    CollectionMethod::Readings
-                }
-            }
+            "Readings" => CollectionMethod::Readings,
             "AngularVelocity" => CollectionMethod::AngularVelocity,
             "LinearAcceleration" => CollectionMethod::LinearAcceleration,
             "LinearVelocity" => CollectionMethod::LinearVelocity,
@@ -131,7 +110,6 @@ impl TryFrom<&Kind> for DataCollectorConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CollectionMethod {
     Readings,
-    CachedReadings,
     // MovementSensor methods
     AngularVelocity,
     LinearAcceleration,
@@ -153,7 +131,6 @@ impl Display for CollectionMethod {
         std::fmt::Display::fmt(
             match self {
                 Self::Readings => "Readings",
-                Self::CachedReadings => "Readings",
                 Self::AngularVelocity => "AngularVelocity",
                 Self::LinearAcceleration => "LinearAcceleration",
                 Self::LinearVelocity => "LinearVelocity",
@@ -240,10 +217,7 @@ fn resource_method_pair_is_valid(resource: &ResourceType, method: &CollectionMet
                 | CollectionMethod::Position
                 | CollectionMethod::CompassHeading
         ),
-        ResourceType::Sensor(_) => matches!(
-            method,
-            CollectionMethod::Readings | CollectionMethod::CachedReadings
-        ),
+        ResourceType::Sensor(_) => matches!(method, CollectionMethod::Readings),
         ResourceType::Servo(_) => matches!(method, CollectionMethod::Position),
         _ => false,
     }
@@ -324,14 +298,13 @@ impl DataCollector {
     ) -> Result<Vec<SensorData>, DataCollectionError> {
         let reading_requested_ts = robot_start_time.elapsed();
 
-        // providers of cached readings are supposed to handle timestamp logic, so we
-        // rely on the sensor's `get_cached_readings` implementation
-        if matches!(self.method, CollectionMethod::CachedReadings) {
+        if matches!(self.method, CollectionMethod::Readings) {
             return match self.resource.clone() {
-                ResourceType::Sensor(mut res) => Ok(res.get_cached_readings_data()?),
+                ResourceType::Sensor(mut res) => Ok(res.get_readings_sensor_data()?),
+                ResourceType::MovementSensor(mut res) => Ok(res.get_readings_sensor_data()?),
                 _ => Err(DataCollectionError::UnsupportedMethod(
                     self.method.clone(),
-                    "board".to_string(),
+                    "sensor".to_string(),
                 )),
             };
         }
@@ -383,16 +356,6 @@ impl DataCollector {
                 }
             },
 
-            ResourceType::Sensor(mut res) => match self.method {
-                CollectionMethod::Readings => res.get_generic_readings()?.into(),
-                _ => {
-                    return Err(DataCollectionError::UnsupportedMethod(
-                        self.method.clone(),
-                        "sensor".to_string(),
-                    ))
-                }
-            },
-
             ResourceType::Servo(res) => match self.method {
                 CollectionMethod::Position => {
                     let value = res.lock().unwrap().get_position()?;
@@ -432,7 +395,6 @@ impl DataCollector {
                 }
             },
             ResourceType::MovementSensor(ref mut res) => match self.method {
-                CollectionMethod::Readings => res.get_generic_readings()?.into(),
                 CollectionMethod::AngularVelocity => res
                     .get_angular_velocity()?
                     .to_data_struct("angular_velocity"),
