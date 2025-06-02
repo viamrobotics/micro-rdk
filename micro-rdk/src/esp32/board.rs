@@ -1,9 +1,6 @@
-#![allow(dead_code)]
-use log::*;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
-    time::Duration,
 };
 
 use crate::{
@@ -15,7 +12,6 @@ use crate::{
         i2c::I2cHandleType,
         registry::ComponentRegistry,
     },
-    proto::component,
 };
 
 #[cfg(esp32)]
@@ -326,44 +322,6 @@ impl Board for EspBoard {
         match self.analogs.iter().find(|a| a.name() == name) {
             Some(reader) => Ok(reader.clone()),
             None => Err(BoardError::AnalogReaderNotFound(name)),
-        }
-    }
-    fn set_power_mode(
-        &self,
-        mode: component::board::v1::PowerMode,
-        duration: Option<Duration>,
-    ) -> Result<(), BoardError> {
-        info!(
-            "Esp32 received request to set power mode to {} for {} milliseconds",
-            mode.as_str_name(),
-            match duration {
-                Some(dur) => dur.as_millis().to_string(),
-                None => "<forever>".to_string(),
-            }
-        );
-
-        if mode != component::board::v1::PowerMode::OfflineDeep {
-            return Err(BoardError::BoardUnsupportedArgument(
-                "only support OfflineDeep mode",
-            ));
-        }
-
-        if let Some(dur) = duration {
-            let dur_micros = dur.as_micros() as u64;
-            let result: crate::esp32::esp_idf_svc::sys::esp_err_t;
-            unsafe {
-                result = crate::esp32::esp_idf_svc::sys::esp_sleep_enable_timer_wakeup(dur_micros);
-            }
-            if result != crate::esp32::esp_idf_svc::sys::ESP_OK {
-                return Err(BoardError::BoardUnsupportedArgument("duration too long"));
-            }
-            warn!("Esp32 entering deep sleep for {} microseconds!", dur_micros);
-        } else {
-            warn!("Esp32 entering deep sleep without scheduled wakeup!");
-        }
-
-        unsafe {
-            crate::esp32::esp_idf_svc::sys::esp_deep_sleep_start();
         }
     }
     fn get_i2c_by_name(&self, name: String) -> Result<I2cHandleType, BoardError> {
