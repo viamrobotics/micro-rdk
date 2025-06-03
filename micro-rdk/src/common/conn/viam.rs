@@ -752,7 +752,7 @@ where
             &config,
             &mut self.component_registry,
             build_time,
-            agent_config.firmware_mode,
+            &agent_config,
         )
         .inspect_err(|err| {
             log::error!("couldn't build the machine as configured: reason {:?}", err)

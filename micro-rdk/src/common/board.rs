@@ -8,7 +8,7 @@ use std::{collections::HashMap, sync::Arc, sync::Mutex, time::Duration};
 
 use super::{
     analog::{AnalogReaderType, FakeAnalogReader},
-    config::{Kind, ConfigType},
+    config::{ConfigType, Kind},
     generic::DoCommand,
     i2c::{FakeI2CHandle, FakeI2cConfig, I2CErrors, I2CHandle, I2cHandleType},
     registry::ComponentRegistry,
@@ -64,7 +64,7 @@ pub struct PowerModeArgs {
     pub(crate) power_mode: component::board::v1::PowerMode,
     pub(crate) duration: Option<Duration>,
     pub(crate) force: bool,
-    pub(crate) interrupt_pin: Option<i32>,
+    pub(crate) ulp_enabled: bool,
 }
 
 impl TryFrom<crate::proto::component::board::v1::SetPowerModeRequest> for PowerModeArgs {
@@ -103,27 +103,28 @@ impl TryFrom<crate::proto::component::board::v1::SetPowerModeRequest> for PowerM
             }
             None => false,
         };
-        let interrupt_pin = match extra.fields.get("interrupt_pin") {
+
+        let ulp_enabled = match extra.fields.get("ulp_enlabled") {
             Some(v) => {
-                let p: Kind = v.kind.as_ref().unwrap().try_into().unwrap();
+                let b: Kind = v.kind.as_ref().unwrap().try_into().unwrap();
                 //.map_err(BoardError::OtherBoardError)?;
-                match p {
-                    Kind::NumberValue(p) => Some(p as i32),
+                match b {
+                    Kind::BoolValue(b) => b,
                     _ => {
                         return Err(BoardError::OtherBoardError(
-                            format!("invalid number value: {:?}", p).into(),
+                            format!("invalid boolean value: {:?}", b).into(),
                         ))
                     }
                 }
             }
-            None => None,
+            None => false,
         };
 
         Ok(Self {
             power_mode,
             duration,
             force,
-            interrupt_pin,
+            ulp_enabled,
         })
     }
 }
@@ -160,7 +161,7 @@ pub trait Board: DoCommand {
             crate::common::system::send_system_event(
                 crate::common::system::SystemEvent::DeepSleep {
                     duration: args.duration,
-                    interrupt_pin: args.interrupt_pin,
+                    ulp_enabled: args.ulp_enabled,
                 },
                 false,
             ),

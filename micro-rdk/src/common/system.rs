@@ -50,7 +50,7 @@ pub enum SystemEvent {
     #[allow(dead_code)]
     DeepSleep {
         duration: Option<Duration>,
-        interrupt_pin: Option<i32>,
+        ulp_enabled: bool,
     },
 }
 
@@ -69,7 +69,7 @@ impl Display for SystemEvent {
                 Self::Restart => "restart".to_string(),
                 Self::DeepSleep {
                     duration,
-                    interrupt_pin: _,
+                    ulp_enabled: _,
                 } => duration
                     .as_ref()
                     .map_or("enter deep sleep".to_string(), |d| {
@@ -116,10 +116,29 @@ pub(crate) async fn force_shutdown(app_client: Option<AppClient>) {
         Some(SystemEvent::Restart) => terminate(),
         Some(SystemEvent::DeepSleep {
             duration,
-            interrupt_pin: _,
+            ulp_enabled,
         }) => {
             #[cfg(feature = "esp32")]
             {
+                if ulp_enabled {
+                    let result: crate::esp32::esp_idf_svc::sys::esp_err_t;
+                    unsafe {
+                        result = crate::esp32::esp_idf_svc::sys::esp_sleep_enable_ulp_wakeup();
+                    }
+                    match result {
+                        crate::esp32::esp_idf_svc::sys::ESP_OK => {
+                            log::info!("ULP wakeup enabled");
+                        }
+                        crate::esp32::esp_idf_svc::sys::ESP_ERR_NOT_SUPPORTED => {
+                            log::error!("additional current by touch enabled");
+                        }
+                        crate::esp32::esp_idf_svc::sys::ESP_ERR_INVALID_STATE => {
+                            log::error!("co-processor not enabled or wakeup trigger conflicts with ulp wakeup");
+                        }
+                        _ => log::error!("failed to enable ULP: {:?}", result),
+                    }
+                }
+
                 if let Some(dur) = duration {
                     let dur_micros = dur.as_micros() as u64;
                     let result: crate::esp32::esp_idf_svc::sys::esp_err_t;
@@ -139,15 +158,20 @@ pub(crate) async fn force_shutdown(app_client: Option<AppClient>) {
                 }
             }
             #[cfg(not(feature = "esp32"))]
-            if let Some(dur) = duration {
-                log::warn!(
-                    "Simulating deep sleep for {} microseconds!",
-                    dur.as_micros()
-                );
-                async_io::block_on(Timer::after(dur));
-                terminate();
-            } else {
-                log::error!("native builds do not support alternate wake up sources and can only sleep for a duration")
+            {
+                if ulp_enabled {
+                    log::info!("simulating setting ulp wakeup");
+                }
+                if let Some(dur) = duration {
+                    log::warn!(
+                        "Simulating deep sleep for {} microseconds!",
+                        dur.as_micros()
+                    );
+                    async_io::block_on(Timer::after(dur));
+                    terminate();
+                } else {
+                    log::error!("native builds do not support alternate wake up sources and can only sleep for a duration")
+                }
             }
         }
         None => {

@@ -679,16 +679,11 @@ impl Component for DynamicComponentConfig {
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct AgentConfig {
+pub struct AgentConfig {
     pub(crate) network_settings: Vec<NetworkSetting>,
     pub(crate) firmware_mode: FirmwareMode,
     pub(crate) active_timeout: Duration,
-    pub(crate) wakeup_options: WakeupOptions,
-}
-
-#[derive(Debug, Default)]
-pub(crate) struct WakeupOptions {
-    ulp: bool,
+    pub(crate) ulp_enabled: bool,
 }
 
 pub const DEFAULT_ACTIVE_TIMEOUT_SECS: u64 = 120;
@@ -733,11 +728,20 @@ impl TryFrom<&DeviceAgentConfigResponse> for AgentConfig {
             })
             .into();
 
+        let ulp_enabled = value
+            .advanced_settings
+            .as_ref()
+            .and_then(|s| s.fields.get("ulp_enabled"))
+            .map(|val| match &val.kind {
+                Some(ProtoKind::BoolValue(b)) => *b,
+                _ => false,
+            }).unwrap_or_default();
+
         Ok(Self {
             network_settings,
             firmware_mode,
             active_timeout,
-            ..Default::default()
+            ulp_enabled,
         })
     }
 }

@@ -242,7 +242,7 @@ impl LocalRobot {
         config: &RobotConfig,
         registry: &mut Box<ComponentRegistry>,
         build_time: Option<DateTime<FixedOffset>>,
-        #[allow(unused_variables)] firmware_mode: FirmwareMode,
+        #[allow(unused_variables)] agent_config: &super::config::AgentConfig,
     ) -> Result<Self, RobotError> {
         let mut robot = LocalRobot {
             executor: exec,
@@ -277,7 +277,7 @@ impl LocalRobot {
         // TODO: When cfg's on expressions are valid, remove the outer scope.
         #[cfg(feature = "data")]
         {
-            match firmware_mode {
+            match agent_config.firmware_mode {
                 // TODO(RSDK-8125): Support selection of a DataStore trait other than
                 // DefaultDataStore in a way that is configurable
                 FirmwareMode::Normal => {
@@ -304,6 +304,7 @@ impl LocalRobot {
                         &robot,
                         config,
                         robot.start_time,
+                        agent_config,
                     ) {
                         Ok(sync_task) => {
                             let _ = robot.data_manager_sync_task.insert(Box::new(sync_task));

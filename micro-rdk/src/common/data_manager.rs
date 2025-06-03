@@ -642,6 +642,7 @@ pub struct DataCollectAndSyncTask {
     sync_interval: Duration,
     robot_start_time: Instant,
     part_id: String,
+    ulp_enabled: bool,
 }
 
 impl DataCollectAndSyncTask {
@@ -698,7 +699,7 @@ impl DataCollectAndSyncTask {
         let _ = send_system_event(
             SystemEvent::DeepSleep {
                 duration: Some(self.sync_interval),
-                interrupt_pin: None,
+                ulp_enabled: self.ulp_enabled,
             },
             true,
         )
@@ -710,6 +711,7 @@ impl DataCollectAndSyncTask {
         robot: &LocalRobot,
         cfg: &RobotConfig,
         robot_start_time: Instant,
+        agent_config: &super::config::AgentConfig,
     ) -> Result<Self, DataManagerError> {
         if let Some(cfg) = get_data_service_config(cfg)? {
             let (collectors, sync_interval, part_id) =
@@ -732,10 +734,11 @@ impl DataCollectAndSyncTask {
                         ))
                     } else {
                         Ok(Self {
-                            collectors,
                             sync_interval,
+                            collectors,
                             robot_start_time,
                             part_id,
+                            ulp_enabled: agent_config.ulp_enabled,
                         })
                     }
                 }
