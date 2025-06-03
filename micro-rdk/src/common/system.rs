@@ -1,15 +1,22 @@
-use std::fmt::Display;
-use std::sync::{Arc, LazyLock};
-use std::time::Duration;
+use std::{
+    fmt::Display,
+    sync::{Arc, LazyLock},
+    time::Duration,
+};
 
+use super::{
+    app_client::{AppClient, PeriodicAppClientTask},
+    log::LogUploadTask,
+    runtime::terminate,
+};
+
+#[cfg(feature = "esp32")]
+use crate::esp32::esp_idf_svc::sys;
 #[cfg(not(feature = "esp32"))]
 use async_io::Timer;
+
 use async_lock::Mutex as AsyncMutex;
 use thiserror::Error;
-
-use super::app_client::{AppClient, PeriodicAppClientTask};
-use super::log::LogUploadTask;
-use super::runtime::terminate;
 
 #[derive(Default, Debug)]
 pub enum FirmwareMode {
@@ -129,19 +136,19 @@ pub(crate) async fn force_shutdown(app_client: Option<AppClient>) {
         }) => {
             #[cfg(feature = "esp32")]
             {
+                let mut result: sys::esp_err_t;
                 if ulp_enabled {
-                    let result: crate::esp32::esp_idf_svc::sys::esp_err_t;
                     unsafe {
-                        result = crate::esp32::esp_idf_svc::sys::esp_sleep_enable_ulp_wakeup();
+                        result = sys::esp_sleep_enable_ulp_wakeup();
                     }
                     match result {
-                        crate::esp32::esp_idf_svc::sys::ESP_OK => {
+                        sys::ESP_OK => {
                             log::info!("ULP wakeup enabled");
                         }
-                        crate::esp32::esp_idf_svc::sys::ESP_ERR_NOT_SUPPORTED => {
+                        sys::ESP_ERR_NOT_SUPPORTED => {
                             log::error!("additional current by touch enabled");
                         }
-                        crate::esp32::esp_idf_svc::sys::ESP_ERR_INVALID_STATE => {
+                        sys::ESP_ERR_INVALID_STATE => {
                             log::error!("co-processor not enabled or wakeup trigger conflicts with ulp wakeup");
                         }
                         _ => log::error!("failed to enable ULP: {:?}", result),
@@ -150,20 +157,17 @@ pub(crate) async fn force_shutdown(app_client: Option<AppClient>) {
 
                 if let Some(dur) = duration {
                     let dur_micros = dur.as_micros() as u64;
-                    let result: crate::esp32::esp_idf_svc::sys::esp_err_t;
                     unsafe {
-                        result = crate::esp32::esp_idf_svc::sys::esp_sleep_enable_timer_wakeup(
-                            dur_micros,
-                        );
+                        result = sys::esp_sleep_enable_timer_wakeup(dur_micros);
                     }
-                    if result != crate::esp32::esp_idf_svc::sys::ESP_OK {
+                    if result != sys::ESP_OK {
                         unreachable!("duration requested too long")
                     }
                     log::warn!("Esp32 entering deep sleep for {} microseconds!", dur_micros);
                 }
 
                 unsafe {
-                    crate::esp32::esp_idf_svc::sys::esp_deep_sleep_start();
+                    sys::esp_deep_sleep_start();
                 }
             }
             #[cfg(not(feature = "esp32"))]
