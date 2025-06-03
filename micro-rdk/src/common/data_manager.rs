@@ -670,6 +670,35 @@ pub struct DataCollectAndSyncTask {
 }
 
 impl DataCollectAndSyncTask {
+    async fn upload_data(
+        &self,
+        app_client: &AppClient,
+        collector_key: &ResourceMethodKey,
+        data: Vec<SensorData>,
+    ) -> Result<(), AppClientError> {
+        let upload_request = DataCaptureUploadRequest {
+            metadata: Some(UploadMetadata {
+                part_id: self.part_id.clone(),
+                component_type: collector_key.component_type.clone(),
+                r#type: DataType::TabularSensor.into(),
+                component_name: collector_key.r_name.clone(),
+                method_name: collector_key.method.to_string(),
+                ..Default::default()
+            }),
+            sensor_contents: data,
+        };
+        match app_client.upload_data(upload_request).await {
+            Ok(_) => {
+                #[cfg(feature = "data-upload-hook-unstable")]
+                unsafe {
+                    micro_rdk_data_manager_post_upload_hook();
+                }
+                Ok(())
+            }
+            Err(err) => Err(err),
+        }
+    }
+
     async fn run(&self, app_client: &AppClient) -> Result<(), AppClientError> {
         let collectors_len = self.collectors.len();
         for (idx, collector) in self.collectors.iter().enumerate() {
@@ -685,7 +714,7 @@ impl DataCollectAndSyncTask {
                 });
             if let Ok(readings) = readings {
                 let robot_start_time = self.robot_start_time;
-                let readings: Vec<SensorData> = readings
+                let mut readings: Vec<SensorData> = readings
                     .into_iter()
                     .filter_map(|mut readings| {
                         if let Err(err) = time_correct_reading(robot_start_time, &mut readings) {
@@ -700,30 +729,43 @@ impl DataCollectAndSyncTask {
                         }
                     })
                     .collect();
+                readings.reverse();
                 if !readings.is_empty() {
-                    let upload_request = DataCaptureUploadRequest {
-                        metadata: Some(UploadMetadata {
-                            part_id: self.part_id.clone(),
-                            component_type: collector_key.component_type.clone(),
-                            r#type: DataType::TabularSensor.into(),
-                            component_name: collector_key.r_name.clone(),
-                            method_name: collector_key.method.to_string(),
-                            ..Default::default()
-                        }),
-                        sensor_contents: readings,
-                    };
-                    match app_client.upload_data(upload_request).await {
-                        Ok(_) => {
-                            #[cfg(feature = "data-upload-hook-unstable")]
-                            unsafe {
-                                micro_rdk_data_manager_post_upload_hook();
+                    let mut readings_to_upload: Vec<SensorData> = vec![];
+                    let mut current_readings_size = 0;
+                    while !readings.is_empty() {
+                        if let Some(next_reading) = readings.pop() {
+                            if current_readings_size + next_reading.encoded_len()
+                                > MAX_SENSOR_CONTENTS_SIZE
+                            {
+                                let current_upload = readings_to_upload.split_off(0);
+                                // if we can't upload, don't try again until after the next sleep
+                                if let Err(err) = self
+                                    .upload_data(app_client, &collector_key, current_upload)
+                                    .await
+                                {
+                                    log::error!("error uploading data, failed to upload {:?} readings on this attempt: {}, collector: {:?}", collectors_len - idx, err, collector_key);
+                                    break;
+                                }
+                                current_readings_size = 0;
+                            } else {
+                                current_readings_size += next_reading.encoded_len();
+                                readings_to_upload.push(next_reading);
                             }
+                        } else if !readings_to_upload.is_empty() {
+                            // if we can't upload, don't try again until after the next sleep
+                            if let Err(err) = self
+                                .upload_data(app_client, &collector_key, readings_to_upload)
+                                .await
+                            {
+                                log::error!("error uploading data, failed to upload {:?} readings on this attempt: {}, collector: {:?}", collectors_len - idx, err, collector_key);
+                                break;
+                            }
+                            break;
+                        } else {
+                            break;
                         }
-                        // if we can't upload, don't try again until after the next sleep
-                        Err(err) => {
-                            log::error!("error uploading data, failed to upload {:?} readings on this attempt: {}", collectors_len - idx, err);
-                        }
-                    };
+                    }
                 } else {
                     log::warn!(
                         "no readings captured for collector {:?}, skipping upload",

@@ -980,48 +980,59 @@ impl Readings for BME280 {
     fn get_readings_sensor_data(&mut self) -> Result<Vec<SensorData>, SensorError> {
         Ok(match self.ulp.as_ref() {
             None => {
-                return Err(SensorError::SensorDriverError("no ULP".to_string()));
+                let reading_requested_dt = chrono::offset::Local::now().fixed_offset();
+                let readings = self.get_generic_readings()?;
+                let reading_received_dt = chrono::offset::Local::now().fixed_offset();
+
+                vec![SensorData {
+                    metadata: Some(SensorMetadata {
+                        time_received: Some(Timestamp {
+                            seconds: reading_requested_dt.timestamp(),
+                            nanos: reading_requested_dt.timestamp_subsec_nanos() as i32,
+                        }),
+                        time_requested: Some(Timestamp {
+                            seconds: reading_received_dt.timestamp(),
+                            nanos: reading_received_dt.timestamp_subsec_nanos() as i32,
+                        }),
+                        annotations: None,
+                        mime_type: MimeType::Unspecified.into(),
+                    }),
+                    data: Some(readings.into()),
+                }]
             }
             Some(ulp) => {
-                let num_samples = ulp.cfg.sample;
                 let period = ulp.cfg.period;
                 let start_dt = unsafe {
                     DateTime::from_timestamp_millis(*(RTC_TIME_START.0.get()))
                         .unwrap()
                         .fixed_offset()
                 };
+
                 let res_mem = ULPResultsMemory::from(&SAMPLE_ARRAY);
 
-                let mut samples_read = 0;
-                let mut res = vec![];
-                for raw_measurement in res_mem {
-                    let reading_ts = start_dt + (period * samples_read);
-                    let reading = self.get_calibrated_reading(raw_measurement);
-                    res.push(SensorData {
-                        metadata: Some(SensorMetadata {
-                            time_received: Some(Timestamp {
-                                seconds: reading_ts.timestamp(),
-                                nanos: reading_ts.timestamp_subsec_nanos() as i32,
+                res_mem
+                    .enumerate()
+                    .map(|(idx, raw_measurement)| {
+                        let reading_ts = start_dt + (period * (idx as u32));
+                        println!("reading ts: {:?}", reading_ts);
+                        let reading = self.get_calibrated_reading(raw_measurement);
+                        SensorData {
+                            metadata: Some(SensorMetadata {
+                                time_received: Some(Timestamp {
+                                    seconds: reading_ts.timestamp(),
+                                    nanos: reading_ts.timestamp_subsec_nanos() as i32,
+                                }),
+                                time_requested: Some(Timestamp {
+                                    seconds: reading_ts.timestamp(),
+                                    nanos: reading_ts.timestamp_subsec_nanos() as i32,
+                                }),
+                                annotations: None,
+                                mime_type: MimeType::Unspecified.into(),
                             }),
-                            time_requested: Some(Timestamp {
-                                seconds: reading_ts.timestamp(),
-                                nanos: reading_ts.timestamp_subsec_nanos() as i32,
-                            }),
-                            annotations: None,
-                            mime_type: MimeType::Unspecified.into(),
-                        }),
-                        data: Some(reading.into()),
-                    });
-                    samples_read += 1;
-                }
-                if samples_read != num_samples {
-                    log::error!(
-                        "expected {} samples, but only found {}",
-                        num_samples,
-                        samples_read
-                    );
-                }
-                res
+                            data: Some(reading.into()),
+                        }
+                    })
+                    .collect()
             }
         })
     }
