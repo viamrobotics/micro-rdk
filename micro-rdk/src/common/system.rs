@@ -69,12 +69,21 @@ impl Display for SystemEvent {
                 Self::Restart => "restart".to_string(),
                 Self::DeepSleep {
                     duration,
-                    ulp_enabled: _,
-                } => duration
-                    .as_ref()
-                    .map_or("enter deep sleep".to_string(), |d| {
-                        format!("enter deep sleep for {} microseconds", d.as_micros())
-                    }),
+                    ulp_enabled,
+                } => {
+                    let mut s = String::new();
+                    s.push_str(
+                        &duration
+                            .as_ref()
+                            .map_or("enter deep sleep".to_string(), |d| {
+                                format!("enter deep sleep for {} microseconds", d.as_micros())
+                            }),
+                    );
+                    if *ulp_enabled {
+                        s.push_str("- ulp mode enabled");
+                    }
+                    s
+                }
             }
         )
     }
