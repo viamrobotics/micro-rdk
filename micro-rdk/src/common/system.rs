@@ -139,7 +139,7 @@ pub(crate) async fn force_shutdown(app_client: Option<AppClient>) {
                 }
             }
             #[cfg(not(feature = "esp32"))]
-            if let Some(dur) = dur {
+            if let Some(dur) = duration {
                 log::warn!(
                     "Simulating deep sleep for {} microseconds!",
                     dur.as_micros()

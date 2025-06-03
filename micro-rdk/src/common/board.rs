@@ -8,7 +8,7 @@ use std::{collections::HashMap, sync::Arc, sync::Mutex, time::Duration};
 
 use super::{
     analog::{AnalogReaderType, FakeAnalogReader},
-    config::ConfigType,
+    config::{Kind, ConfigType},
     generic::DoCommand,
     i2c::{FakeI2CHandle, FakeI2cConfig, I2CErrors, I2CHandle, I2cHandleType},
     registry::ComponentRegistry,
@@ -86,11 +86,37 @@ impl TryFrom<crate::proto::component::board::v1::SetPowerModeRequest> for PowerM
             None => None,
         };
 
-        let (force, interrupt_pin) = if let Some(_extra) = value.extra {
-            // TODO
-            (false, None)
-        } else {
-            (false, None)
+        let extra = value.extra.unwrap_or_default();
+
+        let force = match extra.fields.get("force") {
+            Some(v) => {
+                let b: Kind = v.kind.as_ref().unwrap().try_into().unwrap();
+                //.map_err(BoardError::OtherBoardError)?;
+                match b {
+                    Kind::BoolValue(b) => b,
+                    _ => {
+                        return Err(BoardError::OtherBoardError(
+                            format!("invalid boolean value: {:?}", b).into(),
+                        ))
+                    }
+                }
+            }
+            None => false,
+        };
+        let interrupt_pin = match extra.fields.get("interrupt_pin") {
+            Some(v) => {
+                let p: Kind = v.kind.as_ref().unwrap().try_into().unwrap();
+                //.map_err(BoardError::OtherBoardError)?;
+                match p {
+                    Kind::NumberValue(p) => Some(p as i32),
+                    _ => {
+                        return Err(BoardError::OtherBoardError(
+                            format!("invalid number value: {:?}", p).into(),
+                        ))
+                    }
+                }
+            }
+            None => None,
         };
 
         Ok(Self {
@@ -132,7 +158,10 @@ pub trait Board: DoCommand {
 
         Ok(async_io::block_on(
             crate::common::system::send_system_event(
-                crate::common::system::SystemEvent::DeepSleep{duration: args.duration, interrupt_pin: args.interrupt_pin},
+                crate::common::system::SystemEvent::DeepSleep {
+                    duration: args.duration,
+                    interrupt_pin: args.interrupt_pin,
+                },
                 false,
             ),
         )?)
