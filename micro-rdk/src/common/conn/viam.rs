@@ -15,10 +15,9 @@ use crate::common::app_client::{
 };
 use crate::common::credentials_storage::{StorageDiagnostic, TlsCertificate};
 use crate::common::system::{
-    force_shutdown, shutdown_requested, shutdown_requested_nonblocking, FirmwareMode,
+    force_shutdown, shutdown_requested, shutdown_requested_nonblocking,
 };
 use crate::common::webrtc::signaling_server::SignalingServer;
-use crate::google::protobuf::value::Kind;
 use std::marker::PhantomData;
 use std::net::{SocketAddr, TcpListener};
 use std::pin::Pin;
@@ -475,8 +474,6 @@ where
     }
 }
 
-const DEFAULT_ACTIVE_TIMEOUT_SECS: u64 = 120;
-
 pub(crate) struct RunResult {
     app_client: Option<AppClient>,
     app_client_tasks_result: Result<(), errors::ServerError>,
@@ -722,38 +719,23 @@ where
             );
         }
 
-        let (firmware_mode, active_timeout) = if let Some(app_client) = app_client.as_ref() {
-            if let Ok(res) = app_client.get_agent_config().await {
-                let timeout_secs = res
-                    .advanced_settings
-                    .as_ref()
-                    .and_then(|s| s.fields.get("deep_sleep_action_timeout_seconds"))
-                    .map_or(DEFAULT_ACTIVE_TIMEOUT_SECS, |val| match &val.kind {
-                        Some(Kind::NumberValue(n)) => *n as u64,
-                        _ => DEFAULT_ACTIVE_TIMEOUT_SECS,
-                    });
-                let firmware_mode_str = res
-                    .advanced_settings
-                    .as_ref()
-                    .and_then(|s| s.fields.get("firmware_mode"))
-                    .map(|val| match &val.kind {
-                        Some(Kind::StringValue(mode_str)) => mode_str.as_str(),
-                        _ => "normal",
-                    });
-                (firmware_mode_str.into(), Duration::from_secs(timeout_secs))
+        let agent_config: crate::common::config::AgentConfig =
+            if let Some(app_client) = app_client.as_ref() {
+                if let Ok(res) = app_client.get_agent_config().await {
+                    res.as_ref()
+                        .try_into()
+                        .inspect_err(|err| log::error!("failed to parse agent config: {}", err))
+                        .unwrap_or_default()
+                } else {
+                    Default::default()
+                }
             } else {
-                (
-                    FirmwareMode::Normal,
-                    Duration::from_secs(DEFAULT_ACTIVE_TIMEOUT_SECS),
-                )
-            }
-        } else {
-            (
-                FirmwareMode::Normal,
-                Duration::from_secs(DEFAULT_ACTIVE_TIMEOUT_SECS),
-            )
-        };
-        log::info!("viam server running in {} firmware mode", firmware_mode);
+                Default::default()
+            };
+        log::info!(
+            "viam server running in {} firmware mode",
+            agent_config.firmware_mode
+        );
 
         let config_monitor_task = Box::new(ConfigMonitor::new(
             &config,
@@ -770,7 +752,7 @@ where
             &config,
             &mut self.component_registry,
             build_time,
-            firmware_mode,
+            agent_config.firmware_mode,
         )
         .inspect_err(|err| {
             log::error!("couldn't build the machine as configured: reason {:?}", err)
@@ -865,7 +847,7 @@ where
         let system_task = SystemTask::new(
             Box::pin(inner.run().fuse()),
             Box::pin(self.run_app_client_tasks(app_client.clone())),
-            active_timeout,
+            agent_config.active_timeout,
         );
         let (app_client_tasks_result, server_task_result) = system_task.await;
         RunResult {

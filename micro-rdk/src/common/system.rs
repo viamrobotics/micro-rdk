@@ -11,7 +11,7 @@ use super::app_client::{AppClient, PeriodicAppClientTask};
 use super::log::LogUploadTask;
 use super::runtime::terminate;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub enum FirmwareMode {
     #[default]
     Normal,
