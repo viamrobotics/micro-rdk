@@ -360,15 +360,25 @@ pub enum DataSyncError {
 fn get_time_to_subtract(
     robot_start_time: Instant,
     stored_time: Timestamp,
-) -> Result<chrono::Duration, DataSyncError> {
+) -> Result<Option<chrono::Duration>, DataSyncError> {
     let stored_time_dur = Duration::new(stored_time.seconds as u64, stored_time.nanos as u32);
+    // this can sometimes happen when the source of the timestamp is not from the current run of firmware code,
+    // such as data collected using code running on ULP. In this case we don't want to do any time correction
+    // and should defer to the existing timestamp
+    if robot_start_time
+        .elapsed()
+        .checked_sub(stored_time_dur)
+        .is_none()
+    {
+        return Ok(None);
+    }
     let time_to_subtract = robot_start_time.elapsed() - stored_time_dur;
     let time_to_subtract = chrono::Duration::new(
         time_to_subtract.as_secs() as i64,
         time_to_subtract.subsec_nanos(),
     )
     .ok_or(DataSyncError::TimeOutOfBoundsError)?;
-    Ok(time_to_subtract)
+    Ok(Some(time_to_subtract))
 }
 
 fn time_correct_reading(
@@ -385,21 +395,25 @@ fn time_correct_reading(
         if current_dt.year() < VIAM_FOUNDING_YEAR {
             return Err(DataSyncError::NoCurrentTime);
         }
+
         if let Some(time_received) = metadata.time_received.clone() {
-            let time_to_subtract = get_time_to_subtract(robot_start_time, time_received)?;
-            let time_received = current_dt - time_to_subtract;
-            metadata.time_received = Some(Timestamp {
-                seconds: time_received.timestamp(),
-                nanos: time_received.timestamp_subsec_nanos() as i32,
-            });
+            if let Some(time_to_subtract) = get_time_to_subtract(robot_start_time, time_received)? {
+                let time_received = current_dt - time_to_subtract;
+                metadata.time_received = Some(Timestamp {
+                    seconds: time_received.timestamp(),
+                    nanos: time_received.timestamp_subsec_nanos() as i32,
+                });
+            };
         }
         if let Some(time_requested) = metadata.time_requested.clone() {
-            let time_to_subtract = get_time_to_subtract(robot_start_time, time_requested)?;
-            let time_requested = current_dt - time_to_subtract;
-            metadata.time_requested = Some(Timestamp {
-                seconds: time_requested.timestamp(),
-                nanos: time_requested.timestamp_subsec_nanos() as i32,
-            });
+            if let Some(time_to_subtract) = get_time_to_subtract(robot_start_time, time_requested)?
+            {
+                let time_requested = current_dt - time_to_subtract;
+                metadata.time_requested = Some(Timestamp {
+                    seconds: time_requested.timestamp(),
+                    nanos: time_requested.timestamp_subsec_nanos() as i32,
+                });
+            };
         }
     }
     Ok(())
