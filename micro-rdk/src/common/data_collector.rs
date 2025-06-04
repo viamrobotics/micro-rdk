@@ -287,10 +287,6 @@ impl DataCollector {
         self.capacity
     }
 
-    pub fn method(&self) -> CollectionMethod {
-        self.method.clone()
-    }
-
     /// calls the method associated with the collector and returns the resulting data
     pub(crate) fn call_method(
         &self,

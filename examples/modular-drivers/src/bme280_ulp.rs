@@ -978,7 +978,7 @@ impl Readings for BME280 {
     }
 
     fn get_readings_sensor_data(&mut self) -> Result<Vec<SensorData>, SensorError> {
-        Ok(match self.ulp.as_ref() {
+        let res = match self.ulp.as_ref() {
             None => {
                 let reading_requested_dt = chrono::offset::Local::now().fixed_offset();
                 let readings = self.get_generic_readings()?;
@@ -1014,7 +1014,6 @@ impl Readings for BME280 {
                     .enumerate()
                     .map(|(idx, raw_measurement)| {
                         let reading_ts = start_dt + (period * (idx as u32));
-                        println!("reading ts: {:?}", reading_ts);
                         let reading = self.get_calibrated_reading(raw_measurement);
                         SensorData {
                             metadata: Some(SensorMetadata {
@@ -1034,6 +1033,7 @@ impl Readings for BME280 {
                     })
                     .collect()
             }
-        })
+        };
+        Ok(res)
     }
 }
