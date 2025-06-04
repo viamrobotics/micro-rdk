@@ -138,6 +138,17 @@ pub(crate) async fn force_shutdown(app_client: Option<AppClient>) {
             {
                 let mut result: sys::esp_err_t;
 
+                // disable other wakeup sources before setting
+                unsafe {
+                    result = sys::esp_sleep_disable_wakeup_source(
+                        sys::esp_idf_svc::hal::sys::esp_sleep_source_t_ESP_SLEEP_WAKEUP_ALL,
+                    );
+                }
+
+                if result != sys::ESP_OK {
+                    log::error!("failed to clear wakeup sources before setting: {}", result);
+                }
+
                 if ulp_enabled {
                     log::info!("enabling ULP wakeup");
 
@@ -148,7 +159,6 @@ pub(crate) async fn force_shutdown(app_client: Option<AppClient>) {
                     match result {
                         sys::ESP_OK => {
                             log::info!("ULP wakeup enabled");
-
                         }
                         sys::ESP_ERR_NOT_SUPPORTED => {
                             log::error!("additional current by touch enabled");
