@@ -8,7 +8,7 @@ use std::{collections::HashMap, sync::Arc, sync::Mutex, time::Duration};
 
 use super::{
     analog::{AnalogReaderType, FakeAnalogReader},
-    config::{ConfigType, Kind},
+    config::ConfigType,
     generic::DoCommand,
     i2c::{FakeI2CHandle, FakeI2cConfig, I2CErrors, I2CHandle, I2cHandleType},
     registry::ComponentRegistry,
