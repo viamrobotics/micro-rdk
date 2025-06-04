@@ -141,32 +141,11 @@ pub trait Board: DoCommand {
     fn get_analog_reader_by_name(&self, name: String) -> Result<AnalogReaderType<u16>, BoardError>;
 
     /// Set the board to the indicated [PowerMode](component::board::v1::PowerMode)
-    fn set_power_mode(&self, args: PowerModeArgs) -> Result<(), BoardError> {
-        info!(
-            "Received request to set power mode to {} for {} milliseconds",
-            args.power_mode.as_str_name(),
-            match args.duration {
-                Some(dur) => dur.as_millis().to_string(),
-                None => "<forever>".to_string(),
-            }
-        );
-
-        if args.power_mode != component::board::v1::PowerMode::OfflineDeep {
-            return Err(BoardError::BoardUnsupportedArgument(
-                "only support OfflineDeep mode",
-            ));
-        }
-
-        Ok(async_io::block_on(
-            crate::common::system::send_system_event(
-                crate::common::system::SystemEvent::DeepSleep {
-                    duration: args.duration,
-                    ulp_enabled: args.ulp_enabled,
-                },
-                false,
-            ),
-        )?)
-    }
+    fn set_power_mode(
+        &self,
+        mode: component::board::v1::PowerMode,
+        duration: Option<Duration>,
+    ) -> Result<(), BoardError>;
 
     /// Get a wrapped [I2CHandle] by name.
     fn get_i2c_by_name(&self, name: String) -> Result<I2cHandleType, BoardError>;
@@ -299,6 +278,22 @@ impl Board for FakeBoard {
         }
     }
 
+    fn set_power_mode(
+        &self,
+        mode: component::board::v1::PowerMode,
+        duration: Option<Duration>,
+    ) -> Result<(), BoardError> {
+        info!(
+            "set power mode to {} for {} milliseconds",
+            mode.as_str_name(),
+            match duration {
+                Some(dur) => dur.as_millis().to_string(),
+                None => "<forever>".to_string(),
+            }
+        );
+        Ok(())
+    }
+
     fn get_i2c_by_name(&self, name: String) -> Result<I2cHandleType, BoardError> {
         if let Some(i2c_handle) = self.i2cs.get(&name) {
             return Ok((*i2c_handle).clone());
@@ -353,8 +348,12 @@ where
         self.lock().unwrap().get_analog_reader_by_name(name)
     }
 
-    fn set_power_mode(&self, args: PowerModeArgs) -> Result<(), BoardError> {
-        self.lock().unwrap().set_power_mode(args)
+    fn set_power_mode(
+        &self,
+        mode: component::board::v1::PowerMode,
+        duration: Option<Duration>,
+    ) -> Result<(), BoardError> {
+        self.lock().unwrap().set_power_mode(mode, duration)
     }
 
     fn get_i2c_by_name(&self, name: String) -> Result<I2cHandleType, BoardError> {

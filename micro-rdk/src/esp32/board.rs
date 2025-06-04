@@ -1,6 +1,8 @@
+use log::*;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
+    time::Duration,
 };
 
 use crate::{
@@ -12,6 +14,7 @@ use crate::{
         i2c::I2cHandleType,
         registry::ComponentRegistry,
     },
+    proto::component,
 };
 
 #[cfg(esp32)]
@@ -56,7 +59,7 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
         .register_board("esp32", &EspBoard::from_config)
         .is_err()
     {
-        log::error!("esp32 board type already registered");
+        error!("esp32 board type already registered");
     }
 }
 
@@ -191,7 +194,7 @@ impl EspBoard {
                                     Ok(p)
                                 }
                                 _ => {
-                                    log::error!("pin {} is not an ADC1 pin", v.pin);
+                                    error!("pin {} is not an ADC1 pin", v.pin);
                                     Err(BoardError::GpioPinError(
                                         v.pin as u32,
                                         "Pin is not an ADC1 pin",
@@ -220,7 +223,7 @@ impl EspBoard {
                 .filter_map(|pin| match Esp32GPIOPin::new(*pin, None) {
                     Ok(p) => Some(p),
                     Err(err) => {
-                        log::error!("Error configuring pin: {:?}", err);
+                        error!("Error configuring pin: {:?}", err);
                         None
                     }
                 })
@@ -324,6 +327,45 @@ impl Board for EspBoard {
             None => Err(BoardError::AnalogReaderNotFound(name)),
         }
     }
+    fn set_power_mode(
+        &self,
+        mode: component::board::v1::PowerMode,
+        duration: Option<Duration>,
+    ) -> Result<(), BoardError> {
+        info!(
+            "Esp32 received request to set power mode to {} for {} milliseconds",
+            mode.as_str_name(),
+            match duration {
+                Some(dur) => dur.as_millis().to_string(),
+                None => "<forever>".to_string(),
+            }
+        );
+
+        if mode != component::board::v1::PowerMode::OfflineDeep {
+            return Err(BoardError::BoardUnsupportedArgument(
+                "only support OfflineDeep mode",
+            ));
+        }
+
+        if let Some(dur) = duration {
+            let dur_micros = dur.as_micros() as u64;
+            let result: crate::esp32::esp_idf_svc::sys::esp_err_t;
+            unsafe {
+                result = crate::esp32::esp_idf_svc::sys::esp_sleep_enable_timer_wakeup(dur_micros);
+            }
+            if result != crate::esp32::esp_idf_svc::sys::ESP_OK {
+                return Err(BoardError::BoardUnsupportedArgument("duration too long"));
+            }
+            warn!("Esp32 entering deep sleep for {} microseconds!", dur_micros);
+        } else {
+            warn!("Esp32 entering deep sleep without scheduled wakeup!");
+        }
+
+        unsafe {
+            crate::esp32::esp_idf_svc::sys::esp_deep_sleep_start();
+        }
+    }
+
     fn get_i2c_by_name(&self, name: String) -> Result<I2cHandleType, BoardError> {
         match self.i2cs.get(&name) {
             Some(i2c_handle) => Ok(Arc::clone(i2c_handle)),
