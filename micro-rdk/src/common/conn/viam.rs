@@ -14,9 +14,7 @@ use crate::common::app_client::{
     AppClient, AppClientBuilder, AppClientError, PeriodicAppClientTask,
 };
 use crate::common::credentials_storage::{StorageDiagnostic, TlsCertificate};
-use crate::common::system::{
-    force_shutdown, shutdown_requested, shutdown_requested_nonblocking,
-};
+use crate::common::system::{force_shutdown, shutdown_requested, shutdown_requested_nonblocking};
 use crate::common::webrtc::signaling_server::SignalingServer;
 use std::marker::PhantomData;
 use std::net::{SocketAddr, TcpListener};

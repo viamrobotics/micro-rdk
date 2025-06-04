@@ -735,7 +735,8 @@ impl TryFrom<&DeviceAgentConfigResponse> for AgentConfig {
             .map(|val| match &val.kind {
                 Some(ProtoKind::BoolValue(b)) => *b,
                 _ => false,
-            }).unwrap_or_default();
+            })
+            .unwrap_or_default();
 
         Ok(Self {
             network_settings,
