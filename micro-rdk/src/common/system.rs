@@ -137,13 +137,27 @@ pub(crate) async fn force_shutdown(app_client: Option<AppClient>) {
             #[cfg(feature = "esp32")]
             {
                 let mut result: sys::esp_err_t;
+
                 if ulp_enabled {
+                    log::info!("enabling ULP wakeup");
+
                     unsafe {
                         result = sys::esp_sleep_enable_ulp_wakeup();
                     }
+
                     match result {
                         sys::ESP_OK => {
                             log::info!("ULP wakeup enabled");
+
+                            if duration.is_some() {
+                                log::warn!(
+                                    "Duration-based wakeup settings detected, will be ignored for ULP"
+                                );
+                            }
+
+                            unsafe {
+                                sys::esp_deep_sleep_start();
+                            }
                         }
                         sys::ESP_ERR_NOT_SUPPORTED => {
                             log::error!("additional current by touch enabled");
@@ -170,6 +184,7 @@ pub(crate) async fn force_shutdown(app_client: Option<AppClient>) {
                     sys::esp_deep_sleep_start();
                 }
             }
+
             #[cfg(not(feature = "esp32"))]
             {
                 if ulp_enabled {
