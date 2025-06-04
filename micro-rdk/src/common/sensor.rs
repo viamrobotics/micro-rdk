@@ -87,13 +87,14 @@ pub type TypedReadingsResult<T> = ::std::collections::HashMap<String, T>;
 
 pub trait Readings {
     fn get_generic_readings(&mut self) -> Result<GenericReadingsResult, SensorError>;
+
     #[cfg(feature = "data")]
-    fn get_readings_data(&mut self) -> Result<SensorData, SensorError> {
+    fn get_readings_sensor_data(&mut self) -> Result<Vec<SensorData>, SensorError> {
         let reading_requested_dt = chrono::offset::Local::now().fixed_offset();
         let readings = self.get_generic_readings()?;
         let reading_received_dt = chrono::offset::Local::now().fixed_offset();
 
-        Ok(SensorData {
+        Ok(vec![SensorData {
             metadata: Some(SensorMetadata {
                 time_received: Some(Timestamp {
                     seconds: reading_requested_dt.timestamp(),
@@ -107,7 +108,7 @@ pub trait Readings {
                 mime_type: MimeType::Unspecified.into(),
             }),
             data: Some(readings.into()),
-        })
+        }])
     }
 }
 
@@ -197,6 +198,11 @@ where
     fn get_generic_readings(&mut self) -> Result<GenericReadingsResult, SensorError> {
         self.get_mut().unwrap().get_generic_readings()
     }
+
+    #[cfg(feature = "data")]
+    fn get_readings_sensor_data(&mut self) -> Result<Vec<SensorData>, SensorError> {
+        self.get_mut().unwrap().get_readings_sensor_data()
+    }
 }
 
 impl<A> Readings for Arc<Mutex<A>>
@@ -205,5 +211,10 @@ where
 {
     fn get_generic_readings(&mut self) -> Result<GenericReadingsResult, SensorError> {
         self.lock().unwrap().get_generic_readings()
+    }
+
+    #[cfg(feature = "data")]
+    fn get_readings_sensor_data(&mut self) -> Result<Vec<SensorData>, SensorError> {
+        self.lock().unwrap().get_readings_sensor_data()
     }
 }
