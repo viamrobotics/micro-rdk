@@ -3,15 +3,13 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::{
-    common::{
-        analog::{AnalogReader, AnalogReaderType},
-        board::{Board, BoardError, BoardType},
-        config::ConfigType,
-        digital_interrupt::DigitalInterruptConfig,
-        i2c::I2cHandleType,
-        registry::ComponentRegistry,
-    },
+use crate::common::{
+    analog::{AnalogReader, AnalogReaderType},
+    board::{Board, BoardError, BoardType},
+    config::ConfigType,
+    digital_interrupt::DigitalInterruptConfig,
+    i2c::I2cHandleType,
+    registry::ComponentRegistry,
 };
 
 #[cfg(esp32)]
