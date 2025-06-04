@@ -46,6 +46,10 @@ jobs:
     env:
       ESP32_CANARY_OTA_VERSION_TAG: ${{ inputs.otaTag }}
     steps:
+      - name: Disabled
+        if: ${{ false }}
+        run: |
+          echo canary is disabled for the forseeable future, will not update OTA config
       - name: Checkout code
         uses: actions/checkout@v3
         with:
