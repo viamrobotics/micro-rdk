@@ -149,15 +149,6 @@ pub(crate) async fn force_shutdown(app_client: Option<AppClient>) {
                         sys::ESP_OK => {
                             log::info!("ULP wakeup enabled");
 
-                            if duration.is_some() {
-                                log::warn!(
-                                    "Duration-based wakeup settings detected, will be ignored for ULP"
-                                );
-                            }
-
-                            unsafe {
-                                sys::esp_deep_sleep_start();
-                            }
                         }
                         sys::ESP_ERR_NOT_SUPPORTED => {
                             log::error!("additional current by touch enabled");

@@ -731,7 +731,7 @@ impl TryFrom<&DeviceAgentConfigResponse> for AgentConfig {
         let ulp_enabled = value
             .advanced_settings
             .as_ref()
-            .and_then(|s| s.fields.get("ulp_enabled"))
+            .and_then(|s| s.fields.get("ulp_wakeup_enabled"))
             .map(|val| match &val.kind {
                 Some(ProtoKind::BoolValue(b)) => *b,
                 _ => false,
