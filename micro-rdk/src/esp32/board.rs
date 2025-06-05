@@ -59,7 +59,7 @@ pub(crate) fn register_models(registry: &mut ComponentRegistry) {
         .register_board("esp32", &EspBoard::from_config)
         .is_err()
     {
-        error!("esp32 board type already registered");
+        log::error!("esp32 board type already registered");
     }
 }
 
@@ -194,7 +194,7 @@ impl EspBoard {
                                     Ok(p)
                                 }
                                 _ => {
-                                    error!("pin {} is not an ADC1 pin", v.pin);
+                                    log::error!("pin {} is not an ADC1 pin", v.pin);
                                     Err(BoardError::GpioPinError(
                                         v.pin as u32,
                                         "Pin is not an ADC1 pin",
@@ -223,7 +223,7 @@ impl EspBoard {
                 .filter_map(|pin| match Esp32GPIOPin::new(*pin, None) {
                     Ok(p) => Some(p),
                     Err(err) => {
-                        error!("Error configuring pin: {:?}", err);
+                        log::error!("Error configuring pin: {:?}", err);
                         None
                     }
                 })

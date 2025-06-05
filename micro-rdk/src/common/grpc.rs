@@ -739,7 +739,6 @@ impl<'a> GrpcServerInner<'a> {
     fn board_set_power_mode(&mut self, message: &[u8]) -> Result<Bytes, ServerError> {
         let req = component::board::v1::SetPowerModeRequest::decode(message)
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
-
         let pm = req.power_mode();
 
         if pm == component::board::v1::PowerMode::Unspecified {
