@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 use log::*;
 use std::{
     collections::HashMap,
@@ -365,7 +366,6 @@ impl Board for EspBoard {
             crate::esp32::esp_idf_svc::sys::esp_deep_sleep_start();
         }
     }
-
     fn get_i2c_by_name(&self, name: String) -> Result<I2cHandleType, BoardError> {
         match self.i2cs.get(&name) {
             Some(i2c_handle) => Ok(Arc::clone(i2c_handle)),
