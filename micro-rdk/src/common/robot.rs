@@ -51,7 +51,6 @@ use super::{
     sensor::SensorType,
     servo::{Servo, ServoType},
     switch::SwitchType,
-    system::FirmwareMode,
 };
 
 use thiserror::Error;
@@ -280,7 +279,7 @@ impl LocalRobot {
             match agent_config.firmware_mode {
                 // TODO(RSDK-8125): Support selection of a DataStore trait other than
                 // DefaultDataStore in a way that is configurable
-                FirmwareMode::Normal => {
+                super::system::FirmwareMode::Normal => {
                     match DataManager::<DefaultDataStore>::from_robot_and_config(&robot, config) {
                         Ok(None) => {}
                         Ok(Some(mut data_manager)) => {
@@ -299,7 +298,7 @@ impl LocalRobot {
                         }
                     }
                 }
-                FirmwareMode::DeepSleepBetweenDataSyncs => {
+                super::system::FirmwareMode::DeepSleepBetweenDataSyncs => {
                     match DataCollectAndSyncTask::from_robot_and_config(
                         &robot,
                         config,
@@ -1259,13 +1258,18 @@ mod tests {
             ..Default::default()
         };
 
+        let agent_config = crate::common::config::AgentConfig {
+            firmware_mode: crate::common::system::FirmwareMode::Normal,
+            ..Default::default()
+        };
+
         let robot = LocalRobot::from_cloud_config(
             Executor::new(),
             "".to_string(),
             &robot_cfg,
             &mut Box::default(),
             None,
-            crate::common::system::FirmwareMode::Normal,
+            &agent_config,
         );
 
         assert!(robot.is_ok());
@@ -1363,13 +1367,18 @@ mod tests {
             ..Default::default()
         };
 
+        let agent_config = crate::common::config::AgentConfig {
+            firmware_mode: crate::common::system::FirmwareMode::Normal,
+            ..Default::default()
+        };
+
         let robot = LocalRobot::from_cloud_config(
             Executor::new(),
             "".to_string(),
             &robot_cfg,
             &mut Box::default(),
             None,
-            crate::common::system::FirmwareMode::Normal,
+            &agent_config,
         );
 
         assert!(robot.is_ok());

@@ -643,6 +643,11 @@ mod tests {
         let ctor = registry.get_sensor_constructor("test_sensor");
         assert!(ctor.is_ok());
 
+        let agent_config = common::config::AgentConfig {
+            firmware_mode: common::system::FirmwareMode::Normal,
+            ..Default::default()
+        };
+
         // make robot
         let robot = LocalRobot::from_cloud_config(
             Executor::new(),
@@ -650,7 +655,7 @@ mod tests {
             &config,
             &mut Box::new(registry),
             None,
-            common::system::FirmwareMode::Normal,
+            &agent_config,
         );
         assert!(robot.is_ok());
         let robot = robot.unwrap();

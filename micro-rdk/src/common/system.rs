@@ -141,7 +141,7 @@ pub(crate) async fn force_shutdown(app_client: Option<AppClient>) {
                 // disable other wakeup sources before setting
                 unsafe {
                     result = sys::esp_sleep_disable_wakeup_source(
-                        sys::esp_idf_svc::hal::sys::esp_sleep_source_t_ESP_SLEEP_WAKEUP_ALL,
+                        sys::esp_sleep_source_t_ESP_SLEEP_WAKEUP_ALL,
                     );
                 }
 
