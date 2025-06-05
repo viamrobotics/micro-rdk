@@ -40,8 +40,6 @@ pub enum BoardError {
     BoardI2CError(#[from] I2CErrors),
     #[error(transparent)]
     SystemError(#[from] super::system::SystemEventError),
-    #[error("{0}")]
-    PowerModeParsingError(String),
     #[error(transparent)]
     #[cfg(feature = "esp32")]
     EspError(#[from] EspError),
