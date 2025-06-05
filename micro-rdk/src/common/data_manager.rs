@@ -30,7 +30,10 @@ use thiserror::Error;
 // the smaller amount of available RAM, we've halved it
 static MAX_SENSOR_CONTENTS_SIZE: usize = 32000;
 
-type CollectedReadings = Vec<(ResourceMethodKey, Result<SensorData, DataCollectionError>)>;
+type CollectedReadings = Vec<(
+    ResourceMethodKey,
+    Result<Vec<SensorData>, DataCollectionError>,
+)>;
 
 /// Allow for a C project using micro-RDK as a library to implement a callback to be run
 /// whenever data has successfully been uploaded. The callback should be identical in signature
@@ -268,15 +271,19 @@ where
                     &collector_key,
                     e
                 ),
-                Ok(data) => {
-                    if let Err(e) =
-                        store_guard.write_message(&collector_key, data, WriteMode::OverwriteOldest)
-                    {
-                        log::error!(
-                            "couldn't store data for collector {:?} error : {:?}",
-                            collector_key,
-                            e
-                        );
+                Ok(data_vec) => {
+                    for data in data_vec {
+                        if let Err(e) = store_guard.write_message(
+                            &collector_key,
+                            data,
+                            WriteMode::OverwriteOldest,
+                        ) {
+                            log::error!(
+                                "couldn't store some data for collector {:?} error : {:?}",
+                                collector_key,
+                                e
+                            );
+                        }
                     }
                 }
             }
@@ -299,19 +306,23 @@ where
                 min_interval_ms,
             ));
         }
-        self.collectors
+
+        Ok(self
+            .collectors
             .iter_mut()
-            .filter(|coll| {
-                (coll.time_interval().as_millis() as u64 / min_interval_ms)
+            .filter_map(|coll| {
+                if (coll.time_interval().as_millis() as u64 / min_interval_ms)
                     == (time_interval_ms / min_interval_ms)
+                {
+                    Some((
+                        coll.resource_method_key(),
+                        coll.call_method(robot_start_time),
+                    ))
+                } else {
+                    None
+                }
             })
-            .map(|coll| {
-                Ok((
-                    coll.resource_method_key(),
-                    coll.call_method(robot_start_time),
-                ))
-            })
-            .collect()
+            .collect())
     }
 
     pub fn get_sync_task(&self, robot_start_time: Instant) -> Option<DataSyncTask<StoreType>> {
@@ -349,15 +360,25 @@ pub enum DataSyncError {
 fn get_time_to_subtract(
     robot_start_time: Instant,
     stored_time: Timestamp,
-) -> Result<chrono::Duration, DataSyncError> {
+) -> Result<Option<chrono::Duration>, DataSyncError> {
     let stored_time_dur = Duration::new(stored_time.seconds as u64, stored_time.nanos as u32);
+    // this can sometimes happen when the source of the timestamp is not from the current run of firmware code,
+    // such as data collected using code running on ULP. In this case we don't want to do any time correction
+    // and should defer to the existing timestamp
+    if robot_start_time
+        .elapsed()
+        .checked_sub(stored_time_dur)
+        .is_none()
+    {
+        return Ok(None);
+    }
     let time_to_subtract = robot_start_time.elapsed() - stored_time_dur;
     let time_to_subtract = chrono::Duration::new(
         time_to_subtract.as_secs() as i64,
         time_to_subtract.subsec_nanos(),
     )
     .ok_or(DataSyncError::TimeOutOfBoundsError)?;
-    Ok(time_to_subtract)
+    Ok(Some(time_to_subtract))
 }
 
 fn time_correct_reading(
@@ -374,21 +395,25 @@ fn time_correct_reading(
         if current_dt.year() < VIAM_FOUNDING_YEAR {
             return Err(DataSyncError::NoCurrentTime);
         }
+
         if let Some(time_received) = metadata.time_received.clone() {
-            let time_to_subtract = get_time_to_subtract(robot_start_time, time_received)?;
-            let time_received = current_dt - time_to_subtract;
-            metadata.time_received = Some(Timestamp {
-                seconds: time_received.timestamp(),
-                nanos: time_received.timestamp_subsec_nanos() as i32,
-            });
+            if let Some(time_to_subtract) = get_time_to_subtract(robot_start_time, time_received)? {
+                let time_received = current_dt - time_to_subtract;
+                metadata.time_received = Some(Timestamp {
+                    seconds: time_received.timestamp(),
+                    nanos: time_received.timestamp_subsec_nanos() as i32,
+                });
+            };
         }
         if let Some(time_requested) = metadata.time_requested.clone() {
-            let time_to_subtract = get_time_to_subtract(robot_start_time, time_requested)?;
-            let time_requested = current_dt - time_to_subtract;
-            metadata.time_requested = Some(Timestamp {
-                seconds: time_requested.timestamp(),
-                nanos: time_requested.timestamp_subsec_nanos() as i32,
-            });
+            if let Some(time_to_subtract) = get_time_to_subtract(robot_start_time, time_requested)?
+            {
+                let time_requested = current_dt - time_to_subtract;
+                metadata.time_requested = Some(Timestamp {
+                    seconds: time_requested.timestamp(),
+                    nanos: time_requested.timestamp_subsec_nanos() as i32,
+                });
+            };
         }
     }
     Ok(())
@@ -646,6 +671,35 @@ pub struct DataCollectAndSyncTask {
 }
 
 impl DataCollectAndSyncTask {
+    async fn upload_data(
+        &self,
+        app_client: &AppClient,
+        collector_key: &ResourceMethodKey,
+        data: Vec<SensorData>,
+    ) -> Result<(), AppClientError> {
+        let upload_request = DataCaptureUploadRequest {
+            metadata: Some(UploadMetadata {
+                part_id: self.part_id.clone(),
+                component_type: collector_key.component_type.clone(),
+                r#type: DataType::TabularSensor.into(),
+                component_name: collector_key.r_name.clone(),
+                method_name: collector_key.method.to_string(),
+                ..Default::default()
+            }),
+            sensor_contents: data,
+        };
+        match app_client.upload_data(upload_request).await {
+            Ok(_) => {
+                #[cfg(feature = "data-upload-hook-unstable")]
+                unsafe {
+                    micro_rdk_data_manager_post_upload_hook();
+                }
+                Ok(())
+            }
+            Err(err) => Err(err),
+        }
+    }
+
     async fn run(&self, app_client: &AppClient) -> Result<(), AppClientError> {
         let collectors_len = self.collectors.len();
         for (idx, collector) in self.collectors.iter().enumerate() {
@@ -659,41 +713,66 @@ impl DataCollectAndSyncTask {
                         err
                     )
                 });
-            if let Ok(mut readings) = readings {
-                match time_correct_reading(self.robot_start_time, &mut readings) {
-                    Ok(_) => {
-                        let upload_request = DataCaptureUploadRequest {
-                            metadata: Some(UploadMetadata {
-                                part_id: self.part_id.clone(),
-                                component_type: collector_key.component_type.clone(),
-                                r#type: DataType::TabularSensor.into(),
-                                component_name: collector_key.r_name.clone(),
-                                method_name: collector_key.method.to_string(),
-                                ..Default::default()
-                            }),
-                            sensor_contents: vec![readings],
-                        };
-                        match app_client.upload_data(upload_request).await {
-                            Ok(_) => {
-                                #[cfg(feature = "data-upload-hook-unstable")]
-                                unsafe {
-                                    micro_rdk_data_manager_post_upload_hook();
+            if let Ok(readings) = readings {
+                let robot_start_time = self.robot_start_time;
+                let mut readings: Vec<SensorData> = readings
+                    .into_iter()
+                    .filter_map(|mut readings| {
+                        if let Err(err) = time_correct_reading(robot_start_time, &mut readings) {
+                            log::error!(
+                                "unable to time correct reading for collector {:?}, {:?}",
+                                collector_key,
+                                err
+                            );
+                            None
+                        } else {
+                            Some(readings)
+                        }
+                    })
+                    .collect();
+                readings.reverse();
+                if !readings.is_empty() {
+                    let mut readings_to_upload: Vec<SensorData> = vec![];
+                    let mut current_readings_size = 0;
+                    while !readings.is_empty() {
+                        if let Some(next_reading) = readings.pop() {
+                            if current_readings_size + next_reading.encoded_len()
+                                > MAX_SENSOR_CONTENTS_SIZE
+                            {
+                                let current_upload = readings_to_upload.split_off(0);
+                                // if we can't upload, don't try again until after the next sleep
+                                if let Err(err) = self
+                                    .upload_data(app_client, &collector_key, current_upload)
+                                    .await
+                                {
+                                    log::error!("error uploading data, failed to upload {:?} readings on this attempt: {}, collector: {:?}", collectors_len - idx, err, collector_key);
+                                    break;
                                 }
+                                current_readings_size = 0;
+                            } else {
+                                current_readings_size += next_reading.encoded_len();
+                                readings_to_upload.push(next_reading);
                             }
+                        } else if !readings_to_upload.is_empty() {
                             // if we can't upload, don't try again until after the next sleep
-                            Err(err) => {
-                                log::error!("error uploading data, failed to upload {:?} readings on this attempt: {}", collectors_len - idx, err);
+                            if let Err(err) = self
+                                .upload_data(app_client, &collector_key, readings_to_upload)
+                                .await
+                            {
+                                log::error!("error uploading data, failed to upload {:?} readings on this attempt: {}, collector: {:?}", collectors_len - idx, err, collector_key);
+                                break;
                             }
-                        };
+                            break;
+                        } else {
+                            break;
+                        }
                     }
-                    Err(err) => {
-                        log::error!(
-                            "unable to time correct reading for collector {:?}, {:?}",
-                            collector_key,
-                            err
-                        )
-                    }
-                };
+                } else {
+                    log::warn!(
+                        "no readings captured for collector {:?}, skipping upload",
+                        collector_key
+                    );
+                }
             }
         }
         let _ = send_system_event(
@@ -973,19 +1052,19 @@ mod tests {
         let sensor_data = data_manager.collect_readings_for_interval(100, robot_start_time);
         assert!(sensor_data.is_ok());
         let sensor_data = sensor_data.unwrap();
-        let sensor_data: Vec<(ResourceMethodKey, SensorData)> = sensor_data
+        let sensor_data: Vec<(ResourceMethodKey, Vec<SensorData>)> = sensor_data
             .into_iter()
             .try_fold(vec![], |mut out, val| {
                 out.push((val.0, val.1?));
-                Ok::<Vec<(ResourceMethodKey, SensorData)>, DataCollectionError>(out)
+                Ok::<Vec<(ResourceMethodKey, Vec<SensorData>)>, DataCollectionError>(out)
             })
             .unwrap();
 
         assert_eq!(sensor_data.len(), 2);
 
         assert_eq!(sensor_data[0].0, method_key_1);
-        assert!(sensor_data[0].1.data.is_some());
-        let data = sensor_data[0].1.data.clone().unwrap();
+        assert!(sensor_data[0].1[0].data.is_some());
+        let data = sensor_data[0].1[0].data.clone().unwrap();
         assert!(matches!(data, Data::Struct(_)));
         match data {
             Data::Struct(data) => {
@@ -1015,8 +1094,8 @@ mod tests {
         };
 
         assert_eq!(sensor_data[1].0, method_key_2);
-        assert!(sensor_data[1].1.data.is_some());
-        let data = sensor_data[1].1.data.clone().unwrap();
+        assert!(sensor_data[1].1[0].data.is_some());
+        let data = sensor_data[1].1[0].data.clone().unwrap();
         assert!(matches!(data, Data::Struct(_)));
         match data {
             Data::Struct(data) => {
@@ -1084,10 +1163,10 @@ mod tests {
         let readings = data_manager
             .collect_readings_for_interval(100, robot_start_time)
             .unwrap();
-        let readings: Result<Vec<(ResourceMethodKey, SensorData)>, DataCollectionError> =
+        let readings: Result<Vec<(ResourceMethodKey, Vec<SensorData>)>, DataCollectionError> =
             readings.into_iter().try_fold(vec![], |mut out, val| {
                 out.push((val.0, val.1?));
-                Ok::<Vec<(ResourceMethodKey, SensorData)>, DataCollectionError>(out)
+                Ok::<Vec<(ResourceMethodKey, Vec<SensorData>)>, DataCollectionError>(out)
             });
         assert!(readings.is_err());
     }

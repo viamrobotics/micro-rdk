@@ -9,8 +9,8 @@ on:
         required: true
       MICRO_RDK_TEAM_CHANNEL_ID:
         required: true
-  schedule:
-    - cron:  '30 23 * * *'
+  # switch to schedule: cron: '30 23 * * *' if reactivating
+  workflow_dispatch:
 
 env:
   MONGODB_TEST_OUTPUT_URI: ${{ secrets.MONGODB_TEST_OUTPUT_URI }}

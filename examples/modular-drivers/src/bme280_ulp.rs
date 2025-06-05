@@ -9,7 +9,6 @@ use std::{
 };
 
 use chrono::{DateTime, TimeDelta};
-use micro_rdk::google::protobuf::{value, Value};
 use micro_rdk::{
     common::{
         config::{AttributeError, ConfigType, Kind},
@@ -19,6 +18,10 @@ use micro_rdk::{
     },
     esp32::esp_idf_svc::{hal::ulp::UlpDriver, sys::EspError},
     DoCommand,
+};
+use micro_rdk::{
+    google::protobuf::{value, Timestamp, Value},
+    proto::app::data_sync::v1::{MimeType, SensorData, SensorMetadata},
 };
 use thiserror::Error;
 
@@ -140,7 +143,6 @@ impl TryFrom<&Kind> for ULPConfig {
                         ))
                     }
                 })?;
-
             let period = config
                 .get("frequency_hz")
                 .ok_or(AttributeError::KeyNotFound("frequency_hz".to_owned()))
@@ -933,17 +935,10 @@ impl BME280 {
         let raw: RawMeasurement = raw.into();
         Ok(raw)
     }
-}
 
-impl Sensor for BME280 {}
-
-impl Readings for BME280 {
-    fn get_generic_readings(
-        &mut self,
-    ) -> Result<micro_rdk::common::sensor::GenericReadingsResult, SensorError> {
-        let measurement = self.read_raw_measurement()?;
-        let measurement = CompensatedMeasurement::from_raw(measurement, &mut self.calib);
+    fn get_calibrated_reading(&mut self, raw_measurement: RawMeasurement) -> GenericReadingsResult {
         let mut res = GenericReadingsResult::new();
+        let measurement = CompensatedMeasurement::from_raw(raw_measurement, &mut self.calib);
         if let Some(temperature) = measurement.temperature {
             res.insert(
                 "temperature".to_owned(),
@@ -968,6 +963,77 @@ impl Readings for BME280 {
                 },
             );
         }
+        res
+    }
+}
+
+impl Sensor for BME280 {}
+
+impl Readings for BME280 {
+    fn get_generic_readings(
+        &mut self,
+    ) -> Result<micro_rdk::common::sensor::GenericReadingsResult, SensorError> {
+        let measurement = self.read_raw_measurement()?;
+        Ok(self.get_calibrated_reading(measurement))
+    }
+
+    fn get_readings_sensor_data(&mut self) -> Result<Vec<SensorData>, SensorError> {
+        let res = match self.ulp.as_ref() {
+            None => {
+                let reading_requested_dt = chrono::offset::Local::now().fixed_offset();
+                let readings = self.get_generic_readings()?;
+                let reading_received_dt = chrono::offset::Local::now().fixed_offset();
+
+                vec![SensorData {
+                    metadata: Some(SensorMetadata {
+                        time_received: Some(Timestamp {
+                            seconds: reading_requested_dt.timestamp(),
+                            nanos: reading_requested_dt.timestamp_subsec_nanos() as i32,
+                        }),
+                        time_requested: Some(Timestamp {
+                            seconds: reading_received_dt.timestamp(),
+                            nanos: reading_received_dt.timestamp_subsec_nanos() as i32,
+                        }),
+                        annotations: None,
+                        mime_type: MimeType::Unspecified.into(),
+                    }),
+                    data: Some(readings.into()),
+                }]
+            }
+            Some(ulp) => {
+                let period = ulp.cfg.period;
+                let start_dt = unsafe {
+                    DateTime::from_timestamp_millis(*(RTC_TIME_START.0.get()))
+                        .unwrap()
+                        .fixed_offset()
+                };
+
+                let res_mem = ULPResultsMemory::from(&SAMPLE_ARRAY);
+
+                res_mem
+                    .enumerate()
+                    .map(|(idx, raw_measurement)| {
+                        let reading_ts = start_dt + (period * (idx as u32));
+                        let reading = self.get_calibrated_reading(raw_measurement);
+                        SensorData {
+                            metadata: Some(SensorMetadata {
+                                time_received: Some(Timestamp {
+                                    seconds: reading_ts.timestamp(),
+                                    nanos: reading_ts.timestamp_subsec_nanos() as i32,
+                                }),
+                                time_requested: Some(Timestamp {
+                                    seconds: reading_ts.timestamp(),
+                                    nanos: reading_ts.timestamp_subsec_nanos() as i32,
+                                }),
+                                annotations: None,
+                                mime_type: MimeType::Unspecified.into(),
+                            }),
+                            data: Some(reading.into()),
+                        }
+                    })
+                    .collect()
+            }
+        };
         Ok(res)
     }
 }

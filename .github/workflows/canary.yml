@@ -11,8 +11,8 @@ on:
         required: true
       ESP32_CANARY_API_KEY_ID:
         required: true
-  schedule:
-    - cron:  '0 * * * *'
+  # switch to schedule: cron: '0 * * * *' if reactivating
+  workflow_dispatch:
 
 env:
   MONGODB_TEST_OUTPUT_URI: ${{ secrets.MONGODB_TEST_OUTPUT_URI }}

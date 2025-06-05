@@ -848,6 +848,7 @@ where
             agent_config.active_timeout,
         );
         let (app_client_tasks_result, server_task_result) = system_task.await;
+        self.app_client_tasks.clear();
         RunResult {
             app_client,
             app_client_tasks_result,
