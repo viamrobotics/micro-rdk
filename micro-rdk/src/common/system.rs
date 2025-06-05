@@ -159,6 +159,17 @@ pub(crate) async fn force_shutdown(app_client: Option<AppClient>) {
                     match result {
                         sys::ESP_OK => {
                             log::info!("ULP wakeup enabled");
+                            // Due to the many states the main device and ULP co-processor can possibly be in,
+                            // we prioritize ULP-based wakeup and forgo other options.
+                            if duration.is_some() {
+                                log::warn!(
+                                    "Duration-based wakeup will be ignored in favor of ULP wakeup"
+                                );
+                            }
+                            log::warn!("Esp32 entering deep sleep indefinitely until ULP wakeup");
+                            unsafe {
+                                sys::esp_deep_sleep_start();
+                            }
                         }
                         sys::ESP_ERR_NOT_SUPPORTED => {
                             log::error!("additional current by touch enabled");
