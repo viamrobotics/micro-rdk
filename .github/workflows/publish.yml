@@ -210,9 +210,10 @@ jobs:
         name: ${{ github.ref_name }}
         body: ${{ steps.changelog.outputs.changelog }}
 
-  update-canary-ota-config:
-    uses: ./.github/workflows/canary_ota.yml
-    needs: [publish-release]
-    secrets: inherit
-    with:
-      otaTag: ${{ github.ref_name }}
+  # bring back in when reactivating canary
+  # update-canary-ota-config:
+  #   uses: ./.github/workflows/canary_ota.yml
+  #   needs: [publish-release]
+  #   secrets: inherit
+  #   with:
+  #     otaTag: ${{ github.ref_name }}
