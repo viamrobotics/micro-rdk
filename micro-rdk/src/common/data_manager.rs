@@ -667,7 +667,6 @@ pub struct DataCollectAndSyncTask {
     sync_interval: Duration,
     robot_start_time: Instant,
     part_id: String,
-    ulp_enabled: bool,
 }
 
 impl DataCollectAndSyncTask {
