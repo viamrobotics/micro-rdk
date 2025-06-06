@@ -39,8 +39,6 @@ pub enum BoardError {
     #[error(transparent)]
     BoardI2CError(#[from] I2CErrors),
     #[error(transparent)]
-    SystemError(#[from] super::system::SystemEventError),
-    #[error(transparent)]
     #[cfg(feature = "esp32")]
     EspError(#[from] EspError),
     #[error("construction error test")]
