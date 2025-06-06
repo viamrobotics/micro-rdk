@@ -106,15 +106,10 @@ pub(crate) async fn send_system_event(
 pub fn enable_ulp_wakeup() -> Result<(), SystemEventError> {
     #[cfg(feature = "esp32")]
     {
-        log::info!("enabling ULP wakeup");
-
         let result = unsafe { sys::esp_sleep_enable_ulp_wakeup() };
 
         match result {
-            sys::ESP_OK => {
-                log::info!("ULP wakeup enabled");
-                Ok(())
-            }
+            sys::ESP_OK => Ok(()),
             sys::ESP_ERR_NOT_SUPPORTED => Err(SystemEventError::EnableUlpWakeupError(format!(
                 "additional current by touch enabled: {:?}",
                 result
