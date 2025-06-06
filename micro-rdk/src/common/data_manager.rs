@@ -738,6 +738,7 @@ impl DataCollectAndSyncTask {
                             if current_readings_size + next_reading.encoded_len()
                                 > MAX_SENSOR_CONTENTS_SIZE
                             {
+                                log::info!("HERE1");
                                 let current_upload = readings_to_upload.split_off(0);
                                 // if we can't upload, don't try again until after the next sleep
                                 if let Err(err) = self
@@ -748,22 +749,24 @@ impl DataCollectAndSyncTask {
                                     break;
                                 }
                                 current_readings_size = 0;
+                                readings_to_upload.push(next_reading);
                             } else {
+                                log::info!("HERE2");
                                 current_readings_size += next_reading.encoded_len();
                                 readings_to_upload.push(next_reading);
                             }
-                        } else if !readings_to_upload.is_empty() {
-                            // if we can't upload, don't try again until after the next sleep
-                            if let Err(err) = self
-                                .upload_data(app_client, &collector_key, readings_to_upload)
-                                .await
-                            {
-                                log::error!("error uploading data, failed to upload {:?} readings on this attempt: {}, collector: {:?}", collectors_len - idx, err, collector_key);
-                                break;
-                            }
-                            break;
                         } else {
                             break;
+                        }
+                    }
+                    if !readings_to_upload.is_empty() {
+                        // if we can't upload, don't try again until after the next sleep
+                        log::info!("HERE3: {:?}", readings_to_upload);
+                        if let Err(err) = self
+                            .upload_data(app_client, &collector_key, readings_to_upload)
+                            .await
+                        {
+                            log::error!("error uploading data, failed to upload {:?} readings on this attempt: {}, collector: {:?}", collectors_len - idx, err, collector_key);
                         }
                     }
                 } else {
