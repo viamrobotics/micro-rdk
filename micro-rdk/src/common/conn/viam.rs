@@ -717,19 +717,16 @@ where
             );
         }
 
-        let agent_config: crate::common::config::AgentConfig =
-            if let Some(app_client) = app_client.as_ref() {
-                if let Ok(res) = app_client.get_agent_config().await {
-                    res.as_ref()
-                        .try_into()
-                        .inspect_err(|err| log::error!("failed to parse agent config: {}", err))
-                        .unwrap_or_default()
-                } else {
-                    Default::default()
-                }
-            } else {
-                Default::default()
-            };
+        let agent_config: crate::common::config::AgentConfig = app_client
+            .as_ref()
+            .and_then(|client| {
+                async move { client.get_agent_config().await.ok() }
+                    .now_or_never()
+                    .flatten()
+            })
+            .and_then(|res| res.as_ref().try_into().ok())
+            .unwrap_or_default();
+
         log::info!(
             "viam server running in {} firmware mode",
             agent_config.firmware_mode
