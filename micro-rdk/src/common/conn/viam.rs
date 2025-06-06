@@ -724,13 +724,30 @@ where
                     .now_or_never()
                     .flatten()
             })
-            .and_then(|res| res.as_ref().try_into().ok())
+            .and_then(|res| {
+                res.as_ref()
+                    .try_into()
+                    .inspect_err(|e| {
+                        log::warn!(
+                            "failed to parse agent config, will use default settings: {}",
+                            e
+                        )
+                    })
+                    .ok()
+            })
             .unwrap_or_default();
 
         log::info!(
             "viam server running in {} firmware mode",
             agent_config.firmware_mode
         );
+
+        if agent_config.ulp_enabled {
+            if let Err(e) = crate::common::system::enable_ulp_wakeup() {
+                log::error!("failed to enable ULP wakeup!: {} ", e);
+                log::warn!("indefinite sleeps will never wake");
+            }
+        }
 
         let config_monitor_task = Box::new(ConfigMonitor::new(
             &config,

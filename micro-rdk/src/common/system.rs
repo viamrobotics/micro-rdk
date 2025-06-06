@@ -55,16 +55,15 @@ static SHUTDOWN_EVENT: LazyLock<Arc<AsyncMutex<Option<SystemEvent>>>> =
 pub enum SystemEvent {
     Restart,
     #[allow(dead_code)]
-    DeepSleep {
-        duration: Option<Duration>,
-        ulp_enabled: bool,
-    },
+    DeepSleep(Option<Duration>),
 }
 
 #[derive(Debug, Error)]
 pub enum SystemEventError {
     #[error("tried to request system event {0} but event {1} already requested")]
     SystemEventAlreadyRequested(SystemEvent, SystemEvent),
+    #[error("{0}")]
+    EnableUlpWakeupError(String),
 }
 
 impl Display for SystemEvent {
@@ -74,22 +73,12 @@ impl Display for SystemEvent {
             "{}",
             match self {
                 Self::Restart => "restart".to_string(),
-                Self::DeepSleep {
-                    duration,
-                    ulp_enabled,
-                } => {
-                    let mut s = String::new();
-                    s.push_str(
-                        &duration
-                            .as_ref()
-                            .map_or("enter deep sleep".to_string(), |d| {
-                                format!("enter deep sleep for {} microseconds", d.as_micros())
-                            }),
-                    );
-                    if *ulp_enabled {
-                        s.push_str("- ulp mode enabled");
-                    }
-                    s
+                Self::DeepSleep(duration) => {
+                    duration
+                        .as_ref()
+                        .map_or("enter deep sleep".to_string(), |d| {
+                            format!("enter deep sleep for {} microseconds", d.as_micros())
+                        })
                 }
             }
         )
@@ -114,6 +103,39 @@ pub(crate) async fn send_system_event(
     }
 }
 
+pub fn enable_ulp_wakeup() -> Result<(), SystemEventError> {
+    #[cfg(feature = "esp32")]
+    {
+        log::info!("enabling ULP wakeup");
+
+        let result = unsafe { sys::esp_sleep_enable_ulp_wakeup() };
+
+        match result {
+            sys::ESP_OK => {
+                log::info!("ULP wakeup enabled");
+                Ok(())
+            }
+            sys::ESP_ERR_NOT_SUPPORTED => Err(SystemEventError::EnableUlpWakeupError(format!(
+                "additional current by touch enabled: {:?}",
+                result
+            ))),
+            sys::ESP_ERR_INVALID_STATE => Err(SystemEventError::EnableUlpWakeupError(format!(
+                "co-processor not enabled or wakeup trigger conflicts with ulp wakeup: {:?}",
+                result
+            ))),
+            _ => Err(SystemEventError::EnableUlpWakeupError(format!(
+                "failed to enable ULP as wakeup source: {:?}",
+                result
+            ))),
+        }
+    }
+    #[cfg(not(feature = "esp32"))]
+    {
+        log::info!("simulating enabling ULP wakeup");
+        Ok(())
+    }
+}
+
 pub(crate) fn shutdown_requested() -> bool {
     SHUTDOWN_EVENT.lock_blocking().is_some()
 }
@@ -130,66 +152,17 @@ pub(crate) async fn force_shutdown(app_client: Option<AppClient>) {
     }
     match *SHUTDOWN_EVENT.lock().await {
         Some(SystemEvent::Restart) => terminate(),
-        Some(SystemEvent::DeepSleep {
-            duration,
-            ulp_enabled,
-        }) => {
+        Some(SystemEvent::DeepSleep(duration)) => {
             #[cfg(feature = "esp32")]
             {
-                let mut result: sys::esp_err_t;
-
-                // disable other wakeup sources before setting
-                unsafe {
-                    result = sys::esp_sleep_disable_wakeup_source(
-                        sys::esp_sleep_source_t_ESP_SLEEP_WAKEUP_ALL,
-                    );
-                }
-
-                if result != sys::ESP_OK {
-                    log::error!("failed to clear wakeup sources before setting: {}", result);
-                }
-
-                if ulp_enabled {
-                    log::info!("enabling ULP wakeup");
-
-                    unsafe {
-                        result = sys::esp_sleep_enable_ulp_wakeup();
-                    }
-
-                    match result {
-                        sys::ESP_OK => {
-                            log::info!("ULP wakeup enabled");
-                            // Due to the many states the main device and ULP co-processor can possibly be in,
-                            // we prioritize ULP-based wakeup and forgo other options.
-                            if duration.is_some() {
-                                log::warn!(
-                                    "Duration-based wakeup will be ignored in favor of ULP wakeup"
-                                );
-                            }
-                            log::warn!("Esp32 entering deep sleep indefinitely until ULP wakeup");
-                            unsafe {
-                                sys::esp_deep_sleep_start();
-                            }
-                        }
-                        sys::ESP_ERR_NOT_SUPPORTED => {
-                            log::error!("additional current by touch enabled");
-                        }
-                        sys::ESP_ERR_INVALID_STATE => {
-                            log::error!("co-processor not enabled or wakeup trigger conflicts with ulp wakeup");
-                        }
-                        _ => log::error!("failed to enable ULP: {:?}", result),
-                    }
-                }
-
                 if let Some(dur) = duration {
                     let dur_micros = dur.as_micros() as u64;
-                    unsafe {
-                        result = sys::esp_sleep_enable_timer_wakeup(dur_micros);
-                    }
+                    let result = unsafe { sys::esp_sleep_enable_timer_wakeup(dur_micros) };
                     if result != sys::ESP_OK {
-                        unreachable!("duration requested too long")
+                        log::error!("failed to enable timer wakeup");
+                    } else {
+                        log::warn!("Esp32 entering deep sleep for {} microseconds!", dur_micros);
                     }
-                    log::warn!("Esp32 entering deep sleep for {} microseconds!", dur_micros);
                 }
 
                 unsafe {
@@ -199,9 +172,6 @@ pub(crate) async fn force_shutdown(app_client: Option<AppClient>) {
 
             #[cfg(not(feature = "esp32"))]
             {
-                if ulp_enabled {
-                    log::info!("simulating setting ulp wakeup");
-                }
                 if let Some(dur) = duration {
                     log::warn!(
                         "Simulating deep sleep for {} microseconds!",
