@@ -738,7 +738,6 @@ impl DataCollectAndSyncTask {
                             if current_readings_size + next_reading.encoded_len()
                                 > MAX_SENSOR_CONTENTS_SIZE
                             {
-                                log::info!("HERE1");
                                 let current_upload = readings_to_upload.split_off(0);
                                 // if we can't upload, don't try again until after the next sleep
                                 if let Err(err) = self
@@ -751,7 +750,6 @@ impl DataCollectAndSyncTask {
                                 current_readings_size = 0;
                                 readings_to_upload.push(next_reading);
                             } else {
-                                log::info!("HERE2");
                                 current_readings_size += next_reading.encoded_len();
                                 readings_to_upload.push(next_reading);
                             }
@@ -761,7 +759,6 @@ impl DataCollectAndSyncTask {
                     }
                     if !readings_to_upload.is_empty() {
                         // if we can't upload, don't try again until after the next sleep
-                        log::info!("HERE3: {:?}", readings_to_upload);
                         if let Err(err) = self
                             .upload_data(app_client, &collector_key, readings_to_upload)
                             .await
