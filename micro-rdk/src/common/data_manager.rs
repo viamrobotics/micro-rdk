@@ -782,7 +782,6 @@ impl DataCollectAndSyncTask {
         robot: &LocalRobot,
         cfg: &RobotConfig,
         robot_start_time: Instant,
-        agent_config: &super::config::AgentConfig,
     ) -> Result<Self, DataManagerError> {
         if let Some(cfg) = get_data_service_config(cfg)? {
             let (collectors, sync_interval, part_id) =
@@ -809,7 +808,6 @@ impl DataCollectAndSyncTask {
                             collectors,
                             robot_start_time,
                             part_id,
-                            ulp_enabled: agent_config.ulp_enabled,
                         })
                     }
                 }

@@ -303,7 +303,6 @@ impl LocalRobot {
                         &robot,
                         config,
                         robot.start_time,
-                        agent_config,
                     ) {
                         Ok(sync_task) => {
                             let _ = robot.data_manager_sync_task.insert(Box::new(sync_task));
