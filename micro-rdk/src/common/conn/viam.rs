@@ -1130,7 +1130,7 @@ where
                         conf.cert.clone(),
                         ip,
                         conf.dtls.make()?,
-                    );
+                    )?;
 
                     let (answer, prio) = api.answer(0).await?;
                     let robot = self.robot.clone();
