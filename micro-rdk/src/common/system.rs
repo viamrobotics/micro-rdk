@@ -64,6 +64,8 @@ pub enum SystemEventError {
     SystemEventAlreadyRequested(SystemEvent, SystemEvent),
     #[error("{0}")]
     EnableUlpWakeupError(String),
+    #[error("system does not support ULP wakeup")]
+    UlpWakeupNotSupported,
 }
 
 impl Display for SystemEvent {
@@ -103,7 +105,7 @@ pub(crate) async fn send_system_event(
     }
 }
 
-pub fn enable_ulp_wakeup() -> Result<(), SystemEventError> {
+pub(crate) fn enable_ulp_wakeup() -> Result<(), SystemEventError> {
     #[cfg(feature = "esp32")]
     {
         let result = unsafe { sys::esp_sleep_enable_ulp_wakeup() };
@@ -111,8 +113,9 @@ pub fn enable_ulp_wakeup() -> Result<(), SystemEventError> {
         match result {
             sys::ESP_OK => Ok(()),
             sys::ESP_ERR_NOT_SUPPORTED => Err(SystemEventError::EnableUlpWakeupError(format!(
-                "additional current by touch enabled: {:?}",
+                "additional current to external 32kHz crystal is enabled, cannot enable ULP wakeup source: {:?}",
                 result
+
             ))),
             sys::ESP_ERR_INVALID_STATE => Err(SystemEventError::EnableUlpWakeupError(format!(
                 "co-processor not enabled or wakeup trigger conflicts with ulp wakeup: {:?}",
@@ -126,8 +129,7 @@ pub fn enable_ulp_wakeup() -> Result<(), SystemEventError> {
     }
     #[cfg(not(feature = "esp32"))]
     {
-        log::info!("simulating enabling ULP wakeup");
-        Ok(())
+        Err(SystemEventError::UlpWakeupNotSupported)
     }
 }
 
@@ -145,7 +147,8 @@ pub(crate) async fn force_shutdown(app_client: Option<AppClient>) {
         let log_task = LogUploadTask;
         let _ = log_task.invoke(app_client).await;
     }
-    match *SHUTDOWN_EVENT.lock().await {
+    let event = SHUTDOWN_EVENT.lock().await;
+    match *event {
         Some(SystemEvent::Restart) => terminate(),
         Some(SystemEvent::DeepSleep(duration)) => {
             #[cfg(feature = "esp32")]
@@ -154,12 +157,11 @@ pub(crate) async fn force_shutdown(app_client: Option<AppClient>) {
                     let dur_micros = dur.as_micros() as u64;
                     let result = unsafe { sys::esp_sleep_enable_timer_wakeup(dur_micros) };
                     if result != sys::ESP_OK {
-                        log::error!("failed to enable timer wakeup");
-                    } else {
-                        log::warn!("Esp32 entering deep sleep for {} microseconds!", dur_micros);
+                        log::error!("failed to enable timer wakeup: {:?}", result);
                     }
                 }
 
+                log::info!("{}", *event.clone().unwrap());
                 unsafe {
                     sys::esp_deep_sleep_start();
                 }

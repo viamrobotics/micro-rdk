@@ -735,10 +735,9 @@ where
         if agent_config.ulp_enabled {
             log::info!("enabling ULP wakeup");
             if let Err(e) = crate::common::system::enable_ulp_wakeup() {
-                log::error!("failed to enable ULP wakeup!: {} ", e);
-                log::warn!("indefinite sleeps will never wake");
+                log::error!("failed to enable ULP wakeup: {} ", e);
             } else {
-                log::info!("ULP wakeup enabled successfully");
+                log::info!("ULP wakeup enabled");
             }
         }
 
