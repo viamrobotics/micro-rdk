@@ -14,6 +14,7 @@ use super::{
     board::{Board, BoardError},
     config::{AttributeError, Kind},
     encoder::{EncoderError, EncoderPositionType},
+    motor::MotorError,
     movement_sensor::MovementSensor,
     robot::ResourceType,
     sensor::{Readings, SensorError},
@@ -106,14 +107,14 @@ impl TryFrom<&Kind> for DataCollectorConfig {
 
 /// A CollectionMethod is an enum whose values are associated with
 /// a method on one or more component traits
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CollectionMethod {
     Readings,
     // MovementSensor methods
     AngularVelocity,
     LinearAcceleration,
     LinearVelocity,
-    Position, // also Servo
+    Position, // also Servo,Motor
     CompassHeading,
     // Board methods
     Analogs(String),
@@ -144,7 +145,7 @@ impl Display for CollectionMethod {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ResourceMethodKey {
     pub r_name: String,
     pub component_type: String,
@@ -176,6 +177,8 @@ pub enum DataCollectionError {
     #[error(transparent)]
     EncoderCollectionError(#[from] EncoderError),
     #[error(transparent)]
+    MotorCollectionError(#[from] MotorError),
+    #[error(transparent)]
     SensorCollectionError(#[from] SensorError),
     #[error(transparent)]
     ServoCollectionError(#[from] ServoError),
@@ -195,7 +198,16 @@ pub struct DataCollector {
 
 fn resource_method_pair_is_valid(resource: &ResourceType, method: &CollectionMethod) -> bool {
     match resource {
-        ResourceType::Sensor(_) => matches!(method, CollectionMethod::Readings),
+        ResourceType::Board(_) => {
+            matches!(
+                method,
+                CollectionMethod::Analogs(_) | CollectionMethod::Gpios(_)
+            )
+        }
+        ResourceType::Encoder(_) => matches!(method, CollectionMethod::TicksCount),
+        ResourceType::Motor(_) => {
+            matches!(method, CollectionMethod::Position)
+        }
         ResourceType::MovementSensor(_) => matches!(
             method,
             CollectionMethod::Readings
@@ -205,13 +217,7 @@ fn resource_method_pair_is_valid(resource: &ResourceType, method: &CollectionMet
                 | CollectionMethod::Position
                 | CollectionMethod::CompassHeading
         ),
-        ResourceType::Board(_) => {
-            matches!(
-                method,
-                CollectionMethod::Analogs(_) | CollectionMethod::Gpios(_)
-            )
-        }
-        ResourceType::Encoder(_) => matches!(method, CollectionMethod::TicksCount),
+        ResourceType::Sensor(_) => matches!(method, CollectionMethod::Readings),
         ResourceType::Servo(_) => matches!(method, CollectionMethod::Position),
         _ => false,
     }
@@ -285,8 +291,20 @@ impl DataCollector {
     pub(crate) fn call_method(
         &self,
         robot_start_time: Instant,
-    ) -> Result<SensorData, DataCollectionError> {
+    ) -> Result<Vec<SensorData>, DataCollectionError> {
         let reading_requested_ts = robot_start_time.elapsed();
+
+        if matches!(self.method, CollectionMethod::Readings) {
+            return match self.resource.clone() {
+                ResourceType::Sensor(mut res) => Ok(res.get_readings_sensor_data()?),
+                ResourceType::MovementSensor(mut res) => Ok(res.get_readings_sensor_data()?),
+                _ => Err(DataCollectionError::UnsupportedMethod(
+                    self.method.clone(),
+                    "sensor".to_string(),
+                )),
+            };
+        }
+
         let data = match self.resource.clone() {
             ResourceType::Board(res) => match &self.method {
                 CollectionMethod::Analogs(reader_name) => {
@@ -334,16 +352,6 @@ impl DataCollector {
                 }
             },
 
-            ResourceType::Sensor(mut res) => match self.method {
-                CollectionMethod::Readings => res.get_generic_readings()?.into(),
-                _ => {
-                    return Err(DataCollectionError::UnsupportedMethod(
-                        self.method.clone(),
-                        "sensor".to_string(),
-                    ))
-                }
-            },
-
             ResourceType::Servo(res) => match self.method {
                 CollectionMethod::Position => {
                     let value = res.lock().unwrap().get_position()?;
@@ -363,9 +371,26 @@ impl DataCollector {
                     ))
                 }
             },
-
+            ResourceType::Motor(ref mut res) => match self.method {
+                CollectionMethod::Position => {
+                    let position = res.lock().unwrap().get_position()?;
+                    Data::Struct(Struct {
+                        fields: HashMap::from([(
+                            "position".to_string(),
+                            Value {
+                                kind: Some(ProtoKind::NumberValue(position.into())),
+                            },
+                        )]),
+                    })
+                }
+                _ => {
+                    return Err(DataCollectionError::UnsupportedMethod(
+                        self.method.clone(),
+                        "motor".to_string(),
+                    ))
+                }
+            },
             ResourceType::MovementSensor(ref mut res) => match self.method {
-                CollectionMethod::Readings => res.get_generic_readings()?.into(),
                 CollectionMethod::AngularVelocity => res
                     .get_angular_velocity()?
                     .to_data_struct("angular_velocity"),
@@ -399,7 +424,7 @@ impl DataCollector {
             _ => return Err(DataCollectionError::NoSupportedMethods),
         };
         let reading_received_ts = robot_start_time.elapsed();
-        Ok(SensorData {
+        Ok(vec![SensorData {
             metadata: Some(SensorMetadata {
                 time_received: Some(Timestamp {
                     seconds: reading_received_ts.as_secs() as i64,
@@ -413,7 +438,7 @@ impl DataCollector {
                 mime_type: MimeType::Unspecified.into(),
             }),
             data: Some(data),
-        })
+        }])
     }
 
     pub fn resource_method_key(&self) -> ResourceMethodKey {
@@ -563,7 +588,7 @@ mod tests {
             DataCollectorConfig::try_from(&conf_kind).expect("data collector config parse failed");
         let coll = DataCollector::from_config("fake".to_string(), resource, &conf)?;
         assert_eq!(coll.time_interval(), Duration::from_millis(10));
-        let data = coll.call_method(robot_start_time)?.data;
+        let data = coll.call_method(robot_start_time)?[0].data.clone();
         assert!(data.is_some());
         let data = data.unwrap();
         match data {
