@@ -64,6 +64,8 @@ pub enum SystemEventError {
     SystemEventAlreadyRequested(SystemEvent, SystemEvent),
     #[error("{0}")]
     EnableUlpWakeupError(String),
+    #[error("failed to acquire system event lock")]
+    SystemEventFailedTryLock,
     #[error("ULP wakeup not supported in non-Esp32 systems")]
     UlpWakeupNotSupported,
 }
@@ -129,6 +131,25 @@ pub(crate) fn enable_ulp_wakeup() -> Result<(), SystemEventError> {
     #[cfg(not(feature = "esp32"))]
     {
         Err(SystemEventError::UlpWakeupNotSupported)
+    }
+}
+
+pub(crate) fn try_send_system_event(
+    event: SystemEvent,
+    force: bool,
+) -> Result<(), SystemEventError> {
+    let mut current_event = SHUTDOWN_EVENT
+        .try_lock()
+        .ok_or(SystemEventError::SystemEventFailedTryLock)?;
+    if current_event.is_none() || force {
+        let _ = current_event.insert(event);
+        Ok(())
+    } else {
+        let current_event_clone = (*current_event).clone().unwrap();
+        Err(SystemEventError::SystemEventAlreadyRequested(
+            event,
+            current_event_clone,
+        ))
     }
 }
 

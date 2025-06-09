@@ -39,6 +39,8 @@ pub enum BoardError {
     #[error(transparent)]
     BoardI2CError(#[from] I2CErrors),
     #[error(transparent)]
+    SystemError(#[from] super::system::SystemEventError),
+    #[error(transparent)]
     #[cfg(feature = "esp32")]
     EspError(#[from] EspError),
     #[error("construction error test")]
@@ -72,7 +74,27 @@ pub trait Board: DoCommand {
         &self,
         mode: component::board::v1::PowerMode,
         duration: Option<Duration>,
-    ) -> Result<(), BoardError>;
+    ) -> Result<(), BoardError> {
+        info!(
+            "Received request to set power mode to {} for {} milliseconds",
+            mode.as_str_name(),
+            match duration {
+                Some(dur) => dur.as_millis().to_string(),
+                None => "<forever>".to_string(),
+            }
+        );
+
+        if mode != component::board::v1::PowerMode::OfflineDeep {
+            return Err(BoardError::BoardUnsupportedArgument(
+                "only support OfflineDeep mode",
+            ));
+        }
+
+        Ok(crate::common::system::try_send_system_event(
+            crate::common::system::SystemEvent::DeepSleep(duration),
+            false,
+        )?)
+    }
 
     /// Get a wrapped [I2CHandle] by name.
     fn get_i2c_by_name(&self, name: String) -> Result<I2cHandleType, BoardError>;
@@ -203,22 +225,6 @@ impl Board for FakeBoard {
             Some(reader) => Ok(reader.clone()),
             None => Err(BoardError::AnalogReaderNotFound(name)),
         }
-    }
-
-    fn set_power_mode(
-        &self,
-        mode: component::board::v1::PowerMode,
-        duration: Option<Duration>,
-    ) -> Result<(), BoardError> {
-        info!(
-            "set power mode to {} for {} milliseconds",
-            mode.as_str_name(),
-            match duration {
-                Some(dur) => dur.as_millis().to_string(),
-                None => "<forever>".to_string(),
-            }
-        );
-        Ok(())
     }
 
     fn get_i2c_by_name(&self, name: String) -> Result<I2cHandleType, BoardError> {
