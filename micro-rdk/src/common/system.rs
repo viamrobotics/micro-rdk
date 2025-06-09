@@ -160,7 +160,7 @@ pub(crate) async fn force_shutdown(app_client: Option<AppClient>) {
                     }
                 }
 
-                log::info!("{}", *event.clone().unwrap());
+                log::info!("{}", event.clone().unwrap());
                 unsafe {
                     sys::esp_deep_sleep_start();
                 }
