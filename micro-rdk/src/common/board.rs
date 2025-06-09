@@ -90,11 +90,9 @@ pub trait Board: DoCommand {
             ));
         }
 
-        Ok(async_io::block_on(
-            crate::common::system::send_system_event(
-                crate::common::system::SystemEvent::DeepSleep(duration),
-                false,
-            ),
+        Ok(crate::common::system::try_send_system_event(
+            crate::common::system::SystemEvent::DeepSleep(duration),
+            false,
         )?)
     }
 

@@ -55,6 +55,8 @@ pub enum SystemEvent {
 pub enum SystemEventError {
     #[error("tried to request system event {0} but event {1} already requested")]
     SystemEventAlreadyRequested(SystemEvent, SystemEvent),
+    #[error("failed to acquire system event lock")]
+    SystemEventFailedTryLock,
 }
 
 impl Display for SystemEvent {
@@ -78,6 +80,26 @@ pub(crate) async fn send_system_event(
 ) -> Result<(), SystemEventError> {
     log::info!("received call to {}", event);
     let mut current_event = SHUTDOWN_EVENT.lock().await;
+    if current_event.is_none() || force {
+        let _ = current_event.insert(event);
+        Ok(())
+    } else {
+        let current_event_clone = (*current_event).clone().unwrap();
+        Err(SystemEventError::SystemEventAlreadyRequested(
+            event,
+            current_event_clone,
+        ))
+    }
+}
+
+pub(crate) fn try_send_system_event(
+    event: SystemEvent,
+    force: bool,
+) -> Result<(), SystemEventError> {
+    log::info!("received call to {}", event);
+    let mut current_event = SHUTDOWN_EVENT
+        .try_lock()
+        .ok_or(SystemEventError::SystemEventFailedTryLock)?;
     if current_event.is_none() || force {
         let _ = current_event.insert(event);
         Ok(())
