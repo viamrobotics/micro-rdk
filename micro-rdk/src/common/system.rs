@@ -78,7 +78,6 @@ pub(crate) async fn send_system_event(
     event: SystemEvent,
     force: bool,
 ) -> Result<(), SystemEventError> {
-    log::info!("received call to {}", event);
     let mut current_event = SHUTDOWN_EVENT.lock().await;
     if current_event.is_none() || force {
         let _ = current_event.insert(event);
@@ -96,7 +95,6 @@ pub(crate) fn try_send_system_event(
     event: SystemEvent,
     force: bool,
 ) -> Result<(), SystemEventError> {
-    log::info!("received call to {}", event);
     let mut current_event = SHUTDOWN_EVENT
         .try_lock()
         .ok_or(SystemEventError::SystemEventFailedTryLock)?;
