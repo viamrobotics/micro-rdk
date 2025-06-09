@@ -64,7 +64,7 @@ pub enum SystemEventError {
     SystemEventAlreadyRequested(SystemEvent, SystemEvent),
     #[error("{0}")]
     EnableUlpWakeupError(String),
-    #[error("system does not support ULP wakeup")]
+    #[error("ULP wakeup not supported in non-Esp32 systems")]
     UlpWakeupNotSupported,
 }
 
