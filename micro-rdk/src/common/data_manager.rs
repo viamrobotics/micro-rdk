@@ -804,8 +804,8 @@ impl DataCollectAndSyncTask {
                         ))
                     } else {
                         Ok(Self {
-                            collectors,
                             sync_interval,
+                            collectors,
                             robot_start_time,
                             part_id,
                         })

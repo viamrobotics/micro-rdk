@@ -2,7 +2,8 @@
 #[cfg(feature = "data")]
 use crate::common::data_collector::DataCollectorConfig;
 use crate::{
-    google,
+    common::system::FirmwareMode,
+    google::{self, protobuf::value::Kind as ProtoKind},
     proto::{
         app::{agent::v1::DeviceAgentConfigResponse, v1::ComponentConfig},
         common,
@@ -10,10 +11,11 @@ use crate::{
     },
 };
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
 use std::{
     collections::HashMap,
+    fmt::Debug,
     num::{ParseFloatError, ParseIntError},
+    time::Duration,
 };
 use thiserror::Error;
 
@@ -676,16 +678,21 @@ impl Component for DynamicComponentConfig {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct AgentConfig {
-    pub network_settings: Vec<NetworkSetting>,
+    pub(crate) network_settings: Vec<NetworkSetting>,
+    pub(crate) firmware_mode: FirmwareMode,
+    pub(crate) active_timeout: Duration,
+    pub(crate) ulp_enabled: bool,
 }
+
+pub const DEFAULT_ACTIVE_TIMEOUT_SECS: u64 = 120;
 
 impl TryFrom<&DeviceAgentConfigResponse> for AgentConfig {
     type Error = AttributeError;
     fn try_from(value: &DeviceAgentConfigResponse) -> Result<Self, Self::Error> {
-        if let Some(additional_networks) = &value.additional_networks {
-            let network_settings = additional_networks
+        let network_settings = match &value.additional_networks {
+            Some(additional_networks) => additional_networks
                 .fields
                 .iter()
                 .filter_map(|(_k, v)| {
@@ -695,11 +702,48 @@ impl TryFrom<&DeviceAgentConfigResponse> for AgentConfig {
                         .as_ref()
                         .and_then(|v| NetworkSetting::try_from(v).ok())
                 })
-                .collect::<Vec<NetworkSetting>>();
-            Ok(Self { network_settings })
-        } else {
-            Err(AttributeError::ConversionImpossibleError)
-        }
+                .collect::<Vec<NetworkSetting>>(),
+            None => vec![],
+        };
+
+        let active_timeout = {
+            let dur = value
+                .advanced_settings
+                .as_ref()
+                .and_then(|s| s.fields.get("deep_sleep_action_timeout_seconds"))
+                .map_or(DEFAULT_ACTIVE_TIMEOUT_SECS, |val| match &val.kind {
+                    Some(ProtoKind::NumberValue(n)) => *n as u64,
+                    _ => DEFAULT_ACTIVE_TIMEOUT_SECS,
+                });
+            Duration::from_secs(dur)
+        };
+
+        let firmware_mode: FirmwareMode = value
+            .advanced_settings
+            .as_ref()
+            .and_then(|s| s.fields.get("firmware_mode"))
+            .map(|val| match &val.kind {
+                Some(ProtoKind::StringValue(mode_str)) => mode_str.as_str(),
+                _ => "normal",
+            })
+            .into();
+
+        let ulp_enabled = value
+            .advanced_settings
+            .as_ref()
+            .and_then(|s| s.fields.get("ulp_wakeup_enabled"))
+            .map(|val| match &val.kind {
+                Some(ProtoKind::BoolValue(b)) => *b,
+                _ => false,
+            })
+            .unwrap_or_default();
+
+        Ok(Self {
+            network_settings,
+            firmware_mode,
+            active_timeout,
+            ulp_enabled,
+        })
     }
 }
 

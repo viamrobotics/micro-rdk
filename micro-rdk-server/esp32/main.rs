@@ -55,6 +55,10 @@ mod esp32 {
             "esp restarted due to {:?}",
             esp_idf_svc::hal::reset::ResetReason::get()
         );
+        log::info!(
+            "esp woke due to {:?}",
+            esp_idf_svc::hal::reset::WakeupReason::get()
+        );
 
         esp_idf_svc::sys::esp!(unsafe {
             esp_idf_svc::sys::esp_vfs_eventfd_register(
