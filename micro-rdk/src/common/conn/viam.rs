@@ -722,7 +722,8 @@ where
                 app_client
                     .get_agent_config()
                     .await
-                    .map(|res| res.as_ref().try_into().unwrap_or_default())
+                    .ok()
+                    .and_then(|res| res.as_ref().try_into().ok())
                     .unwrap_or_default()
             } else {
                 Default::default()
