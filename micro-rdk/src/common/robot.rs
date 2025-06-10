@@ -30,6 +30,7 @@ use super::{
     data_collector::{DataCollectionError, DataCollector, DataCollectorConfig},
     data_manager::{DataCollectAndSyncTask, DataManager},
     data_store::DefaultDataStore,
+    system::FirmwareMode,
 };
 
 use super::{
@@ -51,7 +52,6 @@ use super::{
     sensor::SensorType,
     servo::{Servo, ServoType},
     switch::SwitchType,
-    system::FirmwareMode,
 };
 
 use thiserror::Error;
@@ -242,7 +242,7 @@ impl LocalRobot {
         config: &RobotConfig,
         registry: &mut Box<ComponentRegistry>,
         build_time: Option<DateTime<FixedOffset>>,
-        #[allow(unused_variables)] firmware_mode: FirmwareMode,
+        #[allow(unused_variables)] agent_config: &super::config::AgentConfig,
     ) -> Result<Self, RobotError> {
         let mut robot = LocalRobot {
             executor: exec,
@@ -277,7 +277,7 @@ impl LocalRobot {
         // TODO: When cfg's on expressions are valid, remove the outer scope.
         #[cfg(feature = "data")]
         {
-            match firmware_mode {
+            match agent_config.firmware_mode {
                 // TODO(RSDK-8125): Support selection of a DataStore trait other than
                 // DefaultDataStore in a way that is configurable
                 FirmwareMode::Normal => {
@@ -713,7 +713,7 @@ mod tests {
         common::{
             analog::AnalogReader,
             board::Board,
-            config::{DynamicComponentConfig, Kind, Model, ResourceName},
+            config::{AgentConfig, DynamicComponentConfig, Kind, Model, ResourceName},
             encoder::{Encoder, EncoderPositionType},
             exec::Executor,
             i2c::I2CHandle,
@@ -721,6 +721,7 @@ mod tests {
             movement_sensor::MovementSensor,
             robot::LocalRobot,
             sensor::Readings,
+            system::FirmwareMode,
         },
         google::{self, protobuf::Struct},
         proto::app::v1::{ComponentConfig, RobotConfig},
@@ -1258,13 +1259,18 @@ mod tests {
             ..Default::default()
         };
 
+        let agent_config = AgentConfig {
+            firmware_mode: FirmwareMode::Normal,
+            ..Default::default()
+        };
+
         let robot = LocalRobot::from_cloud_config(
             Executor::new(),
             "".to_string(),
             &robot_cfg,
             &mut Box::default(),
             None,
-            crate::common::system::FirmwareMode::Normal,
+            &agent_config,
         );
 
         assert!(robot.is_ok());
@@ -1362,13 +1368,18 @@ mod tests {
             ..Default::default()
         };
 
+        let agent_config = AgentConfig {
+            firmware_mode: FirmwareMode::Normal,
+            ..Default::default()
+        };
+
         let robot = LocalRobot::from_cloud_config(
             Executor::new(),
             "".to_string(),
             &robot_cfg,
             &mut Box::default(),
             None,
-            crate::common::system::FirmwareMode::Normal,
+            &agent_config,
         );
 
         assert!(robot.is_ok());
