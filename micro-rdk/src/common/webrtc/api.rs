@@ -584,12 +584,12 @@ where
         certificate: Rc<C>,
         local_ip: Ipv4Addr,
         dtls: Box<dyn DtlsConnector>,
-    ) -> Self {
-        let udp = Arc::new(async_io::Async::<UdpSocket>::bind(([0, 0, 0, 0], 0)).unwrap());
+    ) -> Result<Self, WebRtcError> {
+        let udp = Arc::new(async_io::Async::<UdpSocket>::bind(([0, 0, 0, 0], 0))?);
 
         let transport = WebRtcTransport::new(udp);
 
-        Self {
+        Ok(Self {
             executor,
             signaling,
             transport,
@@ -599,7 +599,7 @@ where
             local_ip,
             dtls: Some(dtls),
             ice_agent: AtomicSync::default(),
-        }
+        })
     }
 
     async fn run_ice_until_connected(&mut self, answer: &WebRtcSdp) -> Result<(), WebRtcError> {
