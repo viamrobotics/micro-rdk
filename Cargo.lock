@@ -2859,6 +2859,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "embuild 0.32.0",
+ "esp-idf-svc",
  "log",
  "micro-rdk",
  "regex",

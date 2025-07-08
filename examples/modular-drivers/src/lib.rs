@@ -1,6 +1,10 @@
 use micro_rdk::common::registry::{ComponentRegistry, RegistryError};
 
-#[cfg(feature = "esp32")]
+#[cfg(all(
+    esp_idf_ulp_coproc_enabled,
+    esp_idf_ulp_coproc_type_fsm,
+    feature = "esp32"
+))]
 pub mod bme280_ulp;
 #[cfg(feature = "esp32")]
 pub mod free_heap_sensor;
@@ -16,7 +20,11 @@ pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryE
     water_pump::register_models(registry)?;
     #[cfg(feature = "esp32")]
     wifi_rssi_sensor::register_models(registry)?;
-    #[cfg(feature = "esp32")]
+    #[cfg(all(
+        esp_idf_ulp_coproc_enabled,
+        esp_idf_ulp_coproc_type_fsm,
+        feature = "esp32"
+    ))]
     bme280_ulp::register_models(registry)?;
     Ok(())
 }
