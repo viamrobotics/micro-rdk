@@ -28,6 +28,7 @@ fn find_ulp_sources<P: AsRef<Path>>(dir: P) -> io::Result<Vec<PathBuf>> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("cargo::rustc-check-cfg=cfg(esp_idf_ulp_coproc_type_fsm, esp_idf_ulp_coproc_enabled)");
     if Regex::new(r"\w+-esp3?2?s?\d?-espidf")
         .unwrap()
         .is_match(&std::env::var("TARGET").unwrap())
@@ -35,10 +36,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         embuild::espidf::sysenv::output();
         embuild::espidf::sysenv::env_path();
         embuild::espidf::sysenv::idf_path();
-
-        println!(
-            "cargo::rustc-check-cfg=cfg(esp_idf_ulp_coproc_type_fsm, esp_idf_ulp_coproc_enabled)"
-        );
 
         let esp_idf_env =
             PathBuf::from(std::env::var("DEP_MICRO_RDK_EMBUILD_ESP_IDF_PATH").unwrap());

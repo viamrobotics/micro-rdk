@@ -9,12 +9,12 @@ rust-version.workspace = true
 version.workspace = true
 
 [features]
-esp32 = ['micro-rdk/esp32']
+esp32 = ['micro-rdk/esp32', "dep:esp-idf-svc"]
 
 [dependencies]
 chrono.workspace  = true
 chrono-tz.workspace = true
-esp-idf-svc.workspace = true
+esp-idf-svc = { workspace = true, optional = true }
 log.workspace = true
 micro-rdk = { workspace = true }
 thiserror.workspace = true
