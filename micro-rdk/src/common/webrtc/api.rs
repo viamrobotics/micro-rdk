@@ -5,7 +5,7 @@ use std::{
     net::{Ipv4Addr, UdpSocket},
     pin::Pin,
     rc::Rc,
-    sync::{atomic::AtomicBool, Arc, Mutex},
+    sync::{Arc, Mutex, atomic::AtomicBool},
     task::Poll,
     time::Duration,
 };
@@ -21,10 +21,10 @@ use crate::{
     },
     google::rpc::{Code, Status},
     proto::rpc::webrtc::v1::{
-        answer_request, answer_response, call_response, call_update_request, AnswerRequest,
-        AnswerResponse, AnswerResponseDoneStage, AnswerResponseErrorStage, AnswerResponseInitStage,
-        AnswerResponseUpdateStage, CallResponse, CallResponseInitStage, CallResponseUpdateStage,
-        IceCandidate,
+        AnswerRequest, AnswerResponse, AnswerResponseDoneStage, AnswerResponseErrorStage,
+        AnswerResponseInitStage, AnswerResponseUpdateStage, CallResponse, CallResponseInitStage,
+        CallResponseUpdateStage, IceCandidate, answer_request, answer_response, call_response,
+        call_update_request,
     },
 };
 
@@ -32,18 +32,18 @@ use async_channel::RecvError;
 use async_channel::Sender;
 use async_io::Timer;
 use atomic_waker::AtomicWaker;
-use base64::{engine::general_purpose, Engine};
+use base64::{Engine, engine::general_purpose};
 use either::Either;
 use futures_lite::{Future, FutureExt, StreamExt};
-use futures_util::{select, FutureExt as FuturesUtilExt};
+use futures_util::{FutureExt as FuturesUtilExt, select};
 use prost::{DecodeError, EncodeError};
 use scopeguard::ScopeGuard;
 use sdp::{
+    MediaDescription, SessionDescription,
     description::{
         common::{Address, ConnectionInformation},
         media::{MediaName, RangedPort},
     },
-    MediaDescription, SessionDescription,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -509,7 +509,7 @@ impl WebRtcSignalingChannel {
                                 _ => {
                                     return Err(WebRtcError::SignalingError(
                                         "unexpected stage".to_owned(),
-                                    ))
+                                    ));
                                 }
                             }
                         }

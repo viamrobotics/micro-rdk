@@ -22,7 +22,7 @@ use super::{
     config::ConfigType,
     i2c::{I2CErrors, I2cHandleType},
     power_sensor::{Current, PowerSensor, PowerSensorType, PowerSupplyType, Voltage},
-    registry::{get_board_from_dependencies, ComponentRegistry, Dependency},
+    registry::{ComponentRegistry, Dependency, get_board_from_dependencies},
     sensor::SensorError,
 };
 

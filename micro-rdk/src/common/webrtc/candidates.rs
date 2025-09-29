@@ -421,14 +421,14 @@ impl CandidatePair {
     }
     /// Check if a binding response belongs to this Pair
     pub fn binding_response(&mut self, _now: &Instant, id: &TransactionId) -> bool {
-        if let Some(req) = self.current_binding_request.as_mut() {
-            if req.id == *id {
-                req.resp_recv = true;
-                self.binding_req_recv += 1;
-                self.state = CandidatePairState::Succeeded;
-                log::debug!("Pair succeeded {:?}", self);
-                return true;
-            }
+        if let Some(req) = self.current_binding_request.as_mut()
+            && req.id == *id
+        {
+            req.resp_recv = true;
+            self.binding_req_recv += 1;
+            self.state = CandidatePairState::Succeeded;
+            log::debug!("Pair succeeded {:?}", self);
+            return true;
         }
         false
     }

@@ -17,12 +17,12 @@ use crate::{
 };
 use bytes::BufMut;
 use futures_lite::{Future, StreamExt};
-use http_body_util::{combinators::BoxBody, BodyExt, StreamBody};
+use http_body_util::{BodyExt, StreamBody, combinators::BoxBody};
 use hyper::{
-    body::{self, Body, Bytes, Frame},
-    http::{uri::InvalidUri, HeaderValue},
-    service::Service,
     HeaderMap, Request, Response,
+    body::{self, Body, Bytes, Frame},
+    http::{HeaderValue, uri::InvalidUri},
+    service::Service,
 };
 use log::*;
 use prost::Message;
@@ -1505,7 +1505,7 @@ impl<'a> GrpcServerInner<'a> {
         let req = proto::rpc::webrtc::v1::OptionalWebRtcConfigRequest::decode(message)
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let result = match self.signaling_server {
-            Some(ref ss) => ss.optional_webrtc_config(req),
+            Some(ss) => ss.optional_webrtc_config(req),
             None => Err(ServerError::from(GrpcError::RpcUnimplemented)),
         }?;
         GrpcServerInner::encode_message(result)
@@ -1563,7 +1563,7 @@ impl<'a> GrpcServerInner<'a> {
         let req = proto::rpc::webrtc::v1::CallUpdateRequest::decode(message)
             .map_err(|_| ServerError::from(GrpcError::RpcInvalidArgument))?;
         let result = match self.signaling_server {
-            Some(ref ss) => ss.call_update(req),
+            Some(ss) => ss.call_update(req),
             None => Err(ServerError::from(GrpcError::RpcUnimplemented)),
         }?;
         GrpcServerInner::encode_message(result)

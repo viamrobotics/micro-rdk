@@ -1,7 +1,7 @@
 use super::actuator::{Actuator, ActuatorError};
 use super::base::{Base, BaseError, BaseType, COMPONENT_NAME as BaseCompName};
 use super::config::ConfigType;
-use super::motor::{Motor, MotorType, COMPONENT_NAME as MotorCompName};
+use super::motor::{COMPONENT_NAME as MotorCompName, Motor, MotorType};
 use super::registry::{ComponentRegistry, Dependency, ResourceKey};
 use super::robot::Resource;
 use crate::proto::common::v1::Vector3;

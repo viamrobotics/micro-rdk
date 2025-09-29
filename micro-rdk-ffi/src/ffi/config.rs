@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    ffi::{c_char, c_int, CStr, CString},
+    ffi::{CStr, CString, c_char, c_int},
 };
 
 use micro_rdk::common::config::{AttributeError, ConfigType, Kind};
@@ -22,7 +22,7 @@ pub struct raw_attributes(pub(crate) HashMap<String, Kind>);
 /// # Safety
 /// `ctx`, `key`, `out` must be valid pointers for the duration of the call
 /// `key` must be a null terminated C string
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn config_get_string(
     ctx: *mut config_context,
     key: *const c_char,
@@ -53,7 +53,7 @@ pub unsafe extern "C" fn config_get_string(
 ///
 /// # Safety
 /// `ctx` must be a valid pointer
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn config_get_raw_attributes(
     ctx: *mut config_context,
 ) -> *mut raw_attributes {
@@ -75,7 +75,7 @@ pub unsafe extern "C" fn config_get_raw_attributes(
 ///
 /// # Safety
 /// `attrs` must be a valid pointer
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn config_raw_attributes_free(
     attrs: *mut raw_attributes,
 ) -> errors::viam_code {
@@ -83,7 +83,7 @@ pub unsafe extern "C" fn config_raw_attributes_free(
         return errors::viam_code::VIAM_INVALID_ARG;
     }
 
-    drop(Box::from_raw(attrs));
+    drop(unsafe { Box::from_raw(attrs) });
 
     errors::viam_code::VIAM_OK
 }
@@ -92,7 +92,7 @@ pub unsafe extern "C" fn config_raw_attributes_free(
 ///
 /// # Safety
 /// `ptr` must be a pointer to a string previously allocated by `config_get_string`
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn config_free_string(
     _: *mut config_context,
     ptr: *mut c_char,
@@ -112,7 +112,7 @@ pub unsafe extern "C" fn config_free_string(
 /// # Safety
 /// `ctx`, `key`, `out` must be valid pointers for the duration of the call
 /// `key` must be a null terminated C string
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn config_get_i32(
     ctx: *mut config_context,
     key: *const c_char,
@@ -145,7 +145,7 @@ pub unsafe extern "C" fn config_get_i32(
 /// `ctx`, `key`, `out` must be valid pointers for the duration of the call
 /// `key` must be a null terminated C string. Additionally the external process calling
 /// the function is responsible for managing the memory allocated for `out`
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn config_get_i32_vec(
     ctx: *mut config_context,
     key: *const c_char,
@@ -167,7 +167,7 @@ pub unsafe extern "C" fn config_get_i32_vec(
     };
     let copy_ptr = out;
     for (i, elem) in val.iter().enumerate() {
-        *copy_ptr.add(i) = *elem;
+        unsafe { *copy_ptr.add(i) = *elem };
     }
     errors::viam_code::VIAM_OK
 }
@@ -178,7 +178,7 @@ pub unsafe extern "C" fn config_get_i32_vec(
 /// # Safety
 /// `ctx`, `key`, `out` must be valid pointers for the duration of the call
 /// `key` must be a null terminated C string.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn config_get_i32_vec_len(
     ctx: *mut config_context,
     key: *const c_char,

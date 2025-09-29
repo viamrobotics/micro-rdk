@@ -5,8 +5,8 @@ use std::{
 };
 
 use crate::{
-    google::protobuf::{value::Kind as ProtoKind, Struct, Timestamp, Value},
-    proto::app::data_sync::v1::{sensor_data::Data, MimeType, SensorData, SensorMetadata},
+    google::protobuf::{Struct, Timestamp, Value, value::Kind as ProtoKind},
+    proto::app::data_sync::v1::{MimeType, SensorData, SensorMetadata, sensor_data::Data},
 };
 
 use super::{
@@ -334,7 +334,7 @@ impl DataCollector {
                     return Err(DataCollectionError::UnsupportedMethod(
                         self.method.clone(),
                         "board".to_string(),
-                    ))
+                    ));
                 }
             },
 
@@ -348,7 +348,7 @@ impl DataCollector {
                     return Err(DataCollectionError::UnsupportedMethod(
                         self.method.clone(),
                         "encoder".to_string(),
-                    ))
+                    ));
                 }
             },
 
@@ -368,7 +368,7 @@ impl DataCollector {
                     return Err(DataCollectionError::UnsupportedMethod(
                         self.method.clone(),
                         "servo".to_string(),
-                    ))
+                    ));
                 }
             },
             ResourceType::Motor(ref mut res) => match self.method {
@@ -387,7 +387,7 @@ impl DataCollector {
                     return Err(DataCollectionError::UnsupportedMethod(
                         self.method.clone(),
                         "motor".to_string(),
-                    ))
+                    ));
                 }
             },
             ResourceType::MovementSensor(ref mut res) => match self.method {
@@ -418,7 +418,7 @@ impl DataCollector {
                     return Err(DataCollectionError::UnsupportedMethod(
                         self.method.clone(),
                         "movement_sensor".to_string(),
-                    ))
+                    ));
                 }
             },
             _ => return Err(DataCollectionError::NoSupportedMethods),
@@ -457,8 +457,8 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::{
-        CollectionMethod, DataCollectionError, DataCollector, DataCollectorConfig,
-        DEFAULT_CACHE_SIZE_KB,
+        CollectionMethod, DEFAULT_CACHE_SIZE_KB, DataCollectionError, DataCollector,
+        DataCollectorConfig,
     };
     use crate::common::config::{AttributeError, Kind};
     use crate::common::robot::ResourceType;

@@ -72,7 +72,7 @@ pub enum EncoderPositionType {
 
 #[cfg(feature = "data")]
 use crate::{
-    google::protobuf::{value::Kind, Value},
+    google::protobuf::{Value, value::Kind},
     proto::app::data_sync::v1::sensor_data::Data,
 };
 #[cfg(feature = "data")]

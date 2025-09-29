@@ -28,7 +28,7 @@ use super::{
     actuator::{Actuator, ActuatorError},
     board::{Board, BoardType},
     config::ConfigType,
-    registry::{get_board_from_dependencies, ComponentRegistry, Dependency},
+    registry::{ComponentRegistry, Dependency, get_board_from_dependencies},
     servo::{Servo, ServoError, ServoType},
 };
 

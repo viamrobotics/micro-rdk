@@ -4,6 +4,7 @@ use std::{
 };
 
 use micro_rdk::{
+    DoCommand,
     common::{
         config::ConfigType,
         registry::{ComponentRegistry, Dependency, RegistryError},
@@ -13,7 +14,6 @@ use micro_rdk::{
         },
     },
     esp32::esp_idf_svc::sys::{esp, esp_wifi_sta_get_ap_info, wifi_ap_record_t},
-    DoCommand,
 };
 
 #[derive(DoCommand)]

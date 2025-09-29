@@ -2,9 +2,9 @@
 use async_channel::Sender;
 use async_io::Timer;
 use bytes::{BufMut, Bytes, BytesMut};
-use futures_lite::{ready, Future, FutureExt, Stream};
-use http_body_util::combinators::BoxBody;
+use futures_lite::{Future, FutureExt, Stream, ready};
 use http_body_util::BodyExt;
+use http_body_util::combinators::BoxBody;
 use hyper::body::{Body, Incoming};
 use hyper::client::conn::http2::SendRequest;
 use hyper::header::HeaderMap;
@@ -157,25 +157,25 @@ where
         let data = match frame.into_data() {
             Ok(data) => data,
             Err(e) => {
-                if let Some(trailers) = e.trailers_ref() {
-                    if trailers.contains_key("grpc-message") && trailers.contains_key("grpc-status")
-                    {
-                        return Poll::Ready(Some(Err(GrpcClientError::GrpcError {
-                            code: trailers
-                                .get("grpc-status")
-                                .unwrap()
-                                .to_str()
-                                .unwrap_or("")
-                                .parse::<i8>()
-                                .unwrap_or(127), // if status code cannot be parsed return 127
-                            message: trailers
-                                .get("grpc-message")
-                                .unwrap()
-                                .to_str()
-                                .unwrap_or("couldn't parse message") // message couldn't be extracted from header
-                                .to_owned(),
-                        })));
-                    }
+                if let Some(trailers) = e.trailers_ref()
+                    && trailers.contains_key("grpc-message")
+                    && trailers.contains_key("grpc-status")
+                {
+                    return Poll::Ready(Some(Err(GrpcClientError::GrpcError {
+                        code: trailers
+                            .get("grpc-status")
+                            .unwrap()
+                            .to_str()
+                            .unwrap_or("")
+                            .parse::<i8>()
+                            .unwrap_or(127), // if status code cannot be parsed return 127
+                        message: trailers
+                            .get("grpc-message")
+                            .unwrap()
+                            .to_str()
+                            .unwrap_or("couldn't parse message") // message couldn't be extracted from header
+                            .to_owned(),
+                    })));
                 }
                 return Poll::Ready(Some(Err(GrpcClientError::FrameError(format!("{:?}", e)))));
             }
@@ -383,14 +383,14 @@ mod tests {
     use async_io::{Async, Timer};
     use bytes::Bytes;
     use futures_lite::stream::StreamExt;
-    use futures_lite::{ready, FutureExt};
-    use http_body_util::{combinators::BoxBody, BodyExt, BodyStream, StreamBody};
+    use futures_lite::{FutureExt, ready};
+    use http_body_util::{BodyExt, BodyStream, StreamBody, combinators::BoxBody};
     use hyper::{
+        Request, Response, Uri,
         body::{Body, Frame},
         header::CONTENT_TYPE,
         server::conn::http2,
         service::service_fn,
-        Request, Response, Uri,
     };
     use std::{
         net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream},
@@ -482,7 +482,7 @@ mod tests {
     async fn server_fn_echo(
         req: Request<hyper::body::Incoming>,
     ) -> Result<Response<BodyStream<BoxBody<Bytes, hyper::Error>>>, hyper::Error> {
-        let r = match req.uri().path() {
+        match req.uri().path() {
             "/proto.rpc.examples.echo.v1.EchoService/EchoBiDi" => Ok::<_, hyper::Error>(
                 Response::builder()
                     .status(200)
@@ -495,8 +495,7 @@ mod tests {
                     .unwrap(),
             ),
             x => panic!("unimplemented path {:?}", x),
-        };
-        r
+        }
     }
 
     async fn grpc_client_test_server(tcp_server: Async<TcpListener>, executor: Executor) {

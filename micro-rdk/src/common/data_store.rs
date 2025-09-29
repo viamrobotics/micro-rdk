@@ -4,8 +4,8 @@
 
 use crate::proto::app::data_sync::v1::SensorData;
 use bytes::{Buf, BufMut, BytesMut};
-use prost::{encoding::decode_varint, length_delimiter_len, DecodeError, EncodeError, Message};
-use ringbuf::{ring_buffer::RbBase, Consumer, LocalRb, Producer, Rb};
+use prost::{DecodeError, EncodeError, Message, encoding::decode_varint, length_delimiter_len};
+use ringbuf::{Consumer, LocalRb, Producer, Rb, ring_buffer::RbBase};
 use scopeguard::defer;
 use std::{
     mem::MaybeUninit,
@@ -86,7 +86,7 @@ pub trait DataStore {
 
     // Gets a reader that should implement `DataStoreReader`
     fn get_reader(&self, collector_key: &ResourceMethodKey)
-        -> Result<Self::Reader, DataStoreError>;
+    -> Result<Self::Reader, DataStoreError>;
 }
 
 const MAX_ALLOWED_TOTAL_CAPACITY: usize = 64000;
@@ -326,12 +326,12 @@ mod tests {
     use crate::common::data_store::DataStoreReader;
     use crate::common::data_store::WriteMode;
     use crate::google::protobuf::Timestamp;
-    use crate::google::protobuf::{value::Kind, Struct, Value};
+    use crate::google::protobuf::{Struct, Value, value::Kind};
     use crate::proto::app::data_sync::v1::sensor_data::Data;
     use crate::proto::app::data_sync::v1::{MimeType, SensorData, SensorMetadata};
-    use prost::{length_delimiter_len, Message};
-    use rand::distr::Alphanumeric;
+    use prost::{Message, length_delimiter_len};
     use rand::Rng;
+    use rand::distr::Alphanumeric;
 
     #[test_log::test]
     fn test_data_store() {

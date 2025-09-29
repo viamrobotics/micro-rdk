@@ -8,7 +8,7 @@ use {
         config::ConfigType,
         registry::{ComponentRegistry, Dependency},
     },
-    crate::google::protobuf::{value::Kind, Value},
+    crate::google::protobuf::{Value, value::Kind},
     std::collections::HashMap,
 };
 

@@ -1,12 +1,12 @@
 use micro_rdk::{
+    DoCommand,
     common::{
         config::Kind,
         sensor::{GenericReadingsResult, Readings, Sensor, SensorError},
     },
-    google::protobuf::{value, ListValue, Struct, Value},
-    DoCommand,
+    google::protobuf::{ListValue, Struct, Value, value},
 };
-use std::ffi::{c_char, c_int, c_uchar, c_uint, c_void, CStr};
+use std::ffi::{CStr, c_char, c_int, c_uchar, c_uint, c_void};
 
 use super::{
     config::{config_context, raw_attributes},
@@ -43,7 +43,7 @@ unsafe impl Sync for generic_c_sensor {}
 ///
 /// Optionally you can set a pointer to some data to be passed during the configuration step with
 /// `generic_c_sensor_config_set_user_data`
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn generic_c_sensor_config_new() -> *mut generic_c_sensor_config {
     Box::into_raw(Box::new(generic_c_sensor_config {
         user_data: std::ptr::null_mut(),
@@ -56,7 +56,7 @@ pub extern "C" fn generic_c_sensor_config_new() -> *mut generic_c_sensor_config 
 ///
 /// # Safety
 /// `ctx` must be a valid pointer
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn generic_c_sensor_config_set_user_data(
     ctx: *mut generic_c_sensor_config,
     data: *mut c_void,
@@ -73,7 +73,7 @@ pub unsafe extern "C" fn generic_c_sensor_config_set_user_data(
 ///
 /// # Safety
 /// `ctx` must be a valid pointer
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn generic_c_sensor_config_set_config_callback(
     ctx: *mut generic_c_sensor_config,
     cb: config_callback,
@@ -91,7 +91,7 @@ pub unsafe extern "C" fn generic_c_sensor_config_set_config_callback(
 ///
 /// # Safety
 /// `ctx` must be a valid pointer
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn generic_c_sensor_config_set_readings_callback(
     ctx: *mut generic_c_sensor_config,
     cb: get_readings_callback,
@@ -142,14 +142,14 @@ pub struct get_readings_context {
 /// # Safety
 /// `ctx`, `key` and `array` must be valid pointers for the duration of the call
 /// `key` must be a null terminated C string
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_readings_add_binary_blob(
     ctx: *mut get_readings_context,
     key: *const c_char,
     array: *const c_uchar,
     len: c_uint,
 ) -> viam_code {
-    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
     if ctx.is_null() || array.is_null() || key.is_null() {
         return viam_code::VIAM_INVALID_ARG;
     }
@@ -180,7 +180,7 @@ pub unsafe extern "C" fn get_readings_add_binary_blob(
 /// # Safety
 /// `ctx`, and `key` and `value` must be valid pointers for the duration of the call
 /// `key` and `value` must be null terminated C string
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_readings_add_string(
     ctx: *mut get_readings_context,
     key: *const c_char,
@@ -249,7 +249,7 @@ fn into_value(kind: Kind) -> value::Kind {
 ///
 /// # Safety
 /// `ctx`, and `raw_attrs` and `value` must be valid pointers for the duration of the call
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_readings_add_raw_attributes(
     ctx: *mut get_readings_context,
     raw_attrs: *const raw_attributes,

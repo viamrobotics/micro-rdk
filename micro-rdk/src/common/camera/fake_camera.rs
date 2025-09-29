@@ -68,13 +68,13 @@ mod tests {
         proto::component::camera::v1::{GetImageRequest, GetImageResponse, RenderFrameRequest},
     };
 
-    use http_body_util::{combinators::BoxBody, BodyExt, Collected, Full};
+    use http_body_util::{BodyExt, Collected, Full, combinators::BoxBody};
     use hyper::{
+        Method,
         body::Incoming,
         client::conn::http2::SendRequest,
         header::{CONTENT_TYPE, TE},
         server::conn::http2,
-        Method,
     };
     use prost::Message;
 

@@ -1,5 +1,5 @@
 use crate::{
-    google::protobuf::{value::Kind, Struct, Timestamp, Value},
+    google::protobuf::{Struct, Timestamp, Value, value::Kind},
     proto::common::v1::LogEntry,
 };
 use async_lock::Mutex as AsyncMutex;

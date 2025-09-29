@@ -30,7 +30,7 @@ const DEFAULT_BLOB_CHUNK_IDX: u8 = 0xFF;
 // computes the checksum of the contents of the header and stores it at index 4
 // as a 32-bit integer (see the link above for more information)
 fn set_header_crc(header: &mut Vec<u8>) {
-    let mut crc_data = std::iter::repeat(0).take(28).collect::<Vec<u8>>();
+    let mut crc_data = std::iter::repeat_n(0, 28).collect::<Vec<u8>>();
     crc_data[0..4].clone_from_slice(&header[0..4]);
     crc_data[4..28].clone_from_slice(&header[8..32]);
     let mut hasher = Hasher::new_with_initial(0xFFFFFFFF);
@@ -42,9 +42,7 @@ fn set_header_crc(header: &mut Vec<u8>) {
 // pad the final entry for piece of data to meet the 32 byte length requirement
 fn pad_data(data: &mut Vec<u8>, data_entry_count: usize) {
     let padding_len = (data_entry_count * 32) - data.len();
-    let mut padding = std::iter::repeat(0xFF)
-        .take(padding_len)
-        .collect::<Vec<u8>>();
+    let mut padding = std::iter::repeat_n(0xFF, padding_len).collect::<Vec<u8>>();
     data.append(&mut padding);
 }
 
@@ -81,7 +79,7 @@ fn write_key_into_entry_header(header: &mut Vec<u8>, key: String) -> Result<(), 
     let key_bytes = key.into_bytes();
     // the key section of an entry header is 16 bytes long and unused positions in the
     // 16 byte vector must have 0 for a value
-    let empty_key_arr = std::iter::repeat(0x00).take(16).collect::<Vec<u8>>();
+    let empty_key_arr = std::iter::repeat_n(0x00, 16).collect::<Vec<u8>>();
     let _ = header.splice(8..24, empty_key_arr);
     let key_end = key_bytes.len() + 8;
     let _ = header.splice(8..key_end, key_bytes);
@@ -96,7 +94,7 @@ pub struct NVSEntry {
 
 impl NVSEntry {
     pub fn get_blob_index_entry(&self, num_chunks: u8, data_len: u32) -> Vec<u8> {
-        let mut header = std::iter::repeat(0xFF).take(32).collect::<Vec<u8>>();
+        let mut header = std::iter::repeat_n(0xFF, 32).collect::<Vec<u8>>();
         header.copy_from_slice(&self.header);
         header[24..32].copy_from_slice(&[0xFF; 8]);
         header[1] = BLOB_IDX_FORMAT;
@@ -150,7 +148,7 @@ impl TryFrom<&NVSKeyValuePair> for NVSEntry {
             ));
         }
 
-        let mut header = std::iter::repeat(0xFF).take(32).collect::<Vec<u8>>();
+        let mut header = std::iter::repeat_n(0xFF, 32).collect::<Vec<u8>>();
         // write namespace
         header[0] = pair.namespace_idx + 1;
         // write entry count
@@ -211,7 +209,7 @@ impl NVSPage {
     }
 
     pub fn write_namespace_entry(&mut self) -> Result<(), Error> {
-        let mut header = std::iter::repeat(0xFF).take(32).collect::<Vec<u8>>();
+        let mut header = std::iter::repeat_n(0xFF, 32).collect::<Vec<u8>>();
         header[0] = 0;
         header[2] = 0x01; // entry_count = 1
         header[3] = DEFAULT_BLOB_CHUNK_IDX;
@@ -240,7 +238,7 @@ impl NVSPage {
             ));
         }
         let entry_data_pos = self.current_position + header.len();
-        let mut edited_header = std::iter::repeat(0xFF).take(32).collect::<Vec<u8>>();
+        let mut edited_header = std::iter::repeat_n(0xFF, 32).collect::<Vec<u8>>();
         edited_header.copy_from_slice(header);
         edited_header[3] = chunk_num;
         let data_len_bytes = (entry_data.len() as u16).to_le_bytes();
@@ -344,9 +342,7 @@ impl NVSPartitionData {
 
         let data = &mut entry.data;
         let padding_len = (entry.data_entry_count as usize * 32) - data.len();
-        let mut padding = std::iter::repeat(0xFF)
-            .take(padding_len)
-            .collect::<Vec<u8>>();
+        let mut padding = std::iter::repeat_n(0xFF, padding_len).collect::<Vec<u8>>();
         data.append(&mut padding);
         current_section.write_misc_data(data, entry.data_entry_count)?;
         Ok(())
@@ -355,7 +351,7 @@ impl NVSPartitionData {
     pub fn write_binary_entry(&mut self, entry: &mut NVSEntry) -> Result<(), Error> {
         let mut current_section = &mut self.sections[self.current_section];
         let mut curr_size = current_section.get_remaining_space();
-        let header = &mut std::iter::repeat(0xFF).take(32).collect::<Vec<u8>>();
+        let header = &mut std::iter::repeat_n(0xFF, 32).collect::<Vec<u8>>();
         header.copy_from_slice(&entry.header);
         if header.len() > curr_size {
             self.start_new_section()?;
@@ -429,7 +425,7 @@ impl NVSPartitionData {
             let section = self.sections.pop_front().unwrap();
             res.append(&mut section.data.to_vec());
         }
-        let mut reserved_section = std::iter::repeat(0xFF).take(4096).collect::<Vec<u8>>();
+        let mut reserved_section = std::iter::repeat_n(0xFF, 4096).collect::<Vec<u8>>();
         res.append(&mut reserved_section);
         res
     }

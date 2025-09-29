@@ -3,7 +3,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{Expr, Field, Ident, Lit, Meta, Type};
 
-use crate::utils::{error_tokens, UnitConversion};
+use crate::utils::{UnitConversion, error_tokens};
 
 /// `MacroAttributes` represents the important information derived from the macro attributes
 /// attached to the field of a struct using the PgnMessageDerive macro.
@@ -69,10 +69,10 @@ fn get_bits(field_ty: &Type) -> Result<usize, TokenStream> {
         Type::Array(type_array) => {
             if let Expr::Lit(len) = &type_array.len {
                 if let Lit::Int(len) = &len.lit {
-                    if let Type::Path(type_path) = type_array.elem.as_ref() {
-                        if !type_path.path.is_ident("u8") {
-                            return Err(error_tokens("array instance type must be u8"));
-                        }
+                    if let Type::Path(type_path) = type_array.elem.as_ref()
+                        && !type_path.path.is_ident("u8")
+                    {
+                        return Err(error_tokens("array instance type must be u8"));
                     }
                     len.base10_parse::<usize>()
                         .map(|x| x * 8)

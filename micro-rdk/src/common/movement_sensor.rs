@@ -20,7 +20,7 @@ use crate::{
         math_utils::Vector3,
         sensor::{GenericReadingsResult, Readings, SensorError},
     },
-    google::protobuf::{value::Kind, Struct, Value},
+    google::protobuf::{Struct, Value, value::Kind},
     proto::{common::v1::GeoPoint, component::movement_sensor},
 };
 

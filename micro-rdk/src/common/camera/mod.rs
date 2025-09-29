@@ -27,7 +27,9 @@ pub enum CameraError {
     InitError(#[from] Box<dyn std::error::Error + Sync + Send>),
     #[error("config error {0}")]
     ConfigError(&'static str),
-    #[error("frame of size {0} greater than internal buffer capacity {1}, consider reducing camera's frame_size")]
+    #[error(
+        "frame of size {0} greater than internal buffer capacity {1}, consider reducing camera's frame_size"
+    )]
     ImageTooBig(usize, usize),
     #[error("failed to get image")]
     FailedToGetImage,

@@ -7,8 +7,8 @@ use std::{
     net::Ipv4Addr,
     ops::{Index, IndexMut},
     sync::{
-        atomic::{AtomicBool, AtomicU32, Ordering},
         Arc,
+        atomic::{AtomicBool, AtomicU32, Ordering},
     },
 };
 use {
@@ -221,21 +221,19 @@ impl Esp32WifiNetwork {
                         reason,
                     );
 
-                    if let Ok(wifi) = esp32_get_wifi() {
-                        if let Some(mut wifi_guard) = wifi.try_lock() {
-                            let wifi_mut = wifi_guard.wifi_mut();
-                            if let Err(err) = wifi_mut.connect() {
-                                let ssid = wifi_mut
-                                    .get_configuration()
-                                    .map_or("<no_ssid>".to_owned(), |c| {
-                                        c.as_client_conf_ref().unwrap().ssid.to_string()
-                                    });
-                                log::error!(
-                                    "could not connect to WiFi `{}` cause : {:?}",
-                                    ssid,
-                                    err
-                                );
-                            }
+                    if let Ok(wifi) = esp32_get_wifi() && let Some(mut wifi_guard) = wifi.try_lock() {
+                        let wifi_mut = wifi_guard.wifi_mut();
+                        if let Err(err) = wifi_mut.connect() {
+                            let ssid = wifi_mut
+                                .get_configuration()
+                                .map_or("<no_ssid>".to_owned(), |c| {
+                                    c.as_client_conf_ref().unwrap().ssid.to_string()
+                                });
+                            log::error!(
+                                "could not connect to WiFi `{}` cause : {:?}",
+                                ssid,
+                                err
+                            );
                         }
                     }
                 }
@@ -629,14 +627,15 @@ impl Esp32ExternallyManagedNetwork {
         ev_id: i32,
         ev_data: *mut std::ffi::c_void,
     ) {
-        let data: &mut Esp32ExternallyManagerNetworkInner = &mut *(ev_hnd_arg as *mut _);
+        let data: &mut Esp32ExternallyManagerNetworkInner = unsafe { &mut *(ev_hnd_arg as *mut _) };
         let ev_id = ev_id as u32;
-        if ev_base == esp_idf_svc::sys::IP_EVENT {
+        if ev_base == unsafe { esp_idf_svc::sys::IP_EVENT } {
             // receiving an IP_EVENT is the only event that can transition us to connected state
             if ev_id == esp_idf_svc::sys::ip_event_t_IP_EVENT_STA_GOT_IP
                 || ev_id == esp_idf_svc::sys::ip_event_t_IP_EVENT_ETH_GOT_IP
             {
-                let ip_event: &mut esp_idf_svc::sys::ip_event_got_ip_t = &mut *(ev_data as *mut _);
+                let ip_event: &mut esp_idf_svc::sys::ip_event_got_ip_t =
+                    unsafe { &mut *(ev_data as *mut _) };
                 if ip_event.ip_changed {
                     data.ipv4.store(ip_event.ip_info.ip.addr, Ordering::Release);
                 }
@@ -648,13 +647,13 @@ impl Esp32ExternallyManagedNetwork {
                 data.connected.store(false, Ordering::Release);
             }
         }
-        if ev_base == esp_idf_svc::sys::WIFI_EVENT
+        if ev_base == unsafe { esp_idf_svc::sys::WIFI_EVENT }
             && ev_id == esp_idf_svc::sys::wifi_event_t_WIFI_EVENT_STA_DISCONNECTED
         {
             data.connected.store(false, Ordering::Release);
         }
 
-        if ev_base == esp_idf_svc::sys::ETH_EVENT
+        if ev_base == unsafe { esp_idf_svc::sys::ETH_EVENT }
             && ev_id == esp_idf_svc::sys::eth_event_t_ETHERNET_EVENT_DISCONNECTED
         {
             data.connected.store(false, Ordering::Release);

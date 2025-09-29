@@ -23,6 +23,9 @@ fn main() {
         .unwrap()
         .is_match(&env::var("TARGET").unwrap())
     {
+        println!("cargo::rustc-check-cfg=cfg(esp_idf_ulp_coproc_enabled)");
+        println!("cargo::rustc-check-cfg=cfg(esp_idf_ulp_coproc_type_fsm)");
+
         if std::env::var_os("CARGO_FEATURE_QEMU").is_none()
             && std::env::var_os("MICRO_RDK_WIFI_PASSWORD")
                 .or(std::env::var_os("MICRO_RDK_WIFI_SSID"))
@@ -31,24 +34,26 @@ fn main() {
                 .zip(std::env::var_os("MICRO_RDK_WIFI_PASSWORD"))
                 .is_none()
         {
-            panic!("Both or none of environment variables MICRO_RDK_WIFI_SSID and MICRO_RDK_WIFI_PASSWORD should be set");
+            panic!(
+                "Both or none of environment variables MICRO_RDK_WIFI_SSID and MICRO_RDK_WIFI_PASSWORD should be set"
+            );
         }
 
         embuild::build::CfgArgs::output_propagated("MICRO_RDK").unwrap();
         embuild::build::LinkArgs::output_propagated("MICRO_RDK").unwrap();
     }
 
-    if let Ok(content) = std::fs::read_to_string("viam.json") {
-        if let Ok(cfg) = serde_json::from_str::<Config>(content.as_str()) {
-            println!(
-                "cargo:rustc-env=MICRO_RDK_ROBOT_SECRET={}",
-                cfg.cloud.secret
-            );
-            println!("cargo:rustc-env=MICRO_RDK_ROBOT_ID={}", cfg.cloud.id);
-            println!(
-                "cargo:rustc-env=MICRO_RDK_ROBOT_APP_ADDRESS={}",
-                cfg.cloud.app_address
-            );
-        }
+    if let Ok(content) = std::fs::read_to_string("viam.json")
+        && let Ok(cfg) = serde_json::from_str::<Config>(content.as_str())
+    {
+        println!(
+            "cargo:rustc-env=MICRO_RDK_ROBOT_SECRET={}",
+            cfg.cloud.secret
+        );
+        println!("cargo:rustc-env=MICRO_RDK_ROBOT_ID={}", cfg.cloud.id);
+        println!(
+            "cargo:rustc-env=MICRO_RDK_ROBOT_APP_ADDRESS={}",
+            cfg.cloud.app_address
+        );
     }
 }

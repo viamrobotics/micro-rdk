@@ -1,4 +1,4 @@
-use rcgen::{date_time_ymd, CertificateParams, DistinguishedName};
+use rcgen::{CertificateParams, DistinguishedName, date_time_ymd};
 use sha2::{Digest, Sha256};
 
 use crate::common::webrtc::certificate::{Certificate, Fingerprint};

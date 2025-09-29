@@ -41,13 +41,14 @@ use std::{
     collections::HashMap,
     num::NonZeroU32,
     sync::{
-        atomic::{AtomicU32, Ordering},
         Arc, Mutex,
+        atomic::{AtomicU32, Ordering},
     },
     time::Duration,
 };
 
 use crate::{
+    DoCommand,
     common::{
         board::InterruptType,
         config::{AttributeError, ConfigType},
@@ -57,7 +58,6 @@ use crate::{
             SensorType, TypedReadingsResult,
         },
     },
-    DoCommand,
 };
 
 use crate::esp32::esp_idf_svc::hal::{
@@ -211,10 +211,10 @@ impl HCSR04Sensor {
     }
 
     #[inline(always)]
-    #[link_section = ".iram1.intr_srv"]
+    #[unsafe(link_section = ".iram1.intr_srv")]
     unsafe extern "C" fn subscription_interrupt(arg: *mut core::ffi::c_void) {
-        let arg: &mut IsrSharedState = &mut *(arg as *mut _);
-        let when = crate::esp32::esp_idf_svc::sys::esp_timer_get_time() as u32;
+        let arg: &mut IsrSharedState = unsafe { &mut *(arg as *mut _) };
+        let when = unsafe { crate::esp32::esp_idf_svc::sys::esp_timer_get_time() as u32 };
         match arg
             .timestamp
             .compare_exchange(0, when, Ordering::AcqRel, Ordering::Acquire)
@@ -231,7 +231,7 @@ impl HCSR04Sensor {
                 // If prior > when delta will equal 0
                 let delta = when.saturating_sub(prior);
                 if let Some(nz) = NonZeroU32::new(delta) {
-                    arg.notifier.notify_and_yield(nz);
+                    unsafe { arg.notifier.notify_and_yield(nz) };
                 }
             }
         }

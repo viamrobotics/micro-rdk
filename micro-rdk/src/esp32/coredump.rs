@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use base64::{engine::general_purpose::STANDARD, Engine as _};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use bytes::BytesMut;
 use esp_idf_svc::sys::{
     esp_partition_erase_range, esp_partition_find_first, esp_partition_read,
@@ -18,7 +18,7 @@ use crate::{
         registry::{ComponentRegistry, Dependency},
         sensor::{GenericReadingsResult, Readings, Sensor, SensorError, SensorType},
     },
-    google::protobuf::{self, value::Kind, Struct, Value},
+    google::protobuf::{self, Struct, Value, value::Kind},
 };
 
 pub struct Coredump {

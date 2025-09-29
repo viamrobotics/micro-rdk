@@ -1,6 +1,6 @@
 FROM debian:bookworm
 
-ARG RUST_VERSION=1.85.0
+ARG RUST_VERSION=1.89.0
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DEBCONF_NOWARNINGS="yes"
@@ -73,7 +73,7 @@ RUN apt-get install -y ruby && gem install license_finder
 
 USER testbot
 
-RUN git clone --depth 1 -b v5.4.1 --single-branch --recurse-submodules --shallow-submodules https://github.com/espressif/esp-idf/ $ESP_ROOT/esp-idf
+RUN git clone --depth 1 -b v5.4.2 --single-branch --recurse-submodules --shallow-submodules https://github.com/espressif/esp-idf/ $ESP_ROOT/esp-idf
 
 ENV IDF_PATH=$ESP_ROOT/esp-idf
 

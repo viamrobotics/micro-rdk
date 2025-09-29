@@ -18,12 +18,11 @@ use rand::{
 };
 
 use stun_codec::{
-    rfc5245,
+    Message, MessageClass, TransactionId, rfc5245,
     rfc5389::{self, methods::BINDING},
-    Message, MessageClass, TransactionId,
 };
 
-use crate::{common::webrtc::candidates::CandidatePairState, IceAttribute};
+use crate::{IceAttribute, common::webrtc::candidates::CandidatePairState};
 
 use super::{
     api::AtomicSync,
@@ -179,7 +178,10 @@ impl ICEAgent {
         let mut stun_ip = match "global.stun.twilio.com:3478".to_socket_addrs() {
             Ok(stun_ip) => stun_ip,
             Err(err) => {
-                log::warn!("Failed trying to resolve STUN server address; no reflexive candidate will be generated: {}", err);
+                log::warn!(
+                    "Failed trying to resolve STUN server address; no reflexive candidate will be generated: {}",
+                    err
+                );
                 return Ok(());
             }
         };
@@ -187,7 +189,9 @@ impl ICEAgent {
         let stun_ip = match stun_ip.next() {
             Some(stun_ip) => stun_ip,
             None => {
-                log::warn!("STUN server address resolution found no records; no reflexive candidate will be generated");
+                log::warn!(
+                    "STUN server address resolution found no records; no reflexive candidate will be generated"
+                );
                 return Ok(());
             }
         };
@@ -269,12 +273,11 @@ impl ICEAgent {
             }
 
             let req = self.next_stun_request();
-            if let Some(req) = req {
-                if let Ok(msg) = self.make_stun_request(req.0) {
-                    if self.transport.send_to(&msg, req.1.into()).await.is_err() {
-                        break IceError::IceTransportClosed;
-                    }
-                }
+            if let Some(req) = req
+                && let Ok(msg) = self.make_stun_request(req.0)
+                && self.transport.send_to(&msg, req.1.into()).await.is_err()
+            {
+                break IceError::IceTransportClosed;
             }
 
             let mut buf = BytesMut::zeroed(256);
@@ -353,10 +356,10 @@ impl ICEAgent {
                     match decoded.class() {
                         MessageClass::Request => {
                             log::debug!("processing a stun request");
-                            if let Ok(msg) = self.process_stun_request(&decoded, &addr) {
-                                if self.transport.send_to(&msg, addr.into()).await.is_err() {
-                                    break IceError::IceTransportClosed;
-                                }
+                            if let Ok(msg) = self.process_stun_request(&decoded, &addr)
+                                && self.transport.send_to(&msg, addr.into()).await.is_err()
+                            {
+                                break IceError::IceTransportClosed;
                             }
                         }
                         MessageClass::SuccessResponse => {
@@ -526,7 +529,9 @@ impl ICEAgent {
         {
             Some(idx) => idx,
             None => {
-                log::debug!("received a peer reflexive address, we are going to add it to our list of remote candidates");
+                log::debug!(
+                    "received a peer reflexive address, we are going to add it to our list of remote candidates"
+                );
                 let prio = stun
                     .get_attribute::<rfc5245::attributes::Priority>()
                     .ok_or(IceError::IceInvalidStunMessage)?

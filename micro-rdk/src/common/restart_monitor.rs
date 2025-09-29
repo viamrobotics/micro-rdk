@@ -1,5 +1,5 @@
 use super::app_client::{AppClient, AppClientError, PeriodicAppClientTask};
-use super::system::{send_system_event, SystemEvent};
+use super::system::{SystemEvent, send_system_event};
 use futures_lite::Future;
 use std::pin::Pin;
 use std::time::Duration;

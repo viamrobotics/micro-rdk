@@ -38,10 +38,12 @@ pub mod google {
     }
     pub mod rpc {
         #![allow(clippy::derive_partial_eq_without_eq)]
+        #![allow(clippy::doc_overindented_list_items)]
         include!("gen/google.rpc.rs");
     }
     pub mod protobuf {
         #![allow(clippy::derive_partial_eq_without_eq)]
+        #![allow(clippy::doc_overindented_list_items)]
         include!("gen/google.protobuf.rs");
     }
 }
@@ -186,9 +188,6 @@ pub mod proto {
         }
     }
 }
-
-#[macro_use]
-extern crate trackable;
 
 use std::time;
 

@@ -10,6 +10,7 @@ use std::{
 
 use chrono::{DateTime, TimeDelta};
 use micro_rdk::{
+    DoCommand,
     common::{
         config::{AttributeError, ConfigType, Kind},
         i2c::I2cHandleType,
@@ -17,10 +18,9 @@ use micro_rdk::{
         sensor::{GenericReadingsResult, Readings, Sensor, SensorError, SensorType},
     },
     esp32::esp_idf_svc::{hal::ulp::UlpDriver, sys::EspError},
-    DoCommand,
 };
 use micro_rdk::{
-    google::protobuf::{value, Timestamp, Value},
+    google::protobuf::{Timestamp, Value, value},
     proto::app::data_sync::v1::{MimeType, SensorData, SensorMetadata},
 };
 use thiserror::Error;
@@ -244,11 +244,10 @@ impl ULP {
 
     fn start_ulp(&mut self, mut cfg: Configuration) -> Result<(), BME280Error> {
         use micro_rdk::esp32::esp_idf_svc::sys::{
-            esp, rtc_gpio_init,
+            RTC_GPIO_ENABLE_W1TC_REG, RTC_GPIO_ENABLE_W1TC_S, RTC_GPIO_ENABLE_W1TS_REG,
+            RTC_GPIO_ENABLE_W1TS_S, RTC_GPIO_IN_NEXT_S, RTC_GPIO_IN_REG, esp, rtc_gpio_init,
             rtc_gpio_mode_t_RTC_GPIO_MODE_INPUT_OUTPUT as RTC_GPIO_MODE_INPUT_OUTPUT,
-            rtc_gpio_set_direction, ulp_set_wakeup_period, RTC_GPIO_ENABLE_W1TC_REG,
-            RTC_GPIO_ENABLE_W1TC_S, RTC_GPIO_ENABLE_W1TS_REG, RTC_GPIO_ENABLE_W1TS_S,
-            RTC_GPIO_IN_NEXT_S, RTC_GPIO_IN_REG,
+            rtc_gpio_set_direction, ulp_set_wakeup_period,
         };
         // configure pin so they can be accessed by ULP. Note that any pin should not be changed or used afterwards
         esp!(unsafe { rtc_gpio_init(self.cfg.pin_scl) })

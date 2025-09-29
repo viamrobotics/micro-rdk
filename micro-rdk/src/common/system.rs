@@ -116,7 +116,6 @@ pub(crate) fn enable_ulp_wakeup() -> Result<(), SystemEventError> {
             sys::ESP_ERR_NOT_SUPPORTED => Err(SystemEventError::EnableUlpWakeupError(format!(
                 "additional current to external 32kHz crystal is enabled, cannot enable ULP wakeup source: {:?}",
                 result
-
             ))),
             sys::ESP_ERR_INVALID_STATE => Err(SystemEventError::EnableUlpWakeupError(format!(
                 "co-processor not enabled or wakeup trigger conflicts with ulp wakeup: {:?}",
@@ -197,7 +196,9 @@ pub(crate) async fn force_shutdown(app_client: Option<AppClient>) {
                     async_io::block_on(Timer::after(dur));
                     terminate();
                 } else {
-                    log::error!("native builds do not support alternate wake up sources and can only sleep for a duration")
+                    log::error!(
+                        "native builds do not support alternate wake up sources and can only sleep for a duration"
+                    )
                 }
             }
         }

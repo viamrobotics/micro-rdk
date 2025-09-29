@@ -13,7 +13,7 @@ use async_channel::Sender;
 use bytes::Bytes;
 use thiserror::Error;
 
-use futures_lite::{future::poll_fn, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use futures_lite::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, future::poll_fn};
 use sctp_proto::{
     Association, AssociationHandle, ClientConfig, DatagramEvent, Endpoint, EndpointConfig, Event,
     Payload, ServerConfig, StreamEvent, StreamId, Transmit,
@@ -50,7 +50,7 @@ impl Channel {
         self.tx_event
             .send(SctpEvent::OutgoingStreamData((self.tx_stream_id, bytes)))
             .await
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+            .map_err(std::io::Error::other)
     }
 }
 
@@ -359,12 +359,15 @@ where
     async fn process_endpoint_events(&mut self) -> Result<(), SctpError> {
         {
             let mut association = self.association.lock().unwrap();
-            if let Some(endpoint) = association.poll_endpoint_event() {
-                if let Some(assoc_ev) = self.endpoint.handle_event(self.hnd, endpoint) {
-                    association.handle_event(assoc_ev);
-                    if let Err(e) = self.sctp_event_tx.try_send(SctpEvent::OutgoingData) {
-                        log::error!("When processing an association event after an endpoint event couldn't submit event {:?}",e);
-                    }
+            if let Some(endpoint) = association.poll_endpoint_event()
+                && let Some(assoc_ev) = self.endpoint.handle_event(self.hnd, endpoint)
+            {
+                association.handle_event(assoc_ev);
+                if let Err(e) = self.sctp_event_tx.try_send(SctpEvent::OutgoingData) {
+                    log::error!(
+                        "When processing an association event after an endpoint event couldn't submit event {:?}",
+                        e
+                    );
                 }
             }
         }
@@ -508,9 +511,9 @@ mod tests {
 
     use crate::common::webrtc::sctp::SctpConnector;
     use async_io::{Async, Timer};
-    use futures_lite::future::block_on;
     use futures_lite::AsyncReadExt;
-    use futures_lite::{ready, AsyncRead, AsyncWrite, Future};
+    use futures_lite::future::block_on;
+    use futures_lite::{AsyncRead, AsyncWrite, Future, ready};
 
     struct UdpStreamAdapter {
         inner: Arc<Async<std::net::UdpSocket>>,
@@ -543,10 +546,10 @@ mod tests {
                     Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
                     res => {
                         let _ = self.readable.take();
-                        if let Ok(s) = &res {
-                            if s.1 != self.peer {
-                                continue;
-                            }
+                        if let Ok(s) = &res
+                            && s.1 != self.peer
+                        {
+                            continue;
                         }
                         let res = res.map(|s| s.0);
                         return Poll::Ready(res);

@@ -59,7 +59,7 @@ use futures_lite::AsyncWriteExt;
 use futures_lite::{FutureExt, StreamExt};
 use futures_util::TryFutureExt;
 use http_body_util::{BodyExt, Empty};
-use hyper::{body::Bytes, client::conn::http2, Request};
+use hyper::{Request, body::Bytes, client::conn::http2};
 use once_cell::sync::Lazy;
 use std::time::Duration;
 use thiserror::Error;
@@ -127,7 +127,9 @@ pub(crate) enum OtaError<S: OtaMetadataStorage> {
     InvalidImageSizeLarge(usize, usize),
     #[error("new image of {0} bytes is smaller than minimum firmware size of {1} bytes")]
     InvalidImageSizeSmall(usize, usize),
-    #[error("failed to retrieve firmware header info from binary, firmware may not be valid for this system: {0}")]
+    #[error(
+        "failed to retrieve firmware header info from binary, firmware may not be valid for this system: {0}"
+    )]
     InvalidFirmware(String),
     #[error("failed to update OTA metadata: expected updated version to be `{0}`, found `{1}`")]
     UpdateMetadata(String, String),
@@ -413,7 +415,7 @@ impl<S: OtaMetadataStorage> OtaService<S> {
                     return Err(OtaError::Other(format!(
                         "Bad Request - Status: {}",
                         response.status()
-                    )))
+                    )));
                 }
             };
         }

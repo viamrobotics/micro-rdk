@@ -1,5 +1,5 @@
 use std::{
-    ffi::{c_char, c_void, CStr},
+    ffi::{CStr, c_char, c_void},
     marker::{PhantomData, PhantomPinned},
     rc::Rc,
     sync::{Arc, Mutex},
@@ -51,7 +51,7 @@ include!(concat!(env!("OUT_DIR"), "/modules.rs"));
 /// Use the returned pointer to register your own components using the C API
 /// The pointer is expected to be valid until the call `start_viam_server`
 /// the pointer will then be consumed and any further usage is UB
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn init_viam_server_context() -> *mut viam_server_context {
     let registry = Box::<ComponentRegistry>::default();
     #[cfg(target_os = "espidf")]
@@ -75,7 +75,7 @@ pub extern "C" fn init_viam_server_context() -> *mut viam_server_context {
 /// # Safety
 /// `ctx`, `model` must be valid pointers
 /// `model` must be a null terminated C String
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn viam_server_set_provisioning_model(
     ctx: *mut viam_server_context,
     model: *const c_char,
@@ -99,7 +99,7 @@ pub unsafe extern "C" fn viam_server_set_provisioning_model(
 /// # Safety
 /// `ctx`, `manufacturer` must be valid pointers
 /// `manufacturer` must be a null terminated C String
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn viam_server_set_provisioning_manufacturer(
     ctx: *mut viam_server_context,
     manufacturer: *const c_char,
@@ -123,7 +123,7 @@ pub unsafe extern "C" fn viam_server_set_provisioning_manufacturer(
 /// # Safety
 /// `ctx`, `fragment_id` must be valid pointers
 /// `manufacturer` must be a null terminated C String
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn viam_server_set_provisioning_fragment(
     ctx: *mut viam_server_context,
     fragment_id: *const c_char,
@@ -156,7 +156,7 @@ pub unsafe extern "C" fn viam_server_set_provisioning_fragment(
 /// returns VIAM_OK on success
 /// # Safety
 /// `ctx`, `model` must be valid pointers
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn viam_server_register_c_generic_sensor(
     ctx: *mut viam_server_context,
     model: *const c_char,
@@ -213,7 +213,7 @@ pub unsafe extern "C" fn viam_server_register_c_generic_sensor(
 /// # Safety
 /// `ctx`, `storage_name` must be valid pointers
 /// may panic if the storage_name cannot be pushed on the vector
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn viam_server_add_nvs_storage(
     ctx: *mut viam_server_context,
     storage_name: *const c_char,
@@ -248,7 +248,7 @@ const ROBOT_APP_ADDRESS: Option<&str> = option_env!("MICRO_RDK_ROBOT_APP_ADDRESS
 ///
 /// # Safety
 /// `ctx` must be a valid pointer
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn viam_server_start(ctx: *mut viam_server_context) -> viam_code {
     if ctx.is_null() {
         return viam_code::VIAM_INVALID_ARG;

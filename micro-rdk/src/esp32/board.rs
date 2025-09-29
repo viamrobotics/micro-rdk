@@ -26,12 +26,12 @@ use super::analog::Esp32AnalogReader;
 // TODO(RSDK-10188): Update to ESP-IDF ADC API
 #[cfg(esp32)]
 use crate::esp32::esp_idf_svc::hal::adc::{
+    ADC1,
     attenuation::DB_11,
     oneshot::{
-        config::{AdcChannelConfig, Calibration},
         AdcChannelDriver, AdcDriver,
+        config::{AdcChannelConfig, Calibration},
     },
-    ADC1,
 };
 
 use crate::common::board::InterruptType;

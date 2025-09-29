@@ -67,8 +67,8 @@
 //! ```
 
 use proc_macro::TokenStream;
+use proc_macro_crate::{FoundCrate, crate_name};
 use proc_macro2::Span;
-use proc_macro_crate::{crate_name, FoundCrate};
 use quote::quote;
 use syn::Ident;
 
@@ -87,10 +87,10 @@ pub fn impl_do_command_default(input: TokenStream) -> TokenStream {
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
 
     let crate_ident = get_micro_rdk_crate_ident();
-    let gen = quote! {
+    let generated = quote! {
         impl #impl_generics #crate_ident::common::generic::DoCommand for #name #ty_generics #where_clause {}
     };
-    gen.into()
+    generated.into()
 }
 
 #[proc_macro_derive(MovementSensorReadings)]
@@ -100,14 +100,14 @@ pub fn impl_readings_for_movement_sensor(input: TokenStream) -> TokenStream {
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
 
     let crate_ident = get_micro_rdk_crate_ident();
-    let gen = quote! {
+    let generated = quote! {
         impl #impl_generics #crate_ident::common::sensor::Readings for #name #ty_generics #where_clause {
             fn get_generic_readings(&mut self) -> Result<#crate_ident::common::sensor::GenericReadingsResult,#crate_ident::common::sensor::SensorError> {
                 #crate_ident::common::movement_sensor::get_movement_sensor_generic_readings(self)
             }
         }
     };
-    gen.into()
+    generated.into()
 }
 
 #[proc_macro_derive(PowerSensorReadings)]
@@ -117,7 +117,7 @@ pub fn impl_readings_for_power_sensor(input: TokenStream) -> TokenStream {
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
 
     let crate_ident = get_micro_rdk_crate_ident();
-    let gen = quote! {
+    let generated = quote! {
         impl #impl_generics #crate_ident::common::sensor::Readings for #name #ty_generics #where_clause {
             fn get_generic_readings(&mut self) -> Result<#crate_ident::common::sensor::GenericReadingsResult,#crate_ident::common::sensor::SensorError> {
                 #crate_ident::common::power_sensor::get_power_sensor_generic_readings(self)
@@ -125,5 +125,5 @@ pub fn impl_readings_for_power_sensor(input: TokenStream) -> TokenStream {
         }
     };
 
-    gen.into()
+    generated.into()
 }

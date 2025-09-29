@@ -1,10 +1,10 @@
 use crate::common::encoder::EncoderError;
 use crate::esp32::esp_idf_svc::sys::{
-    pcnt_isr_service_install, pcnt_isr_service_uninstall, ESP_OK,
+    ESP_OK, pcnt_isr_service_install, pcnt_isr_service_uninstall,
 };
 use std::sync::{
-    atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering},
     Arc, LazyLock,
+    atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering},
 };
 
 /*

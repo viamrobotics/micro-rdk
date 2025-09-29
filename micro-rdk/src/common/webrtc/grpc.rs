@@ -248,12 +248,12 @@ where
             .streams
             .iter()
             .min_by(|a, b| {
-                a.1 .1
+                a.1.1
                     .as_ref()
                     .map_or(Duration::MAX, |i| {
                         i.saturating_duration_since(Instant::now())
                     })
-                    .cmp(&b.1 .1.as_ref().map_or(Duration::MAX, |i| {
+                    .cmp(&b.1.1.as_ref().map_or(Duration::MAX, |i| {
                         i.saturating_duration_since(Instant::now())
                     }))
             })

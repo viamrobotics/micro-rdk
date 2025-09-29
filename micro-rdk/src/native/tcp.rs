@@ -2,9 +2,9 @@ use crate::common::conn::viam::{HTTP2Stream, IntoHttp2Stream, ViamH2Connector};
 use async_io::Async;
 use futures_lite::future::FutureExt;
 
-use futures_lite::{ready, Future};
+use futures_lite::{Future, ready};
 use futures_rustls::{TlsAcceptor, TlsConnector};
-use hyper::{rt, Uri};
+use hyper::{Uri, rt};
 use rustls::{ClientConfig, KeyLogFile, OwnedTrustAnchor, RootCertStore, ServerConfig};
 use std::io::BufReader;
 use std::mem::MaybeUninit;
@@ -42,10 +42,10 @@ impl ViamH2Connector for NativeH2Connector {
                 .with_safe_default_cipher_suites()
                 .with_safe_default_kx_groups()
                 .with_protocol_versions(&[&rustls::version::TLS12])
-                .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?
+                .map_err(std::io::Error::other)?
                 .with_no_client_auth()
                 .with_single_cert(cert_chain, priv_keys.unwrap())
-                .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+                .map_err(std::io::Error::other)?;
             cfg.alpn_protocols = vec!["h2".as_bytes().to_vec()];
             Ok(Box::pin(NativeStreamAcceptor(
                 TlsAcceptor::from(Arc::new(cfg)).accept(connection),
@@ -95,7 +95,7 @@ impl ViamH2Connector for NativeH2Connector {
                 uri.host()
                     .unwrap()
                     .try_into()
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+                    .map_err(std::io::Error::other)
                     .unwrap(),
                 stream,
             ),
@@ -140,6 +140,7 @@ impl Future for NativeStreamInsecureAcceptor {
 }
 
 /// Enum to represent a TCP stream (either plain or encrypted)
+#[allow(clippy::large_enum_variant)] // TODO: Box the TlsStream
 pub enum NativeStream {
     LocalPlain(Async<TcpStream>),
     TlsStream(futures_rustls::TlsStream<Async<TcpStream>>),

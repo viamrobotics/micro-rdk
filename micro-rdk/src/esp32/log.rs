@@ -8,8 +8,8 @@
 //! The capture of ESP-IDF logs is only available with the "esp-idf-logs" feature.
 #[cfg(feature = "esp-idf-logs")]
 use crate::{
-    common::log::{get_log_buffer, ViamLogEntry},
-    google::protobuf::{value::Kind, Struct, Value},
+    common::log::{ViamLogEntry, get_log_buffer},
+    google::protobuf::{Struct, Value, value::Kind},
     proto::common::v1::LogEntry,
 };
 

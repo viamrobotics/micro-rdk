@@ -20,25 +20,26 @@ use crate::{
 };
 
 use crate::esp32::esp_idf_svc::sys::{
-    mbedtls_ctr_drbg_context, mbedtls_ctr_drbg_free, mbedtls_ctr_drbg_init,
-    mbedtls_ctr_drbg_random, mbedtls_ctr_drbg_seed, mbedtls_entropy_context, mbedtls_entropy_free,
-    mbedtls_entropy_func, mbedtls_entropy_init, mbedtls_pk_context, mbedtls_pk_free,
-    mbedtls_pk_init, mbedtls_pk_parse_key, mbedtls_ssl_conf_ca_chain, mbedtls_ssl_conf_dbg,
-    mbedtls_ssl_conf_dtls_cookies, mbedtls_ssl_conf_dtls_srtp_protection_profiles,
-    mbedtls_ssl_conf_handshake_timeout, mbedtls_ssl_conf_own_cert, mbedtls_ssl_conf_rng,
-    mbedtls_ssl_config, mbedtls_ssl_config_defaults, mbedtls_ssl_config_free,
-    mbedtls_ssl_config_init, mbedtls_ssl_context, mbedtls_ssl_free, mbedtls_ssl_handshake,
-    mbedtls_ssl_init, mbedtls_ssl_read, mbedtls_ssl_set_bio, mbedtls_ssl_set_timer_cb,
-    mbedtls_ssl_setup, mbedtls_ssl_write, mbedtls_x509_crt, mbedtls_x509_crt_free,
-    mbedtls_x509_crt_init, mbedtls_x509_crt_parse_der, MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY,
-    MBEDTLS_ERR_SSL_TIMEOUT, MBEDTLS_ERR_SSL_WANT_READ, MBEDTLS_ERR_SSL_WANT_WRITE,
-    MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_PRESET_DEFAULT, MBEDTLS_SSL_TRANSPORT_DATAGRAM,
+    MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY, MBEDTLS_ERR_SSL_TIMEOUT, MBEDTLS_ERR_SSL_WANT_READ,
+    MBEDTLS_ERR_SSL_WANT_WRITE, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_PRESET_DEFAULT,
+    MBEDTLS_SSL_TRANSPORT_DATAGRAM, mbedtls_ctr_drbg_context, mbedtls_ctr_drbg_free,
+    mbedtls_ctr_drbg_init, mbedtls_ctr_drbg_random, mbedtls_ctr_drbg_seed, mbedtls_entropy_context,
+    mbedtls_entropy_free, mbedtls_entropy_func, mbedtls_entropy_init, mbedtls_pk_context,
+    mbedtls_pk_free, mbedtls_pk_init, mbedtls_pk_parse_key, mbedtls_ssl_conf_ca_chain,
+    mbedtls_ssl_conf_dbg, mbedtls_ssl_conf_dtls_cookies,
+    mbedtls_ssl_conf_dtls_srtp_protection_profiles, mbedtls_ssl_conf_handshake_timeout,
+    mbedtls_ssl_conf_own_cert, mbedtls_ssl_conf_rng, mbedtls_ssl_config,
+    mbedtls_ssl_config_defaults, mbedtls_ssl_config_free, mbedtls_ssl_config_init,
+    mbedtls_ssl_context, mbedtls_ssl_free, mbedtls_ssl_handshake, mbedtls_ssl_init,
+    mbedtls_ssl_read, mbedtls_ssl_set_bio, mbedtls_ssl_set_timer_cb, mbedtls_ssl_setup,
+    mbedtls_ssl_write, mbedtls_x509_crt, mbedtls_x509_crt_free, mbedtls_x509_crt_init,
+    mbedtls_x509_crt_parse_der,
 };
 use async_io::Timer;
 use core::ffi::CStr;
 use esp_idf_svc::sys::esp_tls_get_ssl_context;
 use futures_lite::{AsyncRead, AsyncWrite, Future};
-use log::{log, Level};
+use log::{Level, log};
 use thiserror::Error;
 
 use super::tcp::Esp32TLSContext;
@@ -48,7 +49,7 @@ use super::tcp::Esp32TLSContext;
 const MBEDTLS_ERR_NET_SEND_FAILED: i32 = -0x4E;
 const MBEDTLS_ERR_NET_RECV_FAILED: i32 = -0x4C;
 
-extern "C" {
+unsafe extern "C" {
     fn mbedtls_debug_set_threshold(level: c_int);
 }
 
@@ -57,9 +58,9 @@ unsafe extern "C" fn mbedtls_net_write<S: AsyncWrite>(
     buf: *const c_uchar,
     len: usize,
 ) -> c_int {
-    let state = SSLStreamInner::<S>::from_raw(ctx);
+    let state = unsafe { SSLStreamInner::<S>::from_raw(ctx) };
 
-    let buf = std::slice::from_raw_parts(buf as *const _, len);
+    let buf = unsafe { std::slice::from_raw_parts(buf as *const _, len) };
 
     match state.write(buf) {
         Ok(len) => len as c_int,
@@ -78,12 +79,12 @@ unsafe extern "C" fn mbedtls_net_read<S: AsyncRead>(
     buf: *mut c_uchar,
     len: usize,
 ) -> c_int {
-    let state = SSLStreamInner::<S>::from_raw(ctx);
+    let state = unsafe { SSLStreamInner::<S>::from_raw(ctx) };
     // we would never want to timeout in this scenario so make sure we cancel any
     // running timers
     state.reset_read_timeout();
 
-    let buf = std::slice::from_raw_parts_mut(buf as *mut _, len);
+    let buf = unsafe { std::slice::from_raw_parts_mut(buf as *mut _, len) };
 
     match state.read(buf) {
         Ok(len) => len as c_int,
@@ -104,13 +105,13 @@ unsafe extern "C" fn mbedtls_net_read_with_timeout<S: AsyncRead>(
     len: usize,
     timeout: c_uint,
 ) -> c_int {
-    let state = SSLStreamInner::<S>::from_raw(ctx);
+    let state = unsafe { SSLStreamInner::<S>::from_raw(ctx) };
     if timeout > 0 {
         state.set_read_timeout(timeout);
     } else {
         state.reset_read_timeout();
     }
-    let buf = std::slice::from_raw_parts_mut(buf as *mut _, len);
+    let buf = unsafe { std::slice::from_raw_parts_mut(buf as *mut _, len) };
     match state.read(buf) {
         Ok(len) => {
             // if operation succeed cancel running timeout
@@ -177,7 +178,7 @@ impl Esp32DtlsDelay {
         let _ = self.intermediate.insert(intermediate);
         let _ = self.fin.insert(fin);
         self.state = DelayState::Intermediate;
-        let _ = std::mem::replace(&mut self.timer, Some(Timer::at(intermediate)));
+        let _ = self.timer.replace(Timer::at(intermediate));
     }
     fn poll_delay(&mut self, cx: &mut Context<'_>) {
         let timer = self.timer.take();
@@ -560,8 +561,7 @@ where
     }
 
     fn get_inner_mut(&mut self) -> &mut SSLStreamInner<S> {
-        let state = unsafe { SSLStreamInner::<S>::from_raw(self.bio_ptr) };
-        state
+        unsafe { SSLStreamInner::<S>::from_raw(self.bio_ptr) }
     }
 
     fn handshake(&mut self) -> Result<(), SSLError> {
@@ -639,7 +639,7 @@ where
                         }
                     }
                     _ => {
-                        return Err(io::Error::new(io::ErrorKind::Other, e));
+                        return Err(io::Error::other(e));
                     }
                 },
             }
@@ -679,7 +679,7 @@ where
                         }
                     }
                     _ => {
-                        return Err(io::Error::new(io::ErrorKind::Other, e));
+                        return Err(io::Error::other(e));
                     }
                 },
             }
@@ -699,14 +699,13 @@ struct SSLStreamInner<S> {
 }
 impl<S> SSLStreamInner<S> {
     unsafe fn from_raw<'a>(ctx: *mut c_void) -> &'a mut Self {
-        &mut *(ctx as *mut _)
+        unsafe { &mut *(ctx as *mut _) }
     }
     fn set_read_timeout(&mut self, timeout_ms: u32) {
         if self.timeout.is_none() {
-            let _ = std::mem::replace(
-                &mut self.timeout,
-                Some(Timer::after(Duration::from_millis(timeout_ms.into()))),
-            );
+            let _ = self
+                .timeout
+                .replace(Timer::after(Duration::from_millis(timeout_ms.into())));
         }
     }
     fn reset_read_timeout(&mut self) {
@@ -730,9 +729,11 @@ where
 impl<S> SSLStreamInner<S> {
     unsafe fn as_parts(&mut self) -> (Pin<&mut S>, &mut Context<'_>) {
         debug_assert!(self.context.is_some());
-        let c = &mut *(self.context.unwrap() as *mut Context);
-        let s = Pin::new_unchecked(&mut self.stream);
-        (s, c)
+        unsafe {
+            let c = &mut *(self.context.unwrap() as *mut Context);
+            let s = Pin::new_unchecked(&mut self.stream);
+            (s, c)
+        }
     }
 }
 

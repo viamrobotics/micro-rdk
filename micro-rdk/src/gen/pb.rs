@@ -52,11 +52,14 @@ pub mod cpp_features {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GoFeatures {
     /// Whether or not to generate the deprecated UnmarshalJSON method for enums.
+    /// Can only be true for proto using the Open Struct api.
     #[prost(bool, optional, tag="1")]
     pub legacy_unmarshal_json_enum: ::core::option::Option<bool>,
     /// One of OPEN, HYBRID or OPAQUE.
     #[prost(enumeration="go_features::ApiLevel", optional, tag="2")]
     pub api_level: ::core::option::Option<i32>,
+    #[prost(enumeration="go_features::StripEnumPrefix", optional, tag="3")]
+    pub strip_enum_prefix: ::core::option::Option<i32>,
 }
 /// Nested message and enum types in `GoFeatures`.
 pub mod go_features {
@@ -95,6 +98,38 @@ pub mod go_features {
             }
         }
     }
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+    #[repr(i32)]
+    pub enum StripEnumPrefix {
+        Unspecified = 0,
+        Keep = 1,
+        GenerateBoth = 2,
+        Strip = 3,
+    }
+    impl StripEnumPrefix {
+        /// String value of the enum field names used in the ProtoBuf definition.
+        ///
+        /// The values are not transformed in any way and thus are considered stable
+        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        pub fn as_str_name(&self) -> &'static str {
+            match self {
+                StripEnumPrefix::Unspecified => "STRIP_ENUM_PREFIX_UNSPECIFIED",
+                StripEnumPrefix::Keep => "STRIP_ENUM_PREFIX_KEEP",
+                StripEnumPrefix::GenerateBoth => "STRIP_ENUM_PREFIX_GENERATE_BOTH",
+                StripEnumPrefix::Strip => "STRIP_ENUM_PREFIX_STRIP",
+            }
+        }
+        /// Creates an enum from field names used in the ProtoBuf definition.
+        pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+            match value {
+                "STRIP_ENUM_PREFIX_UNSPECIFIED" => Some(Self::Unspecified),
+                "STRIP_ENUM_PREFIX_KEEP" => Some(Self::Keep),
+                "STRIP_ENUM_PREFIX_GENERATE_BOTH" => Some(Self::GenerateBoth),
+                "STRIP_ENUM_PREFIX_STRIP" => Some(Self::Strip),
+                _ => None,
+            }
+        }
+    }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -107,11 +142,70 @@ pub struct JavaFeatures {
     pub legacy_closed_enum: ::core::option::Option<bool>,
     #[prost(enumeration="java_features::Utf8Validation", optional, tag="2")]
     pub utf8_validation: ::core::option::Option<i32>,
+    /// Allows creation of large Java enums, extending beyond the standard
+    /// constant limits imposed by the Java language.
+    #[prost(bool, optional, tag="3")]
+    pub large_enum: ::core::option::Option<bool>,
+    /// Whether to use the old default outer class name scheme, or the new feature
+    /// which adds a "Proto" suffix to the outer class name.
+    ///
+    /// Users will not be able to set this option, because we removed it in the
+    /// same edition that it was introduced. But we use it to determine which
+    /// naming scheme to use for outer class name defaults.
+    #[prost(bool, optional, tag="4")]
+    pub use_old_outer_classname_default: ::core::option::Option<bool>,
+    /// Whether to nest the generated class in the generated file class. This is
+    /// only applicable to *top-level* messages, enums, and services.
+    #[prost(enumeration="java_features::nest_in_file_class_feature::NestInFileClass", optional, tag="5")]
+    pub nest_in_file_class: ::core::option::Option<i32>,
 }
 /// Nested message and enum types in `JavaFeatures`.
 pub mod java_features {
-    /// The UTF8 validation strategy to use.  See go/editions-utf8-validation for
-    /// more information on this feature.
+    #[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+    pub struct NestInFileClassFeature {
+    }
+    /// Nested message and enum types in `NestInFileClassFeature`.
+    pub mod nest_in_file_class_feature {
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+        #[repr(i32)]
+        pub enum NestInFileClass {
+            /// Invalid default, which should never be used.
+            Unknown = 0,
+            /// Do not nest the generated class in the file class.
+            No = 1,
+            /// Nest the generated class in the file class.
+            Yes = 2,
+            /// Fall back to the `java_multiple_files` option. Users won't be able to
+            /// set this option.
+            Legacy = 3,
+        }
+        impl NestInFileClass {
+            /// String value of the enum field names used in the ProtoBuf definition.
+            ///
+            /// The values are not transformed in any way and thus are considered stable
+            /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+            pub fn as_str_name(&self) -> &'static str {
+                match self {
+                    NestInFileClass::Unknown => "NEST_IN_FILE_CLASS_UNKNOWN",
+                    NestInFileClass::No => "NO",
+                    NestInFileClass::Yes => "YES",
+                    NestInFileClass::Legacy => "LEGACY",
+                }
+            }
+            /// Creates an enum from field names used in the ProtoBuf definition.
+            pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+                match value {
+                    "NEST_IN_FILE_CLASS_UNKNOWN" => Some(Self::Unknown),
+                    "NO" => Some(Self::No),
+                    "YES" => Some(Self::Yes),
+                    "LEGACY" => Some(Self::Legacy),
+                    _ => None,
+                }
+            }
+        }
+    }
+    /// The UTF8 validation strategy to use.
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum Utf8Validation {
