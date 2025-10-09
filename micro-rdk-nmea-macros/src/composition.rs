@@ -1,12 +1,12 @@
 use proc_macro::TokenStream;
 use proc_macro2::{Literal, Span, TokenStream as TokenStream2};
-use quote::{format_ident, quote, ToTokens};
+use quote::{ToTokens, format_ident, quote};
 use syn::{DeriveInput, Field, GenericArgument, Ident, PathArguments, Type};
 
 use crate::attributes::MacroAttributes;
 use crate::utils::{
-    error_tokens, get_micro_nmea_crate_ident, is_string_type, is_supported_array_type,
-    is_supported_numeric_type, UnitConversion,
+    UnitConversion, error_tokens, get_micro_nmea_crate_ident, is_string_type,
+    is_supported_array_type, is_supported_numeric_type,
 };
 
 #[derive(Debug, Clone, Copy)]

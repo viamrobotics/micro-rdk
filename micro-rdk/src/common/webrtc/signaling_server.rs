@@ -11,7 +11,7 @@ use crate::{
     },
 };
 use async_channel::{RecvError, Sender};
-use base64::{engine::general_purpose, Engine};
+use base64::{Engine, engine::general_purpose};
 use either::Either;
 use std::{collections::HashMap, io::Cursor, sync::Mutex};
 use uuid::Uuid;

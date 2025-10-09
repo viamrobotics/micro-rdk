@@ -44,14 +44,14 @@ use super::actuator::{Actuator, ActuatorError};
 use super::board::{Board, BoardType};
 use super::config::ConfigType;
 use super::encoder::{
-    Encoder, EncoderPositionType, EncoderType, COMPONENT_NAME as EncoderCompName,
+    COMPONENT_NAME as EncoderCompName, Encoder, EncoderPositionType, EncoderType,
 };
 use super::math_utils::go_for_math;
 use super::motor::{
-    Motor, MotorError, MotorPinType, MotorPinsConfig, MotorSupportedProperties, MotorType,
-    COMPONENT_NAME as MotorCompName,
+    COMPONENT_NAME as MotorCompName, Motor, MotorError, MotorPinType, MotorPinsConfig,
+    MotorSupportedProperties, MotorType,
 };
-use super::registry::{get_board_from_dependencies, ComponentRegistry, Dependency, ResourceKey};
+use super::registry::{ComponentRegistry, Dependency, ResourceKey, get_board_from_dependencies};
 use super::robot::Resource;
 
 pub(crate) fn register_models(registry: &mut ComponentRegistry) {

@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![allow(clippy::manual_try_fold)]
 use crate::common::grpc::GrpcError;
-use hyper::{http::uri::InvalidUri, Uri};
+use hyper::{Uri, http::uri::InvalidUri};
 use std::str::FromStr;
 use std::{error::Error, fmt::Debug, rc::Rc, sync::Mutex};
 
@@ -595,33 +595,36 @@ mod tests {
         let v: Vec<RAMStorage> = vec![ram1.clone(), ram2.clone(), ram3.clone()];
 
         assert!(!v.has_robot_credentials());
-        assert!(ram2
-            .store_robot_credentials(&CloudConfig {
+        assert!(
+            ram2.store_robot_credentials(&CloudConfig {
                 app_address: "http://downloadramstorage.org".to_owned(),
                 id: "ram2".to_owned(),
                 secret: "secret".to_owned()
             })
-            .is_ok());
+            .is_ok()
+        );
         assert!(v.has_robot_credentials());
         let cred = v.get_robot_credentials();
         assert!(cred.is_ok());
         let cred = cred.unwrap();
         assert_eq!(cred.robot_id, "ram2");
 
-        assert!(ram1
-            .store_robot_credentials(&CloudConfig {
+        assert!(
+            ram1.store_robot_credentials(&CloudConfig {
                 app_address: "http://downloadramstorage.org".to_owned(),
                 id: "ram1".to_owned(),
                 secret: "secret".to_owned()
             })
-            .is_ok());
-        assert!(ram2
-            .store_robot_credentials(&CloudConfig {
+            .is_ok()
+        );
+        assert!(
+            ram2.store_robot_credentials(&CloudConfig {
                 app_address: "http://downloadramstorage.org".to_owned(),
                 id: "ram2".to_owned(),
                 secret: "secret".to_owned()
             })
-            .is_ok());
+            .is_ok()
+        );
         assert!(v.has_robot_credentials());
         let cred = v.get_robot_credentials();
         assert!(cred.is_ok());
@@ -633,13 +636,14 @@ mod tests {
         assert!(v.reset_robot_credentials().is_ok());
         assert!(!v.has_robot_credentials());
 
-        assert!(v
-            .store_robot_credentials(&CloudConfig {
+        assert!(
+            v.store_robot_credentials(&CloudConfig {
                 app_address: "http://downloadramstorage.org".to_owned(),
                 id: "vec".to_owned(),
                 secret: "secret".to_owned()
             })
-            .is_ok());
+            .is_ok()
+        );
         assert!(v.has_robot_credentials());
         let cred = v.get_robot_credentials();
         assert!(cred.is_ok());

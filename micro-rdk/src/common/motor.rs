@@ -3,7 +3,7 @@
 #[cfg(feature = "builtin-components")]
 use {
     super::encoder::{
-        Encoder, EncoderPositionType, EncoderType, COMPONENT_NAME as EncoderCompName,
+        COMPONENT_NAME as EncoderCompName, Encoder, EncoderPositionType, EncoderType,
     },
     super::math_utils::go_for_math,
     super::{

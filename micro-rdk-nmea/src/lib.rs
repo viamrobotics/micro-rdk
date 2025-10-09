@@ -1,6 +1,6 @@
 use micro_rdk::common::registry::{ComponentRegistry, RegistryError};
 
-pub mod gen;
+pub mod generate;
 pub mod messages;
 pub mod parse_helpers;
 #[cfg(generate_nmea_definitions)]
@@ -18,10 +18,10 @@ pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryE
 #[cfg(generate_nmea_definitions)]
 #[cfg(test)]
 mod tests {
-    use base64::{engine::general_purpose, Engine};
+    use base64::{Engine, engine::general_purpose};
 
     use crate::{
-        gen::messages::{Pgn128267Message, MESSAGE_DATA_OFFSET},
+        generate::messages::{MESSAGE_DATA_OFFSET, Pgn128267Message},
         messages::message::Message,
         parse_helpers::{errors::NumberFieldError, parsers::DataCursor},
     };

@@ -19,7 +19,7 @@ use crate::proto::{
     },
 };
 use bytes::{BufMut, Bytes, BytesMut};
-use chrono::{format::ParseError, DateTime, Datelike, FixedOffset, Local};
+use chrono::{DateTime, Datelike, FixedOffset, Local, format::ParseError};
 use futures_lite::{Future, StreamExt};
 use http_body_util::BodyExt;
 use http_body_util::Full;
@@ -85,18 +85,18 @@ impl AppClientError {
         false
     }
     pub fn is_permission_denied(&self) -> bool {
-        if let AppClientError::AppGrpcClientError(GrpcClientError::GrpcError { code, .. }) = self {
-            if *code == 7 {
-                return true;
-            }
+        if let AppClientError::AppGrpcClientError(GrpcClientError::GrpcError { code, .. }) = self
+            && *code == 7
+        {
+            return true;
         }
         false
     }
     pub fn is_unauthenticated(&self) -> bool {
-        if let AppClientError::AppGrpcClientError(GrpcClientError::GrpcError { code, .. }) = self {
-            if *code == 16 {
-                return true;
-            }
+        if let AppClientError::AppGrpcClientError(GrpcClientError::GrpcError { code, .. }) = self
+            && *code == 16
+        {
+            return true;
         }
         false
     }

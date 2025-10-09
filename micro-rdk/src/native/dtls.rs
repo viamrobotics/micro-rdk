@@ -23,11 +23,11 @@ use crate::common::webrtc::udp_mux::UdpMux;
 
 fn dtls_log_session_key(_: &SslRef, line: &str) {
     log::info!("Loggin key data");
-    if let Ok(file) = std::env::var("SSLKEYLOGFILE") {
-        if let Ok(mut file) = OpenOptions::new().append(true).truncate(false).open(file) {
-            let _ = file.write(line.as_bytes()).unwrap();
-            let _ = file.write(b"\n").unwrap();
-        }
+    if let Ok(file) = std::env::var("SSLKEYLOGFILE")
+        && let Ok(mut file) = OpenOptions::new().append(true).truncate(false).open(file)
+    {
+        let _ = file.write(line.as_bytes()).unwrap();
+        let _ = file.write(b"\n").unwrap();
     }
 }
 

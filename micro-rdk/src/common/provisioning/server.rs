@@ -35,8 +35,8 @@ use bytes::{BufMut, Bytes, BytesMut};
 use futures_lite::Future;
 use http_body_util::BodyExt;
 use hyper::{
-    body::Incoming, header::CONTENT_TYPE, http, rt, server::conn::http2, service::Service, Request,
-    Response,
+    Request, Response, body::Incoming, header::CONTENT_TYPE, http, rt, server::conn::http2,
+    service::Service,
 };
 use prost::Message;
 use thiserror::Error;
@@ -48,24 +48,24 @@ async fn dns_server(ap_ip: Ipv4Addr) {
         let len = socket.recv_from(&mut buf).await.unwrap();
         let buf = Bytes::copy_from_slice(&buf[..len.0]);
         let mut ans = dns_message_parser::Dns::decode(buf);
-        if let Ok(ref mut msg) = ans {
-            if let Some(q) = msg.questions.first() {
-                if q.domain_name.to_string().contains("viam.setup") {
-                    let rr = dns_message_parser::rr::RR::A(dns_message_parser::rr::A {
-                        domain_name: q.domain_name.clone(),
-                        ttl: 3600,
-                        ipv4_addr: ap_ip,
-                    });
+        if let Ok(ref mut msg) = ans
+            && let Some(q) = msg.questions.first()
+        {
+            if q.domain_name.to_string().contains("viam.setup") {
+                let rr = dns_message_parser::rr::RR::A(dns_message_parser::rr::A {
+                    domain_name: q.domain_name.clone(),
+                    ttl: 3600,
+                    ipv4_addr: ap_ip,
+                });
 
-                    msg.answers.push(rr);
-                    msg.flags.qr = true;
+                msg.answers.push(rr);
+                msg.flags.qr = true;
 
-                    let buf = msg.encode().unwrap();
-                    socket.send_to(&buf, len.1).await.unwrap();
-                } else {
-                    msg.flags.qr = true;
-                    msg.flags.rcode = dns_message_parser::RCode::ServFail;
-                }
+                let buf = msg.encode().unwrap();
+                socket.send_to(&buf, len.1).await.unwrap();
+            } else {
+                msg.flags.qr = true;
+                msg.flags.rcode = dns_message_parser::RCode::ServFail;
             }
         }
         drop(ans);
@@ -414,9 +414,9 @@ where
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
     I: rt::Read + rt::Write + std::marker::Unpin + 'static,
     E: rt::bounds::Http2ServerConnExec<
-        <ProvisioningService<S> as Service<Request<Incoming>>>::Future,
-        GrpcBody,
-    >,
+            <ProvisioningService<S> as Service<Request<Incoming>>>::Future,
+            GrpcBody,
+        >,
 {
     type Output = Result<(), hyper::Error>;
     fn poll(
@@ -437,9 +437,9 @@ where
     ServerError: From<<S as RobotConfigurationStorage>::Error>,
     I: rt::Read + rt::Write + std::marker::Unpin + 'static,
     E: rt::bounds::Http2ServerConnExec<
-        <ProvisioningService<S> as Service<Request<Incoming>>>::Future,
-        GrpcBody,
-    >,
+            <ProvisioningService<S> as Service<Request<Incoming>>>::Future,
+            GrpcBody,
+        >,
 {
     pub(crate) fn new(service: ProvisioningService<S>, executor: E, stream: I) -> Self {
         let credential_ready = service.get_credential_ready();
@@ -693,12 +693,12 @@ mod tests {
     use http_body_util::BodyExt;
     use http_body_util::Full;
     use hyper::{
-        header::{CONTENT_TYPE, TE},
         Method,
+        header::{CONTENT_TYPE, TE},
     };
     use mdns_sd::ServiceEvent;
     use prost::Message;
-    use rand::{distr::Alphanumeric, Rng};
+    use rand::{Rng, distr::Alphanumeric};
 
     use super::ProvisioningService;
 
@@ -1043,12 +1043,12 @@ mod tests {
 
         let addr = exec.block_on(async {
             while let Ok(event) = server_addr.recv_async().await {
-                if let ServiceEvent::ServiceResolved(info) = event {
-                    if info.get_properties().get("provisioning").is_some() {
-                        let addr = *info.get_addresses().iter().take(1).next().unwrap();
-                        let port = info.get_port();
-                        return Some(SocketAddr::new(addr, port));
-                    }
+                if let ServiceEvent::ServiceResolved(info) = event
+                    && info.get_properties().get("provisioning").is_some()
+                {
+                    let addr = info.get_addresses().iter().take(1).next().unwrap();
+                    let port = info.get_port();
+                    return Some(SocketAddr::new(addr.to_ip_addr(), port));
                 }
             }
             None

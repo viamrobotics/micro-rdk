@@ -3,7 +3,7 @@ use num2words::Num2Words;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Number, Value};
 use std::collections::HashMap;
-use std::fs::{create_dir_all, File, OpenOptions};
+use std::fs::{File, OpenOptions, create_dir_all};
 use std::io::{BufReader, Write};
 use std::path::Path;
 use std::slice::Iter;
@@ -30,7 +30,7 @@ fn clean_string_for_rust(input: &str, case: Case) -> String {
         .collect();
     if filtered
         .chars()
-        .position(|c| (c.is_numeric() || (c == '_') || (c == '-')))
+        .position(|c| c.is_numeric() || (c == '_') || (c == '-'))
         .map(|idx| idx == 0)
         .unwrap_or_default()
     {

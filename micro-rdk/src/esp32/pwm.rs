@@ -1,16 +1,16 @@
 use crate::esp32::esp_idf_svc::hal::gpio::AnyIOPin;
 use crate::esp32::esp_idf_svc::hal::gpio::Pin;
 use crate::esp32::esp_idf_svc::hal::ledc::{
-    config::TimerConfig, LedcDriver, LedcTimer, LedcTimerDriver, LowSpeed, SpeedMode, CHANNEL0,
-    CHANNEL1, CHANNEL2, CHANNEL3, CHANNEL4, CHANNEL5, TIMER0, TIMER1, TIMER2, TIMER3,
+    CHANNEL0, CHANNEL1, CHANNEL2, CHANNEL3, CHANNEL4, CHANNEL5, LedcDriver, LedcTimer,
+    LedcTimerDriver, LowSpeed, SpeedMode, TIMER0, TIMER1, TIMER2, TIMER3, config::TimerConfig,
 };
 
 use crate::esp32::esp_idf_svc::hal::peripheral::Peripheral;
 use crate::esp32::esp_idf_svc::hal::prelude::FromValueType;
 use crate::esp32::esp_idf_svc::sys::{
-    ledc_bind_channel_timer, ledc_get_freq, ledc_timer_t, EspError,
+    EspError, ledc_bind_channel_timer, ledc_get_freq, ledc_timer_t,
 };
-use bitfield::{bitfield, Bit, BitMut};
+use bitfield::{Bit, BitMut, bitfield};
 use once_cell::sync::Lazy;
 use std::cell::OnceCell;
 use std::fmt::Debug;

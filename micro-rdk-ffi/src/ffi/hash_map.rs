@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    ffi::{c_char, c_void, CStr, CString},
+    ffi::{CStr, CString, c_char, c_void},
 };
 
 use super::errors::viam_code;
@@ -32,7 +32,7 @@ pub struct hashmap_cstring_ptr {
 /// Use the returned pointer to store key value pairs using the C API
 /// the pointer returned will remain valid until the call to `hashmap_cstring_ptr_destroy` after which
 /// the pointer shouldn't be used again
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmap_cstring_ptr_new() -> *mut hashmap_cstring_ptr {
     Box::into_raw(Box::default())
 }
@@ -43,7 +43,7 @@ pub extern "C" fn hashmap_cstring_ptr_new() -> *mut hashmap_cstring_ptr {
 /// If callback is not null it will be called on each key value pairs
 /// # Safety
 /// `ctx` must be a valid pointer
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn hashmap_cstring_ptr_destroy(
     ctx: *mut hashmap_cstring_ptr,
     user_data: *mut c_void,
@@ -67,7 +67,7 @@ pub unsafe extern "C" fn hashmap_cstring_ptr_destroy(
 /// hashmap_cstring_ptr_remove
 /// # Safety
 /// `ctx` and `key` must be valid pointers
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn hashmap_cstring_ptr_get(
     ctx: *mut hashmap_cstring_ptr,
     key: *const c_char,
@@ -86,7 +86,7 @@ pub unsafe extern "C" fn hashmap_cstring_ptr_get(
 /// # Safety
 /// `ctx` must be a valid pointer
 /// `callback` must be a valid callback
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn hashmap_cstring_ptr_for_each_kv(
     ctx: *mut hashmap_cstring_ptr,
     user_data: *mut c_void,
@@ -108,7 +108,7 @@ pub unsafe extern "C" fn hashmap_cstring_ptr_for_each_kv(
 /// hashmap_cstring_ptr_get
 /// # Safety
 /// `ctx` and `key` must be valid pointers
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn hashmap_cstring_ptr_remove(
     ctx: *mut hashmap_cstring_ptr,
     key: *const c_char,
@@ -127,7 +127,7 @@ pub unsafe extern "C" fn hashmap_cstring_ptr_remove(
 /// # Safety
 /// `ctx`, `key` and ptr must be valid pointers
 /// `ptr` must remain valid until a call to hashmap_cstring_ptr_remove or hashmap_cstring_ptr_destroy
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn hashmap_cstring_ptr_insert(
     ctx: *mut hashmap_cstring_ptr,
     key: *const c_char,
@@ -147,7 +147,7 @@ pub unsafe extern "C" fn hashmap_cstring_ptr_insert(
 ///
 /// # Safety
 /// `ctx` and `callback` should be valid pointers
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn hashmap_cstring_ptr_retain(
     ctx: *mut hashmap_cstring_ptr,
     user_data: *mut c_void,

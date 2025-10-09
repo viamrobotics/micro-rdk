@@ -4,7 +4,7 @@ use crate::common::config::{AttributeError, Kind};
 use crate::common::i2c::{I2CErrors, I2CHandle};
 use crate::esp32::esp_idf_svc::hal::delay::BLOCK;
 use crate::esp32::esp_idf_svc::hal::gpio::AnyIOPin;
-use crate::esp32::esp_idf_svc::hal::i2c::{I2cConfig, I2cDriver, I2C0};
+use crate::esp32::esp_idf_svc::hal::i2c::{I2C0, I2cConfig, I2cDriver};
 use crate::esp32::esp_idf_svc::hal::units::Hertz;
 
 #[cfg(not(any(esp32c3, esp32c2, esp32c6)))]

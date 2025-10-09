@@ -23,6 +23,8 @@ use crate::{
         robot,
     },
 };
+
+#[allow(unused_imports)]
 use log::*;
 
 #[cfg(feature = "data")]
@@ -47,7 +49,7 @@ use super::{
     movement_sensor::MovementSensorType,
     power_sensor::{PowerSensor, PowerSensorType},
     registry::{
-        get_board_from_dependencies, ComponentRegistry, Dependency, RegistryError, ResourceKey,
+        ComponentRegistry, Dependency, RegistryError, ResourceKey, get_board_from_dependencies,
     },
     sensor::SensorType,
     servo::{Servo, ServoType},
@@ -961,11 +963,13 @@ mod tests {
 
         assert!(board.is_some());
 
-        assert!(board
-            .as_ref()
-            .unwrap()
-            .get_analog_reader_by_name("1".to_string())
-            .is_ok());
+        assert!(
+            board
+                .as_ref()
+                .unwrap()
+                .get_analog_reader_by_name("1".to_string())
+                .is_ok()
+        );
 
         let value = board
             .as_ref()
@@ -984,22 +988,26 @@ mod tests {
         let bytes: [u8; 3] = [0, 1, 2];
         assert!(i2c_driver.as_mut().unwrap().write_i2c(0, &bytes).is_ok());
         let mut buffer: [u8; 3] = [0, 0, 0];
-        assert!(i2c_driver
-            .as_mut()
-            .unwrap()
-            .read_i2c(0, &mut buffer)
-            .is_ok());
+        assert!(
+            i2c_driver
+                .as_mut()
+                .unwrap()
+                .read_i2c(0, &mut buffer)
+                .is_ok()
+        );
         assert!(buffer.iter().zip(bytes.iter()).all(|(a, b)| a == b));
 
         let mut i2c_driver_2 = board.as_ref().unwrap().get_i2c_by_name("i2c1".to_string());
         assert!(i2c_driver_2.is_ok());
         let init_bytes: [u8; 3] = [5, 4, 0];
         let mut buffer_2: [u8; 3] = [0, 0, 0];
-        assert!(i2c_driver_2
-            .as_mut()
-            .unwrap()
-            .read_i2c(0, &mut buffer_2)
-            .is_ok());
+        assert!(
+            i2c_driver_2
+                .as_mut()
+                .unwrap()
+                .read_i2c(0, &mut buffer_2)
+                .is_ok()
+        );
         assert!(buffer_2.iter().zip(init_bytes.iter()).all(|(a, b)| a == b));
 
         let sensor = robot.get_sensor_by_name("sensor".to_string());

@@ -9,7 +9,7 @@ use std::{
 
 use async_io::{Async, Readable};
 
-use futures_lite::{ready, AsyncRead, AsyncWrite, Future, FutureExt};
+use futures_lite::{AsyncRead, AsyncWrite, Future, FutureExt, ready};
 
 #[derive(Clone, Copy, PartialEq)]
 #[allow(clippy::upper_case_acronyms)]
@@ -336,10 +336,7 @@ impl AsyncWrite for UdpMux {
         if let Some(peer_addr) = self.peer_addr {
             Pin::new(&mut self.muxer).poll_send_to(cx, buf, peer_addr)
         } else {
-            Poll::Ready(Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "no peer set",
-            )))
+            Poll::Ready(Err(std::io::Error::other("no peer set")))
         }
     }
     fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<()>> {

@@ -15,11 +15,11 @@ use super::app_client::{AppClient, AppClientError, PeriodicAppClientTask, VIAM_F
 use super::data_collector::ResourceMethodKey;
 use super::data_store::{DataStoreError, DataStoreReader, WriteMode};
 use super::robot::{LocalRobot, RobotError};
-use super::system::{send_system_event, SystemEvent};
+use super::system::{SystemEvent, send_system_event};
 use async_io::Timer;
 use bytes::BytesMut;
-use chrono::offset::Local;
 use chrono::Datelike;
+use chrono::offset::Local;
 use futures_lite::prelude::Future;
 use futures_util::lock::Mutex as AsyncMutex;
 use prost::Message;
@@ -49,7 +49,7 @@ type CollectedReadings = Vec<(
 /// any interaction with resources managed by micro-RDK or the taking of any resources protected by lock.
 #[cfg(feature = "data-upload-hook-unstable")]
 #[linkage = "weak"]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn micro_rdk_data_manager_post_upload_hook() {}
 
 #[derive(Debug, Error)]
@@ -70,7 +70,9 @@ pub enum DataManagerError {
     InitializationRobotError(#[from] RobotError),
     #[error("sync_interval required for collection and immediate data sync")]
     MissingSyncInterval,
-    #[error("all collection intervals required to be equal to sync interval ({0} secs) for this mode of data collection")]
+    #[error(
+        "all collection intervals required to be equal to sync interval ({0} secs) for this mode of data collection"
+    )]
     CollectionSyncIntervalUnequal(u64),
 }
 
@@ -396,25 +398,24 @@ fn time_correct_reading(
             return Err(DataSyncError::NoCurrentTime);
         }
 
-        if let Some(time_received) = metadata.time_received.clone() {
-            if let Some(time_to_subtract) = get_time_to_subtract(robot_start_time, time_received)? {
-                let time_received = current_dt - time_to_subtract;
-                metadata.time_received = Some(Timestamp {
-                    seconds: time_received.timestamp(),
-                    nanos: time_received.timestamp_subsec_nanos() as i32,
-                });
-            };
-        }
-        if let Some(time_requested) = metadata.time_requested.clone() {
-            if let Some(time_to_subtract) = get_time_to_subtract(robot_start_time, time_requested)?
-            {
-                let time_requested = current_dt - time_to_subtract;
-                metadata.time_requested = Some(Timestamp {
-                    seconds: time_requested.timestamp(),
-                    nanos: time_requested.timestamp_subsec_nanos() as i32,
-                });
-            };
-        }
+        if let Some(time_received) = metadata.time_received.clone()
+            && let Some(time_to_subtract) = get_time_to_subtract(robot_start_time, time_received)?
+        {
+            let time_received = current_dt - time_to_subtract;
+            metadata.time_received = Some(Timestamp {
+                seconds: time_received.timestamp(),
+                nanos: time_received.timestamp_subsec_nanos() as i32,
+            });
+        };
+        if let Some(time_requested) = metadata.time_requested.clone()
+            && let Some(time_to_subtract) = get_time_to_subtract(robot_start_time, time_requested)?
+        {
+            let time_requested = current_dt - time_to_subtract;
+            metadata.time_requested = Some(Timestamp {
+                seconds: time_requested.timestamp(),
+                nanos: time_requested.timestamp_subsec_nanos() as i32,
+            });
+        };
     }
     Ok(())
 }
@@ -434,7 +435,7 @@ where
     StoreType: DataStore,
 {
     #[cfg(test)]
-    async fn get_store_lock(&mut self) -> futures_util::lock::MutexGuard<StoreType> {
+    async fn get_store_lock(&mut self) -> futures_util::lock::MutexGuard<'_, StoreType> {
         self.store.lock().await
     }
 
@@ -454,7 +455,11 @@ where
                     Ok(reader) => match reader.messages_remaining() {
                         Ok(num_msgs) => num_msgs,
                         Err(err) => {
-                            log::error!("could not get number of messages remaining in store for collector key ({:?}): {:?}", collector_key, err);
+                            log::error!(
+                                "could not get number of messages remaining in store for collector key ({:?}): {:?}",
+                                collector_key,
+                                err
+                            );
                             0
                         }
                     },
@@ -569,7 +574,9 @@ where
                         let data = match data {
                             Ok(data) => data,
                             Err(DataSyncError::NoCurrentTime) => {
-                                log::error!("Could not calculate data timestamps, returning without flushing store");
+                                log::error!(
+                                    "Could not calculate data timestamps, returning without flushing store"
+                                );
                                 return Ok(());
                             }
                             Err(err) => {
@@ -744,7 +751,12 @@ impl DataCollectAndSyncTask {
                                     .upload_data(app_client, &collector_key, current_upload)
                                     .await
                                 {
-                                    log::error!("error uploading data, failed to upload {:?} readings on this attempt: {}, collector: {:?}", collectors_len - idx, err, collector_key);
+                                    log::error!(
+                                        "error uploading data, failed to upload {:?} readings on this attempt: {}, collector: {:?}",
+                                        collectors_len - idx,
+                                        err,
+                                        collector_key
+                                    );
                                     break;
                                 }
                                 current_readings_size = 0;
@@ -763,7 +775,12 @@ impl DataCollectAndSyncTask {
                             .upload_data(app_client, &collector_key, readings_to_upload)
                             .await
                         {
-                            log::error!("error uploading data, failed to upload {:?} readings on this attempt: {}, collector: {:?}", collectors_len - idx, err, collector_key);
+                            log::error!(
+                                "error uploading data, failed to upload {:?} readings on this attempt: {}, collector: {:?}",
+                                collectors_len - idx,
+                                err,
+                                collector_key
+                            );
                         }
                     }
                 } else {
@@ -851,7 +868,7 @@ mod tests {
     use crate::common::data_store::{DataStoreReader, WriteMode};
     use crate::common::{
         data_collector::{
-            CollectionMethod, DataCollector, ResourceMethodKey, DEFAULT_CACHE_SIZE_KB,
+            CollectionMethod, DEFAULT_CACHE_SIZE_KB, DataCollector, ResourceMethodKey,
         },
         data_store::{DataStore, DataStoreError},
         robot::ResourceType,
@@ -861,7 +878,7 @@ mod tests {
         },
     };
     use crate::google::protobuf::value::Kind;
-    use crate::proto::app::data_sync::v1::{sensor_data::Data, SensorData};
+    use crate::proto::app::data_sync::v1::{SensorData, sensor_data::Data};
 
     #[derive(DoCommand)]
     struct TestSensorFailure {}
@@ -1351,10 +1368,12 @@ mod tests {
                     let res = read_messages_for_collector(&mut reader_2);
                     assert!(res.is_ok());
                 }
-                assert!(manager
-                    .collect_data_inner(i, robot_start_time)
-                    .await
-                    .is_ok())
+                assert!(
+                    manager
+                        .collect_data_inner(i, robot_start_time)
+                        .await
+                        .is_ok()
+                )
             }
 
             let expected_data: Vec<f64> = vec![

@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    google::protobuf::{value::Kind, Value},
+    google::protobuf::{Value, value::Kind},
     proto::component,
 };
 

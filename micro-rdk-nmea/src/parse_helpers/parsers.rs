@@ -41,10 +41,10 @@ impl DataCursor {
 
         // if the previous field overflowed into the first byte by x bits, we want
         // to shift that byte by x
-        if self.bit_offset != 0 {
-            if let Some(first_byte) = res.get_mut(0) {
-                *first_byte >>= self.bit_offset;
-            }
+        if self.bit_offset != 0
+            && let Some(first_byte) = res.get_mut(0)
+        {
+            *first_byte >>= self.bit_offset;
         }
         self.bit_offset = next_offset;
         Ok(res)
@@ -519,7 +519,7 @@ impl TryFrom<Vec<u8>> for NmeaMessageMetadata {
 
 #[cfg(test)]
 mod tests {
-    use base64::{engine::general_purpose, Engine};
+    use base64::{Engine, engine::general_purpose};
 
     use crate::{
         define_nmea_enum,

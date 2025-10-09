@@ -126,7 +126,7 @@ where
         match value {
             Kind::StructValue(v) => v
                 .iter()
-                .map(|(k, v)| (Ok((k.as_str(), v.try_into()?))))
+                .map(|(k, v)| Ok((k.as_str(), v.try_into()?)))
                 .collect(),
             _ => Err(AttributeError::ConversionImpossibleError),
         }
@@ -832,7 +832,7 @@ mod tests {
         ResourceName,
     };
 
-    use super::{ConfigApiError, API};
+    use super::{API, ConfigApiError};
 
     #[test_log::test]
     fn test_model_api() {
@@ -1068,7 +1068,7 @@ mod tests {
         use crate::proto::app::v1::{ComponentConfig, ResourceLevelServiceConfig};
         use crate::{
             common::data_collector::CollectionMethod,
-            google::protobuf::{value::Kind as PKind, ListValue, Struct, Value},
+            google::protobuf::{ListValue, Struct, Value, value::Kind as PKind},
         };
 
         let comp_config = ComponentConfig {

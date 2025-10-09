@@ -7,7 +7,7 @@ use crate::{
         config::AgentConfig,
         credentials_storage::RobotConfigurationStorage,
         grpc::ServerError,
-        system::{send_system_event, SystemEvent},
+        system::{SystemEvent, send_system_event},
     },
     proto::app::v1::RobotConfig,
 };
@@ -84,6 +84,7 @@ where
                 })
                 .await?;
 
+            #[allow(clippy::collapsible_if)] // The #[cfg(feature)] confuses clippy
             if let Some(config) = new_config.as_ref().config.as_ref() {
                 #[cfg(feature = "ota")]
                 {
@@ -123,32 +124,32 @@ where
                 }
             }
 
-            if let Ok(device_agent_config) = app_client.get_agent_config().await {
-                if let Ok(agent_config) = AgentConfig::try_from(device_agent_config.as_ref()) {
-                    log::debug!("agent config: {:?}", agent_config);
+            if let Ok(device_agent_config) = app_client.get_agent_config().await
+                && let Ok(agent_config) = AgentConfig::try_from(device_agent_config.as_ref())
+            {
+                log::debug!("agent config: {:?}", agent_config);
 
-                    let stored = self
+                let stored = self
+                    .storage
+                    .get_network_settings()
+                    .inspect_err(|e| log::warn!("failed to get networks from NVS: {}", e))
+                    .unwrap_or_default();
+
+                if agent_config.network_settings.len() != stored.len()
+                    || agent_config
+                        .network_settings
+                        .iter()
+                        .any(|net| !stored.contains(net))
+                {
+                    log::info!("new network settings found in config");
+                    if let Err(e) = self
                         .storage
-                        .get_network_settings()
-                        .inspect_err(|e| log::warn!("failed to get networks from NVS: {}", e))
-                        .unwrap_or_default();
-
-                    if agent_config.network_settings.len() != stored.len()
-                        || agent_config
-                            .network_settings
-                            .iter()
-                            .any(|net| !stored.contains(net))
+                        .store_network_settings(&agent_config.network_settings)
                     {
-                        log::info!("new network settings found in config");
-                        if let Err(e) = self
-                            .storage
-                            .store_network_settings(&agent_config.network_settings)
-                        {
-                            log::error!("failed to store network settings to nvs: {}", e);
-                        } else {
-                            log::info!("successfully stored networks to nvs");
-                            reboot = true;
-                        }
+                        log::error!("failed to store network settings to nvs: {}", e);
+                    } else {
+                        log::info!("successfully stored networks to nvs");
+                        reboot = true;
                     }
                 }
             }

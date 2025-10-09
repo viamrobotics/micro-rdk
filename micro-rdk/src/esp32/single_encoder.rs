@@ -18,7 +18,7 @@ use crate::esp32::esp_idf_svc::sys::pcnt_channel_t_PCNT_CHANNEL_0 as pcnt_channe
 use crate::esp32::esp_idf_svc::sys::pcnt_config_t;
 use crate::esp32::esp_idf_svc::sys::pcnt_evt_type_t_PCNT_EVT_H_LIM as pcnt_evt_h_lim;
 use crate::esp32::esp_idf_svc::sys::pcnt_evt_type_t_PCNT_EVT_L_LIM as pcnt_evt_l_lim;
-use crate::esp32::esp_idf_svc::sys::{esp, ESP_OK};
+use crate::esp32::esp_idf_svc::sys::{ESP_OK, esp};
 use core::ffi::{c_short, c_ulong};
 
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
@@ -222,14 +222,16 @@ impl Esp32SingleEncoder {
     }
 
     #[inline(always)]
-    #[link_section = ".iram1.pcnt_srv"]
+    #[unsafe(link_section = ".iram1.pcnt_srv")]
     unsafe extern "C" fn irq_handler(arg: *mut core::ffi::c_void) {
-        let arg: &mut PulseStorage = &mut *(arg as *mut _);
+        let arg: &mut PulseStorage = unsafe { &mut *(arg as *mut _) };
         let mut status = 0;
-        crate::esp32::esp_idf_svc::sys::pcnt_get_event_status(
-            arg.unit,
-            &mut status as *mut c_ulong,
-        );
+        unsafe {
+            crate::esp32::esp_idf_svc::sys::pcnt_get_event_status(
+                arg.unit,
+                &mut status as *mut c_ulong,
+            )
+        };
         if arg.moving_forwards.load(Ordering::Relaxed) {
             if status & pcnt_evt_h_lim != 0 {
                 arg.acc.fetch_add(1, Ordering::SeqCst);

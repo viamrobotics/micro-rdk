@@ -10,12 +10,12 @@ use std::os::unix::fs::FileExt;
 #[cfg(target_family = "windows")]
 use std::os::windows::fs::FileExt;
 
-use clap::{arg, command, Args, Parser, Subcommand};
-use dialoguer::{theme::ColorfulTheme, Input, Password};
+use clap::{Args, Parser, Subcommand, arg, command};
+use dialoguer::{Input, Password, theme::ColorfulTheme};
 use esp_idf_part::PartitionTable;
 use espflash::cli::{
-    config::Config, connect, monitor::monitor, serial_monitor, ConnectArgs, EspflashProgress,
-    FlashArgs, MonitorArgs,
+    ConnectArgs, EspflashProgress, FlashArgs, MonitorArgs, config::Config, connect,
+    monitor::monitor, serial_monitor,
 };
 use micro_rdk_installer::{
     error::Error,
@@ -194,7 +194,10 @@ fn validate_version(version: &str) -> Result<String, String> {
             .ok_or(format!("{} is not a valid version string", version))?;
 
         if requested_version < version_019 {
-            return Err(format!("this version of the installer does not support version of micro-rdk < 0.1.9. If you want to install micro-rdk {} please downgrade the installer to v0.1.8 first",version));
+            return Err(format!(
+                "this version of the installer does not support version of micro-rdk < 0.1.9. If you want to install micro-rdk {} please downgrade the installer to v0.1.8 first",
+                version
+            ));
         }
     }
     Ok(version.to_owned())
@@ -567,5 +570,7 @@ fn update_app_image(args: &AppImageArgs) -> Result<(), Error> {
 }
 
 fn monitor_message() {
-    log::info!("In order to begin monitoring (viewing the log output), you must run the command to reset the chip (e.g. Ctrl-R)");
+    log::info!(
+        "In order to begin monitoring (viewing the log output), you must run the command to reset the chip (e.g. Ctrl-R)"
+    );
 }

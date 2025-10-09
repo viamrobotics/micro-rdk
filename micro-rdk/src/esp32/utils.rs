@@ -7,7 +7,7 @@ macro_rules! esp32_print_heap_summary {
         #[cfg(debug_assertions)]
         {
             use $crate::esp32::esp_idf_svc::sys::{
-                heap_caps_get_free_size, heap_caps_get_total_size, MALLOC_CAP_8BIT,
+                MALLOC_CAP_8BIT, heap_caps_get_free_size, heap_caps_get_total_size,
             };
             let total = unsafe { heap_caps_get_total_size(MALLOC_CAP_8BIT) };
             let free = unsafe { heap_caps_get_free_size(MALLOC_CAP_8BIT) };
@@ -22,8 +22,8 @@ macro_rules! esp32_print_heap_internal_summary {
         #[cfg(debug_assertions)]
         {
             use $crate::esp32::esp_idf_svc::sys::{
-                heap_caps_get_free_size, heap_caps_get_total_size, MALLOC_CAP_8BIT,
-                MALLOC_CAP_INTERNAL,
+                MALLOC_CAP_8BIT, MALLOC_CAP_INTERNAL, heap_caps_get_free_size,
+                heap_caps_get_total_size,
             };
             let total = unsafe { heap_caps_get_total_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) };
             let free = unsafe { heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) };
@@ -38,8 +38,8 @@ macro_rules! esp32_print_heap_spiram_summary {
         #[cfg(debug_assertions)]
         {
             use $crate::esp32::esp_idf_svc::sys::{
-                heap_caps_get_free_size, heap_caps_get_total_size, MALLOC_CAP_8BIT,
-                MALLOC_CAP_SPIRAM,
+                MALLOC_CAP_8BIT, MALLOC_CAP_SPIRAM, heap_caps_get_free_size,
+                heap_caps_get_total_size,
             };
             let total = unsafe { heap_caps_get_total_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) };
             let free = unsafe { heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) };

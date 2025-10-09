@@ -1,8 +1,8 @@
 //! The exec module exposes helpers to execute futures
 use async_executor::{LocalExecutor, Task};
 use futures_lite::{
-    future::{self, block_on},
     Future,
+    future::{self, block_on},
 };
 
 use crate::common::{provisioning::server::ProvisioningExecutor, webrtc::exec::WebRtcExecutor};

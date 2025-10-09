@@ -11,16 +11,15 @@ fn find_ulp_sources<P: AsRef<Path>>(dir: P) -> io::Result<Vec<PathBuf>> {
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();
-        if path.is_file() {
-            if let Some(extension) = path.extension() {
-                if extension == "S" {
-                    println!(
-                        "cargo:rerun-if-changed={}",
-                        path.as_os_str().to_str().unwrap()
-                    );
-                    ulp_sources.push(path);
-                }
-            }
+        if path.is_file()
+            && let Some(extension) = path.extension()
+            && extension == "S"
+        {
+            println!(
+                "cargo:rerun-if-changed={}",
+                path.as_os_str().to_str().unwrap()
+            );
+            ulp_sources.push(path);
         }
     }
 
@@ -29,7 +28,7 @@ fn find_ulp_sources<P: AsRef<Path>>(dir: P) -> io::Result<Vec<PathBuf>> {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo::rustc-check-cfg=cfg(esp_idf_ulp_coproc_type_fsm, esp_idf_ulp_coproc_enabled)");
-    if Regex::new(r"\w+-esp3?2?s?\d?-espidf")
+    if Regex::new(r"\w+-esp32s?\d?-espidf")
         .unwrap()
         .is_match(&std::env::var("TARGET").unwrap())
     {

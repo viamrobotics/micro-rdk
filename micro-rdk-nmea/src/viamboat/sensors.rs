@@ -23,14 +23,15 @@ use std::{
 };
 
 use crate::{
-    gen::{
+    generate::{
         enums::DirectionReferenceLookup,
         messages::{NmeaMessage, NmeaMessageBody},
     },
     parse_helpers::errors::{NmeaParseError, NumberFieldError},
 };
-use base64::{engine::general_purpose, DecodeError, Engine};
+use base64::{DecodeError, Engine, engine::general_purpose};
 use micro_rdk::{
+    DoCommand, MovementSensorReadings,
     common::{
         config::ConfigType,
         math_utils::Vector3,
@@ -40,12 +41,11 @@ use micro_rdk::{
         registry::{Dependency, ResourceKey},
         robot::Resource,
         sensor::{
-            GenericReadingsResult, Readings, Sensor, SensorError, SensorType,
-            COMPONENT_NAME as SensorCompName,
+            COMPONENT_NAME as SensorCompName, GenericReadingsResult, Readings, Sensor, SensorError,
+            SensorType,
         },
     },
-    google::protobuf::{value::Kind, ListValue, Struct, Value},
-    DoCommand, MovementSensorReadings,
+    google::protobuf::{ListValue, Struct, Value, value::Kind},
 };
 use thiserror::Error;
 

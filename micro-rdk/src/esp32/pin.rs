@@ -4,12 +4,12 @@ use crate::esp32::esp_idf_svc::hal::gpio::{
     AnyIOPin, InputOutput, InterruptType, Pin, PinDriver, Pull,
 };
 use crate::esp32::esp_idf_svc::sys::{
-    esp, gpio_install_isr_service, gpio_isr_handler_add, gpio_isr_t, ESP_INTR_FLAG_IRAM,
-    SOC_GPIO_VALID_OUTPUT_GPIO_MASK,
+    ESP_INTR_FLAG_IRAM, SOC_GPIO_VALID_OUTPUT_GPIO_MASK, esp, gpio_install_isr_service,
+    gpio_isr_handler_add, gpio_isr_t,
 };
 use once_cell::sync::{Lazy, OnceCell};
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 pub trait PinExt {
     fn pin(&self) -> i32;
@@ -221,9 +221,9 @@ impl Esp32GPIOPin {
     }
 
     #[inline(always)]
-    #[link_section = ".iram1.intr_srv"]
+    #[unsafe(link_section = ".iram1.intr_srv")]
     pub(crate) unsafe extern "C" fn default_interrupt(arg: *mut core::ffi::c_void) {
-        let arg: &mut Arc<AtomicU32> = &mut *(arg as *mut _);
+        let arg: &mut Arc<AtomicU32> = unsafe { &mut *(arg as *mut _) };
         arg.fetch_add(1, Ordering::Relaxed);
     }
 }

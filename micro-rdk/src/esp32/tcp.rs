@@ -2,14 +2,14 @@ use crate::common::conn::viam::{HTTP2Stream, IntoHttp2Stream, ViamH2Connector};
 use async_io::Async;
 
 use esp_idf_svc::sys::{
-    esp, esp_crt_bundle_attach, esp_tls_cfg, esp_tls_cfg_server, esp_tls_conn_destroy,
+    EspError, esp, esp_crt_bundle_attach, esp_tls_cfg, esp_tls_cfg_server, esp_tls_conn_destroy,
     esp_tls_get_ssl_context, esp_tls_init, esp_tls_server_session_create, esp_tls_t,
-    mbedtls_ssl_conf_read_timeout, mbedtls_ssl_config, mbedtls_ssl_context, EspError,
+    mbedtls_ssl_conf_read_timeout, mbedtls_ssl_config, mbedtls_ssl_context,
 };
 use futures_lite::FutureExt;
-use futures_lite::{ready, AsyncRead, AsyncWrite, Future};
-use hyper::{rt, Uri};
-use std::ffi::{c_char, c_void, CString};
+use futures_lite::{AsyncRead, AsyncWrite, Future, ready};
+use hyper::{Uri, rt};
+use std::ffi::{CString, c_char, c_void};
 use std::mem::{self, MaybeUninit};
 
 use std::ops::Deref;
@@ -23,7 +23,7 @@ use std::{
 
 use super::dtls::{AsyncSSLStream, SSLContext, SSLError};
 
-extern "C" {
+unsafe extern "C" {
     fn esp_create_mbedtls_handle(
         hostname: *const c_char,
         hostlen: i32,
@@ -40,10 +40,7 @@ impl Esp32TLSContext {
     pub(crate) fn new() -> Result<Self, std::io::Error> {
         let p = unsafe { esp_tls_init() };
         if p.is_null() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "couldn't allocate tls context",
-            ));
+            return Err(std::io::Error::other("couldn't allocate tls context"));
         }
         Ok(Self(p))
     }
@@ -212,7 +209,7 @@ where
                 *tls_context
             ))
         }
-        .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+        .map_err(std::io::Error::other)?;
 
         let io = AsyncSSLStream::new(SSLContext::Esp32TLSContext(tls_context), stream).unwrap();
         Ok(Self {
@@ -328,7 +325,7 @@ where
                 cfg.get_cfg_ptr() as *const c_void,
                 *tls_context
             ))
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?
+            .map_err(std::io::Error::other)?
         };
 
         unsafe {
@@ -488,7 +485,7 @@ impl Future for Esp32StreamConnector {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let result: Self::Output = futures_lite::ready!(self.0.poll(cx))
             .map(|r| Box::new(Esp32Stream::TLSStream(r.into())) as Box<dyn HTTP2Stream>)
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err));
+            .map_err(std::io::Error::other);
 
         Poll::Ready(result)
     }
@@ -501,7 +498,7 @@ impl Future for Esp32StreamAcceptor {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let result: Self::Output = futures_lite::ready!(self.0.poll(cx))
             .map(|r| Box::new(Esp32Stream::TLSStream(r.into())) as Box<dyn HTTP2Stream>)
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err));
+            .map_err(std::io::Error::other);
 
         Poll::Ready(result)
     }

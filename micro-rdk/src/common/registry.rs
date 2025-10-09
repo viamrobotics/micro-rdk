@@ -635,9 +635,11 @@ mod tests {
         assert!(ctor.is_ok());
 
         // register test sensor
-        assert!(registry
-            .register_sensor("test_sensor".to_string(), &TestSensor::from_config)
-            .is_ok());
+        assert!(
+            registry
+                .register_sensor("test_sensor".to_string(), &TestSensor::from_config)
+                .is_ok()
+        );
 
         // check ctor
         let ctor = registry.get_sensor_constructor("test_sensor");

@@ -1,11 +1,12 @@
 use std::{
-    ffi::{c_void, CStr, CString},
+    ffi::{CStr, CString, c_void},
     fmt::{Debug, Display},
     mem::MaybeUninit,
 };
 
 use chrono::{NaiveDate, NaiveDateTime};
 use esp_idf_svc::sys::{
+    MBEDTLS_ERR_PK_BAD_INPUT_DATA, MBEDTLS_X509_CRT_VERSION_3, SHA_TYPE_SHA2_256,
     mbedtls_ctr_drbg_context, mbedtls_ctr_drbg_free, mbedtls_ctr_drbg_init,
     mbedtls_ctr_drbg_random, mbedtls_ctr_drbg_seed, mbedtls_ecp_gen_key,
     mbedtls_ecp_group_id_MBEDTLS_ECP_DP_SECP256R1, mbedtls_ecp_keypair, mbedtls_entropy_context,
@@ -18,7 +19,6 @@ use esp_idf_svc::sys::{
     mbedtls_x509write_crt_set_md_alg, mbedtls_x509write_crt_set_serial_raw,
     mbedtls_x509write_crt_set_subject_key, mbedtls_x509write_crt_set_subject_name,
     mbedtls_x509write_crt_set_validity, mbedtls_x509write_crt_set_version,
-    MBEDTLS_ERR_PK_BAD_INPUT_DATA, MBEDTLS_X509_CRT_VERSION_3, SHA_TYPE_SHA2_256,
 };
 
 use crate::common::webrtc::certificate::{Certificate, Fingerprint};
@@ -111,7 +111,7 @@ impl Debug for MbedTLSError {
 
 // TODO consider moving this function in it's own rust wrapper to be reused elsewhere
 // or patch esp-idf-sys upstream to expose it via the bindings
-extern "C" {
+unsafe extern "C" {
     fn esp_sha(sha_type: esp_idf_svc::sys::SHA_TYPE, input: *const u8, len: usize, output: *mut u8);
 }
 

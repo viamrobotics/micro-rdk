@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use base64::{engine::general_purpose, Engine};
+use base64::{Engine, engine::general_purpose};
 use micro_rdk::{
     common::sensor::GenericReadingsResult,
-    google::protobuf::{value::Kind, Value},
+    google::protobuf::{Value, value::Kind},
 };
 
 use crate::parse_helpers::{

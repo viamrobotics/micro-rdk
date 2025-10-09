@@ -1,6 +1,6 @@
 FROM debian:bookworm
 
-ARG RUST_VERSION=1.85.0
+ARG RUST_VERSION=1.89.0
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DEBCONF_NOWARNINGS="yes"
@@ -51,10 +51,10 @@ RUN RUST_VERSION=$RUST_VERSION \
 
 RUN export TARGET=$(rustc -vV | sed -En 's/^host: //p') && \
     curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash && \
-    cargo binstall --pkg-url='https://github.com/esp-rs/espflash/releases/download/v{ version }/{ name }-{ target }{ archive-suffix }' --pkg-fmt='zip' cargo-espflash@3.2.0 --install-path /usr/bin/ -y --target $TARGET && \
-    cargo binstall --pkg-url='https://github.com/esp-rs/espup/releases/download/v{ version }/{ name }-{ target }{ archive-suffix }' --pkg-fmt='zip' espup@0.11 --install-path /usr/bin/ -y --target $TARGET && \
+    cargo binstall --pkg-url='https://github.com/esp-rs/espflash/releases/download/v{ version }/{ name }-{ target }{ archive-suffix }' --pkg-fmt='zip' cargo-espflash@4.1.0 --install-path /usr/bin/ -y --target $TARGET && \
+    cargo binstall --pkg-url='https://github.com/esp-rs/espup/releases/download/v{ version }/{ name }-{ target }{ archive-suffix }' --pkg-fmt='zip' espup@0.16 --install-path /usr/bin/ -y --target $TARGET && \
     cargo binstall --pkg-url='https://github.com/esp-rs/embuild/releases/download/{ name }-v{ version }/{ name }-{ target }{ archive-suffix }' --pkg-fmt='zip' ldproxy@0.3.2 --install-path /usr/bin/ -y --target $TARGET && \
-    cargo binstall --pkg-url='https://github.com/mozilla/sccache/releases/download/v{ version }/{ name }-v{ version }-{ target }{ archive-suffix }' --pkg-fmt='tgz' sccache@0.7.7 --install-path /usr/bin/ -y --target $TARGET
+    cargo binstall --pkg-url='https://github.com/mozilla/sccache/releases/download/v{ version }/{ name }-v{ version }-{ target }{ archive-suffix }' --pkg-fmt='tgz' sccache@0.10.0 --install-path /usr/bin/ -y --target $TARGET
 
 WORKDIR /host/
 
@@ -73,7 +73,7 @@ RUN apt-get install -y ruby && gem install license_finder
 
 USER testbot
 
-RUN git clone --depth 1 -b v5.4.1 --single-branch --recurse-submodules --shallow-submodules https://github.com/espressif/esp-idf/ $ESP_ROOT/esp-idf
+RUN git clone --depth 1 -b v5.4.2 --single-branch --recurse-submodules --shallow-submodules https://github.com/espressif/esp-idf/ $ESP_ROOT/esp-idf
 
 ENV IDF_PATH=$ESP_ROOT/esp-idf
 

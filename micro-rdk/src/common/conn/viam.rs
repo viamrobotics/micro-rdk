@@ -4,9 +4,9 @@ use async_io::{Async, Timer};
 
 use futures_lite::{FutureExt, StreamExt};
 use futures_util::stream::FuturesUnordered;
-use futures_util::{select, FutureExt as FuturesUtilExt, TryFutureExt};
+use futures_util::{FutureExt as FuturesUtilExt, TryFutureExt, select};
 use hyper::server::conn::http2;
-use hyper::{rt, Uri};
+use hyper::{Uri, rt};
 use std::cell::RefCell;
 use std::future::Future;
 
@@ -30,7 +30,7 @@ use crate::common::grpc::{GrpcBody, GrpcServer, ServerError};
 use crate::common::grpc_client::GrpcClient;
 use crate::common::log::LogUploadTask;
 use crate::common::provisioning::server::{
-    serve_provisioning_async, ProvisioningInfo, WifiApConfiguration, WifiManager,
+    ProvisioningInfo, WifiApConfiguration, WifiManager, serve_provisioning_async,
 };
 use crate::common::registry::ComponentRegistry;
 use crate::common::restart_monitor::RestartMonitor;
@@ -443,18 +443,18 @@ where
             .map(Poll::Ready)
             .unwrap_or(pinned.server_task.poll(cx));
 
-        if let Some(timer) = pinned.timer {
-            if timer.poll(cx).is_ready() {
-                let app_tasks_res = match app_result {
-                    Poll::Pending => Err(errors::ServerError::ServerTaskShutdownTimeout),
-                    Poll::Ready(res) => res,
-                };
-                let server_task_res = match server_result {
-                    Poll::Pending => Err(errors::ServerError::ServerTaskShutdownTimeout),
-                    Poll::Ready(res) => res,
-                };
-                return Poll::Ready((app_tasks_res, server_task_res));
-            }
+        if let Some(timer) = pinned.timer
+            && timer.poll(cx).is_ready()
+        {
+            let app_tasks_res = match app_result {
+                Poll::Pending => Err(errors::ServerError::ServerTaskShutdownTimeout),
+                Poll::Ready(res) => res,
+            };
+            let server_task_res = match server_result {
+                Poll::Pending => Err(errors::ServerError::ServerTaskShutdownTimeout),
+                Poll::Ready(res) => res,
+            };
+            return Poll::Ready((app_tasks_res, server_task_res));
         }
 
         match (app_result, server_result) {
@@ -505,7 +505,7 @@ where
     pub fn run_until_complete(&mut self) -> ! {
         #[cfg(feature = "esp32")]
         {
-            use crate::esp32::esp_idf_svc::hal::task::watchdog::{TWDTConfig, TWDTDriver, TWDT};
+            use crate::esp32::esp_idf_svc::hal::task::watchdog::{TWDT, TWDTConfig, TWDTDriver};
             let watchdog_config = TWDTConfig {
                 duration: Duration::from_secs(180),
                 panic_on_trigger: true,
@@ -801,7 +801,9 @@ where
 
             match certs {
                 None => {
-                    log::error!("no TLS certificates found in storage or after contacting app, disabling HTTP2 server");
+                    log::error!(
+                        "no TLS certificates found in storage or after contacting app, disabling HTTP2 server"
+                    );
                     // At no point were we ever able to obtain a valid TLS certificate, so we disable HTTP2
                     let _ = std::mem::replace(&mut self.http2_server, HTTP2Server::Empty);
                 }
@@ -969,7 +971,9 @@ where
                 if shutdown_requested_nonblocking().await {
                     return Ok(());
                 } else {
-                    log::error!("reached state of completed tasks without shutdown request, additional investigation required");
+                    log::error!(
+                        "reached state of completed tasks without shutdown request, additional investigation required"
+                    );
                     return Err(errors::ServerError::ServerInvalidCompletedState);
                 }
             }
@@ -1094,16 +1098,16 @@ where
     ) -> Result<(), errors::ServerError> {
         match incoming {
             IncomingConnection::HTTP2Connection(conn) => {
-                if let HTTP2Server::HTTP2Connector(h) = self.http2_server {
-                    if self.incomming_connection_manager.get_lowest_prio() < u32::MAX {
-                        let stream = conn?;
-                        // we will have to wait for the tls context to be established before moving forward
-                        let io = h.accept_connection(stream.0)?.await?;
-                        let task = self.serve_http2_connection(io);
-                        self.incomming_connection_manager
-                            .insert_new_conn(task, u32::MAX)
-                            .await;
-                    }
+                if let HTTP2Server::HTTP2Connector(h) = self.http2_server
+                    && self.incomming_connection_manager.get_lowest_prio() < u32::MAX
+                {
+                    let stream = conn?;
+                    // we will have to wait for the tls context to be established before moving forward
+                    let io = h.accept_connection(stream.0)?.await?;
+                    let task = self.serve_http2_connection(io);
+                    self.incomming_connection_manager
+                        .insert_new_conn(task, u32::MAX)
+                        .await;
                 }
             }
 
@@ -1353,8 +1357,8 @@ mod tests {
         pin::Pin,
         rc::Rc,
         sync::{
-            atomic::{AtomicI32, Ordering},
             Arc,
+            atomic::{AtomicI32, Ordering},
         },
         time::Duration,
     };
@@ -1401,13 +1405,13 @@ mod tests {
     use futures_lite::FutureExt;
     use http_body_util::{BodyExt, Full};
     use hyper::{
+        Method,
         body::Incoming,
         header::{CONTENT_TYPE, TE},
         server::conn::http2,
         service::Service,
-        Method,
     };
-    use mdns_sd::{ServiceEvent, ServiceInfo};
+    use mdns_sd::{ResolvedService, ServiceEvent};
     use prost::Message;
     use rustls::client::ServerCertVerifier;
 
@@ -1424,10 +1428,10 @@ mod tests {
     impl AppServerInsecure {
         fn authenticate(&self, body: Bytes) -> Result<Bytes, ServerError> {
             let req = AuthenticateRequest::decode(body).unwrap();
-            if let Some(auth_fn) = &self.auth_fn {
-                if !auth_fn(&req) {
-                    return Err(ServerError::new(GrpcError::RpcPermissionDenied, None));
-                }
+            if let Some(auth_fn) = &self.auth_fn
+                && !auth_fn(&req)
+            {
+                return Err(ServerError::new(GrpcError::RpcPermissionDenied, None));
             }
             let resp = AuthenticateResponse {
                 access_token: "fake".to_string(),
@@ -1471,7 +1475,7 @@ mod tests {
             let self_signed =
                 rcgen::generate_simple_self_signed(["localhost".to_string()]).unwrap();
             let tls_certificate = self_signed.cert.pem();
-            let tls_private_key = self_signed.key_pair.serialize_pem();
+            let tls_private_key = self_signed.signing_key.serialize_pem();
             let resp = CertificateResponse {
                 id: "".to_owned(),
                 tls_certificate,
@@ -1714,7 +1718,7 @@ mod tests {
             assert!(addr.is_some());
             let addr = addr.unwrap();
             let port = record.get_port();
-            let addr = SocketAddr::new(std::net::IpAddr::V4(*addr), port);
+            let addr = SocketAddr::new(addr.into(), port);
 
             let t1 = test_connect_to(addr, cloned_exec.clone()).await;
             assert!(t1.is_ok());
@@ -1816,7 +1820,7 @@ mod tests {
             assert!(addr.is_some());
             let addr = addr.unwrap();
             let port = record.get_port();
-            let addr = SocketAddr::new(std::net::IpAddr::V4(*addr), port);
+            let addr = SocketAddr::new(addr.into(), port);
 
             let t1 = test_connect_to(addr, cloned_exec.clone()).await;
             assert!(t1.is_ok());
@@ -1967,7 +1971,7 @@ mod tests {
             assert!(addr.is_some());
             let addr = addr.unwrap();
             let port = record.get_port();
-            let addr = SocketAddr::new(std::net::IpAddr::V4(*addr), port);
+            let addr = SocketAddr::new(addr.into(), port);
 
             let ret = do_provisioning_step(cloned_exec.clone(), addr)
                 .or(async {
@@ -1996,7 +2000,7 @@ mod tests {
         _service: &str,
         prop: &str,
         name: &str,
-    ) -> Result<ServiceInfo, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<Box<ResolvedService>, Box<dyn std::error::Error + Send + Sync>> {
         let mdns_querying = mdns_sd::ServiceDaemon::new();
         assert!(mdns_querying.is_ok());
         let mdns_querying = mdns_querying.unwrap();
@@ -2007,10 +2011,11 @@ mod tests {
         let receiver = receiver.unwrap();
         loop {
             let record = receiver.recv_async().await;
-            if let ServiceEvent::ServiceResolved(srv) = record? {
-                if srv.get_property(prop).is_some() && srv.get_hostname().contains(name) {
-                    return Ok(srv);
-                }
+            if let ServiceEvent::ServiceResolved(srv) = record?
+                && srv.get_property(prop).is_some()
+                && srv.get_hostname().contains(name)
+            {
+                return Ok(srv);
             }
         }
     }

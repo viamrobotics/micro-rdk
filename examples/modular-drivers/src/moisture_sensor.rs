@@ -4,14 +4,14 @@ use std::{
 };
 
 use micro_rdk::{
+    DoCommand,
     common::{
         analog::{AnalogError, AnalogReader, AnalogReaderType},
         board::Board,
         config::ConfigType,
-        registry::{get_board_from_dependencies, ComponentRegistry, Dependency, RegistryError},
+        registry::{ComponentRegistry, Dependency, RegistryError, get_board_from_dependencies},
         sensor::{GenericReadingsResult, Readings, Sensor, SensorError, SensorResult, SensorType},
     },
-    DoCommand,
 };
 
 pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {

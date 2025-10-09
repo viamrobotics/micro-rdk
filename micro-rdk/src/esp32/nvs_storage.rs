@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use bytes::Bytes;
-use hyper::{http::uri::InvalidUri, Uri};
+use hyper::{Uri, http::uri::InvalidUri};
 use prost::Message;
 use std::{cell::RefCell, rc::Rc};
 use thiserror::Error;
@@ -17,7 +17,7 @@ use crate::{
     esp32::esp_idf_svc::{
         handle::RawHandle,
         nvs::{EspCustomNvs, EspCustomNvsPartition, EspNvs},
-        sys::{esp, nvs_get_stats, nvs_stats_t, EspError},
+        sys::{EspError, esp, nvs_get_stats, nvs_stats_t},
     },
     proto::{app::v1::RobotConfig, provisioning::v1::CloudConfig},
 };

@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use crate::{
-    google::protobuf::{value::Kind, Struct, Value},
+    google::protobuf::{Struct, Value, value::Kind},
     proto::common,
 };
 use std::{collections::HashMap, time::Duration};
@@ -118,7 +118,7 @@ pub(crate) fn go_for_math(
         return Err(UtilsInvalidArg);
     }
 
-    let rpm = rpm.clamp(-1.0 * max_rpm, max_rpm);
+    let rpm = rpm.clamp(-max_rpm, max_rpm);
 
     if revolutions == 0.0 {
         return Ok((rpm / max_rpm, None));

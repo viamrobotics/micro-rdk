@@ -23,7 +23,7 @@ use super::board::Board;
 use super::config::ConfigType;
 use super::i2c::I2CHandle;
 use super::movement_sensor::MovementSensorType;
-use super::registry::{get_board_from_dependencies, ComponentRegistry, Dependency};
+use super::registry::{ComponentRegistry, Dependency, get_board_from_dependencies};
 use super::sensor::SensorError;
 
 use std::mem::size_of;
