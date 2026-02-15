@@ -33,14 +33,14 @@ impl ViamH2Connector for NativeH2Connector {
             ))
             .map(|c| c.unwrap().into_owned())
             .collect();
-            let priv_keys = rustls_pemfile::private_key(&mut BufReader::new(
+            let priv_key = rustls_pemfile::private_key(&mut BufReader::new(
                 self.srv_key.as_ref().unwrap().as_slice(),
             ))
             .unwrap()
-            .map(|k| rustls::pki_types::PrivateKeyDer::from(rustls::pki_types::PrivatePkcs8KeyDer::from(k.secret_der().to_vec())));
+            .ok_or_else(|| std::io::Error::other("no private key found"))?;
             let mut cfg = ServerConfig::builder_with_protocol_versions(&[&rustls::version::TLS12])
                 .with_no_client_auth()
-                .with_single_cert(cert_chain, priv_keys.unwrap())
+                .with_single_cert(cert_chain, priv_key)
                 .map_err(std::io::Error::other)?;
             cfg.alpn_protocols = vec!["h2".as_bytes().to_vec()];
             Ok(Box::pin(NativeStreamAcceptor(
