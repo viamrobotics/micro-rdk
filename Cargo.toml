@@ -74,8 +74,7 @@ espflash = { git = "https://github.com/viamrobotics/espflash.git", branch = "mon
 futures = "0.3.31"
 h2 = "=0.4.12"
 futures-lite = "2"
-# TODO(RSDK-8995): Upgrade to latest `rustls` infrastructure
-futures-rustls = "~0.24"
+futures-rustls = "0.26"
 futures-util = "0.3.31"
 http-body-util = "0.1.3"
 hyper = { version = "1.8", default-features = false, features = ["server", "client", "http2"] }
@@ -106,8 +105,7 @@ reqwest = "0.12.26"
 reqwless = "0.13.0"
 # TODO(RSDK-8996): Upgrade `ringbuf` to latest release
 ringbuf = "~0.3"
-# TODO(RSDK-8995): Upgrade to latest `rustls` infrastructure
-rustls = { version = "~0.21", features = ["logging", "tls12"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "tls12", "std"] }
 rustls-pemfile = { version = "2.2" }
 scopeguard = "1.2.0"
 sctp-proto = "0.5.0"
@@ -130,5 +128,4 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 trackable = "1.3.0"
 uuid = "1.21.0"
 version-compare = "0.2"
-# TODO(RSDK-8995): Upgrade to latest `rustls` infrastructure
-webpki-roots = "~0.24"
+webpki-roots = "1.0"

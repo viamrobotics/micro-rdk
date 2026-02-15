@@ -1413,7 +1413,7 @@ mod tests {
     };
     use mdns_sd::{ResolvedService, ServiceEvent};
     use prost::Message;
-    use rustls::client::ServerCertVerifier;
+    use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 
     const LOCALHOST_URI: &str = "http://localhost:56563";
     type AuthFn = dyn Fn(&AuthenticateRequest) -> bool;
@@ -1559,16 +1559,34 @@ mod tests {
     impl ServerCertVerifier for InsecureCertAcceptor {
         fn verify_server_cert(
             &self,
-            _: &rustls::Certificate,
-            _: &[rustls::Certificate],
-            _: &rustls::ServerName,
-            _: &mut dyn Iterator<Item = &[u8]>,
+            _: &rustls::pki_types::CertificateDer<'_>,
+            _: &[rustls::pki_types::CertificateDer<'_>],
+            _: &rustls::pki_types::ServerName<'_>,
             _: &[u8],
-            _: std::time::SystemTime,
-        ) -> Result<rustls::client::ServerCertVerified, rustls::Error> {
-            // always return  yes, we **may** want to validate the generated cert for the sake
-            // of it. But considering we are running tests might not be needed.
-            Ok(rustls::client::ServerCertVerified::assertion())
+            _: rustls::pki_types::UnixTime,
+        ) -> Result<ServerCertVerified, rustls::Error> {
+            Ok(ServerCertVerified::assertion())
+        }
+        fn verify_tls12_signature(
+            &self,
+            _: &[u8],
+            _: &rustls::pki_types::CertificateDer<'_>,
+            _: &rustls::DigitallySignedStruct,
+        ) -> Result<HandshakeSignatureValid, rustls::Error> {
+            Ok(HandshakeSignatureValid::assertion())
+        }
+        fn verify_tls13_signature(
+            &self,
+            _: &[u8],
+            _: &rustls::pki_types::CertificateDer<'_>,
+            _: &rustls::DigitallySignedStruct,
+        ) -> Result<HandshakeSignatureValid, rustls::Error> {
+            Ok(HandshakeSignatureValid::assertion())
+        }
+        fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+            rustls::crypto::ring::default_provider()
+                .signature_verification_algorithms
+                .supported_schemes()
         }
     }
 
@@ -1841,7 +1859,7 @@ mod tests {
     ) -> Result<Task<()>, Box<dyn std::error::Error + Send + Sync>> {
         let stream = Async::<TcpStream>::connect(addr).await?;
         let mut cfg = rustls::ClientConfig::builder()
-            .with_safe_defaults()
+            .dangerous()
             .with_custom_certificate_verifier(Arc::new(InsecureCertAcceptor))
             .with_no_client_auth();
         cfg.alpn_protocols = vec!["h2".as_bytes().to_vec()];

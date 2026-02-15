@@ -31,7 +31,7 @@ local-signaling = []
 
 [dev-dependencies]
 env_logger.workspace = true
-rustls = { workspace = true, features = ["dangerous_configuration"] }
+rustls = { workspace = true }
 test-log.workspace = true
 
 [target.'cfg(not(target_os = "espidf"))'.dependencies]
