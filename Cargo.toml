@@ -65,11 +65,11 @@ dialoguer = "0.12.0"
 dns-message-parser = { version = "0.9", default-features = false}
 either = "1.15.0"
 embedded-hal = "1.0.0"
-embedded-svc = "~0.28"
+embedded-svc = "0.28"
 embuild = "0.33.1"
 env_logger = "0.11.8"
 esp-idf-part = "0.6.0"
-esp-idf-svc = { version = "~0.51", default-features = false }
+esp-idf-svc = { version = "0.51", default-features = false }
 espflash = { git = "https://github.com/viamrobotics/espflash.git", branch = "monitor-output" }
 futures = "0.3.31"
 h2 = "=0.4.12"
