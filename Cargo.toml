@@ -72,6 +72,7 @@ esp-idf-part = "0.6.0"
 esp-idf-svc = { version = "~0.51", default-features = false }
 espflash = { git = "https://github.com/viamrobotics/espflash.git", branch = "monitor-output" }
 futures = "0.3.31"
+h2 = "=0.4.12"
 futures-lite = "2"
 # TODO(RSDK-8995): Upgrade to latest `rustls` infrastructure
 futures-rustls = "~0.24"

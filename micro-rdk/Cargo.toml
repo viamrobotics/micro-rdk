@@ -66,6 +66,7 @@ esp-idf-svc = { workspace = true, optional = true }
 futures-lite.workspace = true
 futures-util.workspace = true
 http-body-util.workspace = true
+h2.workspace = true
 hyper.workspace = true
 log.workspace = true
 micro-rdk-macros.workspace = true
