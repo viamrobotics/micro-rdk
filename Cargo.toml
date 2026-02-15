@@ -74,7 +74,7 @@ espflash = { git = "https://github.com/viamrobotics/espflash.git", branch = "mon
 futures = "0.3.31"
 h2 = "=0.4.12"
 futures-lite = "2"
-futures-rustls = "0.26"
+futures-rustls = { version = "0.26", default-features = false }
 futures-util = "0.3.31"
 http-body-util = "0.1.3"
 hyper = { version = "1.8", default-features = false, features = ["server", "client", "http2"] }
