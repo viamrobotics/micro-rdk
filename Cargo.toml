@@ -103,8 +103,7 @@ rcgen = "0.14.6"
 regex = "1.11"
 reqwest = "0.12.26"
 reqwless = "0.13.0"
-# TODO(RSDK-8996): Upgrade `ringbuf` to latest release
-ringbuf = "~0.3"
+ringbuf = "0.4"
 rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "tls12", "std"] }
 rustls-pemfile = { version = "2.2" }
 scopeguard = "1.2.0"

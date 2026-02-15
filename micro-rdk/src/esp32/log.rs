@@ -19,7 +19,7 @@ use esp_idf_svc::sys::{esp_log_set_vprintf, va_list, vprintf_like_t};
 #[cfg(feature = "esp-idf-logs")]
 use printf_compat::output::display;
 #[cfg(feature = "esp-idf-logs")]
-use ringbuf::Rb;
+use ringbuf::traits::*;
 #[cfg(feature = "esp-idf-logs")]
 use std::{collections::HashMap, ffi::CString, sync::OnceLock};
 #[cfg(feature = "esp-idf-logs")]

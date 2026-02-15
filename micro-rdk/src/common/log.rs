@@ -4,10 +4,9 @@ use crate::{
 };
 use async_lock::Mutex as AsyncMutex;
 use chrono::Local;
-use ringbuf::{LocalRb, Rb};
+use ringbuf::{LocalRb, storage::Heap, traits::*};
 use std::{
     collections::HashMap,
-    mem::MaybeUninit,
     sync::OnceLock,
     time::{Duration, Instant},
 };
@@ -89,7 +88,7 @@ impl From<&::log::Record<'_>> for LogEntry {
     }
 }
 
-type LogBufferType = LocalRb<ViamLogEntry, Vec<MaybeUninit<ViamLogEntry>>>;
+type LogBufferType = LocalRb<Heap<ViamLogEntry>>;
 
 // We've chosen a size of 150 for the buffer due to a roughly observed maximum of 200 bytes per log message and
 // a desire to restrict the total amount of space for the cache to 30KB without losing logs to overwriting

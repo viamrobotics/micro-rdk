@@ -5,10 +5,9 @@
 use crate::proto::app::data_sync::v1::SensorData;
 use bytes::{Buf, BufMut, BytesMut};
 use prost::{DecodeError, EncodeError, Message, encoding::decode_varint, length_delimiter_len};
-use ringbuf::{Consumer, LocalRb, Producer, Rb, ring_buffer::RbBase};
+use ringbuf::{Cons, LocalRb, Prod, storage::Heap, traits::*};
 use scopeguard::defer;
 use std::{
-    mem::MaybeUninit,
     rc::Rc,
     sync::atomic::{AtomicBool, Ordering},
 };
@@ -91,7 +90,7 @@ pub trait DataStore {
 
 const MAX_ALLOWED_TOTAL_CAPACITY: usize = 64000;
 
-pub type StoreRegion = Rc<LocalRb<u8, Vec<MaybeUninit<u8>>>>;
+pub type StoreRegion = Rc<LocalRb<Heap<u8>>>;
 
 /// DefaultDataStore is a collection of ring-buffers for storing collected data. It should be
 /// treated as a global struct that should only be initialized once and is not
@@ -103,15 +102,15 @@ pub struct DefaultDataStore {
 }
 
 pub struct DefaultDataStoreReader {
-    cons: Consumer<u8, StoreRegion>,
+    cons: Cons<StoreRegion>,
     start_idx: usize,
     current_idx: usize,
     buffer_registration: Rc<AtomicBool>,
 }
 
 impl DefaultDataStoreReader {
-    fn new(cons: Consumer<u8, StoreRegion>, buffer_registration: Rc<AtomicBool>) -> Self {
-        let start_idx = cons.rb().head();
+    fn new(cons: Cons<StoreRegion>, buffer_registration: Rc<AtomicBool>) -> Self {
+        let start_idx = cons.read_index();
         Self {
             cons,
             start_idx,
@@ -258,7 +257,7 @@ impl DataStore for DefaultDataStore {
         // then it will wrap around and corrupt itself. So we should error when
         // the message is too large. The user can then reconfigure with a larger
         // cache size as a workaround
-        let buffer_capacity = buffer.capacity();
+        let buffer_capacity = buffer.capacity().get();
         if encode_len > buffer_capacity {
             return Err(DataStoreError::DataTooLarge(
                 collector_key.clone(),
@@ -271,21 +270,21 @@ impl DataStore for DefaultDataStore {
             if !matches!(write_mode, WriteMode::OverwriteOldest) {
                 return Err(DataStoreError::DataBufferFull(collector_key.clone()));
             }
-            let mut cons = unsafe { Consumer::new(buffer.clone()) };
+            let mut cons = Cons::new(buffer.clone());
             let (left, right) = cons.as_slices();
             let mut chained = Buf::chain(left, right);
             let encoded_len = decode_varint(&mut chained)? as usize;
 
             let advance = length_delimiter_len(encoded_len);
-            unsafe { cons.advance(advance) };
+            unsafe { cons.advance_read_index(advance) };
             cons.skip(encoded_len);
         }
-        unsafe {
-            let mut prod = Producer::new(buffer.clone());
-            let (left, right) = prod.free_space_as_slices();
+        {
+            let mut prod = Prod::new(buffer.clone());
+            let (left, right) = prod.vacant_slices_mut();
             let mut chained = BufMut::chain_mut(left, right);
             message.encode_length_delimited(&mut chained)?;
-            prod.advance(total_encode_len);
+            unsafe { prod.advance_write_index(total_encode_len) };
         }
         Ok(())
     }
@@ -309,7 +308,7 @@ impl DataStore for DefaultDataStore {
         let buffer_registration = Rc::clone(&self.buffer_usages[buffer_index]);
 
         Ok(DefaultDataStoreReader::new(
-            unsafe { Consumer::new(buffer) },
+            Cons::new(buffer),
             buffer_registration,
         ))
     }
