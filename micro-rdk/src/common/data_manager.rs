@@ -251,7 +251,7 @@ where
     ) -> Result<(), DataManagerError> {
         let min_interval_ms = self.min_interval_ms();
         for interval in self.collection_intervals() {
-            if loop_counter % (interval / min_interval_ms) == 0 {
+            if loop_counter.is_multiple_of(interval / min_interval_ms) {
                 self.collect_and_store_readings(interval, robot_start_time)
                     .await?;
             }
@@ -302,7 +302,7 @@ where
         robot_start_time: Instant,
     ) -> Result<CollectedReadings, DataManagerError> {
         let min_interval_ms = self.min_interval_ms();
-        if time_interval_ms % min_interval_ms != 0 {
+        if !time_interval_ms.is_multiple_of(min_interval_ms) {
             return Err(DataManagerError::ImproperTimeInterval(
                 time_interval_ms,
                 min_interval_ms,

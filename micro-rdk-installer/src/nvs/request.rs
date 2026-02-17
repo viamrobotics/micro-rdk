@@ -18,11 +18,11 @@ pub async fn download_micro_rdk_release(
 ) -> Result<PathBuf, Error> {
     let release_url = if let Some(url) = url {
         url.to_string()
-    } else if version.is_some() && version.clone().unwrap() != "latest" {
+    } else if let Some(ref ver) = version.filter(|v| v != "latest") {
         format!(
             "{}/download/{}/{}",
             RELEASES_BASE_URL,
-            version.unwrap(),
+            ver,
             BINARY_NAME
         )
     } else {

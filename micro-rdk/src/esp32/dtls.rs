@@ -151,17 +151,12 @@ extern "C" fn ssl_debug(
     log!(level, "[mbedtls] {}:{} - {}", file, line, msg);
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 enum DelayState {
+    #[default]
     Empty,
     Intermediate,
     Fin,
-}
-
-impl Default for DelayState {
-    fn default() -> Self {
-        Self::Empty
-    }
 }
 
 #[derive(Debug, Default)]

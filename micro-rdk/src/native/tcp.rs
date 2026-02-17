@@ -27,17 +27,13 @@ impl ViamH2Connector for NativeH2Connector {
         &self,
         connection: Async<TcpStream>,
     ) -> Result<std::pin::Pin<Box<dyn IntoHttp2Stream>>, std::io::Error> {
-        if self.srv_cert.is_some() && self.srv_key.is_some() {
-            let cert_chain = rustls_pemfile::certs(&mut BufReader::new(
-                self.srv_cert.as_ref().unwrap().as_slice(),
-            ))
-            .map(|c| c.unwrap().into_owned())
-            .collect();
-            let priv_key = rustls_pemfile::private_key(&mut BufReader::new(
-                self.srv_key.as_ref().unwrap().as_slice(),
-            ))
-            .unwrap()
-            .ok_or_else(|| std::io::Error::other("no private key found"))?;
+        if let (Some(srv_cert), Some(srv_key)) = (&self.srv_cert, &self.srv_key) {
+            let cert_chain = rustls_pemfile::certs(&mut BufReader::new(srv_cert.as_slice()))
+                .map(|c| c.unwrap().into_owned())
+                .collect();
+            let priv_key = rustls_pemfile::private_key(&mut BufReader::new(srv_key.as_slice()))
+                .unwrap()
+                .ok_or_else(|| std::io::Error::other("no private key found"))?;
             let mut cfg = ServerConfig::builder_with_protocol_versions(&[&rustls::version::TLS12])
                 .with_no_client_auth()
                 .with_single_cert(cert_chain, priv_key)

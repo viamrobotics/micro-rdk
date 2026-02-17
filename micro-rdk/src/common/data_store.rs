@@ -15,16 +15,11 @@ use thiserror::Error;
 
 use super::data_collector::ResourceMethodKey;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub enum WriteMode {
+    #[default]
     PreserveOrFail,
     OverwriteOldest,
-}
-
-impl Default for WriteMode {
-    fn default() -> Self {
-        Self::PreserveOrFail
-    }
 }
 
 #[derive(Clone, Error, Debug)]
