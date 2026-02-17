@@ -48,6 +48,29 @@ pub mod google {
     }
 }
 
+pub mod opentelemetry {
+    pub mod proto {
+        pub mod common {
+            pub mod v1 {
+                #![allow(clippy::all)]
+                include!("gen/opentelemetry.proto.common.v1.rs");
+            }
+        }
+        pub mod resource {
+            pub mod v1 {
+                #![allow(clippy::all)]
+                include!("gen/opentelemetry.proto.resource.v1.rs");
+            }
+        }
+        pub mod trace {
+            pub mod v1 {
+                #![allow(clippy::all)]
+                include!("gen/opentelemetry.proto.trace.v1.rs");
+            }
+        }
+    }
+}
+
 /// gRPC prototypes from definitions in [api repository](https://github.com/viamrobotics/api/tree/main/proto/viam), auto-generated
 pub mod proto {
 
@@ -99,7 +122,6 @@ pub mod proto {
         }
 
         // responsible to proto dependency, same issue as above
-        #[cfg(feature = "data")]
         pub mod data {
             pub mod v1 {
                 include!("gen/viam.app.data.v1.rs");

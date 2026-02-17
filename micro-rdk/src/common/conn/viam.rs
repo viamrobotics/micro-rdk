@@ -1603,6 +1603,7 @@ mod tests {
             id: "test-denied".to_string(),
             secret: "".to_string(),
             app_address: LOCALHOST_URI.to_owned(),
+            api_key: None,
         };
         assert!(ram_storage.store_robot_credentials(&creds).is_ok());
 
@@ -1672,6 +1673,7 @@ mod tests {
             id: "test-transient".to_string(),
             secret: "".to_string(),
             app_address: LOCALHOST_URI.to_owned(),
+            api_key: None,
         };
         assert!(ram_storage.store_robot_credentials(&creds).is_ok());
 
@@ -1780,6 +1782,7 @@ mod tests {
             id: "".to_string(),
             secret: "".to_string(),
             app_address: LOCALHOST_URI.to_owned(),
+            api_key: None,
         };
 
         assert!(ram_storage.store_robot_credentials(&creds).is_ok());
@@ -2062,6 +2065,7 @@ mod tests {
                 id: "an-id-test".to_owned(),
                 secret: "a-secret-test".to_owned(),
                 app_address: LOCALHOST_URI.to_owned(),
+                api_key: None,
             }),
         };
 
@@ -2106,6 +2110,7 @@ mod tests {
             id: "".to_string(),
             secret: "".to_string(),
             app_address: LOCALHOST_URI.to_owned(),
+            api_key: None,
         };
 
         let network = match local_ip_address::local_ip().expect("error parsing local IP") {

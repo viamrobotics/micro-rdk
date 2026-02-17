@@ -9,9 +9,10 @@ pub struct MoveRequest {
     /// Destination to move to, which can a pose in the reference frame of any frame in the robot's frame system
     #[prost(message, optional, tag="2")]
     pub destination: ::core::option::Option<super::super::super::common::v1::PoseInFrame>,
-    /// Component on the robot to move to the specified destination
+    /// Deprecated, use component_name field.
+    #[deprecated]
     #[prost(message, optional, tag="3")]
-    pub component_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
+    pub component_name_deprecated: ::core::option::Option<super::super::super::common::v1::ResourceName>,
     /// Avoid obstacles by specifying their geometries in the world state
     /// Augment the frame system of the robot by specifying additional transforms to add to it for the duration of the Move
     #[prost(message, optional, tag="4")]
@@ -19,6 +20,9 @@ pub struct MoveRequest {
     /// Constrain the way the robot will move
     #[prost(message, optional, tag="5")]
     pub constraints: ::core::option::Option<Constraints>,
+    /// Component on the robot to move to the specified destination
+    #[prost(string, tag="6")]
+    pub component_name: ::prost::alloc::string::String,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
@@ -38,18 +42,26 @@ pub struct MoveOnMapRequest {
     /// Specify a destination to, which can be any pose with respect to the SLAM map's origin
     #[prost(message, optional, tag="2")]
     pub destination: ::core::option::Option<super::super::super::common::v1::Pose>,
-    /// Component on the robot to move to the specified destination
+    /// Deprecated, use component_name field.
+    #[deprecated]
     #[prost(message, optional, tag="3")]
-    pub component_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
-    /// Name of the slam service from which the SLAM map is requested
+    pub component_name_deprecated: ::core::option::Option<super::super::super::common::v1::ResourceName>,
+    /// Deprecated, use slam_service_name field.
+    #[deprecated]
     #[prost(message, optional, tag="4")]
-    pub slam_service_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
+    pub slam_service_name_deprecated: ::core::option::Option<super::super::super::common::v1::ResourceName>,
     /// Optional set of motion configuration options
     #[prost(message, optional, tag="5")]
     pub motion_configuration: ::core::option::Option<MotionConfiguration>,
     /// Obstacles to be considered for motion planning
     #[prost(message, repeated, tag="6")]
     pub obstacles: ::prost::alloc::vec::Vec<super::super::super::common::v1::Geometry>,
+    /// Component on the robot to move to the specified destination
+    #[prost(string, tag="7")]
+    pub component_name: ::prost::alloc::string::String,
+    /// Name of the slam service from which the SLAM map is requested
+    #[prost(string, tag="8")]
+    pub slam_service_name: ::prost::alloc::string::String,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
@@ -67,10 +79,16 @@ pub struct MoveOnMapResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ObstacleDetector {
+    #[deprecated]
     #[prost(message, optional, tag="1")]
-    pub vision_service: ::core::option::Option<super::super::super::common::v1::ResourceName>,
+    pub vision_service_deprecated: ::core::option::Option<super::super::super::common::v1::ResourceName>,
+    #[deprecated]
     #[prost(message, optional, tag="2")]
-    pub camera: ::core::option::Option<super::super::super::common::v1::ResourceName>,
+    pub camera_deprecated: ::core::option::Option<super::super::super::common::v1::ResourceName>,
+    #[prost(string, tag="3")]
+    pub vision_service: ::prost::alloc::string::String,
+    #[prost(string, tag="4")]
+    pub camera: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -106,12 +124,14 @@ pub struct MoveOnGlobeRequest {
     /// Optional compass heading to achieve at the destination, in degrees [0-360)
     #[prost(double, optional, tag="3")]
     pub heading: ::core::option::Option<f64>,
-    /// Component on the robot to move to the specified destination
+    /// Deprecated, use component_name field.
+    #[deprecated]
     #[prost(message, optional, tag="4")]
-    pub component_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
-    /// Name of the movement sensor which will be used to check robot location
+    pub component_name_deprecated: ::core::option::Option<super::super::super::common::v1::ResourceName>,
+    /// Deprecated, use movement_sensor_name field.
+    #[deprecated]
     #[prost(message, optional, tag="5")]
-    pub movement_sensor_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
+    pub movement_sensor_name_deprecated: ::core::option::Option<super::super::super::common::v1::ResourceName>,
     /// Obstacles to be considered for motion planning
     #[prost(message, repeated, tag="6")]
     pub obstacles: ::prost::alloc::vec::Vec<super::super::super::common::v1::GeoGeometry>,
@@ -121,6 +141,12 @@ pub struct MoveOnGlobeRequest {
     /// Set of obstacles which the robot must remain within while navigating
     #[prost(message, repeated, tag="8")]
     pub bounding_regions: ::prost::alloc::vec::Vec<super::super::super::common::v1::GeoGeometry>,
+    /// Component on the robot to move to the specified destination
+    #[prost(string, tag="9")]
+    pub component_name: ::prost::alloc::string::String,
+    /// Name of the movement sensor which will be used to check robot location
+    #[prost(string, tag="10")]
+    pub movement_sensor_name: ::prost::alloc::string::String,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
@@ -139,9 +165,10 @@ pub struct MoveOnGlobeResponse {
 pub struct GetPoseRequest {
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
-    /// the component whose pose is being requested
+    /// Deprecated, use component_name field.
+    #[deprecated]
     #[prost(message, optional, tag="2")]
-    pub component_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
+    pub component_name_deprecated: ::core::option::Option<super::super::super::common::v1::ResourceName>,
     /// the reference frame in which the component's pose
     /// should be provided, if unset this defaults
     /// to the "world" reference frame
@@ -151,6 +178,9 @@ pub struct GetPoseRequest {
     /// to compute the component's pose
     #[prost(message, repeated, tag="4")]
     pub supplemental_transforms: ::prost::alloc::vec::Vec<super::super::super::common::v1::Transform>,
+    /// the component whose pose is being requested
+    #[prost(string, tag="5")]
+    pub component_name: ::prost::alloc::string::String,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
@@ -167,9 +197,13 @@ pub struct StopPlanRequest {
     /// The name of the motion service
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
-    /// The component of the currently executing plan to stop
+    /// Deprecated, use component_name field.
+    #[deprecated]
     #[prost(message, optional, tag="2")]
-    pub component_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
+    pub component_name_deprecated: ::core::option::Option<super::super::super::common::v1::ResourceName>,
+    /// The component of the currently executing plan to stop
+    #[prost(string, tag="3")]
+    pub component_name: ::prost::alloc::string::String,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
@@ -207,9 +241,10 @@ pub struct GetPlanRequest {
     /// The name of the motion service
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
-    /// The name of the component which was requested to be moved.
+    /// Deprecated, use component_name field.
+    #[deprecated]
     #[prost(message, optional, tag="2")]
-    pub component_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
+    pub component_name_deprecated: ::core::option::Option<super::super::super::common::v1::ResourceName>,
     /// If supplied, the response will only return
     /// the the last plan for the component / execution
     #[prost(bool, tag="3")]
@@ -217,6 +252,9 @@ pub struct GetPlanRequest {
     /// If you want to know about the plans of a previous execution
     #[prost(string, optional, tag="4")]
     pub execution_id: ::core::option::Option<::prost::alloc::string::String>,
+    /// The name of the component which was requested to be moved.
+    #[prost(string, tag="5")]
+    pub component_name: ::prost::alloc::string::String,
     /// Additional arguments to the method
     #[prost(message, optional, tag="99")]
     pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
@@ -243,9 +281,11 @@ pub struct Constraints {
     pub linear_constraint: ::prost::alloc::vec::Vec<LinearConstraint>,
     #[prost(message, repeated, tag="2")]
     pub orientation_constraint: ::prost::alloc::vec::Vec<OrientationConstraint>,
-    /// Arc constraint, Time constraint, and others will be added here when they are supported
     #[prost(message, repeated, tag="3")]
     pub collision_specification: ::prost::alloc::vec::Vec<CollisionSpecification>,
+    /// Arc constraint, Time constraint, and others will be added here when they are supported
+    #[prost(message, repeated, tag="4")]
+    pub pseudolinear_constraint: ::prost::alloc::vec::Vec<PseudolinearConstraint>,
 }
 /// LinearConstraint specifies that the component being moved should move linearly relative to its goal.
 /// It does not constrain the motion of components other than the `component_name` specified in motion.Move
@@ -258,6 +298,18 @@ pub struct LinearConstraint {
     /// Max allowable orientation deviation, in degrees, while on the shortest path between start / goal states
     #[prost(float, optional, tag="2")]
     pub orientation_tolerance_degs: ::core::option::Option<f32>,
+}
+/// PseudolinearConstraint specifies that the component being moved should not deviate from the straight-line path to their goal by
+/// more than a factor proportional to the distance from start to goal.
+/// For example, if a component is moving 100mm, then a LineToleranceFactor of 1.0 means that the component will remain within a 100mm
+/// radius of the straight-line start-goal path.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct PseudolinearConstraint {
+    #[prost(float, optional, tag="1")]
+    pub line_tolerance_factor: ::core::option::Option<f32>,
+    #[prost(float, optional, tag="2")]
+    pub orientation_tolerance_factor: ::core::option::Option<f32>,
 }
 /// OrientationConstraint specifies that the component being moved will not deviate its orientation beyond some threshold relative
 /// to the goal. It does not constrain the motion of components other than the `component_name` specified in motion.Move
@@ -311,12 +363,10 @@ pub struct PlanStatusWithId {
     /// The unique ID of the plan
     #[prost(string, tag="1")]
     pub plan_id: ::prost::alloc::string::String,
-    /// The component to be moved.
-    /// Used for tracking & stopping.
-    /// NOTE: A plan may move more components than just the
-    /// component_name.
+    /// Deprecated, use component_name field.
+    #[deprecated]
     #[prost(message, optional, tag="2")]
-    pub component_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
+    pub component_name_deprecated: ::core::option::Option<super::super::super::common::v1::ResourceName>,
     /// The unique ID which identifies the plan execution.
     /// Multiple plans will share the same execution_id if they were
     /// generated due to replanning.
@@ -324,6 +374,12 @@ pub struct PlanStatusWithId {
     pub execution_id: ::prost::alloc::string::String,
     #[prost(message, optional, tag="4")]
     pub status: ::core::option::Option<PlanStatus>,
+    /// The component to be moved.
+    /// Used for tracking & stopping.
+    /// NOTE: A plan may move more components than just the
+    /// component_name.
+    #[prost(string, tag="5")]
+    pub component_name: ::prost::alloc::string::String,
 }
 /// Plan status describes the state of a given plan at a
 /// point in time
@@ -350,12 +406,10 @@ pub struct Plan {
     /// The plan's unique ID
     #[prost(string, tag="1")]
     pub id: ::prost::alloc::string::String,
-    /// The component requested to be moved.
-    /// Used for tracking & stopping.
-    /// NOTE: A plan may move more components than just the
-    /// root component.
+    /// Deprecated, use component_name field.
+    #[deprecated]
     #[prost(message, optional, tag="2")]
-    pub component_name: ::core::option::Option<super::super::super::common::v1::ResourceName>,
+    pub component_name_deprecated: ::core::option::Option<super::super::super::common::v1::ResourceName>,
     /// The unique ID which identifies the execution.
     /// Multiple plans will share the same execution_id if they were
     /// generated due to replanning
@@ -364,6 +418,12 @@ pub struct Plan {
     /// The steps of a plan is an ordered list of plan steps
     #[prost(message, repeated, tag="4")]
     pub steps: ::prost::alloc::vec::Vec<PlanStep>,
+    /// The component requested to be moved.
+    /// Used for tracking & stopping.
+    /// NOTE: A plan may move more components than just the
+    /// root component.
+    #[prost(string, tag="5")]
+    pub component_name: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

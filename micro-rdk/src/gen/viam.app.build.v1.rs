@@ -39,6 +39,64 @@ pub struct GetLogsRequest {
     #[prost(string, tag="2")]
     pub platform: ::prost::alloc::string::String,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ReloadBuildInfo {
+    /// platform to build the reload module for
+    #[prost(string, tag="1")]
+    pub platform: ::prost::alloc::string::String,
+    /// optional working directory. defaults to repo root
+    #[prost(string, optional, tag="2")]
+    pub workdir: ::core::option::Option<::prost::alloc::string::String>,
+    /// org ID for the module
+    #[prost(string, tag="3")]
+    pub module_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StartReloadBuildRequest {
+    #[prost(oneof="start_reload_build_request::CloudBuild", tags="1, 2")]
+    pub cloud_build: ::core::option::Option<start_reload_build_request::CloudBuild>,
+}
+/// Nested message and enum types in `StartReloadBuildRequest`.
+pub mod start_reload_build_request {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum CloudBuild {
+        #[prost(message, tag="1")]
+        Package(super::super::super::packages::v1::CreatePackageRequest),
+        #[prost(message, tag="2")]
+        BuildInfo(super::ReloadBuildInfo),
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StartReloadBuildResponse {
+    #[prost(string, tag="1")]
+    pub build_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StartPackageBuildRequest {
+    /// module_id to build for
+    #[prost(string, tag="1")]
+    pub module_id: ::prost::alloc::string::String,
+    /// the version of source code to build for
+    #[prost(string, tag="2")]
+    pub package_version: ::prost::alloc::string::String,
+    /// version of the module to publish to the registry. must be valid semver2.0 string (ex: 1.2.3-rc0)
+    #[prost(string, tag="3")]
+    pub module_version: ::prost::alloc::string::String,
+    /// specify the platforms to build for (ex: linux/arm64)
+    #[prost(string, repeated, tag="4")]
+    pub platforms: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StartPackageBuildResponse {
+    #[prost(string, tag="1")]
+    pub build_id: ::prost::alloc::string::String,
+}
 /// GetLogsResponse is a streaming endpoint that may have multiple messages that belong
 /// to the same build_step if there are too many bytes to fit into a single gRPC
 /// response.
@@ -66,6 +124,8 @@ pub struct JobInfo {
     pub start_time: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
     #[prost(message, optional, tag="6")]
     pub end_time: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
+    #[prost(string, optional, tag="7")]
+    pub build_step: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

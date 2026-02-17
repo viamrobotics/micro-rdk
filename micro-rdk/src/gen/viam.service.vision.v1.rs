@@ -65,6 +65,15 @@ pub struct Detection {
     /// label associated with the detected object
     #[prost(string, tag="6")]
     pub class_name: ::prost::alloc::string::String,
+    /// the four corners of the box, in proportion to the respective image dimension
+    #[prost(double, optional, tag="7")]
+    pub x_min_normalized: ::core::option::Option<f64>,
+    #[prost(double, optional, tag="8")]
+    pub y_min_normalized: ::core::option::Option<f64>,
+    #[prost(double, optional, tag="9")]
+    pub x_max_normalized: ::core::option::Option<f64>,
+    #[prost(double, optional, tag="10")]
+    pub y_max_normalized: ::core::option::Option<f64>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

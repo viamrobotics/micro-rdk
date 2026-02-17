@@ -823,6 +823,7 @@ mod tests {
                 id: "an-id".to_owned(),
                 secret: "a-secret".to_owned(),
                 app_address: "http://localhost:56563".to_owned(),
+                api_key: None,
             }),
         };
 

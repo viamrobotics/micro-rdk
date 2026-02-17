@@ -1365,6 +1365,7 @@ impl<'a> GrpcServerInner<'a> {
 
         let resp = component::switch::v1::GetNumberOfPositionsResponse {
             number_of_positions,
+            labels: vec![],
         };
         GrpcServerInner::encode_message(resp)
     }

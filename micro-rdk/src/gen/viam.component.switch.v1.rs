@@ -40,5 +40,7 @@ pub struct GetNumberOfPositionsRequest {
 pub struct GetNumberOfPositionsResponse {
     #[prost(uint32, tag="1")]
     pub number_of_positions: u32,
+    #[prost(string, repeated, tag="2")]
+    pub labels: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 // @@protoc_insertion_point(module)

@@ -11,6 +11,8 @@ pub struct GetInferenceRequest {
     pub registry_item_version: ::prost::alloc::string::String,
     #[prost(message, optional, tag="3")]
     pub binary_id: ::core::option::Option<super::super::data::v1::BinaryId>,
+    #[prost(string, tag="5")]
+    pub binary_data_id: ::prost::alloc::string::String,
     #[prost(string, tag="4")]
     pub organization_id: ::prost::alloc::string::String,
 }

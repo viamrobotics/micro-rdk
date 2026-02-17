@@ -14,6 +14,8 @@ pub struct DataCaptureUploadRequest {
 pub struct DataCaptureUploadResponse {
     #[prost(string, tag="1")]
     pub file_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub binary_data_id: ::prost::alloc::string::String,
 }
 /// FileUploadRequest requests to upload the contents and metadata for binary (image + file) data.
 /// The first packet must be the UploadMetadata associated with the binary data.
@@ -38,8 +40,11 @@ pub mod file_upload_request {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FileUploadResponse {
+    #[deprecated]
     #[prost(string, tag="1")]
     pub file_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub binary_data_id: ::prost::alloc::string::String,
 }
 /// StreamingDataCaptureUploadRequest requests to upload the contents and metadata for streaming binary (image + file) data.
 /// The first packet must be the DataCaptureUploadMetadata associated with the data.
@@ -64,8 +69,11 @@ pub mod streaming_data_capture_upload_request {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StreamingDataCaptureUploadResponse {
+    #[deprecated]
     #[prost(string, tag="1")]
     pub file_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub binary_data_id: ::prost::alloc::string::String,
 }
 /// SensorMetadata contains the time the sensor data was requested and was
 /// received.
@@ -122,14 +130,22 @@ pub struct UploadMetadata {
     pub method_name: ::prost::alloc::string::String,
     #[prost(enumeration="DataType", tag="6")]
     pub r#type: i32,
-    #[prost(string, tag="7")]
-    pub file_name: ::prost::alloc::string::String,
     #[prost(map="string, message", tag="8")]
     pub method_parameters: ::std::collections::HashMap<::prost::alloc::string::String, super::super::super::super::google::protobuf::Any>,
+    #[prost(string, tag="7")]
+    pub file_name: ::prost::alloc::string::String,
     #[prost(string, tag="9")]
     pub file_extension: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="14")]
+    pub file_create_time: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
+    #[prost(message, optional, tag="15")]
+    pub file_modify_time: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
     #[prost(string, repeated, tag="10")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(string, repeated, tag="12")]
+    pub dataset_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(string, tag="13")]
+    pub mime_type: ::prost::alloc::string::String,
 }
 /// CaptureInterval specifies the start and end times of the data capture.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -175,6 +191,7 @@ pub enum MimeType {
     ImageJpeg = 1,
     ImagePng = 2,
     ApplicationPcd = 3,
+    VideoMp4 = 4,
 }
 impl MimeType {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -187,6 +204,7 @@ impl MimeType {
             MimeType::ImageJpeg => "MIME_TYPE_IMAGE_JPEG",
             MimeType::ImagePng => "MIME_TYPE_IMAGE_PNG",
             MimeType::ApplicationPcd => "MIME_TYPE_APPLICATION_PCD",
+            MimeType::VideoMp4 => "MIME_TYPE_VIDEO_MP4",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -196,6 +214,7 @@ impl MimeType {
             "MIME_TYPE_IMAGE_JPEG" => Some(Self::ImageJpeg),
             "MIME_TYPE_IMAGE_PNG" => Some(Self::ImagePng),
             "MIME_TYPE_APPLICATION_PCD" => Some(Self::ApplicationPcd),
+            "MIME_TYPE_VIDEO_MP4" => Some(Self::VideoMp4),
             _ => None,
         }
     }

@@ -76,5 +76,7 @@ pub struct ValidateConfigRequest {
 pub struct ValidateConfigResponse {
     #[prost(string, repeated, tag="1")]
     pub dependencies: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(string, repeated, tag="2")]
+    pub optional_dependencies: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 // @@protoc_insertion_point(module)

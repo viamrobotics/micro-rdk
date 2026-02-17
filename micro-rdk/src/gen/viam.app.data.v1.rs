@@ -161,6 +161,17 @@ pub struct TabularDataBySqlResponse {
     #[prost(bytes="vec", repeated, tag="2")]
     pub raw_data: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
 }
+/// TabularDataSource specifies the data source for user queries to execute on.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TabularDataSource {
+    #[prost(enumeration="TabularDataSourceType", tag="1")]
+    pub r#type: i32,
+    /// pipeline_id is the ID of the pipeline to query. Required when using
+    /// TABULAR_DATA_SOURCE_TYPE_PIPELINE_SINK.
+    #[prost(string, optional, tag="2")]
+    pub pipeline_id: ::core::option::Option<::prost::alloc::string::String>,
+}
 /// TabularDataByMQLRequest requests tabular data using an MQL query.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -172,8 +183,16 @@ pub struct TabularDataByMqlRequest {
     /// namespace, which holds the Viam organization's tabular data.
     #[prost(bytes="vec", repeated, tag="3")]
     pub mql_binary: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    /// Deprecated, please use TABULAR_DATA_SOURCE_TYPE_HOT_STORAGE instead.
     #[prost(bool, optional, tag="4")]
     pub use_recent_data: ::core::option::Option<bool>,
+    /// data_source is an optional field that can be used to specify the data source for the query.
+    /// If not specified, the query will run on "standard" storage.
+    #[prost(message, optional, tag="6")]
+    pub data_source: ::core::option::Option<TabularDataSource>,
+    /// query_prefix_name is an optional field that can be used to specify a saved query to run
+    #[prost(string, optional, tag="7")]
+    pub query_prefix_name: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// TabularDataByMQLResponse provides unified tabular data and metadata, queried with MQL.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -196,6 +215,8 @@ pub struct ExportTabularDataRequest {
     pub method_name: ::prost::alloc::string::String,
     #[prost(message, optional, tag="5")]
     pub interval: ::core::option::Option<CaptureInterval>,
+    #[prost(message, optional, tag="6")]
+    pub additional_parameters: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 /// ExportTabularDataResponse provides unified tabular data and metadata for a single data point from the specified data source.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -240,6 +261,8 @@ pub struct GetLatestTabularDataRequest {
     pub method_name: ::prost::alloc::string::String,
     #[prost(string, tag="4")]
     pub resource_subtype: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="5")]
+    pub additional_parameters: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 /// GetLatestTabularDataResponse provides the data, time synced, and time captured of the most recent tabular data captured
 /// from the requested data source, as long as it was synced within the last year.
@@ -305,8 +328,11 @@ pub struct BinaryId {
 pub struct BinaryDataByIDsRequest {
     #[prost(bool, tag="2")]
     pub include_binary: bool,
+    #[deprecated]
     #[prost(message, repeated, tag="3")]
     pub binary_ids: ::prost::alloc::vec::Vec<BinaryId>,
+    #[prost(string, repeated, tag="4")]
+    pub binary_data_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 /// BinaryDataByIDsResponse provides the data and metadata of binary (image + file) data when a filter is provided.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -342,6 +368,8 @@ pub struct BoundingBox {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Classification {
+    #[prost(string, tag="3")]
+    pub id: ::prost::alloc::string::String,
     #[prost(string, tag="1")]
     pub label: ::prost::alloc::string::String,
     /// confidence is an optional range from 0 - 1
@@ -361,6 +389,7 @@ pub struct Annotations {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BinaryMetadata {
+    #[deprecated]
     #[prost(string, tag="1")]
     pub id: ::prost::alloc::string::String,
     #[prost(message, optional, tag="2")]
@@ -379,6 +408,8 @@ pub struct BinaryMetadata {
     pub annotations: ::core::option::Option<Annotations>,
     #[prost(string, repeated, tag="9")]
     pub dataset_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(string, tag="10")]
+    pub binary_data_id: ::prost::alloc::string::String,
 }
 /// DeleteTabularDataRequest deletes the data from the organization that is older than `delete_older_than_days`
 /// in UTC time. For example, if delete_older_than_days=1 and the request is made at 1AM EST on March 11
@@ -421,8 +452,11 @@ pub struct DeleteBinaryDataByFilterResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DeleteBinaryDataByIDsRequest {
+    #[deprecated]
     #[prost(message, repeated, tag="2")]
     pub binary_ids: ::prost::alloc::vec::Vec<BinaryId>,
+    #[prost(string, repeated, tag="3")]
+    pub binary_data_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 /// DeleteBinaryDataByIDsResponse returns the number of binary files deleted when binary ids are provided.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -435,8 +469,11 @@ pub struct DeleteBinaryDataByIDsResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AddTagsToBinaryDataByIDsRequest {
+    #[deprecated]
     #[prost(message, repeated, tag="3")]
     pub binary_ids: ::prost::alloc::vec::Vec<BinaryId>,
+    #[prost(string, repeated, tag="4")]
+    pub binary_data_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(string, repeated, tag="2")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
@@ -461,8 +498,11 @@ pub struct AddTagsToBinaryDataByFilterResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RemoveTagsFromBinaryDataByIDsRequest {
+    #[deprecated]
     #[prost(message, repeated, tag="3")]
     pub binary_ids: ::prost::alloc::vec::Vec<BinaryId>,
+    #[prost(string, repeated, tag="4")]
+    pub binary_data_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(string, repeated, tag="2")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
@@ -508,8 +548,11 @@ pub struct TagsByFilterResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AddBoundingBoxToImageByIdRequest {
+    #[deprecated]
     #[prost(message, optional, tag="7")]
     pub binary_id: ::core::option::Option<BinaryId>,
+    #[prost(string, tag="8")]
+    pub binary_data_id: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
     pub label: ::prost::alloc::string::String,
     #[prost(double, tag="3")]
@@ -520,6 +563,8 @@ pub struct AddBoundingBoxToImageByIdRequest {
     pub x_max_normalized: f64,
     #[prost(double, tag="6")]
     pub y_max_normalized: f64,
+    #[prost(double, optional, tag="9")]
+    pub confidence: ::core::option::Option<f64>,
 }
 /// AddBoundingBoxToImageByIDResponse returns the bounding box ID of the successfully added bounding box.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -532,8 +577,11 @@ pub struct AddBoundingBoxToImageByIdResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RemoveBoundingBoxFromImageByIdRequest {
+    #[deprecated]
     #[prost(message, optional, tag="3")]
     pub binary_id: ::core::option::Option<BinaryId>,
+    #[prost(string, tag="4")]
+    pub binary_data_id: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
     pub bbox_id: ::prost::alloc::string::String,
 }
@@ -545,8 +593,11 @@ pub struct RemoveBoundingBoxFromImageByIdResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct UpdateBoundingBoxRequest {
+    #[deprecated]
     #[prost(message, optional, tag="1")]
     pub binary_id: ::core::option::Option<BinaryId>,
+    #[prost(string, tag="8")]
+    pub binary_data_id: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
     pub bbox_id: ::prost::alloc::string::String,
     #[prost(string, optional, tag="3")]
@@ -559,6 +610,8 @@ pub struct UpdateBoundingBoxRequest {
     pub x_max_normalized: ::core::option::Option<f64>,
     #[prost(double, optional, tag="7")]
     pub y_max_normalized: ::core::option::Option<f64>,
+    #[prost(double, optional, tag="9")]
+    pub confidence: ::core::option::Option<f64>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -617,8 +670,11 @@ pub struct GetDatabaseConnectionResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AddBinaryDataToDatasetByIDsRequest {
+    #[deprecated]
     #[prost(message, repeated, tag="1")]
     pub binary_ids: ::prost::alloc::vec::Vec<BinaryId>,
+    #[prost(string, repeated, tag="3")]
+    pub binary_data_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(string, tag="2")]
     pub dataset_id: ::prost::alloc::string::String,
 }
@@ -630,14 +686,192 @@ pub struct AddBinaryDataToDatasetByIDsResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RemoveBinaryDataFromDatasetByIDsRequest {
+    #[deprecated]
     #[prost(message, repeated, tag="1")]
     pub binary_ids: ::prost::alloc::vec::Vec<BinaryId>,
+    #[prost(string, repeated, tag="3")]
+    pub binary_data_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(string, tag="2")]
     pub dataset_id: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RemoveBinaryDataFromDatasetByIDsResponse {
+}
+/// CreateIndexRequest starts a custom index build
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateIndexRequest {
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+    #[prost(enumeration="IndexableCollection", tag="2")]
+    pub collection_type: i32,
+    #[prost(string, optional, tag="3")]
+    pub pipeline_name: ::core::option::Option<::prost::alloc::string::String>,
+    /// index_spec accepts a MongoDB index specification defined in JSON format
+    #[prost(bytes="vec", repeated, tag="4")]
+    pub index_spec: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateIndexResponse {
+}
+/// DeleteIndexRequest drops the specified custom index from a collection
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DeleteIndexRequest {
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+    #[prost(enumeration="IndexableCollection", tag="2")]
+    pub collection_type: i32,
+    #[prost(string, optional, tag="3")]
+    pub pipeline_name: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, tag="4")]
+    pub index_name: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DeleteIndexResponse {
+}
+/// ListIndexesRequest returns all the indexes for a given collection
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListIndexesRequest {
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+    #[prost(enumeration="IndexableCollection", tag="2")]
+    pub collection_type: i32,
+    #[prost(string, optional, tag="3")]
+    pub pipeline_name: ::core::option::Option<::prost::alloc::string::String>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListIndexesResponse {
+    #[prost(message, repeated, tag="1")]
+    pub indexes: ::prost::alloc::vec::Vec<Index>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Index {
+    #[prost(enumeration="IndexableCollection", tag="1")]
+    pub collection_type: i32,
+    #[prost(string, optional, tag="2")]
+    pub pipeline_name: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, tag="3")]
+    pub index_name: ::prost::alloc::string::String,
+    /// index_spec defines a MongoDB index in JSON format
+    #[prost(bytes="vec", repeated, tag="4")]
+    pub index_spec: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    #[prost(enumeration="IndexCreator", tag="5")]
+    pub created_by: i32,
+}
+/// CreateSavedQueryRequest saves a mql query.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateSavedQueryRequest {
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(bytes="vec", repeated, tag="3")]
+    pub mql_binary: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateSavedQueryResponse {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Query {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub organization_id: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(bytes="vec", repeated, tag="4")]
+    pub mql_binary: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    #[prost(message, optional, tag="5")]
+    pub created_on: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
+    #[prost(message, optional, tag="6")]
+    pub updated_at: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
+}
+/// DeleteSavedQuery deletes a saved query based on the given id.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DeleteSavedQueryRequest {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DeleteSavedQueryResponse {
+}
+/// GetSavedQuery retrieves a saved query by id.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetSavedQueryRequest {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetSavedQueryResponse {
+    #[prost(message, optional, tag="1")]
+    pub saved_query: ::core::option::Option<Query>,
+}
+/// UpdateSavedQuery updates the saved query with the given id.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UpdateSavedQueryRequest {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(bytes="vec", repeated, tag="3")]
+    pub mql_binary: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UpdateSavedQueryResponse {
+}
+/// ListSavedQueries lists saved queries for a given organization.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListSavedQueriesRequest {
+    #[prost(string, tag="1")]
+    pub organization_id: ::prost::alloc::string::String,
+    #[prost(int64, tag="2")]
+    pub limit: i64,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListSavedQueriesResponse {
+    #[prost(message, repeated, tag="1")]
+    pub queries: ::prost::alloc::vec::Vec<Query>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateBinaryDataSignedUrlRequest {
+    /// The binary data ID of the file to create a signed URL for.
+    #[prost(string, tag="1")]
+    pub binary_data_id: ::prost::alloc::string::String,
+    /// Expiration time in minutes. Defaults to 15 minutes if not specified.
+    /// Maximum allowed is 10080 minutes (7 days).
+    #[prost(uint32, optional, tag="2")]
+    pub expiration_minutes: ::core::option::Option<u32>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateBinaryDataSignedUrlResponse {
+    /// The signed URL for the binary data file.
+    #[prost(string, tag="1")]
+    pub signed_url: ::prost::alloc::string::String,
+    /// Expiration time of the signed URL token.
+    #[prost(message, optional, tag="2")]
+    pub expires_at: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
 }
 /// Order specifies the order in which data is returned.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
@@ -701,6 +935,106 @@ impl TagsFilterType {
             "TAGS_FILTER_TYPE_MATCH_BY_OR" => Some(Self::MatchByOr),
             "TAGS_FILTER_TYPE_TAGGED" => Some(Self::Tagged),
             "TAGS_FILTER_TYPE_UNTAGGED" => Some(Self::Untagged),
+            _ => None,
+        }
+    }
+}
+/// TabularDataSourceType specifies the data source type for TabularDataByMQL queries.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum TabularDataSourceType {
+    Unspecified = 0,
+    /// TABULAR_DATA_SOURCE_TYPE_STANDARD indicates reading from standard storage. This is
+    /// the default option and available for all data synced to Viam.
+    Standard = 1,
+    /// TABULAR_DATA_SOURCE_TYPE_HOT_STORAGE indicates reading from hot storage. This is a
+    /// premium feature requiring opting in specific data sources.
+    /// See docs at <https://docs.viam.com/data-ai/capture-data/advanced/advanced-data-capture-sync/#capture-to-the-hot-data-store>
+    HotStorage = 2,
+    /// TABULAR_DATA_SOURCE_TYPE_PIPELINE_SINK indicates reading the output data of
+    /// a data pipeline. When using this, a pipeline ID needs to be specified.
+    PipelineSink = 3,
+}
+impl TabularDataSourceType {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            TabularDataSourceType::Unspecified => "TABULAR_DATA_SOURCE_TYPE_UNSPECIFIED",
+            TabularDataSourceType::Standard => "TABULAR_DATA_SOURCE_TYPE_STANDARD",
+            TabularDataSourceType::HotStorage => "TABULAR_DATA_SOURCE_TYPE_HOT_STORAGE",
+            TabularDataSourceType::PipelineSink => "TABULAR_DATA_SOURCE_TYPE_PIPELINE_SINK",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "TABULAR_DATA_SOURCE_TYPE_UNSPECIFIED" => Some(Self::Unspecified),
+            "TABULAR_DATA_SOURCE_TYPE_STANDARD" => Some(Self::Standard),
+            "TABULAR_DATA_SOURCE_TYPE_HOT_STORAGE" => Some(Self::HotStorage),
+            "TABULAR_DATA_SOURCE_TYPE_PIPELINE_SINK" => Some(Self::PipelineSink),
+            _ => None,
+        }
+    }
+}
+/// IndexableCollection specifies the types of collections available for custom indexes
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum IndexableCollection {
+    Unspecified = 0,
+    HotStore = 1,
+    PipelineSink = 2,
+}
+impl IndexableCollection {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            IndexableCollection::Unspecified => "INDEXABLE_COLLECTION_UNSPECIFIED",
+            IndexableCollection::HotStore => "INDEXABLE_COLLECTION_HOT_STORE",
+            IndexableCollection::PipelineSink => "INDEXABLE_COLLECTION_PIPELINE_SINK",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "INDEXABLE_COLLECTION_UNSPECIFIED" => Some(Self::Unspecified),
+            "INDEXABLE_COLLECTION_HOT_STORE" => Some(Self::HotStore),
+            "INDEXABLE_COLLECTION_PIPELINE_SINK" => Some(Self::PipelineSink),
+            _ => None,
+        }
+    }
+}
+/// IndexCreator specifies the entity that originally created the index
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum IndexCreator {
+    Unspecified = 0,
+    Viam = 1,
+    Customer = 2,
+}
+impl IndexCreator {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            IndexCreator::Unspecified => "INDEX_CREATOR_UNSPECIFIED",
+            IndexCreator::Viam => "INDEX_CREATOR_VIAM",
+            IndexCreator::Customer => "INDEX_CREATOR_CUSTOMER",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "INDEX_CREATOR_UNSPECIFIED" => Some(Self::Unspecified),
+            "INDEX_CREATOR_VIAM" => Some(Self::Viam),
+            "INDEX_CREATOR_CUSTOMER" => Some(Self::Customer),
             _ => None,
         }
     }

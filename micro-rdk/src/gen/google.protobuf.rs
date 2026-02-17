@@ -2437,6 +2437,8 @@ pub enum Edition {
     /// comparison.
     Edition2023 = 1000,
     Edition2024 = 1001,
+    /// A placeholder edition for developing and testing unscheduled features.
+    Unstable = 9999,
     /// Placeholder editions for testing feature resolution.  These should not be
     /// used or relied on outside of tests.
     Edition1TestOnly = 1,
@@ -2462,6 +2464,7 @@ impl Edition {
             Edition::Proto3 => "EDITION_PROTO3",
             Edition::Edition2023 => "EDITION_2023",
             Edition::Edition2024 => "EDITION_2024",
+            Edition::Unstable => "EDITION_UNSTABLE",
             Edition::Edition1TestOnly => "EDITION_1_TEST_ONLY",
             Edition::Edition2TestOnly => "EDITION_2_TEST_ONLY",
             Edition::Edition99997TestOnly => "EDITION_99997_TEST_ONLY",
@@ -2479,6 +2482,7 @@ impl Edition {
             "EDITION_PROTO3" => Some(Self::Proto3),
             "EDITION_2023" => Some(Self::Edition2023),
             "EDITION_2024" => Some(Self::Edition2024),
+            "EDITION_UNSTABLE" => Some(Self::Unstable),
             "EDITION_1_TEST_ONLY" => Some(Self::Edition1TestOnly),
             "EDITION_2_TEST_ONLY" => Some(Self::Edition2TestOnly),
             "EDITION_99997_TEST_ONLY" => Some(Self::Edition99997TestOnly),
@@ -3002,14 +3006,15 @@ impl NullValue {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Timestamp {
-    /// Represents seconds of UTC time since Unix epoch
-    /// 1970-01-01T00:00:00Z. Must be from 0001-01-01T00:00:00Z to
-    /// 9999-12-31T23:59:59Z inclusive.
+    /// Represents seconds of UTC time since Unix epoch 1970-01-01T00:00:00Z. Must
+    /// be between -315576000000 and 315576000000 inclusive (which corresponds to
+    /// 0001-01-01T00:00:00Z to 9999-12-31T23:59:59Z).
     #[prost(int64, tag="1")]
     pub seconds: i64,
-    /// Non-negative fractions of a second at nanosecond resolution. Negative
-    /// second values with fractions must still have non-negative nanos values
-    /// that count forward in time. Must be from 0 to 999,999,999
+    /// Non-negative fractions of a second at nanosecond resolution. This field is
+    /// the nanosecond portion of the duration, not an alternative to seconds.
+    /// Negative second values with fractions must still have non-negative nanos
+    /// values that count forward in time. Must be between 0 and 999,999,999
     /// inclusive.
     #[prost(int32, tag="2")]
     pub nanos: i32,
