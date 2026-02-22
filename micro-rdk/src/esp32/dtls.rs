@@ -13,6 +13,7 @@ use std::{
 use crate::{
     common::webrtc::{
         certificate::Certificate,
+        client_hello::ClientHelloBuffer,
         dtls::{DtlsBuilder, DtlsConnector, DtlsError, IntoDtlsStream},
         udp_mux::UdpMux,
     },
@@ -824,7 +825,96 @@ where
     }
 }
 
-pub struct DtlsAcceptor(TlsHandshake<UdpMux>);
+/// Transport wrapper that reassembles fragmented DTLS ClientHello messages
+/// before passing data to mbedtls. After the ClientHello has been consumed,
+/// delegates directly to the underlying `UdpMux`.
+struct DtlsTransport {
+    mux: UdpMux,
+    state: ClientHelloState,
+}
+
+enum ClientHelloState {
+    /// Collecting ClientHello fragments from UdpMux.
+    Reassembling(ClientHelloBuffer),
+    /// Draining the reassembled ClientHello to mbedtls.
+    Draining(ClientHelloBuffer),
+    /// ClientHello consumed; pass-through to UdpMux.
+    Done,
+}
+
+impl DtlsTransport {
+    fn new(mux: UdpMux) -> Self {
+        DtlsTransport {
+            mux,
+            state: ClientHelloState::Reassembling(ClientHelloBuffer::new()),
+        }
+    }
+}
+
+impl AsyncRead for DtlsTransport {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
+        let this = self.get_mut();
+        loop {
+            match &mut this.state {
+                ClientHelloState::Reassembling(buffer) => {
+                    let recv = buffer.recv_buf();
+                    match Pin::new(&mut this.mux).poll_read(cx, recv) {
+                        Poll::Ready(Ok(n)) => match buffer.process_recv(n) {
+                            Ok(true) => {
+                                let ClientHelloState::Reassembling(buffer) =
+                                    std::mem::replace(&mut this.state, ClientHelloState::Done)
+                                else {
+                                    unreachable!()
+                                };
+                                this.state = ClientHelloState::Draining(buffer);
+                            }
+                            Ok(false) => {
+                                // Need more fragments — loop back to poll_read
+                                // so the waker gets registered with UdpMux.
+                                continue;
+                            }
+                            Err(e) => return Poll::Ready(Err(e)),
+                        },
+                        Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
+                        Poll::Pending => return Poll::Pending,
+                    }
+                }
+                ClientHelloState::Draining(buffer) => {
+                    let n = buffer.read(buf);
+                    if n > 0 {
+                        return Poll::Ready(Ok(n));
+                    }
+                    this.state = ClientHelloState::Done;
+                }
+                ClientHelloState::Done => {
+                    return Pin::new(&mut this.mux).poll_read(cx, buf);
+                }
+            }
+        }
+    }
+}
+
+impl AsyncWrite for DtlsTransport {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        Pin::new(&mut self.get_mut().mux).poll_write(cx, buf)
+    }
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.get_mut().mux).poll_flush(cx)
+    }
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.get_mut().mux).poll_close(cx)
+    }
+}
+
+pub struct DtlsAcceptor(TlsHandshake<DtlsTransport>);
 impl IntoDtlsStream for DtlsAcceptor {}
 
 impl Future for DtlsAcceptor {
@@ -839,13 +929,13 @@ impl Future for DtlsAcceptor {
 
 impl<C: Certificate> DtlsConnector for Esp32Dtls<C> {
     fn accept(&mut self) -> Result<std::pin::Pin<Box<dyn IntoDtlsStream>>, DtlsError> {
-        let transport = self.transport.take().unwrap();
+        let transport = DtlsTransport::new(self.transport.take().unwrap());
         let mut context = Box::<DtlsSSLContext>::default();
         context.set_srtp_profiles([
             MbedTlsStrpProfile::MbedtlsSrtpAes128CmHmacSha180,
             MbedTlsStrpProfile::MbedtlsSrtpUnsetProfile,
         ]);
-        context.init::<_, UdpMux>(self.certificate.clone())?;
+        context.init::<_, DtlsTransport>(self.certificate.clone())?;
         let accept = DtlsAcceptor(TlsHandshake::Handshake(
             AsyncSSLStream::new(SSLContext::DtlsSSLContext(context), transport).unwrap(),
         ));

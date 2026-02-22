@@ -76,6 +76,8 @@ pub mod webrtc {
     pub mod api;
     pub mod candidates;
     pub mod certificate;
+    #[cfg(any(feature = "esp32", test))]
+    pub(crate) mod client_hello;
     pub mod dtls;
     pub mod exec;
     pub mod grpc;
