@@ -682,6 +682,35 @@ impl LocalRobot {
         Ok(())
     }
 
+    pub fn get_machine_status(&self) -> robot::v1::GetMachineStatusResponse {
+        let cloud_metadata = self.cloud_metadata.as_ref().map(|md| {
+            robot::v1::GetCloudMetadataResponse {
+                machine_part_id: self.part_id.clone(),
+                primary_org_id: md.org_id.clone(),
+                location_id: md.location_id.clone(),
+                machine_id: md.machine_id.clone(),
+                ..Default::default()
+            }
+        });
+
+        let resources = self
+            .resources
+            .keys()
+            .map(|name| robot::v1::ResourceStatus {
+                name: Some(name.to_proto_resource_name()),
+                state: robot::v1::resource_status::State::Ready as i32,
+                cloud_metadata: cloud_metadata.clone(),
+                ..Default::default()
+            })
+            .collect();
+
+        robot::v1::GetMachineStatusResponse {
+            resources,
+            state: robot::v1::get_machine_status_response::State::Running as i32,
+            ..Default::default()
+        }
+    }
+
     pub fn get_cloud_metadata(&self) -> Result<robot::v1::GetCloudMetadataResponse, RobotError> {
         self.cloud_metadata
             .as_ref()

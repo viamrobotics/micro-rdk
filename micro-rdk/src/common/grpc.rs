@@ -279,6 +279,7 @@ impl<'a> GrpcServerInner<'a> {
             "/viam.robot.v1.RobotService/GetOperations" => self.robot_get_operations(payload),
             "/viam.robot.v1.RobotService/Shutdown" => self.robot_shutdown(payload),
             "/viam.robot.v1.RobotService/GetCloudMetadata" => self.robot_get_cloud_metadata(),
+            "/viam.robot.v1.RobotService/GetMachineStatus" => self.robot_get_machine_status(),
             "/proto.rpc.v1.AuthService/Authenticate" => self.auth_service_authentificate(payload),
             "/proto.rpc.webrtc.v1.SignalingService/OptionalWebRTCConfig" => {
                 self.signaling_service_optional_webrtc_config(payload)
@@ -363,7 +364,10 @@ impl<'a> GrpcServerInner<'a> {
                 self.switch_get_num_positions(payload)
             }
             "/viam.component.switch.v1.SwitchService/DoCommand" => self.switch_do_command(payload),
-            _ => Err(ServerError::from(GrpcError::RpcUnimplemented)),
+            _ => {
+                log::warn!("unimplemented gRPC: {}", path);
+                Err(ServerError::from(GrpcError::RpcUnimplemented))
+            }
         }
     }
 
@@ -1396,6 +1400,11 @@ impl<'a> GrpcServerInner<'a> {
     // robot_shutdown will not return anything because will restart
     fn robot_shutdown(&mut self, _: &[u8]) -> ! {
         crate::common::runtime::terminate()
+    }
+
+    fn robot_get_machine_status(&mut self) -> Result<Bytes, ServerError> {
+        let resp = self.robot.lock().unwrap().get_machine_status();
+        GrpcServerInner::encode_message(resp)
     }
 
     fn robot_get_cloud_metadata(&mut self) -> Result<Bytes, ServerError> {
