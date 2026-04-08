@@ -28,6 +28,13 @@ pub struct GetImagesRequest {
     /// Name of a camera
     #[prost(string, tag="1")]
     pub name: ::prost::alloc::string::String,
+    /// The names of the sensors to retrieve images from. If this is not provided,
+    /// all images from all sensors will be returned.
+    #[prost(string, repeated, tag="2")]
+    pub filter_source_names: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<super::super::super::super::google::protobuf::Struct>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -51,6 +58,12 @@ pub struct Image {
     /// image in bytes
     #[prost(bytes="bytes", tag="3")]
     pub image: ::prost::bytes::Bytes,
+    /// The mime type of the image
+    #[prost(string, tag="4")]
+    pub mime_type: ::prost::alloc::string::String,
+    /// annotations can be used to store additional information about the image
+    #[prost(message, optional, tag="5")]
+    pub annotations: ::core::option::Option<super::super::super::app::data::v1::Annotations>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

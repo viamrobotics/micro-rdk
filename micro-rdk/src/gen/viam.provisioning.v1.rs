@@ -1,6 +1,14 @@
 // @generated
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ExitProvisioningRequest {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ExitProvisioningResponse {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetSmartMachineStatusRequest {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -16,6 +24,8 @@ pub struct GetSmartMachineStatusResponse {
     pub latest_connection_attempt: ::core::option::Option<NetworkInfo>,
     #[prost(string, repeated, tag="5")]
     pub errors: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(string, tag="6")]
+    pub agent_version: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -89,5 +99,15 @@ pub struct CloudConfig {
     pub secret: ::prost::alloc::string::String,
     #[prost(string, tag="3")]
     pub app_address: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="4")]
+    pub api_key: ::core::option::Option<ApiKey>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ApiKey {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub key: ::prost::alloc::string::String,
 }
 // @@protoc_insertion_point(module)

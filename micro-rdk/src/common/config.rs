@@ -496,8 +496,6 @@ impl ResourceName {
             r#type: self.api.r#type.to_string(),
             subtype: self.api.subtype.to_string(),
             name: self.name.to_string(),
-            local_name: self.name.to_string(),
-            remote_path: vec![],
         }
     }
 }

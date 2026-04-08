@@ -12,6 +12,8 @@ pub struct SubmitTrainingJobRequest {
     pub model_version: ::prost::alloc::string::String,
     #[prost(enumeration="ModelType", tag="5")]
     pub model_type: i32,
+    #[prost(enumeration="ModelFramework", tag="8")]
+    pub model_framework: i32,
     #[prost(string, repeated, tag="6")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
@@ -38,6 +40,8 @@ pub struct SubmitCustomTrainingJobRequest {
     pub model_version: ::prost::alloc::string::String,
     #[prost(map="string, string", tag="7")]
     pub arguments: ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
+    #[prost(string, tag="8")]
+    pub container_version: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -110,6 +114,10 @@ pub struct TrainingJobMetadata {
     pub synced_model_id: ::prost::alloc::string::String,
     #[prost(string, repeated, tag="16")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(map="string, string", tag="21")]
+    pub arguments: ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
+    #[prost(string, tag="22")]
+    pub container_version: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -156,6 +164,39 @@ pub struct GetTrainingJobLogsResponse {
     pub logs: ::prost::alloc::vec::Vec<TrainingJobLogEntry>,
     #[prost(string, tag="2")]
     pub next_page_token: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListSupportedContainersRequest {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListSupportedContainersResponse {
+    /// ex value:
+    /// container_map: {
+    ///    "tf:2.15": Container {
+    ///      key: "tf:2.15"
+    ///      uri: "us-docker.pkg.dev/vertex-ai/training/tf-gpu.2-15.py310:latest"
+    ///      description: "Tensorflow 2.15"
+    ///      eol: { seconds: 1772630400, nanos: 0 } // 2026-03-03T00:00:00Z
+    ///    }
+    /// }
+    #[prost(map="string, message", tag="1")]
+    pub container_map: ::std::collections::HashMap<::prost::alloc::string::String, Container>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Container {
+    #[prost(string, tag="1")]
+    pub key: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub uri: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub framework: ::prost::alloc::string::String,
+    #[prost(string, tag="4")]
+    pub description: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="5")]
+    pub eol: ::core::option::Option<super::super::super::super::google::protobuf::Timestamp>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]

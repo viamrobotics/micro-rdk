@@ -10,7 +10,7 @@ use std::os::unix::fs::FileExt;
 #[cfg(target_family = "windows")]
 use std::os::windows::fs::FileExt;
 
-use clap::{Args, Parser, Subcommand, arg, command};
+use clap::{Args, Parser, Subcommand};
 use dialoguer::{Input, Password, theme::ColorfulTheme};
 use esp_idf_part::PartitionTable;
 use espflash::cli::{

@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-VIAM_API_VERSION := v0.1.394
+VIAM_API_VERSION := v0.1.521
 
 DATE := $(shell date +%F)
 IMAGE_BASE = ghcr.io/viamrobotics/micro-rdk-dev-env

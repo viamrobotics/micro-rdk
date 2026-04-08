@@ -11,10 +11,6 @@ pub struct ResourceName {
     pub subtype: ::prost::alloc::string::String,
     #[prost(string, tag="4")]
     pub name: ::prost::alloc::string::String,
-    #[prost(string, repeated, tag="5")]
-    pub remote_path: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    #[prost(string, tag="6")]
-    pub local_name: ::prost::alloc::string::String,
 }
 /// Pose is a combination of location and orientation.
 /// Location is expressed as distance which is represented by x , y, z coordinates. Orientation is expressed as an orientation vector which
@@ -65,7 +61,7 @@ pub struct Orientation {
     #[prost(double, tag="4")]
     pub theta: f64,
 }
-/// PoseInFrame contains a pose and the and the reference frame in which it was observed
+/// PoseInFrame contains a pose and the reference frame in which it was observed
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PoseInFrame {
@@ -106,6 +102,22 @@ pub struct RectangularPrism {
     #[prost(message, optional, tag="1")]
     pub dims_mm: ::core::option::Option<Vector3>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Mesh {
+    /// Content type of mesh (e.g. ply)
+    #[prost(string, tag="1")]
+    pub content_type: ::prost::alloc::string::String,
+    /// Contents of mesh data in binary form defined by content_type
+    #[prost(bytes="vec", tag="2")]
+    pub mesh: ::prost::alloc::vec::Vec<u8>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct PointCloud {
+    #[prost(bytes="vec", tag="1")]
+    pub point_cloud: ::prost::alloc::vec::Vec<u8>,
+}
 /// Geometry contains the dimensions of a given geometry and the pose of its center. The geometry is one of either a sphere or a box.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -116,13 +128,13 @@ pub struct Geometry {
     /// Label of the geometry. If none supplied, will be an empty string.
     #[prost(string, tag="4")]
     pub label: ::prost::alloc::string::String,
-    /// Dimensions of a given geometry. This can be a sphere or box
-    #[prost(oneof="geometry::GeometryType", tags="2, 3, 5")]
+    /// Dimensions of a given geometry. This can be one of several types
+    #[prost(oneof="geometry::GeometryType", tags="2, 3, 5, 6, 7")]
     pub geometry_type: ::core::option::Option<geometry::GeometryType>,
 }
 /// Nested message and enum types in `Geometry`.
 pub mod geometry {
-    /// Dimensions of a given geometry. This can be a sphere or box
+    /// Dimensions of a given geometry. This can be one of several types
     #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum GeometryType {
@@ -132,6 +144,10 @@ pub mod geometry {
         Box(super::RectangularPrism),
         #[prost(message, tag="5")]
         Capsule(super::Capsule),
+        #[prost(message, tag="6")]
+        Mesh(super::Mesh),
+        #[prost(message, tag="7")]
+        Pointcloud(super::PointCloud),
     }
 }
 /// GeometriesinFrame contains the dimensions of a given geometry, pose of its center point, and the reference frame by which it was
@@ -191,6 +207,12 @@ pub struct Transform {
     pub pose_in_observer_frame: ::core::option::Option<PoseInFrame>,
     #[prost(message, optional, tag="3")]
     pub physical_object: ::core::option::Option<Geometry>,
+    /// The UUID of the transform
+    #[prost(bytes="vec", tag="4")]
+    pub uuid: ::prost::alloc::vec::Vec<u8>,
+    /// Can hold information like color, opacity, points colors, collision_allowed, etc...
+    #[prost(message, optional, tag="5")]
+    pub metadata: ::core::option::Option<super::super::super::google::protobuf::Struct>,
 }
 /// WorldState contains information about the physical environment around a given robot. All of the fields within this message are optional,
 /// they can include information about the physical dimensions of an obstacle, the freespace of a robot, and any desired transforms between a
@@ -259,6 +281,9 @@ pub struct GetKinematicsResponse {
     /// The byte contents of the file
     #[prost(bytes="vec", tag="2")]
     pub kinematics_data: ::prost::alloc::vec::Vec<u8>,
+    /// Map of URDF mesh file paths to mesh data
+    #[prost(map="string, message", tag="3")]
+    pub meshes_by_urdf_filepath: ::std::collections::HashMap<::prost::alloc::string::String, Mesh>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -276,6 +301,23 @@ pub struct GetGeometriesResponse {
     /// All geometries associated with the component, in their current configuration, in the frame of that component.
     #[prost(message, repeated, tag="1")]
     pub geometries: ::prost::alloc::vec::Vec<Geometry>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Get3DModelsRequest {
+    /// The component name
+    #[prost(string, tag="1")]
+    pub name: ::prost::alloc::string::String,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<super::super::super::google::protobuf::Struct>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Get3DModelsResponse {
+    /// the 3D models associated with the component
+    #[prost(map="string, message", tag="1")]
+    pub models: ::std::collections::HashMap<::prost::alloc::string::String, Mesh>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -312,6 +354,42 @@ pub struct LogEntry {
     pub stack: ::prost::alloc::string::String,
     #[prost(message, repeated, tag="8")]
     pub fields: ::prost::alloc::vec::Vec<super::super::super::google::protobuf::Struct>,
+}
+/// Information about an audio stream or device.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AudioInfo {
+    /// Audio codec used for the stream or device (e.g., "pcm16", "pcm32float", "mp3")
+    #[prost(string, tag="1")]
+    pub codec: ::prost::alloc::string::String,
+    /// Sample rate of the audio in Hz
+    #[prost(int32, tag="2")]
+    pub sample_rate_hz: i32,
+    /// Number of audio channels in the recording or playback
+    #[prost(int32, tag="3")]
+    pub num_channels: i32,
+}
+/// Shared properties for AudioIn and AudioOut components.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetPropertiesRequest {
+    #[prost(string, tag="1")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<super::super::super::google::protobuf::Struct>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetPropertiesResponse {
+    /// List of audio codecs supported by the system (e.g., "mp3", "pcm16", "pcm32float")
+    #[prost(string, repeated, tag="1")]
+    pub supported_codecs: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// current sample rate in Hz
+    #[prost(int32, tag="2")]
+    pub sample_rate_hz: i32,
+    /// Maximum number of audio channels supported (e.g., 1 for mono, 2 for stereo)
+    #[prost(int32, tag="3")]
+    pub num_channels: i32,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]

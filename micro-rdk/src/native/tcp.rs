@@ -5,7 +5,7 @@ use futures_lite::future::FutureExt;
 use futures_lite::{Future, ready};
 use futures_rustls::{TlsAcceptor, TlsConnector};
 use hyper::{Uri, rt};
-use rustls::{ClientConfig, KeyLogFile, OwnedTrustAnchor, RootCertStore, ServerConfig};
+use rustls::{ClientConfig, KeyLogFile, RootCertStore, ServerConfig};
 use std::io::BufReader;
 use std::mem::MaybeUninit;
 use std::pin::Pin;
@@ -27,24 +27,16 @@ impl ViamH2Connector for NativeH2Connector {
         &self,
         connection: Async<TcpStream>,
     ) -> Result<std::pin::Pin<Box<dyn IntoHttp2Stream>>, std::io::Error> {
-        if self.srv_cert.is_some() && self.srv_key.is_some() {
-            let cert_chain = rustls_pemfile::certs(&mut BufReader::new(
-                self.srv_cert.as_ref().unwrap().as_slice(),
-            ))
-            .map(|c| rustls::Certificate(c.unwrap().to_vec()))
-            .collect();
-            let priv_keys = rustls_pemfile::private_key(&mut BufReader::new(
-                self.srv_key.as_ref().unwrap().as_slice(),
-            ))
-            .unwrap()
-            .map(|k| rustls::PrivateKey(k.secret_der().to_vec()));
-            let mut cfg = ServerConfig::builder()
-                .with_safe_default_cipher_suites()
-                .with_safe_default_kx_groups()
-                .with_protocol_versions(&[&rustls::version::TLS12])
-                .map_err(std::io::Error::other)?
+        if let (Some(srv_cert), Some(srv_key)) = (&self.srv_cert, &self.srv_key) {
+            let cert_chain = rustls_pemfile::certs(&mut BufReader::new(srv_cert.as_slice()))
+                .map(|c| c.unwrap().into_owned())
+                .collect();
+            let priv_key = rustls_pemfile::private_key(&mut BufReader::new(srv_key.as_slice()))
+                .unwrap()
+                .ok_or_else(|| std::io::Error::other("no private key found"))?;
+            let mut cfg = ServerConfig::builder_with_protocol_versions(&[&rustls::version::TLS12])
                 .with_no_client_auth()
-                .with_single_cert(cert_chain, priv_keys.unwrap())
+                .with_single_cert(cert_chain, priv_key)
                 .map_err(std::io::Error::other)?;
             cfg.alpn_protocols = vec!["h2".as_bytes().to_vec()];
             Ok(Box::pin(NativeStreamAcceptor(
@@ -69,19 +61,8 @@ impl ViamH2Connector for NativeH2Connector {
                     .unwrap();
             return Ok(Box::pin(NativeStreamInsecureAcceptor(Some(stream))));
         }
-        let mut root_certs = RootCertStore::empty();
-
-        // TODO(RSDK-8995): Stop using deprecated API here.
-        #[allow(deprecated)]
-        root_certs.add_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
-            OwnedTrustAnchor::from_subject_spki_name_constraints(
-                ta.subject,
-                ta.spki,
-                ta.name_constraints,
-            )
-        }));
+        let root_certs = RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
         let mut cfg = ClientConfig::builder()
-            .with_safe_defaults()
             .with_root_certificates(root_certs)
             .with_no_client_auth();
         let log = Arc::new(KeyLogFile::new());
@@ -90,15 +71,14 @@ impl ViamH2Connector for NativeH2Connector {
         let stream =
             async_io::Async::new(TcpStream::connect(uri.authority().unwrap().as_str())?).unwrap();
         let conn = TlsConnector::from(Arc::new(cfg));
+        let server_name: rustls::pki_types::ServerName<'static> = uri
+            .host()
+            .unwrap()
+            .to_owned()
+            .try_into()
+            .map_err(std::io::Error::other)?;
         Ok(Box::pin(NativeStreamConnector(
-            conn.connect(
-                uri.host()
-                    .unwrap()
-                    .try_into()
-                    .map_err(std::io::Error::other)
-                    .unwrap(),
-                stream,
-            ),
+            conn.connect(server_name, stream),
         )))
     }
 }

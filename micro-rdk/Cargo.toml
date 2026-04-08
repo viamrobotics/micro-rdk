@@ -31,7 +31,7 @@ local-signaling = []
 
 [dev-dependencies]
 env_logger.workspace = true
-rustls = { workspace = true, features = ["dangerous_configuration"] }
+rustls = { workspace = true }
 test-log.workspace = true
 
 [target.'cfg(not(target_os = "espidf"))'.dependencies]
@@ -66,6 +66,7 @@ esp-idf-svc = { workspace = true, optional = true }
 futures-lite.workspace = true
 futures-util.workspace = true
 http-body-util.workspace = true
+h2.workspace = true
 hyper.workspace = true
 log.workspace = true
 micro-rdk-macros.workspace = true

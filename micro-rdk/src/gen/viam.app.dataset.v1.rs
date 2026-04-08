@@ -80,4 +80,22 @@ pub struct ListDatasetsByIDsResponse {
     #[prost(message, repeated, tag="1")]
     pub datasets: ::prost::alloc::vec::Vec<Dataset>,
 }
+/// MergeDatasetsRequest merges multiple datasets specified by their dataset IDs into a new dataset.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MergeDatasetsRequest {
+    #[prost(string, repeated, tag="1")]
+    pub dataset_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(string, tag="2")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub organization_id: ::prost::alloc::string::String,
+}
+/// MergeDatasetsResponse returns the dataset ID of the newly created merged dataset.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MergeDatasetsResponse {
+    #[prost(string, tag="1")]
+    pub dataset_id: ::prost::alloc::string::String,
+}
 // @@protoc_insertion_point(module)

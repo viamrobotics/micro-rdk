@@ -65,6 +65,7 @@ impl From<RobotCredentials> for CloudConfig {
             app_address: value.app_address.to_string(),
             id: value.robot_id,
             secret: value.robot_secret,
+            api_key: None,
         }
     }
 }
@@ -599,7 +600,8 @@ mod tests {
             ram2.store_robot_credentials(&CloudConfig {
                 app_address: "http://downloadramstorage.org".to_owned(),
                 id: "ram2".to_owned(),
-                secret: "secret".to_owned()
+                secret: "secret".to_owned(),
+                api_key: None,
             })
             .is_ok()
         );
@@ -613,7 +615,8 @@ mod tests {
             ram1.store_robot_credentials(&CloudConfig {
                 app_address: "http://downloadramstorage.org".to_owned(),
                 id: "ram1".to_owned(),
-                secret: "secret".to_owned()
+                secret: "secret".to_owned(),
+                api_key: None,
             })
             .is_ok()
         );
@@ -621,7 +624,8 @@ mod tests {
             ram2.store_robot_credentials(&CloudConfig {
                 app_address: "http://downloadramstorage.org".to_owned(),
                 id: "ram2".to_owned(),
-                secret: "secret".to_owned()
+                secret: "secret".to_owned(),
+                api_key: None,
             })
             .is_ok()
         );
@@ -640,7 +644,8 @@ mod tests {
             v.store_robot_credentials(&CloudConfig {
                 app_address: "http://downloadramstorage.org".to_owned(),
                 id: "vec".to_owned(),
-                secret: "secret".to_owned()
+                secret: "secret".to_owned(),
+                api_key: None,
             })
             .is_ok()
         );

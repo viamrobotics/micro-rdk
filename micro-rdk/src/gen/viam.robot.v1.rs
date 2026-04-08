@@ -1,6 +1,16 @@
 // @generated
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SendTracesRequest {
+    #[prost(message, repeated, tag="1")]
+    pub resource_spans: ::prost::alloc::vec::Vec<super::super::super::opentelemetry::proto::trace::v1::ResourceSpans>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SendTracesResponse {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TunnelRequest {
     #[prost(uint32, tag="1")]
     pub destination_port: u32,
@@ -12,6 +22,24 @@ pub struct TunnelRequest {
 pub struct TunnelResponse {
     #[prost(bytes="vec", tag="1")]
     pub data: ::prost::alloc::vec::Vec<u8>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListTunnelsRequest {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListTunnelsResponse {
+    #[prost(message, repeated, tag="1")]
+    pub tunnels: ::prost::alloc::vec::Vec<Tunnel>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Tunnel {
+    #[prost(uint32, tag="1")]
+    pub port: u32,
+    #[prost(message, optional, tag="2")]
+    pub connection_timeout: ::core::option::Option<super::super::super::google::protobuf::Duration>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -61,8 +89,8 @@ pub struct TransformPoseResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TransformPcdRequest {
-    /// the point clouds to transform. This should be in the PCD format
-    /// encoded into bytes: <https://pointclouds.org/documentation/tutorials/pcd_file_format.html>
+    /// the point clouds to transform. This should be in the PCD format,
+    /// [encoded into bytes](<https://pointclouds.org/documentation/tutorials/pcd_file_format.html>).
     #[prost(bytes="vec", tag="1")]
     pub point_cloud_pcd: ::prost::alloc::vec::Vec<u8>,
     /// the reference frame of the point cloud.
@@ -180,27 +208,6 @@ pub struct GetSessionsResponse {
     #[prost(message, repeated, tag="1")]
     pub sessions: ::prost::alloc::vec::Vec<Session>,
 }
-// Discovery
-// Discovery is deprecated
-
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct DiscoveryQuery {
-    #[prost(string, tag="1")]
-    pub subtype: ::prost::alloc::string::String,
-    #[prost(string, tag="2")]
-    pub model: ::prost::alloc::string::String,
-    #[prost(message, optional, tag="99")]
-    pub extra: ::core::option::Option<super::super::super::google::protobuf::Struct>,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Discovery {
-    #[prost(message, optional, tag="1")]
-    pub query: ::core::option::Option<DiscoveryQuery>,
-    #[prost(message, optional, tag="2")]
-    pub results: ::core::option::Option<super::super::super::google::protobuf::Struct>,
-}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ModuleModel {
@@ -222,18 +229,6 @@ pub struct GetModelsFromModulesRequest {
 pub struct GetModelsFromModulesResponse {
     #[prost(message, repeated, tag="1")]
     pub models: ::prost::alloc::vec::Vec<ModuleModel>,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct DiscoverComponentsRequest {
-    #[prost(message, repeated, tag="1")]
-    pub queries: ::prost::alloc::vec::Vec<DiscoveryQuery>,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct DiscoverComponentsResponse {
-    #[prost(message, repeated, tag="1")]
-    pub discovery: ::prost::alloc::vec::Vec<Discovery>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -389,6 +384,8 @@ pub struct GetMachineStatusResponse {
     pub config: ::core::option::Option<ConfigStatus>,
     #[prost(enumeration="get_machine_status_response::State", tag="3")]
     pub state: i32,
+    #[prost(message, repeated, tag="4")]
+    pub job_statuses: ::prost::alloc::vec::Vec<JobStatus>,
 }
 /// Nested message and enum types in `GetMachineStatusResponse`.
 pub mod get_machine_status_response {
@@ -424,6 +421,16 @@ pub mod get_machine_status_response {
             }
         }
     }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct JobStatus {
+    #[prost(string, tag="1")]
+    pub job_name: ::prost::alloc::string::String,
+    #[prost(message, repeated, tag="2")]
+    pub recent_successful_runs: ::prost::alloc::vec::Vec<super::super::super::google::protobuf::Timestamp>,
+    #[prost(message, repeated, tag="3")]
+    pub recent_failed_runs: ::prost::alloc::vec::Vec<super::super::super::google::protobuf::Timestamp>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -520,6 +527,31 @@ pub struct GetVersionResponse {
     pub version: ::prost::alloc::string::String,
     #[prost(string, tag="3")]
     pub api_version: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetPoseRequest {
+    /// the component whose pose is being requested
+    #[prost(string, tag="1")]
+    pub component_name: ::prost::alloc::string::String,
+    /// the reference frame in which the component's pose
+    /// should be provided, if unset this defaults
+    /// to the "world" reference frame
+    #[prost(string, tag="2")]
+    pub destination_frame: ::prost::alloc::string::String,
+    /// pose information on any additional reference frames that are needed
+    /// to compute the component's pose
+    #[prost(message, repeated, tag="3")]
+    pub supplemental_transforms: ::prost::alloc::vec::Vec<super::super::common::v1::Transform>,
+    /// Additional arguments to the method
+    #[prost(message, optional, tag="99")]
+    pub extra: ::core::option::Option<super::super::super::google::protobuf::Struct>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetPoseResponse {
+    #[prost(message, optional, tag="1")]
+    pub pose: ::core::option::Option<super::super::common::v1::PoseInFrame>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]

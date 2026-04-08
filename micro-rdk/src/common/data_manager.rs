@@ -251,7 +251,7 @@ where
     ) -> Result<(), DataManagerError> {
         let min_interval_ms = self.min_interval_ms();
         for interval in self.collection_intervals() {
-            if loop_counter % (interval / min_interval_ms) == 0 {
+            if loop_counter.is_multiple_of(interval / min_interval_ms) {
                 self.collect_and_store_readings(interval, robot_start_time)
                     .await?;
             }
@@ -302,7 +302,7 @@ where
         robot_start_time: Instant,
     ) -> Result<CollectedReadings, DataManagerError> {
         let min_interval_ms = self.min_interval_ms();
-        if time_interval_ms % min_interval_ms != 0 {
+        if !time_interval_ms.is_multiple_of(min_interval_ms) {
             return Err(DataManagerError::ImproperTimeInterval(
                 time_interval_ms,
                 min_interval_ms,
@@ -854,14 +854,13 @@ impl PeriodicAppClientTask for DataCollectAndSyncTask {
 mod tests {
     use std::cell::RefCell;
     use std::collections::HashMap;
-    use std::mem::MaybeUninit;
     use std::rc::Rc;
     use std::sync::{Arc, LazyLock, Mutex};
     use std::time::{Duration, Instant};
 
     use bytes::BytesMut;
     use prost::Message;
-    use ringbuf::{LocalRb, Rb};
+    use ringbuf::{LocalRb, storage::Heap, traits::*};
 
     use super::DataManager;
     use crate::common::data_collector::DataCollectionError;
@@ -1204,12 +1203,12 @@ mod tests {
     static READ_MESSAGES: LazyLock<Mutex<Vec<SensorData>>> = LazyLock::new(|| Mutex::new(vec![]));
 
     struct ReadSavingStoreReader {
-        store: Rc<RefCell<LocalRb<SensorData, Vec<MaybeUninit<SensorData>>>>>,
+        store: Rc<RefCell<LocalRb<Heap<SensorData>>>>,
     }
 
     impl DataStoreReader for ReadSavingStoreReader {
         fn read_next_message(&mut self) -> Result<BytesMut, DataStoreError> {
-            match RefCell::borrow_mut(&self.store).pop() {
+            match RefCell::borrow_mut(&self.store).try_pop() {
                 Some(msg) => {
                     READ_MESSAGES.lock().unwrap().push(msg.clone());
                     let mut res = BytesMut::with_capacity(msg.encoded_len());
@@ -1220,14 +1219,14 @@ mod tests {
             }
         }
         fn messages_remaining(&self) -> Result<usize, DataStoreError> {
-            Ok(self.store.borrow().len())
+            Ok(self.store.borrow().occupied_len())
         }
         fn flush(self) {}
     }
 
     struct ReadSavingStore {
-        store: Rc<RefCell<LocalRb<SensorData, Vec<MaybeUninit<SensorData>>>>>,
-        other_store: Rc<RefCell<LocalRb<SensorData, Vec<MaybeUninit<SensorData>>>>>,
+        store: Rc<RefCell<LocalRb<Heap<SensorData>>>>,
+        other_store: Rc<RefCell<LocalRb<Heap<SensorData>>>>,
     }
 
     impl ReadSavingStore {
@@ -1252,7 +1251,7 @@ mod tests {
             } else {
                 &self.other_store
             })
-            .push(message)
+            .try_push(message)
             .map_err(|_| DataStoreError::DataBufferFull(collector_key.clone()))?;
             Ok(())
         }

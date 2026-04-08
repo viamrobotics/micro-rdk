@@ -139,11 +139,19 @@ pub struct IsMovingResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MoveOptions {
-    /// Maximum allowable velocity of an arm joint, in degrees per second
+    /// Maximum allowable velocity of an arm joint, in degrees per second.
+    /// Ignored when max_vel_degs_per_sec_joints is set.
     #[prost(double, optional, tag="1")]
     pub max_vel_degs_per_sec: ::core::option::Option<f64>,
-    /// Maximum allowable acceleration of an arm joint, in degrees per second squared
+    /// Maximum allowable acceleration of an arm joint, in degrees per second squared.
+    /// ignored when max_acc_degs_per_sec2_joints is set.
     #[prost(double, optional, tag="2")]
     pub max_acc_degs_per_sec2: ::core::option::Option<f64>,
+    /// Per-joint maximum velocity in degrees per second.
+    #[prost(double, repeated, tag="3")]
+    pub max_vel_degs_per_sec_joints: ::prost::alloc::vec::Vec<f64>,
+    /// Per-joint maximum acceleration in degrees per second squared.
+    #[prost(double, repeated, tag="4")]
+    pub max_acc_degs_per_sec2_joints: ::prost::alloc::vec::Vec<f64>,
 }
 // @@protoc_insertion_point(module)
