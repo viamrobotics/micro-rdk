@@ -66,7 +66,7 @@ jobs:
 
   # github-actions does not have a runner that supports arm64 linux and cross-compilation does not seem to work for the ring crate
   build-installer-arm64-linux:
-    runs-on: [buildjet-8vcpu-ubuntu-2204-arm]
+    runs-on: [github-linux-arm64-8core]
     # by default github use sh as shell
     defaults:
       run:
