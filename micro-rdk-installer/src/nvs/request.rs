@@ -19,12 +19,7 @@ pub async fn download_micro_rdk_release(
     let release_url = if let Some(url) = url {
         url.to_string()
     } else if let Some(ref ver) = version.filter(|v| v != "latest") {
-        format!(
-            "{}/download/{}/{}",
-            RELEASES_BASE_URL,
-            ver,
-            BINARY_NAME
-        )
+        format!("{}/download/{}/{}", RELEASES_BASE_URL, ver, BINARY_NAME)
     } else {
         format!(
             "{}/{}/{}",

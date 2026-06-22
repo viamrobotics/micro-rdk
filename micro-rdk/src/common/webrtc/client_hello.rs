@@ -172,7 +172,8 @@ impl ClientHelloBuffer {
         let dst_start = TOTAL_HDR_LEN + frag_off;
 
         if src_start != dst_start {
-            self.buf.copy_within(src_start..src_start + frag_len, dst_start);
+            self.buf
+                .copy_within(src_start..src_start + frag_len, dst_start);
         }
 
         self.received += frag_len;
@@ -192,10 +193,7 @@ impl ClientHelloBuffer {
         self.buf[12] = record_payload_len as u8;
         put_u24(&mut self.buf[19..22], 0);
         put_u24(&mut self.buf[22..25], self.total_len);
-        log::debug!(
-            "DTLS ClientHello reassembled: {} bytes",
-            self.record_len()
-        );
+        log::debug!("DTLS ClientHello reassembled: {} bytes", self.record_len());
     }
 
     /// Read reassembled data into `dest`. Returns number of bytes copied.
@@ -292,12 +290,16 @@ mod tests {
         assert_eq!(u24(&out[19..22]), 0);
         assert_eq!(u24(&out[22..25]), 1461);
 
-        assert!(out[TOTAL_HDR_LEN..TOTAL_HDR_LEN + 1000]
-            .iter()
-            .all(|&b| b == 0xAA));
-        assert!(out[TOTAL_HDR_LEN + 1000..TOTAL_HDR_LEN + 1461]
-            .iter()
-            .all(|&b| b == 0xBB));
+        assert!(
+            out[TOTAL_HDR_LEN..TOTAL_HDR_LEN + 1000]
+                .iter()
+                .all(|&b| b == 0xAA)
+        );
+        assert!(
+            out[TOTAL_HDR_LEN + 1000..TOTAL_HDR_LEN + 1461]
+                .iter()
+                .all(|&b| b == 0xBB)
+        );
     }
 
     #[test]
@@ -319,12 +321,16 @@ mod tests {
         assert_eq!(u24(&out[19..22]), 0);
         assert_eq!(u24(&out[22..25]), 1461);
 
-        assert!(out[TOTAL_HDR_LEN..TOTAL_HDR_LEN + 1000]
-            .iter()
-            .all(|&b| b == 0xAA));
-        assert!(out[TOTAL_HDR_LEN + 1000..TOTAL_HDR_LEN + 1461]
-            .iter()
-            .all(|&b| b == 0xBB));
+        assert!(
+            out[TOTAL_HDR_LEN..TOTAL_HDR_LEN + 1000]
+                .iter()
+                .all(|&b| b == 0xAA)
+        );
+        assert!(
+            out[TOTAL_HDR_LEN + 1000..TOTAL_HDR_LEN + 1461]
+                .iter()
+                .all(|&b| b == 0xBB)
+        );
     }
 
     #[test]
@@ -347,17 +353,23 @@ mod tests {
         assert_eq!(n, TOTAL_HDR_LEN + 1461);
 
         // Bytes 0-899: 0xAA (from frag1 only)
-        assert!(out[TOTAL_HDR_LEN..TOTAL_HDR_LEN + 900]
-            .iter()
-            .all(|&b| b == 0xAA));
+        assert!(
+            out[TOTAL_HDR_LEN..TOTAL_HDR_LEN + 900]
+                .iter()
+                .all(|&b| b == 0xAA)
+        );
         // Bytes 900-999: 0xDD (overlap region, same content in both)
-        assert!(out[TOTAL_HDR_LEN + 900..TOTAL_HDR_LEN + 1000]
-            .iter()
-            .all(|&b| b == 0xDD));
+        assert!(
+            out[TOTAL_HDR_LEN + 900..TOTAL_HDR_LEN + 1000]
+                .iter()
+                .all(|&b| b == 0xDD)
+        );
         // Bytes 1000-1460: 0xBB (from frag2 only)
-        assert!(out[TOTAL_HDR_LEN + 1000..TOTAL_HDR_LEN + 1461]
-            .iter()
-            .all(|&b| b == 0xBB));
+        assert!(
+            out[TOTAL_HDR_LEN + 1000..TOTAL_HDR_LEN + 1461]
+                .iter()
+                .all(|&b| b == 0xBB)
+        );
     }
 
     #[test]
